@@ -24,6 +24,7 @@ import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.BufferUnderflowException;
 import java.time.Instant;
 import java.util.EnumSet;
@@ -111,13 +112,42 @@ public final class FeeManager {
                 logger.error("Installing simple fee schedule with no prices for {}", unpriced);
             }
             logger.info("Successfully validated simple fee schedule.");
-            this.simpleFeesSchedule = schedule;
-            this.simpleFeeCalculator = new SimpleFeeCalculatorImpl(
-                    schedule, serviceFeeCalculators, queryFeeCalculators, congestionMultipliers);
+            installSimpleFees(schedule);
             return SUCCESS;
         } catch (final BufferUnderflowException | ParseException ex) {
             return FEE_SCHEDULE_FILE_PART_UPLOADED;
         }
+    }
+
+    /**
+     * Returns the active simple fee schedule, or null when none has been installed (the genesis state). Unlike
+     * {@link #getSimpleFeesSchedule()} this does not substitute the default, so recovery can capture and later restore
+     * the exact prior schedule, including the genesis state.
+     *
+     * @return the active schedule, or null before the first installed schedule
+     */
+    @Nullable
+    public synchronized FeeSchedule currentSimpleFeesSchedule() {
+        return simpleFeesSchedule;
+    }
+
+    /**
+     * Installs the given simple fee schedule directly, or clears it when null. Used by recovery to restore the schedule
+     * that was active before a rolled-back update whose committed file holds only a partial upload chunk, which cannot
+     * be re-derived from the committed file.
+     *
+     * @param schedule the schedule to install, or null to restore the genesis (no schedule) state
+     */
+    public synchronized void setSimpleFeesSchedule(@Nullable final FeeSchedule schedule) {
+        installSimpleFees(schedule);
+    }
+
+    private void installSimpleFees(@Nullable final FeeSchedule schedule) {
+        this.simpleFeesSchedule = schedule;
+        this.simpleFeeCalculator = schedule == null
+                ? null
+                : new SimpleFeeCalculatorImpl(
+                        schedule, serviceFeeCalculators, queryFeeCalculators, congestionMultipliers);
     }
 
     /**

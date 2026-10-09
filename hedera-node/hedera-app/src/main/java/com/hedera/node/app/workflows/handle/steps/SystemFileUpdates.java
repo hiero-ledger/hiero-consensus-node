@@ -29,13 +29,16 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.BufferUnderflowException;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.hapi.support.fees.FeeSchedule;
 
 /**
  * Simple facility that notifies interested parties when a special file is updated.
@@ -137,14 +140,58 @@ public class SystemFileUpdates {
      * the system file that backs it and the file contents the facility was updated from, so the facility can be
      * re-derived from committed state.
      *
+     * <p>For the configuration facilities (network properties and HAPI permissions) it also carries a
+     * {@link ConfigRecoveryContext} captured before the update applied, so recovery resolves the configuration files
+     * and restores the throttle usage from pre-update values rather than from the in-memory state the rolled-back
+     * update left behind. For the simple-fees facility it carries {@code priorSimpleFees}, the schedule active before
+     * the update, so recovery can restore it when the committed file holds only a partial upload chunk. Both are
+     * auxiliary recovery data, not part of the target's identity, so they are excluded from {@link #equals(Object)}
+     * and {@link #hashCode()}.
+     *
      * @param facility the facility that was updated in memory
      * @param fileId the system file backing it
      * @param appliedContents the file contents the facility was updated from
+     * @param configContext the pre-update configuration recovery context, or null for a non-configuration facility
+     * @param priorSimpleFees the simple-fees schedule active before the update, or null for a non-simple-fees facility
+     * or when the prior state was the genesis (no schedule)
      */
     public record ResyncTarget(
             @NonNull Facility facility,
             @NonNull FileID fileId,
-            @NonNull Bytes appliedContents) {
+            @NonNull Bytes appliedContents,
+            @Nullable ConfigRecoveryContext configContext,
+            @Nullable FeeSchedule priorSimpleFees) {
+
+        public ResyncTarget(
+                @NonNull final Facility facility, @NonNull final FileID fileId, @NonNull final Bytes appliedContents) {
+            this(facility, fileId, appliedContents, null, null);
+        }
+
+        public ResyncTarget(
+                @NonNull final Facility facility,
+                @NonNull final FileID fileId,
+                @NonNull final Bytes appliedContents,
+                @Nullable final ConfigRecoveryContext configContext) {
+            this(facility, fileId, appliedContents, configContext, null);
+        }
+
+        @Override
+        public boolean equals(final Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (!(o instanceof ResyncTarget that)) {
+                return false;
+            }
+            return facility == that.facility
+                    && fileId.equals(that.fileId)
+                    && appliedContents.equals(that.appliedContents);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(facility, fileId, appliedContents);
+        }
 
         /** The facilities that {@link #handleTxBody} updates in memory from a system file. */
         public enum Facility {
@@ -155,6 +202,21 @@ public class SystemFileUpdates {
             THROTTLE_DEFINITIONS
         }
     }
+
+    /**
+     * The pre-update state a rolled-back configuration update needs to be recovered from committed state: the committed
+     * file IDs of both configuration files (so recovery reads them even if the update remapped {@code files.*} to other
+     * file numbers), and, for a network-properties update, the throttle usage the update's throttle rebuild discarded.
+     *
+     * @param networkPropertiesId the committed network-properties file ID
+     * @param hapiPermissionsId the committed HAPI-permissions file ID
+     * @param throttleUsage the throttle usage captured before the update, or null when the update does not refresh
+     * the throttle configuration (i.e. a HAPI-permissions update)
+     */
+    public record ConfigRecoveryContext(
+            @NonNull FileID networkPropertiesId,
+            @NonNull FileID hapiPermissionsId,
+            @Nullable ThrottleServiceManager.PreservedThrottleUsage throttleUsage) {}
 
     /**
      * If the given transaction body would update a process-global facility that must always reflect committed state
@@ -202,7 +264,29 @@ public class SystemFileUpdates {
         } else {
             return Optional.empty();
         }
-        return Optional.of(new ResyncTarget(facility, fileID, FileUtilities.getFileContent(state, fileID)));
+        // For a configuration facility, capture the pre-update committed file IDs of both configuration files (so
+        // recovery reads them even if this update remaps files.networkProperties/files.hapiPermissions), and, for a
+        // network-properties update, the throttle usage this update's throttle rebuild is about to discard.
+        final ConfigRecoveryContext configContext =
+                switch (facility) {
+                    case NETWORK_PROPERTIES ->
+                        new ConfigRecoveryContext(
+                                FileUtilities.createFileID(filesConfig.networkProperties(), configuration),
+                                FileUtilities.createFileID(filesConfig.hapiPermissions(), configuration),
+                                throttleServiceManager.captureThrottleUsage());
+                    case HAPI_PERMISSIONS ->
+                        new ConfigRecoveryContext(
+                                FileUtilities.createFileID(filesConfig.networkProperties(), configuration),
+                                FileUtilities.createFileID(filesConfig.hapiPermissions(), configuration),
+                                null);
+                    default -> null;
+                };
+        // For a simple-fees update, capture the schedule active before it, so recovery can restore it if the committed
+        // file turns out to be only a partial upload chunk that cannot be re-derived into a schedule.
+        final FeeSchedule priorSimpleFees =
+                facility == ResyncTarget.Facility.SIMPLE_FEES ? feeManager.currentSimpleFeesSchedule() : null;
+        return Optional.of(new ResyncTarget(
+                facility, fileID, FileUtilities.getFileContent(state, fileID), configContext, priorSimpleFees));
     }
 
     /**
@@ -217,9 +301,22 @@ public class SystemFileUpdates {
     public void resyncIfChanged(@NonNull final State state, @NonNull final ResyncTarget target) {
         requireNonNull(state);
         requireNonNull(target);
-        if (!FileUtilities.getFileContent(state, target.fileId()).equals(target.appliedContents())) {
+        final var fileChanged =
+                !FileUtilities.getFileContent(state, target.fileId()).equals(target.appliedContents());
+        // An exchange-rate update paid by the system admin moves the in-memory midnight baseline without changing the
+        // file, so a rolled-back such update leaves that baseline out of step with the committed singleton even when
+        // the file bytes are unchanged; re-derive then too, or the leaked baseline would skew the next intraday check.
+        final var midnightBaselineDrifted = target.facility() == ResyncTarget.Facility.EXCHANGE_RATES
+                && !Objects.equals(exchangeRateManager.midnightRates(), committedMidnightRates(state));
+        if (fileChanged || midnightBaselineDrifted) {
             resyncFromState(state, target);
         }
+    }
+
+    private ExchangeRateSet committedMidnightRates(@NonNull final State state) {
+        return state.getReadableStates(FeeService.NAME)
+                .<ExchangeRateSet>getSingleton(V0490FeeSchema.MIDNIGHT_RATES_STATE_ID)
+                .get();
     }
 
     /**
@@ -246,16 +343,43 @@ public class SystemFileUpdates {
                         "The committed state had no midnight rates");
                 exchangeRateManager.init(state, FileUtilities.getFileContent(state, fileID), midnightRates);
             }
-            case SIMPLE_FEES -> feeManager.updateSimpleFees(FileUtilities.getFileContent(state, fileID), false);
+            // Prefer re-deriving from the committed file; but it may hold only a partial upload chunk that does not
+            // parse as a schedule, in which case restore the schedule captured before the rolled-back update instead.
+            case SIMPLE_FEES -> {
+                if (feeManager.updateSimpleFees(FileUtilities.getFileContent(state, fileID), false) != SUCCESS) {
+                    feeManager.setSimpleFeesSchedule(target.priorSimpleFees());
+                }
+            }
             case NETWORK_PROPERTIES -> {
                 final var configuration = configProvider.getConfiguration();
                 final var currentWriterMode =
                         configuration.getConfigData(BlockStreamConfig.class).writerMode();
-                updateConfig(configuration, ConfigType.NETWORK_PROPERTIES, state);
+                final var context = target.configContext();
+                updateConfig(
+                        configuration,
+                        ConfigType.NETWORK_PROPERTIES,
+                        state,
+                        networkPropertiesIdOf(context, configuration),
+                        hapiPermissionsIdOf(context, configuration));
                 checkForBlockNodeStreamingChange(currentWriterMode, configProvider);
-                throttleServiceManager.refreshThrottleConfiguration();
+                if (context != null && context.throttleUsage() != null) {
+                    // Restore the usage captured before the rolled-back update discarded it, rather than preserving the
+                    // already-discarded (zeroed) current usage.
+                    throttleServiceManager.refreshThrottleConfigurationRestoring(context.throttleUsage());
+                } else {
+                    throttleServiceManager.refreshThrottleConfigurationPreservingUsage();
+                }
             }
-            case HAPI_PERMISSIONS -> updateConfig(configProvider.getConfiguration(), ConfigType.API_PERMISSIONS, state);
+            case HAPI_PERMISSIONS -> {
+                final var configuration = configProvider.getConfiguration();
+                final var context = target.configContext();
+                updateConfig(
+                        configuration,
+                        ConfigType.API_PERMISSIONS,
+                        state,
+                        networkPropertiesIdOf(context, configuration),
+                        hapiPermissionsIdOf(context, configuration));
+            }
             // Re-reading the committed definitions rebuilds the throttle buckets with reset usage, exactly as a
             // committed 0.0.123 update does; all nodes do this deterministically, so it does not cause divergence.
             case THROTTLE_DEFINITIONS ->
@@ -282,26 +406,41 @@ public class SystemFileUpdates {
 
     private void checkForBlockNodeStreamingChange(
             BlockStreamWriterMode currentWriterMode, ConfigProviderImpl configProvider) {
-        if (currentWriterMode == BlockStreamWriterMode.FILE_AND_GRPC
-                && configProvider
-                                .getConfiguration()
-                                .getConfigData(BlockStreamConfig.class)
-                                .writerMode()
-                        == BlockStreamWriterMode.FILE) {
+        final var newWriterMode = configProvider
+                .getConfiguration()
+                .getConfigData(BlockStreamConfig.class)
+                .writerMode();
+        if (currentWriterMode == BlockStreamWriterMode.FILE_AND_GRPC && newWriterMode == BlockStreamWriterMode.FILE) {
             // We have changed from FILE_AND_GRPC to FILE only
             logger.info(
                     "Disabling gRPC Block Node streaming as the network properties have changed writerMode from FILE_AND_GRPC to FILE only");
-            CompletableFuture.runAsync(blockNodeConnectionManager::shutdown);
+            applyCommittedBlockNodeStreaming();
         } else if (currentWriterMode == BlockStreamWriterMode.FILE
-                && configProvider
-                                .getConfiguration()
-                                .getConfigData(BlockStreamConfig.class)
-                                .writerMode()
-                        == BlockStreamWriterMode.FILE_AND_GRPC) {
+                && newWriterMode == BlockStreamWriterMode.FILE_AND_GRPC) {
             logger.info(
                     "Enabling gRPC Block Node streaming as the network properties have changed writerMode from FILE to FILE_AND_GRPC");
-            CompletableFuture.runAsync(blockNodeConnectionManager::start);
+            applyCommittedBlockNodeStreaming();
         }
+    }
+
+    /**
+     * Asynchronously reconciles block node streaming to the committed writer mode, reading that mode when the task
+     * runs rather than when it is queued. A rolled-back writer-mode update and its recovery each queue one of these
+     * tasks with no ordering between them; because each reads the committed mode at run time, streaming converges on
+     * that mode whatever order the tasks run in, instead of ending in the state of whichever happened to run last.
+     */
+    private void applyCommittedBlockNodeStreaming() {
+        CompletableFuture.runAsync(() -> {
+            final var committedWriterMode = configProvider
+                    .getConfiguration()
+                    .getConfigData(BlockStreamConfig.class)
+                    .writerMode();
+            if (committedWriterMode == BlockStreamWriterMode.FILE_AND_GRPC) {
+                blockNodeConnectionManager.start();
+            } else if (committedWriterMode == BlockStreamWriterMode.FILE) {
+                blockNodeConnectionManager.shutdown();
+            }
+        });
     }
 
     private enum ConfigType {
@@ -321,6 +460,58 @@ public class SystemFileUpdates {
                 logContentsOf("API permissions", permissions);
             }
         });
+    }
+
+    /**
+     * Re-derives the configuration during recovery from the given committed file IDs rather than from the file numbers
+     * in the in-memory configuration, which the rolled-back update may have remapped. Both configuration files are
+     * read, since {@link ConfigProviderImpl#update} takes both sources; the IDs are the committed ones carried by the
+     * resync target (or, absent a target context, the ones from the current configuration).
+     *
+     * @param configuration the current configuration
+     * @param configType whether network properties or API permissions are being recovered (used only for logging)
+     * @param state the committed state to read from
+     * @param propertiesId the committed network-properties file ID
+     * @param permissionsId the committed HAPI-permissions file ID
+     */
+    private void updateConfig(
+            @NonNull final Configuration configuration,
+            @NonNull final ConfigType configType,
+            @NonNull final State state,
+            @NonNull final FileID propertiesId,
+            @NonNull final FileID permissionsId) {
+        final var properties = FileUtilities.getFileContent(state, propertiesId);
+        final var permissions = FileUtilities.getFileContent(state, permissionsId);
+        configProvider.update(properties, permissions);
+        if (configType == ConfigType.NETWORK_PROPERTIES) {
+            logContentsOf("Network properties", properties);
+        } else {
+            logContentsOf("API permissions", permissions);
+        }
+    }
+
+    /**
+     * Resolves the committed network-properties file ID for recovery: the one captured before the update when the
+     * target carries a {@link ConfigRecoveryContext}, otherwise the current configuration's.
+     */
+    private FileID networkPropertiesIdOf(
+            @Nullable final ConfigRecoveryContext context, @NonNull final Configuration configuration) {
+        return context != null
+                ? context.networkPropertiesId()
+                : FileUtilities.createFileID(
+                        configuration.getConfigData(FilesConfig.class).networkProperties(), configuration);
+    }
+
+    /**
+     * Resolves the committed HAPI-permissions file ID for recovery: the one captured before the update when the target
+     * carries a {@link ConfigRecoveryContext}, otherwise the current configuration's.
+     */
+    private FileID hapiPermissionsIdOf(
+            @Nullable final ConfigRecoveryContext context, @NonNull final Configuration configuration) {
+        return context != null
+                ? context.hapiPermissionsId()
+                : FileUtilities.createFileID(
+                        configuration.getConfigData(FilesConfig.class).hapiPermissions(), configuration);
     }
 
     private void logContentsOf(@NonNull final String configFileName, @NonNull final Bytes contents) {

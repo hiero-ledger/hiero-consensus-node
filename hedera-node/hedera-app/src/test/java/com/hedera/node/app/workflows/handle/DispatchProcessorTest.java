@@ -832,6 +832,25 @@ class DispatchProcessorTest {
     }
 
     @Test
+    void facilityUpdatedTwiceInATransactionIsCheckedOnceAgainstTheLatestAppliedContents() {
+        final var laterRatesTarget = new SystemFileUpdates.ResyncTarget(
+                SystemFileUpdates.ResyncTarget.Facility.EXCHANGE_RATES,
+                RATES_TARGET.fileId(),
+                Bytes.wrap("applied later"));
+        givenSuccessfulDispatch(CRYPTO_TRANSFER_TXN_INFO);
+        // First a dispatch within a transaction, then the transaction's root dispatch, both updating the rates
+        given(stack.isRoot()).willReturn(false, true);
+        given(systemFileUpdates.resyncTarget(stack, TXN_BODY))
+                .willReturn(Optional.of(RATES_TARGET), Optional.of(laterRatesTarget));
+
+        subject.processDispatch(dispatch);
+        subject.processDispatch(dispatch);
+
+        verify(systemFileUpdates).resyncIfChanged(stack, laterRatesTarget);
+        verify(systemFileUpdates, never()).resyncIfChanged(stack, RATES_TARGET);
+    }
+
+    @Test
     void topLevelSystemFileUpdateIsCheckedAgainstCommittedState() {
         givenSuccessfulDispatch(CRYPTO_TRANSFER_TXN_INFO);
         given(stack.isRoot()).willReturn(true);

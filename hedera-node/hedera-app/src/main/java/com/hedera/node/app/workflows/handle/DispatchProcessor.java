@@ -189,11 +189,41 @@ public class DispatchProcessor {
      * @param stack the committed state of the transaction
      */
     private void resyncFromCommittedState(@NonNull final State stack) {
-        pendingFacilityResyncs.values().forEach(target -> systemFileUpdates.resyncIfChanged(stack, target));
+        RuntimeException firstFailure = null;
+        for (final var target : pendingFacilityResyncs.values()) {
+            try {
+                systemFileUpdates.resyncIfChanged(stack, target);
+            } catch (final RuntimeException e) {
+                // One facility failing to re-derive must not leave the others out of step with the committed state;
+                // record the first failure, re-derive the rest, then rethrow so the failure is still surfaced. Attach
+                // any later failure as suppressed so none is silently dropped.
+                logger.error("Failed to re-derive facility {} from committed state", target.facility(), e);
+                if (firstFailure == null) {
+                    firstFailure = e;
+                } else {
+                    firstFailure.addSuppressed(e);
+                }
+            }
+        }
         pendingFacilityResyncs.clear();
         if (pendingNodeInfoResync) {
-            networkInfo.updateFrom(stack);
-            pendingNodeInfoResync = false;
+            try {
+                networkInfo.updateFrom(stack);
+            } catch (final RuntimeException e) {
+                // Like a facility failure above, a node-info failure must still leave the pending flag cleared and must
+                // not mask an earlier facility failure; record it (or attach it to the first failure as suppressed).
+                logger.error("Failed to re-derive node info from committed state", e);
+                if (firstFailure == null) {
+                    firstFailure = e;
+                } else {
+                    firstFailure.addSuppressed(e);
+                }
+            } finally {
+                pendingNodeInfoResync = false;
+            }
+        }
+        if (firstFailure != null) {
+            throw firstFailure;
         }
     }
 
@@ -283,7 +313,18 @@ public class DispatchProcessor {
         // transaction completes
         systemFileUpdates
                 .resyncTarget(dispatch.stack(), dispatch.txnInfo().txBody())
-                .ifPresent(target -> pendingFacilityResyncs.put(target.facility(), target));
+                // Targets accumulate per facility across a transaction's dispatches, cleared when the root commits. A
+                // facility is not expected to be updated twice in one transaction today, but if it were, keep the
+                // first update's recovery context (the true pre-update baseline) and track the latest applied contents.
+                .ifPresent(target -> pendingFacilityResyncs.merge(
+                        target.facility(),
+                        target,
+                        (earliest, latest) -> new SystemFileUpdates.ResyncTarget(
+                                earliest.facility(),
+                                latest.fileId(),
+                                latest.appliedContents(),
+                                earliest.configContext(),
+                                earliest.priorSimpleFees())));
         if (dispatch.txnInfo().functionality() == NODE_UPDATE) {
             pendingNodeInfoResync = true;
         }
