@@ -5,7 +5,6 @@ import static java.util.Objects.requireNonNull;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -35,9 +34,6 @@ public final class MultiNetworkGroupQueue {
 
     /** Max subprocess nodes alive at once across all network groups. Tuned to the HAPI runner (8 cores). */
     public static final int DEFAULT_CAPACITY = 4;
-
-    /** How long a test waits for its group to be admitted before failing. */
-    public static final Duration DEFAULT_ADMISSION_TIMEOUT = Duration.ofMinutes(60);
 
     private final int capacity;
     private final ReentrantLock lock = new ReentrantLock();
@@ -127,14 +123,13 @@ public final class MultiNetworkGroupQueue {
      * goes through {@link ForkJoinPool#managedBlock}, so a blocked JUnit worker is compensated for.
      *
      * @param testId the test's JUnit unique id, as passed to {@link #register}
-     * @param timeout how long to wait for admission
      * @return the test's group
-     * @throws IllegalStateException if the test was not registered, its group can never run or failed to
-     *     boot, or the group was not admitted within {@code timeout}
+     * @throws IllegalStateException if the test was not registered, or its group can never run or failed to
+     *     boot
      */
     @NonNull
-    public NetworkGroup awaitTurn(@NonNull final String testId, @NonNull final Duration timeout) {
-        final var blocker = new AdmissionBlocker(testId, System.nanoTime() + timeout.toNanos(), timeout);
+    public NetworkGroup awaitTurn(@NonNull final String testId) {
+        final var blocker = new AdmissionBlocker(testId);
         try {
             ForkJoinPool.managedBlock(blocker);
         } catch (final InterruptedException e) {
@@ -146,16 +141,12 @@ public final class MultiNetworkGroupQueue {
 
     private final class AdmissionBlocker implements ForkJoinPool.ManagedBlocker {
         private final String testId;
-        private final long deadlineNanos;
-        private final Duration timeout;
 
         @Nullable
         private NetworkGroup admitted;
 
-        private AdmissionBlocker(@NonNull final String testId, final long deadlineNanos, final Duration timeout) {
+        private AdmissionBlocker(@NonNull final String testId) {
             this.testId = testId;
-            this.deadlineNanos = deadlineNanos;
-            this.timeout = timeout;
         }
 
         @Override
@@ -167,13 +158,7 @@ public final class MultiNetworkGroupQueue {
                     throw new IllegalStateException("Test " + testId + " was not registered with a network group");
                 }
                 while (!tryAdmit(state)) {
-                    final long remaining = deadlineNanos - System.nanoTime();
-                    if (remaining <= 0) {
-                        throw new IllegalStateException("Network group [" + state.group.id()
-                                + "] was not admitted within " + timeout + " (" + nodesInUse + "/" + capacity
-                                + " nodes in use)");
-                    }
-                    changed.awaitNanos(remaining);
+                    changed.await();
                 }
                 admitted = state.group;
                 return true;

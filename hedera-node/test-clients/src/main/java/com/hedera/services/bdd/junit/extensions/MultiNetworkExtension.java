@@ -275,8 +275,7 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
                 // if admission or the boot throws.
                 final String testId = ctx.getUniqueId();
                 store(ctx).put(TEST_ID_KEY, testId);
-                final var group =
-                        NETWORK_GROUP_QUEUE.awaitTurn(testId, MultiNetworkGroupQueue.DEFAULT_ADMISSION_TIMEOUT);
+                final var group = NETWORK_GROUP_QUEUE.awaitTurn(testId);
                 networks = new SubProcessNetwork[configs.length];
                 try {
                     startSharedNetworks(configs, networks);
