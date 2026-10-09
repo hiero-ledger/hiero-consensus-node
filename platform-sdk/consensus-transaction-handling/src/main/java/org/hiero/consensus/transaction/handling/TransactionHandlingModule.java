@@ -23,6 +23,7 @@ import org.hiero.consensus.state.nexus.SignedStateNexus;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.StateWithHashComplexity;
 import org.hiero.consensus.status.monitor.StatusMonitorModule;
+import org.hiero.consensus.transaction.handling.config.TransactionHandlingConfig;
 import org.hiero.consensus.transaction.handling.config.TransactionHandlingWiringConfig;
 import org.hiero.consensus.transaction.handling.internal.DefaultTransactionHandler;
 import org.hiero.consensus.transaction.handling.internal.DefaultTransactionPrehandler;
@@ -80,6 +81,8 @@ public class TransactionHandlingModule {
             final long transactionOffsetNanos) {
 
         // Set up wiring
+        final double lowTpsTargetRounds =
+                configuration.getConfigData(TransactionHandlingConfig.class).lowTpsTargetRounds();
         final TransactionHandlingWiringConfig wiringConfig =
                 configuration.getConfigData(TransactionHandlingWiringConfig.class);
         this.prehanderWiring = new ComponentWiring<>(model, TransactionPrehandler.class, wiringConfig.prehandler());
@@ -87,7 +90,7 @@ public class TransactionHandlingModule {
                 model,
                 TransactionHandler.class,
                 wiringConfig.handler(),
-                TransactionHandlerDataCounter.create(wiringConfig.handler()));
+                TransactionHandlerDataCounter.create(wiringConfig.handler(), lowTpsTargetRounds));
         this.latestImmutableStateNexusWiring =
                 new ComponentWiring<>(model, SignedStateNexus.class, DIRECT_THREADSAFE_CONFIGURATION);
 

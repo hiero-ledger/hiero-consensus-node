@@ -293,6 +293,16 @@ Extracted from the retired `PlatformSchedulersConfig` `consensusEventStream` key
 |---------|--------------------------------------------|----------------------------|---------------------|---------------------------------------------------------|-------|-----------|
 | TUN-208 | `event.stream.wiring.consensusEventStream` | TaskSchedulerConfiguration | `DIRECT_THREADSAFE` | Scheduler configuration for the consensus event stream. |       | —         |
 
+## `transactionHandling.*` — TransactionHandlingConfig
+
+Module: `consensus-transaction-handling`. Source: [TransactionHandlingConfig.java](../../consensus-transaction-handling/src/main/java/org/hiero/consensus/transaction/handling/config/TransactionHandlingConfig.java).
+
+Read by [TransactionHandlerDataCounter.create](../../consensus-transaction-handling/src/main/java/org/hiero/consensus/transaction/handling/internal/TransactionHandlerDataCounter.java#create), which weighs each round queued for the transaction handler.
+
+|   ID    |                   Key                    |  Type  | Default |                                                                                      Effect                                                                                      | Range | Fragility |
+|---------|------------------------------------------|--------|---------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------|-----------|
+| TUN-224 | `transactionHandling.lowTpsTargetRounds` | double | `25`    | Each consensus round counts as at least the handler's unhandled-task capacity (TUN-210) ÷ this value, so at low TPS backpressure engages once about this many rounds are queued. |       | —         |
+
 ## `transaction.handling.wiring.*` — TransactionHandlingWiringConfig
 
 Module: `consensus-transaction-handling`. Source: [TransactionHandlingWiringConfig.java](../../consensus-transaction-handling/src/main/java/org/hiero/consensus/transaction/handling/config/TransactionHandlingWiringConfig.java).
