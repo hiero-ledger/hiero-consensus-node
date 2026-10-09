@@ -48,10 +48,12 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.config.Configurator;
 import org.junit.jupiter.api.extension.AfterEachCallback;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
@@ -71,7 +73,13 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
     private static final String ANNOTATION_KEY = "multiNetworkAnnotation";
     private static final String SHARED_FLAG_KEY = "networksShared";
     private static final String CAPTURED_PROPS_KEY = "capturedProps";
+    private static final String TEST_ID_KEY = "multiNetworkTestId";
     private static final Duration STARTUP_TIMEOUT = Duration.ofMinutes(5);
+    /**
+     * Config version every multi-network network starts at, regardless of upgrade restarts other networks have
+     * already done (see {@link SubProcessNetwork#start(int)}).
+     */
+    private static final int GENESIS_CONFIG_VERSION = 0;
     /** How long to wait for an already-started shared network to be ACTIVE again before reusing it. */
     private static final Duration SHARED_REUSE_ACTIVE_TIMEOUT = Duration.ofMinutes(5);
 
@@ -81,6 +89,34 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
      * resolve here. Empty unless the launcher-session listener populated it.
      */
     public static final Map<String, SubProcessNetwork> SHARED_NETWORKS = new ConcurrentHashMap<>();
+
+    /**
+     * Canonical {@code @Network} config per shared-network name, recorded up front by
+     * {@code SharedMultiNetworkLauncherSessionListener} (which also reserves each one's ports). A network
+     * whose name is a key here is SHARED: it is started lazily on first demand (see
+     * {@link #getOrStartShared}) and kept warm in {@link #SHARED_NETWORKS} for reuse. A network whose name
+     * is absent is started per-test and torn down in {@code afterEach}. Empty unless the launcher-session
+     * listener populated it.
+     */
+    public static final Map<String, Network> DECLARED_CONFIGS = new ConcurrentHashMap<>();
+
+    /**
+     * Admits the network groups of shared networks under the node budget. Every enabled test on shared
+     * networks is registered here by {@code SharedMultiNetworkLauncherSessionListener} during its test-plan walk.
+     */
+    public static final MultiNetworkGroupQueue NETWORK_GROUP_QUEUE =
+            new MultiNetworkGroupQueue(MultiNetworkGroupQueue.DEFAULT_CAPACITY);
+
+    /** Guards the one-time driver-log reconfigure done on the first lazily-started shared network. */
+    private static final AtomicBoolean SHARED_LOGGING_CONFIGURED = new AtomicBoolean(false);
+
+    /** System property keys consumed by {@code log4j2-test-client.xml}'s {@code RollingFile} appender. */
+    private static final String TEST_CLIENT_LOG_FILE = "hapi.test.clients.log.file";
+
+    private static final String TEST_CLIENT_LOG_FILE_PATTERN = "hapi.test.clients.log.filePattern";
+
+    /** Sibling dir (of the per-network {@code <scope>-test/} dirs) for the multi-network driver log. */
+    private static final String MULTINETWORK_LOG_DIR = "multinetwork-test-clients";
 
     static final String CLPR_MTLS_PORT_KEY = "clpr.mtlsPort";
     static final String CLPR_CA_CRT_PATH_KEY = "clpr.caCrtPath";
@@ -228,28 +264,39 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
         findAnnotation(ctx).ifPresent(annotation -> {
             store(ctx).put(ANNOTATION_KEY, annotation);
             final var configs = annotation.value();
+            // Per-network serialization is done by JUnit via each suite's class-level @ResourceLock per
+            // network: same-network suites take turns, different groups run in parallel. So there is no
+            // lock to take here.
             final SubProcessNetwork[] networks;
             final boolean shared;
-            if (!SHARED_NETWORKS.isEmpty() && allShared(configs)) {
+            if (allDeclaredShared(configs)) {
+                // Lazy start: get each shared network, starting it on first demand and
+                // reusing it thereafter. Start under the canonical config the launcher reserved ports
+                // for, not this test's copy, so every test on the name hits the same subprocess.
+                // Wait for this test's network group to be admitted under the node budget, then lazily boot
+                // its networks. The test id is stored first, so afterEach counts the test as finished even
+                // if admission or the boot throws.
+                final String testId = ctx.getUniqueId();
+                store(ctx).put(TEST_ID_KEY, testId);
+                final var group = NETWORK_GROUP_QUEUE.awaitTurn(testId);
                 networks = new SubProcessNetwork[configs.length];
-                for (int i = 0; i < configs.length; i++) {
-                    networks[i] = SHARED_NETWORKS.get(resolveName(configs[i]));
+                try {
+                    startSharedNetworks(configs, networks);
+                } catch (final RuntimeException | Error e) {
+                    // Tear down whatever started and free the group's nodes right away; its remaining tests
+                    // then fail fast instead of retrying the boot
+                    log.warn("[MultiNetworkExtension] Networks of network group [{}] failed to start", group.id(), e);
+                    tearDownSharedGroup(group);
+                    NETWORK_GROUP_QUEUE.bootFailed(testId);
+                    throw e;
                 }
                 shared = true;
                 log.info(
-                        "[MultiNetworkExtension] Reusing shared networks {} for test {}",
+                        "[MultiNetworkExtension] Using shared networks {} for test {}",
                         Arrays.stream(configs)
                                 .map(MultiNetworkExtension::resolveName)
                                 .toList(),
                         ctx.getDisplayName());
-                // SubProcessNetwork#awaitReady memoizes its result for the lifetime of the instance and
-                // is never re-armed, so it is a no-op on reuse. A shared network that an earlier suite
-                // left non-ACTIVE (e.g. freeze/shutdown/restart) would
-                // otherwise be handed straight to applySetupOverrides below, whose specs then fail with
-                // PLATFORM_NOT_ACTIVE. Re-verify per node; this returns immediately when already ACTIVE.
-                for (final var network : networks) {
-                    network.nodes().forEach(node -> awaitStatus(node, SHARED_REUSE_ACTIVE_TIMEOUT, ACTIVE));
-                }
             } else {
                 log.info(
                         "[MultiNetworkExtension] Starting per-test networks {} for test {} (no compatible shared set)",
@@ -285,19 +332,12 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
             restoreCapturedProperties(networks, captured);
         }
         if (networks != null && !shared) {
-            // Collect URIs before terminating so we can clean up stale channels.
-            // Dead channels accumulate in the static HapiClients.channelPools and cause
-            // "Connection refused" on subsequent runs because the round-robin picks them.
-            final List<String> uris = new ArrayList<>();
-            for (final var n : networks) {
-                n.nodes().forEach(node -> uris.add(node.getHost() + ":" + node.getGrpcPort()));
-            }
-            for (final var n : networks) {
-                TSS_BOOTSTRAP_HANDLED.remove(n);
-                CLPR_MTLS_CAS.remove(n.name());
-                safeTerminate(n);
-            }
-            HapiClients.removeChannelsFor(uris);
+            terminateNetworks(networks);
+        }
+        // A shared network group stays warm across all its tests; its last test tears it down and frees its nodes
+        final String testId = store(ctx).remove(TEST_ID_KEY, String.class);
+        if (testId != null) {
+            finishSharedTests(testId);
         }
         if (networks != null) {
             wipeClprPeerEndpointsCache(networks);
@@ -305,9 +345,98 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
         store(ctx).remove(PARAM_INDEXES_KEY);
     }
 
-    private static boolean allShared(@NonNull final Network[] configs) {
+    /**
+     * Boots (or reuses) the shared networks {@code configs} name into {@code networks}, and waits for every node
+     * to be ACTIVE.
+     */
+    private static void startSharedNetworks(
+            @NonNull final Network[] configs, @NonNull final SubProcessNetwork[] networks) {
+        // Boot the group's networks in PARALLEL (one virtual thread per network) rather than one
+        // after another: getOrStartShared is start-once per name (its own per-name lock), and
+        // distinct names boot independently, so a group's start is the slowest single network's
+        // time, not the sum. Warm reuse (cache hit) returns ~immediately, so already-started
+        // networks cost nothing here.
+        try (final var startExecutor = Executors.newVirtualThreadPerTaskExecutor()) {
+            final List<Future<?>> startFutures = new ArrayList<>();
+            for (int i = 0; i < configs.length; i++) {
+                final int idx = i;
+                startFutures.add(startExecutor.submit(
+                        () -> networks[idx] = getOrStartShared(DECLARED_CONFIGS.get(resolveName(configs[idx])))));
+            }
+            for (final var f : startFutures) {
+                try {
+                    f.get();
+                } catch (final ExecutionException e) {
+                    final var cause = e.getCause();
+                    throw (cause instanceof RuntimeException re)
+                            ? re
+                            : new RuntimeException("Shared network startup failed", cause);
+                } catch (final InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("Interrupted while starting shared networks", e);
+                }
+            }
+        }
+        // SubProcessNetwork#awaitReady memoizes its result for the lifetime of the instance and
+        // is never re-armed, so it is a no-op on reuse. A shared network that an earlier suite
+        // left non-ACTIVE (e.g. freeze/shutdown/restart) would
+        // otherwise be handed straight to applySetupOverrides, whose specs then fail with
+        // PLATFORM_NOT_ACTIVE. Re-verify per node; this returns immediately when already ACTIVE.
+        for (final var network : networks) {
+            network.nodes().forEach(node -> awaitStatus(node, SHARED_REUSE_ACTIVE_TIMEOUT, ACTIVE));
+        }
+    }
+
+    /**
+     * Marks the registered tests under {@code uniqueId} (a test, or a container whose tests never ran) as
+     * finished, and tears down every shared network group whose last test this was.
+     */
+    public static void finishSharedTests(@NonNull final String uniqueId) {
+        for (final var group : NETWORK_GROUP_QUEUE.testsFinished(uniqueId)) {
+            try {
+                tearDownSharedGroup(group);
+            } finally {
+                NETWORK_GROUP_QUEUE.release(group);
+            }
+        }
+    }
+
+    /** Terminates whichever of {@code group}'s shared networks are started and drops them from the warm cache. */
+    private static void tearDownSharedGroup(@NonNull final NetworkGroup group) {
+        final var networks = group.networkNames().stream()
+                .map(SHARED_NETWORKS::remove)
+                .filter(Objects::nonNull)
+                .toArray(SubProcessNetwork[]::new);
+        terminateNetworks(networks);
+    }
+
+    private static void terminateNetworks(@NonNull final SubProcessNetwork[] networks) {
+        // Collect URIs before terminating so we can clean up stale channels.
+        // Dead channels accumulate in the static HapiClients.channelPools and cause
+        // "Connection refused" on subsequent runs because the round-robin picks them.
+        final List<String> uris = new ArrayList<>();
+        for (final var n : networks) {
+            n.nodes().forEach(node -> uris.add(node.getHost() + ":" + node.getGrpcPort()));
+        }
+        for (final var n : networks) {
+            TSS_BOOTSTRAP_HANDLED.remove(n);
+            CLPR_MTLS_CAS.remove(n.name());
+            safeTerminate(n);
+        }
+        HapiClients.removeChannelsFor(uris);
+    }
+
+    /**
+     * True when every config names a network the launcher declared as shared (in {@link #DECLARED_CONFIGS}),
+     * so it should be lazily started once and reused rather than started per-test. Independent of whether
+     * the networks have actually booted yet.
+     */
+    private static boolean allDeclaredShared(@NonNull final Network[] configs) {
+        if (DECLARED_CONFIGS.isEmpty()) {
+            return false;
+        }
         for (final var cfg : configs) {
-            if (!SHARED_NETWORKS.containsKey(resolveName(cfg))) {
+            if (!DECLARED_CONFIGS.containsKey(resolveName(cfg))) {
                 return false;
             }
         }
@@ -334,6 +463,81 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
             throw new IllegalArgumentException("Parameter index " + param.getIndex() + " not mapped to a network");
         }
         return networks[pos];
+    }
+
+    /**
+     * Reserves the gRPC/mTLS port window for each declared network WITHOUT starting any nodes. Called
+     * once up front by the launcher-session listener (with explicit-port networks sorted first) so that
+     * shared networks starting lazily and out of order can't land on each other's ports.
+     */
+    public static void reservePorts(@NonNull final Network[] configs) {
+        ensureFixturePortReservations();
+        for (final var cfg : configs) {
+            resolveFirstGrpcPort(cfg);
+        }
+    }
+
+    /**
+     * Returns the shared subprocess network for {@code canonical}, starting it on first demand and
+     * caching it in {@link #SHARED_NETWORKS} for reuse. The caller holds this
+     * network's scheduler WRITE lock, so no two threads race to start the same name; distinct names may
+     * start concurrently. The first network to boot reconfigures the shared driver log.
+     */
+    public static SubProcessNetwork getOrStartShared(@NonNull final Network canonical) {
+        final String name = resolveName(canonical);
+        final var existing = SHARED_NETWORKS.get(name);
+        if (existing != null) {
+            return existing;
+        }
+        // Under concurrent (READ) methods, several tests on the same network can reach here at once;
+        // a per-name lock (double-checked) guarantees the network is started exactly once and the rest
+        // reuse it. Distinct names lock independently, so different groups still boot in parallel.
+        synchronized (START_LOCKS.computeIfAbsent(name, k -> new Object())) {
+            final var started = SHARED_NETWORKS.get(name);
+            if (started != null) {
+                return started;
+            }
+            log.info("[MultiNetworkExtension] Lazily starting shared network '{}'", name);
+            final var network = startNetworks(new Network[] {canonical})[0];
+            if (SHARED_LOGGING_CONFIGURED.compareAndSet(false, true)) {
+                reconfigureSharedSubProcessLogging(network);
+            }
+            SHARED_NETWORKS.put(name, network);
+            return network;
+        }
+    }
+
+    /** Per-network-name monitors so concurrent readers start a shared network exactly once. */
+    private static final Map<String, Object> START_LOCKS = new ConcurrentHashMap<>();
+
+    /**
+     * Routes the multi-network driver log to a sibling of each network's working dir (e.g.
+     * {@code build/multinetwork-test-clients/}), not inside any one network's node0 output. Called once,
+     * on the first lazily-started shared network. The first node's working dir is
+     * {@code build/<scope>-test/node0}; two parents up is the gradle build root (subtask-name nesting is
+     * disabled for MULTINETWORK in build.gradle.kts, so the depth is fixed).
+     */
+    private static void reconfigureSharedSubProcessLogging(@NonNull final SubProcessNetwork network) {
+        final var workingDir = network.nodes()
+                .getFirst()
+                .getExternalPath(WORKING_DIR)
+                .toAbsolutePath()
+                .normalize();
+        final Path outputDir;
+        try {
+            outputDir = workingDir.getParent().getParent().resolve(MULTINETWORK_LOG_DIR);
+            Files.createDirectories(outputDir);
+        } catch (final RuntimeException | IOException e) {
+            log.warn("Could not resolve multi-network test-client log dir from '{}'", workingDir, e);
+            return;
+        }
+        System.setProperty(
+                TEST_CLIENT_LOG_FILE, outputDir.resolve("test-clients.log").toString());
+        System.setProperty(
+                TEST_CLIENT_LOG_FILE_PATTERN,
+                outputDir.resolve("test-clients-%d{yyyy-MM-dd}-%i.log").toString());
+        Configurator.reconfigure();
+        log.info("Configured shared multi-network test-client logging under {}", outputDir);
     }
 
     public static SubProcessNetwork[] startNetworks(@NonNull final Network[] configs) {
@@ -444,7 +648,7 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
             try (final var executor = Executors.newVirtualThreadPerTaskExecutor()) {
                 final List<Future<Void>> futures = networks.stream()
                         .map(n -> executor.<Void>submit(() -> {
-                            n.start();
+                            n.start(GENESIS_CONFIG_VERSION);
                             n.awaitReady(STARTUP_TIMEOUT);
                             return null;
                         }))
@@ -871,7 +1075,7 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
                 "[CLPR-FIXTURE] '{}' restarting with just-cached per-node fixtures preloaded ({} nodes)",
                 resolveName(cfg),
                 cfg.size());
-        fresh.start();
+        fresh.start(GENESIS_CONFIG_VERSION);
         fresh.awaitReady(STARTUP_TIMEOUT);
         return fresh;
     }

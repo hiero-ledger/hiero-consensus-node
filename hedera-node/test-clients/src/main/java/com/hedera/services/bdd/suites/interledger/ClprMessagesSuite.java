@@ -24,6 +24,7 @@ import static com.hedera.services.bdd.suites.clpr.HieroToHieroBase.POST_SYNC_POI
 import static com.hedera.services.bdd.suites.clpr.HieroToHieroBase.awaitWrapsExtensible;
 import static com.hedera.services.bdd.suites.clpr.HieroToHieroBase.awaitWrapsSyncPoint;
 import static com.hedera.services.bdd.suites.clpr.HieroToHieroBase.captureManifestProof;
+import static com.hedera.services.bdd.suites.clpr.HieroToHieroBase.multiNetworkHapiTest;
 import static com.hedera.services.bdd.suites.clpr.HieroToHieroBase.pollManifest;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
@@ -65,6 +66,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.parallel.ResourceLock;
 
 /**
  * Two-network CLPR multi-message round-trip test.
@@ -95,6 +97,8 @@ import org.junit.jupiter.api.Tag;
  * manifest, supplied to the pass-through verifier as a synthetic proof.
  */
 @Tag(TestTags.MULTINETWORK)
+@ResourceLock("ledgerA")
+@ResourceLock("ledgerB")
 public class ClprMessagesSuite {
 
     private static final String NET_A_CHAIN_ID = "hiero:msgs-a";
@@ -394,8 +398,11 @@ public class ClprMessagesSuite {
         }
         // NET_B's finalized manifest StateProof, threaded into NET_A's completeChannel.
         final var netBManifestCapture = captureManifestProof(netB, manifestProofForNetA);
-        return Stream.concat(
-                Stream.of(netAManifestCapture, netBSetup, netBManifestCapture, netASetup), Stream.of(invocationTests));
+        return multiNetworkHapiTest(
+                "multiMessageRoundTrip",
+                Stream.concat(
+                        Stream.of(netAManifestCapture, netBSetup, netBManifestCapture, netASetup),
+                        Stream.of(invocationTests)));
     }
 
     /**
