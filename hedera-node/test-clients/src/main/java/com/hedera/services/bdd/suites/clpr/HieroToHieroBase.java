@@ -1241,6 +1241,24 @@ public abstract class HieroToHieroBase implements LifecycleTest {
     }
     // ── Polling helpers ───────────────────────────────────────────────────────
 
+    /**
+     * Collapses a multi-network test's ordered steps into a <b>single</b> {@link DynamicTest} that runs
+     * them sequentially in one executable. Each {@code @MultiNetworkHapiTest} method wraps its returned
+     * stream in this so that, under {@code parallel.mode.default=concurrent}, the factory's steps do NOT
+     * get parallelized (which would run e.g. an await before its send); instead the whole test is one
+     * node, and only <em>different</em> test methods run concurrently (serialized per network by
+     * {@code ClprNetworkLocksProvider}). The trade-off is coarser reporting: one reported test per method
+     * rather than one per step (a failing step still surfaces via its spec name in the exception).
+     */
+    public static Stream<DynamicTest> multiNetworkHapiTest(final String name, final Stream<DynamicTest> steps) {
+        final var ordered = steps.toList();
+        return Stream.of(DynamicTest.dynamicTest(name, () -> {
+            for (final var step : ordered) {
+                step.getExecutable().execute();
+            }
+        }));
+    }
+
     static DynamicTest awaitReceivedMessage(
             final SubProcessNetwork network, final byte[] channelId, final long minCount) {
         return networkHapiTest(

@@ -20,6 +20,7 @@ import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.config.Configurator;
+import org.junit.jupiter.api.Disabled;
 import org.junit.platform.commons.support.AnnotationSupport;
 import org.junit.platform.engine.support.descriptor.ClassSource;
 import org.junit.platform.engine.support.descriptor.MethodSource;
@@ -147,6 +148,12 @@ public class SharedMultiNetworkLauncherSessionListener implements LauncherSessio
                 return;
             }
             AnnotationSupport.findAnnotation(method, MultiNetworkHapiTest.class).ifPresent(ann -> {
+                // Skip @Disabled tests: they never execute, so their networks must not be reserved or
+                // started. Excluding them also means a fully @Disabled suite never boots its networks.
+                if (method.isAnnotationPresent(Disabled.class)
+                        || method.getDeclaringClass().isAnnotationPresent(Disabled.class)) {
+                    return;
+                }
                 for (final var n : ann.value()) {
                     declarationsByName
                             .computeIfAbsent(MultiNetworkExtension.resolveName(n), k -> new ArrayList<>())
