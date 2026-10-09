@@ -15,7 +15,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
  * as {@code SubProcessNetwork} parameters in declaration order.
  *
  * <p>This annotation replaces {@link HapiTest} for multi-network scenarios; do not combine them.
- * Networks are started before and terminated after each test method.
+ *
+ * <p><b>Lifecycle.</b> Networks are shared by name across all tests in the run. All tests that declare the
+ * same set of networks form a network group: its networks are started on the group's first test, stay up
+ * across its other tests, and are terminated after its last test. Groups are admitted under a total node
+ * budget, so a group may wait in {@code beforeEach} until running groups finish (see
+ * {@code MultiNetworkGroupQueue}).
  *
  * <p><b>Concurrency.</b> These tests share real subprocess networks (by name, across the JVM), so two
  * tests that touch the same network must be coordinated. Each multi-network suite declares a class-level

@@ -75,6 +75,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
@@ -471,8 +472,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
      * {@link #MANIFEST_APPEAR_TIMEOUT} elapses (then fails). Returns the satisfying manifest.
      */
     public static ClprEndpointManifest pollManifest(
-            final HapiSpec spec, final java.util.function.Predicate<ClprEndpointManifest> predicate)
-            throws InterruptedException {
+            final HapiSpec spec, final Predicate<ClprEndpointManifest> predicate) throws InterruptedException {
         final var deadline = Instant.now().plus(MANIFEST_APPEAR_TIMEOUT);
         final AtomicReference<ClprEndpointManifest> last = new AtomicReference<>();
         final AtomicReference<Exception> lastError = new AtomicReference<>();
@@ -894,65 +894,14 @@ public abstract class HieroToHieroBase implements LifecycleTest {
      * running with {@code clpr.endpointManifestEnabled=true} — the manifest-aware verifier ABI rejects an
      * empty manifest proof.
      *
+     * <p>Also advertises each network's real ECDSA CLPR CA cert ({@code caDerA}/{@code caDerB}) as the
+     * endpoint {@code tls_certificate}, and expects {@code portA}/{@code portB} to be each network's
+     * {@code clpr.mtlsPort}. This is the combined <b>mTLS + manifest-proof</b> path: the channel completes
+     * over — and syncs across — the dedicated mutual-TLS listener.
+     *
      * <p>Callers must guarantee the reconciler has finalized a manifest on both networks
      * before this runs (e.g. by preceding it with a manifest-await step); the capture inside
      * this method is a single query, not a poll.
-     */
-    static Stream<DynamicTest> setupBothNetworksWithManifestProof(
-            final SubProcessNetwork ledgerA,
-            final SubProcessNetwork ledgerB,
-            final int portA,
-            final int portB,
-            final ClprCrypto crypto) {
-        final AtomicReference<ByteString> proofA = new AtomicReference<>();
-        final AtomicReference<ByteString> proofB = new AtomicReference<>();
-        final AtomicReference<ByteString> manifestProofA = new AtomicReference<>();
-        final AtomicReference<ByteString> manifestProofB = new AtomicReference<>();
-        final var bothProofsReady = new CountDownLatch(2);
-        final var chainA = chainSetupAndConnect(
-                ledgerA,
-                ledgerB,
-                "hiero:298",
-                portA,
-                proofA,
-                proofB,
-                manifestProofA,
-                manifestProofB,
-                crypto,
-                DEFAULT_MAX_MESSAGES_PER_BUNDLE,
-                DEFAULT_MAX_QUEUE_DEPTH,
-                DUMMY_TLS_CERT, // plaintext manifest-proof path — placeholder cert (buildLedgerConfig NPEs on null)
-                bothProofsReady);
-        final var chainB = chainSetupAndConnect(
-                ledgerB,
-                ledgerA,
-                "hiero:299",
-                portB,
-                proofB,
-                proofA,
-                manifestProofB,
-                manifestProofA,
-                crypto,
-                DEFAULT_MAX_MESSAGES_PER_BUNDLE,
-                DEFAULT_MAX_QUEUE_DEPTH,
-                DUMMY_TLS_CERT,
-                bothProofsReady);
-        return Stream.of(networkHapiTest(
-                        "Install + capture (config + manifest) + verify + deploy on both ledgers (parallel)",
-                        ledgerA,
-                        new ParallelSpecOps(chainA, chainB).failOnErrors())
-                .findFirst()
-                .orElseThrow());
-    }
-
-    /**
-     * As {@link #setupBothNetworksWithManifestProof(SubProcessNetwork, SubProcessNetwork, int, int,
-     * ClprCrypto)} but additionally advertises each network's real ECDSA CLPR CA cert
-     * ({@code caDerA}/{@code caDerB}) as the endpoint {@code tls_certificate}, and expects
-     * {@code portA}/{@code portB} to be each network's {@code clpr.mtlsPort}. This is the combined
-     * <b>mTLS + manifest-proof</b> path: the channel completes over — and syncs across — the
-     * dedicated mutual-TLS listener, while the manifest state proof is still threaded into the peer's
-     * {@code ClprCompleteChannel} (required under {@code clpr.endpointManifestEnabled=true}).
      */
     static Stream<DynamicTest> setupBothNetworksWithManifestProof(
             final SubProcessNetwork ledgerA,
@@ -1012,39 +961,11 @@ public abstract class HieroToHieroBase implements LifecycleTest {
      * effect or captured bytes. Two such chains run in parallel via {@link ParallelSpecOps}. The
      * {@code bothProofsReady} latch synchronizes the two chains at the deploy step: both must
      * finish capturing before either can call {@link #deployAndConnect} with the peer's proof.
-     */
-    private static SpecOperation chainSetupAndConnect(
-            final SubProcessNetwork self,
-            final SubProcessNetwork peer,
-            final String selfChainId,
-            final int selfPort,
-            final AtomicReference<ByteString> selfProof,
-            final AtomicReference<ByteString> peerProof,
-            final ClprCrypto crypto,
-            final int maxMessagesPerBundle,
-            final int maxQueueDepth,
-            final CountDownLatch bothProofsReady) {
-        return chainSetupAndConnect(
-                self,
-                peer,
-                selfChainId,
-                selfPort,
-                selfProof,
-                peerProof,
-                null,
-                null,
-                crypto,
-                maxMessagesPerBundle,
-                maxQueueDepth,
-                DUMMY_TLS_CERT, // plaintext plain path — placeholder cert (buildLedgerConfig NPEs on null)
-                bothProofsReady);
-    }
-
-    /**
-     * Overload that also captures the local manifest state proof (into {@code selfManifestProof})
-     * after the config proof capture, and passes {@code peerManifestProof} into
-     * {@link #deployAndConnect} as {@code endpoint_manifest_proof_bytes}. When both manifest
-     * refs are null, this behaves identically to the plain overload.
+     *
+     * <p>When {@code selfManifestProof} and {@code peerManifestProof} are non-null, it also captures the
+     * local manifest state proof into {@code selfManifestProof} after the config proof capture, and
+     * passes {@code peerManifestProof} into {@link #deployAndConnect} as
+     * {@code endpoint_manifest_proof_bytes}.
      */
     private static SpecOperation chainSetupAndConnect(
             final SubProcessNetwork self,
@@ -1186,7 +1107,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                         awaitWrapsSyncPoint(network);
                         Thread.sleep(POST_SYNC_POINT_SETTLE.toMillis());
                     }
-                    final var deadline = Instant.now().plus(Duration.ofMinutes(2));
+                    final var deadline = Instant.now().plus(MANIFEST_APPEAR_TIMEOUT);
                     while (Instant.now().isBefore(deadline)) {
                         sink.set(ByteString.EMPTY);
                         allRunFor(
@@ -1227,7 +1148,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
     public static DynamicTest captureManifestProof(
             final SubProcessNetwork network, final AtomicReference<ByteString> sink) {
         return networkHapiTest("Capture endpoint-manifest StateProof", network, withOpContext((spec, ignored) -> {
-                    final var deadline = Instant.now().plus(Duration.ofMinutes(2));
+                    final var deadline = Instant.now().plus(MANIFEST_APPEAR_TIMEOUT);
                     final long[] observedVersion = {0L};
                     final int[] observedEndpoints = {0};
                     while (Instant.now().isBefore(deadline)) {

@@ -563,9 +563,9 @@ fun TaskContainer.registerHapiTest(
         }
         // MULTINETWORK groups run in parallel with CLASSES concurrent. Per-network serialization is
         // JUnit's job via the class-level @ResourceLock(<network>) on each multi-network suite:
-        // suites
-        // sharing a network run one after another, disjoint groups run in parallel, and JUnit runs
-        // the methods of a locked suite sequentially. Applies only when MULTINETWORK is selected.
+        // suites sharing a network run one after another, disjoint groups run in parallel, and
+        // JUnit runs the methods of a locked suite sequentially. Applies only when MULTINETWORK is
+        // selected.
         if (ciTagExpression.contains("MULTINETWORK")) {
             systemProperty("junit.jupiter.execution.parallel.enabled", true)
             systemProperty("junit.jupiter.execution.parallel.mode.default", "concurrent")
