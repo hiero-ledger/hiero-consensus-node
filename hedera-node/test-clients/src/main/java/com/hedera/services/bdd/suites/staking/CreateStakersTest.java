@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.staking;
 
-import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
+import static com.hedera.services.bdd.junit.TestTags.NODE_STAKING;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.dsl.operations.transactions.TouchBalancesOperation.touchBalanceOf;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
@@ -22,7 +22,7 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
-@Tag(CRYPTO)
+@Tag(NODE_STAKING)
 // MIN_VALUE is reserved for genesis classes, which must run before any shared network exists
 @Order(Integer.MIN_VALUE + 1)
 public class CreateStakersTest {
