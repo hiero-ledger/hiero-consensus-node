@@ -4,6 +4,7 @@ package com.hedera.node.app.hints;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toMap;
 
+import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.NodePartyId;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -99,7 +100,7 @@ public interface HintsService extends Service {
      *
      * @param construction the active construction to use for signing
      */
-    void setActiveConstruction(@NonNull HintsConstruction construction);
+    void setActiveConstruction(@NonNull HintsConstruction construction, @NonNull CRSState crsState);
 
     /**
      * Whether the signer is ready.
@@ -178,6 +179,15 @@ public interface HintsService extends Service {
             @NonNull ActiveRosters activeRosters,
             @NonNull WritableHintsStore hintsStore,
             @NonNull Instant now,
+            @NonNull TssConfig tssConfig,
+            boolean isActive);
+
+    /** Advances construction work while using block consensus time for CRS deadlines. */
+    void reconcile(
+            @NonNull ActiveRosters activeRosters,
+            @NonNull WritableHintsStore hintsStore,
+            @NonNull Instant now,
+            @NonNull Instant crsWorkTime,
             @NonNull TssConfig tssConfig,
             boolean isActive);
 

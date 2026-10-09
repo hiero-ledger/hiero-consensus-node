@@ -81,7 +81,7 @@ public @interface MultiNetworkHapiTest {
 
         /**
          * Opt-in: cache the network's TSS-enriched genesis-network.json on first successful run,
-         * and preload it (skipping the ~8 min cold WRAPS bootstrap) on subsequent runs.
+         * and preload it (skipping the cold TSS bootstrap) on subsequent runs.
          *
          * <p>When {@code true}, {@code MultiNetworkExtension}:
          * <ul>

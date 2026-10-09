@@ -63,11 +63,10 @@ env:
 jobs:
   hapi-tests-wraps:
     name: "HAPI Tests (Wraps)"
-    # Dedicated runner pool with the WRAPS proving-key artifacts mounted at
-    # /opt/wraps-v1.0.0 (see hedera-node/infrastructure/docker/containers/production-next/wraps-proving-key)
+    # Dedicated runner pool sized for WRAPS proof construction, which uses every
+    # available core and a few GiB of off-heap memory per proving node
     runs-on: hl-cn-hapi-wraps-lin-lg
-    # Genesis + incremental WRAPS proof construction is slow by design; each subtask
-    # also spins up its own subprocess network
+    # Each subtask spins up its own subprocess network and constructs WRAPS proofs
     timeout-minutes: 120
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
@@ -93,7 +92,6 @@ jobs:
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-          TSS_LIB_WRAPS_ARTIFACTS_PATH: /opt/wraps-v1.0.0
           # Cap each node JVM's share of the heap pool (4 GiB x 3 nodes) on the shared pod
           HAPI_TEST_NODE_POOL_MIB: "12288"
         run: ${GRADLE_EXEC} hapiTestWraps --no-daemon

@@ -74,7 +74,7 @@ class VerifyBundleCallTest {
      *
      * <ul>
      *   <li>{@code stateProof.bin} — the raw {@code bundlePayload} bytes (serialized {@code StateProof}).</li>
-     *   <li>{@code trustAnchor.bin} — the 32-byte peer ledger id that signed the bundle
+     *   <li>{@code trustAnchor.bin} — the 64-byte peer ledger id that signed the bundle
      *       (i.e. the {@code Channel.trust_anchor} value the verifier was invoked with).</li>
      * </ul>
      *
@@ -84,9 +84,11 @@ class VerifyBundleCallTest {
      * (b) something in the verifier / TSS chain has regressed in a way that breaks previously-valid
      * proofs.
      *
-     * <p>To refresh the fixtures, temporarily re-enable the {@code dumpBytesFailOpen} calls in
-     * {@code VerifyBundleCall.execute(...)}, run an end-to-end flow, then copy the resulting files
-     * from {@code verification-inputs/} into this test's resource package.
+     * <p>To refresh the fixtures, temporarily make {@code VerifyBundleCall.execute(...)} write its
+     * {@code bundlePayload} and {@code trustAnchor} to {@code verification-inputs/stateProof.bin} and
+     * {@code verification-inputs/trustAnchor.bin} after verifying a bundle with messages, run an
+     * end-to-end flow (e.g. {@code ClprHieroToHieroSuite.oneWayDelivery}), then copy the files from the
+     * receiving node's working directory into this test's resource package.
      */
     @Nested
     class CapturedFixtureReplay {

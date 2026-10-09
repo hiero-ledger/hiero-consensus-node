@@ -8,10 +8,13 @@ import com.hedera.cryptography.hints.HintsLibraryBridge;
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.SortedMap;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Supplier;
 import org.hiero.base.crypto.CryptoUtils;
 
 /**
@@ -21,12 +24,48 @@ public class HintsLibraryImpl implements HintsLibrary {
     private static final SecureRandom RANDOM = CryptoUtils.getNonDetRandom();
     private static final HintsLibraryBridge BRIDGE = HintsLibraryBridge.getInstance();
     private static final int MIN_AGGREGATION_KEY_LENGTH = 49;
+    // The original native image is reserved for signing. Separate native images own the CRS
+    // caches used by key work and preprocessing, so neither can hold up ACTIVE signing.
+    private static final ReentrantReadWriteLock SIGNING_CACHE_LOCK = new ReentrantReadWriteLock(true);
+    private static @Nullable Bytes cachedCrs;
+    private static @Nullable Bytes cachedAggregationKey;
+
+    private final IsolatedHintsLibrary keyLibrary;
+    private final IsolatedHintsLibrary preprocessingLibrary;
+
+    // Load only two additional native images for the lifetime of the JVM, even when multiple
+    // HintsLibraryImpl instances are created. A Java adapter alone would still share native caches.
+    private static final class PreparationLibraries {
+        private static final IsolatedHintsLibrary KEYS = new IsolatedHintsLibrary();
+        private static final IsolatedHintsLibrary PREPROCESSING = new IsolatedHintsLibrary();
+    }
+
+    public HintsLibraryImpl() {
+        this(PreparationLibraries.KEYS, PreparationLibraries.PREPROCESSING);
+    }
+
+    HintsLibraryImpl(final IsolatedHintsLibrary keyLibrary, final IsolatedHintsLibrary preprocessingLibrary) {
+        this.keyLibrary = requireNonNull(keyLibrary);
+        this.preprocessingLibrary = requireNonNull(preprocessingLibrary);
+    }
 
     public static final int VK_LENGTH = 1096;
-    public static final int SIGNATURE_LENGTH = 1632;
+    public static final int SIGNATURE_LENGTH = HintsLibraryBridge.AGGREGATE_SIGNATURE_LENGTH_BYTES;
+
+    private void requireExactCapacity(@NonNull final Bytes crs, final int n) {
+        if (crsPartySize(crs) != n) {
+            throw new IllegalArgumentException(
+                    "hinTS party count must equal CRS capacity; implicit resizing is forbidden");
+        }
+    }
 
     @Override
     public Bytes newCrs(final short n) {
+        if (n <= 0 || n > 512 || (n & (n - 1)) != 0) {
+            throw new IllegalArgumentException("Unsupported hinTS CRS party count: " + n);
+        }
+        // In 3.18.0, CRS ceremony operations deserialize their own inputs and never access
+        // the signing CRS/AK caches. They must not acquire the signing cache guard.
         return Bytes.wrap(BRIDGE.initCRS(n));
     }
 
@@ -58,7 +97,8 @@ public class HintsLibraryImpl implements HintsLibrary {
     public Bytes computeHints(
             @NonNull final Bytes crs, @NonNull final Bytes blsPrivateKey, final int partyId, final int n) {
         requireNonNull(blsPrivateKey);
-        final var hints = BRIDGE.computeHints(crs.toByteArray(), blsPrivateKey.toByteArray(), partyId, n);
+        requireExactCapacity(crs, n);
+        final var hints = keyLibrary.computeHints(crs.toByteArray(), blsPrivateKey.toByteArray(), partyId, n);
         return hints == null ? null : Bytes.wrap(hints);
     }
 
@@ -67,7 +107,8 @@ public class HintsLibraryImpl implements HintsLibrary {
             @NonNull final Bytes crs, @NonNull final Bytes hintsKey, final int partyId, final int n) {
         requireNonNull(crs);
         requireNonNull(hintsKey);
-        return BRIDGE.validateHintsKey(crs.toByteArray(), hintsKey.toByteArray(), partyId, n);
+        requireExactCapacity(crs, n);
+        return keyLibrary.validateHintsKey(crs.toByteArray(), hintsKey.toByteArray(), partyId, n);
     }
 
     @Override
@@ -79,6 +120,7 @@ public class HintsLibraryImpl implements HintsLibrary {
         requireNonNull(crs);
         requireNonNull(hintsKeys);
         requireNonNull(weights);
+        requireExactCapacity(crs, n);
         if (!hintsKeys.keySet().equals(weights.keySet())) {
             throw new IllegalArgumentException("The number of hint keys and weights must be the same");
         }
@@ -90,7 +132,7 @@ public class HintsLibraryImpl implements HintsLibrary {
                 .toArray(byte[][]::new);
         final long[] weightsArray =
                 Arrays.stream(parties).mapToLong(weights::get).toArray();
-        return BRIDGE.preprocess(crs.toByteArray(), parties, hintsPublicKeys, weightsArray, n);
+        return preprocessingLibrary.preprocess(crs.toByteArray(), parties, hintsPublicKeys, weightsArray, n);
     }
 
     @Override
@@ -115,7 +157,11 @@ public class HintsLibraryImpl implements HintsLibrary {
         if (aggregationKey.length() < MIN_AGGREGATION_KEY_LENGTH) {
             return false;
         }
-        return BRIDGE.verifyBls(signature.toByteArray(), message.toByteArray(), aggregationKey.toByteArray(), partyId);
+        return withNativeCache(
+                crs,
+                aggregationKey,
+                () -> BRIDGE.verifyBls(
+                        signature.toByteArray(), message.toByteArray(), aggregationKey.toByteArray(), partyId));
     }
 
     @Override
@@ -136,14 +182,59 @@ public class HintsLibraryImpl implements HintsLibrary {
         final byte[][] signatures = Arrays.stream(parties)
                 .mapToObj(party -> partialSignatures.get(party).toByteArray())
                 .toArray(byte[][]::new);
-        final var aggregatedSignature = BRIDGE.aggregateSignatures(
-                crs.toByteArray(), aggregationKey.toByteArray(), verificationKey.toByteArray(), parties, signatures);
+        final var aggregatedSignature = withNativeCache(
+                crs,
+                aggregationKey,
+                () -> BRIDGE.aggregateSignatures(
+                        crs.toByteArray(),
+                        aggregationKey.toByteArray(),
+                        verificationKey.toByteArray(),
+                        parties,
+                        signatures));
         return aggregatedSignature == null ? null : Bytes.wrap(aggregatedSignature);
     }
 
     @Override
     public void resetCache() {
-        BRIDGE.resetCache();
+        final var lock = SIGNING_CACHE_LOCK.writeLock();
+        lock.lock();
+        try {
+            BRIDGE.resetCache();
+            cachedCrs = null;
+            cachedAggregationKey = null;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    private static <T> T withNativeCache(
+            @Nullable final Bytes crs, @Nullable final Bytes aggregationKey, final Supplier<T> operation) {
+        final var readLock = SIGNING_CACHE_LOCK.readLock();
+        readLock.lock();
+        try {
+            if (cacheMatches(crs, aggregationKey)) {
+                return operation.get();
+            }
+        } finally {
+            readLock.unlock();
+        }
+        final var writeLock = SIGNING_CACHE_LOCK.writeLock();
+        writeLock.lock();
+        try {
+            if (!cacheMatches(crs, aggregationKey)) {
+                BRIDGE.resetCache();
+                cachedCrs = crs;
+                cachedAggregationKey = aggregationKey;
+            }
+            return operation.get();
+        } finally {
+            writeLock.unlock();
+        }
+    }
+
+    private static boolean cacheMatches(@Nullable final Bytes crs, @Nullable final Bytes aggregationKey) {
+        return (crs == null || crs.equals(cachedCrs))
+                && (aggregationKey == null || aggregationKey.equals(cachedAggregationKey));
     }
 
     @Override

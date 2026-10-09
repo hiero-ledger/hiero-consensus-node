@@ -46,18 +46,29 @@ public class HintsKeyPublicationHandler implements TransactionHandler {
         requireNonNull(context);
         final var op = context.body().hintsKeyPublicationOrThrow();
         final var numParties = op.numParties();
-        controllers.getInProgressForNumParties(numParties).ifPresent(controller -> {
+        controllers.getInProgressById(op.constructionId()).ifPresent(controller -> {
+            final var hintsStore = context.storeFactory().writableStore(WritableHintsStore.class);
+            final var active = hintsStore.getActiveConstruction();
+            final var construction =
+                    active.constructionId() == op.constructionId() ? active : hintsStore.getNextConstruction();
+            if (construction.constructionId() != op.constructionId()
+                    || construction.crsId() != op.crsId()
+                    || construction.numParties() != numParties
+                    || !construction.hasGracePeriodEndTime()
+                    || hintsStore.getCrsStateFor(construction).stage()
+                            != com.hedera.hapi.node.state.hints.CRSStage.COMPLETED) {
+                return;
+            }
             final long nodeId = context.creatorInfo().nodeId();
             final int partyId = controller.partyIdOf(nodeId).orElse(INVALID_PARTY_ID);
             // Ignore hinTS keys that nodes publish with party ids other than their consensus party id
-            if (op.partyId() == partyId) {
+            if (partyId >= 0 && partyId < numParties && op.partyId() == partyId) {
                 final var hintsKey = op.hintsKey();
-                final var hintsStore = context.storeFactory().writableStore(WritableHintsStore.class);
                 final var adoptionTime = context.consensusNow();
-                if (hintsStore.setHintsKey(nodeId, partyId, numParties, hintsKey, adoptionTime)) {
+                if (hintsStore.setHintsKey(nodeId, partyId, numParties, op.crsId(), hintsKey, adoptionTime)) {
                     controller.addHintsKeyPublication(
                             new HintsKeyPublication(nodeId, hintsKey, partyId, adoptionTime),
-                            hintsStore.getCrsState().crs());
+                            hintsStore.getCrsStateFor(construction).crs());
                 }
             } else {
                 log.warn(

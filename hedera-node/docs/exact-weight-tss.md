@@ -17,7 +17,7 @@ signing keys.
 
 Hiero uses an efficient exact-weight TSS where signing works via the **hinTS** scheme published in [1], and the
 ledger's identity is the hash of the ids, weights, and Schnorr public keys of the permissioned nodes in the network
-at the time the TSS was adopted.
+at the time the TSS was adopted, concatenated with the hash of the hinTS verification key those nodes first used.
 
 This document provides the high-level design of how Hiero TSS is implemented.
 
@@ -61,8 +61,8 @@ verification key; in particular, 1/3 of the total weight in the roster, which is
 50B HBAR---unless all HBAR were staked to nodes in the roster.
 
 (Note the full message that nodes sign with their Schnorr keys in each `HistoryService` proof is the concatenation of
-the above metadata with the hash of a canonical serialization of the list of `(node id, weight, Schnorr key)` triples
-defining the next roster.)
+the hash of a canonical serialization of the list of `(node id, weight, Schnorr key)` triples defining the next roster
+with the hash of the above metadata.)
 
 Despite their separate responsibilities, both the `HintsService` and `HistoryService` share a high-level design that
 we call the `RosterCompanionService`. This abstraction is a service whose goal is to derive some **primary state** for
@@ -201,6 +201,12 @@ The **roster-scoped work** of the `HistoryService` is to accept a byte string wh
 current roster, and return the proof that this `(roster, metadata)` pair belongs to the chain of trust starting with
 the ledger id.
 
+Since computing a WRAPS proof is expensive, nodes stagger that work: each node waits `tss.wrapsVoteJitterPerRank` per
+rank it has before computing its own proof (nodes that published first-round signing messages for the construction rank
+first, so an offline node never holds up the proof), and votes congruent with any valid proof it sees in the meantime.
+And since a WRAPS proof covers an address book of at most 64 nodes, `nodes.maxNumber` defaults to 64; a construction
+for a larger roster fails.
+
 ### Integration with protocol components
 
 The TSS system is then just the combination of the `HintsService` and `HistoryService` with the `RosterService`; with
@@ -266,6 +272,34 @@ are satisfied.)
 **Important:** Given the current set of Hiero admin transactions, and the requirement that staking elections be
 done to only active nodes, it is not possible to satisfy the above inequalities on $SB$ and $\mathbb{B}$
 while changing more than 1/3 of the weight in the network in a single transition.
+
+### Building the genesis WRAPS proof again
+
+Every WRAPS proof after the first folds onto the previous one, which is only sound while both are built with the
+same library. After a TSS library change that cannot extend proofs made by its predecessor, the network has to build
+a fresh genesis proof for its current roster and continue from there. To have it do so in the first round after an
+upgrade, ship the upgrade with:
+
+```
+tss.needsFreshGenesisWrapsProof=true
+```
+
+The network then builds a new genesis proof over its current roster, holding any candidate roster back until it is
+done, and resumes roster transitions from the new proof. When it completes, a `LedgerIdPublication` transaction
+externalizes the ledger id together with the proof keys and weights of the nodes in the new chain of trust. Since the
+ledger id is the hash of the genesis address book concatenated with the hash of the genesis hinTS verification key,
+**the ledger id changes** unless both are the same as in the previous genesis proof; and the new value is what HAPI
+query responses report from then on. (Otherwise it is republished unchanged.)
+
+The property applies to every upgrade while it is set, so set it back to `false` in the following release (or with a
+`0.0.121` update once the proof has completed).
+
+> Only supported before the block stream cutover; that is, while `blockStream.enableCutover=false` and block proofs
+> still carry mock signatures (`tss.forceMockSignatures=true`, or `blockStream.streamMode=RECORDS`, or either of
+> `tss.hintsEnabled`/`tss.historyEnabled` off). In that window the chain of trust is built and stored but nothing
+> verifies against it, so rebuilding it costs nothing. Once block proofs carry the chain of trust, the ledger id is
+> what downstream verifiers anchor on and there is no protocol yet for moving them to a new one; the property has no
+> effect in that state.
 
 ## References
 

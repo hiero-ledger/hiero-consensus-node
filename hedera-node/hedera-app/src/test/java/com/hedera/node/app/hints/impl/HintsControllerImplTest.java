@@ -21,7 +21,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import com.hedera.cryptography.hints.AggregationAndVerificationKeys;
-import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.hints.CRSStage;
 import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
@@ -37,7 +36,6 @@ import com.hedera.node.app.tss.TssKeyPair;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -53,8 +51,6 @@ import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -74,14 +70,20 @@ class HintsControllerImplTest {
     private static final TssKeyPair BLS_KEY_PAIR = new TssKeyPair(Bytes.EMPTY, Bytes.EMPTY);
     private static final HintsConstruction UNFINISHED_CONSTRUCTION = HintsConstruction.newBuilder()
             .constructionId(CONSTRUCTION_ID)
+            .crsId(1)
+            .numParties(EXPECTED_PARTY_SIZE)
             .gracePeriodEndTime(asTimestamp(CONSENSUS_NOW.plusSeconds(1)))
             .build();
     private static final HintsConstruction CONSTRUCTION_WITH_START_TIME = HintsConstruction.newBuilder()
             .constructionId(CONSTRUCTION_ID)
+            .crsId(1)
+            .numParties(EXPECTED_PARTY_SIZE)
             .preprocessingStartTime(asTimestamp(PREPROCESSING_START_TIME))
             .build();
     private static final HintsConstruction FINISHED_CONSTRUCTION = HintsConstruction.newBuilder()
             .constructionId(CONSTRUCTION_ID)
+            .crsId(1)
+            .numParties(EXPECTED_PARTY_SIZE)
             .hintsScheme(HintsScheme.DEFAULT)
             .build();
     private static final HintsKeyPublication EXPECTED_NODE_ONE_PUBLICATION =
@@ -263,10 +265,10 @@ class HintsControllerImplTest {
         final var hints = Bytes.wrap("HINTS");
         given(library.computeHints(INITIAL_CRS, BLS_KEY_PAIR.privateKey(), 1, EXPECTED_PARTY_SIZE))
                 .willReturn(hints);
-        given(submissions.submitHintsKey(1, EXPECTED_PARTY_SIZE, hints))
+        given(submissions.submitHintsKey(CONSTRUCTION_ID, 1, 1, EXPECTED_PARTY_SIZE, hints))
                 .willReturn(CompletableFuture.completedFuture(null));
         task.run();
-        verify(submissions).submitHintsKey(1, EXPECTED_PARTY_SIZE, hints);
+        verify(submissions).submitHintsKey(CONSTRUCTION_ID, 1, 1, EXPECTED_PARTY_SIZE, hints);
 
         subject.advanceConstruction(PREPROCESSING_START_TIME, store, true);
         assertNull(scheduledTasks.poll());
@@ -281,7 +283,7 @@ class HintsControllerImplTest {
         given(weights.targetNodeWeights()).willReturn(new TreeMap<>(Map.of(SELF_ID, 1L)));
         given(weights.targetWeightThreshold()).willReturn(1L);
         given(weights.targetIncludes(SELF_ID)).willReturn(true);
-        given(store.getCrsState())
+        given(store.getCrsStateFor(any()))
                 .willReturn(CRSState.newBuilder()
                         .stage(CRSStage.COMPLETED)
                         .nextContributingNodeId(null)
@@ -294,10 +296,10 @@ class HintsControllerImplTest {
         final var hints = Bytes.wrap("HINTS");
         given(library.computeHints(INITIAL_CRS, BLS_KEY_PAIR.privateKey(), 1, EXPECTED_PARTY_SIZE))
                 .willReturn(hints);
-        given(submissions.submitHintsKey(1, EXPECTED_PARTY_SIZE, hints))
+        given(submissions.submitHintsKey(CONSTRUCTION_ID, 1, 1, EXPECTED_PARTY_SIZE, hints))
                 .willReturn(CompletableFuture.completedFuture(null));
         task.run();
-        verify(submissions).submitHintsKey(1, EXPECTED_PARTY_SIZE, hints);
+        verify(submissions).submitHintsKey(CONSTRUCTION_ID, 1, 1, EXPECTED_PARTY_SIZE, hints);
 
         assertDoesNotThrow(() -> subject.cancelPendingWork());
     }
@@ -354,173 +356,6 @@ class HintsControllerImplTest {
         assertTrue(subject.addPreprocessingVote(2L, congruentVote, store));
 
         verify(onHintsFinished).accept(any(), any(), eq(context));
-    }
-
-    @Test
-    void crsPublicationsInConstructorWhenNotValid() {
-        setupWith(UNFINISHED_CONSTRUCTION);
-
-        verify(library, never()).verifyCrsUpdate(eq(INITIAL_CRS), any(), any());
-    }
-
-    @Test
-    void setsCRSPublicationsInConstructorWhenValid() {
-        setupWith(
-                UNFINISHED_CONSTRUCTION,
-                List.of(),
-                CRSState.newBuilder()
-                        .stage(CRSStage.GATHERING_CONTRIBUTIONS)
-                        .crs(INITIAL_CRS)
-                        .build());
-        lenient()
-                .when(store.getCrsPublications())
-                .thenReturn(List.of(CrsPublicationTransactionBody.newBuilder().build()));
-        given(library.verifyCrsUpdate(any(), any(), any())).willReturn(true);
-        final var task = requireNonNull(scheduledTasks.poll());
-        task.run();
-
-        verify(library).verifyCrsUpdate(eq(INITIAL_CRS), any(), any());
-    }
-
-    @Test
-    void addsCRSPublications() {
-        setupWith(UNFINISHED_CONSTRUCTION);
-        given(library.verifyCrsUpdate(any(), any(), any())).willReturn(true);
-
-        subject.addCrsPublication(
-                CrsPublicationTransactionBody.newBuilder()
-                        .newCrs(NEW_CRS)
-                        .proof(PROOF)
-                        .build(),
-                CONSENSUS_NOW,
-                store,
-                0L);
-
-        final var task1 = requireNonNull(scheduledTasks.poll());
-        task1.run();
-        verify(library).verifyCrsUpdate(any(), eq(NEW_CRS), eq(PROOF));
-    }
-
-    @Test
-    void setsFinalCRSIfAllIdsCompleted() {
-        setupWith(UNFINISHED_CONSTRUCTION);
-
-        given(store.getCrsState())
-                .willReturn(CRSState.newBuilder()
-                        .stage(CRSStage.GATHERING_CONTRIBUTIONS)
-                        .nextContributingNodeId(null)
-                        .crs(INITIAL_CRS)
-                        .build());
-        subject.advanceCrsWork(CONSENSUS_NOW, store, true);
-
-        verify(store)
-                .setCrsState(CRSState.newBuilder()
-                        .stage(CRSStage.WAITING_FOR_ADOPTING_FINAL_CRS)
-                        .nextContributingNodeId(null)
-                        .contributionEndTime(asTimestamp(CONSENSUS_NOW.plus(Duration.ofSeconds(5))))
-                        .crs(INITIAL_CRS)
-                        .build());
-    }
-
-    @Test
-    void setsFinalCRSAndRemovesContributionEndTime() {
-        setupWith(UNFINISHED_CONSTRUCTION);
-
-        given(store.getCrsState())
-                .willReturn(CRSState.newBuilder()
-                        .stage(CRSStage.WAITING_FOR_ADOPTING_FINAL_CRS)
-                        .nextContributingNodeId(null)
-                        .contributionEndTime(asTimestamp(CONSENSUS_NOW.minus(Duration.ofSeconds(7))))
-                        .crs(INITIAL_CRS)
-                        .build());
-        given(weights.sourceNodeWeights()).willReturn(SOURCE_NODE_WEIGHTS);
-        subject.setFinalCrsFuture(
-                CompletableFuture.completedFuture(new HintsControllerImpl.CRSValidation(INITIAL_CRS, 18)));
-        subject.advanceCrsWork(CONSENSUS_NOW, store, true);
-
-        verify(store)
-                .setCrsState(CRSState.newBuilder()
-                        .crs(INITIAL_CRS)
-                        .stage(CRSStage.COMPLETED)
-                        .nextContributingNodeId(null)
-                        .contributionEndTime((Timestamp) null)
-                        .build());
-    }
-
-    @Test
-    void repeatProcessIfThresholdNotMet() {
-        setupWith(UNFINISHED_CONSTRUCTION);
-
-        given(store.getCrsState())
-                .willReturn(CRSState.newBuilder()
-                        .stage(CRSStage.WAITING_FOR_ADOPTING_FINAL_CRS)
-                        .nextContributingNodeId(null)
-                        .contributionEndTime(asTimestamp(CONSENSUS_NOW.minus(Duration.ofSeconds(7))))
-                        .crs(INITIAL_CRS)
-                        .build());
-        given(weights.sourceNodeWeights()).willReturn(SOURCE_NODE_WEIGHTS);
-        subject.setFinalCrsFuture(
-                CompletableFuture.completedFuture(new HintsControllerImpl.CRSValidation(INITIAL_CRS, 1)));
-        subject.advanceCrsWork(CONSENSUS_NOW, store, true);
-
-        verify(store, never())
-                .setCrsState(CRSState.newBuilder()
-                        .stage(CRSStage.COMPLETED)
-                        .nextContributingNodeId(null)
-                        .contributionEndTime((Timestamp) null)
-                        .crs(INITIAL_CRS)
-                        .build());
-        verify(store)
-                .setCrsState(CRSState.newBuilder()
-                        .stage(CRSStage.GATHERING_CONTRIBUTIONS)
-                        .nextContributingNodeId(0L)
-                        .contributionEndTime(asTimestamp(CONSENSUS_NOW.plus(Duration.ofSeconds(10))))
-                        .crs(INITIAL_CRS)
-                        .build());
-    }
-
-    @Test
-    void movesToNextNodeIfTimeLimitExceeded() {
-        setupWith(UNFINISHED_CONSTRUCTION);
-
-        given(store.getCrsState())
-                .willReturn(CRSState.newBuilder()
-                        .stage(CRSStage.GATHERING_CONTRIBUTIONS)
-                        .nextContributingNodeId(1L)
-                        .contributionEndTime(asTimestamp(CONSENSUS_NOW.minus(Duration.ofSeconds(7))))
-                        .crs(INITIAL_CRS)
-                        .build());
-
-        given(weights.sourceNodeIds()).willReturn(SOURCE_NODE_IDS);
-        subject.setFinalCrsFuture(
-                CompletableFuture.completedFuture(new HintsControllerImpl.CRSValidation(INITIAL_CRS, 1)));
-        subject.advanceCrsWork(CONSENSUS_NOW, store, true);
-
-        verify(store).moveToNextNode(2L, CONSENSUS_NOW.plus(Duration.ofSeconds(10)));
-    }
-
-    @Test
-    void submitsCRSUpdateIfSelf() {
-        setupWith(UNFINISHED_CONSTRUCTION);
-
-        given(store.getCrsState())
-                .willReturn(CRSState.newBuilder()
-                        .stage(CRSStage.GATHERING_CONTRIBUTIONS)
-                        .nextContributingNodeId(SELF_ID)
-                        .contributionEndTime(asTimestamp(CONSENSUS_NOW.plus(Duration.ofSeconds(7))))
-                        .crs(INITIAL_CRS)
-                        .build());
-        given(library.updateCrs(any(), any())).willReturn(NEW_CRS);
-        given(submissions.submitCrsUpdate(any(), any())).willReturn(CompletableFuture.completedFuture(null));
-        assertTrue(scheduledTasks.isEmpty());
-
-        subject.advanceCrsWork(CONSENSUS_NOW, store, true);
-
-        final var task1 = requireNonNull(scheduledTasks.poll());
-        task1.run();
-
-        verify(library).updateCrs(eq(INITIAL_CRS), any());
-        verify(submissions).submitCrsUpdate(any(), any());
     }
 
     // -----------------------------------------------------------------------
@@ -685,8 +520,7 @@ class HintsControllerImplTest {
         final var node0CongruentVote =
                 PreprocessingVote.newBuilder().congruentNodeId(2L).build();
 
-        given(weights.targetRosterSize()).willReturn(TARGET_ROSTER_SIZE);
-        given(store.getCrsState())
+        given(store.getCrsStateFor(any()))
                 .willReturn(CRSState.newBuilder()
                         .stage(CRSStage.COMPLETED)
                         .crs(INITIAL_CRS)
@@ -890,8 +724,7 @@ class HintsControllerImplTest {
                 .preprocessedKeys(PREPROCESSED_KEYS)
                 .build();
 
-        given(weights.targetRosterSize()).willReturn(TARGET_ROSTER_SIZE);
-        given(store.getCrsState())
+        given(store.getCrsStateFor(any()))
                 .willReturn(CRSState.newBuilder()
                         .stage(CRSStage.COMPLETED)
                         .crs(INITIAL_CRS)
@@ -944,8 +777,7 @@ class HintsControllerImplTest {
                 .preprocessedKeys(PREPROCESSED_KEYS)
                 .build();
 
-        given(weights.targetRosterSize()).willReturn(TARGET_ROSTER_SIZE);
-        given(store.getCrsState())
+        given(store.getCrsStateFor(any()))
                 .willReturn(CRSState.newBuilder()
                         .stage(CRSStage.COMPLETED)
                         .crs(INITIAL_CRS)
@@ -1000,8 +832,8 @@ class HintsControllerImplTest {
             @NonNull final Map<Long, PreprocessingVote> votes,
             @NonNull final List<HintsKeyPublication> publications,
             @NonNull final CRSState crsState) {
-        given(weights.targetRosterSize()).willReturn(TARGET_ROSTER_SIZE);
-        lenient().when(store.getCrsState()).thenReturn(crsState);
+
+        lenient().when(store.getCrsStateFor(any())).thenReturn(crsState);
         // On-demand store lookups for missing referents return empty by default; specific tests override this.
         lenient().when(store.getVotes(anyLong(), any())).thenReturn(Map.of());
         // Used when updateHintsKey logs target weight info for each publication.
@@ -1052,134 +884,6 @@ class HintsControllerImplTest {
         verify(submissions, never()).submitHintsVote(eq(CONSTRUCTION_ID), any(PreprocessedKeys.class));
     }
 
-    @ParameterizedTest(name = "isActive={0}")
-    @ValueSource(booleans = {false, true})
-    void movesToNextNodeRegardlessOfNodeActiveStatus(final boolean isActive) {
-        setupWith(UNFINISHED_CONSTRUCTION);
-
-        given(store.getCrsState())
-                .willReturn(CRSState.newBuilder()
-                        .stage(CRSStage.GATHERING_CONTRIBUTIONS)
-                        .nextContributingNodeId(1L)
-                        .contributionEndTime(asTimestamp(CONSENSUS_NOW.minus(Duration.ofSeconds(7))))
-                        .crs(INITIAL_CRS)
-                        .build());
-
-        given(weights.sourceNodeIds()).willReturn(SOURCE_NODE_IDS);
-        subject.setFinalCrsFuture(
-                CompletableFuture.completedFuture(new HintsControllerImpl.CRSValidation(INITIAL_CRS, 1)));
-
-        subject.advanceCrsWork(CONSENSUS_NOW, store, isActive);
-
-        // State write happens regardless of node-local ACTIVE status
-        verify(store).moveToNextNode(2L, CONSENSUS_NOW.plus(Duration.ofSeconds(10)));
-    }
-
-    @ParameterizedTest(name = "isActive={0}")
-    @ValueSource(booleans = {false, true})
-    void repeatsProcessRegardlessOfNodeActiveStatus(final boolean isActive) {
-        setupWith(UNFINISHED_CONSTRUCTION);
-
-        given(store.getCrsState())
-                .willReturn(CRSState.newBuilder()
-                        .stage(CRSStage.WAITING_FOR_ADOPTING_FINAL_CRS)
-                        .nextContributingNodeId(null)
-                        .contributionEndTime(asTimestamp(CONSENSUS_NOW.minus(Duration.ofSeconds(7))))
-                        .crs(INITIAL_CRS)
-                        .build());
-        given(weights.sourceNodeWeights()).willReturn(SOURCE_NODE_WEIGHTS);
-        subject.setFinalCrsFuture(
-                CompletableFuture.completedFuture(new HintsControllerImpl.CRSValidation(INITIAL_CRS, 1)));
-
-        final var restartedState = CRSState.newBuilder()
-                .stage(CRSStage.GATHERING_CONTRIBUTIONS)
-                .nextContributingNodeId(0L)
-                .contributionEndTime(asTimestamp(CONSENSUS_NOW.plus(Duration.ofSeconds(10))))
-                .crs(INITIAL_CRS)
-                .build();
-
-        subject.advanceCrsWork(CONSENSUS_NOW, store, isActive);
-
-        // The restart branch is selected on nextContributingNodeId being null, so the isActive-gated
-        // self-submission branch is unreachable here; the transition is written for either value.
-        verify(store).setCrsState(restartedState);
-        verify(submissions, never()).submitCrsUpdate(any(), any());
-    }
-
-    @Test
-    void doesNotSelfSubmitCrsUpdateWhenNodeIsNotActive() {
-        setupWith(UNFINISHED_CONSTRUCTION);
-
-        given(store.getCrsState())
-                .willReturn(CRSState.newBuilder()
-                        .stage(CRSStage.GATHERING_CONTRIBUTIONS)
-                        .nextContributingNodeId(SELF_ID)
-                        .contributionEndTime(asTimestamp(CONSENSUS_NOW.plus(Duration.ofSeconds(7))))
-                        .crs(INITIAL_CRS)
-                        .build());
-        assertTrue(scheduledTasks.isEmpty());
-
-        subject.advanceCrsWork(CONSENSUS_NOW, store, false);
-
-        // Only the node-local self-submission is gated by isActive: no task scheduled, nothing submitted
-        assertTrue(scheduledTasks.isEmpty());
-        verify(submissions, never()).submitCrsUpdate(any(), any());
-        verify(store, never()).setCrsState(any());
-        verify(store, never()).moveToNextNode(anyLong(), any());
-    }
-
-    @ParameterizedTest(name = "isActive={0}")
-    @ValueSource(booleans = {false, true})
-    void setsFinalCrsIfAllIdsCompletedRegardlessOfNodeActiveStatus(final boolean isActive) {
-        setupWith(UNFINISHED_CONSTRUCTION);
-
-        given(store.getCrsState())
-                .willReturn(CRSState.newBuilder()
-                        .stage(CRSStage.GATHERING_CONTRIBUTIONS)
-                        .nextContributingNodeId(null)
-                        .crs(INITIAL_CRS)
-                        .build());
-
-        subject.advanceCrsWork(CONSENSUS_NOW, store, isActive);
-
-        // The GATHERING -> WAITING_FOR_ADOPTING_FINAL_CRS transition is written regardless of ACTIVE status
-        verify(store)
-                .setCrsState(CRSState.newBuilder()
-                        .stage(CRSStage.WAITING_FOR_ADOPTING_FINAL_CRS)
-                        .nextContributingNodeId(null)
-                        .contributionEndTime(asTimestamp(CONSENSUS_NOW.plus(Duration.ofSeconds(5))))
-                        .crs(INITIAL_CRS)
-                        .build());
-    }
-
-    @ParameterizedTest(name = "isActive={0}")
-    @ValueSource(booleans = {false, true})
-    void setsFinalCrsAndRemovesContributionEndTimeRegardlessOfNodeActiveStatus(final boolean isActive) {
-        setupWith(UNFINISHED_CONSTRUCTION);
-
-        given(store.getCrsState())
-                .willReturn(CRSState.newBuilder()
-                        .stage(CRSStage.WAITING_FOR_ADOPTING_FINAL_CRS)
-                        .nextContributingNodeId(null)
-                        .contributionEndTime(asTimestamp(CONSENSUS_NOW.minus(Duration.ofSeconds(7))))
-                        .crs(INITIAL_CRS)
-                        .build());
-        given(weights.sourceNodeWeights()).willReturn(SOURCE_NODE_WEIGHTS);
-        subject.setFinalCrsFuture(
-                CompletableFuture.completedFuture(new HintsControllerImpl.CRSValidation(INITIAL_CRS, 18)));
-
-        subject.advanceCrsWork(CONSENSUS_NOW, store, isActive);
-
-        // The threshold-met -> COMPLETED adoption is written regardless of ACTIVE status
-        verify(store)
-                .setCrsState(CRSState.newBuilder()
-                        .crs(INITIAL_CRS)
-                        .stage(CRSStage.COMPLETED)
-                        .nextContributingNodeId(null)
-                        .contributionEndTime((Timestamp) null)
-                        .build());
-    }
-
     @Test
     void doesNotPublishHintsKeyWhenNodeIsNotActive() {
         setupWith(UNFINISHED_CONSTRUCTION);
@@ -1193,7 +897,7 @@ class HintsControllerImplTest {
         // isActive=false gates this node's own hinTS-key publication -- nothing is scheduled or submitted.
         subject.advanceConstruction(PREPROCESSING_START_TIME, store, false);
         assertNull(scheduledTasks.poll());
-        verify(submissions, never()).submitHintsKey(anyInt(), anyInt(), any());
+        verify(submissions, never()).submitHintsKey(anyLong(), anyLong(), anyInt(), anyInt(), any());
 
         // Identical state, active node: the publication task IS now scheduled -- proving isActive is the sole gate.
         subject.advanceConstruction(PREPROCESSING_START_TIME, store, true);
@@ -1218,8 +922,8 @@ class HintsControllerImplTest {
             @NonNull final HintsConstruction construction,
             @NonNull final List<HintsKeyPublication> publications,
             @NonNull CRSState crsState) {
-        given(weights.targetRosterSize()).willReturn(TARGET_ROSTER_SIZE);
-        lenient().when(store.getCrsState()).thenReturn(crsState);
+
+        lenient().when(store.getCrsStateFor(any())).thenReturn(crsState);
         lenient()
                 .when(store.getCrsPublications())
                 .thenReturn(List.of(CrsPublicationTransactionBody.newBuilder().build()));

@@ -34,7 +34,6 @@ sibling tasks can run in parallel without clashing.
 | `hapiTestSmartContractSerial`    | `(SMART_CONTRACT&SERIAL)`                     | `testSubprocess`           | 3                     |
 | `hapiTestNDReconnect`            | `ND_RECONNECT`                                | `testSubprocess`           | default               |
 | `hapiTestWraps`                  | `WRAPS`                                       | `testSubprocess`           | default               |
-| `hapiTestWrapsDownload`          | `WRAPS_DOWNLOAD`                              | `testSubprocess`           | default               |
 | `hapiTestCutover`                | `CUTOVER`                                     | `testSubprocess`           | default               |
 | `hapiTestTimeConsuming`          | `LONG_RUNNING`                                | `testSubprocessConcurrent` | default               |
 | `hapiTestTimeConsumingSerial`    | `(LONG_RUNNING&SERIAL)`                       | `testSubprocess`           | default               |
@@ -65,7 +64,7 @@ except for the ISS and BLOCK_NODE tasks, which skip validation:
 ## `remoteTest*` PR check tasks
 
 For every entry in `prCheckTags` other than `hapiTestIss`, `hapiTestRestart`, `hapiTestToken`,
-`hapiTestTokenSerial`, `hapiTestWrapsDownload`, a sibling `remoteTest…` task is generated that
+`hapiTestTokenSerial`, a sibling `remoteTest…` task is generated that
 delegates to `testRemote` with the same tag expression.
 
 ## `hapiTest*Embedded` and `hapiTest*Repeatable` PR check tasks

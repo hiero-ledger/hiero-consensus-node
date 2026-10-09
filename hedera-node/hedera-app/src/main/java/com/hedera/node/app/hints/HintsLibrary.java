@@ -36,6 +36,26 @@ public interface HintsLibrary {
     Bytes newCrs(short n);
 
     /**
+     * Reads the exact supported capacity of a serialized TSS 3.18 CRS. This validates its size,
+     * not its curve points or ceremony transcript; those are verified by the native library.
+     */
+    default int crsPartySize(@NonNull final Bytes crs) {
+        return crsPartySizeFrom(crs);
+    }
+
+    /** Reads the capacity without initializing the native library, for startup metadata validation. */
+    static int crsPartySizeFrom(@NonNull final Bytes crs) {
+        java.util.Objects.requireNonNull(crs);
+        // HintsLibraryBridge 3.18 serializes a 304-byte header and 288 bytes per party.
+        final long payloadLength = crs.length() - 304L;
+        final long n = payloadLength / 288L;
+        if (payloadLength <= 0 || payloadLength % 288L != 0 || n > 512 || (n & (n - 1)) != 0) {
+            throw new IllegalArgumentException("Unsupported or malformed CRS capacity");
+        }
+        return (int) n;
+    }
+
+    /**
      * Updates the given CRS with the given 256 bits of entropy and returns the concatenation of the
      * updated CRS and a proof of the contribution.
      * @param crs the CRS

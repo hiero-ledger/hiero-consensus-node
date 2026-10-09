@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.hedera.containers;
 
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.MAX_PBJ_RECORD_SIZE;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.pbj.grpc.client.helidon.PbjGrpcClient;
 import com.hedera.pbj.grpc.client.helidon.PbjGrpcClientConfig;
+import com.hedera.pbj.runtime.grpc.GrpcCompression;
 import com.hedera.pbj.runtime.grpc.Pipeline;
 import com.hedera.pbj.runtime.grpc.ServiceInterface;
 import com.hedera.pbj.runtime.grpc.ServiceInterface.RequestOptions;
@@ -17,11 +19,9 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Flow;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.block.api.BlockStreamSubscribeServiceInterface.BlockStreamSubscribeServiceClient;
@@ -71,6 +71,7 @@ public class BlockNodeSubscribeClient implements AutoCloseable {
      * @param startBlock the first block number to retrieve (inclusive)
      * @param endBlock the last block number to retrieve (inclusive)
      * @return list of blocks in ascending order
+     * @throws IllegalStateException if the complete range cannot be retrieved
      */
     @NonNull
     public List<Block> subscribeBlocks(final long startBlock, final long endBlock) {
@@ -79,87 +80,135 @@ public class BlockNodeSubscribeClient implements AutoCloseable {
                 .endBlockNumber(endBlock)
                 .build();
 
-        // CopyOnWriteArrayList: safe for concurrent add (callback thread) + read (calling thread)
-        // in the window between subscription.cancel() and the final in-flight onNext completing
-        final List<Block> blocks = new CopyOnWriteArrayList<>();
-        // Only accessed from the callback thread (Reactive Streams guarantees serial onNext)
-        final List<BlockItem> currentBlockItems = new ArrayList<>();
-        final var latch = new CountDownLatch(1);
-        final var subscriptionRef = new AtomicReference<Flow.Subscription>();
-
+        final var collector = new BlockCollector(startBlock, endBlock);
         try (final var client = createSubscribeClient()) {
-            client.subscribeBlockStream(request, new Pipeline<>() {
-                @Override
-                public void onSubscribe(final Flow.Subscription subscription) {
-                    subscriptionRef.set(subscription);
-                    subscription.request(Long.MAX_VALUE);
-                }
-
-                @Override
-                public void onNext(final SubscribeStreamResponse response) {
-                    if (response.hasBlockItems()) {
-                        currentBlockItems.addAll(response.blockItems().blockItems());
-                    } else if (response.hasEndOfBlock()) {
-                        // Block boundary -- finalize current block
-                        if (!currentBlockItems.isEmpty()) {
-                            blocks.add(new Block(List.copyOf(currentBlockItems)));
-                            currentBlockItems.clear();
-                        }
-                    } else if (response.hasStatus()) {
-                        log.info("Subscribe stream status {} after {} blocks", response.status(), blocks.size());
-                    }
-                }
-
-                @Override
-                public void onError(final Throwable throwable) {
-                    log.error("Error subscribing to blocks from {}:{}", host, port, throwable);
-                    latch.countDown();
-                }
-
-                @Override
-                public void onComplete() {
-                    // Finalize any remaining items
-                    if (!currentBlockItems.isEmpty()) {
-                        blocks.add(new Block(List.copyOf(currentBlockItems)));
-                        currentBlockItems.clear();
-                    }
-                    log.info("Subscribe stream completed with {} blocks from {}:{}", blocks.size(), host, port);
-                    latch.countDown();
-                }
-            });
-
-            // Wait for the async stream to complete
-            if (!latch.await(DEFAULT_TIMEOUT.toSeconds(), TimeUnit.SECONDS)) {
-                cancelSubscription(subscriptionRef);
-                log.warn(
-                        "Timed out waiting for subscribe stream from {}:{} after {}s (got {} blocks so far)",
-                        host,
-                        port,
-                        DEFAULT_TIMEOUT.toSeconds(),
-                        blocks.size());
-            }
+            client.subscribeBlockStream(request, collector);
+            final var blocks = collector.await(DEFAULT_TIMEOUT);
+            log.info("Subscribe stream completed with {} blocks from {}:{}", blocks.size(), host, port);
+            return blocks;
         } catch (final InterruptedException e) {
-            cancelSubscription(subscriptionRef);
             Thread.currentThread().interrupt();
-            log.error("Interrupted while subscribing to blocks from {}:{}", host, port, e);
+            throw new IllegalStateException("Interrupted subscribing to blocks from " + host + ":" + port, e);
         } catch (final Exception e) {
-            cancelSubscription(subscriptionRef);
-            log.error("Failed to subscribe to blocks from {}:{}", host, port, e);
+            throw new IllegalStateException(
+                    "Failed to retrieve complete block range " + startBlock + "-" + endBlock + " from " + host + ":"
+                            + port,
+                    e);
+        } finally {
+            collector.cancel();
+        }
+    }
+
+    /** Collects a finite subscription without exposing a partial stream after an RPC failure. */
+    static final class BlockCollector implements Pipeline<SubscribeStreamResponse> {
+        private final long startBlock;
+        private final long endBlock;
+        private final List<Block> blocks = new ArrayList<>();
+        private final List<BlockItem> currentBlockItems = new ArrayList<>();
+        private final CountDownLatch done = new CountDownLatch(1);
+        private Flow.Subscription subscription;
+        private Throwable failure;
+        private SubscribeStreamResponse.Code status;
+        private boolean terminated;
+
+        BlockCollector(final long startBlock, final long endBlock) {
+            if (startBlock < 0 || endBlock < startBlock) {
+                throw new IllegalArgumentException("Expected a finite, nonnegative block range");
+            }
+            this.startBlock = startBlock;
+            this.endBlock = endBlock;
         }
 
-        return List.copyOf(blocks);
+        @Override
+        public synchronized void onSubscribe(final Flow.Subscription subscription) {
+            if (terminated) {
+                subscription.cancel();
+            } else {
+                this.subscription = subscription;
+                subscription.request(Long.MAX_VALUE);
+            }
+        }
+
+        @Override
+        public synchronized void onNext(final SubscribeStreamResponse response) {
+            if (terminated) {
+                return;
+            }
+            if (status != null) {
+                onError(new IllegalStateException("Received data after terminal subscription status " + status));
+            } else if (response.hasBlockItems()) {
+                currentBlockItems.addAll(response.blockItemsOrThrow().blockItems());
+            } else if (response.hasEndOfBlock()) {
+                final long blockNumber = response.endOfBlockOrThrow().blockNumber();
+                if (blockNumber > endBlock
+                        || blockNumber - startBlock != blocks.size()
+                        || currentBlockItems.isEmpty()
+                        || !currentBlockItems.getFirst().hasBlockHeader()
+                        || currentBlockItems.getFirst().blockHeaderOrThrow().number() != blockNumber) {
+                    onError(new IllegalStateException("Unexpected block boundary " + blockNumber + " after "
+                            + blocks.size() + " blocks in range " + startBlock + "-" + endBlock));
+                    return;
+                }
+                blocks.add(new Block(List.copyOf(currentBlockItems)));
+                currentBlockItems.clear();
+            } else if (response.hasStatus()) {
+                status = response.status();
+                if (status != SubscribeStreamResponse.Code.SUCCESS) {
+                    onError(new IllegalStateException("Subscribe stream returned " + status));
+                }
+            } else {
+                onError(new IllegalStateException("Subscribe stream returned an empty response"));
+            }
+        }
+
+        @Override
+        public synchronized void onError(final Throwable throwable) {
+            if (!terminated) {
+                failure = throwable;
+                terminated = true;
+                done.countDown();
+            }
+        }
+
+        @Override
+        public synchronized void onComplete() {
+            if (!terminated) {
+                if (status != SubscribeStreamResponse.Code.SUCCESS
+                        || !currentBlockItems.isEmpty()
+                        || blocks.isEmpty()
+                        || blocks.size() - 1L != endBlock - startBlock) {
+                    failure = new IllegalStateException("Incomplete subscribe stream for range " + startBlock + "-"
+                            + endBlock + ": " + blocks.size() + " complete blocks, " + currentBlockItems.size()
+                            + " trailing items, status " + status);
+                }
+                terminated = true;
+                done.countDown();
+            }
+        }
+
+        List<Block> await(final Duration timeout) throws InterruptedException {
+            if (!done.await(timeout.toNanos(), TimeUnit.NANOSECONDS)) {
+                onError(new IllegalStateException("Timed out retrieving block range " + startBlock + "-" + endBlock));
+            }
+            synchronized (this) {
+                if (failure != null) {
+                    throw new IllegalStateException("Block subscription failed", failure);
+                }
+                return List.copyOf(blocks);
+            }
+        }
+
+        synchronized void cancel() {
+            terminated = true;
+            if (subscription != null) {
+                subscription.cancel();
+            }
+        }
     }
 
     @Override
     public void close() {
         // No persistent resources to close; clients are created per-call
-    }
-
-    private static void cancelSubscription(@NonNull final AtomicReference<Flow.Subscription> ref) {
-        final var subscription = ref.get();
-        if (subscription != null) {
-            subscription.cancel();
-        }
     }
 
     private BlockStreamSubscribeServiceClient createSubscribeClient() {
@@ -175,14 +224,28 @@ public class BlockNodeSubscribeClient implements AutoCloseable {
 
     private PbjGrpcClient buildPbjClient() {
         final Tls tls = Tls.builder().enabled(false).build();
-        final PbjGrpcClientConfig pbjConfig =
-                new PbjGrpcClientConfig(DEFAULT_TIMEOUT, tls, Optional.of(""), "application/grpc");
+        final PbjGrpcClientConfig pbjConfig = clientConfig(tls);
         final WebClient webClient = WebClient.builder()
                 .baseUri("http://" + host + ":" + port)
                 .tls(tls)
                 .connectTimeout(DEFAULT_TIMEOUT)
                 .build();
         return new PbjGrpcClient(webClient, pbjConfig);
+    }
+
+    static PbjGrpcClientConfig clientConfig(final Tls tls) {
+        // A response batches block items, including node-generated proof transactions up to
+        // MAX_PBJ_RECORD_SIZE. Allow room for the surrounding items and protobuf envelopes.
+        final int maxResponseSize = 2 * MAX_PBJ_RECORD_SIZE;
+        return new PbjGrpcClientConfig(
+                DEFAULT_TIMEOUT,
+                tls,
+                Optional.of(""),
+                "application/grpc",
+                GrpcCompression.IDENTITY,
+                GrpcCompression.getDecompressorNames(),
+                maxResponseSize,
+                5 * maxResponseSize);
     }
 
     private static class DefaultRequestOptions implements ServiceInterface.RequestOptions {

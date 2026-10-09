@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hints.impl;
 
+import static com.hedera.hapi.node.state.hints.CRSStage.COMPLETED;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.hints.HintsService.partySizeForRoster;
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_ID;
@@ -9,7 +10,7 @@ import static com.hedera.node.app.hints.schemas.V059HintsSchema.NEXT_HINTS_CONST
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.PREPROCESSING_VOTES_STATE_ID;
 import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_PUBLICATIONS_STATE_ID;
 import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_STATE_STATE_ID;
-import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.BOOTSTRAP;
+import static com.hedera.node.app.hints.schemas.V079HintsSchema.NEXT_CRS_STATE_ID;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.HANDOFF;
 import static java.util.Objects.requireNonNull;
 
@@ -35,7 +36,6 @@ import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
@@ -58,15 +58,19 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
     private final WritableKVState<PreprocessingVoteId, PreprocessingVote> votes;
     private final WritableKVState<NodeId, CrsPublicationTransactionBody> crsPublications;
     private final WritableSingletonState<CRSState> crsState;
+    private final WritableSingletonState<CRSState> nextCrsState;
+    private final WritableEntityIdStore entityIdStore;
 
     public WritableHintsStoreImpl(
             @NonNull final WritableStates states, final WritableEntityIdStore writableEntityIdStore) {
         super(states, writableEntityIdStore);
+        this.entityIdStore = requireNonNull(writableEntityIdStore);
         this.hintsKeys = states.get(HINTS_KEY_SETS_STATE_ID);
         this.nextConstruction = states.getSingleton(NEXT_HINTS_CONSTRUCTION_STATE_ID);
         this.activeConstruction = states.getSingleton(ACTIVE_HINTS_CONSTRUCTION_STATE_ID);
         this.votes = states.get(PREPROCESSING_VOTES_STATE_ID);
         this.crsState = states.getSingleton(CRS_STATE_STATE_ID);
+        this.nextCrsState = states.getSingleton(NEXT_CRS_STATE_ID);
         this.crsPublications = states.get(CRS_PUBLICATIONS_STATE_ID);
     }
 
@@ -85,15 +89,10 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
         }
         var construction = getConstructionFor(activeRosters);
         if (construction == null) {
-            final var gracePeriod = phase == BOOTSTRAP
-                    ? tssConfig.bootstrapHintsKeyGracePeriod()
-                    : tssConfig.transitionHintsKeyGracePeriod();
             construction = updateForNewConstruction(
                     activeRosters.sourceRosterHash(),
                     activeRosters.targetRosterHash(),
-                    activeRosters::findRelatedRoster,
-                    now,
-                    gracePeriod);
+                    activeRosters::findRelatedRoster);
         }
         return construction;
     }
@@ -105,7 +104,7 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
             final int numParties,
             @NonNull final Bytes hintsKey,
             @NonNull final Instant now) {
-        final var id = new HintsPartyId(partyId, numParties);
+        final var id = new HintsPartyId(partyId, numParties, 0);
         var keySet = hintsKeys.get(id);
         boolean inUse = false;
         if (keySet == null) {
@@ -113,6 +112,35 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
             keySet = HintsKeySet.newBuilder()
                     .key(hintsKey)
                     .nodeId(nodeId)
+                    .adoptionTime(asTimestamp(now))
+                    .build();
+        } else {
+            keySet = keySet.copyBuilder().nodeId(nodeId).nextKey(hintsKey).build();
+        }
+        hintsKeys.put(id, keySet);
+        return inUse;
+    }
+
+    @Override
+    public boolean setHintsKey(
+            final long nodeId,
+            final int partyId,
+            final int numParties,
+            final long crsId,
+            @NonNull final Bytes hintsKey,
+            @NonNull final Instant now) {
+        if (crsId <= 0) {
+            throw new IllegalArgumentException("A published hints key must identify its CRS generation");
+        }
+        final var id = new HintsPartyId(partyId, numParties, crsId);
+        var keySet = hintsKeys.get(id);
+        // A party released by a departing node can be reassigned under the same CRS. Its old
+        // hints belong to the old owner and must not be attributed to the replacement node.
+        final boolean inUse = keySet == null || keySet.nodeId() != nodeId;
+        if (inUse) {
+            keySet = HintsKeySet.newBuilder()
+                    .nodeId(nodeId)
+                    .key(requireNonNull(hintsKey))
                     .adoptionTime(asTimestamp(now))
                     .build();
         } else {
@@ -156,46 +184,167 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
         requireNonNull(toRoster);
         requireNonNull(toRosterHash);
         final var upcomingConstruction = requireNonNull(nextConstruction.get());
-        // It is pointless to adopt any incomplete construction
-        if (!upcomingConstruction.hasHintsScheme()) {
-            if (forceHandoff) {
-                log.warn(
-                        "Ignoring forced handoff to incomplete construction #{}",
-                        upcomingConstruction.constructionId());
-            }
+        final var upcomingCrs = getCrsStateFor(upcomingConstruction);
+        final var currentCrs = getCrsState();
+        // A forced handoff may not bypass cryptographic readiness or target binding.
+        if (!isReadyToAdopt(toRosterHash)
+                || upcomingConstruction.numParties() < partySizeForRoster(toRoster)
+                || upcomingConstruction.numParties() < currentCrs.numParties()) {
+            log.warn(
+                    "Ignoring handoff to construction #{} without a matching completed CRS and scheme",
+                    upcomingConstruction.constructionId());
             return false;
         }
-        final boolean handoffMatches = upcomingConstruction.targetRosterHash().equals(toRosterHash);
-        if (!handoffMatches) {
-            if (forceHandoff) {
-                log.warn(
-                        "Forcing handoff to construction #{} with different target roster",
-                        upcomingConstruction.constructionId());
-            } else {
-                throw new IllegalStateException("Cannot handoff to construction #"
-                        + upcomingConstruction.constructionId() + " with different target roster (constructed for '"
-                        + upcomingConstruction.targetRosterHash() + " but incoming is '" + toRosterHash + "')");
-            }
-        }
+        final var outgoingConstruction = requireNonNull(activeConstruction.get());
         log.info("Handing off to upcoming construction #{}", upcomingConstruction.constructionId());
-        // The next construction is becoming the active one; so purge obsolete votes now. Its voters
-        // are the outgoing roster (fromRoster is its source roster), and the outgoing active
-        // construction is likewise done with. We key both purges off fromRoster rather than each
-        // construction's own source roster hash, which may already have been pruned from the roster
-        // store (only two rosters are retained).
         purgeVotes(upcomingConstruction, ignore -> fromRoster);
-        purgeVotes(requireNonNull(activeConstruction.get()), ignore -> fromRoster);
-        // If the previous scheme's party size was different than the new one, purge the hinTS keys;
-        // this is likely optional, but seems like a better default behavior than leaving them in state
-        maybePurgeHintsKeys(partySizeForRoster(toRoster), fromRoster);
+        purgeVotes(outgoingConstruction, ignore -> fromRoster);
+        if (outgoingConstruction.crsId() != upcomingConstruction.crsId()) {
+            purgeHintsKeys(outgoingConstruction.numParties(), outgoingConstruction.crsId());
+        }
+        if (upcomingCrs.ceremonyId() != currentCrs.ceremonyId()) {
+            setCrsState(upcomingCrs);
+        }
+        nextCrsState.put(CRSState.DEFAULT);
         activeConstruction.put(upcomingConstruction);
         nextConstruction.put(HintsConstruction.DEFAULT);
         return true;
     }
 
     @Override
+    public boolean rebindActiveTargetRosterHash(@NonNull final Bytes expectedOldHash, @NonNull final Bytes newHash) {
+        requireNonNull(expectedOldHash);
+        requireNonNull(newHash);
+        final var active = getActiveConstruction();
+        if (newHash.length() == 0
+                || !active.targetRosterHash().equals(expectedOldHash)
+                || !active.hasHintsScheme()
+                || !active.hintsSchemeOrThrow().hasPreprocessedKeys()
+                || getCrsStateFor(active).stage() != COMPLETED) {
+            return false;
+        }
+        activeConstruction.put(active.copyBuilder().targetRosterHash(newHash).build());
+        return true;
+    }
+
+    @Override
     public void setCrsState(@NonNull final CRSState crsState) {
-        this.crsState.put(crsState);
+        final var current = this.crsState.get();
+        final long highWater = Math.max(
+                current == null ? 0 : current.lastUsedCeremonyId(),
+                Math.max(crsState.lastUsedCeremonyId(), crsState.ceremonyId()));
+        final long constructionHighWater =
+                Math.max(current == null ? 0 : current.lastUsedConstructionId(), crsState.lastUsedConstructionId());
+        this.crsState.put(crsState.copyBuilder()
+                .lastUsedCeremonyId(highWater)
+                .lastUsedConstructionId(constructionHighWater)
+                .build());
+    }
+
+    @Override
+    public void setNextCrsState(@NonNull final CRSState crsState) {
+        nextCrsState.put(requireNonNull(crsState));
+    }
+
+    @Override
+    public void abandonNextConstruction() {
+        final var abandoned = getNextConstruction();
+        final var abandonedCrs = getNextCrsState();
+        if (abandoned.equals(HintsConstruction.DEFAULT) && abandonedCrs.equals(CRSState.DEFAULT)) {
+            return;
+        }
+        final var currentCrs = getCrsState();
+        setCrsState(currentCrs
+                .copyBuilder()
+                .lastUsedConstructionId(Math.max(currentCrs.lastUsedConstructionId(), abandoned.constructionId()))
+                .lastUsedCeremonyId(Math.max(currentCrs.lastUsedCeremonyId(), abandonedCrs.ceremonyId()))
+                .build());
+        if (!abandoned.equals(HintsConstruction.DEFAULT)) {
+            purgeAllVotes(abandoned.constructionId());
+            if (abandoned.crsId() != currentCrs.ceremonyId()) {
+                purgeHintsKeys(abandoned.numParties(), abandoned.crsId());
+            }
+        }
+        nextConstruction.put(HintsConstruction.DEFAULT);
+        nextCrsState.put(CRSState.DEFAULT);
+    }
+
+    @Override
+    public void setCrsStateFor(@NonNull final HintsConstruction construction, @NonNull final CRSState crsState) {
+        final var bound = getCrsStateFor(construction);
+        if (bound.ceremonyId() <= 0
+                || bound.ceremonyId() != crsState.ceremonyId()
+                || bound.numParties() != crsState.numParties()) {
+            throw new IllegalArgumentException(
+                    "CRS update does not match construction " + construction.constructionId());
+        }
+        if (getCrsState().ceremonyId() == bound.ceremonyId()) {
+            setCrsState(crsState);
+        } else {
+            setNextCrsState(crsState);
+        }
+    }
+
+    @Override
+    public long allocateCrsId() {
+        final var current = getCrsState();
+        final var next = getNextCrsState();
+        final long allocated = Math.incrementExact(
+                Math.max(current.lastUsedCeremonyId(), Math.max(current.ceremonyId(), next.ceremonyId())));
+        setCrsState(current.copyBuilder().lastUsedCeremonyId(allocated).build());
+        return allocated;
+    }
+
+    @Override
+    public HintsConstruction bindConstructionToCrs(final long constructionId, final long crsId, final int numParties) {
+        if (crsId <= 0 || numParties <= 0 || numParties > 512 || Integer.bitCount(numParties) != 1) {
+            throw new IllegalArgumentException("A construction requires a positive CRS ID and power-of-two capacity");
+        }
+        return updateOrThrow(constructionId, b -> {
+            final var existing = b.build();
+            if (existing.hasHintsScheme()
+                    || existing.hasPreprocessingStartTime()
+                    || (existing.crsId() != 0 && (existing.crsId() != crsId || existing.numParties() != numParties))) {
+                throw new IllegalStateException("Cannot rebind a started hints construction");
+            }
+            return b.crsId(crsId).numParties(numParties);
+        });
+    }
+
+    @Override
+    public HintsConstruction startHintsKeyGracePeriod(final long constructionId, @NonNull final Instant end) {
+        return startHintsKeyGracePeriod(constructionId, end, end);
+    }
+
+    @Override
+    public HintsConstruction startHintsKeyGracePeriod(
+            final long constructionId, @NonNull final Instant now, @NonNull final Instant end) {
+        return updateOrThrow(constructionId, b -> {
+            final var construction = b.build();
+            final var crs = getCrsStateFor(construction);
+            if (crs.ceremonyId() <= 0 || crs.stage() != COMPLETED || crs.crs().length() == 0) {
+                throw new IllegalStateException("Cannot collect hints before the bound CRS completes");
+            }
+            if (construction.hasGracePeriodEndTime()
+                    || construction.hasPreprocessingStartTime()
+                    || construction.hasHintsScheme()) {
+                return b;
+            }
+            for (int partyId = 0; partyId < construction.numParties(); partyId++) {
+                final var keyId = new HintsPartyId(partyId, construction.numParties(), construction.crsId());
+                final var keySet = hintsKeys.get(keyId);
+                if (keySet != null && keySet.nextKey().length() > 0) {
+                    hintsKeys.put(
+                            keyId,
+                            keySet.copyBuilder()
+                                    .key(keySet.nextKey())
+                                    .nextKey(Bytes.EMPTY)
+                                    .adoptionTime(asTimestamp(now))
+                                    .build());
+                }
+            }
+            return b.gracePeriodEndTime(asTimestamp(end));
+        });
     }
 
     @Override
@@ -242,46 +391,34 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
      * @param sourceRosterHash the source roster hash
      * @param targetRosterHash the target roster hash
      * @param lookup           the roster lookup
-     * @param now              the current time
-     * @param gracePeriod      the grace period
      * @return the new construction
      */
     private HintsConstruction updateForNewConstruction(
             @NonNull final Bytes sourceRosterHash,
             @NonNull final Bytes targetRosterHash,
-            @NonNull final Function<Bytes, Roster> lookup,
-            @NonNull final Instant now,
-            @NonNull final Duration gracePeriod) {
+            @NonNull final Function<Bytes, Roster> lookup) {
         final var construction = HintsConstruction.newBuilder()
                 .constructionId(newConstructionId())
                 .sourceRosterHash(sourceRosterHash)
                 .targetRosterHash(targetRosterHash)
-                .gracePeriodEndTime(asTimestamp(now.plus(gracePeriod)))
                 .build();
-        if (requireNonNull(activeConstruction.get()).equals(HintsConstruction.DEFAULT)) {
+        final var previousActive = requireNonNull(activeConstruction.get());
+        if (!previousActive.hasHintsScheme()) {
+            if (!previousActive.equals(HintsConstruction.DEFAULT)) {
+                purgeVotes(previousActive, lookup);
+                purgeHintsKeys(previousActive.numParties(), previousActive.crsId());
+            }
             activeConstruction.put(construction);
         } else {
             if (!requireNonNull(nextConstruction.get()).equals(HintsConstruction.DEFAULT)) {
-                // Before replacing the next construction, purge its votes
-                purgeVotes(requireNonNull(nextConstruction.get()), lookup);
+                // Before replacing candidate work, purge data outside the active CRS namespace.
+                final var abandoned = requireNonNull(nextConstruction.get());
+                purgeAllVotes(abandoned.constructionId());
+                if (abandoned.crsId() != getCrsState().ceremonyId()) {
+                    purgeHintsKeys(abandoned.numParties(), abandoned.crsId());
+                }
             }
             nextConstruction.put(construction);
-        }
-        // Rotate any hint keys requested to be used in the next construction
-        final var targetRoster = requireNonNull(lookup.apply(targetRosterHash));
-        final int numParties = partySizeForRoster(targetRoster);
-        final var adoptionTime = asTimestamp(now);
-        for (int partyId = 0; partyId < numParties; partyId++) {
-            final var hintsId = new HintsPartyId(partyId, numParties);
-            final var keySet = hintsKeys.get(hintsId);
-            if (keySet != null && keySet.nextKey().length() > 0) {
-                final var rotatedKeySet = keySet.copyBuilder()
-                        .key(keySet.nextKey())
-                        .adoptionTime(adoptionTime)
-                        .nextKey(Bytes.EMPTY)
-                        .build();
-                hintsKeys.put(hintsId, rotatedKeySet);
-            }
         }
         return construction;
     }
@@ -294,24 +431,28 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
      */
     private void purgeVotes(
             @NonNull final HintsConstruction construction, @NonNull final Function<Bytes, Roster> lookup) {
-        final var sourceRoster = requireNonNull(lookup.apply(construction.sourceRosterHash()));
+        final var sourceRoster = lookup.apply(construction.sourceRosterHash());
+        if (sourceRoster == null) {
+            purgeAllVotes(construction.constructionId());
+            return;
+        }
         sourceRoster
                 .rosterEntries()
                 .forEach(entry -> votes.remove(new PreprocessingVoteId(construction.constructionId(), entry.nodeId())));
     }
 
-    /**
-     * Purges any hinTS keys for the given roster if it is not for the given party size.
-     *
-     * @param m the party size
-     */
-    private void maybePurgeHintsKeys(final int m, @NonNull final Roster roster) {
-        final int n = partySizeForRoster(roster);
-        if (n != m) {
-            for (int partyId = 0; partyId < n; partyId++) {
-                final var hintsId = new HintsPartyId(partyId, n);
-                hintsKeys.remove(hintsId);
-            }
+    /** Uses the persisted node ID allocation bound when an obsolete source roster has been pruned. */
+    private void purgeAllVotes(final long constructionId) {
+        final long nextNodeId = entityIdStore.peekAtNextNodeId();
+        for (long nodeId = 0; nodeId < nextNodeId; nodeId++) {
+            votes.remove(new PreprocessingVoteId(constructionId, nodeId));
+        }
+    }
+
+    /** Removes keys belonging to an obsolete completed CRS generation. */
+    private void purgeHintsKeys(final int numParties, final long crsId) {
+        for (int partyId = 0; partyId < numParties; partyId++) {
+            hintsKeys.remove(new HintsPartyId(partyId, numParties, crsId));
         }
     }
 
@@ -319,10 +460,14 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
      * Returns a new construction ID.
      */
     private long newConstructionId() {
-        return Math.max(
+        final var currentCrs = getCrsState();
+        final long nextId = Math.incrementExact(Math.max(
+                currentCrs.lastUsedConstructionId(),
+                Math.max(
                         requireNonNull(activeConstruction.get()).constructionId(),
-                        requireNonNull(nextConstruction.get()).constructionId())
-                + 1;
+                        requireNonNull(nextConstruction.get()).constructionId())));
+        setCrsState(currentCrs.copyBuilder().lastUsedConstructionId(nextId).build());
+        return nextId;
     }
 
     /**

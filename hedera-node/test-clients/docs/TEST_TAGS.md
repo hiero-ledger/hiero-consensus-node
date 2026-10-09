@@ -12,26 +12,27 @@ This doc lists every tag and what it means.
 These tags partition the suite by feature area. PR-check tasks use them to keep CI shards roughly
 balanced; for example, `hapiTestCrypto` includes only `CRYPTO`-tagged tests.
 
-|        Tag         |                                      Used by                                      |                    Meaning                    |
-|--------------------|-----------------------------------------------------------------------------------|-----------------------------------------------|
-| `CRYPTO`           | `hapiTestCrypto`, `hapiTestCryptoSerial`, `hapiTestCryptoEmbedded`                | Crypto-service tests                          |
-| `TOKEN`            | `hapiTestToken`, `hapiTestTokenSerial`                                            | Token-service tests                           |
-| `SMART_CONTRACT`   | `hapiTestSmartContract`, `hapiTestSmartContractSerial`                            | Smart-contract / EVM tests                    |
-| `SIMPLE_FEES`      | `hapiTestSimpleFees`, `hapiTestSimpleFeesSerial`, `hapiTestSimpleFeesEmbedded`    | "Simple fees" subsystem tests                 |
-| `ATOMIC_BATCH`     | `hapiTestAtomicBatch`, `hapiTestAtomicBatchSerial`, `hapiTestAtomicBatchEmbedded` | Atomic-batch transaction tests                |
-| `RESTART`          | `hapiTestRestart`                                                                 | Restart-cycle tests                           |
-| `UPGRADE`          | `hapiTestRestart`                                                                 | NMT-upgrade tests (runs alongside `RESTART`)  |
-| `ND_RECONNECT`     | `hapiTestNDReconnect`                                                             | Node-death reconnect tests                    |
-| `BLOCK_NODE`       | `hapiTestBlockNodeCommunication`                                                  | Block-node integration tests                  |
-| `WRAPS`            | `hapiTestWraps`, `hapiTestCutover`                                                | TSS `wraps` / weighted re-signing tests       |
-| `WRAPS_DOWNLOAD`   | `hapiTestWrapsDownload`                                                           | Variant of WRAPS that downloads a proving key |
-| `CUTOVER`          | `hapiTestCutover`                                                                 | TSS cutover scenarios                         |
-| `LONG_RUNNING`     | `hapiTestTimeConsuming`, `hapiTestTimeConsumingSerial`                            | Tests that take a long time                   |
-| `STATE_THROTTLING` | `hapiTestStateThrottling`                                                         | State-rate-limit tests                        |
-| `ISS`              | `hapiTestIss`                                                                     | Intentional Inconsistent State scenarios      |
+|        Tag         |                                      Used by                                      |                   Meaning                    |
+|--------------------|-----------------------------------------------------------------------------------|----------------------------------------------|
+| `CRYPTO`           | `hapiTestCrypto`, `hapiTestCryptoSerial`, `hapiTestCryptoEmbedded`                | Crypto-service tests                         |
+| `TOKEN`            | `hapiTestToken`, `hapiTestTokenSerial`                                            | Token-service tests                          |
+| `SMART_CONTRACT`   | `hapiTestSmartContract`, `hapiTestSmartContractSerial`                            | Smart-contract / EVM tests                   |
+| `SIMPLE_FEES`      | `hapiTestSimpleFees`, `hapiTestSimpleFeesSerial`, `hapiTestSimpleFeesEmbedded`    | "Simple fees" subsystem tests                |
+| `ATOMIC_BATCH`     | `hapiTestAtomicBatch`, `hapiTestAtomicBatchSerial`, `hapiTestAtomicBatchEmbedded` | Atomic-batch transaction tests               |
+| `RESTART`          | `hapiTestRestart`                                                                 | Restart-cycle tests                          |
+| `UPGRADE`          | `hapiTestRestart`                                                                 | NMT-upgrade tests (runs alongside `RESTART`) |
+| `ND_RECONNECT`     | `hapiTestNDReconnect`                                                             | Node-death reconnect tests                   |
+| `BLOCK_NODE`       | `hapiTestBlockNodeCommunication`                                                  | Block-node integration tests                 |
+| `WRAPS`            | `hapiTestWraps`                                                                   | TSS `wraps` / weighted re-signing tests      |
+| `CUTOVER`          | `hapiTestCutover`                                                                 | TSS cutover scenarios                        |
+| `LONG_RUNNING`     | `hapiTestTimeConsuming`, `hapiTestTimeConsumingSerial`                            | Tests that take a long time                  |
+| `STATE_THROTTLING` | `hapiTestStateThrottling`                                                         | State-rate-limit tests                       |
+| `ISS`              | `hapiTestIss`                                                                     | Intentional Inconsistent State scenarios     |
 
 `hapiTestMisc` and `hapiTestMiscSerial` catch everything not covered by the area tags above (the
 expression in `build.gradle.kts` is `!(INTEGRATION|CRYPTO|TOKEN|RESTART|…)`).
+The misc tasks, including their records-mode variants, exclude `WRAPS` and `CUTOVER`:
+these tests require the TSS startup configuration supplied by their dedicated tasks.
 
 ## Execution-target tags
 

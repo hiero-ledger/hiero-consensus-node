@@ -72,6 +72,8 @@ import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -137,24 +139,6 @@ class WritableHistoryStoreImplTest {
         subject.setLedgerId(LEDGER_ID);
 
         assertEquals(LEDGER_ID, subject.getLedgerId());
-    }
-
-    @Test
-    void expectedWrapsProvingKeyHashIsNullUntilSet() {
-        // After doGenesisSetup() with the default config (which now has a non-blank
-        // wrapsProvingKeyHash), the store is pre-populated with the configured hash.
-        // getWrapsProvingKeyHash() returns null only when the stored value is Bytes.EMPTY.
-        final var configuredHash = TSS_CONFIG.wrapsProvingKeyHash();
-        if (configuredHash.isBlank()) {
-            assertNull(subject.getWrapsProvingKeyHash());
-        } else {
-            assertEquals(Bytes.fromHex(configuredHash), subject.getWrapsProvingKeyHash());
-        }
-
-        final var hash = Bytes.wrap("proving-key-hash");
-        subject.setWrapsProvingKeyHash(hash);
-
-        assertEquals(hash, subject.getWrapsProvingKeyHash());
     }
 
     @Test
@@ -385,25 +369,7 @@ class WritableHistoryStoreImplTest {
     }
 
     @Test
-    void forceHandoffStillRefusesIncompleteConstructionWithMismatchedRosterHash() {
-        final var activeConstruction = HistoryProofConstruction.newBuilder()
-                .constructionId(123L)
-                .sourceRosterHash(A_ROSTER_HASH)
-                .targetRosterHash(A_ROSTER_HASH)
-                .build();
-        final var nextConstruction = HistoryProofConstruction.newBuilder()
-                .constructionId(456L)
-                .targetRosterHash(C_ROSTER_HASH)
-                .build();
-        setConstructions(activeConstruction, nextConstruction);
-
-        assertFalse(subject.handoff(A_ROSTER, C_ROSTER, A_ROSTER_HASH, true));
-        assertSame(activeConstruction, this.<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID));
-        assertSame(nextConstruction, this.<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID));
-    }
-
-    @Test
-    void forceHandoffAllowsCompleteConstructionWithMismatchedRosterHash() {
+    void handoffRefusesEvenCompleteConstructionWithMismatchedRosterHash() {
         final var activeConstruction = HistoryProofConstruction.newBuilder()
                 .constructionId(123L)
                 .sourceRosterHash(A_ROSTER_HASH)
@@ -416,28 +382,9 @@ class WritableHistoryStoreImplTest {
                 .build();
         setConstructions(activeConstruction, nextConstruction);
 
-        assertTrue(subject.handoff(A_ROSTER, C_ROSTER, A_ROSTER_HASH, true));
-        assertSame(nextConstruction, this.<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID));
-        assertEquals(
-                HistoryProofConstruction.DEFAULT,
-                this.<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID));
-    }
-
-    @Test
-    void clearProofVotesRemovesPersistedVotesForGivenNodesOnly() {
-        // finishProof purges a construction's persisted votes on completion so a node rebuilding its
-        // controller during a WRAPS conversion does not reload now-superseded votes (which would
-        // make it skip the conversion vote as already counted and diverge ACTIVE_PROOF_CONSTRUCTION).
-        subject.addProofVote(0L, 123L, DEFAULT_VOTE);
-        subject.addProofVote(1L, 123L, DEFAULT_VOTE);
-        subject.addProofVote(0L, 456L, DEFAULT_VOTE);
-        assertEquals(2, subject.getVotes(123L, Set.of(0L, 1L)).size());
-
-        subject.clearProofVotes(123L, new TreeSet<>(List.of(0L, 1L)));
-
-        assertEquals(0, subject.getVotes(123L, Set.of(0L, 1L)).size());
-        // Votes for a different construction are untouched.
-        assertEquals(1, subject.getVotes(456L, Set.of(0L)).size());
+        assertFalse(subject.handoff(A_ROSTER, C_ROSTER, A_ROSTER_HASH));
+        assertSame(activeConstruction, this.<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID));
+        assertSame(nextConstruction, this.<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID));
     }
 
     private void givenARosterLookup() {
@@ -474,6 +421,30 @@ class WritableHistoryStoreImplTest {
             states.getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID).put(active);
             states.getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID).put(next);
         });
+    }
+
+    @Test
+    void rebindingCompletedTargetPreservesProofAndSourceIdentity() {
+        final var active = HistoryProofConstruction.newBuilder()
+                .constructionId(123L)
+                .sourceRosterHash(A_ROSTER_HASH)
+                .targetRosterHash(B_ROSTER_HASH)
+                .targetProof(HistoryProof.DEFAULT)
+                .build();
+        final var next =
+                HistoryProofConstruction.newBuilder().constructionId(124L).build();
+        setConstructions(active, next);
+        assertFalse(subject.rebindActiveTargetRosterHash(A_ROSTER_HASH, C_ROSTER_HASH));
+        assertEquals(active, subject.getActiveConstruction());
+        assertTrue(subject.rebindActiveTargetRosterHash(B_ROSTER_HASH, C_ROSTER_HASH));
+        assertEquals(active.copyBuilder().targetRosterHash(C_ROSTER_HASH).build(), subject.getActiveConstruction());
+        assertEquals(next, subject.getNextConstruction());
+        final var incomplete = active.copyBuilder()
+                .assemblyStartTime(asTimestamp(CONSENSUS_NOW))
+                .build();
+        setConstructions(incomplete, next);
+        assertFalse(subject.rebindActiveTargetRosterHash(B_ROSTER_HASH, C_ROSTER_HASH));
+        assertEquals(incomplete, subject.getActiveConstruction());
     }
 
     private void commit(@NonNull final Consumer<WritableStates> mutation) {
@@ -537,5 +508,164 @@ class WritableHistoryStoreImplTest {
         assertFalse(created.hasTargetProof());
         // The fresh construction is placed alongside the active one, whose proof it will replace
         assertSame(created, getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"keys", "assembly", "signing", "failed", "complete", "legacyComplete"})
+    void replacesObsoleteMetadataAtEveryStageWithoutChangingActiveProof(final String stage) {
+        given(activeRosters.phase()).willReturn(TRANSITION);
+        given(activeRosters.sourceRosterHash()).willReturn(A_ROSTER_HASH);
+        given(activeRosters.targetRosterHash()).willReturn(C_ROSTER_HASH);
+        givenARosterLookup();
+        givenCRosterLookup();
+        final var oldMetadata = Bytes.wrap("OLD_VK");
+        final var newMetadata = Bytes.wrap("NEW_VK");
+        final var active = HistoryProofConstruction.newBuilder()
+                .constructionId(1L)
+                .sourceRosterHash(A_ROSTER_HASH)
+                .targetRosterHash(A_ROSTER_HASH)
+                .targetProof(HistoryProof.DEFAULT)
+                .build();
+        final var obsoleteBuilder = HistoryProofConstruction.newBuilder()
+                .constructionId(2L)
+                .sourceRosterHash(A_ROSTER_HASH)
+                .targetRosterHash(C_ROSTER_HASH)
+                .targetMetadata(oldMetadata);
+        switch (stage) {
+            case "keys" -> obsoleteBuilder.gracePeriodEndTime(asTimestamp(CONSENSUS_NOW));
+            case "assembly" -> obsoleteBuilder.assemblyStartTime(asTimestamp(CONSENSUS_NOW));
+            case "signing" ->
+                obsoleteBuilder.wrapsSigningState(WrapsSigningState.newBuilder().phase(R1));
+            case "failed" -> obsoleteBuilder.failureReason("retry");
+            case "complete" ->
+                obsoleteBuilder.targetProof(HistoryProof.newBuilder()
+                        .targetHistory(History.newBuilder().metadata(oldMetadata)));
+            case "legacyComplete" ->
+                obsoleteBuilder
+                        .targetMetadata((Bytes) null)
+                        .targetProof(HistoryProof.newBuilder()
+                                .targetHistory(History.newBuilder().metadata(oldMetadata)));
+            default -> throw new AssertionError(stage);
+        }
+        final var obsolete = obsoleteBuilder.build();
+        setConstructions(active, obsolete);
+        subject.addProofVote(0L, 2L, DEFAULT_VOTE);
+        subject.addWrapsMessage(2L, new WrapsMessagePublication(0L, Bytes.wrap("OLD_MESSAGE"), R1, CONSENSUS_NOW));
+
+        // Missing replacement hinTS metadata must not continuously restart a construction.
+        assertSame(obsolete, subject.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, TSS_CONFIG, false, null));
+        final var replacement = subject.getOrCreateConstruction(
+                activeRosters, CONSENSUS_NOW.plusSeconds(1), TSS_CONFIG, false, newMetadata);
+
+        assertEquals(3L, replacement.constructionId());
+        assertEquals(newMetadata, replacement.targetMetadata());
+        assertTrue(replacement.hasGracePeriodEndTime());
+        assertSame(active, subject.getActiveConstruction());
+        assertEquals(replacement, subject.getNextConstruction());
+        assertTrue(subject.getVotes(2L, Set.of(0L)).isEmpty());
+        assertTrue(subject.getWrapsMessagePublications(2L, Set.of(0L)).isEmpty());
+        // Reconstruct the store to show the metadata binding survives restart.
+        commit(_ -> {});
+        final var restartedStore = new WritableHistoryStoreImpl(state.getWritableStates(HistoryService.NAME));
+        assertEquals(
+                replacement,
+                restartedStore.getOrCreateConstruction(
+                        activeRosters, CONSENSUS_NOW.plusSeconds(2), TSS_CONFIG, false, newMetadata));
+    }
+
+    @Test
+    void replacesUnfinishedBootstrapInActiveSlotWithAFreshId() {
+        given(activeRosters.phase()).willReturn(BOOTSTRAP);
+        given(activeRosters.sourceRosterHash()).willReturn(A_ROSTER_HASH);
+        given(activeRosters.targetRosterHash()).willReturn(A_ROSTER_HASH);
+        givenARosterLookup();
+        final var obsolete = HistoryProofConstruction.newBuilder()
+                .constructionId(7L)
+                .sourceRosterHash(A_ROSTER_HASH)
+                .targetRosterHash(A_ROSTER_HASH)
+                .targetMetadata(Bytes.wrap("OLD_VK"))
+                .assemblyStartTime(asTimestamp(CONSENSUS_NOW))
+                .build();
+        setConstructions(obsolete, HistoryProofConstruction.DEFAULT);
+        subject.addProofVote(0L, 7L, DEFAULT_VOTE);
+
+        final var replacement =
+                subject.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, TSS_CONFIG, false, Bytes.wrap("NEW_VK"));
+
+        assertEquals(8L, replacement.constructionId());
+        assertSame(replacement, subject.getActiveConstruction());
+        assertEquals(HistoryProofConstruction.DEFAULT, subject.getNextConstruction());
+        assertTrue(subject.getVotes(7L, Set.of(0L)).isEmpty());
+    }
+
+    @Test
+    void retainsLegacyCompletedProofForItsExistingMetadata() {
+        given(activeRosters.phase()).willReturn(BOOTSTRAP);
+        given(activeRosters.sourceRosterHash()).willReturn(A_ROSTER_HASH);
+        given(activeRosters.targetRosterHash()).willReturn(A_ROSTER_HASH);
+        final var metadata = Bytes.wrap("VK");
+        final var completed = HistoryProofConstruction.newBuilder()
+                .constructionId(7L)
+                .sourceRosterHash(A_ROSTER_HASH)
+                .targetRosterHash(A_ROSTER_HASH)
+                .targetProof(HistoryProof.newBuilder()
+                        .targetHistory(History.newBuilder().metadata(metadata)))
+                .build();
+        setConstructions(completed, HistoryProofConstruction.DEFAULT);
+
+        final var retained = subject.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, TSS_CONFIG, false, metadata);
+
+        assertEquals(completed.copyBuilder().targetMetadata(metadata).build(), retained);
+        assertEquals(HistoryProofConstruction.DEFAULT, subject.getNextConstruction());
+    }
+
+    @Test
+    void restartsLegacyUnboundSigningOnceInsteadOfReplayingUnknownMetadata() {
+        given(activeRosters.phase()).willReturn(BOOTSTRAP);
+        given(activeRosters.sourceRosterHash()).willReturn(A_ROSTER_HASH);
+        given(activeRosters.targetRosterHash()).willReturn(A_ROSTER_HASH);
+        givenARosterLookup();
+        final var metadata = Bytes.wrap("VK");
+        final var legacy = HistoryProofConstruction.newBuilder()
+                .constructionId(7L)
+                .sourceRosterHash(A_ROSTER_HASH)
+                .targetRosterHash(A_ROSTER_HASH)
+                .wrapsSigningState(WrapsSigningState.newBuilder().phase(R1))
+                .build();
+        setConstructions(legacy, HistoryProofConstruction.DEFAULT);
+
+        final var replacement =
+                subject.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, TSS_CONFIG, false, metadata);
+
+        assertEquals(8L, replacement.constructionId());
+        assertEquals(metadata, replacement.targetMetadata());
+        assertSame(
+                replacement,
+                subject.getOrCreateConstruction(
+                        activeRosters, CONSENSUS_NOW.plusSeconds(1), TSS_CONFIG, false, metadata));
+    }
+
+    @Test
+    void persistsAnEmptyMetadataBindingAcrossAssemblyAndRestart() {
+        given(activeRosters.phase()).willReturn(BOOTSTRAP);
+        given(activeRosters.sourceRosterHash()).willReturn(A_ROSTER_HASH);
+        given(activeRosters.targetRosterHash()).willReturn(A_ROSTER_HASH);
+        givenARosterLookup();
+        final var construction =
+                subject.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, TSS_CONFIG, false, Bytes.EMPTY);
+        assertTrue(construction.hasTargetMetadata());
+        final var assembling = subject.setAssemblyTime(construction.constructionId(), CONSENSUS_NOW.plusSeconds(1));
+        commit(_ -> {});
+        final var restartedStore = new WritableHistoryStoreImpl(state.getWritableStates(HistoryService.NAME));
+
+        assertEquals(
+                assembling,
+                restartedStore.getOrCreateConstruction(
+                        activeRosters, CONSENSUS_NOW.plusSeconds(2), TSS_CONFIG, false, Bytes.EMPTY));
+        assertEquals(
+                assembling,
+                restartedStore.getOrCreateConstruction(
+                        activeRosters, CONSENSUS_NOW.plusSeconds(3), TSS_CONFIG, false, null));
+        assertEquals(HistoryProofConstruction.DEFAULT, restartedStore.getNextConstruction());
     }
 }

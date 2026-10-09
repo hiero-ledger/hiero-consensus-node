@@ -7,6 +7,7 @@ import static org.hiero.base.utility.CommonUtils.hex;
 import com.hedera.cryptography.wraps.Proof;
 import com.hedera.cryptography.wraps.SchnorrKeys;
 import com.hedera.cryptography.wraps.WRAPSLibraryBridge;
+import com.hedera.hapi.node.state.history.History;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
@@ -26,6 +27,28 @@ public interface HistoryLibrary {
      * The corresponding private key is intentionally unavailable, so this key must never be used for signing.
      */
     Bytes MISSING_SCHNORR_KEY = Bytes.wrap(WRAPSLibraryBridge.getInstance().provideSentinelPublicKey());
+
+    /**
+     * The most nodes a WRAPS proof can cover in one address book.
+     */
+    int MAX_ADDRESS_BOOK_SIZE = WRAPSLibraryBridge.MAX_AB_SIZE;
+
+    /**
+     * The length of the hash of an address book. A ledger id is the hash of the address book its chain of
+     * trust is grounded in, followed by the hash of the hinTS verification key that address book first proved.
+     */
+    int ADDRESS_BOOK_HASH_LENGTH = 32;
+
+    /**
+     * Returns the hash of the address book the chain of trust with the given ledger id is grounded in.
+     *
+     * @param ledgerId the ledger id
+     * @return the hash of the address book that grounds the chain of trust
+     */
+    static Bytes genesisAddressBookHashOf(@NonNull final Bytes ledgerId) {
+        requireNonNull(ledgerId);
+        return ledgerId.slice(0, ADDRESS_BOOK_HASH_LENGTH);
+    }
 
     /**
      * An address book for use in the history library.
@@ -127,11 +150,6 @@ public interface HistoryLibrary {
     }
 
     /**
-     * The verification key for WRAPS proofs.
-     */
-    byte[] wrapsVerificationKey();
-
-    /**
      * Returns a new Schnorr key pair.
      */
     SchnorrKeys newSchnorrKeyPair();
@@ -145,12 +163,37 @@ public interface HistoryLibrary {
     byte[] hashAddressBook(@NonNull AddressBook addressBook);
 
     /**
-     * Computes the message to be signed for a WRAPS proof.
+     * Computes the hash of the given hinTS verification key with the same algorithm used by the SNARK circuit.
+     *
+     * @param hintsVerificationKey the hinTS verification key
+     * @return the hash of the verification key
+     */
+    byte[] hashHintsVerificationKey(@NonNull byte[] hintsVerificationKey);
+
+    /**
+     * Computes the message to be signed for a WRAPS proof; that is, the concatenation of the hash of the
+     * target address book with the hash of its hinTS verification key. When the target address book is
+     * the one grounding a chain of trust, this message is also the ledger id of that chain of trust.
+     *
      * @param addressBook the address book
      * @param hintsVerificationKey the hinTS verification key for the target address book
      * @return the message
      */
-    byte[] computeWrapsMessage(AddressBook addressBook, byte[] hintsVerificationKey);
+    byte[] computeWrapsMessage(@NonNull AddressBook addressBook, @NonNull byte[] hintsVerificationKey);
+
+    /**
+     * Returns the ledger id of a chain of trust grounded in the given history; that is, the message the
+     * history's address book signs in the WRAPS proof that grounds the chain of trust, as computed by
+     * {@link #computeWrapsMessage(AddressBook, byte[])} for that address book and verification key.
+     *
+     * @param history the history grounding the chain of trust
+     * @return the ledger id
+     */
+    default Bytes ledgerIdOf(@NonNull final History history) {
+        requireNonNull(history);
+        return history.addressBookHash()
+                .append(Bytes.wrap(hashHintsVerificationKey(history.metadata().toByteArray())));
+    }
 
     /**
      * Runs the R1 phase of the signing protocol.
@@ -238,10 +281,11 @@ public interface HistoryLibrary {
             @NonNull byte[] signature);
 
     /**
-     * Constructs a genesis WRAPS proof.
+     * Constructs a genesis WRAPS proof; that is, a proof grounding a chain of trust whose ledger id is the
+     * message the genesis address book signed (see {@link #computeWrapsMessage(AddressBook, byte[])}).
      *
      * @param genesisAddressBookHash the genesis address book hash
-     * @param aggregatedSignature an aggregated signature from the genesis address book
+     * @param aggregatedSignature an aggregated signature from the genesis address book on the ledger id
      * @param genesisHintsVerificationKey the hinTS verification key for the genesis address book
      * @param signers the set of signers contributing to the aggregated signature
      * @param addressBook the genesis address book
@@ -257,7 +301,7 @@ public interface HistoryLibrary {
     /**
      * Constructs an incremental WRAPS proof.
      *
-     * @param genesisAddressBookHash the genesis address book hash
+     * @param genesisAddressBookHash the genesis address book hash (see {@link #genesisAddressBookHashOf(Bytes)})
      * @param sourceProof the source proof
      * @param sourceAddressBook the source address book
      * @param targetAddressBook the target address book
@@ -276,21 +320,17 @@ public interface HistoryLibrary {
             @NonNull Set<Long> signers);
 
     /**
-     * Returns whether the library is ready to construct WRAPS proofs; that is, whether the proving key
-     * artifacts installed in {@code TSS_LIB_WRAPS_ARTIFACTS_PATH} are complete and verified against the
-     * given archive hash. Callers must pass {@code tss.wrapsProvingKeyHash} from the configuration the
-     * current construction is running under, so that readiness is judged against the same proving key
-     * the network agreed on.
+     * Returns whether the library is ready to construct and verify WRAPS proofs; that is, whether it has
+     * loaded the public parameters it embeds.
      *
-     * @param expectedProvingKeyHashHex the expected proving key archive hash, as bare hex
-     * @return whether recursive proof construction may safely map the installed artifacts
+     * @return whether recursive proofs can be constructed and verified
      */
-    boolean wrapsProverReady(@NonNull String expectedProvingKeyHashHex);
+    boolean wrapsProverReady();
 
     /**
      * Verifies whether a compressed proof establishes the given metadata in the chain of trust of the given ledger id.
      * @param compressedProof the compressed proof
-     * @param ledgerId the ledger id
+     * @param ledgerId the ledger id (see {@link #ledgerIdOf(History)})
      * @param metadata the metadata
      * @return if the proof is valid
      */

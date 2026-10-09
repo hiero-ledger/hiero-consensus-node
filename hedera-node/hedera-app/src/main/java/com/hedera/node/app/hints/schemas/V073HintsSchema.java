@@ -27,12 +27,11 @@ public class V073HintsSchema extends Schema<SemanticVersion> {
             SemanticVersion.newBuilder().major(0).minor(73).patch(0).build();
 
     private final HintsLibrary library;
-    private final HintsContext signingContext;
 
     public V073HintsSchema(@NonNull final HintsLibrary library, @NonNull final HintsContext signingContext) {
         super(VERSION, SEMANTIC_VERSION_COMPARATOR);
         this.library = requireNonNull(library);
-        this.signingContext = requireNonNull(signingContext);
+        requireNonNull(signingContext);
     }
 
     @Override
@@ -47,9 +46,6 @@ public class V073HintsSchema extends Schema<SemanticVersion> {
         if (activeConstruction == null) {
             activeConstructionState.put(HintsConstruction.DEFAULT);
             activeConstruction = activeConstructionState.get();
-        }
-        if (activeConstruction != null && activeConstruction.hasHintsScheme()) {
-            signingContext.setConstruction(activeConstruction);
         }
 
         if (writableStates

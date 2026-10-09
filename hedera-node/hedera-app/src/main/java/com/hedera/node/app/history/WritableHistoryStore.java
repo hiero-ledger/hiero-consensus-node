@@ -42,6 +42,26 @@ public interface WritableHistoryStore extends ReadableHistoryStore {
             boolean freshGenesisRequested);
 
     /**
+     * Gets or creates a construction bound to the given metadata when it is available. A construction
+     * bound to different metadata is replaced with a new ID, even when its roster hashes still match.
+     * Null metadata leaves the existing binding unchanged while hinTS preprocessing is pending.
+     *
+     * @param activeRosters the active rosters
+     * @param now the current time
+     * @param tssConfig the TSS configuration
+     * @param freshGenesisRequested whether a fresh genesis proof is requested
+     * @param metadata the target metadata, or null while it is unavailable
+     * @return the current construction for the rosters and metadata
+     */
+    @NonNull
+    HistoryProofConstruction getOrCreateConstruction(
+            @NonNull ActiveRosters activeRosters,
+            @NonNull Instant now,
+            @NonNull TssConfig tssConfig,
+            boolean freshGenesisRequested,
+            @Nullable Bytes metadata);
+
+    /**
      * Includes the given proof key for the given node, assigning the given adoption time if the key
      * is immediately in use.
      *
@@ -65,20 +85,6 @@ public interface WritableHistoryStore extends ReadableHistoryStore {
      * Adds a history proof vote for the given node and construction.
      */
     void addProofVote(long nodeId, long constructionId, @NonNull HistoryProofVote vote);
-
-    /**
-     * Removes any persisted proof votes for the given construction cast by the given nodes.
-     *
-     * <p>Used when a proof is completed to mirror the in-memory clearing of votes that lets the
-     * network vote again (for example, to convert a freshly built proof into a WRAPS-extensible
-     * one). Without this, a node that restarts or reconnects while a conversion is in flight would
-     * rebuild its controller from the now-superseded persisted votes and treat the subsequent
-     * conversion vote as already counted, diverging the active construction from the live network.
-     *
-     * @param constructionId the construction ID
-     * @param nodeIds the IDs of the nodes whose votes should be removed
-     */
-    void clearProofVotes(long constructionId, @NonNull SortedSet<Long> nodeIds);
 
     /**
      * Adds a node's signature on a particular assembled history proof for the given construction.
@@ -117,12 +123,6 @@ public interface WritableHistoryStore extends ReadableHistoryStore {
     void setLedgerId(@NonNull Bytes bytes);
 
     /**
-     * Sets the expected WRAPS proving key hash.
-     * @param hash the hash
-     */
-    void setWrapsProvingKeyHash(@NonNull Bytes hash);
-
-    /**
      * Hands off from the active construction to the next construction if appropriate.
      * @param fromRoster the roster to hand off from
      * @param toRoster if applicable, the roster to hand off to
@@ -132,15 +132,11 @@ public interface WritableHistoryStore extends ReadableHistoryStore {
     boolean handoff(@NonNull Roster fromRoster, @Nullable Roster toRoster, @Nullable Bytes toRosterHash);
 
     /**
-     * Hands off from the active construction to the next construction if appropriate.
-     * @param fromRoster the roster to hand off from
-     * @param toRoster if applicable, the roster to hand off to
-     * @param toRosterHash if applicable, the hash of the roster to hand off to
-     * @param forceHandoff whether to force the handoff when the roster hash doesn't match the next construction
-     * @return whether the handoff happened
+     * Rebinds a completed active construction after the caller verifies that the adopted roster has
+     * exactly the same node IDs and weights as its prepared target. Preserves the proof and source
+     * identity. Returns false without mutation if the expected active target is not complete.
      */
-    boolean handoff(
-            @NonNull Roster fromRoster, @Nullable Roster toRoster, @Nullable Bytes toRosterHash, boolean forceHandoff);
+    boolean rebindActiveTargetRosterHash(@NonNull Bytes expectedOldHash, @NonNull Bytes newHash);
 
     /**
      * Updates the WRAPS signing state with the given specification.

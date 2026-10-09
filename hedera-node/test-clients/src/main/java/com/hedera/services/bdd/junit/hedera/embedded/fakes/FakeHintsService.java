@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.hedera.embedded.fakes;
 
+import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.hints.HintsService;
@@ -113,6 +114,17 @@ public class FakeHintsService implements HintsService {
     }
 
     @Override
+    public void reconcile(
+            @NonNull final ActiveRosters activeRosters,
+            @NonNull final WritableHintsStore hintsStore,
+            @NonNull final Instant now,
+            @NonNull final Instant crsWorkTime,
+            @NonNull final TssConfig tssConfig,
+            final boolean isActive) {
+        delegate.reconcile(activeRosters, hintsStore, now, crsWorkTime, tssConfig, isActive);
+    }
+
+    @Override
     public void executeCrsWork(
             @NonNull final WritableHintsStore hintsStore,
             @NonNull final Instant now,
@@ -140,7 +152,7 @@ public class FakeHintsService implements HintsService {
     }
 
     @Override
-    public void setActiveConstruction(@NonNull final HintsConstruction construction) {
-        delegate.setActiveConstruction(construction);
+    public void setActiveConstruction(@NonNull final HintsConstruction construction, @NonNull final CRSState crsState) {
+        delegate.setActiveConstruction(construction, crsState);
     }
 }

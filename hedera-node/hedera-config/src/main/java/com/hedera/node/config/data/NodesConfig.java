@@ -34,7 +34,8 @@ import com.swirlds.config.api.ConfigProperty;
  */
 @ConfigData("nodes")
 public record NodesConfig(
-        @ConfigProperty(defaultValue = "100") @NetworkProperty
+        // A WRAPS proof can only extend the ledger's chain of trust to an address book of at most 64 nodes
+        @ConfigProperty(defaultValue = "64") @NetworkProperty
         long maxNumber,
 
         @ConfigProperty(defaultValue = "100") @NetworkProperty

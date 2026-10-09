@@ -460,6 +460,9 @@ enum StateIdentifier {
      */
     STATE_ID_CRS_STATE = 48;
 
+    /** The next CRS ceremony, isolated from the active signing CRS. Singleton state. */
+    STATE_ID_NEXT_CRS_STATE = 68;
+
     /**
      * A state identifier for the CRS publications. Key/value state.
      */

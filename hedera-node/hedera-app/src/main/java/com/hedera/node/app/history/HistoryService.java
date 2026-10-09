@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.history;
 
-import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
-
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
 import com.hedera.hapi.node.state.history.HistoryProof;
@@ -48,19 +46,19 @@ public interface HistoryService extends Service, OnProofFinished {
     /**
      * Returns true if work on the given construction is completed.
      * @param construction the construction
-     * @param tssConfig the TSS configuration
      * @return true if work on the given construction is completed
      */
-    static boolean isCompleted(
-            @NonNull final HistoryProofConstruction construction, @NonNull final TssConfig tssConfig) {
-        return construction.hasTargetProof()
-                && (!tssConfig.wrapsEnabled() || isWrapsExtensible(construction.targetProofOrThrow()));
+    static boolean isCompleted(@NonNull final HistoryProofConstruction construction) {
+        return construction.hasTargetProof();
     }
 
     /**
-     * Returns the verification key for history proofs.
+     * Returns the ledger id of a chain of trust grounded in the target history of the given proof.
+     * @param proof the proof grounding a chain of trust
+     * @return the ledger id
      */
-    Bytes historyProofVerificationKey();
+    @NonNull
+    Bytes ledgerIdOf(@NonNull HistoryProof proof);
 
     /**
      * Returns the handlers for the {@link HistoryService}.

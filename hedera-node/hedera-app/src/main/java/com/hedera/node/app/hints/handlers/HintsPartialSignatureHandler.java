@@ -6,7 +6,6 @@ import static java.util.Objects.requireNonNull;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.hedera.hapi.services.auxiliary.hints.HintsPartialSignatureTransactionBody;
-import com.hedera.node.app.hints.ReadableHintsStore;
 import com.hedera.node.app.hints.impl.BlockHashSigning;
 import com.hedera.node.app.hints.impl.HintsContext;
 import com.hedera.node.app.hints.impl.HintsModule;
@@ -107,9 +106,11 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
             log.debug("Ignoring partial signature in pre-handle for node {}", creatorId, e);
             return;
         }
-        final var hintsStore = context.createStore(ReadableHintsStore.class);
         try {
-            final var crs = requireNonNull(hintsStore.crsIfKnown());
+            final var crs = hintsContext.crsForConstruction(op.constructionId());
+            if (crs == null) {
+                return;
+            }
             final var partialSignature = new PartialSignature(op.constructionId(), crs, creatorId, op);
             if (tssConfig.useDeterministicHintsSignatures()) {
                 //noinspection ResultOfMethodCallIgnored
@@ -137,8 +138,10 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
             }
             return;
         }
-        final var hintsStore = context.storeFactory().readableStore(ReadableHintsStore.class);
-        final var crs = requireNonNull(hintsStore.crsIfKnown());
+        final var crs = hintsContext.crsForConstruction(op.constructionId());
+        if (crs == null) {
+            return;
+        }
         // Only something to do at handle if using deterministic hinTS signatures
         if (tssConfig.useDeterministicHintsSignatures()) {
             final boolean isValid = Boolean.TRUE.equals(cache.get(new PartialSignature(

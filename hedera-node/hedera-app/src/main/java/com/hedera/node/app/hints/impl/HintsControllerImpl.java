@@ -7,16 +7,15 @@ import static com.hedera.hapi.node.state.hints.CRSStage.WAITING_FOR_ADOPTING_FIN
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
-import static com.hedera.node.app.hints.HintsService.partySizeForRosterNodeCount;
 import static com.hedera.node.app.service.roster.impl.RosterTransitionWeights.moreThanTwoThirdsOfTotal;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.summingLong;
 import static java.util.stream.Collectors.toMap;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.hints.CRSState;
+import com.hedera.hapi.node.state.hints.CrsContributor;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.PreprocessedKeys;
 import com.hedera.hapi.node.state.hints.PreprocessingVote;
@@ -41,7 +40,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.OptionalInt;
-import java.util.OptionalLong;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.CancellationException;
@@ -92,16 +90,11 @@ public class HintsControllerImpl implements HintsController {
     private final Supplier<Configuration> configurationSupplier;
     private final OnHintsFinished onHintsFinished;
     /**
-     * The future that resolves to the final updated CRS for the network.
-     * This will be null until the first node has contributed to the CRS update.
-     */
-    @Nullable
-    private CompletableFuture<CRSValidation> finalCrsFuture;
-
-    /**
      * The ongoing construction, updated each time the controller advances the construction in state.
      */
     private HintsConstruction construction;
+
+    private boolean cancelled;
 
     /**
      * If not null, a future that resolves when this node completes the preprocessing stage of this construction.
@@ -129,8 +122,6 @@ public class HintsControllerImpl implements HintsController {
      */
     private record Validation(int partyId, @NonNull Bytes hintsKey, boolean isValid) {}
 
-    public record CRSValidation(@NonNull Bytes crs, long weightContributedSoFar) {}
-
     public HintsControllerImpl(
             final long selfId,
             @NonNull final Bytes blsPrivateKey,
@@ -148,7 +139,7 @@ public class HintsControllerImpl implements HintsController {
         this.selfId = selfId;
         this.blsPrivateKey = requireNonNull(blsPrivateKey);
         this.weights = requireNonNull(weights);
-        this.numParties = partySizeForRosterNodeCount(weights.targetRosterSize());
+        this.numParties = construction.numParties();
         this.executor = requireNonNull(executor);
         this.context = requireNonNull(context);
         this.submissions = requireNonNull(submissions);
@@ -160,20 +151,7 @@ public class HintsControllerImpl implements HintsController {
         this.pendingCongruentVotes.putAll(resolveResult.pending());
         this.configurationSupplier = requireNonNull(configuration);
 
-        final var crsState = hintsStore.getCrsState();
-        // Also rebuild finalCrsFuture when the persisted stage is WAITING_FOR_ADOPTING_FINAL_CRS:
-        // a restart in that stage would otherwise leave finalCrsFuture null, so
-        // validateWeightOfContributions() would see weight 0 once contributionEndTime elapses and
-        // erroneously call restartFromFirstNode(), writing a state change that did not occur on the
-        // original run -> SELF_ISS on the rebuilt node.
-        if (crsState.stage() == GATHERING_CONTRIBUTIONS || crsState.stage() == WAITING_FOR_ADOPTING_FINAL_CRS) {
-            final var crsPublications = hintsStore.getOrderedCrsPublications(weights.sourceNodeIds());
-            crsPublications.forEach((nodeId, publication) -> {
-                if (publication != null) {
-                    verifyCrsUpdate(publication, hintsStore, nodeId);
-                }
-            });
-        }
+        final var crsState = hintsStore.getCrsStateFor(construction);
         // Ensure we are up-to-date on any published hinTS keys we might need for this construction
         if (crsState.stage() == COMPLETED && !construction.hasHintsScheme()) {
             final var cutoffTime = construction.hasPreprocessingStartTime()
@@ -194,7 +172,7 @@ public class HintsControllerImpl implements HintsController {
 
     @Override
     public boolean isStillInProgress() {
-        return !construction.hasHintsScheme();
+        return !cancelled && !construction.hasHintsScheme();
     }
 
     @Override
@@ -207,17 +185,34 @@ public class HintsControllerImpl implements HintsController {
             @NonNull final Instant now, @NonNull final WritableHintsStore hintsStore, final boolean isActive) {
         requireNonNull(now);
         requireNonNull(hintsStore);
-        if (hintsStore.getCrsState().stage() != COMPLETED || construction.hasHintsScheme()) {
+        if (cancelled) {
+            return;
+        }
+        if (!construction.hasGracePeriodEndTime()
+                && !construction.hasPreprocessingStartTime()
+                && !construction.hasHintsScheme()) {
+            final var active = hintsStore.getActiveConstruction();
+            final var candidate = active != null && active.constructionId() == construction.constructionId()
+                    ? active
+                    : hintsStore.getNextConstruction();
+            if (candidate == null || candidate.constructionId() != construction.constructionId()) {
+                return;
+            }
+            construction = candidate;
+        }
+        if (hintsStore.getCrsStateFor(construction).stage() != COMPLETED
+                || construction.hasHintsScheme()
+                || (!construction.hasGracePeriodEndTime() && !construction.hasPreprocessingStartTime())) {
             return;
         }
         if (construction.hasPreprocessingStartTime()) {
             if (isActive && !votes.containsKey(selfId) && preprocessingVoteFuture == null) {
                 preprocessingVoteFuture = startPreprocessingVoteFuture(
                         asInstant(construction.preprocessingStartTimeOrThrow()),
-                        hintsStore.getCrsState().crs());
+                        hintsStore.getCrsStateFor(construction).crs());
             }
         } else {
-            final var crs = hintsStore.getCrsState().crs();
+            final var crs = hintsStore.getCrsStateFor(construction).crs();
             if (shouldStartPreprocessing(now)) {
                 construction = hintsStore.setPreprocessingStartTime(construction.constructionId(), now);
                 if (isActive) {
@@ -230,195 +225,115 @@ public class HintsControllerImpl implements HintsController {
     }
 
     /**
-     * Performs the work needed to advance the CRS process. This includes,
-     * <ul>
-     *     <li>If all nodes have contributed, do nothing. Move to the next stage of collecting Hints Keys </li>
-     *     <li>If there is no initial CRS for the network and if the current node has not submitted one yet,
-     *     generate one and submit it. </li>
-     *     <li>If the current node is next in line to contribute for updating CRS based on old CRS, generate
-     *     an updated CRS and submit it.</li>
-     * </ul>
-     *
-     * @param now the current consensus time
-     * @param hintsStore the writable hints store
-     * @param isActive whether this node is active in the network
+     * Advances the persisted ceremony bound to this construction. Only local submissions depend on
+     * platform status; every deadline and state transition is determined by consensus time.
      */
     @Override
     public void advanceCrsWork(
             @NonNull final Instant now, @NonNull final WritableHintsStore hintsStore, final boolean isActive) {
-        final var crsState = hintsStore.getCrsState();
-        final var tssConfig = configurationSupplier.get().getConfigData(TssConfig.class);
-        try {
-            if (!crsState.hasNextContributingNodeId()) {
-                tryToFinalizeCrs(now, hintsStore, crsState, tssConfig);
-            } else if (crsState.hasContributionEndTime()
-                    && now.isAfter(asInstant(crsState.contributionEndTimeOrThrow()))) {
-                moveToNextNode(now, hintsStore);
-            } else if (crsState.nextContributingNodeIdOrThrow() == selfId && crsPublicationFuture == null && isActive) {
-                submitUpdatedCRS(hintsStore);
+        final var crs = hintsStore.getCrsStateFor(construction);
+        if (cancelled || crs.ceremonyId() == 0 || crs.stage() == COMPLETED) {
+            return;
+        }
+        final var config = configurationSupplier.get().getConfigData(TssConfig.class);
+        if (crs.stage() == WAITING_FOR_ADOPTING_FINAL_CRS) {
+            if (crs.hasContributionEndTime() && !now.isBefore(asInstant(crs.contributionEndTimeOrThrow()))) {
+                final var contributedIds = new HashSet<>(crs.contributedNodeIds());
+                final long contributedWeight = crs.contributors().stream()
+                        .filter(c -> contributedIds.contains(c.nodeId()))
+                        .mapToLong(CrsContributor::weight)
+                        .sum();
+                final long totalWeight = crs.contributors().stream()
+                        .mapToLong(CrsContributor::weight)
+                        .sum();
+                if (totalWeight > 0 && contributedWeight >= moreThanTwoThirdsOfTotal(totalWeight)) {
+                    hintsStore.setCrsStateFor(
+                            construction,
+                            crs.copyBuilder()
+                                    .stage(COMPLETED)
+                                    .contributionEndTime((Timestamp) null)
+                                    .build());
+                    log.info(
+                            "Completed CRS ceremony #{} with {} distinct contributors",
+                            crs.ceremonyId(),
+                            contributedIds.size());
+                } else {
+                    // A new attempt has its own transcript and tally. Reusing the previous pass's
+                    // accumulated weight would count the same contributor more than once.
+                    final var first = crs.contributors().stream()
+                            .mapToLong(CrsContributor::nodeId)
+                            .min();
+                    hintsStore.setCrsStateFor(
+                            construction,
+                            crs.copyBuilder()
+                                    .stage(GATHERING_CONTRIBUTIONS)
+                                    .crs(crs.initialCrs())
+                                    .attempt(crs.attempt() + 1)
+                                    .contributedNodeIds(List.of())
+                                    .nextContributingNodeId(first.isPresent() ? first.getAsLong() : null)
+                                    .contributionEndTime(asTimestamp(now.plus(config.crsUpdateContributionTime())))
+                                    .build());
+                    crsPublicationFuture = null;
+                    crsSubmissionKey = null;
+                }
             }
-        } catch (CancellationException ignore) {
-            // Normal operations may include cancelling ongoing work
-        } catch (Exception e) {
-            log.error("Failed to advance CRS work", e);
+        } else if (!crs.hasNextContributingNodeId()) {
+            hintsStore.setCrsStateFor(
+                    construction,
+                    crs.copyBuilder()
+                            .stage(WAITING_FOR_ADOPTING_FINAL_CRS)
+                            .contributionEndTime(asTimestamp(now.plus(config.crsFinalizationDelay())))
+                            .build());
+        } else if (crs.hasContributionEndTime() && !now.isBefore(asInstant(crs.contributionEndTimeOrThrow()))) {
+            moveToNextNode(now, hintsStore, crs);
+        } else if (isActive && crs.nextContributingNodeIdOrThrow() == selfId) {
+            submitUpdatedCrs(crs);
         }
     }
 
-    /**
-     * If all nodes have contributed to the CRS, try to finalize the CRS. If the threshold is not met,
-     * repeat the process from the first node. If the threshold is met, wait for the final future to be completed,
-     * set the final updated CRS and mark the stage as completed.
-     *
-     * @param now the current consensus time
-     * @param hintsStore the writable hints store
-     * @param crsState the current CRS state
-     * @param tssConfig the TSS configuration
-     */
-    private void tryToFinalizeCrs(
-            @NonNull final Instant now,
-            @NonNull final WritableHintsStore hintsStore,
-            @NonNull final CRSState crsState,
-            @NonNull final TssConfig tssConfig) {
-        if (crsState.stage() == GATHERING_CONTRIBUTIONS) {
-            final var delay = tssConfig.crsFinalizationDelay();
-            final var updatedState = crsState.copyBuilder()
-                    .stage(WAITING_FOR_ADOPTING_FINAL_CRS)
-                    .contributionEndTime(asTimestamp(now.plus(delay)))
-                    .build();
-            hintsStore.setCrsState(updatedState);
-            log.info("All nodes have contributed to the CRS, waiting for final adoption");
-        } else if (now.isAfter(asInstant(crsState.contributionEndTimeOrThrow()))) {
-            final var thresholdMet = validateWeightOfContributions();
-            if (!thresholdMet) {
-                // If the threshold is not met, restart the process
-                restartFromFirstNode(now, hintsStore, tssConfig);
-            } else {
-                final var crs = requireNonNull(finalCrsFuture).join().crs();
-                final var updatedState = crsState.copyBuilder()
-                        .crs(crs)
-                        .stage(COMPLETED)
-                        .contributionEndTime((Timestamp) null)
-                        .build();
-                hintsStore.setCrsState(updatedState);
-                log.info("Finished constructing CRS");
-            }
+    private void moveToNextNode(
+            @NonNull final Instant now, @NonNull final WritableHintsStore store, @NonNull final CRSState crs) {
+        final var next = crs.contributors().stream()
+                .mapToLong(CrsContributor::nodeId)
+                .filter(id -> id > crs.nextContributingNodeIdOrThrow())
+                .min();
+        final var config = configurationSupplier.get().getConfigData(TssConfig.class);
+        store.setCrsStateFor(
+                construction,
+                crs.copyBuilder()
+                        .nextContributingNodeId(next.isPresent() ? next.getAsLong() : null)
+                        .contributionEndTime(asTimestamp(now.plus(config.crsUpdateContributionTime())))
+                        .build());
+    }
+
+    private record CrsSubmissionKey(long ceremonyId, long attempt, Bytes headHash) {}
+
+    @Nullable
+    private CrsSubmissionKey crsSubmissionKey;
+
+    private void submitUpdatedCrs(@NonNull final CRSState crs) {
+        final var key = new CrsSubmissionKey(crs.ceremonyId(), crs.attempt(), noThrowSha384HashOf(crs.crs()));
+        if (key.equals(crsSubmissionKey)
+                && crsPublicationFuture != null
+                && !crsPublicationFuture.isCompletedExceptionally()) {
+            return;
         }
-    }
-
-    /**
-     * Starts CRS contribution for the first node in the source roster.
-     * This is called when all nodes have contributed to the CRS, but the total weight of all nodes contributing
-     * is less than 2/3 of the total weight of all nodes in the source roster.
-     *
-     * @param now the current consensus time
-     * @param hintsStore the writable hints store
-     * @param tssConfig the TSS configuration
-     */
-    private void restartFromFirstNode(
-            @NonNull final Instant now,
-            @NonNull final WritableHintsStore hintsStore,
-            @NonNull final TssConfig tssConfig) {
-        log.warn("Restarting CRS ceremony from the first node because threshold not met for CRS contributions");
-        if (crsPublicationFuture != null && !crsPublicationFuture.isDone()) {
-            crsPublicationFuture.cancel(true);
-        }
-        crsPublicationFuture = null;
-        final var crsState = hintsStore.getCrsState();
-        final var firstNodeId =
-                weights.sourceNodeIds().stream().min(Long::compareTo).orElse(0L);
-        final var contributionTime = tssConfig.crsUpdateContributionTime();
-        final var updatedState = crsState.copyBuilder()
-                .stage(GATHERING_CONTRIBUTIONS)
-                .contributionEndTime(asTimestamp(now.plus(contributionTime)))
-                .nextContributingNodeId(firstNodeId)
-                .build();
-        hintsStore.setCrsState(updatedState);
-    }
-
-    /**
-     * Checks if the total weight of the contributions is more than 2/3 total weight of all nodes in the source
-     * roster.
-     *
-     * @return true if the total weight of the contributions is more than 2/3 total weight of all nodes in the
-     */
-    private boolean validateWeightOfContributions() {
-        final var contributedWeight =
-                finalCrsFuture == null ? 0L : finalCrsFuture.join().weightContributedSoFar();
-        final var totalWeight = weights.sourceNodeWeights().values().stream()
-                .mapToLong(Long::longValue)
-                .sum();
-        log.info("Total weight of CRS contributions is {} (of {} total)", contributedWeight, totalWeight);
-        return contributedWeight >= moreThanTwoThirdsOfTotal(totalWeight);
-    }
-
-    /**
-     * Moves to the next node in the roster to contribute to the CRS. If the current node is the last
-     * sets the next contributing node to -1 and sets the contribution end time.
-     *
-     * @param now the current consensus time
-     * @param hintsStore the writable hints store
-     */
-    private void moveToNextNode(final @NonNull Instant now, final @NonNull WritableHintsStore hintsStore) {
-        final var crsState = hintsStore.getCrsState();
-        final var tssConfig = configurationSupplier.get().getConfigData(TssConfig.class);
-        final var optionalNextNodeId = nextNodeId(weights.sourceNodeIds(), crsState);
-        log.info(
-                "{} for CRS contribution",
-                optionalNextNodeId.stream()
-                        .mapToObj(l -> "Moving on to node" + l)
-                        .findFirst()
-                        .orElse("No remaining nodes to consider"));
-        hintsStore.moveToNextNode(
-                optionalNextNodeId.isEmpty() ? null : optionalNextNodeId.getAsLong(),
-                now.plusSeconds(tssConfig.crsUpdateContributionTime().toSeconds()));
-    }
-
-    /**
-     * Submits the updated CRS to the network. This is done asynchronously. The updated CRS is generated
-     * by the library by updating the old CRS with new entropy.
-     *
-     * @param hintsStore the writable hints store
-     */
-    private void submitUpdatedCRS(final @NonNull WritableHintsStore hintsStore) {
-        crsPublicationFuture = CompletableFuture.runAsync(
-                () -> {
-                    try {
-                        final var previousCrs = (finalCrsFuture != null)
-                                ? finalCrsFuture.join().crs()
-                                : hintsStore.getCrsState().crs();
-                        final var updatedCrs = library.updateCrs(previousCrs, generateEntropy());
-                        if (updatedCrs == null) {
-                            log.warn("Library returned null while updating CRS; skipping CRS publication");
-                            return;
-                        }
-                        final var newCrs = decodeCrsUpdate(previousCrs.length(), updatedCrs);
-                        submissions
-                                .submitCrsUpdate(newCrs.crs(), newCrs.proof())
-                                .join();
-                    } catch (CancellationException ignore) {
-                        // Normal operations may include cancelling ongoing work
-                    } catch (Exception e) {
-                        log.error("Failed to submit updated CRS", e);
-                    }
-                },
-                executor);
-    }
-
-    /**
-     * Returns the immediate next node id from the roster after the current node id.
-     *
-     * @param nodeIds the node ids in the roster
-     * @param crsState the current CRS state
-     * @return the immediate next node id from the roster after the current node id
-     */
-    private OptionalLong nextNodeId(final Set<Long> nodeIds, final CRSState crsState) {
-        if (!crsState.hasNextContributingNodeId()) {
-            return OptionalLong.empty();
-        }
-        return nodeIds.stream()
-                .mapToLong(Long::longValue)
-                .filter(nodeId -> nodeId > crsState.nextContributingNodeIdOrThrow())
-                .findFirst();
+        // Capture immutable consensus state before dispatching. The async operation must never read
+        // the mutable store, which may already represent a replacement construction when it runs.
+        crsSubmissionKey = key;
+        crsPublicationFuture = CompletableFuture.supplyAsync(
+                        () -> {
+                            final var output = requireNonNull(
+                                    library.updateCrs(crs.crs(), generateEntropy()), "CRS contribution failed");
+                            return decodeCrsUpdate(crs.crs().length(), output);
+                        },
+                        executor)
+                .thenCompose(output -> submissions.submitCrsUpdate(
+                        key.ceremonyId(), key.attempt(), key.headHash(), output.crs(), output.proof()));
+        crsPublicationFuture.exceptionally(t -> {
+            log.warn("Failed to submit contribution for CRS ceremony #{}; will retry", crs.ceremonyId(), t);
+            return null;
+        });
     }
 
     /**
@@ -448,7 +363,7 @@ public class HintsControllerImpl implements HintsController {
         // If grace period is over, we have either finished construction or already set the
         // preprocessing time to something earlier than consensus now; so we will not use
         // this key and can return immediately
-        if (!construction.hasGracePeriodEndTime()) {
+        if (cancelled || !construction.hasGracePeriodEndTime()) {
             log.info("Ignoring tardy hinTS key from node{}", publication.nodeId());
             return;
         }
@@ -460,6 +375,11 @@ public class HintsControllerImpl implements HintsController {
             final long nodeId, @NonNull final PreprocessingVote vote, @NonNull final WritableHintsStore hintsStore) {
         requireNonNull(vote);
         requireNonNull(hintsStore);
+        if (cancelled
+                || !construction.hasPreprocessingStartTime()
+                || hintsStore.getCrsStateFor(construction).stage() != COMPLETED) {
+            return false;
+        }
         if (votes.containsKey(nodeId)) {
             log.info(
                     "Skipping already-counted preprocessing vote from node{} for construction #{}",
@@ -549,6 +469,7 @@ public class HintsControllerImpl implements HintsController {
 
     @Override
     public void cancelPendingWork() {
+        cancelled = true;
         if (publicationFuture != null) {
             publicationFuture.cancel(true);
         }
@@ -558,59 +479,50 @@ public class HintsControllerImpl implements HintsController {
         if (crsPublicationFuture != null) {
             crsPublicationFuture.cancel(true);
         }
-        if (finalCrsFuture != null) {
-            finalCrsFuture.cancel(true);
-        }
         validationFutures.values().forEach(future -> future.cancel(true));
     }
 
     @Override
     public void addCrsPublication(
             @NonNull final CrsPublicationTransactionBody publication,
-            @NonNull Instant consensusTime,
-            @NonNull WritableHintsStore hintsStore,
+            @NonNull final Instant consensusTime,
+            @NonNull final WritableHintsStore hintsStore,
             final long creatorId) {
         requireNonNull(publication);
         requireNonNull(consensusTime);
         requireNonNull(hintsStore);
-
-        verifyCrsUpdate(publication, hintsStore, creatorId);
-        moveToNextNode(consensusTime, hintsStore);
-    }
-
-    @Override
-    public void verifyCrsUpdate(
-            @NonNull final CrsPublicationTransactionBody publication,
-            @NonNull final ReadableHintsStore hintsStore,
-            final long creatorId) {
-        requireNonNull(publication);
-        requireNonNull(hintsStore);
-        final var creatorWeight = weights.sourceWeightOf(creatorId);
-        if (finalCrsFuture == null) {
-            final var initialCrs = hintsStore.getCrsState().crs();
-            finalCrsFuture = CompletableFuture.supplyAsync(
-                    () -> {
-                        final var isValid =
-                                library.verifyCrsUpdate(initialCrs, publication.newCrs(), publication.proof());
-                        if (isValid) {
-                            return new CRSValidation(publication.newCrs(), creatorWeight);
-                        }
-                        return new CRSValidation(initialCrs, 0L);
-                    },
-                    executor);
-        } else {
-            finalCrsFuture = finalCrsFuture.thenApplyAsync(
-                    previousValidation -> {
-                        final var isValid = library.verifyCrsUpdate(
-                                previousValidation.crs(), publication.newCrs(), publication.proof());
-                        if (isValid) {
-                            return new CRSValidation(
-                                    publication.newCrs(), previousValidation.weightContributedSoFar() + creatorWeight);
-                        }
-                        return new CRSValidation(previousValidation.crs(), previousValidation.weightContributedSoFar());
-                    },
-                    executor);
+        final var crs = hintsStore.getCrsStateFor(construction);
+        if (cancelled
+                || crs.ceremonyId() == 0
+                || crs.stage() != GATHERING_CONTRIBUTIONS
+                || !crs.hasNextContributingNodeId()
+                || crs.nextContributingNodeIdOrThrow() != creatorId
+                || crs.ceremonyId() != publication.ceremonyId()
+                || crs.attempt() != publication.attempt()
+                || !noThrowSha384HashOf(crs.crs()).equals(publication.previousCrsHash())
+                || crs.contributedNodeIds().contains(creatorId)
+                || (crs.hasContributionEndTime()
+                        && !consensusTime.isBefore(asInstant(crs.contributionEndTimeOrThrow())))) {
+            return;
         }
+        // Validation is pure and completed before the consensus write. Persist the validated head
+        // and distinct contributors together, so replay needs no node-local future or transcript KV.
+        try {
+            if (publication.newCrs().length() != crs.crs().length()
+                    || !library.verifyCrsUpdate(crs.crs(), publication.newCrs(), publication.proof())) {
+                return;
+            }
+        } catch (RuntimeException e) {
+            log.warn("Ignoring invalid contribution to CRS ceremony #{} from node{}", crs.ceremonyId(), creatorId, e);
+            return;
+        }
+        final var contributors = new ArrayList<>(crs.contributedNodeIds());
+        contributors.add(creatorId);
+        final var updated = crs.copyBuilder()
+                .crs(publication.newCrs())
+                .contributedNodeIds(contributors)
+                .build();
+        moveToNextNode(consensusTime, hintsStore, updated);
     }
 
     /**
@@ -698,7 +610,7 @@ public class HintsControllerImpl implements HintsController {
                 .filter(id -> !nodePartyIds.containsKey(id))
                 .sorted()
                 .toList();
-        final var unusedPartyIds = IntStream.range(1, numParties + 1)
+        final var unusedPartyIds = IntStream.range(1, numParties)
                 .filter(id -> !partyNodeIds.containsKey(id))
                 .boxed()
                 .toList();
@@ -757,7 +669,12 @@ public class HintsControllerImpl implements HintsController {
                         try {
                             final var hints = library.computeHints(crs, blsPrivateKey, selfPartyId, numParties);
                             submissions
-                                    .submitHintsKey(selfPartyId, numParties, hints)
+                                    .submitHintsKey(
+                                            construction.constructionId(),
+                                            construction.crsId(),
+                                            selfPartyId,
+                                            numParties,
+                                            hints)
                                     .join();
                         } catch (CancellationException ignore) {
                             // Normal operations may include cancelling ongoing work
@@ -974,11 +891,6 @@ public class HintsControllerImpl implements HintsController {
     private static @NonNull String sha384Hex(@NonNull final Bytes bytes) {
         requireNonNull(bytes);
         return noThrowSha384HashOf(bytes).toHex();
-    }
-
-    @VisibleForTesting
-    public void setFinalCrsFuture(@Nullable final CompletableFuture<CRSValidation> finalCrsFuture) {
-        this.finalCrsFuture = finalCrsFuture;
     }
 
     /**

@@ -8,9 +8,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.hedera.cryptography.hints.HintsLibraryBridge;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
 import java.util.Map;
@@ -30,8 +30,61 @@ class HintsLibraryImplTest {
     private final HintsLibraryImpl subject = new HintsLibraryImpl();
 
     @Test
+    void decodesExactCapacityAndRejectsInvalidSizes() {
+        assertEquals(8, subject.crsPartySize(subject.newCrs((short) 8)));
+        assertEquals(512, subject.crsPartySize(Bytes.wrap(new byte[304 + 512 * 288])));
+        for (final int size : new int[] {0, 304, 304 + 8 * 288 + 1, 304 + 3 * 288, 304 + 1024 * 288}) {
+            assertThrows(IllegalArgumentException.class, () -> subject.crsPartySize(Bytes.wrap(new byte[size])));
+        }
+    }
+
+    @Test
+    void rejectsImplicitlyResizingCrs() {
+        final var crs = subject.newCrs((short) 8);
+        final var key = subject.newBlsPrivateKey();
+        assertThrows(IllegalArgumentException.class, () -> subject.computeHints(crs, key, 0, 4));
+        assertThrows(IllegalArgumentException.class, () -> subject.validateHintsKey(crs, Bytes.EMPTY, 0, 4));
+        assertThrows(
+                IllegalArgumentException.class, () -> subject.preprocess(crs, new TreeMap<>(), new TreeMap<>(), 4));
+    }
+
+    @Test
+    void switchesNativeCachesAcrossCrsAndAggregationKeys() {
+        final var message = Bytes.wrap("interleaved native signing");
+        final var first = schemeFor(subject.newCrs((short) 8), 8, message);
+        final var second = schemeFor(subject.newCrs((short) 16), 16, message);
+        assertSigns(first, message);
+        assertSigns(second, message);
+        final var third = schemeFor(first.crs(), 8, message);
+        assertSigns(third, message);
+        assertSigns(first, message);
+        assertSigns(second, message);
+        assertSigns(first, message);
+    }
+
+    private record Scheme(Bytes crs, Bytes ak, Bytes vk, Bytes signature) {}
+
+    private Scheme schemeFor(final Bytes crs, final int n, final Bytes message) {
+        final var privateKey = subject.newBlsPrivateKey();
+        final var hint = subject.computeHints(crs, privateKey, 0, n);
+        final var keys = subject.preprocess(crs, new TreeMap<>(Map.of(0, hint)), new TreeMap<>(Map.of(0, 1L)), n);
+        return new Scheme(
+                crs,
+                Bytes.wrap(keys.aggregationKey()),
+                Bytes.wrap(keys.verificationKey()),
+                subject.signBls(message, privateKey));
+    }
+
+    private void assertSigns(final Scheme scheme, final Bytes message) {
+        assertTrue(subject.verifyBls(scheme.crs(), scheme.signature(), message, scheme.ak(), 0));
+        final var aggregate =
+                subject.aggregateSignatures(scheme.crs(), scheme.ak(), scheme.vk(), Map.of(0, scheme.signature()));
+        assertTrue(subject.verifyAggregate(aggregate, message, scheme.vk(), 1L, 3L));
+    }
+
+    @Test
     void generatesNewCrs() {
-        assertNotNull(subject.newCrs((short) 10));
+        assertNotNull(subject.newCrs((short) 16));
     }
 
     @Test
@@ -70,10 +123,11 @@ class HintsLibraryImplTest {
 
     @Test
     void computesAndValidateHints() {
-        HintsLibraryBridge.getInstance().resetCache();
+        subject.resetCache();
 
-        var crs = subject.newCrs((short) 256);
-        crs = subject.updateCrs(crs, Bytes.wrap(CRS_CONTRIBUTION));
+        var crs = subject.newCrs((short) 16);
+        crs = decodeCrsUpdate(crs.length(), subject.updateCrs(crs, Bytes.wrap(CRS_CONTRIBUTION)))
+                .crs();
         final var blsPrivateKey = subject.newBlsPrivateKey();
         final var hints = subject.computeHints(crs, blsPrivateKey, 1, 16);
         assertNotNull(hints);
@@ -85,9 +139,9 @@ class HintsLibraryImplTest {
 
     @Test
     void preprocessesHintsIntoUsableKeys() {
-        HintsLibraryBridge.getInstance().resetCache();
+        subject.resetCache();
 
-        final var initialCrs = subject.newCrs((short) 64);
+        final var initialCrs = subject.newCrs((short) 4);
         byte[] entropyBytes = new byte[32];
         RANDOM.nextBytes(entropyBytes);
         final var newCrs = subject.updateCrs(initialCrs, Bytes.wrap(entropyBytes));
@@ -128,11 +182,11 @@ class HintsLibraryImplTest {
 
     @Test
     void signsAndVerifiesBlsSignature() {
-        HintsLibraryBridge.getInstance().resetCache();
+        subject.resetCache();
 
         final var message = "Hello World".getBytes();
         final var blsPrivateKey = subject.newBlsPrivateKey();
-        final var crs = subject.newCrs((short) 8);
+        final var crs = subject.newCrs((short) 4);
         final int partyId = 0;
         final var extendedPublicKey = subject.computeHints(crs, blsPrivateKey, partyId, 4);
         final var signature = subject.signBls(Bytes.wrap(message), blsPrivateKey);
@@ -165,11 +219,12 @@ class HintsLibraryImplTest {
 
     @Test
     void aggregatesAndVerifiesSignatures() {
-        HintsLibraryBridge.getInstance().resetCache();
+        subject.resetCache();
 
         // When CRS is for n, then signers should be  n - 1
         var crs = subject.newCrs((short) 4);
-        crs = subject.updateCrs(crs, Bytes.wrap(CRS_CONTRIBUTION));
+        crs = decodeCrsUpdate(crs.length(), subject.updateCrs(crs, Bytes.wrap(CRS_CONTRIBUTION)))
+                .crs();
 
         final var secretKey1 = subject.newBlsPrivateKey();
         final var hints1 = subject.computeHints(crs, secretKey1, 0, 4);

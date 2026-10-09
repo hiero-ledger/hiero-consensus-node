@@ -7,13 +7,14 @@ import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_HINTS_CON
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.HINTS_KEY_SETS_STATE_ID;
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.NEXT_HINTS_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_STATE_STATE_ID;
+import static com.hedera.node.app.hints.schemas.V079HintsSchema.NEXT_CRS_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.LEDGER_ID_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.PROOF_KEY_SETS_STATE_ID;
-import static com.hedera.node.app.history.schemas.V0730HistorySchema.WRAPS_PROVING_KEY_HASH_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.state.hints.CRSStage;
 import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.HintsKeySet;
@@ -25,10 +26,10 @@ import com.hedera.hapi.node.state.history.ProofKeySet;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.NodeId;
+import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.impl.ReadableHintsStoreImpl;
 import com.hedera.node.app.history.HistoryService;
-import com.hedera.node.app.history.impl.HistoryLibraryImpl;
 import com.hedera.node.app.history.impl.ReadableHistoryStoreImpl;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.impl.ReadableEntityIdStoreImpl;
@@ -46,7 +47,6 @@ import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -96,13 +96,12 @@ public final class TssStartupNetworks {
             final var activeHintsConstruction = hintsStore.getActiveConstruction();
             final var activeProofConstruction = historyStore.getActiveConstruction();
 
+            final var activeCrs = hintsStore.getCrsStateFor(activeHintsConstruction);
+            validateCompletedHints(activeHintsConstruction, activeCrs);
             final var tssMetadata = TssMetadata.newBuilder()
-                    .crsState(hintsStore.getCrsState())
+                    .crsState(activeCrs)
                     .activeHintsConstruction(activeHintsConstruction)
                     .activeProofConstruction(activeProofConstruction)
-                    .historyProofVerificationKey(Bytes.wrap(new HistoryLibraryImpl().wrapsVerificationKey()))
-                    .wrapsProvingKeyHash(Optional.ofNullable(historyStore.getWrapsProvingKeyHash())
-                            .orElse(Bytes.EMPTY))
                     .build();
 
             final var nodeMetadata = nodeTssMetadataFrom(
@@ -138,22 +137,52 @@ public final class TssStartupNetworks {
             return HintsConstruction.DEFAULT;
         }
         final var tssMetadata = network.tssMetadataOrElse(TssMetadata.DEFAULT);
-        final var activeConstruction = tssMetadata.activeHintsConstructionOrElse(HintsConstruction.DEFAULT);
+        var activeConstruction = tssMetadata.activeHintsConstructionOrElse(HintsConstruction.DEFAULT);
+        var crs = tssMetadata.crsStateOrElse(CRSState.DEFAULT);
+        if (!activeConstruction.equals(HintsConstruction.DEFAULT) || !crs.equals(CRSState.DEFAULT)) {
+            // Legacy dev startup files predate explicit CRS bindings. Infer their epoch only when
+            // their actual serialized capacity equals the party count the legacy code used.
+            if (activeConstruction.crsId() == 0 && crs.ceremonyId() == 0) {
+                final var capacity = HintsLibrary.crsPartySizeFrom(crs.crs());
+                final var required = partySizeForRosterNodeCount(
+                        Math.max(1, nodeIdsFrom(network, null).size()));
+                if (capacity != required) {
+                    throw new IllegalArgumentException("Legacy startup CRS capacity does not match its roster");
+                }
+                activeConstruction = activeConstruction
+                        .copyBuilder()
+                        .crsId(1L)
+                        .numParties(capacity)
+                        .build();
+                crs = crs.copyBuilder()
+                        .ceremonyId(1L)
+                        .numParties(capacity)
+                        .lastUsedCeremonyId(1L)
+                        .build();
+            }
+            validateCompletedHints(activeConstruction, crs);
+        }
+        final var partySize = activeConstruction.numParties();
+        for (final var node : network.nodeTssMetadata()) {
+            if (node.hintsKey().length() > 0 && (node.partyId() < 0 || node.partyId() >= partySize)) {
+                throw new IllegalArgumentException("Startup hint party is outside the bound CRS capacity");
+            }
+        }
         hintsStates
                 .<HintsConstruction>getSingleton(ACTIVE_HINTS_CONSTRUCTION_STATE_ID)
                 .put(activeConstruction);
         hintsStates
                 .<HintsConstruction>getSingleton(NEXT_HINTS_CONSTRUCTION_STATE_ID)
                 .put(HintsConstruction.DEFAULT);
-        hintsStates.<CRSState>getSingleton(CRS_STATE_STATE_ID).put(tssMetadata.crsStateOrElse(CRSState.DEFAULT));
+        hintsStates.<CRSState>getSingleton(CRS_STATE_STATE_ID).put(crs);
+        hintsStates.<CRSState>getSingleton(NEXT_CRS_STATE_ID).put(CRSState.DEFAULT);
 
-        final var partySize = partySizeFor(network);
         final WritableKVState<HintsPartyId, HintsKeySet> hintsKeys = hintsStates.get(HINTS_KEY_SETS_STATE_ID);
         var restoredHintsKeys = 0;
         for (final var nodeTssMetadata : network.nodeTssMetadata()) {
             if (nodeTssMetadata.hintsKey().length() > 0) {
                 hintsKeys.put(
-                        new HintsPartyId(nodeTssMetadata.partyId(), partySize),
+                        new HintsPartyId(nodeTssMetadata.partyId(), partySize, activeConstruction.crsId()),
                         HintsKeySet.newBuilder()
                                 .nodeId(nodeTssMetadata.nodeId())
                                 .adoptionTime(asTimestamp(Instant.EPOCH))
@@ -201,9 +230,6 @@ public final class TssStartupNetworks {
         historyStates
                 .<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID)
                 .put(HistoryProofConstruction.DEFAULT);
-        historyStates
-                .<ProtoBytes>getSingleton(WRAPS_PROVING_KEY_HASH_STATE_ID)
-                .put(new ProtoBytes(tssMetadata.wrapsProvingKeyHash()));
 
         final WritableKVState<NodeId, ProofKeySet> proofKeys = historyStates.get(PROOF_KEY_SETS_STATE_ID);
         var restoredProofKeys = 0;
@@ -222,7 +248,7 @@ public final class TssStartupNetworks {
                 "Initialized dev-only history startup state: construction #{}, ledgerId={}, "
                         + "restoredPublicKeys={}, hasTargetProof={}, targetProofKeys={}, "
                         + "hasChainOfTrustProof={}, chainOfTrustProof={}, chainOfTrustProofBytes={}, "
-                        + "uncompressedWrapsProofBytes={}, wrapsProvingKeyHashBytes={}",
+                        + "uncompressedWrapsProofBytes={}",
                 activeConstruction.constructionId(),
                 network.ledgerId().length() > 0 ? network.ledgerId().toHex() : "<empty>",
                 restoredProofKeys,
@@ -231,8 +257,7 @@ public final class TssStartupNetworks {
                 hasChainOfTrustProof(activeConstruction),
                 chainOfTrustProofKind(activeConstruction),
                 chainOfTrustProofBytes(activeConstruction),
-                uncompressedWrapsProofBytes(activeConstruction),
-                tssMetadata.wrapsProvingKeyHash().length());
+                uncompressedWrapsProofBytes(activeConstruction));
         return activeConstruction;
     }
 
@@ -241,6 +266,7 @@ public final class TssStartupNetworks {
      */
     public static void initializeRuntime(
             @NonNull final HintsConstruction activeHintsConstruction,
+            @NonNull final CRSState activeCrs,
             @NonNull final HistoryProofConstruction activeProofConstruction,
             @NonNull final HintsService hintsService,
             @NonNull final HistoryService historyService) {
@@ -249,7 +275,7 @@ public final class TssStartupNetworks {
         requireNonNull(hintsService);
         requireNonNull(historyService);
         if (activeHintsConstruction.hasHintsScheme()) {
-            hintsService.setActiveConstruction(activeHintsConstruction);
+            hintsService.setActiveConstruction(activeHintsConstruction, activeCrs);
             log.info(
                     "Installed dev-only hinTS runtime construction #{} from startup network (verificationKeyBytes={})",
                     activeHintsConstruction.constructionId(),
@@ -383,11 +409,11 @@ public final class TssStartupNetworks {
         }
         final var nodeIds =
                 activeRosterEntries.stream().map(RosterEntry::nodeId).collect(Collectors.toSet());
-        final var partySize = partySizeForRosterNodeCount(activeRosterEntries.size());
         final var entityIdStore = new ReadableEntityIdStoreImpl(state.getReadableStates(EntityIdService.NAME));
         final var hintsStore = new ReadableHintsStoreImpl(state.getReadableStates(HintsService.NAME), entityIdStore);
+        final var active = hintsStore.getActiveConstruction();
         hintsStore
-                .getHintsKeyPublications(nodeIds, partySize)
+                .getHintsKeyPublications(nodeIds, active.numParties(), active.crsId())
                 .forEach(publication -> metadata.compute(
                         publication.nodeId(), (nodeId, nodeMetadata) -> builderFor(nodeMetadata, nodeId)
                                 .partyId(publication.partyId())
@@ -472,13 +498,18 @@ public final class TssStartupNetworks {
                 : metadata.copyBuilder().nodeId(nodeId);
     }
 
-    private static int partySizeFor(@NonNull final Network network) {
-        final var maxPartyId = network.nodeTssMetadata().stream()
-                .map(NodeTssMetadata::partyId)
-                .max(Comparator.naturalOrder())
-                .orElse(0);
-        final var rosterSize = Math.max(1, nodeIdsFrom(network, null).size());
-        return Math.max(maxPartyId + 1, partySizeForRosterNodeCount(rosterSize));
+    private static void validateCompletedHints(final HintsConstruction construction, final CRSState crs) {
+        if (!construction.hasHintsScheme()
+                || crs.stage() != CRSStage.COMPLETED
+                || crs.ceremonyId() <= 0
+                || construction.crsId() != crs.ceremonyId()
+                || construction.numParties() != crs.numParties()
+                || crs.numParties() != HintsLibrary.crsPartySizeFrom(crs.crs())
+                || construction.hintsSchemeOrThrow().nodePartyIds().stream()
+                        .anyMatch(p -> p.partyId() < 0 || p.partyId() >= crs.numParties())) {
+            throw new IllegalArgumentException(
+                    "Startup metadata requires a completed hinTS construction and its bound CRS");
+        }
     }
 
     private static long hintsConstructionId(@NonNull final TssMetadata tssMetadata) {

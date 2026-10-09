@@ -123,10 +123,10 @@ public abstract class HieroToHieroBase implements LifecycleTest {
 
     /**
      * How long {@link #awaitWrapsExtensible} waits for the first WRAPS-extensible recursive proof.
-     * Empirically a single-node subprocess network finishes the first extensible construction
-     * roughly 12–18 minutes after startup; 25 minutes leaves slack.
+     * Since the WRAPS library computes a proof in seconds, a single-node subprocess network should
+     * finish the first extensible construction within a few minutes of startup; 10 minutes leaves slack.
      */
-    static final Duration WRAPS_EXTENSIBLE_TIMEOUT = Duration.ofMinutes(25);
+    static final Duration WRAPS_EXTENSIBLE_TIMEOUT = Duration.ofMinutes(10);
 
     static final Pattern WRAPS_EXTENSIBLE_PATTERN =
             Pattern.compile("History proof constructed \\(#\\d+, WRAPS-extensible\\? true\\)");
@@ -197,7 +197,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
      *
      * <p>Returns which readiness path was taken; the caller decides whether to settle.
      *
-     * <p>Cold-path latency: ~12-18 min (waits for runtime WRAPS construction).
+     * <p>Cold-path latency: a few minutes (waits for runtime WRAPS construction).
      * Warm-path latency: ~few seconds (preload log fires immediately, then waits for the
      * first WRAPS-carrying block — usually within 1-5 sec of network ACTIVE).
      */
