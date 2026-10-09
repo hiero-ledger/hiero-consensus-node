@@ -53,9 +53,9 @@ class SeiVerifyConfigCallTest extends CallTestBase {
                     .isEqualTo(config.initialTrustAnchor().toByteArray());
             assertThat((byte[]) decoded.get(6))
                     .isEqualTo(config.initialTrustAnchorId().toByteArray());
-            // manifest struct at index 7: seed-fallback (version 1) since the verifier supplied none.
+            // manifest struct at index 7: uninitialized (version 0) since the verifier supplied none.
             final Tuple manifestStruct = decoded.get(7);
-            assertThat(((BigInteger) manifestStruct.get(0)).longValue()).isEqualTo(1L);
+            assertThat(((BigInteger) manifestStruct.get(0)).longValue()).isZero();
         }
     }
 
@@ -96,11 +96,11 @@ class SeiVerifyConfigCallTest extends CallTestBase {
     }
 
     @Test
-    void returnsConfigTupleWithSeedFallbackManifest() {
+    void returnsConfigTupleWithUninitializedManifest() {
         final byte[] channelId32 = new byte[32];
         channelId32[0] = (byte) 0xCD;
-        // Sei has no config-path manifest-proof producer, so the 3rd arg drives the seed-fallback (version 1,
-        // bound to the config's service address) rather than a proven manifest.
+        // Sei has no config-path manifest-proof producer, so the 3rd arg yields the uninitialized manifest
+        // (version 0, bound to the config's service address, no endpoints) rather than a proven manifest.
         final byte[] manifestProof = {7, 7, 7};
         final var config = ClprLedgerConfiguration.newBuilder()
                 .chainId("sei:atlantic-2")
@@ -125,11 +125,12 @@ class SeiVerifyConfigCallTest extends CallTestBase {
             assertThat(decoded.size()).isEqualTo(8);
             final byte[] channelContext = (byte[]) decoded.get(0);
             assertThat(Arrays.copyOf(channelContext, 32)).isEqualTo(channelId32);
-            // manifest struct at index 7: (uint64 version, bytes serviceAddress, endpoints[]) — seed-fallback.
+            // manifest struct at index 7: (uint64 version, bytes serviceAddress, endpoints[]) — uninitialized.
             final com.esaulpaugh.headlong.abi.Tuple manifestStruct = decoded.get(7);
             assertThat(((java.math.BigInteger) manifestStruct.get(0)).longValue())
-                    .isEqualTo(1L);
+                    .isZero();
             assertThat(((byte[]) manifestStruct.get(1)).length).isEqualTo(20);
+            assertThat((Tuple[]) manifestStruct.get(2)).isEmpty();
         }
     }
 

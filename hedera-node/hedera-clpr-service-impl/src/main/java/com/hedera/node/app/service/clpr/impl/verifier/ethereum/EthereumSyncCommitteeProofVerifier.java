@@ -349,9 +349,8 @@ public final class EthereumSyncCommitteeProofVerifier {
                 .initialTrustAnchorId(initialTrustAnchor)
                 .build();
         log.info(
-                "EthSyncCommitteeProofVerifier.verifyConfigPayload EXIT: SUCCESS chainId={} endpoints={} slot={}",
+                "EthSyncCommitteeProofVerifier.verifyConfigPayload EXIT: SUCCESS chainId={} slot={}",
                 ledgerCfg::chainId,
-                () -> ledgerCfg.endpoints().size(),
                 payload::slot);
         return new VerifiedConfig(ledgerCfg, payload.slot());
     }

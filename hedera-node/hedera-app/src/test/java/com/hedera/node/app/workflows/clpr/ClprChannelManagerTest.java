@@ -303,7 +303,7 @@ class ClprChannelManagerTest {
             final var channelStore = mock(ReadableChannelStore.class);
             lenient().when(channelStore.getChannel(CHANNEL_ID_1)).thenReturn(null);
 
-            try (var _ = givenMockedStateForSync(channelStore, ledgerConfigWithEndpoints(Collections.emptyList(), 0))) {
+            try (var _ = givenMockedStateForSync(channelStore, ledgerConfigWithMaxPeerEndpoints(0))) {
                 subject.syncChannel(CHANNEL_ID_1);
 
                 // Null channel is not auto-removed; cleanup is driven by onChannelClosed only.
@@ -321,7 +321,7 @@ class ClprChannelManagerTest {
             final var channelStore = mock(ReadableChannelStore.class);
             lenient().when(channelStore.getChannel(CHANNEL_ID_1)).thenReturn(closedConn);
 
-            try (var _ = givenMockedStateForSync(channelStore, ledgerConfigWithEndpoints(Collections.emptyList(), 0))) {
+            try (var _ = givenMockedStateForSync(channelStore, ledgerConfigWithMaxPeerEndpoints(0))) {
                 subject.syncChannel(CHANNEL_ID_1);
 
                 assertThat(subject.knownChannelsIds()).doesNotContain(CHANNEL_ID_1);
@@ -755,10 +755,8 @@ class ClprChannelManagerTest {
         return nodeStore;
     }
 
-    private static ClprLedgerConfiguration ledgerConfigWithEndpoints(
-            final List<ClprEndpoint> endpoints, final int maxPeerEndpoints) {
+    private static ClprLedgerConfiguration ledgerConfigWithMaxPeerEndpoints(final int maxPeerEndpoints) {
         return ClprLedgerConfiguration.newBuilder()
-                .endpoints(endpoints)
                 .throttles(ClprThrottles.newBuilder()
                         .maxPeerEndpoints(maxPeerEndpoints)
                         .build())

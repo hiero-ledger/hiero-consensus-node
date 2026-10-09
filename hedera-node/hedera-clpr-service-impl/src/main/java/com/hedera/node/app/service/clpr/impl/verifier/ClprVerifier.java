@@ -31,8 +31,12 @@ public interface ClprVerifier {
      *       verifier has no rotating-authority concept).</li>
      *   <li>A manifest whose {@code service_address} does not match the config's
      *       {@code service_address}.</li>
-     *   <li>A manifest with {@code version == 0}.</li>
+     *   <li>A proven manifest with {@code version == 0}.</li>
      * </ul>
+     * When {@code endpointManifestProofBytes} is empty, an implementation MAY return the uninitialized
+     * manifest instead ({@code version == 0}, the config's {@code service_address}, no endpoints), as
+     * the Solidity verifiers do. The first proven manifest ({@code version >= 1}) then applies via
+     * §4.2 Step 1b.
      * Implementations MUST NOT reject a manifest solely because its {@code endpoints} list is
      * empty (spec §2.4.1 - empty manifest at version >= 1 is valid).
      *

@@ -48,10 +48,8 @@ import com.hedera.services.bdd.spec.transactions.contract.HapiContractCall;
 import com.hedera.services.bdd.spec.utilops.FakeNmt;
 import com.hedera.services.bdd.spec.utilops.grouping.ParallelSpecOps;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
-import com.hederahashgraph.api.proto.java.ClprEndpoint;
 import com.hederahashgraph.api.proto.java.ClprEndpointManifest;
 import com.hederahashgraph.api.proto.java.ClprLedgerConfiguration;
-import com.hederahashgraph.api.proto.java.ClprServiceEndpoint;
 import com.hederahashgraph.api.proto.java.ClprSignatureScheme;
 import com.hederahashgraph.api.proto.java.ClprThrottles;
 import com.hederahashgraph.api.proto.java.ContractID;
@@ -729,35 +727,6 @@ public abstract class HieroToHieroBase implements LifecycleTest {
             final ClprCrypto crypto,
             final int maxMessagesPerBundle,
             final int maxQueueDepth) {
-        return setupBothNetworks(
-                ledgerA,
-                ledgerB,
-                portA,
-                portB,
-                crypto,
-                maxMessagesPerBundle,
-                maxQueueDepth,
-                DUMMY_TLS_CERT,
-                DUMMY_TLS_CERT);
-    }
-
-    /**
-     * As {@link #setupBothNetworks(SubProcessNetwork, SubProcessNetwork, int, int, ClprCrypto, int, int)}
-     * but advertises {@code tlsCertA}/{@code tlsCertB} (the DER of each network's CLPR CA) as the
-     * endpoint {@code tls_certificate} and, for mTLS, expects {@code portA}/{@code portB} to be each
-     * network's {@code clpr.mtlsPort} so the channel is completed over — and syncs across — the
-     * dedicated mutual-TLS listener rather than the plaintext path.
-     */
-    static Stream<DynamicTest> setupBothNetworks(
-            final SubProcessNetwork ledgerA,
-            final SubProcessNetwork ledgerB,
-            final int portA,
-            final int portB,
-            final ClprCrypto crypto,
-            final int maxMessagesPerBundle,
-            final int maxQueueDepth,
-            final byte[] tlsCertA,
-            final byte[] tlsCertB) {
         final AtomicReference<ByteString> proofA = new AtomicReference<>();
         final AtomicReference<ByteString> proofB = new AtomicReference<>();
         // Manifest-only mode: completeChannel and the verifyConfig probes both require each
@@ -777,7 +746,6 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                 ledgerA,
                 ledgerB,
                 "hiero:298",
-                portA,
                 proofA,
                 proofB,
                 manifestProofA,
@@ -785,13 +753,11 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                 crypto,
                 maxMessagesPerBundle,
                 maxQueueDepth,
-                tlsCertA,
                 bothProofsReady);
         final var chainB = chainSetupAndConnect(
                 ledgerB,
                 ledgerA,
                 "hiero:299",
-                portB,
                 proofB,
                 proofA,
                 manifestProofB,
@@ -799,7 +765,6 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                 crypto,
                 maxMessagesPerBundle,
                 maxQueueDepth,
-                tlsCertB,
                 bothProofsReady);
         return Stream.of(networkHapiTest(
                         "Install + capture + verify + deploy on both ledgers (parallel)",
@@ -814,11 +779,8 @@ public abstract class HieroToHieroBase implements LifecycleTest {
      * but additionally (a) captures each ledger's manifest {@code StateProof} via the
      * {@code clprGetEndpointManifest} HAPI query and threads it into the peer's
      * {@code ClprCompleteChannel} as {@code endpoint_manifest_proof_bytes} (required, since the
-     * manifest-aware verifier ABI rejects an empty manifest proof),
-     * and (b) advertises each network's real ECDSA CLPR CA cert ({@code caDerA}/{@code caDerB}) as the
-     * endpoint {@code tls_certificate}, with {@code portA}/{@code portB} expected to be each network's
-     * {@code clpr.mtlsPort}. The channel therefore completes over, and syncs across, the dedicated
-     * mutual-TLS listener.
+     * manifest-aware verifier ABI rejects an empty manifest proof). Dial targets, including each
+     * network's mTLS port and CA cert, come from the captured manifests.
      *
      * <p>Callers must guarantee the reconciler has finalized a manifest on both networks before this
      * runs (e.g. by preceding it with a manifest-await step); the capture inside this method is a single
@@ -829,9 +791,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
             final SubProcessNetwork ledgerB,
             final int portA,
             final int portB,
-            final ClprCrypto crypto,
-            final byte[] caDerA,
-            final byte[] caDerB) {
+            final ClprCrypto crypto) {
         final AtomicReference<ByteString> proofA = new AtomicReference<>();
         final AtomicReference<ByteString> proofB = new AtomicReference<>();
         final AtomicReference<ByteString> manifestProofA = new AtomicReference<>();
@@ -841,7 +801,6 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                 ledgerA,
                 ledgerB,
                 "hiero:298",
-                portA,
                 proofA,
                 proofB,
                 manifestProofA,
@@ -849,13 +808,11 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                 crypto,
                 DEFAULT_MAX_MESSAGES_PER_BUNDLE,
                 DEFAULT_MAX_QUEUE_DEPTH,
-                caDerA, // advertise A's real CA cert; portA is A's clpr.mtlsPort
                 bothProofsReady);
         final var chainB = chainSetupAndConnect(
                 ledgerB,
                 ledgerA,
                 "hiero:299",
-                portB,
                 proofB,
                 proofA,
                 manifestProofB,
@@ -863,7 +820,6 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                 crypto,
                 DEFAULT_MAX_MESSAGES_PER_BUNDLE,
                 DEFAULT_MAX_QUEUE_DEPTH,
-                caDerB,
                 bothProofsReady);
         return Stream.of(networkHapiTest(
                         "Install + capture (config + manifest) + verify + deploy on both ledgers (mTLS, parallel)",
@@ -883,7 +839,6 @@ public abstract class HieroToHieroBase implements LifecycleTest {
             final SubProcessNetwork self,
             final SubProcessNetwork peer,
             final String selfChainId,
-            final int selfPort,
             final AtomicReference<ByteString> selfProof,
             final AtomicReference<ByteString> peerProof,
             final AtomicReference<ByteString> selfManifestProof,
@@ -891,11 +846,10 @@ public abstract class HieroToHieroBase implements LifecycleTest {
             final ClprCrypto crypto,
             final int maxMessagesPerBundle,
             final int maxQueueDepth,
-            final byte[] selfTlsCert,
             final CountDownLatch bothProofsReady) {
         return withOpContext((ignoredSpec, ignoredLog) -> {
             try {
-                installLedgerConfig(self, selfChainId, selfPort, maxMessagesPerBundle, maxQueueDepth, selfTlsCert)
+                installLedgerConfig(self, selfChainId, maxMessagesPerBundle, maxQueueDepth)
                         .getExecutable()
                         .execute();
                 captureConfigProof(self, selfProof, maxMessagesPerBundle, maxQueueDepth)
@@ -946,17 +900,13 @@ public abstract class HieroToHieroBase implements LifecycleTest {
 
     /**
      * Phase 1: install the LedgerConfiguration in state. Funds the node operator account so it can
-     * pay gas for the verifier-contract dispatch when handling inbound bundles. The {@code
-     * ownPort} parameter is this network's gRPC port — peers read it from the StateProof-attested
-     * config to know where to reach this network.
+     * pay gas for the verifier-contract dispatch when handling inbound bundles.
      */
     private static DynamicTest installLedgerConfig(
             final SubProcessNetwork network,
             final String ownChainId,
-            final int ownPort,
             final int maxMessagesPerBundle,
-            final int maxQueueDepth,
-            final byte[] tlsCertificate) {
+            final int maxQueueDepth) {
         return networkHapiTest(
                         "Install ledger config (" + ownChainId + ")",
                         network,
@@ -981,8 +931,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                         }),
                         cryptoTransfer(tinyBarsFromTo(GENESIS, "3", 100_000_000_000L)),
                         clprUpdateLedgerConfiguration()
-                                .configuration(buildLedgerConfig(
-                                        ownChainId, ownPort, maxMessagesPerBundle, maxQueueDepth, tlsCertificate))
+                                .configuration(buildLedgerConfig(ownChainId, maxMessagesPerBundle, maxQueueDepth))
                                 .payingWith(GENESIS))
                 .findFirst()
                 .orElseThrow();
@@ -1450,15 +1399,6 @@ public abstract class HieroToHieroBase implements LifecycleTest {
     // ── Config helpers ────────────────────────────────────────────────────────
 
     /**
-     * Placeholder {@code tls_certificate} advertised by the plaintext (non-mTLS) suites. It cannot be
-     * empty: {@code ClprUpdateLedgerConfigurationHandler.validateEndpoint} rejects an endpoint whose
-     * {@code tls_certificate} equals {@code Bytes.EMPTY} with {@code CLPR_INVALID_SEED_ENDPOINT}. These
-     * bytes are never parsed on the plaintext path (only the mTLS server/synchronizer read the cert),
-     * so a single inert byte is enough.
-     */
-    static final byte[] DUMMY_TLS_CERT = {0x01};
-
-    /**
      * 20-byte EVM address of the Hiero CLPR system contract precompile
      * ({@code 0x000000000000000000000000000000000000016e}) — same value the reconciler
      * pre-populates into the endpoint manifest at genesis (see {@code V0780ClprSchema}).
@@ -1469,32 +1409,10 @@ public abstract class HieroToHieroBase implements LifecycleTest {
     static final byte[] CLPR_SERVICE_ADDRESS = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, (byte) 0x6e};
 
     static ClprLedgerConfiguration buildLedgerConfig(
-            final String chainId, final int peerPort, final int maxMessagesPerBundle, final int maxQueueDepth) {
-        return buildLedgerConfig(chainId, peerPort, maxMessagesPerBundle, maxQueueDepth, DUMMY_TLS_CERT);
-    }
-
-    /**
-     * As {@link #buildLedgerConfig(String, int, int, int)} but advertises {@code tlsCertificate} as
-     * the endpoint's {@code tls_certificate} (the DER of this network's CLPR CA). For mTLS suites,
-     * {@code peerPort} must be this network's {@code clpr.mtlsPort} — the port the dedicated mTLS
-     * sync listener binds — since with mTLS on, the CLPR {@code sync} method is served only there.
-     */
-    static ClprLedgerConfiguration buildLedgerConfig(
-            final String chainId,
-            final int peerPort,
-            final int maxMessagesPerBundle,
-            final int maxQueueDepth,
-            final byte[] tlsCertificate) {
+            final String chainId, final int maxMessagesPerBundle, final int maxQueueDepth) {
         return ClprLedgerConfiguration.newBuilder()
                 .setChainId(chainId)
                 .setServiceAddress(ByteString.copyFrom(CLPR_SERVICE_ADDRESS))
-                .addEndpoints(ClprEndpoint.newBuilder()
-                        .setServiceEndpoint(ClprServiceEndpoint.newBuilder()
-                                .setIpAddress("127.0.0.1")
-                                .setPort(peerPort)
-                                .build())
-                        .setTlsCertificate(ByteString.copyFrom(tlsCertificate))
-                        .build())
                 .setThrottles(ClprThrottles.newBuilder()
                         .setMaxMessagesPerBundle(maxMessagesPerBundle)
                         .setMaxMessagePayloadBytes(65536)

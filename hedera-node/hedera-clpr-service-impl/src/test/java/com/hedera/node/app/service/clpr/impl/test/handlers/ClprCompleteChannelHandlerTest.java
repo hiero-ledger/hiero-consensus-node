@@ -94,7 +94,6 @@ class ClprCompleteChannelHandlerTest {
             .serviceAddress(Bytes.wrap(new byte[] {0x01, 0x02, 0x03}))
             .timestamp(Timestamp.newBuilder().seconds(1000).build())
             .throttles(ClprThrottles.DEFAULT)
-            .endpoints(List.of(ClprEndpoint.DEFAULT))
             .initialTrustAnchor(PEER_TRUST_ANCHOR)
             .initialTrustAnchorId(PEER_TRUST_ANCHOR)
             .build();

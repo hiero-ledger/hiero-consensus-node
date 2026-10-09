@@ -472,11 +472,6 @@ public class ClprEnabledSuite {
                 .setChainId("hiero:testing")
                 .setServiceAddress(ByteString.copyFrom(new byte[] {0, 0, 1}))
                 .setThrottles(HapiClprUpdateLedgerConfiguration.defaultThrottles())
-                .addEndpoints(ClprEndpoint.newBuilder()
-                        .setServiceEndpoint(ClprServiceEndpoint.newBuilder()
-                                .setIpAddress("127.0.0.1")
-                                .setPort(50211))
-                        .setTlsCertificate(ByteString.copyFrom(new byte[] {1})))
                 .build();
     }
 

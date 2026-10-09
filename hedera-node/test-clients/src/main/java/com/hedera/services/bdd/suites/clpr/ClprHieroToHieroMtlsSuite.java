@@ -11,7 +11,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 
 import com.hedera.services.bdd.junit.MultiNetworkHapiTest;
-import com.hedera.services.bdd.junit.extensions.MultiNetworkExtension;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -49,12 +48,10 @@ public class ClprHieroToHieroMtlsSuite extends HieroToHieroBase {
     @DisplayName("mTLS one-way: message from ledger A crosses to ledger B over the dedicated mTLS listener")
     Stream<DynamicTest> mtlsOneWayDelivery(final SubProcessNetwork ledgerA, final SubProcessNetwork ledgerB) {
         final var crypto = new ClprCrypto();
-        final byte[] caDerA = MultiNetworkExtension.clprMtlsCaDer(ledgerA.name());
-        final byte[] caDerB = MultiNetworkExtension.clprMtlsCaDer(ledgerB.name());
 
         return Stream.concat(
-                // Advertise each network's real CA cert + its mtlsPort as the endpoint, so the
-                // channel is completed against — and syncs over — the dedicated mTLS listener.
+                // Each network's endpoint manifest advertises its mtlsPort and CA cert, so the channel
+                // syncs over the dedicated mTLS listener.
                 setupBothNetworks(
                         ledgerA,
                         ledgerB,
@@ -62,9 +59,7 @@ public class ClprHieroToHieroMtlsSuite extends HieroToHieroBase {
                         MTLS_PORT_B,
                         crypto,
                         DEFAULT_MAX_MESSAGES_PER_BUNDLE,
-                        DEFAULT_MAX_QUEUE_DEPTH,
-                        caDerA,
-                        caDerB),
+                        DEFAULT_MAX_QUEUE_DEPTH),
                 Stream.of(
                         // Positive: each node started its dedicated CLPR mTLS sync listener on the
                         // advertised port (mTLS was actually enabled, not skipped for a missing CA).
