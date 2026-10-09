@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.gcp;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.BufferedReader;
@@ -10,6 +12,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -29,7 +32,7 @@ import org.apache.logging.log4j.MarkerManager;
 public final class GcpPathHelper {
 
     private static final String GCLOUD =
-            System.getProperty("os.name", "").toLowerCase().contains("windows") ? "gcloud.cmd" : "gcloud";
+            System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("windows") ? "gcloud.cmd" : "gcloud";
 
     private static final Logger log = LogManager.getLogger(GcpPathHelper.class);
 
@@ -79,7 +82,7 @@ public final class GcpPathHelper {
      */
     @NonNull
     public static String blockFileName(final long blockNumber) {
-        return String.format("%0" + BLOCK_NUMBER_DIGITS + "d", blockNumber) + BLOCK_FILE_EXTENSION;
+        return String.format(Locale.ROOT, "%0" + BLOCK_NUMBER_DIGITS + "d", blockNumber) + BLOCK_FILE_EXTENSION;
     }
 
     /**
@@ -133,7 +136,7 @@ public final class GcpPathHelper {
             pb.redirectErrorStream(true);
             final Process p = pb.start();
             // Drain output to avoid blocking
-            try (var reader = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
+            try (var reader = new BufferedReader(new InputStreamReader(p.getInputStream(), UTF_8))) {
                 while (reader.readLine() != null) {
                     // discard
                 }
@@ -447,7 +450,7 @@ public final class GcpPathHelper {
             pb.redirectErrorStream(true);
             final Process process = pb.start();
             int count = 0;
-            try (var reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+            try (var reader = new BufferedReader(new InputStreamReader(process.getInputStream(), UTF_8))) {
                 String line;
                 while ((line = reader.readLine()) != null) {
                     // Skip directory markers (lines ending with /) and empty lines
@@ -501,7 +504,7 @@ public final class GcpPathHelper {
             pb.redirectErrorStream(true);
             final Process process = pb.start();
             String result = null;
-            try (var reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+            try (var reader = new BufferedReader(new InputStreamReader(process.getInputStream(), UTF_8))) {
                 String line;
                 while ((line = reader.readLine()) != null) {
                     if (!line.isEmpty() && !line.endsWith("/")) {
@@ -744,7 +747,7 @@ public final class GcpPathHelper {
             // Drain output in a daemon thread so waitFor(timeout) is not blocked
             final Thread drainThread = new Thread(
                     () -> {
-                        try (var reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                        try (var reader = new BufferedReader(new InputStreamReader(process.getInputStream(), UTF_8))) {
                             String line;
                             while ((line = reader.readLine()) != null) {
                                 if (logOutput) {

@@ -21,6 +21,7 @@ import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
@@ -132,18 +133,19 @@ public class AccountAndSupplyValidator implements LeafBytesValidator {
         if (!ok) {
             throw new ValidationException(
                     getName(),
-                    ("""
+                    String.format(
+                            Locale.ROOT,
+                            """
                 %s validation failed.
                 totalSupplyExpected=%d vs totalSupplyActual=%d
                 accountsExpected=%d vs accountsObserved=%d
-                invalidAccountBalanceCount=%d""")
-                            .formatted(
-                                    getName(),
-                                    TOTAL_tHBAR_SUPPLY,
-                                    totalBalance.get(),
-                                    numAccounts,
-                                    accountsCreated.get(),
-                                    invalidAccountBalanceCount.get()));
+                invalidAccountBalanceCount=%d""",
+                            getName(),
+                            TOTAL_tHBAR_SUPPLY,
+                            totalBalance.get(),
+                            numAccounts,
+                            accountsCreated.get(),
+                            invalidAccountBalanceCount.get()));
         }
     }
 }

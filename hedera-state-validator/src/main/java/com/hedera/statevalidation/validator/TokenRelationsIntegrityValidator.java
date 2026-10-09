@@ -22,6 +22,7 @@ import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
@@ -195,19 +196,20 @@ public class TokenRelationsIntegrityValidator implements LeafBytesValidator {
         if (!ok) {
             throw new ValidationException(
                     getName(),
-                    ("""
+                    String.format(
+                            Locale.ROOT,
+                            """
                 %s validation failed.
                 objectsProcessed=%d vs expectedNumTokenRelations=%d
                 accountFailCount=%d tokenFailCount=%d
-                nullObjectsCount=%d unequalObjectsCount=%d""")
-                            .formatted(
-                                    getName(),
-                                    objectsProcessed.get(),
-                                    numTokenRelations,
-                                    accountFailCounter.get(),
-                                    tokenFailCounter.get(),
-                                    nullObjectsCounter.get(),
-                                    unequalObjectsCounter.get()));
+                nullObjectsCount=%d unequalObjectsCount=%d""",
+                            getName(),
+                            objectsProcessed.get(),
+                            numTokenRelations,
+                            accountFailCounter.get(),
+                            tokenFailCounter.get(),
+                            nullObjectsCounter.get(),
+                            unequalObjectsCounter.get()));
         }
     }
 }

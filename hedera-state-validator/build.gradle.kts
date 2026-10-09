@@ -7,4 +7,10 @@ plugins {
 
 mainModuleInfo { runtimeOnly("org.junit.jupiter.engine") }
 
+testModuleInfo {
+    requires("org.assertj.core")
+    requires("org.junit.jupiter.api")
+    requires("org.mockito")
+}
+
 application.mainClass = "com.hedera.statevalidation.StateOperatorCommand"

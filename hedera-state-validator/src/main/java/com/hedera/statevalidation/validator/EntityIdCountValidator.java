@@ -14,6 +14,7 @@ import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -145,7 +146,9 @@ public class EntityIdCountValidator implements LeafBytesValidator {
         if (!ok) {
             throw new ValidationException(
                     getName(),
-                    ("""
+                    String.format(
+                            Locale.ROOT,
+                            """
                 %s validation failed.
                 accounts exp=%d act=%d
                 aliases exp=%d act=%d
@@ -159,35 +162,34 @@ public class EntityIdCountValidator implements LeafBytesValidator {
                 nodes exp=%d act=%d
                 contractBytecodes exp=%d act=%d
                 hooks exp=%d act=%d
-                lambdaStorageSlots exp=%d act=%d""")
-                            .formatted(
-                                    getName(),
-                                    entityCounts.numAccounts(),
-                                    accountCount.get(),
-                                    entityCounts.numAliases(),
-                                    aliasesCount.get(),
-                                    entityCounts.numTokens(),
-                                    tokenCount.get(),
-                                    entityCounts.numTokenRelations(),
-                                    tokenRelCount.get(),
-                                    entityCounts.numNfts(),
-                                    nftsCount.get(),
-                                    entityCounts.numAirdrops(),
-                                    airdropsCount.get(),
-                                    entityCounts.numStakingInfos(),
-                                    stakingInfoCount.get(),
-                                    entityCounts.numTopics(),
-                                    topicCount.get(),
-                                    entityCounts.numFiles(),
-                                    fileCount.get(),
-                                    entityCounts.numNodes(),
-                                    nodesCount.get(),
-                                    entityCounts.numContractBytecodes(),
-                                    contractBytecodeCount.get(),
-                                    entityCounts.numHooks(),
-                                    hookCount.get(),
-                                    entityCounts.numEvmHookStorageSlots(),
-                                    evmHookStorageCount.get()));
+                lambdaStorageSlots exp=%d act=%d""",
+                            getName(),
+                            entityCounts.numAccounts(),
+                            accountCount.get(),
+                            entityCounts.numAliases(),
+                            aliasesCount.get(),
+                            entityCounts.numTokens(),
+                            tokenCount.get(),
+                            entityCounts.numTokenRelations(),
+                            tokenRelCount.get(),
+                            entityCounts.numNfts(),
+                            nftsCount.get(),
+                            entityCounts.numAirdrops(),
+                            airdropsCount.get(),
+                            entityCounts.numStakingInfos(),
+                            stakingInfoCount.get(),
+                            entityCounts.numTopics(),
+                            topicCount.get(),
+                            entityCounts.numFiles(),
+                            fileCount.get(),
+                            entityCounts.numNodes(),
+                            nodesCount.get(),
+                            entityCounts.numContractBytecodes(),
+                            contractBytecodeCount.get(),
+                            entityCounts.numHooks(),
+                            hookCount.get(),
+                            entityCounts.numEvmHookStorageSlots(),
+                            evmHookStorageCount.get()));
         }
     }
 }

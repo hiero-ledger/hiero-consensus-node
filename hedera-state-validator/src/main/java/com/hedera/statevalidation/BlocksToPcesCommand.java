@@ -15,6 +15,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.pcli.utility.ParameterizedClass;
@@ -295,6 +296,7 @@ public class BlocksToPcesCommand extends ParameterizedClass implements Runnable 
         final long leftBlockMinRound = leftSpan[0];
         if (leftBlockMinRound > leftSearchRound) {
             throw new IOException(String.format(
+                    Locale.ROOT,
                     "Block stream does not reach back far enough for the requested origin. The earliest available "
                             + "block (%d) starts at round %d, but the extraction requires rounds from %d "
                             + "(origin %d minus roundsNonAncient %d). The origin round and its non-ancient parent "

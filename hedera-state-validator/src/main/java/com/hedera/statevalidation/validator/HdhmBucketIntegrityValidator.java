@@ -18,6 +18,7 @@ import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
@@ -198,21 +199,22 @@ public class HdhmBucketIntegrityValidator implements HdhmBucketValidator {
                     getName(),
                     "One of the test condition hasn't been met. "
                             + "Conditions: "
-                            + ("stalePathsInfos.isEmpty() = %s, "
+                            + String.format(
+                                    Locale.ROOT,
+                                    "stalePathsInfos.isEmpty() = %s, "
                                             + "nullLeafsInfo.isEmpty() = %s, "
                                             + "unexpectedKeyInfos.isEmpty() = %s, "
                                             + "pathMismatchInfos.isEmpty() = %s, "
                                             + "bucketIndexMismatchInfos.isEmpty() = %s, "
                                             + "hashCodeMismatchInfos.isEmpty() = %s, "
-                                            + "exceptionCount = %d")
-                                    .formatted(
-                                            stalePathsInfos.isEmpty(),
-                                            nullLeafsInfo.isEmpty(),
-                                            unexpectedKeyInfos.isEmpty(),
-                                            pathMismatchInfos.isEmpty(),
-                                            bucketIndexMismatchInfos.isEmpty(),
-                                            hashCodeMismatchInfos.isEmpty(),
-                                            exceptionCount.get()));
+                                            + "exceptionCount = %d",
+                                    stalePathsInfos.isEmpty(),
+                                    nullLeafsInfo.isEmpty(),
+                                    unexpectedKeyInfos.isEmpty(),
+                                    pathMismatchInfos.isEmpty(),
+                                    bucketIndexMismatchInfos.isEmpty(),
+                                    hashCodeMismatchInfos.isEmpty(),
+                                    exceptionCount.get()));
         }
     }
 

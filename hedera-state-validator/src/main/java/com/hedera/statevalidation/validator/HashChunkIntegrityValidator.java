@@ -8,6 +8,7 @@ import com.swirlds.virtualmap.MerkleHasher;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -158,19 +159,20 @@ public class HashChunkIntegrityValidator implements HashChunkValidator {
         if (!ok) {
             throw new ValidationException(
                     getName(),
-                    ("%s validation failed. "
+                    String.format(
+                            Locale.ROOT,
+                            "%s validation failed. "
                                     + "successCount=%d vs expectedCount=%d, "
                                     + "idMismatchCount=%d, pathMismatchCount=%d, hashMismatchCount=%d, "
-                                    + "chunkHeightMismatchCount=%d, exceptionCount=%d")
-                            .formatted(
-                                    getName(),
-                                    successCount.get(),
-                                    expectedCount,
-                                    idMismatchCount.get(),
-                                    pathMismatchCount.get(),
-                                    hashMismatchCount.get(),
-                                    chunkHeightMismatchCount.get(),
-                                    exceptionCount.get()));
+                                    + "chunkHeightMismatchCount=%d, exceptionCount=%d",
+                            getName(),
+                            successCount.get(),
+                            expectedCount,
+                            idMismatchCount.get(),
+                            pathMismatchCount.get(),
+                            hashMismatchCount.get(),
+                            chunkHeightMismatchCount.get(),
+                            exceptionCount.get()));
         }
     }
 }

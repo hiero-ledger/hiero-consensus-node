@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.validator.model;
 
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -49,12 +50,17 @@ public final class DataStats {
     @Override
     public String toString() {
         return String.format(
+                Locale.ROOT,
                 """
                 Total Data Stats:
                   Total items: %,d
                   Total space: %,d bytes
                   Obsolete items: %,d
-                  Obsolete space: %,d bytes""", getTotalItemCount(), getTotalSpaceSize(), getObsoleteItemCount(), getObsoleteSpaceSize());
+                  Obsolete space: %,d bytes""",
+                getTotalItemCount(),
+                getTotalSpaceSize(),
+                getObsoleteItemCount(),
+                getObsoleteSpaceSize());
     }
 
     /**
@@ -114,6 +120,7 @@ public final class DataStats {
         // Helper for the parent toString
         public String toStringContent() {
             return String.format(
+                    Locale.ROOT,
                     """
                     Total items: %,d
                       Total space: %,d bytes
