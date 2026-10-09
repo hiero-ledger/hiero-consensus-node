@@ -31,6 +31,7 @@ import java.util.function.Consumer;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.HashingOutputStream;
+import org.hiero.consensus.model.event.EventHashFactory;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 
@@ -54,8 +55,20 @@ import org.hiero.consensus.model.event.PlatformEvent;
  * {@code GossipEvent.signature}, so the signature field is left empty. This does not affect the
  * event hash, which is computed only over {@code EventCore}, parent descriptors, and the
  * (double-hashed) event transactions.
+ *
+ * <p>The digest type of an event is determined by its birth round, following the same rule as the
+ * platform's {@link EventHashFactory}: events with a birth round lower than the event cutover minimum
+ * birth round are hashed with SHA-384, all others with SHA-256. Since a child references its parents by
+ * their original hashes, a post-cutover event may reference pre-cutover parents by SHA-384 hashes. The
+ * cutover is supplied by the caller, e.g. detected from the block stream by {@link EventCutoverDetector}.
  */
 public class BlockStreamEventBuilder {
+
+    /**
+     * The lowest birth round of events hashed with the post-cutover digest type, or {@code Long.MAX_VALUE}
+     * if there is no cutover.
+     */
+    private final long eventCutoverMinBirthRound;
 
     /** Track events by index within the current block, for in-block parent lookups. */
     private final Map<Integer, PlatformEvent> eventIndexToEvent = new HashMap<>();
@@ -68,6 +81,20 @@ public class BlockStreamEventBuilder {
 
     /** The index of the current event within the current block. */
     private int eventIndexWithinBlock = 0;
+
+    /**
+     * Creates a new builder.
+     *
+     * @param eventCutoverMinBirthRound the lowest birth round of events hashed with the post-cutover
+     *     digest type, or {@code Long.MAX_VALUE} if there is no cutover
+     */
+    public BlockStreamEventBuilder(final long eventCutoverMinBirthRound) {
+        if (eventCutoverMinBirthRound < 0) {
+            throw new IllegalArgumentException(
+                    "eventCutoverMinBirthRound must not be negative: " + eventCutoverMinBirthRound);
+        }
+        this.eventCutoverMinBirthRound = eventCutoverMinBirthRound;
+    }
 
     /**
      * Processes a single block, reconstructing events from its items and delivering each completed
@@ -134,6 +161,18 @@ public class BlockStreamEventBuilder {
         }
     }
 
+    /**
+     * Returns the digest type an event was hashed with, based on its birth round. Mirrors
+     * {@link EventHashFactory#hash(Bytes, long)}.
+     *
+     * @param birthRound the event's birth round
+     * @return the digest type of the event's hash
+     */
+    @NonNull
+    public DigestType digestTypeFor(final long birthRound) {
+        return birthRound < eventCutoverMinBirthRound ? DigestType.SHA_384 : DigestType.SHA_256;
+    }
+
     // ---- Internal block-processing methods ----
 
     private void startOfBlock() {
@@ -194,7 +233,8 @@ public class BlockStreamEventBuilder {
         final List<EventDescriptor> resolvedParents =
                 resolveParentReferences(eventHeader.parents(), eventIndexToEvent, eventCore);
 
-        final Hash eventHash = hashEvent(eventCore, resolvedParents, transactions);
+        final Hash eventHash =
+                hashEvent(eventCore, resolvedParents, transactions, digestTypeFor(eventCore.birthRound()));
 
         final GossipEvent gossipEvent = GossipEvent.newBuilder()
                 .eventCore(eventCore)
@@ -256,15 +296,17 @@ public class BlockStreamEventBuilder {
     /**
      * Computes the event hash, mirroring the production {@code PbjStreamHasher}: hash
      * {@code EventCore} + parent {@code EventDescriptor}s + per-transaction double-hash
-     * (SHA-384 of the transaction bytes, then that hash fed into the event digest).
+     * (hash of the transaction bytes, then that hash fed into the event digest), using the given
+     * digest type for both.
      */
     @NonNull
     private static Hash hashEvent(
             @NonNull final EventCore eventCore,
             @NonNull final List<EventDescriptor> parents,
-            @NonNull final List<Bytes> transactions) {
+            @NonNull final List<Bytes> transactions,
+            @NonNull final DigestType digestType) {
         try {
-            final MessageDigest eventDigest = DigestType.SHA_384.buildDigest();
+            final MessageDigest eventDigest = digestType.buildDigest();
             final WritableSequentialData eventStream = new WritableStreamingData(new HashingOutputStream(eventDigest));
 
             EventCore.PROTOBUF.write(eventCore, eventStream);
@@ -272,7 +314,7 @@ public class BlockStreamEventBuilder {
                 EventDescriptor.PROTOBUF.write(parent, eventStream);
             }
 
-            final MessageDigest transactionDigest = DigestType.SHA_384.buildDigest();
+            final MessageDigest transactionDigest = digestType.buildDigest();
             final WritableSequentialData transactionStream =
                     new WritableStreamingData(new HashingOutputStream(transactionDigest));
             for (final Bytes transaction : transactions) {
@@ -280,7 +322,7 @@ public class BlockStreamEventBuilder {
                 eventStream.writeBytes(transactionDigest.digest());
             }
 
-            return new Hash(eventDigest.digest(), DigestType.SHA_384);
+            return new Hash(eventDigest.digest(), digestType);
         } catch (final IOException e) {
             throw new RuntimeException("An exception occurred while trying to hash an event!", e);
         }
