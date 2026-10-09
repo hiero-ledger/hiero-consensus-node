@@ -36,6 +36,7 @@ import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willAnswer;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -358,6 +359,30 @@ class HandleWorkflowTest {
         verify(recordCache).resetRoundReceipts();
         verify(recordCache)
                 .commitReceipts(any(), any(), same(immediateStateChangeListener), same(blockStreamManager), any());
+    }
+
+    @Test
+    void recordsModeStartsQuiescenceTrackerForCurrentRecordBlockBeforeHandlingEvents() {
+        final var creatorId = NodeId.of(1L);
+        final var roundEvent = mock(ConsensusEvent.class);
+        given(round.iterator())
+                .willReturn(List.of(roundEvent).iterator())
+                .willReturn(List.of(roundEvent).iterator());
+        given(roundEvent.getCreatorId()).willReturn(creatorId);
+        given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
+        given(roundEvent.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(round.getConsensusTimestamp()).willReturn(Instant.ofEpochSecond(12345L));
+        given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(NOW);
+        given(blockRecordManager.lastIntervalProcessTime()).willReturn(NOW);
+        given(blockRecordManager.blockNo()).willReturn(42L);
+
+        givenSubjectWith(RECORDS, BlockStreamWriterMode.FILE, emptyList());
+
+        subject.handleRound(state, round, txns -> {});
+
+        final var inOrder = inOrder(quiescenceController, roundEvent);
+        inOrder.verify(quiescenceController).startingBlock(42L);
+        inOrder.verify(roundEvent).consensusTransactionIterator();
     }
 
     @Test

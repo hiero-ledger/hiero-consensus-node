@@ -53,7 +53,6 @@ import com.hedera.node.app.records.impl.producers.formats.v6.BlockRecordFormatV6
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.InitTrigger;
-import com.swirlds.platform.system.Platform;
 import com.swirlds.state.State;
 import com.swirlds.state.merkle.VirtualMapStateImpl;
 import com.swirlds.state.spi.ReadableStates;
@@ -115,9 +114,6 @@ final class BlockRecordManagerTest extends AppTestBase {
 
     @Mock
     private QuiescedHeartbeat quiescedHeartbeat;
-
-    @Mock
-    private Platform platform;
 
     @Mock
     private SelfNodeAccountIdManagerImpl selfNodeAccountIdManager;
@@ -225,7 +221,6 @@ final class BlockRecordManagerTest extends AppTestBase {
                 producer,
                 quiescenceController,
                 quiescedHeartbeat,
-                platform,
                 wrappedRecordHashesDiskWriter,
                 () -> mock(BlockItemWriter.class),
                 NO_OP_BLOCK_HASH_SIGNER,
@@ -326,7 +321,6 @@ final class BlockRecordManagerTest extends AppTestBase {
                 producer,
                 quiescenceController,
                 quiescedHeartbeat,
-                platform,
                 wrappedRecordHashesDiskWriter,
                 () -> mock(BlockItemWriter.class),
                 NO_OP_BLOCK_HASH_SIGNER,
@@ -512,7 +506,6 @@ final class BlockRecordManagerTest extends AppTestBase {
                 mock(BlockRecordStreamProducer.class),
                 quiescenceController,
                 quiescedHeartbeat,
-                platform,
                 mock(WrappedRecordFileBlockHashesDiskWriter.class),
                 () -> mock(BlockItemWriter.class),
                 NO_OP_BLOCK_HASH_SIGNER,
@@ -540,7 +533,6 @@ final class BlockRecordManagerTest extends AppTestBase {
                 mock(BlockRecordStreamProducer.class),
                 quiescenceController,
                 quiescedHeartbeat,
-                platform,
                 mock(WrappedRecordFileBlockHashesDiskWriter.class),
                 () -> mock(BlockItemWriter.class),
                 NO_OP_BLOCK_HASH_SIGNER,
@@ -632,7 +624,6 @@ final class BlockRecordManagerTest extends AppTestBase {
                     producer,
                     quiescenceController,
                     quiescedHeartbeat,
-                    platform,
                     diskWriter,
                     () -> mock(BlockItemWriter.class),
                     NO_OP_BLOCK_HASH_SIGNER,
