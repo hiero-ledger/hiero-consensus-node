@@ -1,0 +1,187 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "864: [CALL] CITR SDCT Follow"
+
+# Follows a running SDCT Jenkins build handed off by the previous 223 job, for at most budget-minutes,
+# then either decides the verdict (state=done) or hands the build off again (state=running).
+on:
+  workflow_call:
+    inputs:
+      jenkins-build-number:
+        required: true
+        description: "Jenkins build number of the SDCT build."
+        type: string
+      jenkins-build-url:
+        required: false
+        default: ""
+        description: "Jenkins build URL of the SDCT build."
+        type: string
+      resume:
+        required: true
+        description: "Resume state written by the previous job's handoff (one-line JSON)."
+        type: string
+      budget-minutes:
+        required: true
+        description: "Job budget in minutes; the build is handed off when it is used up."
+        type: number
+      runner:
+        required: true
+        description: "Runner label."
+        type: string
+      follow-index:
+        required: true
+        description: "Position k of this job in the follow chain (1-6)."
+        type: number
+      deadline-anchor:
+        required: false
+        default: ""
+        description: "Mock runs: Jenkins build start (epoch s); the job hands off at anchor + k x budget-minutes."
+        type: string
+      poll-interval:
+        required: false
+        default: 300
+        description: "Seconds between build polls (mock runs: 120)."
+        type: number
+      fail-grace:
+        required: false
+        default: 1800
+        description: "Seconds to wait after a FAIL marker (mock runs: 180)."
+        type: number
+      hang-timeout:
+        required: false
+        default: 3600
+        description: "Seconds without console output before the build counts as hung (mock runs: 360)."
+        type: number
+      job-path:
+        required: false
+        default: "job/nightly/job/sdct"
+        description: "Jenkins job path (mock runs: job/nightly/job/sdct-mock)."
+        type: string
+    secrets:
+      jenkins-api-username:
+        required: true
+        description: "Jenkins API user"
+      jenkins-api-password:
+        required: true
+        description: "Jenkins API token"
+      jenkins-api-server:
+        required: true
+        description: "Jenkins base URL"
+    outputs:
+      state:
+        description: "running (handed off again) or done (verdict decided)"
+        value: ${{ jobs.follow.outputs.state }}
+      verdict:
+        description: "pass, fail or infra, when state is done"
+        value: ${{ jobs.follow.outputs.verdict }}
+      reason:
+        description: "Verdict reason"
+        value: ${{ jobs.follow.outputs.reason }}
+      jenkins-result:
+        description: "Jenkins build result"
+        value: ${{ jobs.follow.outputs.jenkins-result }}
+      jenkins-build-url:
+        description: "Jenkins build URL"
+        value: ${{ jobs.follow.outputs.jenkins-build-url }}
+      jenkins-build-number:
+        description: "Jenkins build number"
+        value: ${{ jobs.follow.outputs.jenkins-build-number }}
+      resume:
+        description: "Resume state for the next job, when state is running"
+        value: ${{ jobs.follow.outputs.resume }}
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+
+jobs:
+  follow:
+    name: Follow SDCT Build
+    runs-on: ${{ inputs.runner }}
+    # Safety net only: the script hands off at budget-minutes, well before the 6 h job limit
+    timeout-minutes: 350
+
+    outputs:
+      state: ${{ steps.follow.outputs.state }}
+      verdict: ${{ steps.follow.outputs.verdict }}
+      reason: ${{ steps.follow.outputs.reason }}
+      jenkins-result: ${{ steps.follow.outputs.jenkins-result }}
+      jenkins-build-url: ${{ steps.follow.outputs.build-url }}
+      jenkins-build-number: ${{ steps.follow.outputs.build-number }}
+      resume: ${{ steps.follow.outputs.resume }}
+
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Set Job Deadline
+        env:
+          BUDGET_MIN: ${{ inputs.budget-minutes }}
+          ANCHOR: ${{ inputs.deadline-anchor }}
+          INDEX: ${{ inputs.follow-index }}
+        run: |-
+          # Job start + budget; mock runs use a fixed schedule, anchor + k x budget (never later than start + budget)
+          deadline=$(( $(date +%s) + BUDGET_MIN * 60 ))
+          if [[ "${ANCHOR}" =~ ^[0-9]+$ ]]; then
+            anchored=$(( ANCHOR + INDEX * BUDGET_MIN * 60 ))
+            (( anchored < deadline )) && deadline=${anchored}
+          fi
+          echo "SDCT_DEADLINE=${deadline}" >> "${GITHUB_ENV}"
+          echo "Follow ${INDEX}: hand off at $(date -u -d "@${deadline}" '+%Y-%m-%dT%H:%M:%SZ')"
+
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          sparse-checkout: .github/workflows/support/scripts
+          persist-credentials: false
+
+      - name: Install Utility Tools
+        run: |-
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            jq=1.6-* curl=7.81.0-*
+
+      - name: Follow SDCT Build
+        id: follow
+        env:
+          USERNAME: ${{ secrets.jenkins-api-username }}
+          PASSWORD: ${{ secrets.jenkins-api-password }}
+          SERVER: ${{ secrets.jenkins-api-server }}
+          GH_RUN_ID: ${{ github.run_id }}
+          SDCT_OUT_DIR: ${{ runner.temp }}/sdct
+          SDCT_RESUME: ${{ inputs.resume }}
+          SDCT_BUILD_URL: ${{ inputs.jenkins-build-url }}
+          SDCT_JOB_PATH: ${{ inputs.job-path }}
+          POLL_INTERVAL: ${{ inputs.poll-interval }}
+          FAIL_GRACE: ${{ inputs.fail-grace }}
+          HANG_TIMEOUT: ${{ inputs.hang-timeout }}
+          BUILD_NUMBER: ${{ inputs.jenkins-build-number }}
+        run: |-
+          # Writes state, and either verdict/reason/jenkins-result (done) or resume (running)
+          bash "${{ github.workspace }}/.github/workflows/support/scripts/sdct-wait.sh" follow "${BUILD_NUMBER}"
+
+      - name: Stop Jenkins Build on Cancel
+        if: ${{ cancelled() }}
+        env:
+          USERNAME: ${{ secrets.jenkins-api-username }}
+          PASSWORD: ${{ secrets.jenkins-api-password }}
+          SERVER: ${{ secrets.jenkins-api-server }}
+          SDCT_OUT_DIR: ${{ runner.temp }}/sdct
+          SDCT_JOB_PATH: ${{ inputs.job-path }}
+          BUILD_NUMBER: ${{ inputs.jenkins-build-number }}
+        run: |-
+          bash "${{ github.workspace }}/.github/workflows/support/scripts/sdct-wait.sh" stop "${BUILD_NUMBER}"
+
+      - name: Upload SDCT Results
+        if: ${{ cancelled() || steps.follow.outputs.state == 'done' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        continue-on-error: true
+        with:
+          name: sdct-results
+          path: ${{ runner.temp }}/sdct
+          if-no-files-found: ignore
+          overwrite: true

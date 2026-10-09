@@ -1,6 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 name: "223: [DISP] CITR SDCT Controller"
+run-name: "${{ inputs.mock && format('[MOCK] 223 SDCT {0} ({1})', inputs.build-tag, inputs.mock-scenario) || '223: [DISP] CITR SDCT Controller' }}"
 
+# NOTE: 901 dispatches this workflow with only `build-tag`. `ref` falls back to main when empty; `blocknode-version`
+#       and `mirrornode-version` are informational: when empty they are not sent to Jenkins, whose job defaults apply.
+# TODO: SDCT runs on the single perf1 network; the concurrency group below serializes runs of this workflow,
+#       overlapping runs from other sources will be prevented by the external framework changes.
+# TODO: add an ad hoc SDCT controller workflow for user dispatches, as 201 is to 221 for SDPT.
 on:
   workflow_dispatch:
     inputs:
@@ -13,21 +19,71 @@ on:
         required: true
         description: "build-XXXXX tag associated with the ref input."
         type: string
+      blocknode-version:
+        required: false
+        default: ""
+        description: "BlockNode version (informational). Empty: not sent, the Jenkins job default applies."
+        type: string
+      mirrornode-version:
+        required: false
+        default: ""
+        description: "MirrorNode version (informational). Empty: not sent, the Jenkins job default applies."
+        type: string
+      test-name:
+        required: false
+        default: "sdct"
+        description: "SDCT test: sdct (full test), mini (short run for debugging, not tagged), custom (ad hoc, not tagged)."
+        type: choice
+        options:
+          - sdct
+          - mini
+          - custom
+      mock:
+        required: false
+        default: false
+        description: "Mock run: drive the nightly/sdct-mock Jenkins job (synthetic output, no perf1); no tag, Rootly or Chewie is executed."
+        type: boolean
+      mock-scenario:
+        required: false
+        default: "pass"
+        description: "Mock runs only: the outcome the mock Jenkins job produces (sdct-6h-runner-design.md §10.2)."
+        type: choice
+        options:
+          - pass
+          - fail
+          - post-pass-failure
+          - hang
+          - exhaust
+          - reset-fail
+          - not-active
+          - driver-error
+
+concurrency:
+  group: sdct-perf1
+  cancel-in-progress: false
 
 defaults:
   run:
     shell: bash
 
+env:
+  # Per-job budget: each job follows the Jenkins build for at most this long, then hands it off to the next job
+  # (GitHub kills a job at 6 h). Set to e.g. 60 on a branch to exercise the handoff with test-name=mini (6 x 60 min).
+  SDCT_JOB_BUDGET_MIN: 330
+  # Mock runs (mock=true): follow job budget, also the step of the mock Jenkins timeline (MOCK_STEP_MINUTES)
+  SDCT_MOCK_JOB_BUDGET_MIN: 6
+
 permissions:
-  contents: read
+  contents: write
   id-token: write
 
 jobs:
   canonical-test:
     name: Canonical
-    runs-on: hl-cn-sdct-lin-sm
+    runs-on: hl-cn-sdct-lin
 
-    timeout-minutes: 90 # max one hour timeout
+    # Safety net only: the job hands the build off at SDCT_JOB_BUDGET_MIN, before the 6 h job limit
+    timeout-minutes: 350
 
     outputs:
       harden-runner: ${{ steps.harden-runner.outcome }}
@@ -40,6 +96,22 @@ jobs:
       start-canonical-test: ${{ steps.start-canonical-test.outcome }}
       summary: ${{ steps.summary.outcome }}
       commit: ${{ steps.parameters.outputs.sha || 'N/A' }}
+      ref-commit: ${{ steps.parameters.outputs.ref-commit }}
+      build-number: ${{ steps.parameters.outputs.build-number }}
+      budget-minutes: ${{ steps.job-deadline.outputs.budget-minutes }}
+      poll-interval: ${{ steps.job-deadline.outputs.poll-interval }}
+      fail-grace: ${{ steps.job-deadline.outputs.fail-grace }}
+      hang-timeout: ${{ steps.job-deadline.outputs.hang-timeout }}
+      job-path: ${{ steps.job-deadline.outputs.job-path }}
+      deadline-anchor: ${{ steps.deadline-anchor.outputs.deadline-anchor }}
+      state: ${{ steps.start-canonical-test.outputs.state }}
+      resume: ${{ steps.start-canonical-test.outputs.resume }}
+      jenkins-build-number: ${{ steps.start-canonical-test.outputs.build-number }}
+      jenkins-build-url: ${{ steps.start-canonical-test.outputs.build-url }}
+      build-started: ${{ steps.start-canonical-test.outputs.build-started }}
+      jenkins-result: ${{ steps.start-canonical-test.outputs.jenkins-result }}
+      verdict: ${{ steps.start-canonical-test.outputs.verdict }}
+      reason: ${{ steps.start-canonical-test.outputs.reason }}
 
     steps:
       - name: Harden Runner
@@ -47,6 +119,29 @@ jobs:
         uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
+
+      - name: Set Job Deadline
+        id: job-deadline
+        env:
+          MOCK: ${{ inputs.mock }}
+        run: |-
+          # Setup, the artifact check and the Jenkins queue all count against the job budget
+          echo "SDCT_DEADLINE=$(( $(date +%s) + SDCT_JOB_BUDGET_MIN * 60 ))" >> "${GITHUB_ENV}"
+
+          # Settings for the follow jobs (one source of truth): budget, sdct-wait.sh timers, Jenkins job
+          if [[ "${MOCK}" == "true" ]]; then
+            settings=("${SDCT_MOCK_JOB_BUDGET_MIN}" 120 180 360 "job/nightly/job/sdct-mock")
+          else
+            settings=("${SDCT_JOB_BUDGET_MIN}" 300 1800 3600 "job/nightly/job/sdct")
+          fi
+          {
+            echo "budget-minutes=${settings[0]}"
+            echo "poll-interval=${settings[1]}"
+            echo "fail-grace=${settings[2]}"
+            echo "hang-timeout=${settings[3]}"
+            echo "job-path=${settings[4]}"
+          } | tee -a "${GITHUB_OUTPUT}"
+          echo "SDCT_JOB_PATH=${settings[4]}" >> "${GITHUB_ENV}"
 
       - name: Checkout Code
         id: checkout-code
@@ -94,8 +189,10 @@ jobs:
       - name: Verify Workflow Parameters
         id: parameters
         env:
-          REF_INPUT: ${{ inputs.ref }}
+          REF_INPUT: ${{ inputs.ref || 'main' }}
           BUILD_TAG_INPUT: ${{ inputs.build-tag }}
+          BLOCKNODE_INPUT: ${{ inputs.blocknode-version }}
+          MIRRORNODE_INPUT: ${{ inputs.mirrornode-version }}
         run: |-
           # log functions
           log_info() { echo "[$(date '+%Y-%m-%d %T')] ℹ️  $1"; }
@@ -108,7 +205,19 @@ jobs:
           BRANCH_NAME_LOWER="$(echo "${BRANCH_NAME}" | tr '[:upper:]' '[:lower:]')"
           BUILD_ARTIFACT="${BUILD_TAG_INPUT//[^a-zA-Z0-9\-_.]/_}"
 
+          if [[ -z "${BUILD_TAG_INPUT// }" ]]; then
+            log_error "Required input build-tag is empty"
+            exit 1
+          fi
+
           log_info "Parameters: Branch: ${BRANCH_NAME}, Build: ${BUILD_ARTIFACT}"
+          # main: the artifact is named after the commit of the build tag and doubles as the service version,
+          # the build tag is the Jenkins BUILD_TAG; other refs: the build tag is the artifact name, the ref is the
+          # service version and the Jenkins BUILD_TAG, no commit lookup
+          TAG_COMMIT_SHA=""
+          TAG_COMMIT_SHORT=""
+          VERSION_SERVICE="${REF_INPUT}"
+          JENKINS_BUILD_TAG="${REF_INPUT}"
           if [[ "${BRANCH_NAME_LOWER}" = "main" ]]; then
             TAG_COMMIT_SHA=$(git rev-list -n 1 "${BUILD_ARTIFACT}") || {
               log_error "Failed to get commit SHA for tag: ${BUILD_ARTIFACT}"
@@ -117,12 +226,44 @@ jobs:
               exit 1
             }
             TAG_COMMIT_SHORT="${TAG_COMMIT_SHA:0:8}"
-            BUILD_ARTIFACT="build-${BRANCH_NAME_LOWER}-${TAG_COMMIT_SHORT}"
-            log_info "Artifact name for main branch: ${BUILD_ARTIFACT}"
             echo "sha=${TAG_COMMIT_SHA}" >> "${GITHUB_OUTPUT}"
+            BUILD_ARTIFACT="build-${BRANCH_NAME_LOWER}-${TAG_COMMIT_SHORT}"
+            VERSION_SERVICE="${BUILD_ARTIFACT}"
+            JENKINS_BUILD_TAG="${BUILD_TAG_INPUT}"
+            log_info "Artifact name for main branch: ${BUILD_ARTIFACT}"
+          else
+            log_info "Non-main ref, commit lookup skipped, artifact name: ${BUILD_ARTIFACT}"
           fi
+
+          # Build number for the sdct-pass-/sdct-fail- result tags; only build tags with a known commit are tagged
+          BUILD_NUMBER=""
+          if [[ -n "${TAG_COMMIT_SHA}" && "${BUILD_TAG_INPUT}" =~ ^build-(.{5})$ ]]; then
+            BUILD_NUMBER="${BASH_REMATCH[1]}"
+          else
+            echo "::notice title=Untagged Build::The provided tag (${BUILD_TAG_INPUT}) on ref (${REF_INPUT}) is not a main build tag, the SDCT result will not be tagged."
+          fi
+          echo "build-number=${BUILD_NUMBER}" >> "${GITHUB_OUTPUT}"
+
+          # Head commit of the ref for the Chewie report (branch + commit when not a main build-NNNNN tag): a tag,
+          # a branch (origin/<ref>, full history is checked out) or a commit SHA. Unresolved is a notice only
+          REF_COMMIT=""
+          candidates=("refs/tags/${REF_INPUT}" "refs/remotes/origin/${REF_INPUT}")
+          [[ "${REF_INPUT}" =~ ^[0-9a-fA-F]{7,40}$ ]] && candidates+=("${REF_INPUT}")
+          for candidate in "${candidates[@]}"; do
+            if REF_COMMIT=$(git rev-parse --verify --quiet "${candidate}^{commit}"); then
+              break
+            fi
+          done
+          if [[ ! "${REF_COMMIT}" =~ ^[0-9a-f]{40}$ ]]; then
+            REF_COMMIT=""
+            echo "::notice title=Unresolved Ref::The head commit of ref (${REF_INPUT}) was not found; a Chewie report by branch and commit will be skipped."
+          fi
+          echo "ref-commit=${REF_COMMIT}" >> "${GITHUB_OUTPUT}"
+
           log_pass "Parameter verification completed"
           echo "artifact-name=${BUILD_ARTIFACT}" >> "${GITHUB_OUTPUT}"
+          echo "version-service=${VERSION_SERVICE}" >> "${GITHUB_OUTPUT}"
+          echo "build-tag=${JENKINS_BUILD_TAG}" >> "${GITHUB_OUTPUT}"
 
           # Update Summary
           {
@@ -130,21 +271,24 @@ jobs:
             echo "- **Input Branch/Ref**: ${BRANCH_NAME}"
             echo "- **Input Build Tag**: ${{ inputs.build-tag }}"
             echo "- **Generated Artifact Name**: ${BUILD_ARTIFACT}"
-            if [[ "${BRANCH_NAME_LOWER}" = "main" ]]; then
-              echo "- **Commit SHA**: \`${TAG_COMMIT_SHA}\`"
-              echo "- **Short Commit**: \`${TAG_COMMIT_SHORT}\`"
-            fi
+            echo "- **Jenkins Build Tag**: ${JENKINS_BUILD_TAG}"
+            echo "- **Service Version**: ${VERSION_SERVICE}"
+            echo "- **BlockNode Version**: ${BLOCKNODE_INPUT:-not set (Jenkins default)}"
+            echo "- **MirrorNode Version**: ${MIRRORNODE_INPUT:-not set (Jenkins default)}"
+            echo "- **Commit SHA**: \`${TAG_COMMIT_SHA:-N/A}\`"
+            echo "- **Short Commit**: \`${TAG_COMMIT_SHORT:-N/A}\`"
+            echo "- **Ref Head Commit**: \`${REF_COMMIT:-N/A}\`"
+            echo "- **Build Number**: ${BUILD_NUMBER:-N/A}"
           } >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Check Artifact Availability
         id: check-if-exist
-        timeout-minutes: 60 # step timeout
+        timeout-minutes: 5 # step timeout
         run: |-
           # log functions
           log_info() { echo "[$(date '+%Y-%m-%d %T')] ℹ️  $1"; }
           log_pass() { echo "[$(date '+%Y-%m-%d %T')] ✅ $1"; }
           log_error() { echo "[$(date '+%Y-%m-%d %T')] ❌ $1" >&2; }
-          log_warning() { echo "[$(date '+%Y-%m-%d %T')] ⚠️  $1"; }
 
           set -euo pipefail
 
@@ -161,26 +305,15 @@ jobs:
 
           ARTIFACT_PATH="gs://${BUCKET_NAME}/${ARTIFACT_NAME}.zip"
 
-          log_info "Check artifact availability for up to 2 minutes max 30 attempts......"
-          i=1
-          while [ "$i" -le 30 ]; do
-            if gsutil -q stat "${ARTIFACT_PATH}"; then
-              log_pass "Artifact ${ARTIFACT_NAME}.zip found on attempt ${i}!"
-              break
-            fi
-            log_warning "Artifact ${ARTIFACT_NAME}.zip not ready on attempt ${i}, waiting for 2 minutes......"
-            sleep 120
-            i=$((i + 1))
-          done
-
-          if [ "$i" -gt 30 ]; then
-            log_error "Artifact ${ARTIFACT_NAME}.zip not found after 30 attempts"
+          # 223 is dispatched after the build is uploaded: a missing artifact fails at once
+          log_info "Checking artifact availability......"
+          if ! gsutil -q stat "${ARTIFACT_PATH}"; then
+            log_error "Artifact ${ARTIFACT_NAME}.zip not found"
             exit 1
           fi
 
           log_pass "Artifact ${ARTIFACT_NAME}.zip is available and ready"
 
-          echo "build-tag=${{ inputs.build-tag }}" >> "${GITHUB_OUTPUT}"
           echo "build-version=${ARTIFACT_NAME}" >> "${GITHUB_OUTPUT}"
 
           # Update Summary
@@ -188,7 +321,6 @@ jobs:
             echo "## Artifact Verification Results"
             echo "- **Artifact Path**: \`${ARTIFACT_PATH}\`"
             echo "- **Verification Time**: $(date '+%Y-%m-%d %T UTC')"
-            echo "- **Attempts Required**: ${i}/30"
           } >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Start Canonical Test
@@ -198,6 +330,19 @@ jobs:
           PASSWORD: ${{ secrets.TESTING_JENKINS_API_PASSWORD }}
           SERVER: ${{ secrets.TESTING_JENKINS_API_SERVER }}
           TEST_SCRIPT: ".github/workflows/support/scripts/sdct.sh"
+          WAIT_SCRIPT: ".github/workflows/support/scripts/sdct-wait.sh"
+          VERSION_SERVICE: ${{ steps.parameters.outputs.version-service }}
+          BLOCKNODE_VERSION: ${{ inputs.blocknode-version }}
+          MIRRORNODE_VERSION: ${{ inputs.mirrornode-version }}
+          GH_RUN_ID: ${{ github.run_id }}
+          GH_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SDCT_TEST: ${{ inputs.test-name || 'sdct' }}
+          SDCT_OUT_DIR: ${{ runner.temp }}/sdct
+          # Only one SDCT build runs at a time, so the queue is empty in practice; 10 min guard
+          QUEUE_TIMEOUT: 600
+          # Mock runs only: build parameters of the nightly/sdct-mock job (sdct.sh posts them when set)
+          MOCK_SCENARIO: ${{ inputs.mock && inputs.mock-scenario || '' }}
+          MOCK_STEP_MINUTES: ${{ inputs.mock && env.SDCT_MOCK_JOB_BUDGET_MIN || '' }}
         run: |-
           # log functions
           log_info() { echo "[$(date '+%Y-%m-%d %T')] ℹ️  $1"; }
@@ -208,10 +353,13 @@ jobs:
           set -euo pipefail
 
           TEST_SCRIPT_PATH="${{ github.workspace }}/${{ env.TEST_SCRIPT }}"
-          if [ ! -f "${TEST_SCRIPT_PATH}" ]; then
-            log_error "Test script not found: ${TEST_SCRIPT_PATH}"
-            exit 1
-          fi
+          WAIT_SCRIPT_PATH="${{ github.workspace }}/${{ env.WAIT_SCRIPT }}"
+          for script in "${TEST_SCRIPT_PATH}" "${WAIT_SCRIPT_PATH}"; do
+            if [ ! -f "${script}" ]; then
+              log_error "Test script not found: ${script}"
+              exit 1
+            fi
+          done
 
           for var in USERNAME PASSWORD SERVER; do
             if [[ -z "${!var:-}" ]]; then
@@ -220,33 +368,78 @@ jobs:
             fi
           done
 
-          BUILD_TAG="${{ steps.check-if-exist.outputs.build-tag }}"
+          BUILD_TAG="${{ steps.parameters.outputs.build-tag }}"
           BUILD_VERSION="${{ steps.check-if-exist.outputs.build-version }}"
 
-          log_info "Starting canonical test execution......"
+          log_info "Starting canonical test [${SDCT_TEST}] execution......"
           log_info "Build Tag: ${BUILD_TAG}"
           log_info "Build Version: ${BUILD_VERSION}"
+          log_info "Service Version: ${VERSION_SERVICE}"
+          log_info "BlockNode Version: ${BLOCKNODE_VERSION:-not set (Jenkins default)}"
+          log_info "MirrorNode Version: ${MIRRORNODE_VERSION:-not set (Jenkins default)}"
 
-
-          if bash "${TEST_SCRIPT_PATH}" "${BUILD_TAG}" "${BUILD_VERSION}"; then
-            log_pass "Canonical test started successfully"
-            echo "status=success" >> "${GITHUB_OUTPUT}"
-          else
+          if ! QUEUE_ID=$(bash "${TEST_SCRIPT_PATH}" "${BUILD_TAG}" "${BUILD_VERSION}" "${VERSION_SERVICE}" "${BLOCKNODE_VERSION}" "${MIRRORNODE_VERSION}" "${SDCT_TEST}"); then
             log_error "Canonical test failed to start"
-            echo "status=failure" >> "${GITHUB_OUTPUT}"
+            echo "verdict=infra" >> "${GITHUB_OUTPUT}"
+            echo "reason=Canonical test failed to start" >> "${GITHUB_OUTPUT}"
             exit 1
           fi
+          log_pass "Canonical test started successfully, Jenkins queue item ${QUEUE_ID}"
+
+          # Waits for the queue item, then hands the build off to follow-1 as soon as it has started
+          # (state=running: build-number, build-url, resume, build-started; exit 0); a queue failure
+          # ends with state=done and verdict=infra
+          bash "${WAIT_SCRIPT_PATH}" start "${QUEUE_ID}"
+
+      - name: Mock Schedule Anchor
+        id: deadline-anchor
+        if: ${{ inputs.mock && steps.start-canonical-test.outputs.state == 'running' }}
+        env:
+          BUILD_STARTED: ${{ steps.start-canonical-test.outputs.build-started }}
+        run: |-
+          # Mock runs: follow job k hands off at the Jenkins build start + k x budget, the mock Jenkins timeline
+          echo "deadline-anchor=$(date -u -d "${BUILD_STARTED}" +%s)" >> "${GITHUB_OUTPUT}"
+
+      - name: Stop Jenkins Build on Cancel
+        id: stop-canonical-test
+        if: ${{ cancelled() }}
+        env:
+          USERNAME: ${{ secrets.TESTING_JENKINS_API_USERNAME }}
+          PASSWORD: ${{ secrets.TESTING_JENKINS_API_PASSWORD }}
+          SERVER: ${{ secrets.TESTING_JENKINS_API_SERVER }}
+          SDCT_OUT_DIR: ${{ runner.temp }}/sdct
+        run: |-
+          # Stops the Jenkins build, or cancels the queue item if the build has not started yet
+          bash "${{ github.workspace }}/.github/workflows/support/scripts/sdct-wait.sh" cancel
+
+      - name: Upload SDCT Results
+        id: upload-results
+        # Only the job that decides the verdict (or a cancelled one) uploads; a handoff would publish a partial artifact
+        if: ${{ cancelled() || steps.start-canonical-test.outputs.state == 'done' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        continue-on-error: true
+        with:
+          name: sdct-results
+          path: ${{ runner.temp }}/sdct
+          if-no-files-found: ignore
+          overwrite: true
 
       - name: Summary
         id: summary
         if: always()
+        env:
+          JENKINS_BUILD_URL: ${{ steps.start-canonical-test.outputs.build-url }}
+          VERDICT: ${{ steps.start-canonical-test.outputs.verdict }}
+          REASON: ${{ steps.start-canonical-test.outputs.reason }}
         run: |-
           # log functions
           log_info() { echo "[$(date '+%Y-%m-%d %T')] ℹ️  $1"; }
 
           # overall status
           OVERALL_STATUS="✅ Success"
-          if [[ "${{ steps.start-canonical-test.outcome }}" != "success" ]]; then
+          if [[ "${{ steps.start-canonical-test.outputs.state }}" == "running" ]]; then
+            OVERALL_STATUS="⏳ Running, followed by the next job"
+          elif [[ "${{ steps.start-canonical-test.outcome }}" != "success" ]]; then
             OVERALL_STATUS="❌ Failed"
           elif [[ "${{ steps.check-if-exist.outcome }}" != "success" ]]; then
             OVERALL_STATUS="❌ Failed (Artifact Check)"
@@ -261,13 +454,20 @@ jobs:
             echo "## Overall Status: ${OVERALL_STATUS}"
             echo
             echo "## Input Parameters"
-            echo "- **Reference**: \`${{ inputs.ref }}\`"
+            echo "- **Reference**: \`${{ inputs.ref || 'main' }}\`"
             echo "- **Build Tag**: \`${{ inputs.build-tag }}\`"
+            echo "- **SDCT Test**: \`${{ inputs.test-name || 'sdct' }}\`"
+            echo "- **Mock**: ${{ inputs.mock && format('`{0}` on nightly/sdct-mock', inputs.mock-scenario) || 'no' }}"
             echo
             echo "## Processing Results"
             echo "- **Generated Artifact Name**: \`${{ steps.check-if-exist.outputs.build-version || 'N/A' }}\`"
             echo "- **Artifact Check**: ${{ steps.check-if-exist.outcome == 'success' && '✅ Passed' || '❌ Failed' }}"
-            echo "- **Test Trigger**: ${{ steps.start-canonical-test.outcome == 'success' && '✅ Passed' || '❌ Failed' }}"
+            echo "- **Test Trigger**: ${{ steps.start-canonical-test.outputs.build-number != '' && '✅ Passed' || '❌ Failed' }}"
+            echo "- **Jenkins Build**: ${JENKINS_BUILD_URL:-N/A}"
+            echo "- **SDCT Verdict**: ${VERDICT:-N/A}"
+            if [[ -n "${REASON}" ]]; then
+              echo "- **Reason**: ${REASON}"
+            fi
             echo
             echo "## Execution Details"
             echo "- **Workflow Run ID**: ${{ github.run_id }}"
@@ -281,43 +481,422 @@ jobs:
               echo "## ⚠️ Troubleshooting"
               echo "1. Check the artifact exists in the specified bucket"
               echo "2. Review the test script for any issues"
+              echo "3. Review the Jenkins build console and the sdct-results artifact"
             fi
           } >> "${GITHUB_STEP_SUMMARY}"
 
-  report-failures:
-    name: Report Failures to Rootly
+  follow-1:
+    name: Follow 1
+    needs: canonical-test
+    if: ${{ needs.canonical-test.outputs.state == 'running' }}
+    uses: ./.github/workflows/864-call-sdct-follow.yaml
+    with:
+      jenkins-build-number: ${{ needs.canonical-test.outputs.jenkins-build-number }}
+      jenkins-build-url: ${{ needs.canonical-test.outputs.jenkins-build-url }}
+      resume: ${{ needs.canonical-test.outputs.resume }}
+      # env is not available in `with` of a reusable workflow call: the budget comes from canonical-test
+      budget-minutes: ${{ fromJSON(needs.canonical-test.outputs.budget-minutes) }}
+      runner: hl-cn-sdct-lin
+      follow-index: 1
+      deadline-anchor: ${{ needs.canonical-test.outputs.deadline-anchor }}
+      poll-interval: ${{ fromJSON(needs.canonical-test.outputs.poll-interval) }}
+      fail-grace: ${{ fromJSON(needs.canonical-test.outputs.fail-grace) }}
+      hang-timeout: ${{ fromJSON(needs.canonical-test.outputs.hang-timeout) }}
+      job-path: ${{ needs.canonical-test.outputs.job-path }}
+    secrets:
+      jenkins-api-username: ${{ secrets.TESTING_JENKINS_API_USERNAME }}
+      jenkins-api-password: ${{ secrets.TESTING_JENKINS_API_PASSWORD }}
+      jenkins-api-server: ${{ secrets.TESTING_JENKINS_API_SERVER }}
+
+  follow-2:
+    name: Follow 2
+    needs: [canonical-test, follow-1]
+    if: ${{ needs.follow-1.outputs.state == 'running' }}
+    uses: ./.github/workflows/864-call-sdct-follow.yaml
+    with:
+      jenkins-build-number: ${{ needs.follow-1.outputs.jenkins-build-number }}
+      jenkins-build-url: ${{ needs.follow-1.outputs.jenkins-build-url }}
+      resume: ${{ needs.follow-1.outputs.resume }}
+      # env is not available in `with` of a reusable workflow call: the budget comes from canonical-test
+      budget-minutes: ${{ fromJSON(needs.canonical-test.outputs.budget-minutes) }}
+      runner: hl-cn-sdct-lin
+      follow-index: 2
+      deadline-anchor: ${{ needs.canonical-test.outputs.deadline-anchor }}
+      poll-interval: ${{ fromJSON(needs.canonical-test.outputs.poll-interval) }}
+      fail-grace: ${{ fromJSON(needs.canonical-test.outputs.fail-grace) }}
+      hang-timeout: ${{ fromJSON(needs.canonical-test.outputs.hang-timeout) }}
+      job-path: ${{ needs.canonical-test.outputs.job-path }}
+    secrets:
+      jenkins-api-username: ${{ secrets.TESTING_JENKINS_API_USERNAME }}
+      jenkins-api-password: ${{ secrets.TESTING_JENKINS_API_PASSWORD }}
+      jenkins-api-server: ${{ secrets.TESTING_JENKINS_API_SERVER }}
+
+  follow-3:
+    name: Follow 3
+    needs: [canonical-test, follow-1, follow-2]
+    if: ${{ needs.follow-2.outputs.state == 'running' }}
+    uses: ./.github/workflows/864-call-sdct-follow.yaml
+    with:
+      jenkins-build-number: ${{ needs.follow-2.outputs.jenkins-build-number }}
+      jenkins-build-url: ${{ needs.follow-2.outputs.jenkins-build-url }}
+      resume: ${{ needs.follow-2.outputs.resume }}
+      # env is not available in `with` of a reusable workflow call: the budget comes from canonical-test
+      budget-minutes: ${{ fromJSON(needs.canonical-test.outputs.budget-minutes) }}
+      runner: hl-cn-sdct-lin
+      follow-index: 3
+      deadline-anchor: ${{ needs.canonical-test.outputs.deadline-anchor }}
+      poll-interval: ${{ fromJSON(needs.canonical-test.outputs.poll-interval) }}
+      fail-grace: ${{ fromJSON(needs.canonical-test.outputs.fail-grace) }}
+      hang-timeout: ${{ fromJSON(needs.canonical-test.outputs.hang-timeout) }}
+      job-path: ${{ needs.canonical-test.outputs.job-path }}
+    secrets:
+      jenkins-api-username: ${{ secrets.TESTING_JENKINS_API_USERNAME }}
+      jenkins-api-password: ${{ secrets.TESTING_JENKINS_API_PASSWORD }}
+      jenkins-api-server: ${{ secrets.TESTING_JENKINS_API_SERVER }}
+
+  follow-4:
+    name: Follow 4
+    needs: [canonical-test, follow-1, follow-2, follow-3]
+    if: ${{ needs.follow-3.outputs.state == 'running' }}
+    uses: ./.github/workflows/864-call-sdct-follow.yaml
+    with:
+      jenkins-build-number: ${{ needs.follow-3.outputs.jenkins-build-number }}
+      jenkins-build-url: ${{ needs.follow-3.outputs.jenkins-build-url }}
+      resume: ${{ needs.follow-3.outputs.resume }}
+      # env is not available in `with` of a reusable workflow call: the budget comes from canonical-test
+      budget-minutes: ${{ fromJSON(needs.canonical-test.outputs.budget-minutes) }}
+      runner: hl-cn-sdct-lin
+      follow-index: 4
+      deadline-anchor: ${{ needs.canonical-test.outputs.deadline-anchor }}
+      poll-interval: ${{ fromJSON(needs.canonical-test.outputs.poll-interval) }}
+      fail-grace: ${{ fromJSON(needs.canonical-test.outputs.fail-grace) }}
+      hang-timeout: ${{ fromJSON(needs.canonical-test.outputs.hang-timeout) }}
+      job-path: ${{ needs.canonical-test.outputs.job-path }}
+    secrets:
+      jenkins-api-username: ${{ secrets.TESTING_JENKINS_API_USERNAME }}
+      jenkins-api-password: ${{ secrets.TESTING_JENKINS_API_PASSWORD }}
+      jenkins-api-server: ${{ secrets.TESTING_JENKINS_API_SERVER }}
+
+  follow-5:
+    name: Follow 5
+    needs: [canonical-test, follow-1, follow-2, follow-3, follow-4]
+    if: ${{ needs.follow-4.outputs.state == 'running' }}
+    uses: ./.github/workflows/864-call-sdct-follow.yaml
+    with:
+      jenkins-build-number: ${{ needs.follow-4.outputs.jenkins-build-number }}
+      jenkins-build-url: ${{ needs.follow-4.outputs.jenkins-build-url }}
+      resume: ${{ needs.follow-4.outputs.resume }}
+      # env is not available in `with` of a reusable workflow call: the budget comes from canonical-test
+      budget-minutes: ${{ fromJSON(needs.canonical-test.outputs.budget-minutes) }}
+      runner: hl-cn-sdct-lin
+      follow-index: 5
+      deadline-anchor: ${{ needs.canonical-test.outputs.deadline-anchor }}
+      poll-interval: ${{ fromJSON(needs.canonical-test.outputs.poll-interval) }}
+      fail-grace: ${{ fromJSON(needs.canonical-test.outputs.fail-grace) }}
+      hang-timeout: ${{ fromJSON(needs.canonical-test.outputs.hang-timeout) }}
+      job-path: ${{ needs.canonical-test.outputs.job-path }}
+    secrets:
+      jenkins-api-username: ${{ secrets.TESTING_JENKINS_API_USERNAME }}
+      jenkins-api-password: ${{ secrets.TESTING_JENKINS_API_PASSWORD }}
+      jenkins-api-server: ${{ secrets.TESTING_JENKINS_API_SERVER }}
+
+  follow-6:
+    name: Follow 6
+    needs: [canonical-test, follow-1, follow-2, follow-3, follow-4, follow-5]
+    if: ${{ needs.follow-5.outputs.state == 'running' }}
+    uses: ./.github/workflows/864-call-sdct-follow.yaml
+    with:
+      jenkins-build-number: ${{ needs.follow-5.outputs.jenkins-build-number }}
+      jenkins-build-url: ${{ needs.follow-5.outputs.jenkins-build-url }}
+      resume: ${{ needs.follow-5.outputs.resume }}
+      # env is not available in `with` of a reusable workflow call: the budget comes from canonical-test
+      budget-minutes: ${{ fromJSON(needs.canonical-test.outputs.budget-minutes) }}
+      runner: hl-cn-sdct-lin
+      follow-index: 6
+      deadline-anchor: ${{ needs.canonical-test.outputs.deadline-anchor }}
+      poll-interval: ${{ fromJSON(needs.canonical-test.outputs.poll-interval) }}
+      fail-grace: ${{ fromJSON(needs.canonical-test.outputs.fail-grace) }}
+      hang-timeout: ${{ fromJSON(needs.canonical-test.outputs.hang-timeout) }}
+      job-path: ${{ needs.canonical-test.outputs.job-path }}
+    secrets:
+      jenkins-api-username: ${{ secrets.TESTING_JENKINS_API_USERNAME }}
+      jenkins-api-password: ${{ secrets.TESTING_JENKINS_API_PASSWORD }}
+      jenkins-api-server: ${{ secrets.TESTING_JENKINS_API_SERVER }}
+
+  sdct-verdict:
+    name: SDCT Verdict
+    runs-on: hl-cn-sdct-lin
+    needs:
+      [
+        canonical-test,
+        follow-1,
+        follow-2,
+        follow-3,
+        follow-4,
+        follow-5,
+        follow-6,
+      ]
+    # Always runs: the only place that decides the verdict, and it stops a build nobody follows any more
+    if: ${{ always() }}
+    outputs:
+      verdict: ${{ steps.decide.outputs.verdict }}
+      reason: ${{ steps.decide.outputs.reason }}
+      jenkins-result: ${{ steps.decide.outputs.jenkins-result }}
+      jenkins-build-url: ${{ steps.decide.outputs.jenkins-build-url }}
+      follow-jobs: ${{ steps.decide.outputs.follow-jobs }}
+      disposition: ${{ steps.decide.outputs.disposition }}
+      decided-at: ${{ steps.decide.outputs.decided-at }}
+    steps:
+      - name: Harden Runner
+        if: ${{ always() }}
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        if: ${{ always() }}
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          sparse-checkout: .github/workflows/support/scripts
+          persist-credentials: false
+
+      - name: Install Utility Tools
+        if: ${{ always() }}
+        run: |-
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            jq=1.6-* curl=7.81.0-*
+
+      - name: Detect Cancel
+        if: ${{ cancelled() }}
+        run: echo "RUN_CANCELLED=true" >> "${GITHUB_ENV}"
+
+      - name: Decide SDCT Verdict
+        id: decide
+        if: ${{ always() }}
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+          SDCT_JOB_PATH: ${{ needs.canonical-test.outputs.job-path || 'job/nightly/job/sdct' }}
+          USERNAME: ${{ secrets.TESTING_JENKINS_API_USERNAME }}
+          PASSWORD: ${{ secrets.TESTING_JENKINS_API_PASSWORD }}
+          SERVER: ${{ secrets.TESTING_JENKINS_API_SERVER }}
+          SDCT_OUT_DIR: ${{ runner.temp }}/sdct
+        run: |-
+          set -euo pipefail
+
+          out() { jq -r --arg j "$1" --arg k "$2" '.[$j].outputs[$k] // empty' <<< "${NEEDS}"; }
+          set_output() { echo "$1=${2//$'\n'/ }" >> "${GITHUB_OUTPUT}"; }
+
+          # The last job that reported a state, newest first
+          jobs=(follow-6 follow-5 follow-4 follow-3 follow-2 follow-1 canonical-test)
+          last=""
+          for job in "${jobs[@]}"; do
+            if [[ -n "$(out "${job}" state)" ]]; then
+              last=${job}
+              break
+            fi
+          done
+          follow_jobs=$(jq -r '[to_entries[] | select((.key | startswith("follow-")) and .value.result != "skipped")] | length' <<< "${NEEDS}")
+
+          state=""
+          [[ -n "${last}" ]] && state=$(out "${last}" state)
+          build_number=""
+          [[ -n "${last}" ]] && build_number=$(out "${last}" jenkins-build-number)
+          jenkins_result=""
+          build_url=""
+          [[ -n "${last}" ]] && build_url=$(out "${last}" jenkins-build-url)
+
+          if [[ "${state}" == "done" ]]; then
+            verdict=$(out "${last}" verdict)
+            reason=$(out "${last}" reason)
+            jenkins_result=$(out "${last}" jenkins-result)
+          elif [[ "${state}" == "running" ]]; then
+            verdict="infra"
+            if [[ "${last}" == "follow-6" ]]; then
+              reason="Jenkins build ${build_number} not finished after 6 follow jobs"
+            elif [[ "${last}" == "canonical-test" ]]; then
+              reason="follow job 1 did not report"
+            else
+              reason="follow job $(( ${last#follow-} + 1 )) did not report"
+            fi
+            if [[ -n "${build_number}" ]]; then
+              bash "${{ github.workspace }}/.github/workflows/support/scripts/sdct-wait.sh" stop "${build_number}" || true
+            fi
+          else
+            # canonical-test failed before the Jenkins build started, or was killed without outputs
+            verdict="infra"
+            reason=$(out canonical-test reason)
+            reason=${reason:-"canonical-test did not report a Jenkins build"}
+          fi
+
+          # A cancel of this run: a step with if: cancelled(), or any job that ended cancelled
+          cancelled=${RUN_CANCELLED:-false}
+          if [[ "$(jq -r '[.[].result] | any(. == "cancelled")' <<< "${NEEDS}")" == "true" ]]; then
+            cancelled=true
+          fi
+          if [[ "${cancelled}" == "true" && "${state}" != "done" ]]; then
+            reason="workflow run cancelled"
+          fi
+
+          # Chewie disposition (sdct-6h-runner-design.md §9.2)
+          # TODO: refine the infra mapping (e.g. isolated_issue) once the Chewie semantics are confirmed
+          if [[ "${cancelled}" == "true" ]]; then
+            disposition="cancelled"
+          else
+            case "${verdict}" in
+              pass) disposition="passed" ;;
+              fail) disposition="failed" ;;
+              *)    disposition="not_run" ;;
+            esac
+          fi
+          decided_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
+
+          set_output verdict "${verdict}"
+          set_output reason "${reason}"
+          set_output jenkins-result "${jenkins_result}"
+          set_output jenkins-build-url "${build_url}"
+          set_output follow-jobs "${follow_jobs}"
+          set_output disposition "${disposition}"
+          set_output decided-at "${decided_at}"
+
+          {
+            echo "# 223: SDCT Verdict"
+            echo "- **Verdict**: ${verdict}"
+            [[ -n "${reason}" ]] && echo "- **Reason**: ${reason}"
+            echo "- **Jenkins Build**: ${build_url:-N/A}"
+            echo "- **Jenkins Result**: ${jenkins_result:-N/A}"
+            echo "- **Decided by**: ${last:-none} (${state:-no state})"
+            echo "- **Follow Jobs Run**: ${follow_jobs}"
+            echo "- **Chewie Disposition**: ${disposition}"
+            echo
+            echo "The per-test results are in the summary of \`${last:-canonical-test}\` and in the \`sdct-results\` artifact."
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+  tag-sdct-result:
+    name: Tag SDCT Result
+    runs-on: hl-cn-sdct-lin
     needs:
       - canonical-test
-    if: ${{ needs.canonical-test.result != 'success' }}
-    runs-on: hl-cn-sdct-lin-sm
+      - sdct-verdict
+    # Runs for every test and logs the result tag; tagging is disabled for every test, mock or not:
+    # no tag is created or pushed, the commands are only logged
+    if: ${{ !cancelled() &&
+      (needs.sdct-verdict.outputs.verdict == 'pass' || needs.sdct-verdict.outputs.verdict == 'fail') &&
+      needs.canonical-test.outputs.build-number != '' }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
 
+      - name: Tag SDCT Result
+        env:
+          VERDICT: ${{ needs.sdct-verdict.outputs.verdict }}
+          BUILD_NUM: ${{ needs.canonical-test.outputs.build-number }}
+          COMMIT: ${{ needs.canonical-test.outputs.commit }}
+          SDCT_TEST: ${{ inputs.test-name || 'sdct' }}
+          MOCK: ${{ inputs.mock }}
+        run: |
+          if [[ "${VERDICT}" == "pass" ]]; then
+            TAG_NAME="sdct-pass-${BUILD_NUM}"
+            MSG="Single Day Canonical Test passed for build-${BUILD_NUM}"
+          else
+            TAG_NAME="sdct-fail-${BUILD_NUM}"
+            MSG="Single Day Canonical Test FAILED for build-${BUILD_NUM}"
+          fi
+
+          # Tagging is disabled for every test (sdct included), mock or not: log the commands for information only
+          TAG_CMD="git tag --annotate ${TAG_NAME} --message '${MSG}' ${COMMIT}"
+          PUSH_CMD="git push origin refs/tags/${TAG_NAME}"
+          echo "not executed: ${TAG_CMD}"
+          echo "not executed: ${PUSH_CMD}"
+          if [[ "${MOCK}" == "true" ]]; then
+            TAG_STATUS="not pushed (mock: not executed)"
+          elif [[ "${SDCT_TEST}" != "sdct" ]]; then
+            TAG_STATUS="not pushed (test-name: ${SDCT_TEST})"
+          else
+            TAG_STATUS="not pushed (tagging disabled)"
+          fi
+
+          {
+            echo "### SDCT Result - Tag Information"
+            echo "- **SDCT Test**: \`${SDCT_TEST}\`"
+            echo "- **SDCT Tag**: \`${TAG_NAME}\` ${TAG_STATUS}"
+            echo "- **Commands (not executed)**:"
+            echo "  - \`${TAG_CMD}\`"
+            echo "  - \`${PUSH_CMD}\`"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+  report-failure:
+    name: Report SDCT execution failure
+    runs-on: hl-cn-sdct-lin
+    needs:
+      - canonical-test
+      - sdct-verdict
+      - tag-sdct-result
+    # Only the full SDCT test (sdct) raises Rootly alerts
+    if: ${{ (needs.sdct-verdict.outputs.verdict != 'pass' ||
+      needs.tag-sdct-result.result == 'failure') &&
+      (inputs.test-name || 'sdct') == 'sdct' &&
+      !cancelled() }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Collect run logs in a log file
+        env:
+          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+        continue-on-error: true
+        run: |
+          for job_id in $(gh run view ${{ github.run_id }} --repo ${{ github.repository }} --json jobs --jq '.jobs | map(.databaseId) | .[0:-1] | .[]'); do
+            echo "Fetching logs for job $job_id..."
+
+            current_job_name=$(gh run view ${{ github.run_id }} --repo ${{ github.repository }} --json jobs | jq --argjson job_id "$job_id" -r '.jobs[] | select(.databaseId == $job_id) | .name')
+
+            echo "Logs for job $current_job_name :" >> run.log
+
+            gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${{ github.repository }}/actions/jobs/${job_id}/logs" >> run.log
+          done
+
+      - name: Upload log as artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        continue-on-error: true
+        with:
+          path: run.log
+
       - name: Set Rootly Service
         id: set-rootly-service
+        env:
+          VERDICT: ${{ needs.sdct-verdict.outputs.verdict }}
         run: |
-          ROOTLY_SERVICE="CITR SDCT"
-          if [[ "${{ needs.canonical-test.outputs.harden-runner }}" =~ ^(cancelled|failure)$ ]] \
-            || [[ "${{ needs.canonical-test.outputs.checkout-code }}" =~ ^(cancelled|failure)$ ]] \
-            || [[ "${{ needs.canonical-test.outputs.gcloud-auth }}" =~ ^(cancelled|failure)$ ]] \
-            || [[ "${{ needs.canonical-test.outputs.setup-gcloud }}" =~ ^(cancelled|failure)$ ]] \
-            || [[ "${{ needs.canonical-test.outputs.install-tools }}" =~ ^(cancelled|failure)$ ]] \
-            || [[ "${{ needs.canonical-test.outputs.summary }}" =~ ^(cancelled|failure)$ ]]; then
-            ROOTLY_SERVICE="CI/CD Workflows"
+          # Only an SDCT test failure goes to the SDCT service, setup, infra and tagging failures go to CI/CD
+          ROOTLY_SERVICE="CI/CD Workflows"
+          if [[ "${VERDICT}" == "fail" ]]; then
+            ROOTLY_SERVICE="CITR SDCT"
           fi
           echo "service=${ROOTLY_SERVICE}" >> "${GITHUB_OUTPUT}"
 
       - name: Build Rootly Summary
         id: rootly-summary
+        env:
+          VERDICT: ${{ needs.sdct-verdict.outputs.verdict || 'N/A' }}
+          REASON: ${{ needs.sdct-verdict.outputs.reason || 'N/A' }}
+          JENKINS_RESULT: ${{ needs.sdct-verdict.outputs.jenkins-result || 'N/A' }}
+          JENKINS_BUILD_URL: ${{ needs.sdct-verdict.outputs.jenkins-build-url || 'N/A' }}
+          FOLLOW_JOBS: ${{ needs.sdct-verdict.outputs.follow-jobs || '0' }}
+          BUILD_TAG: ${{ inputs.build-tag }}
         run: |
           title="The SDCT Job Failed"
           echo "title=${title}" >> "${GITHUB_OUTPUT}"
           {
             echo 'summary<<EOF'
             echo "------------------------------------"
+            echo "Status of each step:"
             echo "- Harden Runner: ${{ needs.canonical-test.outputs.harden-runner }}"
             echo "- Checkout Code: ${{ needs.canonical-test.outputs.checkout-code }}"
             echo "- GCloud Auth: ${{ needs.canonical-test.outputs.gcloud-auth }}"
@@ -327,24 +906,46 @@ jobs:
             echo "- Check Artifact: ${{ needs.canonical-test.outputs.check-if-exist }}"
             echo "- Start Canonical Test: ${{ needs.canonical-test.outputs.start-canonical-test }}"
             echo "- Summary: ${{ needs.canonical-test.outputs.summary }}"
+            echo "- Follow jobs: ${FOLLOW_JOBS}"
+            echo "- Tag SDCT Result: ${{ needs.tag-sdct-result.result }}"
+            echo "------------------------------------"
+            echo "SDCT result:"
+            echo "- Verdict: ${VERDICT}"
+            echo "- Reason: ${REASON}"
+            echo "- Jenkins Result: ${JENKINS_RESULT}"
+            echo "- Jenkins Build: <${JENKINS_BUILD_URL}>"
             echo "------------------------------------"
             echo "Commit Information:"
-            echo "- Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.canonical-test.outputs.commit }}
-            echo "- Tag: ${{ inputs.build-tag }}"
+            echo "- Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.canonical-test.outputs.commit }}>"
+            echo "- Tag: ${BUILD_TAG}"
             echo "- Workflow: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
             echo EOF
           } >> "${GITHUB_OUTPUT}"
 
       - name: Log Rootly Summary
+        env:
+          ROOTLY_TITLE: ${{ steps.rootly-summary.outputs.title }}
+          ROOTLY_SUMMARY: ${{ steps.rootly-summary.outputs.summary }}
+          ROOTLY_SERVICE: ${{ steps.set-rootly-service.outputs.service }}
         run: |
           echo "## Rootly Summary:"
-          echo "### Title: ${{ steps.rootly-summary.outputs.title }}" >> "${GITHUB_STEP_SUMMARY}"
-          echo "${{ steps.rootly-summary.outputs.summary }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "### Title: ${ROOTLY_TITLE}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${ROOTLY_SUMMARY}" >> "${GITHUB_STEP_SUMMARY}"
           echo "### Service" >> "${GITHUB_STEP_SUMMARY}"
-          echo "${{ steps.set-service.outputs.service }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${ROOTLY_SERVICE}" >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Log Rootly Alert (mock)
+        if: ${{ inputs.mock }}
+        env:
+          ROOTLY_TITLE: ${{ steps.rootly-summary.outputs.title }}
+          ROOTLY_SERVICE: ${{ steps.set-rootly-service.outputs.service }}
+        run: |
+          echo "mock: not executed: Rootly alert '${ROOTLY_TITLE}' to service '${ROOTLY_SERVICE}' (urgency High, environment CITR, external_id ${{ github.run_id }})"
+          echo "- Rootly alert (mock: not executed): \`${ROOTLY_TITLE}\` → \`${ROOTLY_SERVICE}\`" >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Create Rootly Alert
         id: create-rootly-alert
+        if: ${{ !inputs.mock }}
         uses: pandaswhocode/rootly-alert-action@25cfdb8b2c006c1b130c183c7b1cbcffafb71f39 # v1.0.10
         continue-on-error: true # continue on error so we can get the incident reporting
         with:
@@ -352,9 +953,87 @@ jobs:
           summary: ${{ steps.rootly-summary.outputs.title }}
           details: ${{ steps.rootly-summary.outputs.summary }}
           notification_target_type: "Service"
-          notification_target: ${{ steps.set-service.outputs.service }}
+          notification_target: ${{ steps.set-rootly-service.outputs.service }}
           set_as_noise: "false"
           alert_urgency: "High"
           environments: "CITR"
           external_id: ${{ github.run_id }}
           external_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+  chewie-report-running:
+    name: Chewie Report Running
+    runs-on: hl-cn-chewie-lin-sm # the SDCT runner may not reach Chewie
+    needs: canonical-test
+    # Only the full SDCT test (sdct) reports to Chewie, once the Jenkins build has started; a Chewie failure is a warning
+    if: ${{ (inputs.test-name || 'sdct') == 'sdct' && needs.canonical-test.outputs.state == 'running' }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          sparse-checkout: .github/workflows/support/chewie
+          persist-credentials: false
+
+      - name: Report Running to Chewie
+        env:
+          CHEWIE_HOST: ${{ secrets.CHEWIE_HOST }}
+          CHEWIE_KEY: ${{ secrets.CHEWIE_REPO_IDENTITY_KEY }}
+          REF: ${{ inputs.ref || 'main' }}
+          BUILD_TAG: ${{ inputs.build-tag }}
+          COMMIT: ${{ needs.canonical-test.outputs.ref-commit }}
+          GH_RUN_ID: ${{ github.run_id }}
+          GH_RUN_ATTEMPT: ${{ github.run_attempt }}
+          BUILD_STARTED: ${{ needs.canonical-test.outputs.build-started }}
+          CHEWIE_DRY_RUN: ${{ inputs.mock }}
+        run: |-
+          # Always exits 0: a Chewie failure is reported as a warning only; mock runs only log the request
+          bash .github/workflows/support/chewie/report-suite-result.sh running "${BUILD_STARTED}"
+
+  chewie-report-final:
+    name: Chewie Report Final
+    runs-on: hl-cn-chewie-lin-sm # the SDCT runner may not reach Chewie
+    # After the running report, so the final status is always posted last
+    needs:
+      - canonical-test
+      - sdct-verdict
+      - chewie-report-running
+    # Only the full SDCT test (sdct) reports to Chewie; also on failures and cancels
+    if: ${{ always() && (inputs.test-name || 'sdct') == 'sdct' }}
+    steps:
+      - name: Harden Runner
+        if: ${{ always() }}
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Checkout Code
+        if: ${{ always() }}
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          sparse-checkout: .github/workflows/support/chewie
+          persist-credentials: false
+
+      - name: Report Final Status to Chewie
+        if: ${{ always() }}
+        env:
+          CHEWIE_HOST: ${{ secrets.CHEWIE_HOST }}
+          CHEWIE_KEY: ${{ secrets.CHEWIE_REPO_IDENTITY_KEY }}
+          REF: ${{ inputs.ref || 'main' }}
+          BUILD_TAG: ${{ inputs.build-tag }}
+          COMMIT: ${{ needs.canonical-test.outputs.ref-commit }}
+          GH_RUN_ID: ${{ github.run_id }}
+          GH_RUN_ATTEMPT: ${{ github.run_attempt }}
+          BUILD_STARTED: ${{ needs.canonical-test.outputs.build-started }}
+          DISPOSITION: ${{ needs.sdct-verdict.outputs.disposition }}
+          DECIDED_AT: ${{ needs.sdct-verdict.outputs.decided-at }}
+          CHEWIE_DRY_RUN: ${{ inputs.mock }}
+        run: |-
+          # No Jenkins build (artifact, start or queue failure): both times are the decision time.
+          # No disposition (SDCT Verdict did not run): not_run. Always exits 0.
+          decided_at=${DECIDED_AT:-$(date -u '+%Y-%m-%dT%H:%M:%SZ')}
+          bash .github/workflows/support/chewie/report-suite-result.sh \
+            "${DISPOSITION:-not_run}" "${BUILD_STARTED:-${decided_at}}" "${decided_at}"
