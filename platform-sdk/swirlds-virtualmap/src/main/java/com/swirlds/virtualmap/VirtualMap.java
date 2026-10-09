@@ -35,10 +35,10 @@ import com.swirlds.virtualmap.internal.VirtualMapStatistics;
 import com.swirlds.virtualmap.internal.VirtualRoot;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
 import com.swirlds.virtualmap.internal.hash.FullLeafRehashHashListener;
+import com.swirlds.virtualmap.internal.hash.HashChunkCollector;
 import com.swirlds.virtualmap.internal.hash.VirtualHashListener;
 import com.swirlds.virtualmap.internal.hash.VirtualHasher;
 import com.swirlds.virtualmap.internal.pipeline.VirtualPipeline;
-import com.swirlds.virtualmap.internal.reconnect.ConcurrentBlockingIterator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -49,16 +49,17 @@ import java.time.Duration;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.LongFunction;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.ValueReference;
+import org.hiero.base.concurrent.ExecutorFactory;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.file.FileUtils;
@@ -127,10 +128,13 @@ import org.hiero.base.file.FileUtils;
  */
 public final class VirtualMap extends AbstractVirtualRoot implements Labeled, VirtualRoot {
 
-    /**
-     * The number of elements to have in the buffer used during rehashing on start.
-     */
-    private static final int MAX_REHASHING_BUFFER_SIZE = 10_000_000;
+    /// Flush interval for full rehash, in hash slots (~96MB of heap). The listener flushes collected
+    /// chunks once `number of chunks * 2 ^ chunkHeight` reaches this value. Every flush has a fixed
+    /// cost (a new data file, metadata update, etc.) and creates a data file to compact later. Note
+    /// that the listener doesn't apply backpressure: while a flush is in progress, hashing threads
+    /// keep collecting chunks, and the next batch may exceed the interval, if flushes are slower
+    /// than hashing.
+    private static final int FULL_REHASH_FLUSH_INTERVAL = 2_000_000;
 
     /**
      * Hardcoded virtual map label
@@ -411,7 +415,9 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      * the two values.
      * <p>
      * If the hashes differ, the method iterates over every leaf node directly from disk
-     * and rehashes them.
+     * and rehashes them. All new hashes are written to the data source before the new
+     * root hash is set and this method returns. If rehashing or any flush fails, times out,
+     * or the current thread is interrupted, an exception is thrown, and the root hash isn't set.
      * <p>
      * The main difference from {@link #computeHash()} is that {@code computeHash()}
      * only updates hashes for dirty leaves that are already in the in-memory cache,
@@ -429,9 +435,6 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
 
         assert firstLeafPath == metadata.getFirstLeafPath();
         assert lastLeafPath == metadata.getLastLeafPath();
-
-        final ConcurrentBlockingIterator<VirtualLeafBytes> rehashIterator =
-                new ConcurrentBlockingIterator<>(MAX_REHASHING_BUFFER_SIZE);
 
         if (firstLeafPath < 0 || lastLeafPath < 0) {
             logger.info(STARTUP.getMarker(), "VirtualMap is empty, skipping full rehash.");
@@ -462,70 +465,45 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         }
 
         logger.info(STARTUP.getMarker(), "Doing full rehash for the path range: {} - {}", firstLeafPath, lastLeafPath);
-        final FullLeafRehashHashListener hashListener = new FullLeafRehashHashListener(
-                firstLeafPath,
-                lastLeafPath,
-                dataSource,
-                statistics,
-                // even though this listener has nothing to do with the reconnect, reconnect flush interval value
-                // is appropriate to use here.
-                virtualMapConfig.reconnectFlushInterval());
+        final int hashChunkHeight = dataSource.getHashChunkHeight();
+        final FullLeafRehashHashListener chunkListener = new FullLeafRehashHashListener(
+                firstLeafPath, lastLeafPath, dataSource, statistics, FULL_REHASH_FLUSH_INTERVAL);
+        final HashChunkCollector hashListener =
+                new HashChunkCollector(hashChunkHeight, firstLeafPath, lastLeafPath, chunkListener);
 
-        // This background thread will be responsible for hashing the tree and sending the
-        // data to the hash listener to flush.
-        final CompletableFuture<Hash> fullRehashFuture = hasher.hashAsync(
-                        dataSource.getHashChunkHeight(),
-                        cache::preloadHashChunk,
-                        rehashIterator,
-                        firstLeafPath,
-                        lastLeafPath,
-                        hashListener)
-                .exceptionally(throwable -> {
-                    // Shut down the iterator.
-                    rehashIterator.close();
-                    throw new RuntimeException(
-                            "Exception occurred during full rehashing of the virtual map", throwable);
-                });
-
-        final long onePercent = (lastLeafPath - firstLeafPath) / 100 + 1;
-        final long start = System.currentTimeMillis();
-        try {
-            for (long i = firstLeafPath; i <= lastLeafPath; i++) {
-                try {
-                    final VirtualLeafBytes<?> leafBytes = dataSource.loadLeafRecord(i);
-                    assert leafBytes != null : "Leaf record should not be null";
-                    try {
-                        rehashIterator.supply(leafBytes);
-                    } catch (final InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        throw new RuntimeException(
-                                "Interrupted while waiting to supply a new leaf to the hashing iterator buffer", e);
-                    }
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-                if (i % onePercent == 0) {
-                    logger.info(STARTUP.getMarker(), "Full rehash progress: {}%", (i - firstLeafPath) / onePercent + 1);
-                }
+        final LongFunction<VirtualLeafBytes<?>> leafReader = path -> {
+            try {
+                return dataSource.loadLeafRecord(path);
+            } catch (final IOException e) {
+                throw new UncheckedIOException(e);
             }
-        } finally {
-            rehashIterator.close();
-        }
+        };
+
+        // Thread pool to run full rehash tasks, shut down as soon as the rehash is complete.
+        // It must not be in async mode, see TaskPerNodeFullRehasher javadoc for details
+        // Use one less than the number of available processors to avoid saturating the CPU and leaving no room for
+        // other tasks.
+        final ForkJoinPool rehashPool = ExecutorFactory.create(
+                        "VirtualMapFullRehash",
+                        (_, e) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception during full rehash", e))
+                .createForkJoinPool(Math.max(1, Runtime.getRuntime().availableProcessors() - 1), false);
 
         try {
-            final long millisSpent = System.currentTimeMillis() - start;
-            logger.info(STARTUP.getMarker(), "It took {} seconds to feed all leaves to the hasher", millisSpent / 1000);
-            setHashPrivate(fullRehashFuture.get(virtualMapConfig.fullRehashTimeoutMs() - millisSpent, MILLISECONDS));
-        } catch (ExecutionException e) {
-            final var message = "Failed to get hash during full rehashing";
-            throw new RuntimeException(message, e.getCause() != null ? e.getCause() : e);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            final var message = "Interrupted while full rehashing";
-            throw new RuntimeException(message, e);
-        } catch (TimeoutException e) {
-            final var message = "Wasn't able to finish full rehashing in time";
-            throw new RuntimeException(message, e);
+            final long start = System.currentTimeMillis();
+            final Hash rootHash = TaskPerNodeFullRehasher.hash(
+                    rehashPool,
+                    firstLeafPath,
+                    lastLeafPath,
+                    leafReader,
+                    hashListener,
+                    virtualMapConfig.fullRehashTimeoutMs());
+            setHashPrivate(rootHash);
+            logger.info(
+                    STARTUP.getMarker(), "Full rehash took {} seconds", (System.currentTimeMillis() - start) / 1000);
+        } finally {
+            // On success, all rehash tasks are already complete. On failure, tasks that are still running, e.g.
+            // hash chunk flushes, are left to finish on their own, and the pool terminates after that
+            rehashPool.shutdown();
         }
     }
 

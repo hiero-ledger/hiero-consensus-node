@@ -10,6 +10,11 @@ on:
         type: string
         required: false
         default: ""
+      publish:
+        description: "Publish the results to Grafana, labeled run_type=manual."
+        type: boolean
+        required: false
+        default: false
 
 defaults:
   run:
@@ -35,17 +40,21 @@ jobs:
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
-  # Runs on the benchmark runner, a node shared with other workloads. It records the environment and the other
-  # workloads' load during the run, so that a disturbed result can be recognized. Until results are published, it only
-  # keeps them as an artifact.
+  # Runs on the benchmark runner, a node shared with other workloads. A parameter set measured while other workloads
+  # loaded the node is repeated; if no attempt is quiet, only its allocation and the load are published, no latency.
+  # The timeout covers the worst case: every parameter set needs 3 attempts, each after waiting 10 min for quiet.
   jmh:
     name: JMH Benchmarks
     runs-on: hl-cn-benchmark-lin
-    timeout-minutes: 45
+    timeout-minutes: 95
     needs:
       - extract-jdk-version
     env:
-      ENVIRONMENT_DIR: build/benchmark-environment
+      RESULTS_DIR: build/benchmark-results
+      # the benchmarks of consensus-hashgraph-impl that are tracked; the run configuration comes from their annotations
+      MODULE: consensus-hashgraph-impl
+      BENCHMARK: ConsensusImplBenchmark
+      PROFILERS: org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler
     steps:
       - name: Prepare Runner
         id: prepare-runner
@@ -61,59 +70,76 @@ jobs:
           setup-gradle: "true"
           gradle-cache-read-only: "true"
 
-      # A separate Gradle invocation, so that nothing compiles while the benchmarks measure
+      # The runner image's Python: on the hl-cn runners, setup-python can pick a cached build that needs a newer glibc
+      - name: Install Python
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends python3
+
+      # Stops the daemon afterwards, so that no Gradle process is alive while the benchmarks measure
       - name: Build Benchmark Jar
-        run: ./gradlew :consensus-hashgraph-impl:jmhJarWithMergedServiceFiles
+        run: |
+          ./gradlew ":${MODULE}:jmhJarWithMergedServiceFiles"
+          ./gradlew --stop
 
       - name: Record Environment Before
         env:
           BENCHMARK_REF: ${{ inputs.ref || github.ref }}
         run: |
-          mkdir -p "${ENVIRONMENT_DIR}"
+          mkdir -p "${RESULTS_DIR}"
           {
             echo "commit=$(git rev-parse HEAD)"
             echo "ref=${BENCHMARK_REF}"
             echo "run_id=${GITHUB_RUN_ID}"
             echo "run_attempt=${GITHUB_RUN_ATTEMPT}"
+            echo "run_url=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
             echo "runner_name=${RUNNER_NAME}"
             echo "runner_label=hl-cn-benchmark-lin"
             echo "started=$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-          } > "${ENVIRONMENT_DIR}/run-info.properties"
-          .github/workflows/support/scripts/record-benchmark-environment.sh \
-            > "${ENVIRONMENT_DIR}/environment-before.txt"
-          cat "${ENVIRONMENT_DIR}/run-info.properties"
-          sed -n '/^== summary/,/^== end summary/p' "${ENVIRONMENT_DIR}/environment-before.txt"
+          } > "${RESULTS_DIR}/run-info.properties"
+          .github/workflows/support/scripts/record-benchmark-environment.sh > "${RESULTS_DIR}/environment-before.txt"
+          cat "${RESULTS_DIR}/run-info.properties"
+          sed -n '/^== summary/,/^== end summary/p' "${RESULTS_DIR}/environment-before.txt"
 
-      # Only this module's benchmarks are tracked; "./gradlew jmh" would also run those of other modules. Without
-      # "nice", which other workflows use and which would lower the benchmarks' priority on a shared node. Each output
-      # line is prefixed with its time, so that iterations can be matched with the monitor's samples.
+      # The jar rather than Gradle's jmh task: the task's -foe does not work (melix/jmh-gradle-plugin#255), and a
+      # loaded parameter set is repeated alone. Without "nice", which other workflows use and which would lower the
+      # benchmarks' priority on a shared node.
       - name: Run Benchmarks
         id: jmh
         run: |
-          .github/workflows/support/scripts/record-benchmark-environment.sh --monitor 5 \
-            > "${ENVIRONMENT_DIR}/monitor.csv" 2>&1 &
-          monitor_pid=$!
-          trap 'kill "${monitor_pid}"' EXIT
-          ./gradlew :consensus-hashgraph-impl:jmh 2>&1 \
-            | while IFS= read -r line; do echo "${EPOCHREALTIME} ${line}"; done \
-            | tee "${ENVIRONMENT_DIR}/jmh-output.txt"
+          jar=$(ls "platform-sdk/${MODULE}/build/libs/${MODULE}"-*-jmh-merged.jar)
+          profiler_args=()
+          for profiler in ${PROFILERS}; do
+            profiler_args+=(--profiler "${profiler}")
+          done
+          python3 .github/workflows/support/scripts/benchmarks/run_benchmarks.py \
+            --jar "${jar}" --benchmark "${BENCHMARK}" --out "${RESULTS_DIR}" "${profiler_args[@]}"
 
       - name: Record Environment After
         if: ${{ always() && steps.jmh.outcome != 'skipped' }}
         run: |
-          echo "finished=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "${ENVIRONMENT_DIR}/run-info.properties"
-          .github/workflows/support/scripts/record-benchmark-environment.sh \
-            > "${ENVIRONMENT_DIR}/environment-after.txt"
-          sed -n '/^== summary/,/^== end summary/p' "${ENVIRONMENT_DIR}/environment-after.txt"
+          echo "finished=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "${RESULTS_DIR}/run-info.properties"
+          .github/workflows/support/scripts/record-benchmark-environment.sh > "${RESULTS_DIR}/environment-after.txt"
+          sed -n '/^== summary/,/^== end summary/p' "${RESULTS_DIR}/environment-after.txt"
+
+      # Scheduled runs publish as run_type=nightly, which dashboards and alerts use; manual runs only on request
+      - name: Publish Results
+        if: ${{ github.event_name == 'schedule' || inputs.publish }}
+        env:
+          RUN_TYPE: ${{ github.event_name == 'schedule' && 'nightly' || 'manual' }}
+          METRICS_URL: ${{ vars.MICROBENCHMARKS_METRICS_MIMIR_URL }}
+          LOKI_URL: ${{ vars.MICROBENCHMARKS_METRICS_LOKI_URL }}
+          BENCHMARK_METRICS_USER: ${{ vars.MICROBENCHMARK_METRICS_USER_NAME }}
+          BENCHMARK_METRICS_PASSWORD: ${{ secrets.MICROBENCHMARK_METRICS_PASSWORD }}
+        run: |
+          python3 .github/workflows/support/scripts/benchmarks/publish_results.py \
+            --results "${RESULTS_DIR}" --run-type "${RUN_TYPE}" --url "${METRICS_URL}" --loki-url "${LOKI_URL}"
 
       - name: Upload Results
         if: ${{ always() && steps.jmh.outcome != 'skipped' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: jmh-results
-          # every module's results, so a module added to the steps above cannot be left out here
-          path: |
-            platform-sdk/*/build/results/jmh/results.json
-            ${{ env.ENVIRONMENT_DIR }}
+          path: ${{ env.RESULTS_DIR }}
           if-no-files-found: error
           retention-days: 90
