@@ -230,8 +230,7 @@ run_on_network() {
     run_yahcli "submit-bundle on ${net}" \
         -n "${net}" clpr submit-bundle \
             --channel-id "${CHANNEL_ID_HEX}" \
-            --bundle-payload "${BUNDLE_PAYLOAD_HEX}" \
-            --endpoint-node-id 0
+            --bundle-payload "${BUNDLE_PAYLOAD_HEX}"
 
     # 11) Redact a placeholder message.
     print_step "[11/12] redact-message"

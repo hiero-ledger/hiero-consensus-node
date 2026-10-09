@@ -1,10 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.standalone;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CONNECTORS_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.MESSAGE_QUEUE_STATE_ID;
+import static com.hedera.node.app.service.contract.impl.schemas.V0490ContractSchema.STORAGE_STATE_ID;
 import static com.hedera.node.app.spi.AppContext.Gossip.UNAVAILABLE_GOSSIP;
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.UNIVERSAL_NOOP_FEE_CHARGING;
 import static com.hedera.node.app.util.FileUtilities.createFileID;
@@ -30,14 +36,24 @@ import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.file.FileCreateTransactionBody;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
+import com.hedera.hapi.node.state.clpr.ClprChannel;
+import com.hedera.hapi.node.state.clpr.ClprChannelStatus;
+import com.hedera.hapi.node.state.clpr.ClprConnector;
+import com.hedera.hapi.node.state.clpr.ClprConnectorKey;
+import com.hedera.hapi.node.state.clpr.ClprMessageKey;
+import com.hedera.hapi.node.state.clpr.ClprMessageValue;
 import com.hedera.hapi.node.state.common.EntityNumber;
+import com.hedera.hapi.node.state.contract.SlotKey;
+import com.hedera.hapi.node.state.contract.SlotValue;
 import com.hedera.hapi.node.state.file.File;
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.ThrottleDefinitions;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.streams.CallOperationType;
 import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActionType;
+import com.hedera.hapi.streams.TransactionSidecarRecord;
 import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.config.ConfigProviderImpl;
@@ -53,6 +69,9 @@ import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;
 import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
+import com.hedera.node.app.service.clpr.ClprService;
+import com.hedera.node.app.service.clpr.impl.ClprServiceImpl;
+import com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema;
 import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer;
@@ -129,6 +148,8 @@ import org.hyperledger.besu.evm.tracing.StreamingOperationTracer;
 import org.hyperledger.besu.evm.worldstate.WorldView;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -162,6 +183,17 @@ public class TransactionExecutorsTest {
             "{\"pc\":0,\"op\":\"0x60\",\"gas\":378936,\"gasCost\":3,\"memSize\":0,\"depth\":1,\"refund\":0,\"opName\":\"PUSH1\"}";
     private static final NodeInfo DEFAULT_NODE_INFO =
             new NodeInfoImpl(0, idFactory.newAccountId(3L), 10, List.of(), Bytes.EMPTY, List.of(), true, null);
+    private static final ContractID CLPR_ROUTER_ID = idFactory.newContractId(0x16eL);
+    private static final Bytes CLPR_CHANNEL_ID = Bytes.fromHex("11".repeat(32));
+    private static final Bytes CLPR_CONNECTOR_ID = Bytes.fromHex("22".repeat(32));
+    private static final com.esaulpaugh.headlong.abi.Function SEND_MESSAGE_FUNCTION =
+            new com.esaulpaugh.headlong.abi.Function("sendMessage(bytes32,bytes32,bytes,bytes)", "(uint64)");
+    // Deploys a connector whose authorization CALLCODEs 0x167 with value 1 (halting with INVALID_CONTRACT_ID)
+    private static final String HALTING_CONNECTOR_INITCODE =
+            "601a80600b6000396000f3" + "600060006000600060016101675af250600160005260206000f3";
+    // Deploys a contract that forwards its calldata to the CLPR router and returns whether that call succeeded
+    private static final String CLPR_FORWARDER_INITCODE =
+            "601c80600b6000396000f3" + "36600060003760006000366000600061016e5af160005260206000f3";
 
     public static final Metrics NO_OP_METRICS = new NoOpMetrics();
 
@@ -276,6 +308,164 @@ public class TransactionExecutorsTest {
     }
 
     @Test
+    void connectorAuthorizationIsTracedAndItsHaltContainedWithinSendMessageTransaction() {
+        final var overrides = Map.of("hedera.transaction.maxMemoUtf8Bytes", "101", "clpr.enabled", "true");
+        final var state = genesisState(overrides);
+        final var executor = TRANSACTION_EXECUTORS.newExecutor(
+                TransactionExecutors.Properties.newBuilder()
+                        .state(state)
+                        .appProperties(overrides)
+                        .build(),
+                new AppEntityIdFactory(DEFAULT_CONFIG));
+        // Fund the connector so its value-bearing CALLCODE reaches 0x167 instead of failing the balance check
+        final var connectorId = createdContractId(executor, HALTING_CONNECTOR_INITCODE, 1L);
+        final var forwarderId = createdContractId(executor, CLPR_FORWARDER_INITCODE, 0L);
+        final var clprStates = state.getWritableStates(ClprService.NAME);
+        clprStates
+                .<ClprConnectorKey, ClprConnector>get(CONNECTORS_STATE_ID)
+                .put(
+                        new ClprConnectorKey(CLPR_CHANNEL_ID, CLPR_CONNECTOR_ID),
+                        ClprConnector.newBuilder()
+                                .connectorId(CLPR_CONNECTOR_ID)
+                                .channelId(CLPR_CHANNEL_ID)
+                                .connectorContract(connectorId)
+                                .build());
+        ((CommittableWritableStates) clprStates).commit();
+
+        // A Besu tracer add-on must tolerate the system contract frame that suspends for the authorization
+        final var addOnTracer = new OperationTracerAdapter(new StreamingOperationTracer(
+                new PrintWriter(new StringWriter()),
+                OpCodeTracerConfigBuilder.createFrom(OpCodeTracerConfig.DEFAULT)
+                        .traceStorage(false)
+                        .build()));
+        final var callOutput = executor.execute(contractCallSendMessage(forwarderId), Instant.EPOCH, addOnTracer);
+
+        // The connector's halt fails only the sendMessage call, which the forwarder sees as a failed CALL
+        assertThat(callOutput.size()).isEqualTo(1);
+        final var callRecord = callOutput.getFirst().transactionRecord();
+        assertThat(callRecord.receiptOrThrow().status()).isEqualTo(SUCCESS);
+        assertThat(callRecord.contractCallResultOrThrow().contractCallResult()).isEqualTo(Bytes.wrap(new byte[32]));
+        // The authorization is a nested action of this same transaction, and each action is finalized once
+        final var actions = callOutput.getFirst().transactionSidecarRecords().stream()
+                .filter(TransactionSidecarRecord::hasActions)
+                .flatMap(sidecar -> sidecar.actionsOrThrow().contractActions().stream())
+                .toList();
+        org.assertj.core.api.Assertions.assertThat(actions)
+                .anySatisfy(action -> {
+                    assertThat(action.callOperationType()).isEqualTo(CallOperationType.OP_CALL);
+                    assertThat(action.callingContract()).isEqualTo(CLPR_ROUTER_ID);
+                    assertThat(action.recipientContract()).isEqualTo(connectorId);
+                    assertThat(action.callDepth()).isEqualTo(2);
+                })
+                .anySatisfy(action -> {
+                    assertThat(action.callDepth()).isEqualTo(1);
+                    assertThat(action.callType()).isEqualTo(ContractActionType.SYSTEM);
+                    assertThat(action.hasRevertReason()).isTrue();
+                })
+                .anySatisfy(action -> {
+                    assertThat(action.callDepth()).isEqualTo(0);
+                    assertThat(action.hasOutput()).isTrue();
+                });
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "600160005260206000f3, true, false, true", // Approve and enqueue
+        "600060005260206000f3, true, false, false", // Reject authorization
+        "600160005260206000fd, true, false, false", // Revert authorization
+        "600160005260206000f3, false, false, false", // Approve, but channel lookup fails
+        "600160005260206000f3, true, true, false" // Approve and enqueue, but caller reverts
+    })
+    void connectorAuthorizationStateAndLogsFollowSendMessageOutcome(
+            final String authorizationResult,
+            final boolean channelExists,
+            final boolean callerReverts,
+            final boolean commits) {
+        final var overrides = Map.of("hedera.transaction.maxMemoUtf8Bytes", "101", "clpr.enabled", "true");
+        final var state = genesisState(overrides);
+        final var executor = TRANSACTION_EXECUTORS.newExecutor(
+                TransactionExecutors.Properties.newBuilder()
+                        .state(state)
+                        .appProperties(overrides)
+                        .build(),
+                new AppEntityIdFactory(DEFAULT_CONFIG));
+        // SSTORE slot 0 = 1; LOG0 an empty event; then return/revert with the authorization result.
+        final var connectorId = createdContractId(
+                executor, "601480600b6000396000f3" + "600160005560006000a0" + authorizationResult, 0L);
+        final var forwarderInitcode = callerReverts
+                ? CLPR_FORWARDER_INITCODE.substring(0, CLPR_FORWARDER_INITCODE.length() - 2) + "fd"
+                : CLPR_FORWARDER_INITCODE;
+        final var forwarderId = createdContractId(executor, forwarderInitcode, 0L);
+        final var clprStates = state.getWritableStates(ClprService.NAME);
+        V0780ClprSchema.initializeSingletons(clprStates, DEFAULT_CONFIG);
+        final var connectorKey = new ClprConnectorKey(CLPR_CHANNEL_ID, CLPR_CONNECTOR_ID);
+        clprStates
+                .<ClprConnectorKey, ClprConnector>get(CONNECTORS_STATE_ID)
+                .put(
+                        connectorKey,
+                        ClprConnector.newBuilder()
+                                .connectorId(CLPR_CONNECTOR_ID)
+                                .channelId(CLPR_CHANNEL_ID)
+                                .connectorContract(connectorId)
+                                .build());
+        final var channelKey = new ProtoBytes(CLPR_CHANNEL_ID);
+        if (channelExists) {
+            clprStates
+                    .<ProtoBytes, ClprChannel>get(CHANNELS_STATE_ID)
+                    .put(
+                            channelKey,
+                            ClprChannel.newBuilder()
+                                    .channelId(CLPR_CHANNEL_ID)
+                                    .status(ClprChannelStatus.ACTIVE)
+                                    .nextMessageId(1L)
+                                    .sentRunningHash(Bytes.wrap(new byte[32]))
+                                    .lastConfigTimestamp(new Timestamp(1L, 0))
+                                    .build());
+        }
+        ((CommittableWritableStates) clprStates).commit();
+
+        final var output = executor.execute(contractCallSendMessage(forwarderId), Instant.EPOCH);
+
+        final var record = output.getFirst().transactionRecord();
+        assertThat(record.receiptOrThrow().status()).isEqualTo(callerReverts ? CONTRACT_REVERT_EXECUTED : SUCCESS);
+        final var result = record.contractCallResultOrThrow();
+        if (!callerReverts) {
+            assertThat(new java.math.BigInteger(1, result.contractCallResult().toByteArray()))
+                    .isEqualTo(commits ? java.math.BigInteger.ONE : java.math.BigInteger.ZERO);
+        }
+        final var slot = state.getReadableStates(ContractServiceImpl.NAME)
+                .<SlotKey, SlotValue>get(STORAGE_STATE_ID)
+                .get(new SlotKey(connectorId, Bytes.wrap(new byte[32])));
+        final var message = state.getReadableStates(ClprService.NAME)
+                .<ClprMessageKey, ClprMessageValue>get(MESSAGE_QUEUE_STATE_ID)
+                .get(new ClprMessageKey(CLPR_CHANNEL_ID, 1L));
+        if (commits) {
+            assertThat(slot).isNotNull();
+            assertThat(slot.value()).isEqualTo(Bytes.fromHex("00".repeat(31) + "01"));
+            assertThat(message).isNotNull();
+            assertThat(result.logInfo().size()).isEqualTo(1);
+            assertThat(result.logInfo().getFirst().contractID()).isEqualTo(connectorId);
+        } else {
+            assertThat(slot).isNull();
+            assertThat(message).isNull();
+            assertThat(result.logInfo().isEmpty()).isTrue();
+        }
+        final var finalClprStates = state.getReadableStates(ClprService.NAME);
+        assertThat(finalClprStates
+                        .<ClprConnectorKey, ClprConnector>get(CONNECTORS_STATE_ID)
+                        .get(connectorKey)
+                        .inFlightMessageCount())
+                .isEqualTo(commits ? 1L : 0L);
+        if (channelExists) {
+            assertThat(finalClprStates
+                            .<ProtoBytes, ClprChannel>get(CHANNELS_STATE_ID)
+                            .get(channelKey)
+                            .nextMessageId())
+                    .isEqualTo(commits ? 2L : 1L);
+        }
+    }
+
+    @Test
     void respectsOverrideMaxSignedTxnSize() {
         final var overrides = Map.of(MAX_SIGNED_TXN_SIZE_PROPERTY, "42");
         // Construct a full implementation of the consensus node State API with all genesis accounts and files
@@ -332,6 +522,39 @@ public class TransactionExecutorsTest {
         return newBodyBuilder()
                 .contractCall(ContractCallTransactionBody.newBuilder()
                         .contractID(EXPECTED_CONTRACT_ID)
+                        .functionParameters(Bytes.wrap(callData.array()))
+                        .gas(GAS)
+                        .build())
+                .build();
+    }
+
+    private ContractID createdContractId(
+            @NonNull final TransactionExecutor executor, @NonNull final String initcode, final long initialBalance) {
+        final var maxLifetime =
+                DEFAULT_CONFIG.getConfigData(EntitiesConfig.class).maxLifetime();
+        final var shard = DEFAULT_CONFIG.getConfigData(HederaConfig.class).shard();
+        final var realm = DEFAULT_CONFIG.getConfigData(HederaConfig.class).realm();
+        final var output = executor.execute(
+                newBodyBuilder()
+                        .contractCreateInstance(ContractCreateTransactionBody.newBuilder()
+                                .initcode(Bytes.fromHex(initcode))
+                                .initialBalance(initialBalance)
+                                .autoRenewPeriod(new Duration(maxLifetime))
+                                .gas(GAS)
+                                .shardID(new ShardID(shard))
+                                .realmID(new RealmID(shard, realm))
+                                .build())
+                        .build(),
+                Instant.EPOCH);
+        return output.getFirst().transactionRecord().receiptOrThrow().contractIDOrThrow();
+    }
+
+    private TransactionBody contractCallSendMessage(@NonNull final ContractID forwarderId) {
+        final var callData = SEND_MESSAGE_FUNCTION.encodeCallWithArgs(
+                CLPR_CHANNEL_ID.toByteArray(), CLPR_CONNECTOR_ID.toByteArray(), new byte[] {1}, new byte[] {2});
+        return newBodyBuilder()
+                .contractCall(ContractCallTransactionBody.newBuilder()
+                        .contractID(forwarderId)
                         .functionParameters(Bytes.wrap(callData.array()))
                         .gas(GAS)
                         .build())
@@ -464,8 +687,8 @@ public class TransactionExecutorsTest {
         final var systemKey = Key.newBuilder()
                 .ed25519(config.getConfigData(BootstrapConfig.class).genesisPublicKey())
                 .build();
-        final var accounts =
-                state.getWritableStates(TokenService.NAME).<AccountID, Account>get(V0490TokenSchema.ACCOUNTS_STATE_ID);
+        final var tokenStates = state.getWritableStates(TokenService.NAME);
+        final var accounts = tokenStates.<AccountID, Account>get(V0490TokenSchema.ACCOUNTS_STATE_ID);
         // Create the system accounts
         for (int i = 1, n = ledgerConfig.numSystemAccounts(); i <= n; i++) {
             final var accountId = AccountID.newBuilder().accountNum(i).build();
@@ -491,6 +714,8 @@ public class TransactionExecutorsTest {
                             .build());
         }
         ((CommittableWritableStates) writableStates).commit();
+        // Commit the accounts too, so the first transaction that changes balances finalizes against them
+        ((CommittableWritableStates) tokenStates).commit();
         return state;
     }
 
@@ -526,7 +751,8 @@ public class TransactionExecutorsTest {
                         new FeeService(),
                         new CongestionThrottleService(),
                         new NetworkServiceImpl(),
-                        new AddressBookServiceImpl())
+                        new AddressBookServiceImpl(),
+                        new ClprServiceImpl())
                 .forEach(servicesRegistry::register);
     }
 
@@ -662,12 +888,18 @@ public class TransactionExecutorsTest {
 
         @Override
         public void traceSuspended(MessageFrame parent, MessageFrame child, CallOperationType opCall) {
-            delegate.tracePostExecution(parent, InvalidOperation.INVALID_RESULT);
+            // A system contract frame that suspends to run a child frame has not executed any operation
+            if (parent.getCurrentOperation() != null) {
+                delegate.tracePostExecution(parent, InvalidOperation.INVALID_RESULT);
+            }
         }
 
         @Override
         public void traceNotExecuting(MessageFrame child) {
-            delegate.tracePostExecution(child, InvalidOperation.INVALID_RESULT);
+            // Likewise for a frame that halts before executing any operation
+            if (child.getCurrentOperation() != null) {
+                delegate.tracePostExecution(child, InvalidOperation.INVALID_RESULT);
+            }
         }
     }
 }

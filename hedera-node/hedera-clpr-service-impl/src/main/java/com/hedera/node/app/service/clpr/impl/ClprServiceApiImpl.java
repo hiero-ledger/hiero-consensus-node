@@ -97,7 +97,7 @@ public class ClprServiceApiImpl implements ClprServiceApi {
         }
 
         // Step 4: Connector authorization is enforced upstream in SendMessageCall
-        // via a static sub-call to IClprConnector.authorizeOutboundMessage before this method is invoked.
+        // via a sub-call to IClprConnector.authorizeOutboundMessage before this method is invoked.
 
         // Step 5: Validate payload size against the peer's limit — the destination is authoritative
         // for its own max_message_payload_bytes. Fall back to local config if peer throttles are absent

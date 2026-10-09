@@ -14,6 +14,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.clpr.sendm
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.clpr.sendmessage.SendMessageTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.CallAttemptOptions;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.burn.BurnTranslator;
+import com.hedera.node.app.service.contract.impl.infra.ContractCodeCache;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallAttemptTestBase;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
@@ -31,7 +32,7 @@ class SendMessageTranslatorTest extends CallAttemptTestBase {
 
     @BeforeEach
     void setUp() {
-        subject = new SendMessageTranslator(systemContractMethodRegistry, contractMetrics);
+        subject = new SendMessageTranslator(systemContractMethodRegistry, contractMetrics, new ContractCodeCache());
     }
 
     @Test
