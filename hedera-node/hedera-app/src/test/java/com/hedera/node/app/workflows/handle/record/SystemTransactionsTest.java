@@ -20,6 +20,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -32,6 +33,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.FileID;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
@@ -40,6 +42,7 @@ import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.services.auxiliary.blockrecords.MigrationRootHashVoteTransactionBody;
@@ -275,6 +278,53 @@ class SystemTransactionsTest {
         assertEquals(entityNum, metadata.getValue().getMetadataIfPresent(SYSTEM_TXN_CREATION_ENTITY_NUM, Long.class));
         verify(dispatchProcessor).processDispatch(dispatch);
         verify(stack).commitFullStack();
+    }
+
+    @Test
+    void resyncsFromRemainingStateWhenSystemDispatchThrows() {
+        final var adminId = AccountID.newBuilder().accountNum(50).build();
+        given(entityIdFactory.newAccountId(50)).willReturn(adminId);
+        final var parentTxn = mock(ParentTxn.class);
+        final var stack = mock(SavepointStackImpl.class);
+        final var builder = mock(StreamBuilder.class);
+        final var dispatch = mock(Dispatch.class);
+        final var writableStates = mock(WritableStates.class);
+        final WritableSingletonState<EntityNumber> entityNumber = mock(WritableSingletonState.class);
+        given(parentTxnFactory.createSystemTxn(any(), any(), any(), any(), any(), any()))
+                .willReturn(parentTxn);
+        given(parentTxn.baseBuilder()).willReturn(builder);
+        given(parentTxnFactory.createDispatch(eq(parentTxn), eq(builder), any(), eq(NODE), any()))
+                .willReturn(dispatch);
+        given(dispatch.stack()).willReturn(stack);
+        given(stack.getWritableStates(EntityIdService.NAME)).willReturn(writableStates);
+        given(writableStates.<EntityNumber>getSingleton(ENTITY_ID_STATE_ID)).willReturn(entityNumber);
+        given(entityNumber.get()).willReturn(new EntityNumber(1000));
+        doThrow(new IllegalStateException("abandoned")).when(dispatchProcessor).processDispatch(dispatch);
+        // What the failure record needs
+        final var txnInfo = mock(TransactionInfo.class);
+        given(txnInfo.txBody())
+                .willReturn(TransactionBody.newBuilder()
+                        .transactionID(TransactionID.DEFAULT)
+                        .build());
+        given(txnInfo.signedTx()).willReturn(SignedTransaction.DEFAULT);
+        given(txnInfo.functionality()).willReturn(HederaFunctionality.CRYPTO_CREATE);
+        given(txnInfo.serializedSignedTx()).willReturn(Bytes.EMPTY);
+        given(parentTxn.txnInfo()).willReturn(txnInfo);
+        given(parentTxn.stack()).willReturn(stack);
+        given(parentTxn.consensusNow()).willReturn(NOW);
+        given(exchangeRateManager.exchangeRates()).willReturn(ExchangeRateSet.DEFAULT);
+        given(parentTxn.creatorInfo()).willReturn(creatorNodeInfo);
+        given(txnInfo.transactionID()).willReturn(TransactionID.DEFAULT);
+        final var context = subject.newSystemContext(
+                NOW,
+                state,
+                _ -> {},
+                SystemTransactions.UseReservedConsensusTimes.NO,
+                SystemTransactions.TriggerStakePeriodSideEffects.NO);
+
+        assertDoesNotThrow(() -> context.dispatchAdmin(body -> body.memo("internal admin transaction")));
+
+        verify(dispatchProcessor).resyncAfterAbandonedTransaction(state);
     }
 
     @Test

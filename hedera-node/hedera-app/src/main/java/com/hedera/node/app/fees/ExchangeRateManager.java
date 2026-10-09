@@ -179,6 +179,16 @@ public final class ExchangeRateManager {
     }
 
     /**
+     * Returns the current in-memory midnight rates, the baseline the intraday-change limit is checked against. Used by
+     * recovery to detect when a rolled-back update left this baseline out of step with the committed singleton.
+     *
+     * @return the in-memory midnight rates, or null before initialization
+     */
+    public ExchangeRateSet midnightRates() {
+        return midnightRates;
+    }
+
+    /**
      * Gets the {@link ExchangeRate} that should be used as of the given consensus time. MUST BE CALLED ON THE HANDLE
      * THREAD!!
      *

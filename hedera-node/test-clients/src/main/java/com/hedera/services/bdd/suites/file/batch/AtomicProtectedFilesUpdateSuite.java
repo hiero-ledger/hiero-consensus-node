@@ -23,7 +23,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.NODE_DETAILS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SIMPLE_FEE_SCHEDULE;
 import static com.hedera.services.bdd.suites.HapiSuite.SYSTEM_ADMIN;
-import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AUTHORIZATION_FAILED;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -33,13 +32,10 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
-import com.hedera.services.bdd.spec.queries.file.HapiGetFileContents;
-import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
 import com.hedera.services.bdd.spec.utilops.UtilVerbs;
 import com.hedera.services.bdd.suites.utils.sysfiles.AddressBookPojo;
 import com.hederahashgraph.api.proto.java.NodeAddress;
 import com.hederahashgraph.api.proto.java.NodeAddressBook;
-import java.util.Map;
 import java.util.SplittableRandom;
 import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
@@ -47,7 +43,6 @@ import org.apache.commons.lang3.ArrayUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.utility.CommonUtils;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
@@ -65,32 +60,9 @@ class AtomicProtectedFilesUpdateSuite {
     private static final Logger log = LogManager.getLogger(AtomicProtectedFilesUpdateSuite.class);
     private static final String BATCH_OPERATOR = "batchOperator";
 
-    // The number of chars that separate a property and its value
-    private static final int PROPERTY_VALUE_SPACE_LENGTH = 2;
-
-    @HapiTest
-    final Stream<DynamicTest> account2CanUpdateApplicationProperties() {
-        return specialAccountCanUpdateSpecialPropertyFile(GENESIS, APP_PROPERTIES, "throttlingTps", "10");
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> account50CanUpdateApplicationProperties() {
-        return specialAccountCanUpdateSpecialPropertyFile(SYSTEM_ADMIN, APP_PROPERTIES, "getReceiptTps", "100");
-    }
-
     @HapiTest
     final Stream<DynamicTest> unauthorizedAccountCannotUpdateApplicationProperties() {
         return unauthorizedAccountCannotUpdateSpecialFile(APP_PROPERTIES, NEW_CONTENTS);
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> account2CanUpdateApiPermissions() {
-        return specialAccountCanUpdateSpecialPropertyFile(GENESIS, API_PERMISSIONS, "createTopic", "1-*");
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> account50CanUpdateApiPermissions() {
-        return specialAccountCanUpdateSpecialPropertyFile(SYSTEM_ADMIN, API_PERMISSIONS, "updateFile", "1-*");
     }
 
     @HapiTest
@@ -184,47 +156,6 @@ class AtomicProtectedFilesUpdateSuite {
     @HapiTest
     final Stream<DynamicTest> unauthorizedAccountCannotUpdateExchangeRates() {
         return unauthorizedAccountCannotUpdateSpecialFile(EXCHANGE_RATES, NEW_CONTENTS);
-    }
-
-    final Stream<DynamicTest> specialAccountCanUpdateSpecialPropertyFile(
-            final String specialAccount, final String specialFile, final String property, final String expected) {
-        return specialAccountCanUpdateSpecialPropertyFile(specialAccount, specialFile, property, expected, true);
-    }
-
-    final Stream<DynamicTest> specialAccountCanUpdateSpecialPropertyFile(
-            final String specialAccount,
-            final String specialFile,
-            final String property,
-            final String expected,
-            final boolean isFree) {
-        return hapiTest(flattened(
-                cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
-                givenOps(specialAccount, specialFile),
-                atomicBatch(fileUpdate(specialFile)
-                                .overridingProps(Map.of(property, expected))
-                                .payingWith(specialAccount)
-                                .batchKey(BATCH_OPERATOR))
-                        .payingWith(BATCH_OPERATOR),
-                validateAndCleanUpOps(
-                        propertyFileValidationOp(specialAccount, specialFile, property, expected),
-                        specialAccount,
-                        specialFile,
-                        isFree)));
-    }
-
-    private HapiSpecOperation propertyFileValidationOp(
-            String account, String fileName, String property, String expected) {
-        return UtilVerbs.withOpContext((spec, ctxLog) -> {
-            String registryEntry = fileName + "_CHANGED_BY_" + account;
-            HapiGetFileContents subOp = getFileContents(fileName).saveToRegistry(registryEntry);
-            CustomSpecAssert.allRunFor(spec, subOp);
-            String newContents = new String(spec.registry().getBytes(registryEntry));
-            int propertyIndex = newContents.indexOf(property);
-            Assertions.assertTrue(propertyIndex >= 0);
-            int valueIndex = propertyIndex + property.length() + PROPERTY_VALUE_SPACE_LENGTH;
-            String actual = newContents.substring(valueIndex, valueIndex + expected.length());
-            Assertions.assertEquals(expected, actual);
-        });
     }
 
     final Stream<DynamicTest> specialAccountCanUpdateSpecialFile(

@@ -29,7 +29,9 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.hedera.hapi.node.addressbook.NodeUpdateTransactionBody;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.Timestamp;
@@ -40,10 +42,21 @@ import com.hedera.hapi.node.consensus.ConsensusDeleteTopicTransactionBody;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.contract.EthereumTransactionBody;
+import com.hedera.hapi.node.file.FileAppendTransactionBody;
+import com.hedera.hapi.node.file.FileUpdateTransactionBody;
 import com.hedera.hapi.node.freeze.FreezeTransactionBody;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.hapi.node.transaction.TransactionBody.DataOneOfType;
 import com.hedera.hapi.node.util.AtomicBatchTransactionBody;
+import com.hedera.hapi.services.auxiliary.blockrecords.MigrationRootHashVoteTransactionBody;
+import com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody;
+import com.hedera.hapi.services.auxiliary.hints.HintsKeyPublicationTransactionBody;
+import com.hedera.hapi.services.auxiliary.hints.HintsPartialSignatureTransactionBody;
+import com.hedera.hapi.services.auxiliary.hints.HintsPreprocessingVoteTransactionBody;
+import com.hedera.hapi.services.auxiliary.history.HistoryProofKeyPublicationTransactionBody;
+import com.hedera.hapi.services.auxiliary.history.HistoryProofSignatureTransactionBody;
+import com.hedera.hapi.services.auxiliary.history.HistoryProofVoteTransactionBody;
 import com.hedera.node.app.service.util.impl.cache.TransactionParser;
 import com.hedera.node.app.service.util.impl.handlers.AtomicBatchHandler;
 import com.hedera.node.app.service.util.impl.records.ReplayableFeeStreamBuilder;
@@ -71,6 +84,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -192,6 +206,108 @@ class AtomicBatchHandlerTest {
         given(transactionParser.parse(eq(bytes.getFirst()), any())).willReturn(innerTxnBody);
         final var msg = assertThrows(PreCheckException.class, () -> subject.preHandle(preHandleContext));
         assertEquals(BATCH_TRANSACTION_IN_BLACKLIST, msg.responseCode());
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {112L, 113L, 121L, 122L, 123L, 750L})
+    void failsOnInnerSystemFileUpdate(final long fileNum) throws PreCheckException {
+        final var innerTxnBody = newTxnBodyBuilder(payerId2, consensusTimestamp, SIMPLE_KEY_A)
+                .fileUpdate(FileUpdateTransactionBody.newBuilder()
+                        .fileID(FileID.newBuilder().fileNum(fileNum).build())
+                        .build())
+                .batchKey(SIMPLE_KEY_A)
+                .nodeAccountID(AccountID.newBuilder().accountNum(0).build())
+                .build();
+        final var innerTxn = innerTxnFrom("123");
+        final var bytes = transactionsToBytes(innerTxn);
+        final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, bytes);
+        given(preHandleContext.body()).willReturn(txnBody);
+        given(transactionParser.parse(eq(bytes.getFirst()), any())).willReturn(innerTxnBody);
+        final var msg = assertThrows(PreCheckException.class, () -> subject.preHandle(preHandleContext));
+        assertEquals(BATCH_TRANSACTION_IN_BLACKLIST, msg.responseCode());
+    }
+
+    @Test
+    void failsOnInnerSystemFileAppend() throws PreCheckException {
+        final var innerTxnBody = newTxnBodyBuilder(payerId2, consensusTimestamp, SIMPLE_KEY_A)
+                .fileAppend(FileAppendTransactionBody.newBuilder()
+                        .fileID(FileID.newBuilder().fileNum(113L).build())
+                        .build())
+                .batchKey(SIMPLE_KEY_A)
+                .nodeAccountID(AccountID.newBuilder().accountNum(0).build())
+                .build();
+        final var innerTxn = innerTxnFrom("123");
+        final var bytes = transactionsToBytes(innerTxn);
+        final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, bytes);
+        given(preHandleContext.body()).willReturn(txnBody);
+        given(transactionParser.parse(eq(bytes.getFirst()), any())).willReturn(innerTxnBody);
+        final var msg = assertThrows(PreCheckException.class, () -> subject.preHandle(preHandleContext));
+        assertEquals(BATCH_TRANSACTION_IN_BLACKLIST, msg.responseCode());
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {0L, 751L, 1001L})
+    void allowsInnerNonSystemFileUpdate(final long fileNum) throws PreCheckException {
+        final var innerTxnBody = newTxnBodyBuilder(payerId2, consensusTimestamp, SIMPLE_KEY_A)
+                .fileUpdate(FileUpdateTransactionBody.newBuilder()
+                        .fileID(FileID.newBuilder().fileNum(fileNum).build())
+                        .build())
+                .batchKey(SIMPLE_KEY_A)
+                .nodeAccountID(AccountID.newBuilder().accountNum(0).build())
+                .build();
+        final var innerTxn = innerTxnFrom("123");
+        final var bytes = transactionsToBytes(innerTxn);
+        final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, bytes);
+        given(preHandleContext.body()).willReturn(txnBody);
+        given(transactionParser.parse(eq(bytes.getFirst()), any())).willReturn(innerTxnBody);
+        assertDoesNotThrow(() -> subject.preHandle(preHandleContext));
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = DataOneOfType.class,
+            names = {
+                "NODE_UPDATE",
+                "HINTS_KEY_PUBLICATION",
+                "HINTS_PREPROCESSING_VOTE",
+                "HINTS_PARTIAL_SIGNATURE",
+                "HISTORY_PROOF_SIGNATURE",
+                "HISTORY_PROOF_KEY_PUBLICATION",
+                "HISTORY_PROOF_VOTE",
+                "CRS_PUBLICATION",
+                "MIGRATION_ROOT_HASH_VOTE"
+            })
+    void failsOnInnerTxOfTypeNeverAllowedInBatch(final DataOneOfType kind) throws PreCheckException {
+        final var innerTxnBody = withDefaultBodyOf(kind, newTxnBodyBuilder(payerId2, consensusTimestamp, SIMPLE_KEY_A))
+                .batchKey(SIMPLE_KEY_A)
+                .nodeAccountID(AccountID.newBuilder().accountNum(0).build())
+                .build();
+        final var innerTxn = innerTxnFrom("123");
+        final var bytes = transactionsToBytes(innerTxn);
+        final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, bytes);
+        given(preHandleContext.body()).willReturn(txnBody);
+        given(transactionParser.parse(eq(bytes.getFirst()), any())).willReturn(innerTxnBody);
+        final var msg = assertThrows(PreCheckException.class, () -> subject.preHandle(preHandleContext));
+        assertEquals(BATCH_TRANSACTION_IN_BLACKLIST, msg.responseCode());
+    }
+
+    private static TransactionBody.Builder withDefaultBodyOf(
+            final DataOneOfType kind, final TransactionBody.Builder builder) {
+        return switch (kind) {
+            case NODE_UPDATE -> builder.nodeUpdate(NodeUpdateTransactionBody.DEFAULT);
+            case HINTS_KEY_PUBLICATION -> builder.hintsKeyPublication(HintsKeyPublicationTransactionBody.DEFAULT);
+            case HINTS_PREPROCESSING_VOTE ->
+                builder.hintsPreprocessingVote(HintsPreprocessingVoteTransactionBody.DEFAULT);
+            case HINTS_PARTIAL_SIGNATURE -> builder.hintsPartialSignature(HintsPartialSignatureTransactionBody.DEFAULT);
+            case HISTORY_PROOF_SIGNATURE -> builder.historyProofSignature(HistoryProofSignatureTransactionBody.DEFAULT);
+            case HISTORY_PROOF_KEY_PUBLICATION ->
+                builder.historyProofKeyPublication(HistoryProofKeyPublicationTransactionBody.DEFAULT);
+            case HISTORY_PROOF_VOTE -> builder.historyProofVote(HistoryProofVoteTransactionBody.DEFAULT);
+            case CRS_PUBLICATION -> builder.crsPublication(CrsPublicationTransactionBody.DEFAULT);
+            case MIGRATION_ROOT_HASH_VOTE ->
+                builder.migrationRootHashVote(MigrationRootHashVoteTransactionBody.DEFAULT);
+            default -> throw new IllegalArgumentException("No default body for " + kind);
+        };
     }
 
     @Test

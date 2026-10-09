@@ -956,6 +956,7 @@ public class HandleWorkflow {
             return handleOutput;
         } catch (Exception e) {
             logger.error("{} - exception thrown while handling user transaction", ALERT_MESSAGE, e);
+            dispatchProcessor.resyncAfterAbandonedTransaction(state);
             return HandleOutput.failInvalidStreamItems(
                     parentTxn, exchangeRateManager.exchangeRates(), streamMode, recordCache);
         } finally {
@@ -1002,6 +1003,7 @@ public class HandleWorkflow {
             return handleOutput;
         } catch (final Exception e) {
             logger.error("{} - exception thrown while handling scheduled transaction", ALERT_MESSAGE, e);
+            dispatchProcessor.resyncAfterAbandonedTransaction(state);
             return HandleOutput.failInvalidStreamItems(
                     scheduledTxn, exchangeRateManager.exchangeRates(), streamMode, recordCache);
         }

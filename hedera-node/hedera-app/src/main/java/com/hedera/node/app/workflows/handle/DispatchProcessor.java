@@ -44,9 +44,12 @@ import com.hedera.node.app.workflows.handle.throttle.DispatchUsageManager;
 import com.hedera.node.app.workflows.handle.throttle.ThrottleException;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
+import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.Map;
 import java.util.Set;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -78,6 +81,19 @@ public class DispatchProcessor {
     private final NetworkInfo networkInfo;
     private final OpWorkflowMetrics workflowMetrics;
     private final AppFeeCharging appFeeCharging;
+
+    /**
+     * The system-file facilities that a dispatch within the current transaction updated in memory, each with the file
+     * contents it was last updated from. Once the transaction commits, each facility whose file no longer has those
+     * contents is re-derived from the committed state.
+     */
+    private final Map<SystemFileUpdates.ResyncTarget.Facility, SystemFileUpdates.ResyncTarget> pendingFacilityResyncs =
+            new EnumMap<>(SystemFileUpdates.ResyncTarget.Facility.class);
+    /**
+     * Whether a dispatch within the current transaction refreshed the node info in memory, so it must be refreshed
+     * again from the committed state once the transaction commits.
+     */
+    private boolean pendingNodeInfoResync;
 
     @Inject
     public DispatchProcessor(
@@ -149,6 +165,66 @@ public class DispatchProcessor {
         dispatchUsageManager.finalizeAndSaveUsage(dispatch);
         recordFinalizer.finalizeRecord(dispatch);
         dispatch.stack().commitFullStack();
+        if (dispatch.stack().isRoot()) {
+            resyncFromCommittedState(dispatch.stack());
+        }
+    }
+
+    /**
+     * Re-derives, from the given state, every in-memory facility and the node info that a dispatch updated in memory
+     * but whose transaction did not complete normally, and clears the pending updates. Called when the handle
+     * workflow abandons a transaction after an unexpected failure, so memory matches the state that remains.
+     *
+     * @param state the state that remains after the abandoned transaction
+     */
+    public void resyncAfterAbandonedTransaction(@NonNull final State state) {
+        requireNonNull(state);
+        resyncFromCommittedState(state);
+    }
+
+    /**
+     * Re-derives, from the committed state, the in-memory facilities and node info that a dispatch within the
+     * transaction just committed updated, so they always match the committed state.
+     *
+     * @param stack the committed state of the transaction
+     */
+    private void resyncFromCommittedState(@NonNull final State stack) {
+        RuntimeException firstFailure = null;
+        for (final var target : pendingFacilityResyncs.values()) {
+            try {
+                systemFileUpdates.resyncIfChanged(stack, target);
+            } catch (final RuntimeException e) {
+                // One facility failing to re-derive must not leave the others out of step with the committed state;
+                // record the first failure, re-derive the rest, then rethrow so the failure is still surfaced. Attach
+                // any later failure as suppressed so none is silently dropped.
+                logger.error("Failed to re-derive facility {} from committed state", target.facility(), e);
+                if (firstFailure == null) {
+                    firstFailure = e;
+                } else {
+                    firstFailure.addSuppressed(e);
+                }
+            }
+        }
+        pendingFacilityResyncs.clear();
+        if (pendingNodeInfoResync) {
+            try {
+                networkInfo.updateFrom(stack);
+            } catch (final RuntimeException e) {
+                // Like a facility failure above, a node-info failure must still leave the pending flag cleared and must
+                // not mask an earlier facility failure; record it (or attach it to the first failure as suppressed).
+                logger.error("Failed to re-derive node info from committed state", e);
+                if (firstFailure == null) {
+                    firstFailure = e;
+                } else {
+                    firstFailure.addSuppressed(e);
+                }
+            } finally {
+                pendingNodeInfoResync = false;
+            }
+        }
+        if (firstFailure != null) {
+            throw firstFailure;
+        }
     }
 
     /**
@@ -232,6 +308,27 @@ public class DispatchProcessor {
      * @param dispatch the dispatch to be processed
      */
     private void handleSystemUpdates(final Dispatch dispatch) {
+        // The transaction can still be rolled back or abandoned after this dispatch, and applying an update can fail
+        // partway, so first remember what it updates in memory; it is re-derived from the committed state once the
+        // transaction completes
+        systemFileUpdates
+                .resyncTarget(dispatch.stack(), dispatch.txnInfo().txBody())
+                // Targets accumulate per facility across a transaction's dispatches, cleared when the root commits. A
+                // facility is not expected to be updated twice in one transaction today, but if it were, keep the
+                // first update's recovery context (the true pre-update baseline) and track the latest applied contents.
+                .ifPresent(target -> pendingFacilityResyncs.merge(
+                        target.facility(),
+                        target,
+                        (earliest, latest) -> new SystemFileUpdates.ResyncTarget(
+                                earliest.facility(),
+                                latest.fileId(),
+                                latest.appliedContents(),
+                                earliest.configContext(),
+                                earliest.priorSimpleFees())));
+        if (dispatch.txnInfo().functionality() == NODE_UPDATE) {
+            pendingNodeInfoResync = true;
+        }
+
         // Notify responsible facility if system-file was uploaded.
         // Returns SUCCESS if no system-file was uploaded
         final var fileUpdateResult = systemFileUpdates.handleTxBody(
