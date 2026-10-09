@@ -3,7 +3,8 @@ package com.hedera.node.app.records.impl;
 
 import static com.hedera.hapi.streams.schema.SidecarFileSchema.SIDECAR_RECORDS;
 import static com.hedera.node.app.blocks.BlockHashSigner.Request.LIST_OF_PARTIAL_SIGNATURES;
-import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO;
+import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO_384;
+import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.records.impl.BlockRecordManagerTestFixtures.NO_OP_BLOCK_HASH_SIGNER;
 import static com.hedera.node.app.records.impl.producers.BlockRecordFormat.TAG_TYPE_BITS;
@@ -246,10 +247,12 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
             verify(diskWriter).appendAsync(captor.capture());
             final var input = captor.getValue();
             assertEquals(0, input.blockNumber());
-            final var entry = WrappedRecordFileBlockHashesCalculator.compute(input);
+            final var entry = WrappedRecordFileBlockHashesCalculator.compute(
+                    input, com.hedera.node.app.hapi.utils.CommonUtils::sha384DigestOrThrow);
 
             // Compute expected consensus_timestamp_hash
-            final Bytes expectedConsensusTsHash = BlockImplUtils.hashLeaf(Timestamp.PROTOBUF.toBytes(creationTime));
+            final Bytes expectedConsensusTsHash =
+                    BlockImplUtils.hashLeaf(sha384DigestOrThrow(), Timestamp.PROTOBUF.toBytes(creationTime));
             assertArrayEquals(
                     expectedConsensusTsHash.toByteArray(),
                     entry.consensusTimestampHash().toByteArray());
@@ -323,7 +326,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 .build();
 
         // Seed state as if we are restarting mid-stream with an existing last block hash
-        final var someHash = Bytes.wrap(new byte[BlockRecordInfoUtils.HASH_SIZE]);
+        final var someHash = Bytes.wrap(new byte[BlockRecordInfoUtils.RECORD_HASH_SIZE]);
         app.stateMutator(BlockRecordService.NAME)
                 .withSingletonState(
                         BLOCKS_STATE_ID,
@@ -782,7 +785,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 .withConfigValue("hedera.recordStream.liveWritePrevWrappedRecordHashes", true)
                 .build();
 
-        final var someHash = Bytes.wrap(new byte[BlockRecordInfoUtils.HASH_SIZE]);
+        final var someHash = Bytes.wrap(new byte[BlockRecordInfoUtils.RECORD_HASH_SIZE]);
         app.stateMutator(BlockRecordService.NAME)
                 .withSingletonState(
                         BLOCKS_STATE_ID,
@@ -920,7 +923,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 .get();
         assertEquals(2, blockInfo.wrappedIntermediateBlockRootsLeafCount());
         assertNotEquals(Bytes.EMPTY, blockInfo.previousWrappedRecordBlockRootHash());
-        assertNotEquals(HASH_OF_ZERO, blockInfo.previousWrappedRecordBlockRootHash());
+        assertNotEquals(HASH_OF_ZERO_384, blockInfo.previousWrappedRecordBlockRootHash());
         assertTrue(blockInfo.wrappedIntermediatePreviousBlockRootHashes().size() > 0);
     }
 
@@ -951,7 +954,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                         BlockInfo.newBuilder()
                                 .lastBlockNumber(5)
                                 .firstConsTimeOfLastBlock(new Timestamp(90, 0))
-                                .blockHashes(Bytes.wrap(new byte[BlockRecordInfoUtils.HASH_SIZE]))
+                                .blockHashes(Bytes.wrap(new byte[BlockRecordInfoUtils.RECORD_HASH_SIZE]))
                                 .consTimeOfLastHandledTxn(new Timestamp(100, 0))
                                 .migrationRecordsStreamed(true)
                                 .firstConsTimeOfCurrentBlock(new Timestamp(100, 0))
@@ -1207,7 +1210,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                         BlockInfo.newBuilder()
                                 .lastBlockNumber(5)
                                 .firstConsTimeOfLastBlock(new Timestamp(98, 0))
-                                .blockHashes(Bytes.wrap(new byte[BlockRecordInfoUtils.HASH_SIZE]))
+                                .blockHashes(Bytes.wrap(new byte[BlockRecordInfoUtils.RECORD_HASH_SIZE]))
                                 .consTimeOfLastHandledTxn(initialTs)
                                 .migrationRecordsStreamed(true)
                                 .firstConsTimeOfCurrentBlock(initialTs)
@@ -1277,7 +1280,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                         BlockInfo.newBuilder()
                                 .lastBlockNumber(5)
                                 .firstConsTimeOfLastBlock(new Timestamp(98, 0))
-                                .blockHashes(Bytes.wrap(new byte[BlockRecordInfoUtils.HASH_SIZE]))
+                                .blockHashes(Bytes.wrap(new byte[BlockRecordInfoUtils.RECORD_HASH_SIZE]))
                                 .consTimeOfLastHandledTxn(initialTs)
                                 .migrationRecordsStreamed(true)
                                 .firstConsTimeOfCurrentBlock(initialTs)
@@ -1357,7 +1360,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                         BlockInfo.newBuilder()
                                 .lastBlockNumber(5)
                                 .firstConsTimeOfLastBlock(new Timestamp(98, 0))
-                                .blockHashes(Bytes.wrap(new byte[BlockRecordInfoUtils.HASH_SIZE]))
+                                .blockHashes(Bytes.wrap(new byte[BlockRecordInfoUtils.RECORD_HASH_SIZE]))
                                 .consTimeOfLastHandledTxn(initialTs)
                                 .migrationRecordsStreamed(true)
                                 .firstConsTimeOfCurrentBlock(initialTs)
@@ -1435,7 +1438,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                         BlockInfo.newBuilder()
                                 .lastBlockNumber(5)
                                 .firstConsTimeOfLastBlock(new Timestamp(90, 0))
-                                .blockHashes(Bytes.wrap(new byte[BlockRecordInfoUtils.HASH_SIZE]))
+                                .blockHashes(Bytes.wrap(new byte[BlockRecordInfoUtils.RECORD_HASH_SIZE]))
                                 .consTimeOfLastHandledTxn(new Timestamp(100, 0))
                                 .migrationRecordsStreamed(true)
                                 .firstConsTimeOfCurrentBlock(new Timestamp(100, 0))
@@ -1947,7 +1950,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         assertNotNull(items.get(1).recordFile(), "second item must be a RecordFile");
         final var footer = items.get(2).blockFooterOrThrow();
         assertEquals(Bytes.EMPTY, footer.previousBlockRootHash());
-        assertEquals(HASH_OF_ZERO, footer.startOfBlockStateRootHash());
+        assertEquals(HASH_OF_ZERO_384, footer.startOfBlockStateRootHash());
         final var proof = items.get(3).blockProofOrThrow();
         assertEquals(0L, proof.block());
         assertTrue(proof.hasSignedRecordFileProof());
@@ -2382,7 +2385,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         }
 
         assertNotEquals(Bytes.EMPTY, noRestartRoot);
-        assertNotEquals(HASH_OF_ZERO, noRestartRoot);
+        assertNotEquals(HASH_OF_ZERO_384, noRestartRoot);
         assertEquals(
                 noRestartRoot,
                 restartRoot,

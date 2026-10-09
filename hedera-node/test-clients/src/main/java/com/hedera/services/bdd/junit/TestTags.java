@@ -29,6 +29,8 @@ public class TestTags {
     public static final String WRAPS = "WRAPS";
     public static final String WRAPS_DOWNLOAD = "WRAPS_DOWNLOAD";
     public static final String CUTOVER = "CUTOVER";
+    /** Tags tests of block hashing under the configured {@code blockStream.digestType}. */
+    public static final String BLOCK_HASHING = "BLOCK_HASHING";
     /**
      * Tags a embedded tests run as part of the default {@code Test} to provide efficient
      * integration tests of the app workflows (e.g., ingest, pre-handle, handle) and services.

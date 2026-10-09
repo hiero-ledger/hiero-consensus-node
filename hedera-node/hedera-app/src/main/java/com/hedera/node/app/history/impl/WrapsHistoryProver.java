@@ -7,6 +7,7 @@ import static com.hedera.hapi.node.state.history.WrapsPhase.R1;
 import static com.hedera.hapi.node.state.history.WrapsPhase.R2;
 import static com.hedera.hapi.node.state.history.WrapsPhase.R3;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
+import static com.hedera.node.app.hapi.utils.CommonUtils.hashOfAll;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.app.history.HistoryLibrary.MISSING_SCHNORR_KEY;
 import static com.hedera.node.app.history.impl.ProofControllers.groundsChainOfTrust;
@@ -50,6 +51,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.DigestType;
 
 /**
  * A {@link HistoryProver} that uses the WRAPS protocol to construct a {@link HistoryProof} that uses a
@@ -964,7 +966,8 @@ public class WrapsHistoryProver implements HistoryProver {
         return category == ProofVoteCategory.NOT_RECURSIVE ? ProofKind.NON_RECURSIVE : ProofKind.RECURSIVE;
     }
 
+    // Only compared within this node, so it doesn't follow the block digest type
     private static Bytes hashOf(@NonNull final HistoryProof proof) {
-        return noThrowSha384HashOf(HistoryProof.PROTOBUF.toBytes(proof));
+        return hashOfAll(DigestType.SHA_256.buildDigest(), HistoryProof.PROTOBUF.toBytes(proof));
     }
 }

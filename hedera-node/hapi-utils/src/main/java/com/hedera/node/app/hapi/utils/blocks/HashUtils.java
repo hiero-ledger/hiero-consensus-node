@@ -3,9 +3,10 @@ package com.hedera.node.app.hapi.utils.blocks;
 
 import static java.util.Objects.requireNonNull;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
+import org.hiero.base.crypto.DigestType;
 
 /**
  * Shared hashing helpers for Merkle path construction and verification.
@@ -17,27 +18,26 @@ import java.security.NoSuchAlgorithmException;
  *   <li>Single-child (internal) nodes: prefixed with 0x01</li>
  *   <li>Two-child (internal) nodes: prefixed with 0x02</li>
  * </ul>
- *
- * <p>All hashing uses SHA-384 for security and consistency with the broader Hedera ecosystem.
  */
 public final class HashUtils {
-
-    private static final String HASH_ALGORITHM = "SHA-384";
 
     private HashUtils() {
         throw new UnsupportedOperationException("Utility class");
     }
 
-    static MessageDigest newMessageDigest() {
-        try {
-            return MessageDigest.getInstance(HASH_ALGORITHM);
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException(HASH_ALGORITHM + " algorithm not found", e);
-        }
+    /**
+     * Returns a new {@link MessageDigest} instance for the given digest type.
+     *
+     * @param digestType the digest algorithm to use (e.g. {@link DigestType#SHA_256} for 32-byte output,
+     *                   {@link DigestType#SHA_384} for 48-byte output)
+     */
+    @VisibleForTesting
+    public static MessageDigest newMessageDigest(final DigestType digestType) {
+        return digestType.buildDigest();
     }
 
     /**
-     * Computes the raw block-tree leaf hash: {@code SHA-384(0x00 || bytes)}.
+     * Computes the raw block-tree leaf hash: {@code SHA-256(0x00 || bytes)}.
      *
      * <p>Use this for block-tree leaves that are NOT represented as standalone {@link com.hedera.hapi.block.stream.MerklePath}
      * leaf fields — for example, the block timestamp used as a sibling in state-proof extension paths.
@@ -58,7 +58,7 @@ public final class HashUtils {
     }
 
     /**
-     * Computes the hash of a VirtualMap state-item leaf: {@code SHA-384(0x00 || stateItemBytes)}.
+     * Computes the hash of a VirtualMap state-item leaf: {@code SHA-256(0x00 || stateItemBytes)}.
      *
      * <p>Matches {@code VirtualLeafBytes.writeToForHashing()} on the current platform, which writes
      * the leaf-prefix byte followed directly by the serialised {@code StateItem} bytes (field 2 = key,
@@ -81,9 +81,9 @@ public final class HashUtils {
     }
 
     /**
-     * Computes SHA-384(0x01 || childHash) — the single-child internal-node hash format.
+     * Computes SHA-256(0x01 || childHash) — the single-child internal-node hash format.
      *
-     * @param digest    a fresh or reset SHA-384 {@link MessageDigest}
+     * @param digest    a fresh or reset SHA-256 {@link MessageDigest}
      * @param childHash the child node's hash bytes
      * @return the resulting hash bytes
      */
@@ -97,9 +97,9 @@ public final class HashUtils {
     }
 
     /**
-     * Computes SHA-384(0x02 || left || right) — the two-child internal-node hash format.
+     * Computes SHA-256(0x02 || left || right) — the two-child internal-node hash format.
      *
-     * @param digest a fresh or reset SHA-384 {@link MessageDigest}
+     * @param digest a fresh or reset SHA-256 {@link MessageDigest}
      * @param left   the left child's hash bytes
      * @param right  the right child's hash bytes
      * @return the resulting hash bytes

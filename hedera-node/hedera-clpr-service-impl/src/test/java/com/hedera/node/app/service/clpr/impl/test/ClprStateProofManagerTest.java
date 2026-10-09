@@ -14,12 +14,15 @@ import com.hedera.node.app.service.clpr.impl.ClprStateProofManager;
 import com.hedera.node.app.spi.state.BlockProvenSnapshot;
 import com.hedera.node.app.spi.state.BlockProvenSnapshotProvider;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.VersionedConfigImpl;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.BinaryState;
 import com.swirlds.state.State;
 import com.swirlds.state.binary.MerkleProof;
 import java.util.List;
 import java.util.Optional;
+import org.hiero.base.crypto.DigestType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -41,9 +44,6 @@ class ClprStateProofManagerTest {
     private TssVerifier tssVerifier;
 
     @Mock
-    private ConfigProvider configProvider;
-
-    @Mock
     private BlockProvenSnapshot snapshot;
 
     // The real snapshot state implements both State (the declared return type) and BinaryState (checked
@@ -59,7 +59,8 @@ class ClprStateProofManagerTest {
 
     @BeforeEach
     void setUp() {
-        subject = new ClprStateProofManager(snapshotProvider, tssVerifier, configProvider);
+        subject = new ClprStateProofManager(
+                snapshotProvider, tssVerifier, HederaTestConfigBuilder.createConfigProvider());
         binaryState = (BinaryState) provenState;
     }
 
@@ -94,6 +95,32 @@ class ClprStateProofManagerTest {
         // The bytes are a real serialized StateProof carrying exactly the one singleton path.
         final var proof = StateProof.PROTOBUF.parse(result.proof().toReadableSequentialData());
         assertThat(proof.paths()).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("blockStream.digestType=SHA_256 -> proof still built correctly, hashing with SHA-256 end-to-end")
+    void sha256ConfiguredBuildsValidProof() throws Exception {
+        subject = new ClprStateProofManager(
+                snapshotProvider, tssVerifier, configProviderWithDigestType(DigestType.SHA_256));
+        final var manifest = ClprEndpointManifest.newBuilder().version(5L).build();
+        givenProvableSnapshot();
+        given(binaryState.getSingleton(ENDPOINT_MANIFEST_STATE_ID))
+                .willReturn(ClprEndpointManifest.PROTOBUF.toBytes(manifest));
+
+        final var result = subject.buildManifestStateProofWithValue();
+
+        assertThat(result).isNotNull();
+        assertThat(result.manifest()).isEqualTo(manifest);
+        final var proof = StateProof.PROTOBUF.parse(result.proof().toReadableSequentialData());
+        assertThat(proof.paths()).hasSize(1);
+    }
+
+    private static ConfigProvider configProviderWithDigestType(final DigestType digestType) {
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("blockStream.digestType", digestType.name())
+                .getOrCreateConfig();
+        final var versioned = new VersionedConfigImpl(config, 0);
+        return () -> versioned;
     }
 
     @Test

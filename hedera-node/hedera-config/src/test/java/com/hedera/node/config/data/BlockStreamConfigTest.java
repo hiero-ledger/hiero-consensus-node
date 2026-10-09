@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.hedera.node.config.types.BlockStreamWriterMode;
 import com.hedera.node.config.types.StreamMode;
 import java.time.Duration;
+import org.hiero.base.crypto.DigestType;
 import org.junit.jupiter.api.Test;
 
 class BlockStreamConfigTest {
@@ -34,7 +35,29 @@ class BlockStreamConfigTest {
                 .isTrue();
     }
 
+    @Test
+    void digestTypeDefaultsToSha384() {
+        assertThat(configWith(BlockStreamWriterMode.FILE_AND_GRPC, false).digestType())
+                .isEqualTo(DigestType.SHA_384);
+    }
+
+    @Test
+    void sha256DigestTypeIsEquivalentToUseSha256True() {
+        final var config = configWithDigestType(DigestType.SHA_256);
+        assertThat(config.digestType()).isEqualTo(DigestType.SHA_256);
+        assertThat(config.digestType() == DigestType.SHA_256).isTrue();
+    }
+
     private static BlockStreamConfig configWith(BlockStreamWriterMode writerMode, boolean streamWrappedRecordBlocks) {
+        return configWithDigestType(DigestType.SHA_384, writerMode, streamWrappedRecordBlocks);
+    }
+
+    private static BlockStreamConfig configWithDigestType(DigestType digestType) {
+        return configWithDigestType(digestType, BlockStreamWriterMode.FILE_AND_GRPC, false);
+    }
+
+    private static BlockStreamConfig configWithDigestType(
+            DigestType digestType, BlockStreamWriterMode writerMode, boolean streamWrappedRecordBlocks) {
         return new BlockStreamConfig(
                 StreamMode.BOTH,
                 writerMode,
@@ -52,6 +75,7 @@ class BlockStreamConfigTest {
                 1024,
                 256,
                 false,
+                digestType,
                 streamWrappedRecordBlocks,
                 false);
     }
