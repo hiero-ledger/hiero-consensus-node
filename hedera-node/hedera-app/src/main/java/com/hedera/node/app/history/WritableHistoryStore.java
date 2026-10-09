@@ -18,6 +18,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.Optional;
+import java.util.Set;
 import java.util.SortedSet;
 import java.util.function.Consumer;
 
@@ -57,9 +58,20 @@ public interface WritableHistoryStore extends ReadableHistoryStore {
      * updated construction.
      * @param constructionId the construction ID
      * @param now the aggregation time
+     * @param proofKeyNodeIds the ids of the target nodes whose proof keys are in the assembled history
      * @return the updated construction
      */
-    HistoryProofConstruction setAssemblyTime(long constructionId, @NonNull Instant now);
+    HistoryProofConstruction setAssemblyTime(
+            long constructionId, @NonNull Instant now, @NonNull SortedSet<Long> proofKeyNodeIds);
+
+    /**
+     * Records the ids of the target nodes whose proof keys are in the assembled history of the construction with
+     * the given ID, for a construction assembled before these ids were recorded.
+     * @param constructionId the construction ID
+     * @param proofKeyNodeIds the ids of the target nodes whose proof keys are in the assembled history
+     * @return the updated construction
+     */
+    HistoryProofConstruction setAssembledProofKeyNodeIds(long constructionId, @NonNull SortedSet<Long> proofKeyNodeIds);
 
     /**
      * Adds a history proof vote for the given node and construction.
@@ -106,9 +118,23 @@ public interface WritableHistoryStore extends ReadableHistoryStore {
      * nodes and resetting the WRAPS signing state to {@code R1} while incrementing retry count.
      * @param constructionId the construction ID
      * @param sourceNodeIds the source node IDs whose WRAPS messages should be purged
+     * @param excludedNodeIds the source node IDs whose WRAPS messages later attempts should ignore
+     * @param gracePeriodEndTime if not null, the end of the grace period for the restarted {@code R1}
      * @return the updated construction
      */
-    HistoryProofConstruction restartWrapsSigning(long constructionId, @NonNull SortedSet<Long> sourceNodeIds);
+    HistoryProofConstruction restartWrapsSigning(
+            long constructionId,
+            @NonNull SortedSet<Long> sourceNodeIds,
+            @NonNull SortedSet<Long> excludedNodeIds,
+            @Nullable Instant gracePeriodEndTime);
+
+    /**
+     * Adds the given source nodes to those whose WRAPS messages the construction with the given ID ignores.
+     * @param constructionId the construction ID
+     * @param nodeIds the source node IDs to exclude
+     * @return the updated construction
+     */
+    HistoryProofConstruction excludeFromWrapsSigning(long constructionId, @NonNull Set<Long> nodeIds);
 
     /**
      * Sets the ledger ID to the given bytes.

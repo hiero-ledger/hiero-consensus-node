@@ -40,7 +40,9 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -130,9 +132,19 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
     }
 
     @Override
-    public HistoryProofConstruction setAssemblyTime(final long constructionId, @NonNull final Instant now) {
+    public HistoryProofConstruction setAssemblyTime(
+            final long constructionId, @NonNull final Instant now, @NonNull final SortedSet<Long> proofKeyNodeIds) {
         requireNonNull(now);
-        return updateOrThrow(constructionId, (c, b) -> b.assemblyStartTime(asTimestamp(now)));
+        requireNonNull(proofKeyNodeIds);
+        return updateOrThrow(constructionId, (c, b) -> b.assemblyStartTime(asTimestamp(now))
+                .assembledProofKeyNodeIds(List.copyOf(proofKeyNodeIds)));
+    }
+
+    @Override
+    public HistoryProofConstruction setAssembledProofKeyNodeIds(
+            final long constructionId, @NonNull final SortedSet<Long> proofKeyNodeIds) {
+        requireNonNull(proofKeyNodeIds);
+        return updateOrThrow(constructionId, (c, b) -> b.assembledProofKeyNodeIds(List.copyOf(proofKeyNodeIds)));
     }
 
     @Override
@@ -188,12 +200,33 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
 
     @Override
     public HistoryProofConstruction restartWrapsSigning(
-            final long constructionId, @NonNull final SortedSet<Long> sourceNodeIds) {
+            final long constructionId,
+            @NonNull final SortedSet<Long> sourceNodeIds,
+            @NonNull final SortedSet<Long> excludedNodeIds,
+            @Nullable final Instant gracePeriodEndTime) {
         requireNonNull(sourceNodeIds);
+        requireNonNull(excludedNodeIds);
         sourceNodeIds.forEach(nodeId -> wrapsMessageHistories.remove(new ConstructionNodeId(constructionId, nodeId)));
-        return updateOrThrow(constructionId, (c, b) -> b.wrapsSigningState(
-                        WrapsSigningState.newBuilder().phase(R1).build())
-                .wrapsRetryCount(c.wrapsRetryCount() + 1));
+        final var signingState = WrapsSigningState.newBuilder().phase(R1);
+        if (gracePeriodEndTime != null) {
+            signingState.gracePeriodEndTime(asTimestamp(gracePeriodEndTime));
+        }
+        return updateOrThrow(constructionId, (c, b) -> b.wrapsSigningState(signingState.build())
+                .wrapsRetryCount(c.wrapsRetryCount() + 1)
+                .wrapsExcludedNodeIds(List.copyOf(excludedNodeIds)));
+    }
+
+    @Override
+    public HistoryProofConstruction excludeFromWrapsSigning(
+            final long constructionId, @NonNull final Set<Long> nodeIds) {
+        requireNonNull(nodeIds);
+        final var construction = getConstructionOrThrow(constructionId);
+        if (construction.wrapsExcludedNodeIds().containsAll(nodeIds)) {
+            return construction;
+        }
+        final var excludedNodeIds = new TreeSet<>(construction.wrapsExcludedNodeIds());
+        excludedNodeIds.addAll(nodeIds);
+        return updateOrThrow(constructionId, (c, b) -> b.wrapsExcludedNodeIds(List.copyOf(excludedNodeIds)));
     }
 
     @Override

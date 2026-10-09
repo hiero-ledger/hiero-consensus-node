@@ -41,6 +41,7 @@ class HistoryProofKeyPublicationHandlerTest {
     private static final Bytes PROOF_KEY = Bytes.wrap("PK");
     private static final Bytes WRAPS_MESSAGE = Bytes.wrap("MSG");
     private static final Instant CONSENSUS_NOW = Instant.ofEpochSecond(1_234_567L, 890);
+    private static final long CONSTRUCTION_ID = 42L;
 
     @Mock
     private ProofControllers controllers;
@@ -137,7 +138,7 @@ class HistoryProofKeyPublicationHandlerTest {
         given(controllers.getAnyInProgress(tssConfig)).willReturn(Optional.of(controller));
         given(controller.addWrapsMessagePublication(any(ReadableHistoryStore.WrapsMessagePublication.class), eq(store)))
                 .willReturn(true);
-        given(controller.constructionId()).willReturn(42L);
+        given(controller.constructionId()).willReturn(CONSTRUCTION_ID);
 
         subject.handle(context);
 
@@ -148,7 +149,7 @@ class HistoryProofKeyPublicationHandlerTest {
         assertEquals(WRAPS_MESSAGE, publication.message());
         assertEquals(WrapsPhase.R1, publication.phase());
         assertEquals(CONSENSUS_NOW, publication.receiptTime());
-        verify(store).addWrapsMessage(42L, publication);
+        verify(store).addWrapsMessage(CONSTRUCTION_ID, publication);
     }
 
     @Test
@@ -162,6 +163,7 @@ class HistoryProofKeyPublicationHandlerTest {
         given(context.configuration()).willReturn(configuration);
         given(configuration.getConfigData(TssConfig.class)).willReturn(tssConfig);
         given(controllers.getAnyInProgress(tssConfig)).willReturn(Optional.of(controller));
+        given(controller.constructionId()).willReturn(CONSTRUCTION_ID);
         given(controller.addWrapsMessagePublication(any(ReadableHistoryStore.WrapsMessagePublication.class), eq(store)))
                 .willReturn(false);
 
@@ -169,6 +171,25 @@ class HistoryProofKeyPublicationHandlerTest {
 
         verify(controller)
                 .addWrapsMessagePublication(any(ReadableHistoryStore.WrapsMessagePublication.class), eq(store));
+        verify(store, never()).addWrapsMessage(anyLong(), any());
+    }
+
+    @Test
+    void ignoresWrapsMessageForAnotherConstruction() {
+        givenWrapsMessagePublicationWith(WRAPS_MESSAGE, WrapsPhase.R1);
+        given(nodeInfo.nodeId()).willReturn(NODE_ID);
+        given(context.creatorInfo()).willReturn(nodeInfo);
+        given(context.storeFactory()).willReturn(factory);
+        given(factory.writableStore(WritableHistoryStore.class)).willReturn(store);
+        given(context.configuration()).willReturn(configuration);
+        given(configuration.getConfigData(TssConfig.class)).willReturn(tssConfig);
+        given(controllers.getAnyInProgress(tssConfig)).willReturn(Optional.of(controller));
+        // For example, a message sent for a construction that a new candidate roster has since replaced
+        given(controller.constructionId()).willReturn(CONSTRUCTION_ID + 1);
+
+        subject.handle(context);
+
+        verify(controller, never()).addWrapsMessagePublication(any(), any());
         verify(store, never()).addWrapsMessage(anyLong(), any());
     }
 
@@ -186,6 +207,7 @@ class HistoryProofKeyPublicationHandlerTest {
         final var op = HistoryProofKeyPublicationTransactionBody.newBuilder()
                 .wrapsMessage(message)
                 .phase(phase)
+                .constructionId(CONSTRUCTION_ID)
                 .build();
         final var body =
                 TransactionBody.newBuilder().historyProofKeyPublication(op).build();

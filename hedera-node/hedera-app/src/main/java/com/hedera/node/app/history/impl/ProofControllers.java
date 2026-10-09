@@ -19,7 +19,9 @@ import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.SortedMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;
@@ -45,6 +47,12 @@ public class ProofControllers {
      */
     @Nullable
     private ProofController controller;
+
+    /**
+     * If not null, the source weights from the active hinTS construction that {@link #controller} was created with.
+     */
+    @Nullable
+    private SortedMap<Long, Long> controllerSourceWeights;
 
     @Inject
     public ProofControllers(
@@ -88,7 +96,11 @@ public class ProofControllers {
         requireNonNull(construction);
         requireNonNull(historyStore);
         requireNonNull(activeProofConstruction);
-        if (currentConstructionId() != construction.constructionId()) {
+        // A controller created from state takes its source weights from the hinTS construction active now, so a
+        // controller created before that construction had a scheme must be replaced to agree with it
+        final var sourceWeights = maybeWeightsFrom(activeHintsConstruction);
+        if (currentConstructionId() != construction.constructionId()
+                || !Objects.equals(sourceWeights, controllerSourceWeights)) {
             if (controller != null) {
                 controller.cancelPendingWork();
             }
@@ -99,6 +111,7 @@ public class ProofControllers {
                     activeHintsConstruction,
                     activeProofConstruction,
                     tssConfig);
+            controllerSourceWeights = sourceWeights;
         }
         return requireNonNull(controller);
     }
@@ -159,7 +172,7 @@ public class ProofControllers {
         } else {
             final var keyPublications = historyStore.getProofKeyPublications(weights.targetNodeIds());
             final var wrapsMessagePublications =
-                    historyStore.getWrapsMessagePublications(construction.constructionId(), weights.targetNodeIds());
+                    historyStore.getWrapsMessagePublications(construction.constructionId(), weights.sourceNodeIds());
             final var votes = historyStore.getVotes(construction.constructionId(), weights.sourceNodeIds());
             final var selfId = selfNodeInfoSupplier.get().nodeId();
             final var schnorrKeyPair = keyAccessor.getOrCreateSchnorrKeyPair(construction.constructionId());

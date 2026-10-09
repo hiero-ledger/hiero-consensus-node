@@ -13,6 +13,8 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
@@ -25,6 +27,7 @@ import com.hedera.hapi.node.state.history.ChainOfTrustProof;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
+import com.hedera.hapi.node.state.history.ProofKey;
 import com.hedera.hapi.node.state.history.WrapsSigningState;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.HistoryService;
@@ -34,11 +37,14 @@ import com.hedera.node.app.history.WritableHistoryStore;
 import com.hedera.node.app.service.roster.impl.RosterTransitionWeights;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
@@ -56,6 +62,7 @@ class ProofControllerImplTest {
 
     private static final long SELF_ID = 1L;
     private static final long OTHER_NODE_ID = 2L;
+    private static final long THIRD_NODE_ID = 3L;
     private static final long CONSTRUCTION_ID = 100L;
     private static final Bytes METADATA = Bytes.wrap("meta");
     private static final Bytes PROOF_KEY_1 = Bytes.wrap("pk1");
@@ -113,6 +120,11 @@ class ProofControllerImplTest {
                 .constructionId(CONSTRUCTION_ID)
                 .gracePeriodEndTime(asTimestamp(Instant.EPOCH.plusSeconds(10)))
                 .build();
+
+        // Like the network state, the store holds whatever construction the test last set up
+        lenient()
+                .when(writableHistoryStore.getConstructionOrThrow(CONSTRUCTION_ID))
+                .thenAnswer(ignore -> construction);
 
         given(proverFactory.create(
                         eq(SELF_ID),
@@ -241,6 +253,7 @@ class ProofControllerImplTest {
 
         subject.advanceConstruction(Instant.EPOCH, METADATA, writableHistoryStore, true, tssConfig);
 
+        verify(writableHistoryStore).getConstructionOrThrow(CONSTRUCTION_ID);
         verifyNoMoreInteractions(writableHistoryStore, prover);
     }
 
@@ -381,12 +394,12 @@ class ProofControllerImplTest {
         // check below is incidental — the ACTIVE-gating of proof-key publication itself is proven by
         // advanceConstructionPublishesKeyWhenMetadataMissingAndActive / ...DoesNotPublishKeyWhenInactive.
         given(weights.numTargetNodesInSource()).willReturn(0);
-        given(writableHistoryStore.setAssemblyTime(CONSTRUCTION_ID, Instant.EPOCH.plusSeconds(1)))
+        given(writableHistoryStore.setAssemblyTime(CONSTRUCTION_ID, Instant.EPOCH.plusSeconds(1), new TreeSet<>()))
                 .willReturn(construction);
 
         subject.advanceConstruction(Instant.EPOCH.plusSeconds(1), METADATA, writableHistoryStore, isActive, tssConfig);
 
-        verify(writableHistoryStore).setAssemblyTime(CONSTRUCTION_ID, Instant.EPOCH.plusSeconds(1));
+        verify(writableHistoryStore).setAssemblyTime(CONSTRUCTION_ID, Instant.EPOCH.plusSeconds(1), new TreeSet<>());
         verify(submissions, never()).submitProofKeyPublication(any());
     }
 
@@ -423,7 +436,7 @@ class ProofControllerImplTest {
         subject.advanceConstruction(Instant.EPOCH.plusSeconds(1), METADATA, writableHistoryStore, false, tssConfig);
 
         verify(prover).advance(any(), eq(construction), eq(METADATA), any(), eq(tssConfig), any(), eq(false));
-        verify(writableHistoryStore).getConstructionOrThrow(CONSTRUCTION_ID);
+        verify(writableHistoryStore, times(2)).getConstructionOrThrow(CONSTRUCTION_ID);
     }
 
     @Test
@@ -461,7 +474,7 @@ class ProofControllerImplTest {
 
         verify(writableHistoryStore).getLedgerId();
         verify(prover).advance(eq(now), eq(construction), eq(METADATA), any(), eq(tssConfig), any(), eq(true));
-        verify(writableHistoryStore).getConstructionOrThrow(CONSTRUCTION_ID);
+        verify(writableHistoryStore, times(2)).getConstructionOrThrow(CONSTRUCTION_ID);
     }
 
     @Test
@@ -662,14 +675,16 @@ class ProofControllerImplTest {
         given(prover.advance(any(), any(), any(), any(), eq(DEFAULT_TSS_CONFIG), any(), anyBoolean()))
                 .willReturn(new HistoryProver.Outcome.Failed(RECOVERABLE_REASON));
         given(weights.sourceNodeIds()).willReturn(new TreeSet<>(List.of(SELF_ID, OTHER_NODE_ID)));
-        given(writableHistoryStore.restartWrapsSigning(CONSTRUCTION_ID, new TreeSet<>(List.of(SELF_ID, OTHER_NODE_ID))))
+        given(writableHistoryStore.restartWrapsSigning(
+                        CONSTRUCTION_ID, new TreeSet<>(List.of(SELF_ID, OTHER_NODE_ID)), new TreeSet<>(), null))
                 .willReturn(restarted);
 
         final var now = Instant.EPOCH.plusSeconds(1);
         subject.advanceConstruction(now, METADATA, writableHistoryStore, true, DEFAULT_TSS_CONFIG);
 
         verify(writableHistoryStore)
-                .restartWrapsSigning(CONSTRUCTION_ID, new TreeSet<>(List.of(SELF_ID, OTHER_NODE_ID)));
+                .restartWrapsSigning(
+                        CONSTRUCTION_ID, new TreeSet<>(List.of(SELF_ID, OTHER_NODE_ID)), new TreeSet<>(), null);
         verify(writableHistoryStore, never()).failForReason(anyLong(), any());
     }
 
@@ -708,7 +723,8 @@ class ProofControllerImplTest {
         given(prover.advance(any(), any(), any(), any(), eq(DEFAULT_TSS_CONFIG), any(), eq(false)))
                 .willReturn(new HistoryProver.Outcome.Failed(RECOVERABLE_REASON));
         given(weights.sourceNodeIds()).willReturn(new TreeSet<>(List.of(SELF_ID, OTHER_NODE_ID)));
-        given(writableHistoryStore.restartWrapsSigning(CONSTRUCTION_ID, new TreeSet<>(List.of(SELF_ID, OTHER_NODE_ID))))
+        given(writableHistoryStore.restartWrapsSigning(
+                        CONSTRUCTION_ID, new TreeSet<>(List.of(SELF_ID, OTHER_NODE_ID)), new TreeSet<>(), null))
                 .willReturn(restarted);
 
         final var now = Instant.EPOCH.plusSeconds(1);
@@ -717,7 +733,8 @@ class ProofControllerImplTest {
         verify(prover)
                 .advance(eq(now), eq(construction), eq(METADATA), any(), eq(DEFAULT_TSS_CONFIG), any(), eq(false));
         verify(writableHistoryStore)
-                .restartWrapsSigning(CONSTRUCTION_ID, new TreeSet<>(List.of(SELF_ID, OTHER_NODE_ID)));
+                .restartWrapsSigning(
+                        CONSTRUCTION_ID, new TreeSet<>(List.of(SELF_ID, OTHER_NODE_ID)), new TreeSet<>(), null);
         verify(writableHistoryStore, never()).failForReason(anyLong(), any());
     }
 
@@ -752,14 +769,16 @@ class ProofControllerImplTest {
                 .wrapsRetryCount(1)
                 .build();
         given(weights.sourceNodeIds()).willReturn(new TreeSet<>(List.of(SELF_ID, OTHER_NODE_ID)));
-        given(writableHistoryStore.restartWrapsSigning(CONSTRUCTION_ID, new TreeSet<>(List.of(SELF_ID, OTHER_NODE_ID))))
+        given(writableHistoryStore.restartWrapsSigning(
+                        CONSTRUCTION_ID, new TreeSet<>(List.of(SELF_ID, OTHER_NODE_ID)), new TreeSet<>(), null))
                 .willReturn(restarted);
 
         subject.advanceConstruction(
                 Instant.EPOCH.plusSeconds(1), null, writableHistoryStore, false, DEFAULT_TSS_CONFIG);
 
         verify(writableHistoryStore)
-                .restartWrapsSigning(CONSTRUCTION_ID, new TreeSet<>(List.of(SELF_ID, OTHER_NODE_ID)));
+                .restartWrapsSigning(
+                        CONSTRUCTION_ID, new TreeSet<>(List.of(SELF_ID, OTHER_NODE_ID)), new TreeSet<>(), null);
         verify(writableHistoryStore, never()).failForReason(anyLong(), any());
     }
 
@@ -791,6 +810,7 @@ class ProofControllerImplTest {
         subject.advanceConstruction(
                 Instant.EPOCH.plusSeconds(1), METADATA, writableHistoryStore, true, DEFAULT_TSS_CONFIG);
 
+        verify(writableHistoryStore).getConstructionOrThrow(CONSTRUCTION_ID);
         verifyNoMoreInteractions(writableHistoryStore, prover);
     }
 
@@ -823,8 +843,292 @@ class ProofControllerImplTest {
         subject.advanceConstruction(
                 Instant.EPOCH.plusSeconds(1), METADATA, writableHistoryStore, true, DEFAULT_TSS_CONFIG);
 
-        verify(writableHistoryStore, never()).restartWrapsSigning(anyLong(), any());
+        verify(writableHistoryStore, never()).restartWrapsSigning(anyLong(), any(), any(), any());
+        verify(writableHistoryStore).getConstructionOrThrow(CONSTRUCTION_ID);
         verifyNoMoreInteractions(writableHistoryStore);
+    }
+
+    @Test
+    void retryExcludesMissingNodesWhenTheRestCanStillCompleteR1() {
+        givenFailedAttemptWithSourceWeights(Map.of(SELF_ID, 2L, OTHER_NODE_ID, 1L), Set.of(SELF_ID, OTHER_NODE_ID));
+
+        subject.advanceConstruction(
+                Instant.EPOCH.plusSeconds(1), METADATA, writableHistoryStore, true, DEFAULT_TSS_CONFIG);
+
+        verify(writableHistoryStore)
+                .restartWrapsSigning(
+                        CONSTRUCTION_ID,
+                        new TreeSet<>(List.of(SELF_ID, OTHER_NODE_ID)),
+                        new TreeSet<>(List.of(OTHER_NODE_ID)),
+                        Instant.EPOCH.plusSeconds(1).plus(DEFAULT_TSS_CONFIG.wrapsMessageGracePeriod()));
+    }
+
+    @Test
+    void retryKeepsMissingNodesWhenTheRestCannotCompleteR1() {
+        givenFailedAttemptWithSourceWeights(Map.of(SELF_ID, 1L, OTHER_NODE_ID, 1L), Set.of(SELF_ID, OTHER_NODE_ID));
+
+        subject.advanceConstruction(
+                Instant.EPOCH.plusSeconds(1), METADATA, writableHistoryStore, true, DEFAULT_TSS_CONFIG);
+
+        verify(writableHistoryStore)
+                .restartWrapsSigning(
+                        CONSTRUCTION_ID, new TreeSet<>(List.of(SELF_ID, OTHER_NODE_ID)), new TreeSet<>(), null);
+    }
+
+    @Test
+    void retryDoesNotCountNodesWithoutProofKeysTowardR1() {
+        // Node 3 has weight but no proof key, so it can never publish an R1 message
+        givenFailedAttemptWithSourceWeights(
+                Map.of(SELF_ID, 1L, OTHER_NODE_ID, 1L, THIRD_NODE_ID, 1L), Set.of(SELF_ID, OTHER_NODE_ID));
+
+        subject.advanceConstruction(
+                Instant.EPOCH.plusSeconds(1), METADATA, writableHistoryStore, true, DEFAULT_TSS_CONFIG);
+
+        verify(writableHistoryStore)
+                .restartWrapsSigning(
+                        CONSTRUCTION_ID,
+                        new TreeSet<>(List.of(SELF_ID, OTHER_NODE_ID, THIRD_NODE_ID)),
+                        new TreeSet<>(),
+                        null);
+    }
+
+    @Test
+    void retryAfterPersistedFailureKeepsEarlierExclusions() {
+        construction = HistoryProofConstruction.newBuilder()
+                .constructionId(CONSTRUCTION_ID)
+                .failureReason(RECOVERABLE_REASON)
+                .wrapsExcludedNodeIds(List.of(OTHER_NODE_ID))
+                .build();
+        subject = newSubject(null);
+        given(weights.sourceNodeIds()).willReturn(new TreeSet<>(List.of(SELF_ID, OTHER_NODE_ID)));
+        given(writableHistoryStore.restartWrapsSigning(eq(CONSTRUCTION_ID), any(), any(), any()))
+                .willReturn(HistoryProofConstruction.newBuilder()
+                        .constructionId(CONSTRUCTION_ID)
+                        .wrapsSigningState(WrapsSigningState.newBuilder().build())
+                        .wrapsRetryCount(1)
+                        .build());
+
+        subject.advanceConstruction(
+                Instant.EPOCH.plusSeconds(1), null, writableHistoryStore, false, DEFAULT_TSS_CONFIG);
+
+        verify(writableHistoryStore)
+                .restartWrapsSigning(
+                        CONSTRUCTION_ID,
+                        new TreeSet<>(List.of(SELF_ID, OTHER_NODE_ID)),
+                        new TreeSet<>(List.of(OTHER_NODE_ID)),
+                        Instant.EPOCH.plusSeconds(1).plus(DEFAULT_TSS_CONFIG.wrapsMessageGracePeriod()));
+    }
+
+    @Test
+    void ignoresWrapsMessagesFromExcludedNodes() {
+        construction = HistoryProofConstruction.newBuilder()
+                .constructionId(CONSTRUCTION_ID)
+                .wrapsSigningState(WrapsSigningState.newBuilder().phase(R1).build())
+                .wrapsExcludedNodeIds(List.of(OTHER_NODE_ID))
+                .build();
+        subject = newSubject(null);
+
+        assertFalse(subject.addWrapsMessagePublication(
+                new WrapsMessagePublication(OTHER_NODE_ID, Bytes.wrap("r1"), R1, Instant.EPOCH), writableHistoryStore));
+        verify(prover, never()).addWrapsSigningMessage(anyLong(), any(), any());
+    }
+
+    @Test
+    void advancesFromTheConstructionInStateRatherThanAnOlderCopy() {
+        construction = HistoryProofConstruction.newBuilder()
+                .constructionId(CONSTRUCTION_ID)
+                .wrapsSigningState(WrapsSigningState.newBuilder().phase(R3).build())
+                .build();
+        subject = newSubject(null);
+        // Handling the last R3 message moved the construction in state to AGGREGATE after the controller last
+        // advanced, so its copy is older than what a controller rebuilt from state would see
+        final var inState = construction
+                .copyBuilder()
+                .wrapsSigningState(
+                        WrapsSigningState.newBuilder().phase(AGGREGATE).build())
+                .build();
+        construction = inState;
+        given(writableHistoryStore.getLedgerId()).willReturn(Bytes.EMPTY);
+        given(prover.advance(any(), any(), any(), any(), eq(DEFAULT_TSS_CONFIG), any(), anyBoolean()))
+                .willReturn(HistoryProver.Outcome.InProgress.INSTANCE);
+
+        subject.advanceConstruction(
+                Instant.EPOCH.plusSeconds(1), METADATA, writableHistoryStore, true, DEFAULT_TSS_CONFIG);
+
+        verify(prover).advance(any(), eq(inState), eq(METADATA), any(), eq(DEFAULT_TSS_CONFIG), any(), eq(true));
+    }
+
+    @Test
+    void recordsTheProofKeysOfAConstructionAssembledBeforeTheyWereRecorded() {
+        keyPublications.add(new ProofKeyPublication(SELF_ID, PROOF_KEY_1, Instant.EPOCH));
+        given(weights.targetIncludes(SELF_ID)).willReturn(true);
+        construction = HistoryProofConstruction.newBuilder()
+                .constructionId(CONSTRUCTION_ID)
+                .wrapsSigningState(WrapsSigningState.newBuilder().phase(R1).build())
+                .build();
+        subject = newSubject(null);
+        final var recorded = construction
+                .copyBuilder()
+                .assembledProofKeyNodeIds(List.of(SELF_ID))
+                .build();
+        given(writableHistoryStore.setAssembledProofKeyNodeIds(CONSTRUCTION_ID, new TreeSet<>(List.of(SELF_ID))))
+                .willReturn(recorded);
+        given(writableHistoryStore.getLedgerId()).willReturn(Bytes.EMPTY);
+        given(prover.advance(any(), any(), any(), any(), eq(DEFAULT_TSS_CONFIG), any(), anyBoolean()))
+                .willReturn(HistoryProver.Outcome.InProgress.INSTANCE);
+
+        subject.advanceConstruction(
+                Instant.EPOCH.plusSeconds(1), METADATA, writableHistoryStore, true, DEFAULT_TSS_CONFIG);
+        construction = recorded;
+        subject.advanceConstruction(
+                Instant.EPOCH.plusSeconds(2), METADATA, writableHistoryStore, true, DEFAULT_TSS_CONFIG);
+
+        verify(writableHistoryStore, times(1))
+                .setAssembledProofKeyNodeIds(CONSTRUCTION_ID, new TreeSet<>(List.of(SELF_ID)));
+    }
+
+    @Test
+    void retryAfterR1TimesOutLetsEveryNodeSignAgain() {
+        construction = HistoryProofConstruction.newBuilder()
+                .constructionId(CONSTRUCTION_ID)
+                .wrapsSigningState(WrapsSigningState.newBuilder().phase(R1).build())
+                .wrapsExcludedNodeIds(List.of(OTHER_NODE_ID))
+                .build();
+        subject = newSubject(null);
+        given(writableHistoryStore.getLedgerId()).willReturn(Bytes.EMPTY);
+        given(prover.advance(any(), any(), any(), any(), eq(DEFAULT_TSS_CONFIG), any(), anyBoolean()))
+                .willReturn(new HistoryProver.Outcome.Failed(
+                        WrapsHistoryProver.R1_TIMEOUT_FAILURE_PREFIX + "[" + SELF_ID + "]"));
+        given(weights.sourceNodeIds()).willReturn(new TreeSet<>(List.of(SELF_ID, OTHER_NODE_ID)));
+        given(writableHistoryStore.restartWrapsSigning(eq(CONSTRUCTION_ID), any(), any(), any()))
+                .willReturn(HistoryProofConstruction.newBuilder()
+                        .constructionId(CONSTRUCTION_ID)
+                        .wrapsSigningState(WrapsSigningState.newBuilder().build())
+                        .wrapsRetryCount(1)
+                        .build());
+
+        subject.advanceConstruction(
+                Instant.EPOCH.plusSeconds(1), METADATA, writableHistoryStore, true, DEFAULT_TSS_CONFIG);
+
+        // With no node excluded, the restarted R1 needs no grace period
+        verify(writableHistoryStore)
+                .restartWrapsSigning(
+                        CONSTRUCTION_ID, new TreeSet<>(List.of(SELF_ID, OTHER_NODE_ID)), new TreeSet<>(), null);
+    }
+
+    @Test
+    void failureAfterTheRetryBudgetKeepsTheExclusionsARetryWouldUse() {
+        construction = HistoryProofConstruction.newBuilder()
+                .constructionId(CONSTRUCTION_ID)
+                .wrapsSigningState(WrapsSigningState.newBuilder().phase(R2).build())
+                .wrapsRetryCount(DEFAULT_TSS_CONFIG.maxWrapsRetries())
+                .build();
+        subject = newSubject(HistoryProof.newBuilder()
+                .targetProofKeys(List.of(new ProofKey(SELF_ID, PROOF_KEY_1), new ProofKey(OTHER_NODE_ID, PROOF_KEY_1)))
+                .build());
+        given(writableHistoryStore.getLedgerId()).willReturn(Bytes.EMPTY);
+        given(prover.advance(any(), any(), any(), any(), eq(DEFAULT_TSS_CONFIG), any(), anyBoolean()))
+                .willReturn(new HistoryProver.Outcome.Failed(RECOVERABLE_REASON, Set.of(OTHER_NODE_ID)));
+        given(weights.sourceNodeWeights()).willReturn(new TreeMap<>(Map.of(SELF_ID, 2L, OTHER_NODE_ID, 1L)));
+        given(writableHistoryStore.failForReason(CONSTRUCTION_ID, RECOVERABLE_REASON))
+                .willReturn(construction
+                        .copyBuilder()
+                        .failureReason(RECOVERABLE_REASON)
+                        .build());
+
+        subject.advanceConstruction(
+                Instant.EPOCH.plusSeconds(1), METADATA, writableHistoryStore, true, DEFAULT_TSS_CONFIG);
+
+        final var inOrder = inOrder(writableHistoryStore);
+        inOrder.verify(writableHistoryStore).excludeFromWrapsSigning(CONSTRUCTION_ID, Set.of(OTHER_NODE_ID));
+        inOrder.verify(writableHistoryStore).failForReason(CONSTRUCTION_ID, RECOVERABLE_REASON);
+        verify(writableHistoryStore, never()).restartWrapsSigning(anyLong(), any(), any(), any());
+    }
+
+    @Test
+    void ignoresWrapsMessagesFromNodesExcludedSinceTheControllerLastAdvanced() {
+        construction = HistoryProofConstruction.newBuilder()
+                .constructionId(CONSTRUCTION_ID)
+                .wrapsSigningState(WrapsSigningState.newBuilder().phase(R1).build())
+                .build();
+        subject = newSubject(null);
+        // The prover excluded the node while handling an earlier transaction
+        construction = construction
+                .copyBuilder()
+                .wrapsExcludedNodeIds(List.of(OTHER_NODE_ID))
+                .build();
+
+        assertFalse(subject.addWrapsMessagePublication(
+                new WrapsMessagePublication(OTHER_NODE_ID, Bytes.wrap("r1"), R1, Instant.EPOCH), writableHistoryStore));
+        verify(prover, never()).addWrapsSigningMessage(anyLong(), any(), any());
+    }
+
+    @Test
+    void republishesItsProofKeyWhenTheKeyInStateIsNotItsOwn() {
+        // For example, after this node lost its key file and created a new key
+        keyPublications.add(new ProofKeyPublication(SELF_ID, PROOF_KEY_1, Instant.EPOCH));
+        given(weights.targetIncludes(SELF_ID)).willReturn(true);
+        subject = newSubject(null);
+        given(submissions.submitProofKeyPublication(any())).willReturn(CompletableFuture.completedFuture(null));
+
+        subject.advanceConstruction(Instant.EPOCH, null, writableHistoryStore, true, DEFAULT_TSS_CONFIG);
+
+        verify(submissions).submitProofKeyPublication(keyPair.publicKey());
+    }
+
+    @Test
+    void doesNotRepublishItsProofKeyWhenTheKeyInStateIsItsOwn() {
+        keyPublications.add(new ProofKeyPublication(SELF_ID, keyPair.publicKey(), Instant.EPOCH));
+        given(weights.targetIncludes(SELF_ID)).willReturn(true);
+        subject = newSubject(null);
+
+        subject.advanceConstruction(Instant.EPOCH, null, writableHistoryStore, true, DEFAULT_TSS_CONFIG);
+
+        verify(submissions, never()).submitProofKeyPublication(any());
+    }
+
+    private void givenFailedAttemptWithSourceWeights(
+            @NonNull final Map<Long, Long> sourceWeights, @NonNull final Set<Long> nodeIdsWithProofKeys) {
+        construction = HistoryProofConstruction.newBuilder()
+                .constructionId(CONSTRUCTION_ID)
+                .wrapsSigningState(WrapsSigningState.newBuilder().phase(R2).build())
+                .build();
+        subject = newSubject(HistoryProof.newBuilder()
+                .targetProofKeys(nodeIdsWithProofKeys.stream()
+                        .map(nodeId -> new ProofKey(nodeId, PROOF_KEY_1))
+                        .toList())
+                .build());
+        given(writableHistoryStore.getLedgerId()).willReturn(Bytes.EMPTY);
+        given(prover.advance(any(), any(), any(), any(), eq(DEFAULT_TSS_CONFIG), any(), anyBoolean()))
+                .willReturn(new HistoryProver.Outcome.Failed(RECOVERABLE_REASON, Set.of(OTHER_NODE_ID)));
+        given(weights.sourceNodeIds()).willReturn(new TreeSet<>(sourceWeights.keySet()));
+        given(weights.sourceNodeWeights()).willReturn(new TreeMap<>(sourceWeights));
+        given(writableHistoryStore.restartWrapsSigning(eq(CONSTRUCTION_ID), any(), any(), any()))
+                .willReturn(HistoryProofConstruction.newBuilder()
+                        .constructionId(CONSTRUCTION_ID)
+                        .wrapsSigningState(WrapsSigningState.newBuilder().build())
+                        .wrapsRetryCount(1)
+                        .build());
+    }
+
+    private ProofControllerImpl newSubject(@Nullable final HistoryProof sourceProof) {
+        return new ProofControllerImpl(
+                SELF_ID,
+                keyPair,
+                construction,
+                weights,
+                executor,
+                submissions,
+                machine,
+                keyPublications,
+                wrapsMessagePublications,
+                existingVotes,
+                historyService,
+                historyLibrary,
+                proverFactory,
+                sourceProof,
+                historyProofMetrics,
+                DEFAULT_TSS_CONFIG);
     }
 
     @Test
@@ -836,7 +1140,7 @@ class ProofControllerImplTest {
         subject.advanceConstruction(Instant.EPOCH.plusSeconds(5), METADATA, writableHistoryStore, true, tssConfig);
 
         verify(submissions).submitProofKeyPublication(eq(keyPair.publicKey()));
-        verify(writableHistoryStore, never()).setAssemblyTime(anyLong(), any());
+        verify(writableHistoryStore, never()).setAssemblyTime(anyLong(), any(), any());
     }
 
     @Test
@@ -911,11 +1215,13 @@ class ProofControllerImplTest {
         // Exercise publishedWeight via advanceConstruction when after grace period and threshold reached
         given(weights.numTargetNodesInSource()).willReturn(1);
 
-        given(writableHistoryStore.setAssemblyTime(eq(CONSTRUCTION_ID), any())).willReturn(construction);
+        given(writableHistoryStore.setAssemblyTime(eq(CONSTRUCTION_ID), any(), any()))
+                .willReturn(construction);
 
         subject.advanceConstruction(Instant.EPOCH.plusSeconds(20), METADATA, writableHistoryStore, true, tssConfig);
 
-        verify(writableHistoryStore).setAssemblyTime(eq(CONSTRUCTION_ID), any());
+        verify(writableHistoryStore)
+                .setAssemblyTime(CONSTRUCTION_ID, Instant.EPOCH.plusSeconds(20), new TreeSet<>(List.of(SELF_ID)));
     }
 
     @Test
@@ -1301,7 +1607,8 @@ class ProofControllerImplTest {
         given(prover.advance(any(), any(), any(), any(), eq(DEFAULT_TSS_CONFIG), any(), eq(true)))
                 .willReturn(new HistoryProver.Outcome.Failed(RECOVERABLE_REASON));
         given(weights.sourceNodeIds()).willReturn(new TreeSet<>(List.of(SELF_ID, OTHER_NODE_ID)));
-        given(writableHistoryStore.restartWrapsSigning(CONSTRUCTION_ID, new TreeSet<>(List.of(SELF_ID, OTHER_NODE_ID))))
+        given(writableHistoryStore.restartWrapsSigning(
+                        CONSTRUCTION_ID, new TreeSet<>(List.of(SELF_ID, OTHER_NODE_ID)), new TreeSet<>(), null))
                 .willReturn(restarted);
 
         setField("targetMetadata", metadata);
@@ -1360,48 +1667,67 @@ class ProofControllerImplTest {
         given(weights.targetIncludes(SELF_ID)).willReturn(true);
         given(weights.targetWeightOf(SELF_ID)).willReturn(7L);
         given(weights.targetWeightThreshold()).willReturn(5L);
-        given(writableHistoryStore.setAssemblyTime(eq(CONSTRUCTION_ID), any())).willReturn(construction);
+        given(writableHistoryStore.setAssemblyTime(eq(CONSTRUCTION_ID), any(), any()))
+                .willReturn(construction);
 
         subject.addProofKeyPublication(new ProofKeyPublication(SELF_ID, PROOF_KEY_1, Instant.EPOCH));
 
         subject.advanceConstruction(Instant.EPOCH.plusSeconds(20), METADATA, writableHistoryStore, true, tssConfig);
 
-        verify(writableHistoryStore).setAssemblyTime(eq(CONSTRUCTION_ID), any());
+        verify(writableHistoryStore).setAssemblyTime(eq(CONSTRUCTION_ID), any(), any());
     }
 
     @Test
-    void constructorReplaysWrapsMessagesAndSkipsLateProofKeyPublications() {
+    void constructorReplaysWrapsMessagesAndEveryProofKeyBeforeAssembly() {
+        // A node that never restarted also counts a key adopted after the grace period, until assembly
         keyPublications.add(new ProofKeyPublication(SELF_ID, PROOF_KEY_1, Instant.EPOCH));
         keyPublications.add(new ProofKeyPublication(OTHER_NODE_ID, Bytes.wrap("late"), Instant.EPOCH.plusSeconds(11)));
         wrapsMessagePublications.add(
                 new WrapsMessagePublication(SELF_ID, Bytes.EMPTY, R1, Instant.EPOCH.plusSeconds(2)));
 
         given(weights.targetIncludes(SELF_ID)).willReturn(true);
+        given(weights.targetIncludes(OTHER_NODE_ID)).willReturn(true);
 
-        subject = new ProofControllerImpl(
-                SELF_ID,
-                keyPair,
-                construction,
-                weights,
-                executor,
-                submissions,
-                machine,
-                keyPublications,
-                wrapsMessagePublications,
-                existingVotes,
-                historyService,
-                historyLibrary,
-                proverFactory,
-                null,
-                historyProofMetrics,
-                DEFAULT_TSS_CONFIG);
+        subject = newSubject(null);
 
         given(weights.numTargetNodesInSource()).willReturn(2);
+        given(writableHistoryStore.setAssemblyTime(eq(CONSTRUCTION_ID), any(), any()))
+                .willReturn(construction);
 
-        subject.advanceConstruction(Instant.EPOCH.plusSeconds(5), METADATA, writableHistoryStore, true, tssConfig);
+        subject.advanceConstruction(Instant.EPOCH.plusSeconds(12), METADATA, writableHistoryStore, true, tssConfig);
 
         verify(prover).replayWrapsSigningMessage(eq(CONSTRUCTION_ID), eq(wrapsMessagePublications.getFirst()));
-        verify(writableHistoryStore, never()).setAssemblyTime(anyLong(), any());
+        verify(writableHistoryStore)
+                .setAssemblyTime(
+                        CONSTRUCTION_ID, Instant.EPOCH.plusSeconds(12), new TreeSet<>(List.of(SELF_ID, OTHER_NODE_ID)));
+    }
+
+    @Test
+    void constructorReplaysOnlyTheProofKeysInTheAssembledHistory() {
+        // A node's first key adopted after assembly is not in the history, so a restarted node must skip it too
+        keyPublications.add(new ProofKeyPublication(SELF_ID, PROOF_KEY_1, Instant.EPOCH));
+        keyPublications.add(new ProofKeyPublication(OTHER_NODE_ID, Bytes.wrap("late"), Instant.EPOCH.plusSeconds(20)));
+        construction = HistoryProofConstruction.newBuilder()
+                .constructionId(CONSTRUCTION_ID)
+                .wrapsSigningState(WrapsSigningState.newBuilder().phase(R2).build())
+                .assembledProofKeyNodeIds(List.of(SELF_ID))
+                .build();
+
+        given(weights.targetIncludes(anyLong())).willReturn(true);
+
+        subject = newSubject(null);
+
+        verify(proverFactory)
+                .create(
+                        eq(SELF_ID),
+                        eq(DEFAULT_TSS_CONFIG),
+                        eq(keyPair),
+                        any(),
+                        eq(weights),
+                        eq(Map.of(SELF_ID, PROOF_KEY_1)),
+                        any(),
+                        eq(historyLibrary),
+                        eq(submissions));
     }
 
     @Test
