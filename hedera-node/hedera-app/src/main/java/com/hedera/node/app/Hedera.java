@@ -1859,19 +1859,22 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
     private void onOverrideNetwork(@NonNull final Network network) {
         requireNonNull(initState);
         requireNonNull(network);
-        if (!TssStartupNetworks.hasTssMetadata(network)) {
+        final var config = configProvider.getConfiguration();
+        if (!TssStartupNetworks.shouldImportTssMetadata(network, config)) {
             return;
         }
         logger.warn("Initializing dev-only TSS state, runtime, and local private keys from override network JSON");
         final var writableHintsStates = initState.getWritableStates(HintsService.NAME);
-        final var activeHintsConstruction = TssStartupNetworks.initializeHintsState(writableHintsStates, network);
+        final var activeHintsConstruction =
+                TssStartupNetworks.initializeHintsState(writableHintsStates, network, config);
         ((CommittableWritableStates) writableHintsStates).commit();
         final var writableHistoryStates = initState.getWritableStates(HistoryService.NAME);
-        final var activeProofConstruction = TssStartupNetworks.initializeHistoryState(writableHistoryStates, network);
+        final var activeProofConstruction =
+                TssStartupNetworks.initializeHistoryState(writableHistoryStates, network, config);
         ((CommittableWritableStates) writableHistoryStates).commit();
         TssStartupNetworks.initializeRuntime(
                 activeHintsConstruction, activeProofConstruction, hintsService, historyService);
-        TssStartupNetworks.writePrivateKeys(network, configProvider.getConfiguration(), selfId.id());
+        TssStartupNetworks.writePrivateKeys(network, config, selfId.id());
     }
 
     private void onAdoptRoster(@NonNull final Roster previousRoster, @NonNull final Roster adoptedRoster) {

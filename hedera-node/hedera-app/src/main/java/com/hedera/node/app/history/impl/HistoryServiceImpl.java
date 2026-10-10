@@ -194,11 +194,11 @@ public class HistoryServiceImpl implements HistoryService {
             @NonNull final WritableStates writableStates, @NonNull final Configuration configuration) {
         requireNonNull(writableStates);
         requireNonNull(configuration);
-        final var maybeGenesisNetwork = genesisTssNetwork();
+        final var maybeGenesisNetwork = genesisTssNetwork(configuration);
         if (maybeGenesisNetwork.isPresent()) {
             logger.warn("Initializing dev-only history genesis state and runtime from startup network JSON");
-            final var activeConstruction =
-                    TssStartupNetworks.initializeHistoryState(writableStates, maybeGenesisNetwork.orElseThrow());
+            final var activeConstruction = TssStartupNetworks.initializeHistoryState(
+                    writableStates, maybeGenesisNetwork.orElseThrow(), configuration);
             if (activeConstruction.hasTargetProof()) {
                 setLatestHistoryProof(activeConstruction.targetProofOrThrow());
             }
@@ -225,13 +225,15 @@ public class HistoryServiceImpl implements HistoryService {
         return true;
     }
 
-    private Optional<Network> genesisTssNetwork() {
+    private Optional<Network> genesisTssNetwork(@NonNull final Configuration configuration) {
         try {
             final var network = genesisNetworkSupplier.get();
             if (network == null) {
                 return Optional.empty();
             }
-            return TssStartupNetworks.hasTssMetadata(network) ? Optional.of(network) : Optional.empty();
+            return TssStartupNetworks.shouldImportTssMetadata(network, configuration)
+                    ? Optional.of(network)
+                    : Optional.empty();
         } catch (IllegalStateException e) {
             logger.debug("No genesis startup network available for history bootstrap", e);
             return Optional.empty();
