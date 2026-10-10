@@ -3,6 +3,8 @@ package com.swirlds.merkledb.collections;
 
 import static com.swirlds.base.units.UnitConstants.MEBIBYTES_TO_BYTES;
 import static com.swirlds.merkledb.utilities.MerkleDbFileUtils.readFromFileChannel;
+import static com.swirlds.merkledb.utilities.MerkleDbFileUtils.recordSnapshotFailure;
+import static com.swirlds.merkledb.utilities.MerkleDbFileUtils.runSnapshotOperation;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
 import static java.lang.Math.toIntExact;
@@ -21,7 +23,11 @@ import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.BooleanSupplier;
 import java.util.stream.LongStream;
@@ -82,6 +88,9 @@ public abstract class AbstractLongList<C> implements LongList {
 
     /** The number for bytes to read for file header, v3 */
     protected static final int FILE_HEADER_SIZE_V3 = VERSION_METADATA_SIZE + FORMAT_METADATA_SIZE_V3;
+
+    /// Shared immutable bytes for missing chunks; each writer uses its own buffer view.
+    private static final ByteBuffer ZERO_BUFFER = ByteBuffer.allocate(64 * 1024).asReadOnlyBuffer();
 
     /**
      * The number of longs to store in each allocated buffer. Must be a positive integer. If the
@@ -170,12 +179,10 @@ public abstract class AbstractLongList<C> implements LongList {
         chunkList = new AtomicReferenceArray<>(calculateNumberOfChunks(capacity));
     }
 
-    /**
-     * Loads index data from a file, which was previously saved using {@link #writeToFile(Path)}.
-     *
-     * @param file The file to load from
-     * @throws IOException IO exception if any
-     */
+    /// Loads index data from a file previously saved using [#writeToFile(Path, Executor)].
+    ///
+    /// @param file the file to load from
+    /// @throws IOException if the file cannot be read
     protected void loadFromFile(@NonNull final Path file) throws IOException {
         requireNonNull(file);
         if (!Files.exists(file)) {
@@ -482,27 +489,74 @@ public abstract class AbstractLongList<C> implements LongList {
         return StreamSupport.longStream(new LongListSpliterator(this), false);
     }
 
-    /**
-     * Write all longs in this LongList into a file
-     * <p>
-     * <b> It is not guaranteed what version of data will be written if the LongList is changed
-     * via put methods while this LongList is being written to a file. If you need consistency while
-     * calling put concurrently then use a BufferedLongListWrapper. </b>
-     *
-     * @param file The file to write into, it should not exist but its parent directory should exist
-     *             and be writable.
-     * @throws IOException If there was a problem creating or writing to the file.
-     */
+    /// {@inheritDoc}
     @Override
-    public void writeToFile(final Path file) throws IOException {
-        try (final FileChannel fc = FileChannel.open(file, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
-            // write header
-            writeHeader(fc);
-            if (size() > 0) {
-                // write data
-                writeLongsData(fc);
+    public CompletableFuture<Void> writeToFile(
+            final Path file, final Executor pool, final AtomicReference<Throwable> failure) {
+        final long firstIndex = minValidIndex.get();
+        final long endIndex = size();
+        final int firstChunk = toIntExact(max(firstIndex, 0) / longsPerChunk);
+        // Moving the valid range beyond populated data leaves only the header to write.
+        final int chunkCount =
+                endIndex > 0 && firstIndex < endIndex ? calculateNumberOfChunks(endIndex) - firstChunk : 0;
+        final AtomicReference<FileChannel> channel = new AtomicReference<>();
+
+        final CompletableFuture<Void> headerWritten = runSnapshotOperation(pool, failure, () -> {
+            channel.set(FileChannel.open(file, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE));
+            writeHeader(channel.get());
+        });
+        final CompletableFuture<Void> writesFinished = headerWritten.thenCompose(_ -> {
+            final List<CompletableFuture<Void>> writes = new ArrayList<>(chunkCount);
+            try {
+                for (int i = 0; i < chunkCount && failure.get() == null; i++) {
+                    final int chunkIndex = firstChunk + i;
+                    writes.add(runSnapshotOperation(pool, failure, () -> {
+                        final long chunkStart = (long) chunkIndex * longsPerChunk;
+                        final int startInChunk = toIntExact(max(firstIndex - chunkStart, 0));
+                        final int endInChunk = toIntExact(min(endIndex - chunkStart, longsPerChunk));
+                        final long fileOffset =
+                                FILE_HEADER_SIZE_V3 + (chunkStart + startInChunk - firstIndex) * Long.BYTES;
+                        final C chunk = chunkList.get(chunkIndex);
+                        if (chunk == null) {
+                            writeZeroes(channel.get(), (endInChunk - startInChunk) * Long.BYTES, fileOffset);
+                        } else {
+                            writeChunkData(channel.get(), chunk, startInChunk, endInChunk, fileOffset);
+                        }
+                    }));
+                }
+            } catch (final RuntimeException | Error t) {
+                recordSnapshotFailure(failure, t);
             }
-            fc.force(true);
+            // Even after a failure, accepted writes must finish before the channel can close.
+            return CompletableFuture.allOf(writes.toArray(CompletableFuture[]::new));
+        });
+        return writesFinished.handle((_, exception) -> {
+            // Execution and submission failures have already been recorded by the tasks above.
+            try {
+                if (channel.get() != null) {
+                    channel.get().close();
+                }
+            } catch (final IOException t) {
+                recordSnapshotFailure(failure, t);
+            }
+            if (failure.get() != null) {
+                throw new CompletionException(failure.get());
+            }
+            if (exception != null) {
+                throw new CompletionException(exception);
+            }
+            return null;
+        });
+    }
+
+    /// Writes exactly the missing part of a chunk without allocating a chunk-sized zero buffer.
+    private static void writeZeroes(final FileChannel channel, int byteCount, long fileOffset) throws IOException {
+        final ByteBuffer zeroes = ZERO_BUFFER.duplicate();
+        while (byteCount > 0) {
+            zeroes.clear().limit(min(byteCount, zeroes.capacity()));
+            final int written = MerkleDbFileUtils.completelyWrite(channel, zeroes, fileOffset);
+            fileOffset += written;
+            byteCount -= written;
         }
     }
 
@@ -527,13 +581,21 @@ public abstract class AbstractLongList<C> implements LongList {
         fc.position(currentFileHeaderSize);
     }
 
-    /**
-     * Write the long data to file, This it is expected to be in one simple block of raw longs.
-     *
-     * @param fc The file channel to write to
-     * @throws IOException if there was a problem writing longs
-     */
-    protected abstract void writeLongsData(@NonNull final FileChannel fc) throws IOException;
+    /// Writes part of one non-null chunk using positional writes.
+    ///
+    /// @param fc target file channel
+    /// @param chunk source chunk
+    /// @param startIndexInChunk first long within the chunk, inclusive
+    /// @param endIndexInChunk last long within the chunk, exclusive
+    /// @param fileOffset target offset for the first long
+    /// @throws IOException if the chunk cannot be written
+    protected abstract void writeChunkData(
+            @NonNull final FileChannel fc,
+            @NonNull final C chunk,
+            final int startIndexInChunk,
+            final int endIndexInChunk,
+            final long fileOffset)
+            throws IOException;
 
     /**
      * Lookup a long in data

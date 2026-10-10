@@ -7,9 +7,92 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicReference;
+import org.hiero.base.io.IORunnable;
 
 public final class MerkleDbFileUtils {
     private MerkleDbFileUtils() {}
+
+    /// Runs snapshot I/O on the supplied pool, skipping it if another operation has failed.
+    /// Rejected submissions are returned as failed futures so accepted work can still be awaited.
+    public static CompletableFuture<Void> runSnapshotOperation(
+            final Executor pool, final AtomicReference<Throwable> failure, final IORunnable operation) {
+        try {
+            return CompletableFuture.runAsync(
+                    () -> {
+                        final Throwable previousFailure = failure.get();
+                        if (previousFailure != null) {
+                            throw new CompletionException(previousFailure);
+                        }
+                        try {
+                            operation.run();
+                        } catch (final Throwable t) {
+                            recordSnapshotFailure(failure, t);
+                            throw new CompletionException(t);
+                        }
+                    },
+                    pool);
+        } catch (final RuntimeException | Error t) {
+            recordSnapshotFailure(failure, t);
+            return CompletableFuture.failedFuture(t);
+        }
+    }
+
+    /// Keeps later failures as suppressed errors. A rejected submission takes priority over a writer failure.
+    public static void recordSnapshotFailure(final AtomicReference<Throwable> failure, final Throwable t) {
+        synchronized (failure) {
+            final Throwable previousFailure = failure.get();
+            if (previousFailure == null) {
+                failure.set(t);
+            } else if (previousFailure != t) {
+                if (t instanceof RejectedExecutionException
+                        && !(previousFailure instanceof RejectedExecutionException)) {
+                    t.addSuppressed(previousFailure);
+                    failure.set(t);
+                } else {
+                    previousFailure.addSuppressed(t);
+                }
+            }
+        }
+    }
+
+    /// Waits for snapshot writes and file closure before reporting failure or interruption.
+    /// Call this from the snapshot caller, not a pool worker. The future must not be canceled.
+    ///
+    /// @param snapshot completion of all snapshot work
+    /// @throws IOException if a write fails or the caller is interrupted
+    public static void waitForSnapshot(final CompletableFuture<Void> snapshot) throws IOException {
+        Throwable failure = null;
+        try {
+            // join() waits through interruption and preserves the caller's interrupt flag.
+            snapshot.join();
+        } catch (final CompletionException e) {
+            failure = e;
+            while (failure instanceof CompletionException && failure.getCause() != null) {
+                failure = failure.getCause();
+            }
+        }
+        if (Thread.currentThread().isInterrupted()) {
+            final InterruptedException interrupted = new InterruptedException("Interrupted while waiting for snapshot");
+            if (failure == null) {
+                throw new IOException("Interrupted while waiting for snapshot tasks to finish", interrupted);
+            }
+            failure.addSuppressed(interrupted);
+        }
+        if (failure instanceof IOException ioException) {
+            throw ioException;
+        } else if (failure instanceof RuntimeException runtimeException) {
+            throw runtimeException;
+        } else if (failure instanceof Error error) {
+            throw error;
+        } else if (failure != null) {
+            throw new IOException("Snapshot task failed", failure);
+        }
+    }
 
     /**
      * Completely read all data available from a fileChannel until either an EOF is reached or until dstBuffer is full.

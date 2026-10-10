@@ -29,18 +29,11 @@ class LongListDiskSegmentTest extends AbstractLongListTest<LongListDiskSegment> 
         return new LongListDiskSegment(file, longsPerChunk, capacity, reservedBufferLength, fileSystemManager);
     }
 
-    /**
-     * Provides a stream of writer-reader pairs specifically for the {@link LongListSegment}
-     * implementation. The writer is always {@link LongListSegment}, and it is paired with
-     * all reader implementations (heap, off-heap, disk-based, and segment-based). This
-     * allows for testing whether data written by the {@link LongListSegment} can be correctly
-     * read back by all supported long list implementations.
-     *
-     * @return a stream of argument pairs, each containing a {@link LongListSegment} writer
-     *         and one of the supported reader implementations
-     */
+    /// Pairs a [LongListDiskSegment] writer with each supported reader implementation.
+    ///
+    /// @return writer-reader pairs for cross-compatibility tests
     static Stream<Arguments> longListWriterReaderPairsProvider() {
-        return longListWriterBasedPairsProvider(segmentWriterFactory);
+        return longListWriterBasedPairsProvider(diskSegmentWriterFactory);
     }
 
     /**

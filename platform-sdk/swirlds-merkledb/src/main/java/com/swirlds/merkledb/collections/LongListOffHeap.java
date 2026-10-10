@@ -2,8 +2,6 @@
 package com.swirlds.merkledb.collections;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-import static java.lang.Math.toIntExact;
-import static java.util.Objects.requireNonNullElse;
 
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.utilities.MerkleDbFileUtils;
@@ -143,47 +141,18 @@ public final class LongListOffHeap extends AbstractLongList<ByteBuffer> implemen
         return MemoryUtils.compareAndSwapLong(chunk, subIndexBytes, oldValue, newValue);
     }
 
-    /**
-     * Write the long data to file, This it is expected to be in one simple block of raw longs.
-     *
-     * @param fc The file channel to write to
-     * @throws IOException if there was a problem writing longs
-     */
+    /// {@inheritDoc}
     @Override
-    protected void writeLongsData(final FileChannel fc) throws IOException {
-        final int totalNumOfChunks = calculateNumberOfChunks(size());
-        final long currentMinValidIndex = minValidIndex.get();
-        final int firstChunkWithDataIndex = toIntExact(currentMinValidIndex / longsPerChunk);
-        // write data
-        final ByteBuffer emptyBuffer = createChunk();
-        try {
-            for (int i = firstChunkWithDataIndex; i < totalNumOfChunks; i++) {
-                final ByteBuffer byteBuffer = chunkList.get(i);
-                final ByteBuffer nonNullBuffer = requireNonNullElse(byteBuffer, emptyBuffer);
-                // Slice so we don't mess with the byte buffer pointers.
-                // Also, the slice size has to be equal to the size of the buffer
-                final ByteBuffer buf = nonNullBuffer.slice(0, nonNullBuffer.limit());
-                if (i == firstChunkWithDataIndex) {
-                    // writing starts from the first valid index in the first valid chunk
-                    final int firstValidIndexInChunk = toIntExact(currentMinValidIndex % longsPerChunk);
-                    buf.position(firstValidIndexInChunk * Long.BYTES);
-                } else {
-                    buf.position(0);
-                }
-                if (i == (totalNumOfChunks - 1)) {
-                    // last array, so set limit to only the data needed
-                    final long bytesWrittenSoFar = (long) memoryChunkSize * i;
-                    final long remainingBytes = size() * Long.BYTES - bytesWrittenSoFar;
-                    buf.limit(toIntExact(remainingBytes));
-                } else {
-                    buf.limit(buf.capacity());
-                }
-                MerkleDbFileUtils.completelyWrite(fc, buf);
-            }
-        } finally {
-            // releasing memory allocated
-            closeChunk(emptyBuffer);
-        }
+    protected void writeChunkData(
+            @NonNull final FileChannel fc,
+            @NonNull final ByteBuffer chunk,
+            final int startIndexInChunk,
+            final int endIndexInChunk,
+            final long fileOffset)
+            throws IOException {
+        final ByteBuffer buffer =
+                chunk.slice(startIndexInChunk * Long.BYTES, (endIndexInChunk - startIndexInChunk) * Long.BYTES);
+        MerkleDbFileUtils.completelyWrite(fc, buffer, fileOffset);
     }
 
     /**

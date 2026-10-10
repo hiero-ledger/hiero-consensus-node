@@ -3,6 +3,7 @@ package com.swirlds.merkledb.files.hashmap;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.MERKLE_DB;
+import static com.swirlds.merkledb.utilities.MerkleDbFileUtils.runSnapshotOperation;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
@@ -10,8 +11,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.merkledb.FileStatisticAware;
 import com.swirlds.merkledb.Snapshotable;
 import com.swirlds.merkledb.collections.LongList;
-import com.swirlds.merkledb.collections.LongListDisk;
-import com.swirlds.merkledb.collections.LongListSegment;
+import com.swirlds.merkledb.collections.LongListImplementation;
 import com.swirlds.merkledb.collections.OffHeapUser;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.DataFileCollection;
@@ -20,6 +20,7 @@ import com.swirlds.merkledb.files.DataFileCommon;
 import com.swirlds.merkledb.files.DataFileReader;
 import com.swirlds.merkledb.files.MemoryIndexDiskKeyValueStore;
 import com.swirlds.merkledb.internal.MerkleDbDataSource;
+import com.swirlds.merkledb.utilities.MerkleDbFileUtils;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -31,10 +32,16 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.LongSummaryStatistics;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.eclipse.collections.api.tuple.primitive.IntObjectPair;
@@ -155,7 +162,34 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             final String legacyStoreName,
             final boolean preferDiskBasedIndex)
             throws IOException {
+        this(
+                config,
+                flushPool,
+                fileSystemManager,
+                initialCapacity,
+                storeDir,
+                storeName,
+                legacyStoreName,
+                preferDiskBasedIndex,
+                null);
+    }
+
+    /// Temporary snapshot experiment constructor; a null override preserves normal bucket index selection.
+    public HalfDiskHashMap(
+            final @NonNull MerkleDbConfig config,
+            final @NonNull ForkJoinPool flushPool,
+            final @NonNull FileSystemManager fileSystemManager,
+            final long initialCapacity,
+            final @NonNull Path storeDir,
+            final String storeName,
+            final String legacyStoreName,
+            final boolean preferDiskBasedIndex,
+            final @Nullable LongListImplementation requestedLongListImplementation)
+            throws IOException {
         requireNonNull(config);
+        final LongListImplementation longListImplementation = requestedLongListImplementation == null
+                ? (preferDiskBasedIndex ? LongListImplementation.DISK : LongListImplementation.SEGMENT)
+                : requestedLongListImplementation;
         this.goodAverageBucketEntryCount = config.goodAverageBucketEntryCount();
         // Max number of keys is limited by merkleDbConfig.maxNumberOfKeys. Number of buckets is,
         // on average, goodAverageBucketEntryCount times smaller than the number of keys.
@@ -206,15 +240,13 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             // load or rebuild index
             final boolean forceIndexRebuilding = config.indexRebuildingEnforced();
             if (Files.exists(indexFile) && !forceIndexRebuilding) {
-                bucketIndexToBucketLocation = preferDiskBasedIndex
-                        ? new LongListDisk(indexFile, bucketIndexCapacity, config, fileSystemManager)
-                        : new LongListSegment(indexFile, bucketIndexCapacity, config);
+                bucketIndexToBucketLocation =
+                        longListImplementation.load(indexFile, bucketIndexCapacity, config, fileSystemManager);
                 loadedDataCallback = null;
             } else {
                 // create new index and setup call back to rebuild
-                bucketIndexToBucketLocation = preferDiskBasedIndex
-                        ? new LongListDisk(bucketIndexCapacity, config, fileSystemManager)
-                        : new LongListSegment(bucketIndexCapacity, config);
+                bucketIndexToBucketLocation =
+                        longListImplementation.create(bucketIndexCapacity, config, fileSystemManager);
                 loadedDataCallback = (dataLocation, bucketData) -> {
                     final Bucket bucket = bucketPool.getBucket();
                     bucket.readFrom(bucketData);
@@ -231,9 +263,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             // numOfBuckets is the nearest power of two greater than minimumBuckets with a min of 2
             setNumberOfBuckets(Math.max(Integer.highestOneBit(minimumBuckets) * 2, 2));
             // create new index
-            bucketIndexToBucketLocation = preferDiskBasedIndex
-                    ? new LongListDisk(bucketIndexCapacity, config, fileSystemManager)
-                    : new LongListSegment(bucketIndexCapacity, config);
+            bucketIndexToBucketLocation = longListImplementation.create(bucketIndexCapacity, config, fileSystemManager);
             // we are new, so no need for a loadedDataCallback
             loadedDataCallback = null;
             logger.info(
@@ -373,14 +403,42 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
 
     /** {@inheritDoc} */
     public void snapshot(final Path snapshotDirectory) throws IOException {
-        // create snapshot directory if needed
-        Files.createDirectories(snapshotDirectory);
-        // write index to file
-        bucketIndexToBucketLocation.writeToFile(snapshotDirectory.resolve(storeName + BUCKET_INDEX_FILENAME_SUFFIX));
-        // snapshot files
-        fileCollection.snapshot(snapshotDirectory);
-        // write metadata
-        writeMetadata(snapshotDirectory);
+        try (final ExecutorService pool = Executors.newFixedThreadPool(1)) {
+            MerkleDbFileUtils.waitForSnapshot(snapshot(snapshotDirectory, pool, new AtomicReference<>()));
+        }
+    }
+
+    /// Submits the bucket index, file links, and metadata to the snapshot pool.
+    ///
+    /// The map must remain unchanged and the pool must stay open until the returned future completes.
+    /// The returned future must not be canceled or externally completed.
+    ///
+    /// @param snapshotDirectory directory to write the snapshot to
+    /// @param pool pool shared by all snapshot tasks
+    /// @param failure shared snapshot failure; queued operations skip work once it is set
+    /// @return completion of all writes, including file closure and any failure
+    public CompletableFuture<Void> snapshot(
+            final Path snapshotDirectory, final Executor pool, final AtomicReference<Throwable> failure) {
+        final CompletableFuture<Void> directoryReady =
+                runSnapshotOperation(pool, failure, () -> Files.createDirectories(snapshotDirectory));
+        return directoryReady.thenCompose(_ -> {
+            final CompletableFuture<Void> bucketIndexSnapshot = bucketIndexToBucketLocation.writeToFile(
+                    snapshotDirectory.resolve(storeName + BUCKET_INDEX_FILENAME_SUFFIX), pool, failure);
+            final CompletableFuture<Void> filesSnapshot =
+                    runSnapshotOperation(pool, failure, () -> fileCollection.snapshot(snapshotDirectory));
+            final CompletableFuture<Void> metadataSnapshot =
+                    runSnapshotOperation(pool, failure, () -> writeMetadata(snapshotDirectory));
+            return CompletableFuture.allOf(bucketIndexSnapshot, filesSnapshot, metadataSnapshot)
+                    .handle((_, exception) -> {
+                        if (failure.get() != null) {
+                            throw new CompletionException(failure.get());
+                        }
+                        if (exception != null) {
+                            throw new CompletionException(exception);
+                        }
+                        return null;
+                    });
+        });
     }
 
     /**

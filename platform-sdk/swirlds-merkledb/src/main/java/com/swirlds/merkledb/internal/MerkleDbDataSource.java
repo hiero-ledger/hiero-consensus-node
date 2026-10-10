@@ -5,8 +5,8 @@ import static com.hedera.pbj.runtime.ProtoParserTools.TAG_FIELD_OFFSET;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.MERKLE_DB;
 import static com.swirlds.merkledb.KeyRange.INVALID_KEY_RANGE;
+import static com.swirlds.merkledb.utilities.MerkleDbFileUtils.runSnapshotOperation;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.hedera.pbj.runtime.FieldDefinition;
 import com.hedera.pbj.runtime.FieldType;
@@ -20,8 +20,7 @@ import com.swirlds.base.units.UnitConstants;
 import com.swirlds.base.utility.ToStringBuilder;
 import com.swirlds.merkledb.KeyRange;
 import com.swirlds.merkledb.collections.LongList;
-import com.swirlds.merkledb.collections.LongListDisk;
-import com.swirlds.merkledb.collections.LongListSegment;
+import com.swirlds.merkledb.collections.LongListImplementation;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.DataFileCollection.LoadedDataCallback;
 import com.swirlds.merkledb.files.DataFileCommon;
@@ -29,6 +28,7 @@ import com.swirlds.merkledb.files.DataFileCompactor;
 import com.swirlds.merkledb.files.DataFileReader;
 import com.swirlds.merkledb.files.MemoryIndexDiskKeyValueStore;
 import com.swirlds.merkledb.files.hashmap.HalfDiskHashMap;
+import com.swirlds.merkledb.utilities.MerkleDbFileUtils;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.MerklePathUtils;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
@@ -45,25 +45,22 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.AbstractTask;
 import org.hiero.base.concurrent.ExecutorFactory;
-import org.hiero.base.concurrent.framework.config.CompositeThreadNameProvider;
-import org.hiero.base.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.file.FileSystemManager;
@@ -176,6 +173,9 @@ public final class MerkleDbDataSource implements VirtualDataSource {
      */
     private final ForkJoinPool flushPool;
 
+    /// Thread pool shared by the data source's snapshot operations and index writers.
+    private final ExecutorService snapshotPool;
+
     /**
      * During flush, this is the future to wait for hashes writing to complete. The
      * future is used to interrupt the flushing thread, if the data source is closed
@@ -203,9 +203,6 @@ public final class MerkleDbDataSource implements VirtualDataSource {
      * put to the cache.
      */
     private final VirtualLeafBytes[] leafRecordCache;
-
-    /** Thread pool creating snapshots, it is unbounded in threads, but we use at most 7 */
-    private final ExecutorService snapshotExecutor;
 
     /** Flag for if a snapshot is in progress */
     private final AtomicBoolean snapshotInProgress = new AtomicBoolean(false);
@@ -299,25 +296,48 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             final boolean compactionEnabled,
             final boolean diskBasedIndices)
             throws IOException {
+        this(
+                storageDir,
+                config,
+                fileSystemManager,
+                tableName,
+                initialCapacity,
+                compactionEnabled,
+                diskBasedIndices,
+                null);
+    }
+
+    /// Temporary snapshot experiment constructor; a null override preserves normal index selection.
+    public MerkleDbDataSource(
+            final Path storageDir,
+            final MerkleDbConfig config,
+            final FileSystemManager fileSystemManager,
+            final String tableName,
+            final long initialCapacity,
+            final boolean compactionEnabled,
+            final boolean diskBasedIndices,
+            @Nullable final LongListImplementation requestedLongListImplementation)
+            throws IOException {
         this.tableName = tableName;
         this.merkleDbConfig = config;
 
-        this.preferDiskBasedIndices = diskBasedIndices || merkleDbConfig.useDiskIndices();
+        final LongListImplementation longListImplementation = requestedLongListImplementation == null
+                ? (diskBasedIndices || merkleDbConfig.useDiskIndices()
+                        ? LongListImplementation.DISK
+                        : LongListImplementation.SEGMENT)
+                : requestedLongListImplementation;
+        this.preferDiskBasedIndices = longListImplementation.isDiskBased();
         this.hashChunkHeight = merkleDbConfig.hashChunkHeight();
 
-        // create thread group with label
-        final ThreadGroup threadGroup = new ThreadGroup("MerkleDb-" + tableName);
-        // thread pool creating snapshots, it is unbounded in threads, but we use at most 7
-        snapshotExecutor = Executors.newCachedThreadPool(new ThreadConfiguration(getStaticThreadManager())
-                .setThreadGroup(threadGroup)
-                .setThreadNameProvider(CompositeThreadNameProvider.createNumbered(MERKLEDB_COMPONENT, "Snapshot"))
-                .setExceptionHandler(
-                        (_, e) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception during snapshots", e))
-                .buildFactory());
         // thread pool to run tasks during flushes
         final ExecutorFactory flushPoolFactory = ExecutorFactory.create(
                 "MerkleDbFlusher", (_, e) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception during flush", e));
         flushPool = flushPoolFactory.createForkJoinPool(config.getNumFlushThreads());
+
+        final ExecutorFactory snapshotPoolFactory = ExecutorFactory.create(
+                "MerkleDbSnapshot-" + tableName,
+                (_, e) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception during snapshot", e));
+        snapshotPool = snapshotPoolFactory.createExecutorService(config.snapshotThreads());
 
         dbPaths = new MerkleDbPaths(storageDir);
 
@@ -371,13 +391,11 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         // Hash chunk disk location index (chunk ID to disk location)
         final Path idToHashChunksFile = dbPaths.idToDiskLocationHashChunksFile;
         if (Files.exists(idToHashChunksFile) && !forceIndexRebuilding) {
-            idToDiskLocationHashChunks = preferDiskBasedIndices
-                    ? new LongListDisk(idToHashChunksFile, hashIndexCapacity, merkleDbConfig, fileSystemManager)
-                    : new LongListSegment(idToHashChunksFile, hashIndexCapacity, merkleDbConfig);
+            idToDiskLocationHashChunks = longListImplementation.load(
+                    idToHashChunksFile, hashIndexCapacity, merkleDbConfig, fileSystemManager);
         } else {
-            idToDiskLocationHashChunks = preferDiskBasedIndices
-                    ? new LongListDisk(hashIndexCapacity, merkleDbConfig, fileSystemManager)
-                    : new LongListSegment(hashIndexCapacity, merkleDbConfig);
+            idToDiskLocationHashChunks =
+                    longListImplementation.create(hashIndexCapacity, merkleDbConfig, fileSystemManager);
         }
 
         // Hash chunk store (hash chunks)
@@ -416,13 +434,10 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         // KV disk location index (path to disk location)
         final Path pathToLeafLocationFile = dbPaths.pathToDiskLocationLeafNodesFile;
         if (Files.exists(pathToLeafLocationFile) && !forceIndexRebuilding) {
-            pathToDiskLocationLeafNodes = preferDiskBasedIndices
-                    ? new LongListDisk(pathToLeafLocationFile, kvIndexCapacity, config, fileSystemManager)
-                    : new LongListSegment(pathToLeafLocationFile, kvIndexCapacity, config);
+            pathToDiskLocationLeafNodes =
+                    longListImplementation.load(pathToLeafLocationFile, kvIndexCapacity, config, fileSystemManager);
         } else {
-            pathToDiskLocationLeafNodes = preferDiskBasedIndices
-                    ? new LongListDisk(kvIndexCapacity, config, fileSystemManager)
-                    : new LongListSegment(kvIndexCapacity, config);
+            pathToDiskLocationLeafNodes = longListImplementation.create(kvIndexCapacity, config, fileSystemManager);
         }
 
         // Leaves store (leaf nodes)
@@ -464,7 +479,8 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 dbPaths.keyToPathDirectory,
                 tableName + "_objectkeytopath",
                 null,
-                preferDiskBasedIndices);
+                preferDiskBasedIndices,
+                longListImplementation);
         keyToPath.printStats();
         // Repair keyToPath based on pathToKeyValue data, if requested and not disk based indices
         if (!preferDiskBasedIndices) {
@@ -881,9 +897,9 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             try {
                 // Stop file compaction
                 compactionCoordinator.stopAndDisableBackgroundCompaction(false);
-                // Shut down all executors. If a flush is currently in progress, it will be interrupted
+                // Shut down the flush pool. If a flush is currently in progress, it will be interrupted
                 flushPool.shutdownNow();
-                snapshotExecutor.shutdownNow();
+                snapshotPool.close();
                 // If there is a flush in progress on another thread, that thread may be
                 // stuck in waiting for hashes/leaves or HDHM writing to complete. Flushing
                 // pool shutdown interrupts all existing hashes/leaves/HDHM tasks, but the
@@ -948,56 +964,36 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         }
         logger.info(MERKLE_DB.getMarker(), "[{}] Starting snapshot to {}", tableName, snapshotDirectory);
         try {
-            // start timing snapshot
-            final long START = System.currentTimeMillis();
-            // create snapshot dir if it doesn't exist
+            if (closed.get()) {
+                throw new IOException("Cannot snapshot a closed data source");
+            }
+            final long start = System.currentTimeMillis();
             Files.createDirectories(snapshotDirectory);
             final MerkleDbPaths snapshotDbPaths = new MerkleDbPaths(snapshotDirectory);
-            // main snapshotting process in multiple-threads
-            try {
-                // Flush cached hash chunks to the hash chunk store
-                flushHashChunkCache();
-                final CountDownLatch countDownLatch = new CountDownLatch(6);
-                // write all data stores
-                runWithSnapshotExecutor(countDownLatch, "idToDiskLocationHashChunks", () -> {
-                    idToDiskLocationHashChunks.writeToFile(snapshotDbPaths.idToDiskLocationHashChunksFile);
-                    return true;
-                });
-                runWithSnapshotExecutor(countDownLatch, "pathToDiskLocationLeafNodes", () -> {
-                    pathToDiskLocationLeafNodes.writeToFile(snapshotDbPaths.pathToDiskLocationLeafNodesFile);
-                    return true;
-                });
-                runWithSnapshotExecutor(countDownLatch, "hashChunkStore", () -> {
-                    hashChunkStore.snapshot(snapshotDbPaths.hashChunkDirectory);
-                    return true;
-                });
-                runWithSnapshotExecutor(countDownLatch, "keyToPath", () -> {
-                    keyToPath.snapshot(snapshotDbPaths.keyToPathDirectory);
-                    return true;
-                });
-                runWithSnapshotExecutor(countDownLatch, "keyValueStore", () -> {
-                    keyValueStore.snapshot(snapshotDbPaths.pathToKeyValueDirectory);
-                    return true;
-                });
-                runWithSnapshotExecutor(countDownLatch, "metadata", () -> {
-                    saveMetadata(snapshotDbPaths);
-                    return true;
-                });
-                // wait for the others to finish
-                countDownLatch.await();
-            } catch (final InterruptedException e) {
-                logger.error(
-                        EXCEPTION.getMarker(),
-                        "[{}] InterruptedException from waiting for countDownLatch in snapshot",
-                        tableName,
-                        e);
-                Thread.currentThread().interrupt();
-            }
+            final AtomicReference<Throwable> failure = new AtomicReference<>();
+            final CompletableFuture<Void> metadataSnapshot = snapshotMetadata(snapshotDbPaths, failure);
+            final CompletableFuture<Void> leavesSnapshot = snapshotLeaves(snapshotDbPaths, failure);
+            final CompletableFuture<Void> hashesSnapshot = snapshotHashes(snapshotDbPaths, failure);
+            final CompletableFuture<Void> keyToPathSnapshot =
+                    keyToPath.snapshot(snapshotDbPaths.keyToPathDirectory, snapshotPool, failure);
+            final CompletableFuture<Void> snapshot = CompletableFuture.allOf(
+                            metadataSnapshot, leavesSnapshot, hashesSnapshot, keyToPathSnapshot)
+                    .handle((_, exception) -> {
+                        if (failure.get() != null) {
+                            throw new CompletionException(failure.get());
+                        }
+                        if (exception != null) {
+                            throw new CompletionException(exception);
+                        }
+                        return null;
+                    });
+            // Only the caller waits. Drain every started task before returning.
+            MerkleDbFileUtils.waitForSnapshot(snapshot);
             logger.info(
                     MERKLE_DB.getMarker(),
                     "[{}] Snapshot all finished in {} seconds",
                     tableName,
-                    (System.currentTimeMillis() - START) * UnitConstants.MILLISECONDS_TO_SECONDS);
+                    (System.currentTimeMillis() - start) * UnitConstants.MILLISECONDS_TO_SECONDS);
         } finally {
             snapshotInProgress.set(false);
         }
@@ -1127,35 +1123,34 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     // ==================================================================================================================
     // private methods
 
-    /**
-     * Run a runnable on background thread using snapshot ExecutorService, counting down latch when
-     * done.
-     *
-     * @param countDownLatch latch to count down when done
-     * @param taskName the name of the task for logging
-     * @param runnable the code to run
-     */
-    private void runWithSnapshotExecutor(
-            final CountDownLatch countDownLatch, final String taskName, final Callable<Object> runnable) {
-        snapshotExecutor.submit(() -> {
-            final long START = System.currentTimeMillis();
-            try {
-                runnable.call();
-                logger.trace(
-                        MERKLE_DB.getMarker(),
-                        "[{}] Snapshot {} complete in {} seconds",
-                        tableName,
-                        taskName,
-                        (System.currentTimeMillis() - START) * UnitConstants.MILLISECONDS_TO_SECONDS);
-                return true; // turns this into a callable, so it can throw checked
-                // exceptions
-            } catch (final Throwable t) {
-                // log and rethrow
-                logger.error(EXCEPTION.getMarker(), "[{}] Snapshot {} failed", tableName, taskName, t);
-                throw t;
-            } finally {
-                countDownLatch.countDown();
-            }
+    /// Writes the data source metadata on the snapshot pool.
+    private CompletableFuture<Void> snapshotMetadata(
+            final MerkleDbPaths paths, final AtomicReference<Throwable> failure) {
+        return runSnapshotOperation(snapshotPool, failure, () -> saveMetadata(paths));
+    }
+
+    /// Writes the leaf index and links the leaf files independently.
+    private CompletableFuture<Void> snapshotLeaves(
+            final MerkleDbPaths paths, final AtomicReference<Throwable> failure) {
+        final CompletableFuture<Void> leafIndexSnapshot =
+                pathToDiskLocationLeafNodes.writeToFile(paths.pathToDiskLocationLeafNodesFile, snapshotPool, failure);
+        final CompletableFuture<Void> leafFilesSnapshot = runSnapshotOperation(
+                snapshotPool, failure, () -> keyValueStore.snapshot(paths.pathToKeyValueDirectory));
+        return CompletableFuture.allOf(leafIndexSnapshot, leafFilesSnapshot);
+    }
+
+    /// Flushes cached hashes before writing their index and linking their files.
+    private CompletableFuture<Void> snapshotHashes(
+            final MerkleDbPaths paths, final AtomicReference<Throwable> failure) {
+        // The flush overlaps the other groups. Both hash snapshots need its updated index and files.
+        final CompletableFuture<Void> hashCacheFlush =
+                runSnapshotOperation(snapshotPool, failure, this::flushHashChunkCache);
+        return hashCacheFlush.thenCompose(_ -> {
+            final CompletableFuture<Void> hashIndexSnapshot =
+                    idToDiskLocationHashChunks.writeToFile(paths.idToDiskLocationHashChunksFile, snapshotPool, failure);
+            final CompletableFuture<Void> hashFilesSnapshot = runSnapshotOperation(
+                    snapshotPool, failure, () -> hashChunkStore.snapshot(paths.hashChunkDirectory));
+            return CompletableFuture.allOf(hashIndexSnapshot, hashFilesSnapshot);
         });
     }
 

@@ -3,8 +3,10 @@ package com.swirlds.merkledb.collections;
 
 import com.swirlds.merkledb.files.DataFileCommon;
 import java.io.Closeable;
-import java.io.IOException;
 import java.nio.file.Path;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.LongStream;
 
 /**
@@ -90,18 +92,26 @@ public interface LongList extends CASableLongIndex, Closeable, OffHeapUser {
      */
     LongStream stream();
 
-    /**
-     * Write all longs in this LongList into a file
-     * <p>
-     * <b> It is not guaranteed what version of data will be written if the LongList is changed
-     * via put methods while this LongList is being written to a file. If you need consistency while
-     * calling put concurrently then use a BufferedLongListWrapper. </b>
-     *
-     * @param file The file to write into, it should not exist but its parent directory should exist
-     *             and be writable.
-     * @throws IOException If there was a problem creating or writing to the file.
-     */
-    void writeToFile(Path file) throws IOException;
+    /// Writes all longs in this LongList to a file.
+    /// Submits one task per chunk and returns without waiting. Completion includes closing the file,
+    /// even after a write fails. Keep the list unchanged and the pool open until completion.
+    /// Do not cancel or complete the returned future yourself.
+    ///
+    /// @param file new file to write; its parent directory must exist and be writable
+    /// @param pool pool shared by the snapshot tasks
+    /// @return completion of all writes and file cleanup; failures are reported through this future
+    default CompletableFuture<Void> writeToFile(final Path file, final Executor pool) {
+        return writeToFile(file, pool, new AtomicReference<>());
+    }
+
+    /// Writes this index as part of a snapshot, skipping queued chunks if any snapshot operation fails.
+    /// The list and pool must remain available until the returned future completes, including file cleanup.
+    ///
+    /// @param file new file to write; its parent directory must exist and be writable
+    /// @param pool pool shared by the snapshot tasks
+    /// @param failure shared snapshot failure; initially empty
+    /// @return completion after all accepted writers stop and the file is closed
+    CompletableFuture<Void> writeToFile(Path file, Executor pool, AtomicReference<Throwable> failure);
 
     /**
      * Updates min and max valid indexes in this list. If both values are -1, this indicates
