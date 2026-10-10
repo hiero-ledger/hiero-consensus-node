@@ -202,6 +202,8 @@ import org.hiero.consensus.model.transaction.Transaction;
 import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.platformstate.ReadablePlatformStateStore;
 import org.hiero.consensus.roster.ReadableRosterStore;
+import org.hiero.consensus.roster.ReadableRosterStoreImpl;
+import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.transaction.TransactionLimits;
 import org.hiero.consensus.transaction.TransactionPoolNexus;
@@ -1838,9 +1840,17 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
         }
     }
 
+    /**
+     * Hashes a roster like the roster hashes stored in the initial state, which the TSS constructions refer to.
+     */
+    private Bytes rosterHashOf(@NonNull final Roster roster) {
+        return new ReadableRosterStoreImpl(requireNonNull(initState).getReadableStates(RosterStateId.SERVICE_NAME))
+                .rosterHashOf(roster);
+    }
+
     private boolean canAdoptRoster(@NonNull final Roster roster) {
         requireNonNull(initState);
-        final var rosterHash = RosterUtils.hash(roster).getBytes();
+        final var rosterHash = rosterHashOf(roster);
         final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
         final var entityCounters = new ReadableEntityIdStoreImpl(initState.getWritableStates(EntityIdService.NAME));
         final var readableHistoryStore = new ReadableHistoryStoreImpl(initState.getReadableStates(HistoryService.NAME));
@@ -1883,7 +1893,7 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
             return;
         }
         final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
-        final var adoptedRosterHash = RosterUtils.hash(adoptedRoster).getBytes();
+        final var adoptedRosterHash = rosterHashOf(adoptedRoster);
         if (TssHandoffCoordinator.usesJointForcedHandoff(tssConfig)) {
             final var writableHistoryStates = initState.getWritableStates(HistoryService.NAME);
             final var writableHistoryStore = new WritableHistoryStoreImpl(writableHistoryStates);
