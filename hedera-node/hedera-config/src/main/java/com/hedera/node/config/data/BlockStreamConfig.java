@@ -17,8 +17,14 @@ import java.time.Duration;
  * @param blockFileDir directory to store block files
  * @param roundsPerBlock the number of rounds per block
  * @param blockPeriod the block period
- * @param maxBlockSizeBytes the maximum serialized preview block size in bytes before savepoint output is suppressed;
- *                          zero disables the circuit breaker
+ * @param maxBlockSizeBytes the maximum serialized block size in bytes before the block-size circuit breaker engages;
+ *                          zero disables the circuit breaker. In {@code StreamMode.BOTH} (preview block stream),
+ *                          the circuit breaker suppresses further block-stream savepoint output for the rest of the
+ *                          block. In {@code StreamMode.BLOCKS} (canonical block stream), it additionally causes
+ *                          subsequent non-signature submitted transactions in that block to be rejected with {@code THROTTLED_AT_CONSENSUS}
+ *                          with normal consensus throttle fees; scheduled executions are deferred until capacity is available
+ * @param maxBlockSizeLimitEnabled feature flag for the canonical block execution budget; does not affect
+ *                                 the preview-mode savepoint-output circuit breaker
  * @param receiptEntriesBatchSize the maximum number of receipts to accumulate in a {@link com.hedera.hapi.node.state.recordcache.TransactionReceiptEntries} wrapper before writing a queue state changes item to the block stream
  * @param maxReadDepth the max allowed depth of nested protobuf messages
  * @param maxReadBytesSize the max size in bytes of protobuf messages to read
@@ -42,8 +48,11 @@ public record BlockStreamConfig(
         @ConfigProperty(defaultValue = "2s") @Min(0) @NetworkProperty
         Duration blockPeriod,
 
-        @ConfigProperty(defaultValue = "20971520") @Min(0) @NetworkProperty
+        @ConfigProperty(defaultValue = "104857600") @Min(0) @NetworkProperty
         long maxBlockSizeBytes,
+
+        @ConfigProperty(defaultValue = "true") @NetworkProperty
+        boolean maxBlockSizeLimitEnabled,
 
         @ConfigProperty(defaultValue = "8192") @Min(1) @NetworkProperty
         int receiptEntriesBatchSize,

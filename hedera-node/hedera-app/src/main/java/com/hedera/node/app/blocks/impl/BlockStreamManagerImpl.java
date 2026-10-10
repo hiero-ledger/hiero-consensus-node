@@ -20,6 +20,7 @@ import static com.hedera.node.app.quiescence.TctProbe.blockStreamInfoFrom;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
+import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.BOTH;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.model.quiescence.QuiescenceCommand.QUIESCE;
@@ -128,6 +129,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private final int roundsPerBlock;
     private final Duration blockPeriod;
     private final boolean blockSizeCircuitBreakerApplicable;
+    private final boolean maxBlockSizeThrottleApplicable;
     private final BlockHashSigner blockHashSigner;
     private final SemanticVersion version;
     private final SemanticVersion hapiVersion;
@@ -178,8 +180,26 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private long maxBlockSizeBytes;
     // The canonical serialized size of all items accepted into the current block, excluding its asynchronous proof.
     private long currentBlockSizeBytes;
-    // Once open, no more output from savepoint stacks is accepted until the next block starts.
+    // Once open, no more output from savepoint stacks is accepted until the next block starts. Only ever engages
+    // in StreamMode.BOTH (preview block stream); see blockSizeCircuitBreakerApplicable.
     private boolean savepointOutputSuppressed;
+    // Independent of the circuit breaker above: in StreamMode.BLOCKS (canonical), tracks the same running size
+    // against the same maxBlockSizeBytes limit, but never suppresses output — HandleWorkflow consults
+    // hasReachedMaxBlockSize() to reject further submitted transactions with normal consensus throttle fees instead.
+    // Deliberately
+    // separate state from
+    // the circuit breaker so other consumers of isSavepointOutputSuppressed() (e.g. trace-data serialization)
+    // are unaffected by this StreamMode.BLOCKS-only mechanism.
+    private boolean maxBlockSizeThrottleEnabled;
+    private long currentThrottleBlockSizeBytes;
+    private boolean maxBlockSizeReached;
+    private long submittedTransactionCount;
+    private long nodeSubmittedTransactionCount;
+    private long blockFullRejectionCount;
+    private long blockFullRejectionBytes;
+    private long submittedAtCutoff;
+    private long bytesAtCutoff;
+    private long signedTransactionCount;
 
     // Block merkle subtrees and leaves
     private IncrementalStreamingHasher previousBlockHashes;
@@ -273,6 +293,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private final BlockStreamingObs streamingObs;
 
     private final Counter blockSizeCircuitBreakerTripsCounter;
+    private final Counter maxBlockSizeThrottleTripsCounter;
 
     @Inject
     public BlockStreamManagerImpl(
@@ -308,7 +329,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
         this.roundsPerBlock = blockStreamConfig.roundsPerBlock();
         this.blockPeriod = blockStreamConfig.blockPeriod();
-        this.blockSizeCircuitBreakerApplicable = blockStreamConfig.streamMode() == BOTH;
+        final var streamMode = blockStreamConfig.streamMode();
+        this.blockSizeCircuitBreakerApplicable = streamMode == BOTH;
+        this.maxBlockSizeThrottleApplicable = streamMode == BLOCKS && blockStreamConfig.maxBlockSizeLimitEnabled();
         final var networkAdminConfig = config.getConfigData(NetworkAdminConfig.class);
         this.diskNetworkExport = networkAdminConfig.diskNetworkExport();
         this.diskNetworkExportFile = networkAdminConfig.diskNetworkExportFile();
@@ -325,6 +348,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         blockSizeCircuitBreakerTripsCounter = metrics.getOrCreate(new Counter.Config(
                         "block", "numBlockSizeCircuitBreakerTrips")
                 .withDescription("Number of preview blocks whose savepoint output was suppressed by the size limit"));
+        maxBlockSizeThrottleTripsCounter = metrics.getOrCreate(new Counter.Config(
+                        "block", "numMaxBlockSizeThrottleTrips")
+                .withDescription("Number of canonical blocks that reached the max block size limit, rejecting further"
+                        + " dispatches with BUSY for the rest of the block"));
         if (!quiescenceEnabled) {
             log.info("Quiescence is disabled");
             quiescedHeartbeat.shutdown();
@@ -515,7 +542,16 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             blockSizeCircuitBreakerEnabled = blockSizeCircuitBreakerApplicable && maxBlockSizeBytes > 0;
             currentBlockSizeBytes = 0;
             savepointOutputSuppressed = false;
-
+            maxBlockSizeThrottleEnabled = maxBlockSizeThrottleApplicable && maxBlockSizeBytes > 0;
+            currentThrottleBlockSizeBytes = 0;
+            maxBlockSizeReached = false;
+            submittedTransactionCount = 0;
+            nodeSubmittedTransactionCount = 0;
+            blockFullRejectionCount = 0;
+            blockFullRejectionBytes = 0;
+            submittedAtCutoff = 0;
+            bytesAtCutoff = 0;
+            signedTransactionCount = 0;
             writer = writerSupplier.get();
             blockTimestamp = asTimestamp(firstConsensusTimestampOf(round));
 
@@ -1040,15 +1076,20 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         return savepointOutputSuppressed;
     }
 
+    @Override
+    public boolean hasReachedMaxBlockSize() {
+        return maxBlockSizeReached;
+    }
+
     private void accountForWrittenItems(@NonNull final List<BlockItem> items) {
-        if (!blockSizeCircuitBreakerEnabled) {
-            return;
+        if (blockSizeCircuitBreakerEnabled) {
+            final long addedSize = serializedBlockSize(items);
+            currentBlockSizeBytes = saturatedAdd(currentBlockSizeBytes, addedSize);
+            if (!savepointOutputSuppressed && currentBlockSizeBytes > maxBlockSizeBytes) {
+                tripBlockSizeCircuitBreaker(currentBlockSizeBytes, addedSize);
+            }
         }
-        final long addedSize = serializedBlockSize(items);
-        currentBlockSizeBytes = saturatedAdd(currentBlockSizeBytes, addedSize);
-        if (!savepointOutputSuppressed && currentBlockSizeBytes > maxBlockSizeBytes) {
-            tripBlockSizeCircuitBreaker(currentBlockSizeBytes, addedSize);
-        }
+        trackMaxBlockSizeThrottle(items);
     }
 
     private void tripBlockSizeCircuitBreaker(final long projectedSize, final long addedSize) {
@@ -1061,6 +1102,56 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 projectedSize,
                 addedSize,
                 maxBlockSizeBytes);
+    }
+
+    @Override
+    public void recordSubmittedTransaction(
+            @NonNull final List<BlockItem> items, final boolean nodeSubmitted, final boolean rejectedForBlockSize) {
+        if (!maxBlockSizeThrottleEnabled) {
+            return;
+        }
+        if (nodeSubmitted) {
+            nodeSubmittedTransactionCount++;
+        } else {
+            submittedTransactionCount++;
+        }
+        if (rejectedForBlockSize) {
+            blockFullRejectionCount++;
+            blockFullRejectionBytes = saturatedAdd(blockFullRejectionBytes, serializedBlockSize(items));
+        }
+    }
+
+    /**
+     * Independent of the circuit breaker above: in {@code StreamMode.BLOCKS}, tracks the same running size against
+     * the same {@code maxBlockSizeBytes} limit, but never suppresses output. Once tripped, {@link
+     * #hasReachedMaxBlockSize()} reports {@code true} for the rest of the block, and {@code HandleWorkflow}
+     * is expected to reject further non-signature submitted transactions with {@code THROTTLED_AT_CONSENSUS} using normal consensus throttle fee charging rather than let them run.
+     * Scheduled executions are deferred by {@code HandleWorkflow}; block signatures remain eligible to run.
+     */
+    private void trackMaxBlockSizeThrottle(@NonNull final List<BlockItem> items) {
+        if (!maxBlockSizeThrottleEnabled) {
+            return;
+        }
+        final long addedSize = serializedBlockSize(items);
+        currentThrottleBlockSizeBytes = saturatedAdd(currentThrottleBlockSizeBytes, addedSize);
+        signedTransactionCount +=
+                items.stream().filter(BlockItem::hasSignedTransaction).count();
+        if (!maxBlockSizeReached && currentThrottleBlockSizeBytes > maxBlockSizeBytes) {
+            submittedAtCutoff = submittedTransactionCount;
+            bytesAtCutoff = currentThrottleBlockSizeBytes;
+            maxBlockSizeReached = true;
+            maxBlockSizeThrottleTripsCounter.increment();
+            log.warn(
+                    "Block #{} reached a serialized size of {} bytes after adding {} bytes, exceeding the "
+                            + "{}-byte max-block-size-throttle limit; rejecting further dispatches in this block"
+                            + " with THROTTLED_AT_CONSENSUS; submittedTransactions={}, nodeSubmittedTransactions={}",
+                    blockNumber,
+                    currentThrottleBlockSizeBytes,
+                    addedSize,
+                    maxBlockSizeBytes,
+                    submittedTransactionCount,
+                    nodeSubmittedTransactionCount);
+        }
     }
 
     private static long serializedBlockSize(@NonNull final List<BlockItem> items) {

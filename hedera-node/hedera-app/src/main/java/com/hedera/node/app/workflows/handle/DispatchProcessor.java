@@ -130,6 +130,14 @@ public class DispatchProcessor {
      */
     public void processDispatch(
             @NonNull final Dispatch dispatch, @Nullable final Details hollowAccountCompletionsDetails) {
+        processDispatch(dispatch, hollowAccountCompletionsDetails, false);
+    }
+
+    /** Processes a submitted transaction using normal fee charging, with an optional block-capacity rejection. */
+    public void processDispatch(
+            @NonNull final Dispatch dispatch,
+            @Nullable final Details hollowAccountCompletionsDetails,
+            final boolean blockFull) {
         requireNonNull(dispatch);
         final var validation = validator.validateFeeChargingScenario(dispatch);
         if (!validation.creatorDidDueDiligence()) {
@@ -143,7 +151,7 @@ public class DispatchProcessor {
         } else {
             final var fees = chargePayer(dispatch, validation, false);
             if (!alreadyFailed(dispatch, validation)) {
-                tryHandle(dispatch, validation, fees, hollowAccountCompletionsDetails);
+                tryHandle(dispatch, validation, fees, hollowAccountCompletionsDetails, blockFull);
             }
         }
         dispatchUsageManager.finalizeAndSaveUsage(dispatch);
@@ -166,10 +174,14 @@ public class DispatchProcessor {
             @NonNull final Dispatch dispatch,
             @NonNull final FeeCharging.Validation validation,
             @NonNull final Fees fees,
-            @Nullable final HollowAccountCompletions.Details details) {
+            @Nullable final HollowAccountCompletions.Details details,
+            final boolean blockFull) {
         final var functionality = dispatch.txnInfo().functionality();
         boolean success = false;
         try {
+            if (blockFull) {
+                throw ThrottleException.newNativeThrottleException();
+            }
             dispatchUsageManager.screenForCapacity(dispatch);
             dispatcher.dispatchHandle(dispatch.handleContext());
             dispatch.streamBuilder().status(SUCCESS);

@@ -537,6 +537,34 @@ class DispatchProcessorTest {
     }
 
     @Test
+    void blockFullChargesThrottleFeesWithoutExecuting() throws ThrottleException {
+        given(dispatch.fees()).willReturn(FEES);
+        given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
+        given(dispatchValidator.validateFeeChargingScenario(dispatch))
+                .willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
+        given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
+        given(dispatch.txnInfo()).willReturn(CONTRACT_TXN_INFO);
+        givenAuthorization(CONTRACT_TXN_INFO);
+        given(dispatch.txnCategory()).willReturn(USER);
+        doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
+        doCallRealMethod().when(dispatch).category();
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
+
+        subject.processDispatch(dispatch, null, true);
+
+        verifyTrackedFeePayments();
+        verify(dispatcher, never()).dispatchHandle(context);
+        verify(recordBuilder).status(com.hedera.hapi.node.base.ResponseCodeEnum.THROTTLED_AT_CONSENSUS);
+        verify(dispatchUsageManager, never()).screenForCapacity(dispatch);
+        verify(feeAccumulator).chargeFees(PAYER_ACCOUNT_ID, CREATOR_ACCOUNT_ID, FEES, null);
+        verify(feeAccumulator).chargeFees(PAYER_ACCOUNT_ID, CREATOR_ACCOUNT_ID, FEES.withoutServiceComponent(), null);
+        verify(feeAccumulator).reverseAccumulatedNodeFees();
+        verify(opWorkflowMetrics).incrementThrottled(CONTRACT_CALL);
+        assertFinished();
+    }
+
+    @Test
     void consGasExhaustedWaivesServiceFee() throws ThrottleException {
         given(dispatch.fees()).willReturn(FEES);
         given(dispatch.feeAccumulator()).willReturn(feeAccumulator);

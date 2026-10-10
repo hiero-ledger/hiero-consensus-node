@@ -213,11 +213,31 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
     void writeSavepointItems(@NonNull List<BlockItem> items, @NonNull Instant lastUsedConsensusTime);
 
     /**
-     * Returns whether savepoint-stack block output is suppressed for the current block.
+     * Returns whether savepoint-stack block output is suppressed for the current block. This only ever engages in
+     * {@code StreamMode.BOTH} (preview block stream); see {@link #hasReachedMaxBlockSize()} for the analogous,
+     * independent signal used in {@code StreamMode.BLOCKS} (canonical block stream), which never suppresses output.
      *
      * @return whether savepoint-stack block output is suppressed
      */
     boolean isSavepointOutputSuppressed();
+
+    /**
+     * Returns whether the current block has already reached its configured maximum serialized size, in {@code
+     * StreamMode.BLOCKS} (canonical block stream). Unlike {@link #isSavepointOutputSuppressed()}, reaching this
+     * limit never suppresses any block-stream output — every dispatch that already completed is recorded normally.
+     * Callers (namely {@code HandleWorkflow}) are expected to reject further non-signature submitted transactions with {@code THROTTLED_AT_CONSENSUS} using normal consensus throttle fee charging
+     * once this returns {@code true}, rather than let them run. Always {@code false} in any other stream mode.
+     *
+     * @return whether the current block has reached its configured maximum size, in {@code StreamMode.BLOCKS}
+     */
+    boolean hasReachedMaxBlockSize();
+
+    /**
+     * Records diagnostic counts for a submitted parent's output before it is written. Scheduled executions
+     * and child transactions are not submitted parents. Rejection bytes include the complete output batch.
+     */
+    default void recordSubmittedTransaction(
+            @NonNull List<BlockItem> items, boolean nodeSubmitted, boolean rejectedForBlockSize) {}
 
     /**
      * Signals that the platform has reached a catastrophic failure (e.g. following an ISS). Sets a flag that
