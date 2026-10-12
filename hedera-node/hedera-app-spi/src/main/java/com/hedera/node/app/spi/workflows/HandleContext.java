@@ -137,6 +137,23 @@ public interface HandleContext {
         }
 
         /**
+         * Returns a copy of this metadata with the given entry added or updated. Unlike
+         * {@link #putMetadata(Type, Object)} this never mutates the receiver, so it is safe to call on
+         * {@link #EMPTY_METADATA}, whose backing map is immutable.
+         *
+         * @param type the metadata key
+         * @param value the metadata value
+         * @return a new instance including the given entry
+         */
+        public DispatchMetadata with(@NonNull final Type type, @NonNull final Object value) {
+            requireNonNull(type);
+            requireNonNull(value);
+            final var copy = new HashMap<>(metadata);
+            copy.put(type, value);
+            return new DispatchMetadata(copy);
+        }
+
+        /**
          * Retrieves the metadata value associated with the given key.
          *
          * @param type the metadata key
@@ -217,7 +234,13 @@ public interface HandleContext {
              * belongs to, when that cannot be inferred from the dispatching stack; used to attribute the side effects
              * an inner transaction is replayed with after the batch has already unwound its savepoints.
              */
-            ATTRIBUTED_BATCH_INNER_ID
+            ATTRIBUTED_BATCH_INNER_ID,
+            /**
+             * Marks a {@code CryptoUpdate} dispatched by the Hedera Account Service system contract to configure
+             * an account's staking (HIP-1522). Such a dispatch may name a contract account, provided its body
+             * carries staking fields only; see {@code CryptoUpdateHandler}.
+             */
+            ACCOUNT_SERVICE_STAKING_UPDATE
         }
     }
 
