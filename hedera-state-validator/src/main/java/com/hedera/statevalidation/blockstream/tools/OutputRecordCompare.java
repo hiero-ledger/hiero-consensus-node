@@ -13,6 +13,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -37,6 +38,10 @@ import java.util.stream.Stream;
 /// writes (BlockStreamService / PlatformState / RunningHashes) can be told apart from real execution
 /// divergence (e.g. ContractService STORAGE).
 ///
+/// In range mode, blocks are paired by block number. Before comparing transactions, each pair's round spans are
+/// compared; if the two streams closed the block at different rounds, a BOUNDARY divergence is reported with both
+/// spans and block timestamps (all later blocks are shifted, so per-transaction comparison would be misleading).
+///
 /// Usage (single round):
 ///   java -cp ./hedera-state-validator-<ver>.jar com.hedera.statevalidation.blockstream.tools.OutputRecordCompare
 /// --original <dir> --reminted <dir> --round 253747721 [--ignore-states a,b,c]
@@ -44,6 +49,9 @@ import java.util.stream.Stream;
 ///   ... com.hedera.statevalidation.blockstream.tools.OutputRecordCompare --original <dir> --reminted <dir>
 /// --from-round N --to-round N \
 ///        [--ignore-states a,b,c] [--threads N] [--window N]
+/// Usage (compare consensus events - which events reached consensus in which round, see EventSetCompare):
+///   ... com.hedera.statevalidation.blockstream.tools.OutputRecordCompare --original <dir> --reminted <dir>
+/// --events --from-round N --to-round N
 ///
 public final class OutputRecordCompare {
 
@@ -58,6 +66,7 @@ public final class OutputRecordCompare {
         Set<String> ignoreServices = Set.of();
         String dumpTx = null;
         boolean all = false;
+        boolean events = false;
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
                 case "--original" -> originalDir = Path.of(args[++i]);
@@ -70,6 +79,7 @@ public final class OutputRecordCompare {
                 case "--ignore-states" -> ignoreServices = Set.of(args[++i].split(","));
                 case "--dump-tx" -> dumpTx = args[++i];
                 case "--all" -> all = true;
+                case "--events" -> events = true;
                 default -> {}
             }
         }
@@ -83,6 +93,16 @@ public final class OutputRecordCompare {
         }
         if (window < 1) {
             window = threads * 8;
+        }
+
+        // Events mode: compare the consensus event sets (and each event's round and order) over a round range.
+        if (events) {
+            if (fromRound == Long.MIN_VALUE || toRound == Long.MAX_VALUE) {
+                System.err.println("--events requires --from-round N --to-round N");
+                System.exit(2);
+            }
+            EventSetCompare.run(originalDir, remintedDir, fromRound, toRound);
+            return;
         }
 
         // Single-round mode (backwards compatible): report ALL divergent transactions in that one round.
@@ -194,15 +214,26 @@ public final class OutputRecordCompare {
         final Block rBlock = BlockStreamAccess.blockFrom(rPath);
 
         // Determine which rounds this block carries (from the original), in order, within the window.
-        final List<Long> rounds = new ArrayList<>();
-        for (final BlockItem item : oBlock.items()) {
-            if (item.hasRoundHeader()) {
-                final long rd = item.roundHeader().roundNumber();
-                if (rd >= fromRound && rd <= toRound) {
-                    rounds.add(rd);
-                }
-            }
+        final List<Long> oBlockRounds = roundsOf(oBlock);
+        final List<Long> rounds = oBlockRounds.stream()
+                .filter(rd -> rd >= fromRound && rd <= toRound)
+                .toList();
+
+        // Block boundary check: blocks are paired by number, so if the two streams close the same-numbered block
+        // at different rounds, every later block is shifted and per-round comparisons below would report
+        // misleading TXCOUNT/STATE differences (or miss them for rounds with no transactions). Report the
+        // boundary shift itself, with both spans and block timestamps, so the cause is visible directly.
+        final List<Long> rBlockRounds = roundsOf(rBlock);
+        if (!rounds.isEmpty() && !oBlockRounds.equals(rBlockRounds)) {
+            return new BlockDivergence(
+                    blockNum,
+                    firstDifferingRound(oBlockRounds, rBlockRounds),
+                    "block boundary",
+                    "BOUNDARY(original " + describeSpan(oBlock, oBlockRounds) + " vs reminted "
+                            + describeSpan(rBlock, rBlockRounds) + ")",
+                    "");
         }
+
         for (final long rd : rounds) {
             final List<TxRecord> oTx = extractRound(oBlock, rd);
             final List<TxRecord> rTx = extractRound(rBlock, rd);
@@ -270,6 +301,45 @@ public final class OutputRecordCompare {
             }
         }
         return null;
+    }
+
+    /** Returns the round numbers of the block's round headers, in stream order. */
+    private static List<Long> roundsOf(final Block block) {
+        final List<Long> rounds = new ArrayList<>();
+        for (final BlockItem item : block.items()) {
+            if (item.hasRoundHeader()) {
+                rounds.add(item.roundHeader().roundNumber());
+            }
+        }
+        return rounds;
+    }
+
+    /** Returns the first round present in one list but not at the same position in the other. */
+    private static long firstDifferingRound(final List<Long> a, final List<Long> b) {
+        final int n = Math.min(a.size(), b.size());
+        for (int i = 0; i < n; i++) {
+            if (!a.get(i).equals(b.get(i))) {
+                return Math.min(a.get(i), b.get(i));
+            }
+        }
+        // One list is a prefix of the other: the first extra round is where they differ.
+        return a.size() > n ? a.get(n) : b.get(n);
+    }
+
+    /** Describes a block's round span and header timestamp, e.g. {@code [5, 10] (6) @ 2026-10-08T13:35:02Z}. */
+    private static String describeSpan(final Block block, final List<Long> rounds) {
+        String timestamp = "?";
+        for (final BlockItem item : block.items()) {
+            if (item.hasBlockHeader() && item.blockHeader().hasBlockTimestamp()) {
+                final var ts = item.blockHeader().blockTimestamp();
+                timestamp = Instant.ofEpochSecond(ts.seconds(), ts.nanos()).toString();
+                break;
+            }
+        }
+        if (rounds.isEmpty()) {
+            return "[] @ " + timestamp;
+        }
+        return "[" + rounds.getFirst() + ", " + rounds.getLast() + "] (" + rounds.size() + ") @ " + timestamp;
     }
 
     private static long minKey(final Map<Long, Path> m) {
@@ -622,7 +692,7 @@ public final class OutputRecordCompare {
         return null;
     }
 
-    private static Map<Long, Path> indexByBlockNumber(final Path dir) throws IOException {
+    static Map<Long, Path> indexByBlockNumber(final Path dir) throws IOException {
         final Map<Long, Path> map = new TreeMap<>();
         try (final Stream<Path> s = Files.walk(dir)) {
             s.filter(p -> !Files.isDirectory(p))
