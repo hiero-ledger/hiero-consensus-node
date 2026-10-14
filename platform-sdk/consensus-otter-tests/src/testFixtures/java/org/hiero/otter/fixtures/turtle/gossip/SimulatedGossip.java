@@ -96,7 +96,9 @@ public class SimulatedGossip implements Gossip, EventReceiver {
      */
     @Override
     public boolean receiveEvent(@NonNull final PlatformEvent event) {
-        if (deterministicWiringModel.isRunning()) {
+        // A subset start may leave some peers un-bound; peers that haven't been started
+        // yet drop incoming events rather than NPE on the unbound model.
+        if (deterministicWiringModel != null && deterministicWiringModel.isRunning()) {
             forwardEvent(event);
             return true;
         }

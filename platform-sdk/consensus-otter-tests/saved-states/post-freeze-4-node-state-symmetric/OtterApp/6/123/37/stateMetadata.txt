@@ -1,0 +1,15 @@
+ROUND:                               37
+HASH:                                1a1d3aa5eb05d879fd2c2c46534981f6226b346e3a4bc18f9d3943a73ccc0311a4e428479bae5bb2f20d84cec77689af
+HASH_MNEMONIC:                       dry-feed-panda-valley
+NUMBER_OF_CONSENSUS_EVENTS:          4254
+CONSENSUS_TIMESTAMP:                 2025-02-07T16:59:06.230004104Z
+LEGACY_RUNNING_EVENT_HASH:           ca78bafab0d0ecb619630dfe0358f67b468bee155682d7bf8e356cf48ddaa6956f11b7d7bca6478f6ad1efae00e921d0
+LEGACY_RUNNING_EVENT_HASH_MNEMONIC:  rain-patch-toward-harsh
+MINIMUM_BIRTH_ROUND_NON_ANCIENT:     9
+SOFTWARE_VERSION:                    SemanticVersion[major=0, minor=79, patch=0, pre=, build=]
+WALL_CLOCK_TIME:                     2026-08-31T16:37:04.538175Z
+NODE_ID:                             6
+SIGNING_NODES:                       0, 1, 3, 4, 5, 7, 8
+SIGNING_WEIGHT_SUM:                  35000000000
+TOTAL_WEIGHT:                        50000000000
+FREEZE_STATE:                        false

@@ -62,7 +62,7 @@ class StartingUpStatusLogicTests {
     @DisplayName("Unexpected actions should cause exceptions")
     void unexpectedActions() {
         assertException(logic, new DoneReplayingEventsAction(time.now()), logic.getStatus());
-        assertException(logic, new SelfEventReachedConsensusAction(time.now()), logic.getStatus());
+        assertException(logic, new SelfEventReachedConsensusAction(time.now(), true), logic.getStatus());
         assertException(logic, new FreezePeriodEnteredAction(0), logic.getStatus());
         assertException(logic, new FallenBehindAction(), logic.getStatus());
         assertException(logic, new ReconnectCompleteAction(0), logic.getStatus());

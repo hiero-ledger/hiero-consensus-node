@@ -62,7 +62,7 @@ class ActiveStatusLogicTests {
         assertNoTransition(logic, new TimeElapsedAction(time.now(), neutralQuiescingStatus), logic.getStatus());
 
         // restart the timer that will trigger the status change to checking
-        assertNoTransition(logic, new SelfEventReachedConsensusAction(time.now()), logic.getStatus());
+        assertNoTransition(logic, new SelfEventReachedConsensusAction(time.now(), true), logic.getStatus());
 
         // if the self event reaching consensus successfully restarted the timer, then the status should still be active
         time.tick(Duration.ofSeconds(4));
@@ -137,7 +137,7 @@ class ActiveStatusLogicTests {
     @DisplayName("Go to CHECKING when sufficient time since quiescence command and consensus")
     void toCheckingWhenSufficientTimeSinceBothQuiescenceCommandAndConsensus() {
         final QuiescingStatus oldQuiescenceStatus = new QuiescingStatus(false, time.now());
-        assertNoTransition(logic, new SelfEventReachedConsensusAction(time.now()), PlatformStatus.ACTIVE);
+        assertNoTransition(logic, new SelfEventReachedConsensusAction(time.now(), true), PlatformStatus.ACTIVE);
         time.tick(Duration.ofSeconds(6));
         // Should transition to CHECKING when enough time has passed since both quiescence command and consensus
         assertTransition(logic, new TimeElapsedAction(time.now(), oldQuiescenceStatus), PlatformStatus.CHECKING);
