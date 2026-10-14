@@ -56,6 +56,13 @@ public class OutputRecordCompareCommand implements Callable<Integer> {
     private boolean all;
 
     @Option(
+            names = "--events",
+            description = "Compare consensus events instead of output records: list events present in only one "
+                    + "stream, events that reached consensus in a different round, and events in a different "
+                    + "consensus order. Requires --from-round and --to-round.")
+    private boolean events;
+
+    @Option(
             names = "--ignore-states",
             split = ",",
             description = "Services to ignore when comparing state changes, e.g. "
@@ -80,6 +87,10 @@ public class OutputRecordCompareCommand implements Callable<Integer> {
         if (dumpTx != null && round == null) {
             throw new CommandLine.ParameterException(spec.commandLine(), "--dump-tx requires --round");
         }
+        if (events && (round != null || fromRound == null || toRound == null)) {
+            throw new CommandLine.ParameterException(
+                    spec.commandLine(), "--events requires --from-round and --to-round, and cannot use --round");
+        }
 
         final List<String> args = new ArrayList<>();
         add(args, "--original", originalDir.toString());
@@ -89,6 +100,9 @@ public class OutputRecordCompareCommand implements Callable<Integer> {
         add(args, "--to-round", toRound);
         if (all) {
             args.add("--all");
+        }
+        if (events) {
+            args.add("--events");
         }
         if (ignoreStates != null && !ignoreStates.isEmpty()) {
             add(args, "--ignore-states", String.join(",", ignoreStates));
