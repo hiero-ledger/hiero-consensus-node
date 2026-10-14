@@ -284,8 +284,17 @@ public class DispatchProcessor {
                     dispatch.fees().networkFee(),
                     validation.errorStatusOrThrow());
         }
-        // If the transaction is a batch inner transaction, we don't charge the creator
         if (dispatch.category() == BATCH_INNER) {
+            // Ingest re-runs every check on each inner, so a due-diligence failure here is charged to the node, as a
+            // top-level due-diligence failure would be. Route the charge through the (recorded) fee-charging context
+            // rather than the fee accumulator so it is captured by the batch's rollback-and-replay and survives the
+            // batch failing; a direct fee-accumulator charge would be discarded with the inner's savepoint. See #26615.
+            dispatch.feeChargingOrElse(appFeeCharging)
+                    .customized(dispatch)
+                    .charge(
+                            dispatch.creatorInfo().accountId(),
+                            new Fees(0, dispatch.fees().networkFee(), 0),
+                            null);
             return;
         }
         dispatch.feeAccumulator()
