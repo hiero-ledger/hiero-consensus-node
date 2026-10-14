@@ -166,7 +166,7 @@ final class StaleParentTracker {
         return m;
     }
 
-    /** Value-based wrapper around a 48-byte SHA-384 hash for use as a map/set key. */
+    /** Value-based wrapper around an event hash for use as a map/set key. */
     private static final class HashKey {
         private final byte[] b;
         private final int hc;
