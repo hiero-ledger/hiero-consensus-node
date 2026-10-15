@@ -19,6 +19,7 @@ import com.hedera.pbj.runtime.ProtoParserTools;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.statevalidation.util.ProgressReporter;
+import com.hedera.statevalidation.util.SnapshotChecks;
 import com.hedera.statevalidation.util.StateUtils;
 import com.swirlds.platform.context.PlatformContext;
 import com.swirlds.state.BinaryState;
@@ -217,6 +218,7 @@ public class BlockStreamRecoveryWorkflow {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+        SnapshotChecks.requireStateData(outputPath, state.getRoot().getLabel());
 
         if (!expectedRootHash.isEmpty() && !expectedRootHash.equals(rootHash.toString())) {
             throw new RuntimeException("Excepted and actual hashes do not match. \n Expected: %s \n Actual: %s "

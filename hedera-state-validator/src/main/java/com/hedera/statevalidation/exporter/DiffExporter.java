@@ -113,7 +113,7 @@ public class DiffExporter {
     }
 
     private void createOutputFile(List<DiffEntry> diffEntries, String fileName) {
-        final File resultFile = new File(resultDir.getParent(), fileName);
+        final File resultFile = new File(resultDir, fileName);
         try (BufferedWriter writer1 = new BufferedWriter(new FileWriter(resultFile))) {
             for (DiffEntry e : diffEntries) {
                 String record = buildDiffRecord(e.path, e.keyBytes, e.valueBytes);

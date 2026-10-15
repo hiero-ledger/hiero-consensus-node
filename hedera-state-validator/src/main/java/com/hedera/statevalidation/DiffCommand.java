@@ -17,6 +17,10 @@ import picocli.CommandLine.Parameters;
 
 /**
  * Compares two states and creates files that can be used to diff them.
+ *
+ * <p>Exit codes: {@code 0} the states are equivalent, {@code 1} the states differ, {@code 2} the comparison could
+ * not be performed (e.g. a state failed to load). Callers rely on 1 meaning a real difference, so errors must never
+ * exit with 1 — picocli's default handler would return 1 for an uncaught exception.
  */
 @Command(name = "diff", description = "Compares two states and creates a diff.")
 public class DiffCommand implements Callable<Integer> {
@@ -24,6 +28,9 @@ public class DiffCommand implements Callable<Integer> {
     private static final Logger log = LogManager.getLogger(DiffCommand.class);
     private static final String STATE_1 = "STATE1";
     private static final String STATE_2 = "STATE2";
+
+    /** Exit code for a diff that could not be performed, distinct from 1 ("states differ"). */
+    private static final int EXIT_ERROR = 2;
 
     @CommandLine.ParentCommand
     private StateOperatorCommand parent;
@@ -59,6 +66,17 @@ public class DiffCommand implements Callable<Integer> {
 
     @Override
     public Integer call() {
+        try {
+            compare();
+        } catch (final Throwable t) {
+            // DiffExporter exits the JVM itself on completion (0 or 1); reaching here means the comparison failed.
+            log.error("Diff failed before the states could be compared", t);
+            t.printStackTrace();
+            System.exit(EXIT_ERROR);
+        }
+    }
+
+    private void compare() {
         final File outputDirectory = new File(outputDirStr);
         if (!outputDirectory.exists()) {
             throw new RuntimeException(outputDirectory.getAbsolutePath() + " does not exist");

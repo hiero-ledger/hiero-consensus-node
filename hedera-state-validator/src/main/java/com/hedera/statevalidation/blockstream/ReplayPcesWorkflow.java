@@ -10,6 +10,7 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.node.app.Hedera;
 import com.hedera.node.app.ServicesMain;
 import com.hedera.pbj.runtime.ParseException;
+import com.hedera.statevalidation.util.SnapshotChecks;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -336,6 +337,8 @@ public final class ReplayPcesWorkflow {
 
             final Path destination = outDir.resolve(Long.toString(round));
             log.info("Writing final replayed state for round {} to {}", round, destination);
+            // Read before writing: the writer releases the reservation.
+            final String stateLabel = capturedState.get().getState().getRoot().getLabel();
 
             // writeSignedStateToDisk atomically creates the exact destination directory; `destination` already
             // includes the selected round (<out>/<round>).
@@ -347,6 +350,7 @@ public final class ReplayPcesWorkflow {
                     StateToDiskReason.PCES_RECOVERY_COMPLETE,
                     capturedState,
                     stateLifecycleManager);
+            SnapshotChecks.requireStateData(destination, stateLabel);
 
             log.info("Final replayed state for round {} written to {}", round, destination);
             return round;
