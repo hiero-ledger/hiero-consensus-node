@@ -14,6 +14,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Provides write access to the {@link HintsConstruction} instances in state.
@@ -102,4 +103,11 @@ public interface WritableHintsStore extends ReadableHintsStore {
      * @param crsPublication the CRS publication
      */
     void addCrsPublication(long nodeId, @NonNull CrsPublicationTransactionBody crsPublication);
+
+    /**
+     * Removes the CRS publications for the given node IDs.
+     *
+     * @param nodeIds the node IDs whose publications should be removed
+     */
+    void clearCrsPublications(@NonNull Set<Long> nodeIds);
 }
