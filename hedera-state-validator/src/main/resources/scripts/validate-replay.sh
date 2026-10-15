@@ -323,7 +323,6 @@ if should_run_step 3; then
     #     unsigned reconstructed events and offline (no live TSS) signing to pass intake.
     java --enable-native-access=ALL-UNNAMED \
         --sun-misc-unsafe-memory-access=allow \
-        -agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=*:5005 \
         -Devent.preconsensus.intake.allowUnsignedPcesEvents=true \
         -Dtss.forceMockSignatures=true \
         -Dpces.forceIgnorePcesSignatures=true \
