@@ -519,10 +519,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             lastIntervalProcessTime = asInstant(blockStreamInfo.lastIntervalProcessTimeOrElse(EPOCH));
             // During cutover, the trailing block hashes use the original record hash
             // (not the wrapped record root hash stored in lastBlockHash).
-            final var trailingHash = cutoverTrailingBlockHash != null ? cutoverTrailingBlockHash : lastBlockHash;
+            final boolean isCutoverBlock = cutoverTrailingBlockHash != null;
+            final var trailingHash = isCutoverBlock ? cutoverTrailingBlockHash : lastBlockHash;
             cutoverTrailingBlockHash = null;
             blockHashManager.startBlock(blockStreamInfo, trailingHash);
-            runningHashManager.startBlock(blockStreamInfo);
+            runningHashManager.startBlock(blockStreamInfo, isCutoverBlock);
 
             lifecycle.onOpenBlock(state);
 
@@ -1510,9 +1511,18 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             while (numMissing < all.length && all[numMissing] == null) {
                 numMissing++;
             }
-            final byte[] result = new byte[(all.length - numMissing) * hashSize];
+            // Emit each present slot at its NATIVE length. Normally every slot is in {@link #hashSize} units,
+            // but across a block-stream cutover the window transiently mixes full 48-byte SHA-384 seeds (not
+            // yet rolled off) with 32-byte SHA-256 hashes; truncating them to hashSize would corrupt the seeds.
+            int total = 0;
             for (int i = numMissing; i < all.length; i++) {
-                System.arraycopy(all[i], 0, result, (i - numMissing) * hashSize, hashSize);
+                total += all[i].length;
+            }
+            final byte[] result = new byte[total];
+            int offset = 0;
+            for (int i = numMissing; i < all.length; i++) {
+                System.arraycopy(all[i], 0, result, offset, all[i].length);
+                offset += all[i].length;
             }
             return Bytes.wrap(result);
         }
@@ -1520,15 +1530,58 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         /**
          * Starts managing running hashes for a new round, with the given trailing block hashes.
          *
+         * <p>Normally the stored {@code trailingOutputHashes} are already in the active digest's units
+         * ({@link #hashSize}). The one exception is the first block after a block-stream cutover: those seed
+         * hashes are the pre-cutover block-stream running hashes, which are always SHA-384 (48 bytes). We seed
+         * the chain from the full SHA-384 value so the running hash remains mathematically continuous across the
+         * SHA-384 &rarr; SHA-256 transition (the first post-cutover {@code nextResultHash} digests the full
+         * 48-byte seed; every subsequent hash is in {@link #hashSize} units).
+         *
+         * <p>For the blocks immediately following the cutover block, the stored window may still hold some of
+         * the full 48-byte SHA-384 seed hashes that have not yet rolled off. Those blocks are not themselves
+         * cutover blocks ({@code isCutoverBlock == false}), so we decode the per-entry sizes from the blob
+         * length: the output window is at most four entries, and since there are always at least four
+         * pre-cutover running hashes a mixed window is always exactly four entries. A length beyond
+         * {@code 4 * hashSize} therefore encodes a leading run of {@code a = (len - 4*hashSize) / (48 - hashSize)}
+         * SHA-384 (48-byte) entries followed by {@code 4 - a} {@link #hashSize}-byte entries; any shorter length
+         * is a uniform {@link #hashSize} window.
+         *
          * @param blockStreamInfo the trailing block hashes at the start of the round
+         * @param isCutoverBlock whether this is the first block after a block-stream cutover
          */
-        void startBlock(@NonNull final BlockStreamInfo blockStreamInfo) {
+        void startBlock(@NonNull final BlockStreamInfo blockStreamInfo, final boolean isCutoverBlock) {
             final var stored = blockStreamInfo.trailingOutputHashes();
-            final var n = (int) (stored.length() / hashSize);
-            nMinus3Hash = n < 4 ? null : stored.toByteArray(0, hashSize);
-            nMinus2Hash = n < 3 ? null : stored.toByteArray((n - 3) * hashSize, hashSize);
-            nMinus1Hash = n < 2 ? null : stored.toByteArray((n - 2) * hashSize, hashSize);
-            hash = n < 1 ? new byte[hashSize] : stored.toByteArray((n - 1) * hashSize, hashSize);
+            final long len = stored.length();
+            final int sha384 = DigestType.SHA_384.digestLength();
+            if (isCutoverBlock) {
+                // The cutover block's seed is the four pre-cutover block-stream running hashes, all SHA-384.
+                final var n = (int) (len / sha384);
+                nMinus3Hash = n < 4 ? null : stored.toByteArray(0, sha384);
+                nMinus2Hash = n < 3 ? null : stored.toByteArray((n - 3) * sha384, sha384);
+                nMinus1Hash = n < 2 ? null : stored.toByteArray((n - 2) * sha384, sha384);
+                hash = n < 1 ? new byte[hashSize] : stored.toByteArray((n - 1) * sha384, sha384);
+            } else if (len > 4L * hashSize) {
+                // Mixed post-cutover window: exactly four entries, the leading `a` still 48-byte SHA-384 seeds.
+                final int a = (int) ((len - 4L * hashSize) / (sha384 - hashSize));
+                final byte[][] slots = new byte[4][];
+                int offset = 0;
+                for (int i = 0; i < 4; i++) {
+                    final int size = i < a ? sha384 : hashSize;
+                    slots[i] = stored.toByteArray(offset, size);
+                    offset += size;
+                }
+                nMinus3Hash = slots[0];
+                nMinus2Hash = slots[1];
+                nMinus1Hash = slots[2];
+                hash = slots[3];
+            } else {
+                // Uniform window in the active digest's units.
+                final var n = (int) (len / hashSize);
+                nMinus3Hash = n < 4 ? null : stored.toByteArray(0, hashSize);
+                nMinus2Hash = n < 3 ? null : stored.toByteArray((n - 3) * hashSize, hashSize);
+                nMinus1Hash = n < 2 ? null : stored.toByteArray((n - 2) * hashSize, hashSize);
+                hash = n < 1 ? new byte[hashSize] : stored.toByteArray((n - 1) * hashSize, hashSize);
+            }
         }
 
         /**

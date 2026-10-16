@@ -159,6 +159,29 @@ class BlockStreamInfoImplTest {
     }
 
     @Test
+    void prngSeedDecodesMixedCutoverWindow() {
+        // After a cutover block closes with <4 results, the output window is a mix of pre-cutover 48-byte
+        // SHA-384 seeds and post-cutover 32-byte SHA-256 hashes. Here the two leftmost entries are still
+        // 48-byte seeds, so the PRNG seed (the leftmost running hash) is the full 48-byte value.
+        final var sha256 = DigestType.SHA_256;
+        final var mixed = concat(
+                runningHash(1, DigestType.SHA_384),
+                runningHash(2, DigestType.SHA_384),
+                runningHash(3, sha256),
+                runningHash(4, sha256));
+        assertEquals(160, mixed.length(), "Two 48-byte seeds plus two 32-byte hashes");
+        assertEquals(
+                runningHash(1, DigestType.SHA_384),
+                new BlockStreamInfoImpl(
+                                BlockStreamInfo.newBuilder()
+                                        .trailingOutputHashes(mixed)
+                                        .build(),
+                                sha256)
+                        .prngSeed(),
+                "prngSeed must return the full 48-byte leftmost pre-cutover running hash");
+    }
+
+    @Test
     void blockHashByBlockNumberIsNullAtGenesis() {
         final var subject = new BlockStreamInfoImpl(info(-1L, Bytes.EMPTY), DigestType.SHA_384);
         assertNull(subject.blockHashByBlockNumber(0L));

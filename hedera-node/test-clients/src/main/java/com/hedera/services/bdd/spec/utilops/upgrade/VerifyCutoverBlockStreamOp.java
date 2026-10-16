@@ -99,6 +99,11 @@ public class VerifyCutoverBlockStreamOp extends UtilOp {
                 blockStreamInfo.trailingBlockHashes(),
                 "BlockStreamInfo.trailingBlockHashes should equal BlockInfo.blockHashes" + " (original record hashes)");
 
+        // The digest in effect after cutover; the block-root Merkle tree and the post-cutover
+        // running-hash chain both use it (SHA_384 by default, SHA_256 on networks that opt in).
+        final var digestTypeName = spec.startupProperties().get("blockStream.digestType");
+        final var digestType = digestTypeName != null ? DigestType.valueOf(digestTypeName) : DigestType.SHA_384;
+
         // === Verify trailingOutputHashes by evolving captured RunningHashes ===
         // The BSI from endRound has trailingOutputHashes AFTER processing all
         // TRANSACTION_RESULT items in this block. So we seed from the captured
@@ -113,13 +118,14 @@ public class VerifyCutoverBlockStreamOp extends UtilOp {
         for (final var item : firstPostCutover.items()) {
             if (item.hasTransactionResult()) {
                 final var serialized = BlockItem.PROTOBUF.toBytes(item).toByteArray();
-                // Running hashes remain chained SHA-384, independent of the block-root Merkle tree's
-                // (SHA-256) BlockImplUtils.hashLeaf(byte[]) default
-                final var hashedLeaf = BlockImplUtils.hashLeaf(CommonUtils.sha384DigestOrThrow(), serialized);
+                // The captured seed hashes are the pre-cutover block-stream running hashes (SHA-384).
+                // Transaction results in this block are AFTER cutover, so they evolve the chain with
+                // the configured digest (SHA-256 when enabled), matching BlockStreamManagerImpl.
+                final var hashedLeaf = BlockImplUtils.hashLeaf(CommonUtils.digestOrThrow(digestType), serialized);
                 nMinus3 = nMinus2;
                 nMinus2 = nMinus1;
                 nMinus1 = current;
-                final var digest = CommonUtils.sha384DigestOrThrow();
+                final var digest = CommonUtils.digestOrThrow(digestType);
                 digest.update(current);
                 digest.update(hashedLeaf);
                 current = digest.digest();
@@ -128,7 +134,8 @@ public class VerifyCutoverBlockStreamOp extends UtilOp {
         }
         log.info("Computed running hashes through {} TRANSACTION_RESULT items", resultCount);
         assertTrue(resultCount > 0, "First post-cutover block should contain at least one transaction result");
-        // Running hashes here are chained SHA-384 (48 bytes)
+        // This expected-window construction assumes at least four post-cutover results, so all four slots are
+        // chained (uniform) under the configured digest.
         Bytes expectedOutputHashes = BlockImplUtils.appendHash(Bytes.wrap(nMinus3), Bytes.EMPTY, 4);
         expectedOutputHashes = BlockImplUtils.appendHash(Bytes.wrap(nMinus2), expectedOutputHashes, 4);
         expectedOutputHashes = BlockImplUtils.appendHash(Bytes.wrap(nMinus1), expectedOutputHashes, 4);
@@ -151,8 +158,6 @@ public class VerifyCutoverBlockStreamOp extends UtilOp {
                 "Footer previousBlockRootHash should match" + " block info's previousWrappedRecordBlockRootHash");
 
         // === Verify hash chain by computing block root hashes from items ===
-        final var digestTypeName = spec.startupProperties().get("blockStream.digestType");
-        final var digestType = digestTypeName != null ? DigestType.valueOf(digestTypeName) : DigestType.SHA_384;
         final var prevBlockHashesTree = new IncrementalStreamingHasher(
                 CommonUtils.digestOrThrow(digestType),
                 capturedBlockInfo.get().wrappedIntermediatePreviousBlockRootHashes().stream()

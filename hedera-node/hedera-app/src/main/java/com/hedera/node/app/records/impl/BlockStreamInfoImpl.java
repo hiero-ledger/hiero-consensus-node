@@ -62,10 +62,16 @@ public final class BlockStreamInfoImpl implements BlockRecordInfo {
     @Override
     public Bytes prngSeed() {
         // Mirrors BlockStreamManagerImpl.RunningHashManager: the n-minus-3 running hash is the seed, and is the
-        // leftmost hash of the trailing output hashes once at least four hashes are present.
+        // leftmost hash of the trailing output hashes once at least four hashes are present. Across a block-stream
+        // cutover the window transiently mixes full 48-byte SHA-384 seeds with digestType-sized hashes; a length
+        // beyond 4 * hashSize means the leftmost entry is still a 48-byte SHA-384 seed (see RunningHashManager).
         final var hashSize = digestType.digestLength();
         final var hashes = blockStreamInfo.trailingOutputHashes();
-        final var n = (int) (hashes.length() / hashSize);
+        final var len = hashes.length();
+        if (len > 4L * hashSize) {
+            return hashes.slice(0, DigestType.SHA_384.digestLength());
+        }
+        final var n = (int) (len / hashSize);
         return n < 4 ? null : hashes.slice(0, hashSize);
     }
 
