@@ -646,6 +646,16 @@ message RemovedStateChange {
  * An update to a `Singleton` state.
  */
 message SingletonUpdateChange {
+    /**
+     * Whether new_value is a canonical delta, as defined for
+     * MapUpdateChange.partial. The baseline is the last emitted singleton
+     * value, including across block boundaries. Default false means full replacement.
+     */
+    bool partial = 1;
+
+    /** Sorted, unique top-level fields to reset; valid only when partial is true. */
+    repeated uint32 cleared_fields = 2;
+
     oneof new_value {
         /**
          * A change to the block info singleton.
@@ -656,7 +666,7 @@ message SingletonUpdateChange {
          * The full BlockInfo will be in the state proof, and may not be
          * necessary here.</blockquote></blockquote>
          */
-        proto.BlockInfo block_info_value = 1;
+        proto.BlockInfo block_info_value = 3;
 
         /**
          * A change to the congestion level starts singleton.
@@ -664,7 +674,7 @@ message SingletonUpdateChange {
          * This change SHALL be present if congestion level pricing for
          * general fees or gas fees started during the current block.
          */
-        proto.CongestionLevelStarts congestion_level_starts_value = 2;
+        proto.CongestionLevelStarts congestion_level_starts_value = 4;
 
         /**
          * A change to the Entity Identifier singleton.
@@ -673,7 +683,7 @@ message SingletonUpdateChange {
          * identifier used for the current shard and realm and SHALL be used
          * to issue new entity numbers.
          */
-        google.protobuf.UInt64Value entity_number_value = 3;
+        google.protobuf.UInt64Value entity_number_value = 5;
 
         /**
          * A change to the exchange rates singleton.
@@ -682,14 +692,14 @@ message SingletonUpdateChange {
          * rate, as stored in the "midnight rates" singleton changed
          * during the current block.
          */
-        proto.ExchangeRateSet exchange_rate_set_value = 4;
+        proto.ExchangeRateSet exchange_rate_set_value = 6;
 
         /**
          * A change to the network staking rewards singleton.
          * <p>
          * Network staking rewards SHALL be updated for every non-empty block.
          */
-        proto.NetworkStakingRewards network_staking_rewards_value = 5;
+        proto.NetworkStakingRewards network_staking_rewards_value = 7;
 
         /**
          * A change to a raw byte array singleton.
@@ -699,7 +709,7 @@ message SingletonUpdateChange {
          * The "upgrade file hash" state is an example of a raw byte
          * array singleton.
          */
-        google.protobuf.BytesValue bytes_value = 6;
+        google.protobuf.BytesValue bytes_value = 8;
 
         /**
          * A change to a raw string singleton.
@@ -707,7 +717,7 @@ message SingletonUpdateChange {
          * <dl><dt>Note</dt><dd>There are no current examples of a raw string
          * singleton state.</dd></dl>
          */
-        google.protobuf.StringValue string_value = 7;
+        google.protobuf.StringValue string_value = 9;
 
         /**
          * A change to the running hashes singleton.
@@ -723,7 +733,7 @@ message SingletonUpdateChange {
          * to be a hash of the block items, including this one...
          * </blockquote></blockquote>
          */
-        proto.RunningHashes running_hashes_value = 8;
+        proto.RunningHashes running_hashes_value = 10;
 
         /**
          * A change to the throttle usage snapshots singleton.
@@ -732,7 +742,7 @@ message SingletonUpdateChange {
          * to reflect the amount used for each tps throttle and
          * for the gas throttle.
          */
-        proto.ThrottleUsageSnapshots throttle_usage_snapshots_value = 9;
+        proto.ThrottleUsageSnapshots throttle_usage_snapshots_value = 11;
 
         /**
          * A change to a raw `Timestamp` singleton.<br/>
@@ -740,7 +750,7 @@ message SingletonUpdateChange {
          * "network freeze time" singleton state, which, if set, stores
          * the time for the next scheduled freeze.
          */
-        proto.Timestamp timestamp_value = 10;
+        proto.Timestamp timestamp_value = 12;
 
         /**
          * A change to the block stream status singleton.
@@ -748,72 +758,72 @@ message SingletonUpdateChange {
          * This MUST be updated at the beginning of a block, with the
          * information for the immediately prior block.
          */
-        com.hedera.hapi.node.state.blockstream.BlockStreamInfo block_stream_info_value = 11;
+        com.hedera.hapi.node.state.blockstream.BlockStreamInfo block_stream_info_value = 13;
 
         /**
          * A change to the platform state singleton.
          */
-        com.hedera.hapi.platform.state.PlatformState platform_state_value = 12;
+        com.hedera.hapi.platform.state.PlatformState platform_state_value = 14;
 
         /**
          * A change to the roster state singleton.
          */
-        com.hedera.hapi.node.state.roster.RosterState roster_state_value = 13;
+        com.hedera.hapi.node.state.roster.RosterState roster_state_value = 15;
 
         /**
          * A change to a hinTS construction singleton.
          */
-        com.hedera.hapi.node.state.hints.HintsConstruction hints_construction_value = 14;
+        com.hedera.hapi.node.state.hints.HintsConstruction hints_construction_value = 16;
 
         /**
          * A change to the Entity counts singleton.
          */
-        com.hedera.hapi.node.state.entity.EntityCounts entity_counts_value = 15;
+        com.hedera.hapi.node.state.entity.EntityCounts entity_counts_value = 17;
 
         /**
          * A change to a hinTS construction singleton.
          */
-        com.hedera.hapi.node.state.history.HistoryProofConstruction history_proof_construction_value = 16;
+        com.hedera.hapi.node.state.history.HistoryProofConstruction history_proof_construction_value = 18;
 
         /**
          * A change to the CRS State singleton.
          */
-        com.hedera.hapi.node.state.hints.CRSState crs_state_value = 17;
+        com.hedera.hapi.node.state.hints.CRSState crs_state_value = 19;
 
         /**
          * A change to the node rewards singleton.
          * <p>
          * Node rewards SHALL be updated for every non-empty block.
          */
-        proto.NodeRewards node_rewards_value = 18;
+        proto.NodeRewards node_rewards_value = 20;
         /**
          * A change to the node payments singleton.
          * <p>
          * Node payments SHALL be updated for every non-empty block.
          */
-        com.hedera.hapi.node.state.token.NodePayments node_payments_value = 19;
+        com.hedera.hapi.node.state.token.NodePayments node_payments_value = 21;
 
         /**
          * A change to the highest node id singleton.
          */
-        com.hedera.hapi.platform.state.NodeId node_id_value = 20;
+        com.hedera.hapi.platform.state.NodeId node_id_value = 22;
 
         /**
          * A change to the CLPR ledger configuration singleton.
          */
-        com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration clpr_ledger_configuration_value = 21;
+        com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration clpr_ledger_configuration_value = 23;
 
         /**
          * A change to the CLPR endpoint manifest singleton.
          */
-        com.hedera.hapi.node.state.clpr.ClprEndpointManifest clpr_endpoint_manifest_value = 22;
+        com.hedera.hapi.node.state.clpr.ClprEndpointManifest clpr_endpoint_manifest_value = 24;
 
         /**
          * A change to the CLPR endpoint manifest construction singleton.
          * Present while a manifest construction is gathering per-node publications;
          * absent between constructions (deleted on close).
          */
-        com.hedera.hapi.node.state.clpr.ClprEndpointManifestConstruction clpr_endpoint_manifest_construction_value = 23;
+        com.hedera.hapi.node.state.clpr.ClprEndpointManifestConstruction clpr_endpoint_manifest_construction_value = 25;
     }
 }
 
@@ -841,10 +851,9 @@ message MapUpdateChange {
     /**
      * A value in a virtual map.
      * <p>
-     * This value MUST correctly represent the state of the map entry
-     * _after_ the asserted update.<br/>
-     * This value MAY be reduced to only transmit fields that differ
-     * from the prior state.<br/>
+     * If `partial` is false, this is the full value _after_ the update.<br/>
+     * If `partial` is true, it carries only the changed top-level fields,
+     * to be applied against the preceding value (see `partial`).<br/>
      * This field is REQUIRED.
      */
     MapChangeValue value = 2;
@@ -859,6 +868,29 @@ message MapUpdateChange {
      * additional list of changed keys.
      */
     bool identical = 3;
+
+    /**
+     * False means a complete replacement. True means a sparse top-level value,
+     * applied against the preceding value for this state and key. Supplied fields
+     * replace entire fields, including messages, bytes and repeated lists. Omitted
+     * fields remain unchanged unless listed in cleared_fields. A prior value is
+     * REQUIRED for partial updates. An empty partial with no clears is a no-op.
+     *
+     * Message presence and selected default-valued oneof members are significant.
+     * Switching a oneof member MUST explicitly clear its previously selected
+     * alternative. Clearing a oneof to unset also names the selected member.
+     * Encoded empty length-delimited fields retain their presence, including empty
+     * messages, optional wrappers, selected strings/bytes and repeated elements.
+     */
+    bool partial = 4;
+
+    /**
+     * Sorted, unique top-level field numbers in the entity value to reset to
+     * default/absent/empty. Valid only for partial updates. A cleared field MUST
+     * NOT also be supplied in value. Clearing an already absent field is valid.
+     * A switch can clear an old oneof alternative and supply a different alternative.
+     */
+    repeated uint32 cleared_fields = 5;
 }
 
 /**
