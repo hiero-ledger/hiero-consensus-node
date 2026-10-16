@@ -52,6 +52,8 @@ import com.swirlds.state.BinaryState;
 import com.swirlds.state.State;
 import com.swirlds.state.binary.MerkleProof;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -416,6 +418,21 @@ class ClprStreamingSynchronizerTest {
 
             verify(streamingCall).close();
             thenFailureIsRecorded();
+            verifyNoInteractions(bundleSubmitter);
+        }
+
+        @Test
+        @DisplayName("given the peer does not have the channel yet, then the peer is not penalized")
+        void givenPeerDoesNotHaveChannelYet_thenPeerIsNotPenalized() throws Exception {
+            given(streamingCall.read())
+                    .willThrow(new ClprSyncException(
+                            "Streaming sync read failed",
+                            new StatusRuntimeException(Status.NOT_FOUND.withDescription("Channel not found"))));
+
+            synchronize(channel(6L, 0L, 0L));
+
+            verify(streamingCall).close();
+            thenNoOutcomeIsRecorded();
             verifyNoInteractions(bundleSubmitter);
         }
 

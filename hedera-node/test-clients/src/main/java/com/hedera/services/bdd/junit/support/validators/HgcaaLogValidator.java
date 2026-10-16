@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.Assertions;
 
 public class HgcaaLogValidator {
@@ -121,7 +122,29 @@ public class HgcaaLogValidator {
                 // A WRAPS-extensible history proof is a single ~63MB savepoint batch, which trips
                 // the streamMode=BOTH block size circuit breaker (blockStream.maxBlockSizeBytes)
                 List.of("BlockStreamManagerImpl", "suppressing savepoint output for the rest of the block"),
-                List.of("QueryWorkflowImpl", "Unexpected ParseException while parsing protobuf"));
+                List.of("QueryWorkflowImpl", "Unexpected ParseException while parsing protobuf"),
+                // Single-network CLPR tests run without a CLPR CA, so CLPR sync runs without mTLS
+                List.of("ClprCaCertManager", "CLPR CA cert/key not configured"),
+                // CLPR queries verify their own state proofs before returning them, which cannot succeed
+                // when a CLPR task runs with tss.forceMockSignatures=true
+                List.of("ClprGetLedgerConfigurationHandler", "TSS verification failed for ledgerId"),
+                List.of("ClprGetEndpointManifestHandler", "TSS verification failed for ledgerId"),
+                // Multi-network tests warm-start their networks from TSS fixtures in the startup network JSON
+                List.of("dev-only", "from startup network JSON"),
+                List.of("WRAPS enabled but this node cannot build recursive proofs", "TSS_LIB_WRAPS_ARTIFACTS_PATH=''"),
+                // Multi-network tests restart CLPR peer networks and rotate their mTLS ports, so syncs to a peer
+                // fail while it is unreachable. (The cause is only on the following exception line, so this
+                // ignores every streaming sync failure, not just unreachable peers.)
+                List.of("ClprStreamingSynchronizer", "Streaming sync failed for channel"),
+                List.of("ClprPeerSelector", "circuit breaker opened"),
+                // The server side of the same churn: a peer cancels its sync stream when it fails or restarts
+                List.of("ClprStreamingSyncMethod", "stream aborted by peer"));
+
+        /**
+         * The level of a log line: the first word after its timestamp and optional {@code <network-nN>} tag.
+         */
+        private static final Pattern LOG_LEVEL =
+                Pattern.compile("^\\d{4}-\\d{2}-\\d{2} [\\d:.]+ (?:<[^>]*> )?([A-Z]+)\\b");
 
         private int numProblems = 0;
         private int linesSinceInitialProblem = -1;
@@ -159,7 +182,9 @@ public class HgcaaLogValidator {
         }
 
         private boolean isInitialProblem(final String line) {
-            return line.contains(WARN) || line.contains(ERROR);
+            // Match the log level field, not any occurrence of the words (e.g. a CLPR status APPLICATION_ERROR)
+            final var matcher = LOG_LEVEL.matcher(line);
+            return matcher.find() && (WARN.equals(matcher.group(1)) || ERROR.equals(matcher.group(1)));
         }
 
         private boolean isPossiblyCatastrophicProblem(final String line) {

@@ -1083,9 +1083,6 @@ public class HandleWorkflow {
         if (streamMode != RECORDS) {
             immediateStateChangeListener.resetKvStateChanges(null);
             immediateStateChangeListener.resetSingletonStateChanges();
-            if (includeSingletons) {
-                boundaryStateChangeListener.reset();
-            }
         }
         action.run();
         if (writableStates instanceof CommittableWritableStates committableWritableStates) {
@@ -1103,12 +1100,17 @@ public class HandleWorkflow {
                         .build());
             }
             if (includeSingletons) {
+                // Flush every singleton change not yet externalized in this block, not just the action's own: a
+                // singleton first written earlier in the block must be inserted before any key the action adds
+                // when the stream is replayed. Reset only after streaming, so the block's closing flush neither
+                // drops nor repeats these changes.
                 final var singletonChanges = boundaryStateChangeListener.allStateChanges();
                 if (!singletonChanges.isEmpty()) {
                     blockStreamManager.writeItem((now) -> BlockItem.newBuilder()
                             .stateChanges(new StateChanges(now, new ArrayList<>(singletonChanges)))
                             .build());
                 }
+                boundaryStateChangeListener.reset();
             }
         }
     }

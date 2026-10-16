@@ -147,6 +147,17 @@ public class StateChangesValidator implements BlockStreamValidator {
     @Nullable
     private Bytes ledgerIdFromState;
 
+    /**
+     * Whether the state changes being applied are from the genesis block.
+     */
+    private boolean applyingGenesisBlock;
+
+    /**
+     * Whether the ledger id was already set in the genesis block, as when a network warm-starts from TSS
+     * fixtures in its startup network; such a ledger id is never published in a ledger id publication.
+     */
+    private boolean ledgerIdSetAtGenesis;
+
     @Nullable
     private LedgerIdPublicationTransactionBody ledgerIdPublication;
 
@@ -541,6 +552,7 @@ public class StateChangesValidator implements BlockStreamValidator {
             long firstBlockRound = -1;
             long eventNodeId = -1;
             Timestamp firstConsensusTimestamp = null;
+            applyingGenesisBlock = block.items().getFirst().blockHeaderOrThrow().number() == 0;
             for (final var item : block.items()) {
                 if (firstConsensusTimestamp == null && item.hasBlockHeader()) {
                     firstConsensusTimestamp = item.blockHeaderOrThrow().blockTimestamp();
@@ -701,8 +713,11 @@ public class StateChangesValidator implements BlockStreamValidator {
         }
 
         if (historyLibrary != null) {
-            assertNotNull(ledgerIdPublication, "Ledger id not published despite TSS history enabled");
-            assertEquals(ledgerIdFromState, ledgerIdPublication.ledgerId());
+            if (ledgerIdPublication != null) {
+                assertEquals(ledgerIdFromState, ledgerIdPublication.ledgerId());
+            } else {
+                assertTrue(ledgerIdSetAtGenesis, "Ledger id not published despite TSS history enabled");
+            }
         }
         if (shouldAssertAtLeastOneWraps(assertAtLeastOneWraps) && !observedCompressedWrapsProof) {
             Assertions.fail("Expected at least one verified TSS signature backed by a compressed WRAPS proof");
@@ -1064,6 +1079,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                     stateChangesSummary.countSingletonPut(serviceName, stateId);
                     if (stateChange.stateId() == STATE_ID_LEDGER_ID.protoOrdinal()) {
                         ledgerIdFromState = ((ProtoBytes) singleton).value();
+                        ledgerIdSetAtGenesis |= applyingGenesisBlock && ledgerIdFromState.length() > 0;
                     }
                 }
                 case MAP_UPDATE -> {

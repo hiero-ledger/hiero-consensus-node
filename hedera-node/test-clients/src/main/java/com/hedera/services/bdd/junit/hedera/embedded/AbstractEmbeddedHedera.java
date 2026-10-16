@@ -167,13 +167,17 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
         hedera.initializeStatesApi(state, trigger, ServicesMain.buildPlatformConfig());
         hedera.setInitialStateHash(FAKE_START_OF_STATE_HASH);
         hedera.onStateInitialized(state, fakePlatform(), trigger, version);
-        fakePlatform().start();
         fakePlatform().notifyListeners(ACTIVE_NOTIFICATION);
         hedera.newPlatformStatus(ACTIVE_NOTIFICATION.getNewStatus());
         if (trigger == GENESIS) {
             // Trigger creation of system entities
             handleRoundWith(mockStateSignatureTxn());
         }
+        // Start the platform only after the genesis round. A concurrent platform handles rounds on its own
+        // thread, so a node transaction submitted during genesis (e.g. a CLPR endpoint publication) made both
+        // threads commit the same FakeState at once (NPE in the state change listeners). Safe for all embedded
+        // modes: genesis does not need the platform's round thread, and the repeatable platform's start() is a no-op.
+        fakePlatform().start();
     }
 
     @Override

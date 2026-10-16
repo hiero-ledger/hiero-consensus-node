@@ -19,6 +19,7 @@ import com.hedera.node.config.data.ClprConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import io.grpc.Status;
 import java.time.Duration;
 import java.util.List;
 import javax.inject.Inject;
@@ -169,6 +170,12 @@ public final class ClprStreamingSynchronizer implements ClprSynchronizer {
                 peerSelector.recordFailure(peerId);
             }
         } catch (final ClprSyncException | ClientException e) {
+            if (Status.fromThrowable(e).getCode() == Status.Code.NOT_FOUND) {
+                // The peer is reachable but has not registered or completed this channel yet, which is expected
+                // while the two ledgers set the channel up; retry next cycle without counting a peer failure
+                logger.debug("Peer {} does not have channel {} yet: {}", peerId, channelId, e.getMessage());
+                return;
+            }
             // ClprSyncException: stream failure. ClientException: mTLS channel could not be built (e.g. malformed
             // peer certificate). Both are peer-level failures for the breaker.
             peerSelector.recordFailure(peerId);

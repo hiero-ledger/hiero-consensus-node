@@ -13,6 +13,7 @@ import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADD
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_SERVICE_ACCOUNT_ID;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_DISPATCH;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.EXPLICIT_WRITE_TRACING;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
@@ -63,6 +64,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -92,8 +94,13 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
     /** Function selector for onClprResponse(bytes32,uint64,uint8,bytes) = 0x3b74550e */
     private static final byte[] ON_CLPR_RESPONSE_SELECTOR = new byte[] {0x3b, 0x74, 0x55, 0x0e};
 
-    private static final DispatchMetadata CLPR_DISPATCH_METADATA = new DispatchMetadata(
-            CLPR_DISPATCH, new ClprDispatchMetadata(CLPR_SERVICE_ACCOUNT_ID, CLPR_EVM_ADDRESS_BYTES));
+    // A CLPR transaction may dispatch several EVM calls in one transactional unit, so their written storage
+    // slots must be traced explicitly for the block stream to say which call wrote which value
+    private static final DispatchMetadata CLPR_DISPATCH_METADATA = new DispatchMetadata(Map.of(
+            CLPR_DISPATCH,
+            new ClprDispatchMetadata(CLPR_SERVICE_ACCOUNT_ID, CLPR_EVM_ADDRESS_BYTES),
+            EXPLICIT_WRITE_TRACING,
+            true));
 
     private final ClprVerifierFactory verifierFactory;
     private final EntityIdFactory entityIdFactory;
@@ -518,7 +525,8 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                 messageQueueStore, channelId, oldAckedMessageId, peerReceivedMessageId, remainingMessages)) {
             case ReplyScan.AckedThrough(final long lastAckedMessageId) -> newAckedMessageId = lastAckedMessageId;
             case ReplyScan.OrderingViolated(final long expectedMessageId, final long repliedMessageId) -> {
-                log.warn(
+                // A protocol violation by the submitting node, handled by pausing the channel and penalizing it
+                log.info(
                         "[ClprSubmitBundle] step8 reply out of order conn={} expectedMsgId={} repliedMsgId={} "
                                 + "newMessageIndex={} currentStatus={}",
                         channelId,
@@ -747,7 +755,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                     // isn't the remote connector that lied, maybe it was the remote ledger itself, in which case
                     // we probably should take some action because this channel is faulty.
                     if (connector == null) {
-                        log.warn(
+                        log.debug(
                                 "[ClprSubmitBundle] step10 DATA connector NOT_FOUND conn={} receivedMsgId={} "
                                         + "connectorId={} -> CONNECTOR_NOT_FOUND reply",
                                 channelId,
@@ -779,7 +787,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                 worstCaseCharge);
                         if (connectorAccount == null || connectorAccount.tinybarBalance() < worstCaseCharge) {
                             // Insufficient balance — slash, enqueue CONNECTOR_UNDERFUNDED, skip dispatch
-                            log.warn(
+                            log.debug(
                                     "[ClprSubmitBundle] step10 DATA connector underfunded conn={} "
                                             + "receivedMsgId={} connectorContract={} accountPresent={} "
                                             + "balance={} required={} -> CONNECTOR_UNDERFUNDED reply",
@@ -883,7 +891,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                 // getEvmCallResult() throws when the child dispatch did not produce
                                 // an EVM result record (e.g. the target address has no bytecode).
                                 // Treat as empty return data — the reply status is set by result.status().
-                                log.warn(
+                                log.debug(
                                         "[ClprSubmitBundle] step10 DATA dispatch produced no EVM result conn={} "
                                                 + "receivedMsgId={} target={} reason={}: {}",
                                         channelId,
@@ -1005,7 +1013,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                             ? null
                             : originalPayload.hasMessage() ? originalPayload.message() : null;
                     if (origDataMsg == null) {
-                        log.warn(
+                        log.debug(
                                 "[ClprSubmitBundle] step10 MESSAGE_REPLY has no original DATA message "
                                         + "conn={} replyTargetId={} originalPayloadKind={}; skipping app callback",
                                 channelId,

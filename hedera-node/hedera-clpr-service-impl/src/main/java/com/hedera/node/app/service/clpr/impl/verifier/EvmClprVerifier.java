@@ -9,6 +9,7 @@ import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_SERVICE
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.DISPATCH_ONLY_NOOP_FEE_CHARGING;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_DISPATCH;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.EXPLICIT_WRITE_TRACING;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REMOVABLE;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static java.util.Objects.requireNonNull;
@@ -43,6 +44,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -70,8 +72,13 @@ public class EvmClprVerifier implements ClprVerifier {
 
     private static final Logger log = LoggerFactory.getLogger(EvmClprVerifier.class);
 
-    private static final DispatchMetadata CLPR_DISPATCH_METADATA = new DispatchMetadata(
-            CLPR_DISPATCH, new ClprDispatchMetadata(CLPR_SERVICE_ACCOUNT_ID, CLPR_EVM_ADDRESS_BYTES));
+    // A CLPR transaction may dispatch several EVM calls in one transactional unit, so their written storage
+    // slots must be traced explicitly for the block stream to say which call wrote which value
+    private static final DispatchMetadata CLPR_DISPATCH_METADATA = new DispatchMetadata(Map.of(
+            CLPR_DISPATCH,
+            new ClprDispatchMetadata(CLPR_SERVICE_ACCOUNT_ID, CLPR_EVM_ADDRESS_BYTES),
+            EXPLICIT_WRITE_TRACING,
+            true));
 
     // Config with manifest: verifyConfig(bytes,bytes32,bytes) → config fields + ClprEndpointManifest.
     // The manifest-aware return type is shared with all EVM verifiers — see
@@ -279,7 +286,7 @@ public class EvmClprVerifier implements ClprVerifier {
                 result.status(),
                 evmResultSummary(result));
         if (result.status() != SUCCESS) {
-            log.warn(
+            log.debug(
                     "Verifier dispatchRaw failed: contract={} status={} (translated to {}) payer={} gasLimit={}",
                     verifierContract,
                     result.status(),

@@ -45,6 +45,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willAnswer;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -55,6 +56,7 @@ import static org.mockito.Mockito.withSettings;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.input.EventHeader;
 import com.hedera.hapi.block.stream.input.ParentEventReference;
+import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.AccountAmount;
@@ -159,6 +161,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.time.Instant;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -166,6 +169,7 @@ import java.util.TreeMap;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import javax.inject.Provider;
 import org.apache.logging.log4j.LogManager;
 import org.hiero.base.crypto.Hash;
@@ -1000,13 +1004,13 @@ class HandleWorkflowTest {
         final WritableSingletonState<ClprEndpointManifest> manifest = mock(WritableSingletonState.class);
         final WritableSingletonState<ClprEndpointManifestConstruction> construction =
                 mock(WritableSingletonState.class);
-        given(clprStates.<ClprEndpointManifestConstruction>getSingleton(ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID))
-                .willReturn(construction);
         given(state.getWritableStates(ClprService.NAME)).willReturn(clprStates);
         given(clprStates.<ClprLedgerConfiguration>getSingleton(LEDGER_CONFIGURATION_STATE_ID))
                 .willReturn(ledgerConfiguration);
         given(clprStates.<ClprEndpointManifest>getSingleton(ENDPOINT_MANIFEST_STATE_ID))
                 .willReturn(manifest);
+        given(clprStates.<ClprEndpointManifestConstruction>getSingleton(ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID))
+                .willReturn(construction);
 
         final var method = HandleWorkflow.class.getDeclaredMethod(
                 "initializeMissingClprSingletons",
@@ -1018,6 +1022,7 @@ class HandleWorkflowTest {
 
         verify(ledgerConfiguration).put(any(ClprLedgerConfiguration.class));
         verify(manifest).put(any(ClprEndpointManifest.class));
+        verify(construction).put(ClprEndpointManifestConstruction.DEFAULT);
     }
 
     @ParameterizedTest
@@ -1355,6 +1360,33 @@ class HandleWorkflowTest {
         method.invoke(subject, state, NOW, UPGRADE_INITIALIZATION);
 
         verify(boundaryStateChangeListener, never()).reset();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void streamingAllChangesFlushesPendingBoundarySingletonsBeforeReset() throws Exception {
+        givenSubjectWith(BLOCKS, BlockStreamWriterMode.FILE, emptyList());
+        // A boundary singleton change made earlier in the still-open block, before the action
+        final var pendingChange = StateChange.newBuilder()
+                .stateId(ENTITY_COUNTS_STATE_ID)
+                .singletonUpdate(SingletonUpdateChange.DEFAULT)
+                .build();
+        given(boundaryStateChangeListener.allStateChanges()).willReturn(new LinkedList<>(List.of(pendingChange)));
+
+        final var method = HandleWorkflow.class.getDeclaredMethod(
+                "doStreamingAllChanges", WritableStates.class, WritableStates.class, Runnable.class);
+        method.setAccessible(true);
+        method.invoke(subject, mock(WritableStates.class), null, (Runnable) () -> {});
+
+        // The pending change is streamed before the listener is reset, so it is neither dropped nor repeated
+        // when the block closes
+        final ArgumentCaptor<Function<Timestamp, BlockItem>> itemCaptor = ArgumentCaptor.forClass(Function.class);
+        final var inOrder = inOrder(blockStreamManager, boundaryStateChangeListener);
+        inOrder.verify(blockStreamManager).writeItem(itemCaptor.capture());
+        inOrder.verify(boundaryStateChangeListener).reset();
+        assertEquals(
+                List.of(pendingChange),
+                itemCaptor.getValue().apply(BLOCK_TIME).stateChangesOrThrow().stateChanges());
     }
 
     @Test
