@@ -119,6 +119,7 @@ public class WrappedRecordBlockHashMigrationBenchmark {
                 "concurrent",
                 false,
                 wrappedRecordHashesDir.toString(),
+                2_000_000_000L,
                 true,
                 false);
     }

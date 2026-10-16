@@ -162,6 +162,7 @@ class V0760BlockRecordSchemaTest {
         given(hederaConfig.configVersion()).willReturn(0);
         given(ctx.isUpgrade(any())).willReturn(true);
         given(configuration.getConfigData(BlockRecordStreamConfig.class)).willReturn(blockRecordStreamConfig);
+        given(blockRecordStreamConfig.writeWrappedRecordFileBlockHashesToDisk()).willReturn(true);
         given(blockRecordStreamConfig.liveWritePrevWrappedRecordHashes()).willReturn(false);
         given(configuration.getConfigData(BlockStreamConfig.class)).willReturn(blockStreamConfig);
         given(blockStreamConfig.enableCutover()).willReturn(false);
@@ -196,10 +197,56 @@ class V0760BlockRecordSchemaTest {
         given(versionConfig.servicesVersion()).willReturn(new SemanticVersion(0, 75, 0, "", ""));
         given(hederaConfig.configVersion()).willReturn(0);
         given(ctx.isUpgrade(any())).willReturn(false);
+        given(configuration.getConfigData(BlockRecordStreamConfig.class)).willReturn(blockRecordStreamConfig);
+        given(blockRecordStreamConfig.writeWrappedRecordFileBlockHashesToDisk()).willReturn(true);
 
         subject.restart(ctx);
 
         verifyNoInteractions(blockInfoState);
+    }
+
+    @Test
+    void restartDeletesFileWhenWriteFlagDisabled(@TempDir final Path tempDir) throws IOException {
+        final var file = tempDir.resolve(DEFAULT_FILE_NAME);
+        Files.writeString(file, "stale");
+        givenRestartWithoutVotingOrCutover();
+        given(blockRecordStreamConfig.writeWrappedRecordFileBlockHashesToDisk()).willReturn(false);
+        given(configuration.getConfigData(BlockStreamJumpstartConfig.class)).willReturn(blockStreamJumpstartConfig);
+        given(blockStreamJumpstartConfig.blockNum()).willReturn(-1L);
+        given(blockRecordStreamConfig.wrappedRecordHashesDir()).willReturn(tempDir.toString());
+
+        subject.restart(ctx);
+
+        assertFalse(Files.exists(file));
+    }
+
+    @Test
+    void restartKeepsFileWhenWriteFlagEnabled(@TempDir final Path tempDir) throws IOException {
+        final var file = tempDir.resolve(DEFAULT_FILE_NAME);
+        Files.writeString(file, "live");
+        givenRestartWithoutVotingOrCutover();
+        given(blockRecordStreamConfig.writeWrappedRecordFileBlockHashesToDisk()).willReturn(true);
+
+        subject.restart(ctx);
+
+        assertTrue(Files.exists(file));
+        verify(blockRecordStreamConfig, never()).wrappedRecordHashesDir();
+    }
+
+    @Test
+    void restartKeepsFileWhileAJumpstartIsConfigured(@TempDir final Path tempDir) throws IOException {
+        final var file = tempDir.resolve(DEFAULT_FILE_NAME);
+        Files.writeString(file, "needed by the jumpstart");
+        givenRestartWithoutVotingOrCutover();
+        given(blockRecordStreamConfig.writeWrappedRecordFileBlockHashesToDisk()).willReturn(false);
+        given(configuration.getConfigData(BlockStreamJumpstartConfig.class)).willReturn(blockStreamJumpstartConfig);
+        // Block 0 still counts: the jumpstart migration only treats a negative block number as "no jumpstart"
+        given(blockStreamJumpstartConfig.blockNum()).willReturn(0L);
+
+        subject.restart(ctx);
+
+        assertTrue(Files.exists(file));
+        verify(blockRecordStreamConfig, never()).wrappedRecordHashesDir();
     }
 
     @Test
@@ -355,7 +402,22 @@ class V0760BlockRecordSchemaTest {
         given(hederaConfig.configVersion()).willReturn(0);
         given(ctx.isUpgrade(any())).willReturn(true);
         given(configuration.getConfigData(BlockRecordStreamConfig.class)).willReturn(blockRecordStreamConfig);
+        given(blockRecordStreamConfig.writeWrappedRecordFileBlockHashesToDisk()).willReturn(true);
         given(blockRecordStreamConfig.liveWritePrevWrappedRecordHashes()).willReturn(true);
+    }
+
+    private void givenRestartWithoutVotingOrCutover() {
+        given(ctx.isGenesis()).willReturn(false);
+        given(ctx.appConfig()).willReturn(configuration);
+        given(configuration.getConfigData(BlockRecordStreamConfig.class)).willReturn(blockRecordStreamConfig);
+        given(configuration.getConfigData(VersionConfig.class)).willReturn(versionConfig);
+        given(configuration.getConfigData(HederaConfig.class)).willReturn(hederaConfig);
+        given(versionConfig.servicesVersion()).willReturn(new SemanticVersion(0, 75, 0, "", ""));
+        given(hederaConfig.configVersion()).willReturn(0);
+        given(ctx.isUpgrade(any())).willReturn(false);
+        given(ctx.newStates()).willReturn(writableStates);
+        given(writableStates.<BlockInfo>getSingleton(BLOCKS_STATE_ID)).willReturn(blockInfoState);
+        givenCutoverDisabled();
     }
 
     private void givenCutoverDisabled() {

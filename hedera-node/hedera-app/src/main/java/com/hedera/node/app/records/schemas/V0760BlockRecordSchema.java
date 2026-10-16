@@ -29,9 +29,10 @@ import org.apache.logging.log4j.Logger;
  *
  * <p>{@link #migrate(MigrationContext)} performs the one-shot cleanup of the stale on-disk
  * {@value com.hedera.node.app.records.impl.WrappedRecordFileBlockHashesDiskWriter#DEFAULT_FILE_NAME}
- * file when {@code writeWrappedRecordFileBlockHashesToDisk} is disabled.
+ * file when {@code writeWrappedRecordFileBlockHashesToDisk} is disabled, and {@link #restart(MigrationContext)}
+ * repeats it on every start unless a jumpstart is configured; a later schema must carry this over too.
  *
- * <p>{@link #restart(MigrationContext)} carries over the cutover/jumpstart logic from
+ * <p>{@link #restart(MigrationContext)} also carries over the cutover/jumpstart logic from
  * {@link V0750BlockRecordSchema}: the platform invokes {@code restart()} only on the latest schema
  * per service, so without this carry-over the shared values consumed by
  * {@code V0740BlockStreamSchema} and the jumpstart voting initialization would silently stop
@@ -57,22 +58,18 @@ public class V0760BlockRecordSchema extends Schema<SemanticVersion> {
         if (ctx.isGenesis()) {
             return;
         }
-        final var cfg = ctx.appConfig().getConfigData(BlockRecordStreamConfig.class);
-        if (cfg.writeWrappedRecordFileBlockHashesToDisk()) {
+        final var blockRecordConfig = ctx.appConfig().getConfigData(BlockRecordStreamConfig.class);
+        if (blockRecordConfig.writeWrappedRecordFileBlockHashesToDisk()) {
             return;
         }
-        final Path file = Paths.get(cfg.wrappedRecordHashesDir()).resolve(DEFAULT_FILE_NAME);
-        try {
-            if (Files.deleteIfExists(file)) {
-                log.info("Deleted stale wrapped record hashes file {}", file);
-            }
-        } catch (final IOException e) {
-            log.warn("Failed to delete stale wrapped record hashes file {}", file, e);
-        }
+        deleteHashesFile(blockRecordConfig);
     }
 
     @Override
     public void restart(@NonNull final MigrationContext<SemanticVersion> ctx) {
+        if (!ctx.isGenesis()) {
+            deleteHashesFileIfWritingDisabled(ctx);
+        }
         if (!ctx.isGenesis()
                 && ctx.isUpgrade(ctx.appConfig()
                         .getConfigData(VersionConfig.class)
@@ -121,5 +118,31 @@ public class V0760BlockRecordSchema extends Schema<SemanticVersion> {
 
     private static boolean hasJumpstartData(@NonNull final MigrationContext<SemanticVersion> ctx) {
         return ctx.appConfig().getConfigData(BlockStreamJumpstartConfig.class).blockNum() > 0;
+    }
+
+    /**
+     * Uses the node's startup config, since network property overrides are applied after the schemas run; a
+     * configured jumpstart keeps the file, because the jumpstart migration reads it after the schemas run.
+     */
+    private static void deleteHashesFileIfWritingDisabled(@NonNull final MigrationContext<SemanticVersion> ctx) {
+        final var blockRecordConfig = ctx.appConfig().getConfigData(BlockRecordStreamConfig.class);
+        if (blockRecordConfig.writeWrappedRecordFileBlockHashesToDisk()) {
+            return;
+        }
+        if (ctx.appConfig().getConfigData(BlockStreamJumpstartConfig.class).blockNum() >= 0) {
+            return;
+        }
+        deleteHashesFile(blockRecordConfig);
+    }
+
+    private static void deleteHashesFile(@NonNull final BlockRecordStreamConfig cfg) {
+        final Path file = Paths.get(cfg.wrappedRecordHashesDir()).resolve(DEFAULT_FILE_NAME);
+        try {
+            if (Files.deleteIfExists(file)) {
+                log.info("Deleted stale wrapped record hashes file {}", file);
+            }
+        } catch (final IOException e) {
+            log.warn("Failed to delete stale wrapped record hashes file {}", file, e);
+        }
     }
 }

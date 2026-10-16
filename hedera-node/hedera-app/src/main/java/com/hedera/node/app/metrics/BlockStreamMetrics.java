@@ -105,6 +105,7 @@ public class BlockStreamMetrics {
     private LongGauge recordHashes_lowestBlockGauge;
     private LongGauge recordHashes_highestBlockGauge;
     private LongGauge recordHashes_hasGapsGauge;
+    private LongGauge recordHashes_fileSizeBytesGauge;
 
     /**
      * Constructor of this class.
@@ -208,6 +209,10 @@ public class BlockStreamMetrics {
         final LongGauge.Config hasGapsCfg = newLongGauge(GROUP_RECORD_HASHES, "hasGaps")
                 .withDescription("Whether there are gaps between lowest and highest (0=no gaps, 1=gaps)");
         recordHashes_hasGapsGauge = metrics.getOrCreate(hasGapsCfg);
+
+        final LongGauge.Config fileSizeBytesCfg = newLongGauge(GROUP_RECORD_HASHES, "fileSizeBytes")
+                .withDescription("Size of the wrapped record hashes file (in bytes)");
+        recordHashes_fileSizeBytesGauge = metrics.getOrCreate(fileSizeBytesCfg);
     }
 
     public void recordWrappedRecordHashesLowestBlock(final long blockNumber) {
@@ -220,6 +225,10 @@ public class BlockStreamMetrics {
 
     public void recordWrappedRecordHashesHasGaps(final boolean hasGaps) {
         recordHashes_hasGapsGauge.set(hasGaps ? 1 : 0);
+    }
+
+    public void recordWrappedRecordHashesFileSizeBytes(final long fileSizeBytes) {
+        recordHashes_fileSizeBytesGauge.set(fileSizeBytes);
     }
 
     /**
