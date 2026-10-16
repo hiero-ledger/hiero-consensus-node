@@ -1,8 +1,7 @@
 /**
  * # Ledger Id Publication
  * A system-initiated (i.e. internal) transaction to externalize a new
- * ledger id and the verification key to use in verifying recursive
- * chain-of-trust proofs from the new ledger id.
+ * ledger id and the node contributions to the chain of trust it identifies.
  *
  * ### Keywords
  * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
@@ -21,8 +20,8 @@ option java_package = "com.hedera.hapi.node.tss.legacy";
 option java_multiple_files = true;
 
 /**
- * A system initiated transaction to externalize the ledger id and verification
- * key for recursive chain-of-trust proofs extending from the new ledger id.
+ * A system initiated transaction to externalize the ledger id and the node
+ * contributions to the chain of trust extending from the new ledger id.
  *
  * This transaction SHALL be issued whenever the ledger id changes.<br/>
  * This transaction MUST NOT be sent by a client and SHALL be rejected if
@@ -34,13 +33,16 @@ option java_multiple_files = true;
  */
 message LedgerIdPublicationTransactionBody {
   /**
-   * The new ledger id.
+   * The new ledger id; that is, the hash of the address book the chain of
+   * trust is grounded in, followed by the hash of that address book's hinTS
+   * verification key.
    */
   bytes ledger_id = 1;
 
   /**
-   * The key to use when verifying recursive chain-of-trust proofs that extend
-   * from this ledger id.
+   * No longer set, since the TSS library derives the key to use when
+   * verifying recursive chain-of-trust proofs from public parameters
+   * it embeds.
    */
   bytes history_proof_verification_key = 2;
 

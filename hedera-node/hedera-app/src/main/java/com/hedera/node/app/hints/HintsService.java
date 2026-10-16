@@ -4,6 +4,7 @@ package com.hedera.node.app.hints;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toMap;
 
+import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.NodePartyId;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -56,6 +57,9 @@ import java.util.concurrent.CompletableFuture;
  * work.
  */
 public interface HintsService extends Service {
+    /** Current allocation uses parties 1 through n-2; the native library reserves party n-1. */
+    int MAX_ROSTER_SIZE = HintsLibrary.MAX_PARTIES - 2;
+
     String NAME = "HintsService";
 
     /**
@@ -99,7 +103,7 @@ public interface HintsService extends Service {
      *
      * @param construction the active construction to use for signing
      */
-    void setActiveConstruction(@NonNull HintsConstruction construction);
+    void setActiveConstruction(@NonNull HintsConstruction construction, @NonNull CRSState crsState);
 
     /**
      * Whether the signer is ready.
@@ -132,21 +136,20 @@ public interface HintsService extends Service {
     void onFinishedConstruction(@Nullable OnHintsFinished cb);
 
     /**
-     * Initializes hinTS signing from the next construction in the given {@link WritableHintsStore}.
+     * Initializes hinTS signing from a completed next construction bound to the adopted roster
+     * in the given {@link WritableHintsStore}.
      *
      * @param hintsStore the hints store
      * @param previousRoster the previous roster
      * @param adoptedRoster the adopted roster
      * @param adoptedRosterHash the adopted roster hash
-     * @param forceHandoff whether to force the handoff when the adopted roster hash doesn't match the next construction
      * @return whether the handoff happened
      */
     boolean handoff(
             @NonNull WritableHintsStore hintsStore,
             @NonNull Roster previousRoster,
             @NonNull Roster adoptedRoster,
-            @NonNull Bytes adoptedRosterHash,
-            boolean forceHandoff);
+            @NonNull Bytes adoptedRosterHash);
 
     /**
      * Takes any actions needed to advance the state of the {@link HintsService} toward
@@ -178,6 +181,15 @@ public interface HintsService extends Service {
             @NonNull ActiveRosters activeRosters,
             @NonNull WritableHintsStore hintsStore,
             @NonNull Instant now,
+            @NonNull TssConfig tssConfig,
+            boolean isActive);
+
+    /** Advances construction work while using block consensus time for CRS deadlines. */
+    void reconcile(
+            @NonNull ActiveRosters activeRosters,
+            @NonNull WritableHintsStore hintsStore,
+            @NonNull Instant now,
+            @NonNull Instant crsWorkTime,
             @NonNull TssConfig tssConfig,
             boolean isActive);
 

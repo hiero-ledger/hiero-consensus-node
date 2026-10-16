@@ -1731,9 +1731,7 @@ upgrade_to_local_079() {
     "blockStream.enableCutover=true" \
     "tss.hintsEnabled=true" \
     "tss.historyEnabled=true" \
-    "tss.wrapsEnabled=true" \
-    "tss.forceMockSignatures=false" \
-    "tss.wrapsProvingKeyPath=${HAPI_PATH}/data/keys/wraps-archive"
+    "tss.forceMockSignatures=false"
 
   log "--- 0.79 check 2/4: nudge consensus with cryptoCreate txns ---"
   nudge_consensus_with_transactions

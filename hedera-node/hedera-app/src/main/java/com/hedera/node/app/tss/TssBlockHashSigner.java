@@ -39,9 +39,9 @@ import org.apache.logging.log4j.Logger;
  *     <li><b>If both hinTS and history proofs are enabled:</b>
  *     <ul>
  *         <li>Is not ready to sign during bootstrap phase until the genesis hinTS construction has completed
- *         preprocessing and reached a consensus verification key; and until the history service has collected
- *         a sufficient set of Schnorr signatures on the genesis TSS address book hash concatenated with the
- *         genesis hinTS verification key to serve as witnesses for the genesis SNARK.</li>
+ *         preprocessing and reached a consensus verification key; and until the history service has a genesis
+ *         WRAPS proof grounding the network's chain of trust (and so its ledger id) in the genesis TSS address
+ *         book and that hinTS verification key.</li>
  *         <li>To sign, initiates async aggregation of partial hinTS signatures from the active construction,
  *         packaging this async delivery into a full TSS signature with chain-of-trust proof of the hinTS
  *         verification key used for signing.</li>

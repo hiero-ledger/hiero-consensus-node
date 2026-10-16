@@ -40,8 +40,8 @@ public interface HintsController {
     void advanceConstruction(@NonNull Instant now, @NonNull WritableHintsStore hintsStore, boolean isActive);
 
     /**
-     * Advances the ongoing CRS work, if possible. This is only relevant when TSS is enabled or on genesis
-     * when the network is gathering contributions to construct CRS.
+     * Advances the ceremony bound to this construction, if it has not completed. The active CRS
+     * continues serving block signing while a next construction gathers fresh contributions.
      *
      * @param now                   the current consensus time
      * @param hintsStore            the hints store
@@ -94,17 +94,5 @@ public interface HintsController {
             @NonNull CrsPublicationTransactionBody publication,
             @NonNull Instant consensusTime,
             @NonNull WritableHintsStore hintsStore,
-            final long creatorId);
-
-    /**
-     * Verifies the given CRS update.
-     *
-     * @param publication the publication
-     * @param hintsStore  the hints store
-     * @param creatorId
-     */
-    void verifyCrsUpdate(
-            @NonNull CrsPublicationTransactionBody publication,
-            @NonNull ReadableHintsStore hintsStore,
             final long creatorId);
 }

@@ -1,14 +1,9 @@
 # TSS startup assets
 
-This directory holds the binaries the CLPR Hiero-to-Hiero multi-network HAPI
-tests load at startup. Two things live here:
-
-- The **WRAPS proving artifacts** (`wraps-vX.Y.Z/`), needed for cold runs (when
-  **warm-cache fixtures** are missing).
-  Too large to commit — populated by hand only for local runs.
-- The **warm-cache fixtures** (`*-genesis-network.json.gz`), committed in
-  gzipped form (~4.5 MB each) so CI gets them for free. Local uncompressed
-  `.json` variants are gitignored and optional.
+This directory holds the **warm-cache fixtures** the CLPR Hiero-to-Hiero
+multi-network HAPI tests load at startup (`*-genesis-network.json.gz`), committed
+in gzipped form (~4.5 MB each) so CI gets them for free. Local uncompressed
+`.json` variants are gitignored and optional.
 
 ## Fixture naming
 
@@ -30,9 +25,6 @@ The mapping is `MultiNetworkExtension.perNodeFixtureBase(networkName, nodeId, si
 ```
 tss-startup-assets/
 ├── README.md                                       (tracked)
-├── wraps-v1.0.0.tar.gz                             (gitignored; manual download or CI cache)
-├── wraps-v1.0.0/                                   (gitignored; extracted from the archive above)
-│   └── ... WRAPS proving artifacts ...
 ├── ledgerA-genesis-network.json.gz                 (tracked; single-node)
 ├── ledgerB-genesis-network.json.gz                 (tracked; single-node)
 ├── ledgerA_mtls-genesis-network.json.gz            (tracked; single-node, mTLS suite)
@@ -47,46 +39,19 @@ tss-startup-assets/
 when both exist, so a stale uncompressed local copy can never silently shadow
 the committed source-of-truth.
 
-## 1. WRAPS proving artifacts — required for every cold-path run
+## Cold runs
 
-Download `wraps-v1.0.0.tar.gz` into this directory and extract it **into a
-`wraps-v1.0.0/` subdirectory**:
+A cold run (one without a fixture for some network) needs nothing extra in this
+directory: the WRAPS library embeds the public parameters it needs to construct
+proofs. The network bootstraps TSS at runtime, constructing its genesis WRAPS
+proof in seconds, and the multi-network startup fails with
+`did not produce a WRAPS-ready history proof within PT10M` if it never does.
 
-```bash
-cd hedera-node/test-clients/tss-startup-assets
-mkdir -p wraps-v1.0.0
-tar -xzf wraps-v1.0.0.tar.gz -C wraps-v1.0.0
-```
-
-> ⚠️ The tarball is **flat** — its entries are the `.bin` files at the archive root
-> (`decider_pp.bin`, `decider_vp.bin`, `nova_pp.bin`, `nova_vp.bin`), **not** a
-> `wraps-v1.0.0/` directory. Do **not** run `tar -xzf wraps-v1.0.0.tar.gz` on its own:
-> that scatters the `.bin` files directly into `tss-startup-assets/`, and the build's
-> auto-detect (which looks for the `wraps-v1.0.0/` directory) won't find them. Always
-> extract with `-C wraps-v1.0.0`.
-
-Verify the layout:
-
-```bash
-ls wraps-v1.0.0/     # decider_pp.bin  decider_vp.bin  nova_pp.bin  nova_vp.bin
-```
-
-`hedera-node/test-clients/build.gradle.kts` auto-detects the `wraps-v1.0.0/` directory
-and forwards `-Dhapi.spec.tssLibWrapsArtifactsPath=<abs path to wraps-v1.0.0>` to the
-subprocess JVM. To use a different path instead, pass
-`-Dhapi.spec.tssLibWrapsArtifactsPath=...` on the Gradle command line — it overrides the
-auto-detect.
-
-If the artifacts are missing, cold-path nodes log
-`WRAPS enabled but this node cannot build recursive proofs (TSS_LIB_WRAPS_ARTIFACTS_PATH='')`
-and the multi-network startup eventually fails with
-`did not produce a WRAPS-ready history proof within PT25M`.
-
-## 2. Warm-cache fixtures — committed in gzipped form
+## Warm-cache fixtures — committed in gzipped form
 
 The `*-genesis-network.json.gz` files in this directory are committed to git.
 On CI and on any fresh clone, `@MultiNetworkHapiTest.Network(tssPreload = true)`
-tests find them automatically and skip the ~8-minute WRAPS bootstrap. No manual
+tests find them automatically and skip the runtime TSS bootstrap. No manual
 seeding required.
 
 The install path, per node, before the subprocess JVM starts:
@@ -105,11 +70,28 @@ The install path, per node, before the subprocess JVM starts:
 
 ### Regenerating
 
+These suites need real TSS signatures and CLPR enabled, neither of which is the
+default; so pass these overrides to every command below:
+
+```bash
+-PsysProp.hapi.spec.test.overrides=tss.forceMockSignatures=false,clpr.enabled=true,hedera.transaction.maxBytes=16384
+```
+
+- `tss.forceMockSignatures=false`: with mock signatures the signer is ready
+  immediately, so the cold bootstrap never finishes on an idle network (the
+  hinTS CRS waits on consensus time that only transactions advance) and block
+  proofs never embed the WRAPS proof.
+- `clpr.enabled=true`: CLPR is off by default.
+- `hedera.transaction.maxBytes=16384`: the suites probe a captured state proof
+  with a direct `verifyConfig` call, which the CLPR system contract bounds by
+  this limit (unlike CLPR's own dispatches); a state proof is ~15 KB now that it
+  carries an 11,368-byte WRAPS proof.
+
 There are two categories of fixture, regenerated differently.
 
 **Single-node fixtures** (`ledgerA`, `ledgerB`, `ledgerA_mtls`, `ledgerB_mtls`,
-`ledgerB_manifest`, …). Refresh them when e.g. the WRAPS protocol bumps or the
-ledger ID changes:
+`ledgerB_manifest`, …). Refresh them when e.g. the TSS library changes its key
+or proof formats, or the ledger ID changes:
 
 1. Delete the committed fixture(s) so the cold path runs, e.g.:
 
@@ -121,7 +103,8 @@ ledger ID changes:
 
    ```bash
    ./gradlew :test-clients:testSubprocess \
-     --tests "*ClprHieroToHieroSuite.oneWayDelivery*"
+     --tests "*ClprHieroToHieroSuite.oneWayDelivery*" \
+     "-PsysProp.hapi.spec.test.overrides=tss.forceMockSignatures=false,clpr.enabled=true,hedera.transaction.maxBytes=16384"
    ```
 3. `MultiNetworkExtension.cacheTssFixtureIfMissing` (success path) /
    `harvestFreshFixtureOrThrow` (cold-bootstrap path) write the harvested
@@ -143,11 +126,12 @@ not discoverable by name).
    ```
 2. Temporarily remove the `@Disabled` annotation from
    `generateManifestLedgerFixtures` (or run with JUnit's disabled-condition
-   deactivation, `-Djunit.jupiter.conditions.deactivate=*`), then run it:
+   deactivation, `-PsysProp.junit.jupiter.conditions.deactivate=*`), then run it:
 
    ```bash
    ./gradlew :test-clients:testSubprocess \
-     --tests "*ClprHieroToHieroManifestSuite.generateManifestLedgerFixtures"
+     --tests "*ClprHieroToHieroManifestSuite.generateManifestLedgerFixtures" \
+     "-PsysProp.hapi.spec.test.overrides=tss.forceMockSignatures=false,clpr.enabled=true,hedera.transaction.maxBytes=16384"
    ```
 
    It brings both networks up cold, harvests each node's fixture, and asserts the

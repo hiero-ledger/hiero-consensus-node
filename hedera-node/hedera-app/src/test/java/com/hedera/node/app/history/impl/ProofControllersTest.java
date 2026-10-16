@@ -13,9 +13,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.state.hints.HintsConstruction;
-import com.hedera.hapi.node.state.history.AggregatedNodeSignatures;
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
-import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.node.app.history.HistoryLibrary;
@@ -50,10 +48,6 @@ class ProofControllersTest {
     private static final HistoryProof WRAPS_PROOF = HistoryProof.newBuilder()
             .chainOfTrustProof(ChainOfTrustProof.newBuilder().wrapsProof(Bytes.wrap("COMPRESSED")))
             .uncompressedWrapsProof(Bytes.wrap("UNCOMPRESSED"))
-            .build();
-    private static final HistoryProof SIGNATURES_PROOF = HistoryProof.newBuilder()
-            .chainOfTrustProof(
-                    ChainOfTrustProof.newBuilder().aggregatedNodeSignatures(AggregatedNodeSignatures.DEFAULT))
             .build();
 
     @Mock
@@ -90,9 +84,6 @@ class ProofControllersTest {
     private RosterTransitionWeights weights;
 
     @Mock
-    private TssConfig tssConfig;
-
-    @Mock
     private ReadableHistoryStore historyStore;
 
     @Mock
@@ -120,7 +111,7 @@ class ProofControllersTest {
         final var twoConstruction =
                 HistoryProofConstruction.newBuilder().constructionId(2L).build();
 
-        assertTrue(subject.getAnyInProgress(tssConfig).isEmpty());
+        assertTrue(subject.getAnyInProgress().isEmpty());
         final var firstController = subject.getOrCreateFor(
                 activeRosters,
                 ONE_CONSTRUCTION,
@@ -128,9 +119,9 @@ class ProofControllersTest {
                 HintsConstruction.DEFAULT,
                 HistoryProofConstruction.DEFAULT,
                 DEFAULT_CONFIG.getConfigData(TssConfig.class));
-        assertTrue(subject.getAnyInProgress(tssConfig).isEmpty());
-        assertTrue(subject.getInProgressById(1L, tssConfig).isEmpty());
-        assertTrue(subject.getInProgressById(2L, tssConfig).isEmpty());
+        assertTrue(subject.getAnyInProgress().isEmpty());
+        assertTrue(subject.getInProgressById(1L).isEmpty());
+        assertTrue(subject.getInProgressById(2L).isEmpty());
         assertInstanceOf(InertProofController.class, firstController);
         final var secondController = subject.getOrCreateFor(
                 activeRosters,
@@ -210,11 +201,9 @@ class ProofControllersTest {
 
         // Never outside the round that carries the post-upgrade work
         assertFalse(freshGenesisRequested(tssConfig(requested), blockStreamConfig(requested), false));
-        // Never unless asked for, or without WRAPS
+        // Never unless asked for
         final var notRequested = configWith("tss.needsFreshGenesisWrapsProof", "false");
         assertFalse(freshGenesisRequested(tssConfig(notRequested), blockStreamConfig(notRequested), true));
-        final var noWraps = configWith("tss.needsFreshGenesisWrapsProof", "true", "tss.wrapsEnabled", "false");
-        assertFalse(freshGenesisRequested(tssConfig(noWraps), blockStreamConfig(noWraps), true));
     }
 
     @Test
@@ -241,72 +230,45 @@ class ProofControllersTest {
 
     @Test
     void freshGenesisIsInProgressWhileTheNextConstructionGroundsAnIncompleteChainOfTrust() {
-        final var tssConfig = tssConfig(configWith("tss.wrapsEnabled", "true"));
-
-        assertTrue(freshGenesisInProgress(constructionFor(A_ROSTER_HASH, A_ROSTER_HASH, null), tssConfig));
+        assertTrue(freshGenesisInProgress(constructionFor(A_ROSTER_HASH, A_ROSTER_HASH, null)));
         // Once complete, the fresh proof is the active one and there is nothing in progress
-        assertFalse(freshGenesisInProgress(constructionFor(A_ROSTER_HASH, A_ROSTER_HASH, WRAPS_PROOF), tssConfig));
+        assertFalse(freshGenesisInProgress(constructionFor(A_ROSTER_HASH, A_ROSTER_HASH, WRAPS_PROOF)));
         // A transition to a new roster extends the chain rather than grounding one
-        assertFalse(freshGenesisInProgress(constructionFor(A_ROSTER_HASH, B_ROSTER_HASH, null), tssConfig));
-        assertFalse(freshGenesisInProgress(HistoryProofConstruction.DEFAULT, tssConfig));
+        assertFalse(freshGenesisInProgress(constructionFor(A_ROSTER_HASH, B_ROSTER_HASH, null)));
+        assertFalse(freshGenesisInProgress(HistoryProofConstruction.DEFAULT));
     }
 
     @Test
     void activeProofNeedsWorkUntilTheChainOfTrustIsSettled() {
-        final var tssConfig = tssConfig(configWith("tss.wrapsEnabled", "true"));
         final var settled = constructionFor(A_ROSTER_HASH, A_ROSTER_HASH, WRAPS_PROOF);
-        final var nonRecursive = constructionFor(A_ROSTER_HASH, A_ROSTER_HASH, SIGNATURES_PROOF);
         final var freshGenesis = constructionFor(A_ROSTER_HASH, A_ROSTER_HASH, null);
         final var transition = constructionFor(A_ROSTER_HASH, B_ROSTER_HASH, null);
 
         // Nothing to build on yet
-        assertTrue(activeProofNeedsWork(
-                HistoryProofConstruction.DEFAULT, HistoryProofConstruction.DEFAULT, tssConfig, false));
-        // A proof of the wrong kind for the current WRAPS setting
-        assertTrue(activeProofNeedsWork(nonRecursive, HistoryProofConstruction.DEFAULT, tssConfig, false));
+        assertTrue(activeProofNeedsWork(HistoryProofConstruction.DEFAULT, HistoryProofConstruction.DEFAULT, false));
         // A fresh genesis proof requested this round, or still being built
-        assertTrue(activeProofNeedsWork(settled, HistoryProofConstruction.DEFAULT, tssConfig, true));
-        assertTrue(activeProofNeedsWork(settled, freshGenesis, tssConfig, false));
+        assertTrue(activeProofNeedsWork(settled, HistoryProofConstruction.DEFAULT, true));
+        assertTrue(activeProofNeedsWork(settled, freshGenesis, false));
 
         // ...but a settled chain of trust with an ordinary transition in flight, or nothing at all, needs none
-        assertFalse(activeProofNeedsWork(settled, transition, tssConfig, false));
-        assertFalse(activeProofNeedsWork(settled, HistoryProofConstruction.DEFAULT, tssConfig, false));
+        assertFalse(activeProofNeedsWork(settled, transition, false));
+        assertFalse(activeProofNeedsWork(settled, HistoryProofConstruction.DEFAULT, false));
     }
 
     @Test
     void groundsGenesisProofBeforeAnyLedgerIdAndWhileAFreshGenesisIsRequestedOrInProgress() {
-        final var tssConfig = tssConfig(configWith("tss.wrapsEnabled", "true"));
-        final var settled = constructionFor(A_ROSTER_HASH, A_ROSTER_HASH, WRAPS_PROOF);
-        final var nonRecursive = constructionFor(A_ROSTER_HASH, A_ROSTER_HASH, SIGNATURES_PROOF);
         final var freshGenesis = constructionFor(A_ROSTER_HASH, A_ROSTER_HASH, null);
         final var transition = constructionFor(A_ROSTER_HASH, B_ROSTER_HASH, null);
 
         // No ledger id yet: the network is grounding its first chain of trust
-        assertTrue(groundsGenesisProof(
-                HistoryProofConstruction.DEFAULT, HistoryProofConstruction.DEFAULT, null, tssConfig, false));
-        // A chain of trust that is not yet recursive is grounded again with WRAPS
-        assertTrue(groundsGenesisProof(nonRecursive, HistoryProofConstruction.DEFAULT, LEDGER_ID, tssConfig, false));
+        assertTrue(groundsGenesisProof(HistoryProofConstruction.DEFAULT, null, false));
         // As is a fresh genesis proof, from the round it is requested until it completes
-        assertTrue(groundsGenesisProof(settled, HistoryProofConstruction.DEFAULT, LEDGER_ID, tssConfig, true));
-        assertTrue(groundsGenesisProof(settled, freshGenesis, LEDGER_ID, tssConfig, false));
+        assertTrue(groundsGenesisProof(HistoryProofConstruction.DEFAULT, LEDGER_ID, true));
+        assertTrue(groundsGenesisProof(freshGenesis, LEDGER_ID, false));
 
         // An extendable chain proves the NEXT construction's key instead
-        assertFalse(groundsGenesisProof(settled, transition, LEDGER_ID, tssConfig, false));
-        assertFalse(groundsGenesisProof(settled, HistoryProofConstruction.DEFAULT, LEDGER_ID, tssConfig, false));
-    }
-
-    @Test
-    void reAnchoredLedgerIdIsNullWhenTheAnchorHasNotMoved() {
-        final var anchor = Bytes.wrap("ADDRESS_BOOK_HASH");
-        final var proof = HistoryProof.newBuilder()
-                .targetHistory(new History(anchor, Bytes.EMPTY))
-                .build();
-
-        // Grounding at the same address book anchors at the same hash, so there is nothing to publish
-        assertNull(ProofControllers.reAnchoredLedgerId(proof, anchor));
-        // Grounding anywhere else establishes a new ledger id, including the very first one
-        assertEquals(anchor, ProofControllers.reAnchoredLedgerId(proof, Bytes.wrap("SOMETHING_ELSE")));
-        assertEquals(anchor, ProofControllers.reAnchoredLedgerId(proof, null));
+        assertFalse(groundsGenesisProof(transition, LEDGER_ID, false));
+        assertFalse(groundsGenesisProof(HistoryProofConstruction.DEFAULT, LEDGER_ID, false));
     }
 
     private static HistoryProofConstruction constructionFor(
@@ -324,8 +286,7 @@ class ProofControllersTest {
     private static Configuration configWith(final String... keysAndValues) {
         final var builder = HederaTestConfigBuilder.create()
                 .withConfigDataType(TssConfig.class)
-                .withConfigDataType(BlockStreamConfig.class)
-                .withValue("tss.wrapsEnabled", "true");
+                .withConfigDataType(BlockStreamConfig.class);
         for (int i = 0; i < keysAndValues.length; i += 2) {
             builder.withValue(keysAndValues[i], keysAndValues[i + 1]);
         }

@@ -98,12 +98,42 @@ class ReadableHintsStoreTest {
                         .build());
         assertFalse(subject.isReadyToAdopt(rosterHash));
 
-        given(subject.getNextConstruction())
-                .willReturn(HintsConstruction.newBuilder()
-                        .targetRosterHash(rosterHash)
-                        .hintsScheme(HintsScheme.DEFAULT)
+        final var ready = HintsConstruction.newBuilder()
+                .targetRosterHash(rosterHash)
+                .hintsScheme(HintsScheme.DEFAULT)
+                .crsId(1)
+                .numParties(4)
+                .build();
+        given(subject.getNextConstruction()).willReturn(ready);
+        given(subject.getCrsStateFor(ready))
+                .willReturn(CRSState.newBuilder()
+                        .ceremonyId(1)
+                        .numParties(4)
+                        .stage(CRSStage.COMPLETED)
+                        .crs(Bytes.wrap("crs"))
                         .build());
         assertTrue(subject.isReadyToAdopt(rosterHash));
+    }
+
+    @Test
+    void onlyExposesKnownCrsWithinTheSupportedCapacity() {
+        doCallRealMethod().when(subject).crsIfKnown();
+        final var crs = Bytes.wrap("completed-crs");
+        given(subject.getCrsState())
+                .willReturn(CRSState.newBuilder()
+                        .numParties(128)
+                        .stage(CRSStage.COMPLETED)
+                        .crs(crs)
+                        .build());
+        assertNull(subject.crsIfKnown());
+
+        given(subject.getCrsState())
+                .willReturn(CRSState.newBuilder()
+                        .numParties(64)
+                        .stage(CRSStage.COMPLETED)
+                        .crs(crs)
+                        .build());
+        assertEquals(crs, subject.crsIfKnown());
     }
 
     @Test

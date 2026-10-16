@@ -70,6 +70,9 @@ public class RepeatableDeletedStakeeIndirectStakerBatchTest {
                 newKeyNamed("batchKey"),
                 cryptoCreate("batchOperator").key("batchKey").balance(ONE_HUNDRED_HBARS),
 
+                // Earlier specs advance this shared network's virtual clock. Create both stakers
+                // within one period so crossing a boundary cannot accrue an extra 100 tinybars.
+                waitUntilStartOfNextStakingPeriod(1),
                 // "batchDeletedStakee" stakes directly to node 0 and is deleted inside the batch;
                 // "batchDeletedStaker" stakes INDIRECTLY through it and is touched inside the batch.
                 cryptoCreate("batchDeletedStakee").stakedNodeId(0).balance(ONE_HUNDRED_HBARS),

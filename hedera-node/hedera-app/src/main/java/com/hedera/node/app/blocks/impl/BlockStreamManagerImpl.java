@@ -1132,8 +1132,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private synchronized void finishProofWithSignature(
             @NonNull final Bytes blockHash,
             @NonNull final Bytes blockSignature,
-            @SuppressWarnings("unused") @Nullable final Bytes verificationKey,
-            @SuppressWarnings("unused") @Nullable final ChainOfTrustProof chainOfTrustProof) {
+            @Nullable final Bytes verificationKey,
+            @Nullable final ChainOfTrustProof chainOfTrustProof) {
         // Find the block whose hash is the signed message
         PendingBlock signedBlock = null;
         for (final var block : pendingBlocks) {
@@ -1150,22 +1150,13 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
         final Bytes effectiveSignature;
         if (verificationKey != null && chainOfTrustProof != null) {
-            if (chainOfTrustProof.hasWrapsProof()) {
-                if (wrapsProofMaterialized.compareAndSet(false, true)) {
-                    log.info(
-                            "[CLPR-SYNC-POINT] block #{} is the first to embed the WRAPS recursive proof — "
-                                    + "cross-network state-proof verification is now enabled",
-                            blockNumber);
-                }
-                effectiveSignature =
-                        verificationKey.append(blockSignature).append(chainOfTrustProof.wrapsProofOrThrow());
-            } else {
-                effectiveSignature = verificationKey
-                        .append(blockSignature)
-                        .append(chainOfTrustProof
-                                .aggregatedNodeSignaturesOrThrow()
-                                .aggregatedSignature());
+            if (wrapsProofMaterialized.compareAndSet(false, true)) {
+                log.info(
+                        "[CLPR-SYNC-POINT] block #{} is the first to embed the WRAPS recursive proof — "
+                                + "cross-network state-proof verification is now enabled",
+                        blockNumber);
             }
+            effectiveSignature = verificationKey.append(blockSignature).append(chainOfTrustProof.wrapsProofOrThrow());
         } else if (verificationKey != null) {
             effectiveSignature = verificationKey.append(blockSignature);
         } else {

@@ -22,7 +22,7 @@ import com.hedera.services.bdd.junit.ConfigOverride;
 import com.hedera.services.bdd.junit.MultiNetworkHapiTest;
 import com.hedera.services.bdd.junit.MultiNetworkHapiTest.Network;
 import com.hedera.services.bdd.junit.hedera.HederaNetwork;
-import com.hedera.services.bdd.junit.hedera.HederaNode;
+import com.hedera.services.bdd.junit.hedera.NodeMetadata;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.spec.infrastructure.HapiClients;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -58,6 +58,7 @@ import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.roster.RosterUtils;
 import org.junit.jupiter.api.extension.AfterEachCallback;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
@@ -151,8 +152,7 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
      * Where {@link Network#tssPreload tssPreload}-opted networks read cached fixtures from /
      * write fresh ones to. Resolved against the project root (gradle/test working dir varies,
      * so we walk up from CWD until we find a directory containing {@code tss-startup-assets/}).
-     * The dir is gitignored; co-locates with the extracted WRAPS artifacts
-     * ({@code wraps-vX.Y.Z/}, which {@code TSS_LIB_WRAPS_ARTIFACTS_PATH} points at).
+     * The dir is gitignored.
      */
     private static final Path TSS_FIXTURE_CACHE_DIR = resolveTssFixtureCacheDir();
 
@@ -188,7 +188,7 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
     /** Extracts a node fixture's {@code blsPrivateKey} for the distinct-per-node TSS-key assertion. */
     private static final Pattern BLS_PRIVATE_KEY = Pattern.compile("\"blsPrivateKey\"\\s*:\\s*\"([^\"]*)\"");
 
-    private static final Duration WRAPS_EXTENSIBLE_TIMEOUT = Duration.ofMinutes(25);
+    private static final Duration WRAPS_EXTENSIBLE_TIMEOUT = Duration.ofMinutes(10);
     /**
      * Upper bound on how long we'll wait between {@code WRAPS-extensible? true} and the
      * {@code [CLPR-SYNC-POINT]} log line. Typically fires within seconds (1-2 block-times after
@@ -396,21 +396,7 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
             // Collect setup overrides (defaults + annotation-declared + tssPreload-injected) into
             // one map so duplicates are merged predictably. Defaults are seeded first so a per-test
             // setupOverrides entry with the same key wins.
-            final var overrides = new LinkedHashMap<String, String>();
-            // Multi-network tests register connectors as part of setup; the prod default
-            // clpr.minLockedStake (100M tinybars) requires a hbar transfer to register, which the
-            // tests don't fund. Lower the threshold so simple test connectors succeed without
-            // forcing every test annotation to repeat this override.
-            overrides.put("clpr.minLockedStake", "100");
-            overrides.put("clpr.nodeSubmitBundleMaxFee", "10000000000");
-            overrides.put("clpr.verifierGasLimit", "5000000");
-            // Apply the per-task build.gradle.kts overrides (hapi.spec.test.overrides) so ANY network
-            // property can be set from the build file for the multi-network tasks — e.g. the CLPR
-            // tasks set clpr.enabled=true. These are seeded into each node's application.properties
-            // (via seedPerNodeApplicationOverrides below), the reliable path that takes effect at
-            // genesis. Layered above the infra defaults but below the test's own setupOverrides, so a
-            // per-test @ConfigOverride still wins.
-            overrides.putAll(prCheckOverrides());
+            final var overrides = defaultSetupOverrides();
             for (final var o : cfg.setupOverrides()) {
                 overrides.put(o.key(), o.value());
             }
@@ -490,7 +476,7 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
             // Second pass: per-network TSS-readiness gate for tssPreload-opted networks.
             // Warm path (cached fixture preloaded at JVM start): returns ~immediately once the
             // preload log fires + first signed block arrives. Cold path (no fixture): waits up to
-            // 25 min for the runtime WRAPS-extensible event (~14 min on a 1-node subprocess),
+            // 10 min for the runtime WRAPS-extensible event (a few minutes on a 1-node subprocess),
             // polls for [CLPR-SYNC-POINT] (first WRAPS-carrying block, ~seconds later), settles
             // POST_SYNC_POINT_SETTLE so a few WRAPS-carrying blocks accumulate, triggers a
             // freezeOnly to fire ONLY_FREEZE_BLOCK export of a TSS-enriched output/network.json,
@@ -798,6 +784,25 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
     }
 
     /**
+     * Returns the setup overrides every multi-network test network starts with, before any test-declared
+     * {@code setupOverrides}; shared by the primary start path and {@link #restartWithFixture} so a network
+     * restarted warm after a cold bootstrap runs with the same configuration as one that started warm.
+     */
+    private static LinkedHashMap<String, String> defaultSetupOverrides() {
+        final var overrides = new LinkedHashMap<String, String>();
+        // Multi-network tests register connectors as part of setup; the prod default
+        // clpr.minLockedStake (100M tinybars) requires a hbar transfer to register, which the
+        // tests don't fund. Lower the threshold so simple test connectors succeed without
+        // forcing every test annotation to repeat this override.
+        overrides.put("clpr.minLockedStake", "100");
+        overrides.put("clpr.nodeSubmitBundleMaxFee", "10000000000");
+        overrides.put("clpr.verifierGasLimit", "5000000");
+        // Task defaults apply at genesis and fixture restart, while per-test setup overrides win.
+        overrides.putAll(prCheckOverrides());
+        return overrides;
+    }
+
+    /**
      * Terminates the cold-bootstrapped network and brings up a fresh {@link SubProcessNetwork}
      * with the just-cached fixture preloaded, so the upcoming test sees a warm-loaded network
      * (the warm-path code path, byte-for-byte identical to second-and-later runs). Reuses the
@@ -819,11 +824,7 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
         // re-inject the ONLY_FREEZE_BLOCK export overrides: with a cached fixture in place this
         // is now a warm run, and the test isn't expected to issue another freeze.
         // Same defaults shape as the primary path above.
-        final var overrides = new LinkedHashMap<String, String>();
-        overrides.put("clpr.minLockedStake", "100");
-        // Same build.gradle.kts override pass as the primary path (see there) so the warm restart
-        // brings the network back up with the identical property set.
-        overrides.putAll(prCheckOverrides());
+        final var overrides = defaultSetupOverrides();
         for (final var o : cfg.setupOverrides()) {
             overrides.put(o.key(), o.value());
         }
@@ -1138,8 +1139,8 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
     /**
      * Rewrite the port fields of every {@code nodeMetadata} entry in a just-installed fixture at
      * {@code fixturePath} so they match the runtime ports of {@code subNet} (random-allocated per
-     * run). Keeps every other field — TSS keys, rosters, weights, gossip CA cert — intact, so the
-     * whole point of the fixture (skip the ~14-min WRAPS bootstrap) is preserved.
+     * run). Rebinds construction references to the changed roster while preserving TSS keys,
+     * proofs, weights, and gossip CA certificates so the fixture still skips WRAPS bootstrap.
      *
      * <p>Patches, per node: {@code node.serviceEndpoint[0]}, {@code node.gossipEndpoint[0..1]},
      * and {@code rosterEntry.gossipEndpoint[0..1]}. IP address is reset to loopback (fixtures are
@@ -1150,22 +1151,29 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
         final var loaded = DiskStartupNetworks.loadNetworkFrom(fixturePath)
                 .orElseThrow(() ->
                         new IllegalStateException("Failed to reload freshly-installed fixture at " + fixturePath));
-        final Map<Long, HederaNode> byId = new LinkedHashMap<>();
+        final Map<Long, NodeMetadata> byId = new LinkedHashMap<>();
         for (final var n : subNet.nodes()) {
-            byId.put(n.getNodeId(), n);
+            byId.put(n.getNodeId(), n.metadata());
         }
+        final var patched = withRuntimePorts(loaded, byId);
+        // FQN: `Network` is already imported as the `MultiNetworkHapiTest.Network` annotation,
+        // so the internal-network PBJ type must be spelled out inline for the JSON codec.
+        Files.writeString(fixturePath, com.hedera.node.internal.network.Network.JSON.toJSON(patched));
+    }
+
+    /** Applies transport-only fixture changes and keeps construction roster references consistent. */
+    static com.hedera.node.internal.network.Network withRuntimePorts(
+            @NonNull final com.hedera.node.internal.network.Network loaded,
+            @NonNull final Map<Long, NodeMetadata> byId) {
         final var localhost = Bytes.wrap(new byte[] {127, 0, 0, 1});
         final var patched = loaded.copyBuilder()
                 .nodeMetadata(loaded.nodeMetadata().stream()
                         .map(md -> {
                             final long id = md.rosterEntryOrThrow().nodeId();
-                            final var live = byId.get(id);
-                            if (live == null) {
-                                throw new IllegalStateException("Fixture references unknown nodeId=" + id
-                                        + " (runtime network '" + subNet.name() + "' has "
-                                        + subNet.nodes().size() + " nodes)");
+                            final var meta = byId.get(id);
+                            if (meta == null) {
+                                throw new IllegalStateException("Fixture references unknown runtime nodeId=" + id);
                             }
-                            final var meta = live.metadata();
                             final var internal = ServiceEndpoint.newBuilder()
                                     .ipAddressV4(localhost)
                                     .port(meta.internalGossipPort())
@@ -1192,9 +1200,40 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
                         })
                         .toList())
                 .build();
-        // FQN: `Network` is already imported as the `MultiNetworkHapiTest.Network` annotation,
-        // so the internal-network PBJ type must be spelled out inline for the JSON codec.
-        Files.writeString(fixturePath, com.hedera.node.internal.network.Network.JSON.toJSON(patched));
+        if (!loaded.hasTssMetadata()) {
+            return patched;
+        }
+        final var oldRosterHash =
+                RosterUtils.hash(RosterUtils.rosterFrom(loaded)).getBytes();
+        final var newRosterHash =
+                RosterUtils.hash(RosterUtils.rosterFrom(patched)).getBytes();
+        if (oldRosterHash.equals(newRosterHash)) {
+            return patched;
+        }
+        final var metadata = loaded.tssMetadataOrThrow();
+        final var updatedMetadata = metadata.copyBuilder();
+        // Genesis reconciliation matches both source and target to the loaded platform roster.
+        // These references are bookkeeping: hinTS and WRAPS commit to keys, node IDs and weights,
+        // not transport ports. Preserve references to any different, historical roster.
+        if (metadata.hasActiveHintsConstruction()) {
+            final var hints = metadata.activeHintsConstructionOrThrow();
+            updatedMetadata.activeHintsConstruction(hints.copyBuilder()
+                    .sourceRosterHash(rebindFixtureHash(hints.sourceRosterHash(), oldRosterHash, newRosterHash))
+                    .targetRosterHash(rebindFixtureHash(hints.targetRosterHash(), oldRosterHash, newRosterHash))
+                    .build());
+        }
+        if (metadata.hasActiveProofConstruction()) {
+            final var history = metadata.activeProofConstructionOrThrow();
+            updatedMetadata.activeProofConstruction(history.copyBuilder()
+                    .sourceRosterHash(rebindFixtureHash(history.sourceRosterHash(), oldRosterHash, newRosterHash))
+                    .targetRosterHash(rebindFixtureHash(history.targetRosterHash(), oldRosterHash, newRosterHash))
+                    .build());
+        }
+        return patched.copyBuilder().tssMetadata(updatedMetadata).build();
+    }
+
+    private static Bytes rebindFixtureHash(final Bytes hash, final Bytes oldRosterHash, final Bytes newRosterHash) {
+        return hash.equals(oldRosterHash) ? newRosterHash : hash;
     }
 
     /**
@@ -1211,8 +1250,8 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
 
     /**
      * Walk up from the test JVM's working dir to find {@code tss-startup-assets/} — the
-     * developer-local dir holding warm-cache fixtures alongside the extracted WRAPS proving
-     * artifacts. Canonical location is {@code hedera-node/test-clients/tss-startup-assets/}
+     * developer-local dir holding warm-cache fixtures. Canonical location is
+     * {@code hedera-node/test-clients/tss-startup-assets/}
      * (it's used only by HAPI tests). The walk-up handles both:
      *
      * <ul>
