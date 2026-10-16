@@ -12,7 +12,7 @@ val besu = "26.2.0"
 val bouncycastle = "1.85"
 val dagger = "2.59.2"
 val eclipseCollections = "13.0.0"
-val grpc = "1.81.0"
+val grpc = "1.84.2"
 
 val hederaCryptography = "3.15.0"
 // FUTURE WORK: Merge the two hederaCryptography versions when equal.
