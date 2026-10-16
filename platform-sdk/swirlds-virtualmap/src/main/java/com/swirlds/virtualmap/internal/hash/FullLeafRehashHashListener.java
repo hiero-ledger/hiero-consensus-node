@@ -55,4 +55,12 @@ public class FullLeafRehashHashListener implements VirtualHashListener {
     public void onHashingCompleted() {
         flusher.finish();
     }
+
+    /**
+     * Cancels the underlying flusher, if hashing fails or times out. Hashing threads blocked waiting for a
+     * running flush are released, and no new flushes are started, see {@link HashLeafFlusher#cancel()}.
+     */
+    public void cancel() {
+        flusher.cancel();
+    }
 }

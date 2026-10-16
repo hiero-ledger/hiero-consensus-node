@@ -165,18 +165,20 @@ public final class LearnerTreeExchanger {
         if (!isLeafOnTeacher(responsePath)) {
             handleResponse(response);
         } else {
+            // The ordered hash-feed is performed by the dedicated applier thread (see applierLoop),
+            // which drains this map in anticipatedLeafPaths FIFO order. Receiver threads stay free to
+            // keep draining the socket instead of blocking on a long contiguous-backlog drain.
+            responses.put(responsePath, response);
             // Eager, order-independent store: stale-key tracking + leaf store, done in parallel on this
             // receiver the moment the leaf arrives. Only the ordered hash-feed (dirtyLeafReceived, on the
             // applier) is deferred. nodeReceived is a no-op for leaf paths, so it is not needed here.
+            // storeDirtyLeaf() may block, while the flusher is busy and the next batch is already full.
+            // This backpressure intentionally throttles receiving to the disk write rate.
             if (!response.isClean() && teacherMetadata.getLastLeafPath() > 0) {
                 final VirtualLeafBytes<?> leaf = response.leafData();
                 assert leaf != null && leaf.path() == responsePath;
                 vmapLearner.storeDirtyLeaf(leaf);
             }
-            // The ordered hash-feed is performed by the dedicated applier thread (see applierLoop),
-            // which drains this map in anticipatedLeafPaths FIFO order. Receiver threads stay free to
-            // keep draining the socket instead of blocking on a long contiguous-backlog drain.
-            responses.put(responsePath, response);
         }
     }
 
