@@ -341,7 +341,6 @@ jobs:
         if: ${{ steps.report-category.outputs.category == 'cancelled' }}
         env:
           SLACK_SUMMARY_TEXT: ":no_entry_sign: XTS optional run cancelled (${{ needs.candidate-info.outputs.xts-info || inputs.ref }}) — candidate `${{ inputs.ref }}` — <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run>"
-          XTS_PROCEED: "true"
         run: gomplate -f .github/workflows/templates/slack-cancelled-summary.json.tpl -o slack_payload_summary.json
 
       # Notification routing (mirrors 900):
