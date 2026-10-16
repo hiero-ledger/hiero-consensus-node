@@ -26,6 +26,7 @@ Before adding or updating content, read [CLAUDE.md](CLAUDE.md) — the authoring
 | `heuristics/`   | Per-file diagnostic patterns (`HEU-NNN`): observable symptom → suspected cause → validation.                                                                            |
 | `delta-map/`    | Per-topic status of current code vs. proposed design — done, partial, not started, or divergent.                                                                        |
 | `tutor/`        | Curriculum content for learners new to the consensus layer.                                                                                                             |
+| `benchmarks/`   | Conventions for the JMH benchmarks of the consensus-layer modules.                                                                                                      |
 
 ## Finding your way
 
@@ -34,5 +35,6 @@ Before adding or updating content, read [CLAUDE.md](CLAUDE.md) — the authoring
 - **Rationale questions** ("why is N small?", "why does PCES gate gossip?"): `decisions/`.
 - **Reasoning about a code change**: `invariants/` for what must hold under any correct implementation; `rules/` for what holds in the code as it stands; `delta-map/` for where the current code stands against the proposed design.
 - **Investigating observed behavior**: `scenarios/` for known incidents and edge cases; `heuristics/` for symptom-keyed pattern-match. Both link to `symptoms.md` by `SYM-NNN`.
+- **Writing or changing a benchmark**: `benchmarks/`, starting at its `README.md`.
 
 Every populated subdirectory has a `README.md` that indexes its contents.
