@@ -22,6 +22,8 @@ import com.swirlds.config.api.validation.annotation.Min;
  * @param streamFileProducer the type of stream file producer to use. Currently only "concurrent" is supported
  * @param writeWrappedRecordFileBlockHashesToDisk whether to append wrapped record-file block hashes to a file on disk
  * @param wrappedRecordHashesDir the directory to write wrapped record hashes into
+ * @param wrappedRecordHashesMaxFileSizeBytes files larger than this are truncated on startup instead of read; capped
+ *     at the JVM array size limit
  * @param computeHashesFromWrappedRecordBlocks whether to enable computing block hashes from wrapped record blocks
  * @param liveWritePrevWrappedRecordHashes whether to enable live block wrapping of record file items
  */
@@ -59,6 +61,9 @@ public record BlockRecordStreamConfig(
 
         @ConfigProperty(defaultValue = "/opt/hgcapp/wrappedRecordHashes") @NodeProperty
         String wrappedRecordHashesDir,
+
+        @ConfigProperty(defaultValue = "2000000000") @Min(1) @Max(Integer.MAX_VALUE - 8) @NodeProperty
+        long wrappedRecordHashesMaxFileSizeBytes,
 
         @ConfigProperty(defaultValue = "true") @NetworkProperty
         boolean computeHashesFromWrappedRecordBlocks,

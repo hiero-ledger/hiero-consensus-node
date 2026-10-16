@@ -53,6 +53,8 @@ public class WrappedRecordFileBlockHashesDiskWriter implements AutoCloseable {
             new AtomicReference<>(CompletableFuture.completedFuture(null));
     private final AtomicBoolean initialized = new AtomicBoolean(false);
     private final WrappedRecordHashesIndex index = new WrappedRecordHashesIndex();
+    // Like the index: set by the first-use scan on the caller's thread, then only updated by the writer thread
+    private long fileSizeBytes;
 
     @Inject
     public WrappedRecordFileBlockHashesDiskWriter(
@@ -67,7 +69,7 @@ public class WrappedRecordFileBlockHashesDiskWriter implements AutoCloseable {
 
     /**
      * Enqueues an async task that computes and appends a single entry to the on-disk log file.
-     * The task also updates min/max/gap metrics for the file after a successful append.
+     * The task also updates the file's metrics after a successful append.
      *
      * <p>Tasks are executed in order on a single thread to preserve append order and avoid concurrent writes.
      *
@@ -142,6 +144,7 @@ public class WrappedRecordFileBlockHashesDiskWriter implements AutoCloseable {
                             blockStreamMetrics.recordWrappedRecordHashesLowestBlock(index.lowestBlock());
                             blockStreamMetrics.recordWrappedRecordHashesHighestBlock(index.highestBlock());
                             blockStreamMetrics.recordWrappedRecordHashesHasGaps(index.hasGaps());
+                            blockStreamMetrics.recordWrappedRecordHashesFileSizeBytes(fileSizeBytes);
                         },
                         executor)
                 .exceptionally(ex -> {
@@ -161,52 +164,43 @@ public class WrappedRecordFileBlockHashesDiskWriter implements AutoCloseable {
         final var cfg = configProvider.getConfiguration().getConfigData(BlockRecordStreamConfig.class);
         final Path dir = fileSystem.getPath(cfg.wrappedRecordHashesDir());
         final Path file = dir.resolve(DEFAULT_FILE_NAME);
+        final long maxFileSizeBytes = cfg.wrappedRecordHashesMaxFileSizeBytes();
 
-        if (!Files.exists(file)) {
-            // Seed metrics for an empty/non-existent file.
-            blockStreamMetrics.recordWrappedRecordHashesLowestBlock(-1);
-            blockStreamMetrics.recordWrappedRecordHashesHighestBlock(-1);
-            blockStreamMetrics.recordWrappedRecordHashesHasGaps(false);
-            return;
-        }
-
-        try {
-            final var allBytes = Files.readAllBytes(file);
-            if (allBytes.length == 0) {
-                blockStreamMetrics.recordWrappedRecordHashesLowestBlock(-1);
-                blockStreamMetrics.recordWrappedRecordHashesHighestBlock(-1);
-                blockStreamMetrics.recordWrappedRecordHashesHasGaps(false);
-                return;
-            }
-
-            // The file contents are an append-only sequence of occurrences of the `entries` field,
-            // which is a valid protobuf encoding of the container message.
-            // parseStrict shorthand omitted: we also need to validate max length, requiring the multi-arg overload.
-            final var log = WrappedRecordFileBlockHashesLog.PROTOBUF.parse(
-                    com.hedera.pbj.runtime.io.buffer.Bytes.wrap(allBytes).toReadableSequentialData(),
-                    true,
-                    false,
-                    Codec.DEFAULT_MAX_DEPTH,
-                    allBytes.length + allBytes.length / 10);
-            for (final var entry : log.entries()) {
-                index.add(entry.blockNumber());
-            }
-        } catch (final Exception e) {
-            logger.error("Failed to scan existing wrapped record hashes file {}. Recreating...", file, e);
-            // If we cannot parse the existing file, treat it as corrupt and recreate it empty so subsequent appends
-            // can proceed. This is best-effort and must not prevent node startup.
+        if (Files.exists(file)) {
             try {
-                index.reset();
-                Files.createDirectories(dir);
-                try (final var ignored = Files.newOutputStream(
-                        file,
-                        StandardOpenOption.CREATE,
-                        StandardOpenOption.TRUNCATE_EXISTING,
-                        StandardOpenOption.WRITE)) {
-                    // Intentionally empty; truncates/creates file.
+                final long size = Files.size(file);
+                if (size > maxFileSizeBytes) {
+                    logger.warn(
+                            "Wrapped record hashes file {} is {} bytes, over the {} byte limit. Truncating...",
+                            file,
+                            size,
+                            maxFileSizeBytes);
+                    recreateEmpty(dir, file);
+                } else {
+                    final var allBytes = Files.readAllBytes(file);
+                    if (allBytes.length > 0) {
+                        // The file contents are an append-only sequence of occurrences of the `entries` field,
+                        // which is a valid protobuf encoding of the container message.
+                        // parseStrict shorthand omitted: we also need to validate max length, requiring the
+                        // multi-arg overload.
+                        final var log = WrappedRecordFileBlockHashesLog.PROTOBUF.parse(
+                                com.hedera.pbj.runtime.io.buffer.Bytes.wrap(allBytes)
+                                        .toReadableSequentialData(),
+                                true,
+                                false,
+                                Codec.DEFAULT_MAX_DEPTH,
+                                maxParseSize(allBytes.length));
+                        for (final var entry : log.entries()) {
+                            index.add(entry.blockNumber());
+                        }
+                    }
+                    fileSizeBytes = allBytes.length;
                 }
-            } catch (final Exception ex) {
-                logger.warn("Failed to recreate corrupt wrapped record hashes file {} as empty", file, ex);
+            } catch (final Exception e) {
+                logger.error("Failed to scan existing wrapped record hashes file {}. Recreating...", file, e);
+                // If we cannot parse the existing file, treat it as corrupt and recreate it empty so subsequent appends
+                // can proceed. This is best-effort and must not prevent node startup.
+                recreateEmpty(dir, file);
             }
         }
 
@@ -226,6 +220,31 @@ public class WrappedRecordFileBlockHashesDiskWriter implements AutoCloseable {
         blockStreamMetrics.recordWrappedRecordHashesLowestBlock(index.lowestBlock());
         blockStreamMetrics.recordWrappedRecordHashesHighestBlock(index.highestBlock());
         blockStreamMetrics.recordWrappedRecordHashesHasGaps(index.hasGaps());
+        blockStreamMetrics.recordWrappedRecordHashesFileSizeBytes(fileSizeBytes);
+    }
+
+    /**
+     * Parse size limit for a file of the given length: 10% headroom, clamped so it cannot overflow an {@code int}.
+     */
+    static int maxParseSize(final int length) {
+        return (int) Math.min(Integer.MAX_VALUE, (long) length + length / 10);
+    }
+
+    /**
+     * Recreates the file empty and resets the in-memory state, so subsequent appends can proceed. Best-effort.
+     */
+    private void recreateEmpty(@NonNull final Path dir, @NonNull final Path file) {
+        index.reset();
+        fileSizeBytes = 0;
+        try {
+            Files.createDirectories(dir);
+            try (final var ignored = Files.newOutputStream(
+                    file, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE)) {
+                // Intentionally empty; truncates/creates file.
+            }
+        } catch (final Exception ex) {
+            logger.warn("Failed to recreate wrapped record hashes file {} as empty", file, ex);
+        }
     }
 
     /**
@@ -241,6 +260,7 @@ public class WrappedRecordFileBlockHashesDiskWriter implements AutoCloseable {
 
         try {
             Files.createDirectories(dir);
+            final long bytesWritten;
             try (final var out = Files.newOutputStream(
                             file, StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.APPEND);
                     final var buffered = new BufferedOutputStream(out);
@@ -249,7 +269,9 @@ public class WrappedRecordFileBlockHashesDiskWriter implements AutoCloseable {
                 stream.writeVarInt((ENTRIES_FIELD_NUMBER << TAG_TYPE_BITS) | WIRE_TYPE_DELIMITED, false);
                 stream.writeVarInt((int) bytes.length(), false);
                 stream.writeBytes(bytes);
+                bytesWritten = stream.position();
             }
+            fileSizeBytes += bytesWritten;
             return true;
         } catch (final IOException | UncheckedIOException e) {
             logger.error(

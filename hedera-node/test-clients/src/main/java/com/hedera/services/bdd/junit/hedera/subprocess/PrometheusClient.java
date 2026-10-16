@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 
@@ -36,6 +37,8 @@ public class PrometheusClient {
             Pattern.compile("platform_PlatformStatus\\{.*\\} (\\d+)\\.\\d+");
     private static final Pattern PROM_OPS_DURATION_THROTTLE_PERCENT_USED_METRIC_PATTERN =
             Pattern.compile("app_consOpsDurationPercentUsed\\{.*\\}.*");
+    private static final Pattern PROM_WRAPPED_RECORD_HASHES_FILE_SIZE_PATTERN =
+            Pattern.compile("blockStream_recordHashes_fileSizeBytes\\{.*\\} (\\S+)");
     private final HttpClient httpClient = HttpClient.newHttpClient();
 
     /**
@@ -77,6 +80,20 @@ public class PrometheusClient {
      */
     public List<String> getOpsDurationThrottlePercentUsedMetrics(final int port) {
         return getMetrics(port, PROM_OPS_DURATION_THROTTLE_PERCENT_USED_METRIC_PATTERN);
+    }
+
+    /**
+     * Returns the {@code blockStream_recordHashes_fileSizeBytes} gauge from the Prometheus endpoint, if present.
+     * @param port the prometheus port
+     * @return the gauge value, or empty if the endpoint or the gauge is not available
+     */
+    public OptionalLong getWrappedRecordHashesFileSizeBytes(final int port) {
+        final var lines = getMetrics(port, PROM_WRAPPED_RECORD_HASHES_FILE_SIZE_PATTERN);
+        if (lines.isEmpty()) {
+            return OptionalLong.empty();
+        }
+        final var matcher = PROM_WRAPPED_RECORD_HASHES_FILE_SIZE_PATTERN.matcher(lines.getLast());
+        return matcher.matches() ? OptionalLong.of((long) Double.parseDouble(matcher.group(1))) : OptionalLong.empty();
     }
 
     private List<String> getMetrics(final int port, final Pattern pattern) {

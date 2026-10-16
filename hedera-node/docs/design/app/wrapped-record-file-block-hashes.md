@@ -10,7 +10,8 @@ The behavior is gated by:
 - **`hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk`** (default `false`)
 - **`hedera.recordStream.wrappedRecordHashesDir`** (default `"/opt/hgcapp/wrappedRecordHashes/"`)
 
-When disabled, the CN does **not** accumulate record-block inputs and does **not** write anything to disk.
+When disabled, the CN does **not** accumulate record-block inputs and does **not** write anything to disk. On
+every start it also deletes an existing file, unless a jumpstart is configured (the jumpstart still needs it).
 
 ### On-disk model
 
@@ -23,6 +24,10 @@ Each record block produces a single entry:
 
 Entries are appended to a single file named `wrapped-record-hashes.pb` under `wrappedRecordHashesDir`.
 The file contents are an append-only sequence of protobuf-framed occurrences of entries.
+
+On the first append after startup, the CN scans the existing file so it can skip blocks the file already contains.
+A file larger than **`hedera.recordStream.wrappedRecordHashesMaxFileSizeBytes`** (default `2000000000`), or one
+that cannot be parsed, is truncated instead.
 
 ### When the entry is written
 
