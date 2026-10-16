@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.NODE_UPDATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SYSTEM_DELETE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SYSTEM_UNDELETE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.AUTHORIZATION_FAILED;
@@ -42,6 +43,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.TransactionID;
@@ -80,6 +82,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -123,6 +126,12 @@ class DispatchProcessorTest {
             SignedTransaction.DEFAULT, TXN_BODY, SignatureMap.DEFAULT, Bytes.EMPTY, ETHEREUM_TRANSACTION, null);
     private static final TransactionInfo NODE_CREATE_TXN_INFO = new TransactionInfo(
             SignedTransaction.DEFAULT, TXN_BODY, SignatureMap.DEFAULT, Bytes.EMPTY, NODE_CREATE, null);
+    private static final TransactionInfo NODE_UPDATE_TXN_INFO = new TransactionInfo(
+            SignedTransaction.DEFAULT, TXN_BODY, SignatureMap.DEFAULT, Bytes.EMPTY, NODE_UPDATE, null);
+    private static final SystemFileUpdates.ResyncTarget RATES_TARGET = new SystemFileUpdates.ResyncTarget(
+            SystemFileUpdates.ResyncTarget.Facility.EXCHANGE_RATES,
+            FileID.newBuilder().fileNum(112).build(),
+            Bytes.wrap("applied"));
 
     @Mock
     private EthereumTransactionHandler ethereumTransactionHandler;
@@ -806,6 +815,118 @@ class DispatchProcessorTest {
         verify(opWorkflowMetrics, never()).incrementThrottled(any());
 
         assertFinished();
+    }
+
+    @Test
+    void nestedSystemFileUpdateIsResyncedOnceTransactionCommits() {
+        givenSuccessfulDispatch(CRYPTO_TRANSFER_TXN_INFO);
+        // First a dispatch within a transaction, then the transaction's root dispatch
+        given(stack.isRoot()).willReturn(false, true);
+        given(systemFileUpdates.resyncTarget(stack, TXN_BODY)).willReturn(Optional.of(RATES_TARGET));
+
+        subject.processDispatch(dispatch);
+        verify(systemFileUpdates, never()).resyncIfChanged(any(), any());
+
+        subject.processDispatch(dispatch);
+        verify(systemFileUpdates).resyncIfChanged(stack, RATES_TARGET);
+    }
+
+    @Test
+    void facilityUpdatedTwiceInATransactionIsCheckedOnceAgainstTheLatestAppliedContents() {
+        final var laterRatesTarget = new SystemFileUpdates.ResyncTarget(
+                SystemFileUpdates.ResyncTarget.Facility.EXCHANGE_RATES,
+                RATES_TARGET.fileId(),
+                Bytes.wrap("applied later"));
+        givenSuccessfulDispatch(CRYPTO_TRANSFER_TXN_INFO);
+        // First a dispatch within a transaction, then the transaction's root dispatch, both updating the rates
+        given(stack.isRoot()).willReturn(false, true);
+        given(systemFileUpdates.resyncTarget(stack, TXN_BODY))
+                .willReturn(Optional.of(RATES_TARGET), Optional.of(laterRatesTarget));
+
+        subject.processDispatch(dispatch);
+        subject.processDispatch(dispatch);
+
+        verify(systemFileUpdates).resyncIfChanged(stack, laterRatesTarget);
+        verify(systemFileUpdates, never()).resyncIfChanged(stack, RATES_TARGET);
+    }
+
+    @Test
+    void topLevelSystemFileUpdateIsCheckedAgainstCommittedState() {
+        givenSuccessfulDispatch(CRYPTO_TRANSFER_TXN_INFO);
+        given(stack.isRoot()).willReturn(true);
+        given(systemFileUpdates.resyncTarget(stack, TXN_BODY)).willReturn(Optional.of(RATES_TARGET));
+
+        subject.processDispatch(dispatch);
+
+        verify(systemFileUpdates).resyncIfChanged(stack, RATES_TARGET);
+    }
+
+    @Test
+    void systemFileUpdateIsResyncedEvenIfApplyingItThrows() {
+        given(dispatch.fees()).willReturn(FEES);
+        given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
+        given(dispatchValidator.validateFeeChargingScenario(dispatch))
+                .willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
+        given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
+        given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
+        given(dispatch.handleContext()).willReturn(context);
+        given(dispatch.txnCategory()).willReturn(USER);
+        givenAuthorization(CRYPTO_TRANSFER_TXN_INFO);
+        doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
+        doCallRealMethod().when(dispatch).category();
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
+        given(stack.isRoot()).willReturn(true);
+        given(systemFileUpdates.resyncTarget(stack, TXN_BODY)).willReturn(Optional.of(RATES_TARGET));
+        given(systemFileUpdates.handleTxBody(stack, TXN_BODY)).willThrow(new IllegalStateException("partly applied"));
+
+        subject.processDispatch(dispatch);
+
+        verify(systemFileUpdates).resyncIfChanged(stack, RATES_TARGET);
+    }
+
+    @Test
+    void abandonedTransactionResyncsPendingFacilitiesFromRemainingState() {
+        givenSuccessfulDispatch(CRYPTO_TRANSFER_TXN_INFO);
+        given(stack.isRoot()).willReturn(false);
+        given(systemFileUpdates.resyncTarget(stack, TXN_BODY)).willReturn(Optional.of(RATES_TARGET));
+        subject.processDispatch(dispatch);
+
+        subject.resyncAfterAbandonedTransaction(stack);
+        subject.resyncAfterAbandonedTransaction(stack);
+
+        verify(systemFileUpdates, times(1)).resyncIfChanged(stack, RATES_TARGET);
+    }
+
+    @Test
+    void nestedNodeUpdateRefreshesNodeInfoAgainOnceTransactionCommits() {
+        givenSuccessfulDispatch(NODE_UPDATE_TXN_INFO);
+        // First a dispatch within a transaction, then the transaction's root dispatch
+        given(stack.isRoot()).willReturn(false, true);
+
+        subject.processDispatch(dispatch);
+        verify(networkInfo).updateFrom(stack);
+
+        subject.processDispatch(dispatch);
+        // Once by the root dispatch's own update, and once more from the committed state
+        verify(networkInfo, times(3)).updateFrom(stack);
+    }
+
+    private void givenSuccessfulDispatch(@NonNull final TransactionInfo txnInfo) {
+        given(dispatch.fees()).willReturn(FEES);
+        given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
+        given(dispatchValidator.validateFeeChargingScenario(dispatch))
+                .willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
+        given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
+        given(dispatch.txnInfo()).willReturn(txnInfo);
+        given(dispatch.handleContext()).willReturn(context);
+        given(dispatch.txnCategory()).willReturn(USER);
+        givenAuthorization(txnInfo);
+        givenSystemEffectSuccess(txnInfo);
+        doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
+        doCallRealMethod().when(dispatch).category();
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
     }
 
     private void givenSystemEffectSuccess(@NonNull final TransactionInfo txnInfo) {

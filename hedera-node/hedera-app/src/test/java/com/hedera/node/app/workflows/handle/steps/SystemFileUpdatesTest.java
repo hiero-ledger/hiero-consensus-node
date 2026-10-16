@@ -2,6 +2,7 @@
 package com.hedera.node.app.workflows.handle.steps;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CONFIG_FILE_PART_UPLOADED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.FEE_SCHEDULE_FILE_PART_UPLOADED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILES_STATE_ID;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -9,8 +10,10 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -22,11 +25,15 @@ import com.hedera.hapi.node.file.FileAppendTransactionBody;
 import com.hedera.hapi.node.file.FileUpdateTransactionBody;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
+import com.hedera.hapi.node.transaction.ExchangeRate;
+import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager;
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeManager;
+import com.hedera.node.app.fees.FeeService;
+import com.hedera.node.app.fees.schemas.V0490FeeSchema;
 import com.hedera.node.app.fixtures.state.FakeState;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.file.FileService;
@@ -44,19 +51,21 @@ import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.types.BlockStreamWriterMode;
 import com.hedera.node.config.types.LongPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
+import org.hiero.hapi.support.fees.FeeSchedule;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
 import org.mockito.Mock.Strictness;
-import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
@@ -114,8 +123,14 @@ class SystemFileUpdatesTest implements TransactionFactory {
         SHARD = config.getConfigData(HederaConfig.class).shard();
         REALM = config.getConfigData(HederaConfig.class).realm();
         idFactory = new FakeEntityIdFactoryImpl(SHARD, REALM);
+        // Run block-node streaming reconciliation inline so its effects are observable synchronously in tests.
         subject = new SystemFileUpdates(
-                configProvider, exchangeRateManager, feeManager, throttleServiceManager, blockNodeConnectionManager);
+                configProvider,
+                exchangeRateManager,
+                feeManager,
+                throttleServiceManager,
+                blockNodeConnectionManager,
+                Runnable::run);
     }
 
     @SuppressWarnings("ConstantConditions")
@@ -152,6 +167,214 @@ class SystemFileUpdatesTest implements TransactionFactory {
 
         // then
         assertThatCode(() -> subject.handleTxBody(state, txBody)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void resyncTargetCapturesFacilityFileAndAppliedContents() {
+        final var config = configProvider.getConfiguration().getConfigData(FilesConfig.class);
+        final var fileID = idFactory.newFileId(config.throttleDefinitions());
+        files.put(fileID, File.newBuilder().contents(FILE_BYTES).build());
+
+        final var target = subject.resyncTarget(state, fileUpdateOf(fileID));
+
+        assertThat(target)
+                .contains(new SystemFileUpdates.ResyncTarget(
+                        SystemFileUpdates.ResyncTarget.Facility.THROTTLE_DEFINITIONS, fileID, FILE_BYTES));
+    }
+
+    @Test
+    void resyncTargetIsEmptyForNonFacilityFiles() {
+        assertThat(subject.resyncTarget(state, fileUpdateOf(idFactory.newFileId(1001L))))
+                .isEmpty();
+        assertThat(subject.resyncTarget(state, TransactionBody.DEFAULT)).isEmpty();
+    }
+
+    @Test
+    void resyncIfChangedSkipsWhenCommittedContentsMatchAppliedContents() {
+        final var config = configProvider.getConfiguration().getConfigData(FilesConfig.class);
+        final var fileID = idFactory.newFileId(config.throttleDefinitions());
+        files.put(fileID, File.newBuilder().contents(FILE_BYTES).build());
+
+        subject.resyncIfChanged(
+                state,
+                new SystemFileUpdates.ResyncTarget(
+                        SystemFileUpdates.ResyncTarget.Facility.THROTTLE_DEFINITIONS, fileID, FILE_BYTES));
+
+        verifyNoInteractions(throttleServiceManager);
+    }
+
+    @Test
+    void resyncIfChangedRederivesFromCommittedContentsWhenTheyDiffer() {
+        final var config = configProvider.getConfiguration().getConfigData(FilesConfig.class);
+        final var fileID = idFactory.newFileId(config.throttleDefinitions());
+        files.put(fileID, File.newBuilder().contents(FILE_BYTES).build());
+
+        subject.resyncIfChanged(
+                state,
+                new SystemFileUpdates.ResyncTarget(
+                        SystemFileUpdates.ResyncTarget.Facility.THROTTLE_DEFINITIONS,
+                        fileID,
+                        Bytes.wrap("rolled back")));
+
+        verify(throttleServiceManager).recreateThrottles(FILE_BYTES);
+    }
+
+    @ParameterizedTest
+    @EnumSource(SystemFileUpdates.ResyncTarget.Facility.class)
+    void resyncTargetMapsEachFacilityFileForUpdatesAndAppends(final SystemFileUpdates.ResyncTarget.Facility facility) {
+        final var fileID = idFactory.newFileId(fileNumOf(facility));
+        files.put(fileID, File.newBuilder().contents(FILE_BYTES).build());
+        final var expected = new SystemFileUpdates.ResyncTarget(facility, fileID, FILE_BYTES);
+
+        assertThat(subject.resyncTarget(state, fileUpdateOf(fileID))).contains(expected);
+        assertThat(subject.resyncTarget(state, fileAppendOf(fileID))).contains(expected);
+    }
+
+    @Test
+    void resyncFromStateRestoresExchangeRatesWithCommittedMidnightRates() {
+        final var fileID = idFactory.newFileId(fileNumOf(SystemFileUpdates.ResyncTarget.Facility.EXCHANGE_RATES));
+        files.put(fileID, File.newBuilder().contents(FILE_BYTES).build());
+        final var midnightRates = ExchangeRateSet.newBuilder()
+                .currentRate(ExchangeRate.newBuilder().hbarEquiv(1).centEquiv(12))
+                .nextRate(ExchangeRate.newBuilder().hbarEquiv(1).centEquiv(15))
+                .build();
+        state.addService(
+                FeeService.NAME, Map.of(V0490FeeSchema.MIDNIGHT_RATES_STATE_ID, new AtomicReference<>(midnightRates)));
+
+        subject.resyncIfChanged(
+                state,
+                new SystemFileUpdates.ResyncTarget(
+                        SystemFileUpdates.ResyncTarget.Facility.EXCHANGE_RATES, fileID, Bytes.wrap("rolled back")));
+
+        verify(exchangeRateManager).init(state, FILE_BYTES, midnightRates);
+    }
+
+    @Test
+    void resyncFromStateReDerivesSimpleFeesFromAParseableCommittedFile() {
+        final var fileID = idFactory.newFileId(fileNumOf(SystemFileUpdates.ResyncTarget.Facility.SIMPLE_FEES));
+        files.put(fileID, File.newBuilder().contents(FILE_BYTES).build());
+        // The committed file parses as a full schedule, so recovery re-derives from it
+        when(feeManager.updateSimpleFees(FILE_BYTES, false)).thenReturn(SUCCESS);
+
+        subject.resyncIfChanged(
+                state,
+                new SystemFileUpdates.ResyncTarget(
+                        SystemFileUpdates.ResyncTarget.Facility.SIMPLE_FEES, fileID, Bytes.wrap("rolled back")));
+
+        verify(feeManager).updateSimpleFees(FILE_BYTES, false);
+        verify(feeManager, never()).setSimpleFeesSchedule(any());
+    }
+
+    @Test
+    void resyncFromStateRestoresPriorSimpleFeesScheduleWhenCommittedFileIsAPartialChunk() {
+        final var fileID = idFactory.newFileId(fileNumOf(SystemFileUpdates.ResyncTarget.Facility.SIMPLE_FEES));
+        files.put(fileID, File.newBuilder().contents(FILE_BYTES).build());
+        // The committed file holds only a partial upload chunk, so it does not install
+        when(feeManager.updateSimpleFees(FILE_BYTES, false)).thenReturn(FEE_SCHEDULE_FILE_PART_UPLOADED);
+
+        subject.resyncIfChanged(
+                state,
+                new SystemFileUpdates.ResyncTarget(
+                        SystemFileUpdates.ResyncTarget.Facility.SIMPLE_FEES, fileID, Bytes.wrap("rolled back")));
+
+        // Recovery falls back to the schedule captured before the rolled-back update (null here, as the target was
+        // built without a captured schedule)
+        verify(feeManager).setSimpleFeesSchedule(null);
+    }
+
+    @Test
+    void resyncTargetCapturesTheActiveSimpleFeesScheduleBeforeTheUpdate() {
+        final var fileID = idFactory.newFileId(fileNumOf(SystemFileUpdates.ResyncTarget.Facility.SIMPLE_FEES));
+        files.put(fileID, File.newBuilder().contents(FILE_BYTES).build());
+        final var activeSchedule = FeeSchedule.DEFAULT;
+        when(feeManager.currentSimpleFeesSchedule()).thenReturn(activeSchedule);
+
+        final var target = subject.resyncTarget(state, fileUpdateOf(fileID)).orElseThrow();
+
+        // The target carries the schedule active before the update, so recovery can restore it from a partial file
+        assertThat(target.priorSimpleFees()).isEqualTo(activeSchedule);
+    }
+
+    @Test
+    void resyncTargetCapturesNullSimpleFeesScheduleAtGenesis() {
+        final var fileID = idFactory.newFileId(fileNumOf(SystemFileUpdates.ResyncTarget.Facility.SIMPLE_FEES));
+        files.put(fileID, File.newBuilder().contents(FILE_BYTES).build());
+        // No schedule has been installed yet (genesis): currentSimpleFeesSchedule() returns null
+        when(feeManager.currentSimpleFeesSchedule()).thenReturn(null);
+
+        final var target = subject.resyncTarget(state, fileUpdateOf(fileID)).orElseThrow();
+
+        assertThat(target.priorSimpleFees()).isNull();
+    }
+
+    @Test
+    void resyncFromStateRestoresNetworkPropertiesAndRefreshesThrottleConfiguration() {
+        final var permissions = givenCommittedPropertiesAndPermissions();
+        final var fileID = idFactory.newFileId(fileNumOf(SystemFileUpdates.ResyncTarget.Facility.NETWORK_PROPERTIES));
+
+        subject.resyncIfChanged(
+                state,
+                new SystemFileUpdates.ResyncTarget(
+                        SystemFileUpdates.ResyncTarget.Facility.NETWORK_PROPERTIES, fileID, Bytes.wrap("rolled back")));
+
+        verify(configProvider).update(CONFIG_LIST_BYTES, permissions);
+        // Recovery refreshes throttle configuration while preserving accumulated usage and the congestion period
+        verify(throttleServiceManager).refreshThrottleConfigurationPreservingUsage();
+        verifyNoInteractions(blockNodeConnectionManager);
+    }
+
+    @Test
+    void resyncFromStateRestoresHapiPermissionsOnly() {
+        final var permissions = givenCommittedPropertiesAndPermissions();
+        final var fileID = idFactory.newFileId(fileNumOf(SystemFileUpdates.ResyncTarget.Facility.HAPI_PERMISSIONS));
+
+        subject.resyncIfChanged(
+                state,
+                new SystemFileUpdates.ResyncTarget(
+                        SystemFileUpdates.ResyncTarget.Facility.HAPI_PERMISSIONS, fileID, Bytes.wrap("rolled back")));
+
+        verify(configProvider).update(CONFIG_LIST_BYTES, permissions);
+        verifyNoInteractions(throttleServiceManager, blockNodeConnectionManager);
+    }
+
+    private Bytes givenCommittedPropertiesAndPermissions() {
+        final var permissions = Bytes.wrap("committed permissions");
+        files.put(
+                idFactory.newFileId(fileNumOf(SystemFileUpdates.ResyncTarget.Facility.NETWORK_PROPERTIES)),
+                File.newBuilder().contents(CONFIG_LIST_BYTES).build());
+        files.put(
+                idFactory.newFileId(fileNumOf(SystemFileUpdates.ResyncTarget.Facility.HAPI_PERMISSIONS)),
+                File.newBuilder().contents(permissions).build());
+        return permissions;
+    }
+
+    private long fileNumOf(final SystemFileUpdates.ResyncTarget.Facility facility) {
+        final var config = configProvider.getConfiguration().getConfigData(FilesConfig.class);
+        return switch (facility) {
+            case EXCHANGE_RATES -> config.exchangeRates();
+            case SIMPLE_FEES -> config.simpleFeesSchedules();
+            case NETWORK_PROPERTIES -> config.networkProperties();
+            case HAPI_PERMISSIONS -> config.hapiPermissions();
+            case THROTTLE_DEFINITIONS -> config.throttleDefinitions();
+        };
+    }
+
+    private TransactionBody fileAppendOf(final FileID fileID) {
+        return TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder()
+                        .accountID(idFactory.newAccountId(50L))
+                        .build())
+                .fileAppend(FileAppendTransactionBody.newBuilder().fileID(fileID))
+                .build();
+    }
+
+    private TransactionBody fileUpdateOf(final FileID fileID) {
+        return TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder()
+                        .accountID(idFactory.newAccountId(50L))
+                        .build())
+                .fileUpdate(FileUpdateTransactionBody.newBuilder().fileID(fileID))
+                .build();
     }
 
     @Test
@@ -453,7 +676,8 @@ class SystemFileUpdatesTest implements TransactionFactory {
         verify(exchangeRateManager, times(1))
                 .update(
                         FileUtilities.getFileContent(state, fileID),
-                        AccountID.newBuilder().accountNum(50L).build());
+                        AccountID.newBuilder().accountNum(50L).build(),
+                        state);
     }
 
     @Test
@@ -515,20 +739,12 @@ class SystemFileUpdatesTest implements TransactionFactory {
                 .fileUpdate(FileUpdateTransactionBody.newBuilder().fileID(networkPropsId))
                 .build();
 
-        try (final MockedStatic<CompletableFuture> mocked = Mockito.mockStatic(CompletableFuture.class)) {
-            mocked.when(() -> CompletableFuture.runAsync(any(Runnable.class))).thenAnswer(inv -> {
-                final Runnable r = inv.getArgument(0);
-                r.run();
-                return new CompletableFuture<>();
-            });
+        // when (reconciliation runs inline via the same-thread executor injected in setUp)
+        subject.handleTxBody(state, txBody);
 
-            // when
-            subject.handleTxBody(state, txBody);
-
-            // then
-            verify(blockNodeConnectionManager, times(1)).shutdown();
-            verify(throttleServiceManager, times(1)).refreshThrottleConfiguration();
-        }
+        // then
+        verify(blockNodeConnectionManager, times(1)).shutdown();
+        verify(throttleServiceManager, times(1)).refreshThrottleConfiguration();
     }
 
     @Test
@@ -570,19 +786,66 @@ class SystemFileUpdatesTest implements TransactionFactory {
                 .fileUpdate(FileUpdateTransactionBody.newBuilder().fileID(networkPropsId))
                 .build();
 
-        try (final MockedStatic<CompletableFuture> mocked = Mockito.mockStatic(CompletableFuture.class)) {
-            mocked.when(() -> CompletableFuture.runAsync(any(Runnable.class))).thenAnswer(inv -> {
-                final Runnable r = inv.getArgument(0);
-                r.run();
-                return new CompletableFuture<>();
-            });
+        // when (reconciliation runs inline via the same-thread executor injected in setUp)
+        subject.handleTxBody(state, txBody);
 
-            // when
-            subject.handleTxBody(state, txBody);
+        // then
+        verify(blockNodeConnectionManager, times(1)).start();
+        verify(throttleServiceManager, times(1)).refreshThrottleConfiguration();
+    }
 
-            // then
-            verify(blockNodeConnectionManager, times(1)).start();
-            verify(throttleServiceManager, times(1)).refreshThrottleConfiguration();
-        }
+    @Test
+    void streamingReconciliationIsSubmittedToTheInjectedSerializingExecutor() {
+        // A manual executor that captures the reconciliation task instead of running it, so the test can prove the
+        // task is routed through the injected executor (which serializes), not fired on the common pool concurrently.
+        final var queued = new java.util.ArrayList<Runnable>();
+        final var manualSubject = new SystemFileUpdates(
+                configProvider,
+                exchangeRateManager,
+                feeManager,
+                throttleServiceManager,
+                blockNodeConnectionManager,
+                queued::add);
+
+        final var initialConfig = streamingConfig(BlockStreamWriterMode.FILE_AND_GRPC);
+        final var updatedConfig = streamingConfig(BlockStreamWriterMode.FILE);
+        when(configProvider.getConfiguration())
+                .thenReturn(new VersionedConfigImpl(initialConfig, 1L))
+                .thenReturn(new VersionedConfigImpl(updatedConfig, 2L));
+
+        final var filesConfig = initialConfig.getConfigData(FilesConfig.class);
+        final var networkPropsId = idFactory.newFileId(filesConfig.networkProperties());
+        final var permissionsId = idFactory.newFileId(filesConfig.hapiPermissions());
+        files.put(networkPropsId, File.newBuilder().contents(FILE_BYTES).build());
+        files.put(permissionsId, File.newBuilder().contents(Bytes.wrap("perms")).build());
+        final var txBody = TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder()
+                        .accountID(idFactory.newAccountId(50L))
+                        .build())
+                .fileUpdate(FileUpdateTransactionBody.newBuilder().fileID(networkPropsId))
+                .build();
+
+        manualSubject.handleTxBody(state, txBody);
+
+        // The reconciliation was handed to the injected executor, not run yet.
+        assertThat(queued).hasSize(1);
+        verifyNoInteractions(blockNodeConnectionManager);
+
+        // The task reads the committed mode (now FILE) when the executor runs it, and reconciles to it.
+        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(updatedConfig, 2L));
+        queued.getFirst().run();
+        verify(blockNodeConnectionManager, times(1)).shutdown();
+    }
+
+    private Configuration streamingConfig(final BlockStreamWriterMode writerMode) {
+        return new TestConfigBuilder(false)
+                .withConverter(Bytes.class, new BytesConverter())
+                .withConverter(LongPair.class, new LongPairConverter())
+                .withConfigDataType(FilesConfig.class)
+                .withConfigDataType(HederaConfig.class)
+                .withConfigDataType(LedgerConfig.class)
+                .withConfigDataType(BlockStreamConfig.class)
+                .withValue("blockStream.writerMode", writerMode)
+                .getOrCreateConfig();
     }
 }

@@ -37,7 +37,7 @@ import org.apache.logging.log4j.Logger;
  * <p>All fees in Hedera are based on the exchange rate between HBAR and USD. Fees are paid in HBAR, but based on the
  * current USD price of the HBAR. The "ERT", exchange rate tool, is responsible for tracking the exchange rate of
  * various exchanges, and updating the {@link ExchangeRateSet} on a periodic basis. Currently, this is in a special
- * file, but could be from any other source. The encoded {@link Bytes} are passed to the {@link #update(Bytes, AccountID)} method.
+ * file, but could be from any other source. The encoded {@link Bytes} are passed to the {@link #update(Bytes, AccountID, State)} method.
  * This <strong>MUST</strong> be done on the same thread that this manager is used by -- the manager is not threadsafe.
  *
  * <p>The {@link ExchangeRateSet} has two rates -- a "current" rate and the "next" rate. Each rate has an expiration
@@ -86,17 +86,19 @@ public final class ExchangeRateManager {
      *
      * @param bytes The protobuf encoded {@link ExchangeRateSet}.
      * @param payerId The payer of the transaction that triggered this update.
+     * @param state the state to persist the midnight rates in when the payer is the system admin
      */
-    public void update(@NonNull final Bytes bytes, @NonNull AccountID payerId) {
+    public void update(@NonNull final Bytes bytes, @NonNull AccountID payerId, @NonNull final State state) {
         requireNonNull(payerId, "payerId must not be null");
-        internalUpdate(bytes, payerId);
+        requireNonNull(state, "state must not be null");
+        internalUpdate(bytes, payerId, state);
     }
 
     public void systemUpdate(@NonNull final Bytes bytes) {
-        internalUpdate(bytes, null);
+        internalUpdate(bytes, null, null);
     }
 
-    private void internalUpdate(@NonNull final Bytes bytes, @Nullable AccountID payerId) {
+    private void internalUpdate(@NonNull final Bytes bytes, @Nullable AccountID payerId, @Nullable final State state) {
         requireNonNull(bytes, "bytes must not be null");
 
         // Parse the exchange rate file. If we cannot parse it, we just continue with whatever our previous rate was.
@@ -138,6 +140,12 @@ public final class ExchangeRateManager {
         this.currentExchangeRateInfo = new ExchangeRateInfoImpl(proposedRates);
         if (isAdminUser(payerId, accountsConfig)) {
             midnightRates = proposedRates;
+            // Persist the moved baseline to the MIDNIGHT_RATES singleton in this dispatch's savepoint, so a committed
+            // admin move keeps it and a rolled-back one reverts it with the stack. The system/init paths pass a null
+            // state and never persist, so a reconnecting node re-seeds its baseline from a correct committed singleton.
+            if (state != null) {
+                persistMidnightRates(state);
+            }
         }
     }
 
@@ -162,10 +170,20 @@ public final class ExchangeRateManager {
      */
     public void updateMidnightRates(@NonNull final State state) {
         midnightRates = currentExchangeRateInfo.exchangeRates();
-        final var singleton = state.getWritableStates(FeeService.NAME)
-                .<ExchangeRateSet>getSingleton(V0490FeeSchema.MIDNIGHT_RATES_STATE_ID);
-        singleton.put(midnightRates);
+        persistMidnightRates(state);
         log.info("Updated midnight rates to {}", midnightRates);
+    }
+
+    /**
+     * Writes the current in-memory midnight rates to the {@code MIDNIGHT_RATES} state singleton. Called on the handle
+     * thread with the dispatch's state, so the write is captured by the dispatch's savepoint.
+     *
+     * @param state the state to write the midnight rates in
+     */
+    private void persistMidnightRates(@NonNull final State state) {
+        state.getWritableStates(FeeService.NAME)
+                .<ExchangeRateSet>getSingleton(V0490FeeSchema.MIDNIGHT_RATES_STATE_ID)
+                .put(midnightRates);
     }
 
     /**
@@ -176,6 +194,16 @@ public final class ExchangeRateManager {
     @NonNull
     public ExchangeRateSet exchangeRates() {
         return currentExchangeRateInfo.exchangeRates();
+    }
+
+    /**
+     * Returns the current in-memory midnight rates, the baseline the intraday-change limit is checked against. Used by
+     * recovery to detect when a rolled-back update left this baseline out of step with the committed singleton.
+     *
+     * @return the in-memory midnight rates, or null before initialization
+     */
+    public ExchangeRateSet midnightRates() {
+        return midnightRates;
     }
 
     /**

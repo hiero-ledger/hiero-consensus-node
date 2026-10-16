@@ -14,7 +14,16 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.transaction.TransactionBody.DataOneOfType.CONTRACT_CALL;
 import static com.hedera.hapi.node.transaction.TransactionBody.DataOneOfType.CONTRACT_CREATE_INSTANCE;
+import static com.hedera.hapi.node.transaction.TransactionBody.DataOneOfType.CRS_PUBLICATION;
 import static com.hedera.hapi.node.transaction.TransactionBody.DataOneOfType.ETHEREUM_TRANSACTION;
+import static com.hedera.hapi.node.transaction.TransactionBody.DataOneOfType.HINTS_KEY_PUBLICATION;
+import static com.hedera.hapi.node.transaction.TransactionBody.DataOneOfType.HINTS_PARTIAL_SIGNATURE;
+import static com.hedera.hapi.node.transaction.TransactionBody.DataOneOfType.HINTS_PREPROCESSING_VOTE;
+import static com.hedera.hapi.node.transaction.TransactionBody.DataOneOfType.HISTORY_PROOF_KEY_PUBLICATION;
+import static com.hedera.hapi.node.transaction.TransactionBody.DataOneOfType.HISTORY_PROOF_SIGNATURE;
+import static com.hedera.hapi.node.transaction.TransactionBody.DataOneOfType.HISTORY_PROOF_VOTE;
+import static com.hedera.hapi.node.transaction.TransactionBody.DataOneOfType.MIGRATION_ROOT_HASH_VOTE;
+import static com.hedera.hapi.node.transaction.TransactionBody.DataOneOfType.NODE_UPDATE;
 import static com.hedera.hapi.util.HapiUtils.ACCOUNT_ID_COMPARATOR;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.atomicBatchDispatch;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.BATCH_ROLLBACK_CALLBACK_CONSUMER;
@@ -28,6 +37,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
@@ -49,6 +59,7 @@ import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.AtomicBatchConfig;
+import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -75,6 +86,20 @@ public class AtomicBatchHandler implements TransactionHandler {
 
     private static final Set<TransactionBody.DataOneOfType> CONTRACT_OP_BODIES =
             EnumSet.of(CONTRACT_CALL, CONTRACT_CREATE_INSTANCE, ETHEREUM_TRANSACTION);
+    /**
+     * Transaction types that are never allowed inside an atomic batch, regardless of the configured blacklist.
+     */
+    private static final Set<TransactionBody.DataOneOfType> NEVER_ALLOWED_BODIES = EnumSet.of(
+            NODE_UPDATE,
+            HINTS_KEY_PUBLICATION,
+            HINTS_PREPROCESSING_VOTE,
+            HINTS_PARTIAL_SIGNATURE,
+            HISTORY_PROOF_SIGNATURE,
+            HISTORY_PROOF_KEY_PUBLICATION,
+            HISTORY_PROOF_VOTE,
+            CRS_PUBLICATION,
+            MIGRATION_ROOT_HASH_VOTE);
+
     private static final AccountID ATOMIC_BATCH_NODE_ACCOUNT_ID =
             AccountID.newBuilder().accountNum(0).shardNum(0).realmNum(0).build();
 
@@ -137,12 +162,16 @@ public class AtomicBatchHandler implements TransactionHandler {
         final var atomicBatchTransactionBody = context.body().atomicBatchOrThrow();
         final var config = context.configuration();
         final var atomicBatchConfig = config.getConfigData(AtomicBatchConfig.class);
+        final var ledgerConfig = config.getConfigData(LedgerConfig.class);
 
         final var txns = atomicBatchTransactionBody.transactions();
         // not using a stream below as throwing exception in the middle of a functional pipeline is a terrible idea
         for (final var txnBytes : txns) {
             final var innerTxBody = innerTxnCache.computeIfAbsent(txnBytes);
             validateFalsePreCheck(isNotAllowedFunction(innerTxBody, atomicBatchConfig), BATCH_TRANSACTION_IN_BLACKLIST);
+            validateFalsePreCheck(
+                    isNeverAllowedInBatch(innerTxBody, ledgerConfig.numReservedSystemEntities()),
+                    BATCH_TRANSACTION_IN_BLACKLIST);
             context.requireKeyOrThrow(innerTxBody.batchKey(), INVALID_BATCH_KEY);
             // the inner prehandle of each inner transaction happens in the prehandle workflow.
         }
@@ -265,6 +294,40 @@ public class AtomicBatchHandler implements TransactionHandler {
             }
         }
         return false;
+    }
+
+    /**
+     * Returns whether the given transaction is never allowed inside an atomic batch, regardless of the configured
+     * blacklist. This applies both to the batch's inner transactions and to any transaction they dispatch.
+     *
+     * @param body the transaction body
+     * @param numReservedSystemEntities the number of reserved system entities, which bounds the system file range
+     * @return true if the transaction is never allowed inside an atomic batch
+     */
+    public static boolean isNeverAllowedInBatch(
+            @NonNull final TransactionBody body, final long numReservedSystemEntities) {
+        return NEVER_ALLOWED_BODIES.contains(body.data().kind()) || isSystemFileChange(body, numReservedSystemEntities);
+    }
+
+    /**
+     * Returns whether the given inner transaction updates or appends to a system file (a file in the reserved system
+     * entity range). System-file changes are not allowed inside an atomic batch.
+     *
+     * @param body the inner transaction body
+     * @param numReservedSystemEntities the number of reserved system entities, which bounds the system file range
+     * @return true if the transaction changes a system file
+     */
+    private static boolean isSystemFileChange(
+            @NonNull final TransactionBody body, final long numReservedSystemEntities) {
+        final FileID fileId;
+        if (body.hasFileUpdate()) {
+            fileId = body.fileUpdateOrThrow().fileID();
+        } else if (body.hasFileAppend()) {
+            fileId = body.fileAppendOrThrow().fileID();
+        } else {
+            return false;
+        }
+        return fileId != null && 1 <= fileId.fileNum() && fileId.fileNum() <= numReservedSystemEntities;
     }
 
     /**
