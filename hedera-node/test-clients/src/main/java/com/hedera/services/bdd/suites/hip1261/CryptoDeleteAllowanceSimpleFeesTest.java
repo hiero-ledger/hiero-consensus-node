@@ -130,7 +130,7 @@ public class CryptoDeleteAllowanceSimpleFeesTest {
         }
 
         @HapiTest
-        @DisplayName("CryptoDeleteAllowance - two NFT serials allowance - base fee charged")
+        @DisplayName("CryptoDeleteAllowance - two NFT serials allowance - each serial charged")
         final Stream<DynamicTest> cryptoDeleteAllowanceTwoNftSerialsBaseFeesOnly() {
             return hapiTest(
                     newKeyNamed(SUPPLY_KEY),
@@ -157,14 +157,14 @@ public class CryptoDeleteAllowanceSimpleFeesTest {
                             deleteAllowanceTxn,
                             txnSize -> expectedCryptoDeleteAllowanceFullFeeUsd(Map.of(
                                     SIGNATURES, 2L,
-                                    ALLOWANCES, 1L,
+                                    ALLOWANCES, 2L,
                                     PROCESSING_BYTES, (long) txnSize)),
                             0.1),
                     validateChargedAccount(deleteAllowanceTxn, PAYER));
         }
 
         @HapiTest
-        @DisplayName("CryptoDeleteAllowance - five NFT serials allowance - base fee charged")
+        @DisplayName("CryptoDeleteAllowance - five NFT serials allowance - each serial charged")
         final Stream<DynamicTest> cryptoDeleteAllowanceFiveNftSerialsBaseFeesOnly() {
             return hapiTest(
                     newKeyNamed(SUPPLY_KEY),
@@ -198,7 +198,7 @@ public class CryptoDeleteAllowanceSimpleFeesTest {
                             deleteAllowanceTxn,
                             txnSize -> expectedCryptoDeleteAllowanceFullFeeUsd(Map.of(
                                     SIGNATURES, 2L,
-                                    ALLOWANCES, 1L,
+                                    ALLOWANCES, 5L,
                                     PROCESSING_BYTES, (long) txnSize)),
                             0.1),
                     validateChargedAccount(deleteAllowanceTxn, PAYER));
@@ -242,7 +242,7 @@ public class CryptoDeleteAllowanceSimpleFeesTest {
                             deleteAllowanceTxn,
                             txnSize -> expectedCryptoDeleteAllowanceFullFeeUsd(Map.of(
                                     SIGNATURES, 2L,
-                                    ALLOWANCES, 2L,
+                                    ALLOWANCES, 4L,
                                     PROCESSING_BYTES, (long) txnSize)),
                             0.1),
                     validateChargedAccount(deleteAllowanceTxn, PAYER));

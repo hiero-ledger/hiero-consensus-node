@@ -88,13 +88,14 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_AIRDROP_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_ASSOCIATE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_ASSOCIATE_EXTRA_FEE_USD;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_ASSOCIATE_INCLUDED_TOKENS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_BURN_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_CREATE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_CREATE_INCLUDED_KEYS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_CREATE_WITH_CUSTOM_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_DELETE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_DISSOCIATE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_DISSOCIATE_EXTRA_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_DISSOCIATE_INCLUDED_TOKENS;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_FEE_SCHEDULE_UPDATE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_FREEZE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.TOKEN_GRANT_KYC_BASE_FEE_USD;
@@ -1351,7 +1352,7 @@ public class FeesChargingUtils {
      */
     private static double expectedTokenAssociateFullFeeUsd(long sigs, long tokens, int txnSize) {
         // ----- service fees -----
-        final long extraTokens = Math.max(0L, tokens - TOKEN_ASSOCIATE_INCLUDED_TOKENS);
+        final long extraTokens = Math.max(0L, tokens - TOKEN_DISSOCIATE_INCLUDED_TOKENS);
         final double serviceFee = TOKEN_ASSOCIATE_BASE_FEE_USD + extraTokens * TOKEN_ASSOCIATE_EXTRA_FEE_USD;
         return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + serviceFee;
     }
@@ -1386,18 +1387,21 @@ public class FeesChargingUtils {
      * SimpleFees formula for TokenDissociate:
      * node    = NODE_BASE + SIGNATURE_FEE * max(0, sigs - includedSigsNode)
      * network = node * NETWORK_MULTIPLIER
-     * service = TOKEN_DISSOCIATE_BASE
+     * service = TOKEN_DISSOCIATE_BASE + TOKEN_DISSOCIATE_EXTRA * max(0, tokens - includedTokens)
      * total   = node + network + service
      */
-    private static double expectedTokenDissociateFullFeeUsd(long sigs, int txnSize) {
-        return expectedNodeAndNetworkFeeUsd(sigs, txnSize) + TOKEN_DISSOCIATE_BASE_FEE_USD;
+    private static double expectedTokenDissociateFullFeeUsd(long sigs, long tokens, int txnSize) {
+        final long extraTokens = Math.max(0L, tokens - TOKEN_DISSOCIATE_INCLUDED_TOKENS);
+        return expectedNodeAndNetworkFeeUsd(sigs, txnSize)
+                + TOKEN_DISSOCIATE_BASE_FEE_USD
+                + extraTokens * TOKEN_DISSOCIATE_EXTRA_FEE_USD;
     }
 
     /**
-     * Overload for TokenDissociate with no bytes.
+     * Overload for TokenDissociate of one token with no bytes.
      */
     public static double expectedTokenDissociateFullFeeUsd(long sigs) {
-        return expectedTokenDissociateFullFeeUsd(sigs, 0);
+        return expectedTokenDissociateFullFeeUsd(sigs, 1L, 0);
     }
 
     /**
@@ -1406,6 +1410,7 @@ public class FeesChargingUtils {
     public static double expectedTokenDissociateFullFeeUsd(final Map<Extra, Long> extras) {
         return expectedTokenDissociateFullFeeUsd(
                 extras.getOrDefault(Extra.SIGNATURES, 0L),
+                extras.getOrDefault(Extra.TOKEN_DISSOCIATE, 1L),
                 Math.toIntExact(extras.getOrDefault(Extra.PROCESSING_BYTES, 0L)));
     }
 

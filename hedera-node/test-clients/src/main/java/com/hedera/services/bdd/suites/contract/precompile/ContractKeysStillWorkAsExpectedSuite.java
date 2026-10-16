@@ -30,7 +30,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.noOp;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordedChildBodyWithId;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePassFrom;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.contract.Utils.idAsHeadlongAddress;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractCallSuite.PAY_RECEIVABLE_CONTRACT;
 import static com.hedera.services.bdd.suites.token.TokenAssociationSpecs.MULTI_KEY;
@@ -116,7 +116,7 @@ public class ContractKeysStillWorkAsExpectedSuite {
                                 WELL_KNOWN_FUNGIBLE_TOKEN,
                                 WELL_KNOWN_TREASURY_CONTRACT,
                                 Long.MAX_VALUE)
-                        .fee(ONE_HBAR),
+                        .fee(ONE_HUNDRED_HBARS),
                 cryptoApproveAllowance()
                         .payingWith(B_WELL_KNOWN_SENDER)
                         .addNftAllowance(
@@ -130,7 +130,7 @@ public class ContractKeysStillWorkAsExpectedSuite {
                                 WELL_KNOWN_FUNGIBLE_TOKEN,
                                 WELL_KNOWN_TREASURY_CONTRACT,
                                 Long.MAX_VALUE)
-                        .fee(ONE_HBAR),
+                        .fee(ONE_HUNDRED_HBARS),
                 // Everything should have the needed approvals
                 someWellKnownOperationsWithAllNeededSigsInSigMap(
                         fungibleTokenMirrorAddr,
