@@ -996,13 +996,12 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
     }
 
     /**
-     * Called by this class when we detect it is time to do migration. The {@code deserializedVersion} must not be newer
-     * than the current software version. If it is prior to the current version, then each migration between the
-     * {@code deserializedVersion} and the current version, including the current version, will be executed, thus
-     * bringing the state up to date.
+     * Called by this class when we detect it is time to initialize the state's services. The {@code deserializedVersion}
+     * must not be newer than the current software version. Every service's registered schemas are applied in order no
+     * matter what the two versions are; the versions only determine whether this is an upgrade (and hence whether
+     * post-upgrade work is pending) and are made available to each latest schema's restart hook.
      *
-     * <p>If the {@code deserializedVersion} is {@code null}, then this is the first time the node has been started,
-     * and thus all schemas will be executed.
+     * <p>If the {@code deserializedVersion} is {@code null}, then this is the first time the node has been started.
      *
      * @param state current state
      * @param deserializedVersion version deserialized
