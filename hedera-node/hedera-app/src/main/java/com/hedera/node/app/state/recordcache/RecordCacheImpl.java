@@ -3,6 +3,7 @@ package com.hedera.node.app.state.recordcache;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hedera.hapi.util.HapiUtils.TIMESTAMP_COMPARATOR;
+import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.hapi.util.HapiUtils.isBefore;
 import static com.hedera.node.app.spi.records.RecordCache.matchesExceptNonce;
 import static com.hedera.node.app.state.HederaRecordCache.DuplicateCheckResult.NO_DUPLICATE;
@@ -365,7 +366,7 @@ public class RecordCacheImpl implements HederaRecordCache {
         final var queue = states.<TransactionReceiptEntries>getQueue(TRANSACTION_RECEIPTS_STATE_ID);
         purgeExpiredReceiptEntries(queue, consensusNow);
         if (!transactionReceipts.isEmpty()) {
-            queue.add(new TransactionReceiptEntries(new ArrayList<>(transactionReceipts)));
+            queue.add(new TransactionReceiptEntries(new ArrayList<>(transactionReceipts), asTimestamp(consensusNow)));
         }
         if (states instanceof CommittableWritableStates committable) {
             committable.commit();
@@ -417,9 +418,16 @@ public class RecordCacheImpl implements HederaRecordCache {
                     .map(entry -> entry.transactionIdOrElse(TransactionID.DEFAULT)
                             .transactionValidStartOrElse(Timestamp.DEFAULT))
                     .orElseThrow();
+            // A valid start after the round's own consensus time belongs to a transaction that never executed, so
+            // it must not keep this round (and every round after it) from being purged
+            final var roundConsensusTime = roundReceipts.consensusTimestamp();
+            final var latestValidStart =
+                    roundConsensusTime != null && isBefore(roundConsensusTime, latestReceiptValidStart)
+                            ? roundConsensusTime
+                            : latestReceiptValidStart;
             // If even the latest valid start time is before the earliest valid start, then all transaction
             // ids used in this round are expired and cannot be duplicated
-            if (isBefore(latestReceiptValidStart, earliestValidStart)) {
+            if (isBefore(latestValidStart, earliestValidStart)) {
                 // Remove all in-memory context for these transaction ids.  Note that all transactions are added
                 // to this map keyed to the "user transaction" ID, so removing the entry here removes both "parent"
                 // and "child" transaction records associated with that ID.
