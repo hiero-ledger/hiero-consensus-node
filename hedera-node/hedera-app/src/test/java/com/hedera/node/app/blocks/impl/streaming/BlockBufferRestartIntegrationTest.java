@@ -16,6 +16,8 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
+import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeEndpoint;
 import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
@@ -116,11 +118,18 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
     @Mock
     private BlockStreamingObs streamingObs;
 
+    private BlockNode blockNode1;
+
     private BlockBufferService blockBufferService;
 
     @BeforeEach
     void beforeEach() throws IOException {
         cleanupDirectory();
+
+        blockNode1 = mock(BlockNode.class);
+        final BlockNodeConfiguration bn1Config = mock(BlockNodeConfiguration.class);
+        lenient().when(bn1Config.streamingEndpoint()).thenReturn(new BlockNodeEndpoint("10.0.0.1", 10));
+        lenient().when(blockNode1.configuration()).thenReturn(bn1Config);
     }
 
     @AfterEach
@@ -186,17 +195,12 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
         final long bufferSizeBeforeShutdown = bufferSizeInBytes.sum();
         assertThat(bufferSizeBeforeShutdown).isGreaterThan(0L);
 
-        //        // Step 2: Simulate shutdown - persist buffer to disk
-        //        persistBufferHandle.invoke(blockBufferService);
-
         // Shutdown the service
         blockBufferService.shutdown();
 
         // after shutdown, the buffer size should be cleared
         assertThat(bufferSizeInBytes).isZero();
 
-        // Step 3: Simulate restart - create new service instance
-        //        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics, streamingObs);
         blockBufferService.start(); // This should load buffer from disk
 
         // Verify buffer was restored from disk
@@ -222,7 +226,7 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
         final long lastVerifiedBlock = startBlockNumber + 5; // Block node is 5 blocks behind
 
         // Simulate block node acknowledgment up to the last verified block
-        blockBufferService.setLatestAcknowledgedBlock(lastVerifiedBlock);
+        blockBufferService.acknowledgeBlock(lastVerifiedBlock, blockNode1);
 
         // Verify that blocks up to lastVerifiedBlock are marked as acknowledged
         for (long blockNum = startBlockNumber; blockNum <= lastVerifiedBlock; blockNum++) {
@@ -320,7 +324,7 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
 
                 // Simulate block node acknowledging half the blocks to free up space
                 final long ackedUpTo = startBlockNumber + MAX_BUFFERED_BLOCKS / 2;
-                blockBufferService.setLatestAcknowledgedBlock(ackedUpTo);
+                blockBufferService.acknowledgeBlock(ackedUpTo, blockNode1);
 
                 // Trigger buffer check to process acknowledgments and potentially enable backpressure relief
                 try {
@@ -404,7 +408,7 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
 
         // Step 2: Simulate partial acknowledgment (Block Node has some but not all blocks)
         final long blockNodeLastVerified = startBlockNumber + 12; // Block Node is 8 blocks behind
-        blockBufferService.setLatestAcknowledgedBlock(blockNodeLastVerified);
+        blockBufferService.acknowledgeBlock(blockNodeLastVerified, blockNode1);
 
         // Step 3: Persist and restart
         persistBufferHandle.invoke(blockBufferService);
@@ -430,7 +434,7 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
         }
 
         // Step 6: Simulate successful catch-up by acknowledging remaining blocks
-        blockBufferService.setLatestAcknowledgedBlock(startBlockNumber + numBlocks - 1);
+        blockBufferService.acknowledgeBlock(startBlockNumber + numBlocks - 1, blockNode1);
 
         // Verify all blocks are now acknowledged
         for (long blockNum = startBlockNumber; blockNum < startBlockNumber + numBlocks; blockNum++) {
@@ -453,6 +457,7 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
                 .withValue("blockStream.buffer.actionStageThreshold", 50.0)
                 .withValue("blockStream.buffer.actionGracePeriod", Duration.ofSeconds(2))
                 .withValue("blockStream.buffer.recoveryThreshold", 70.0)
+                .withValue("blockStream.buffer.minAcksRequiredPerBlock", 1)
                 .getOrCreateConfig();
     }
 

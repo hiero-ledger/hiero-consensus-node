@@ -41,6 +41,8 @@ import java.time.Duration;
  *                            in case the block node re-requests one.
  * @param maxInProgressBlocks the maximum number of in-progress blocks to permit (an in-progress block is a block that
  *                            has yet to be closed.) This must be 2 or greater.
+ * @param minAcksRequiredPerBlock the minimum number of unique acknowledgements (i.e. from different block nodes)
+ *                                required before a block is considered truly acknowledged
  */
 // spotless:off
 @ConfigData("blockStream.buffer")
@@ -54,5 +56,6 @@ public record BlockBufferConfig(
         @ConfigProperty(defaultValue = "false") @NodeProperty boolean isBufferPersistenceEnabled,
         @ConfigProperty(defaultValue = "/opt/hgcapp/blockStreams/buffer") @NodeProperty String bufferDirectory,
         @ConfigProperty(defaultValue = "10") @Min(0) @NetworkProperty int ackedBlocksToRetain,
-        @ConfigProperty(defaultValue = "5") @Min(2) @NetworkProperty int maxInProgressBlocks) {}
+        @ConfigProperty(defaultValue = "5") @Min(2) @NetworkProperty int maxInProgressBlocks,
+        @ConfigProperty(defaultValue = "1") @Min(1) @NetworkProperty int minAcksRequiredPerBlock) {}
 // spotless:on

@@ -393,15 +393,18 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
      * @param acknowledgedBlockNumber the block number that has been known to be persisted and verified by the block node
      */
     private void acknowledgeBlocks(final long acknowledgedBlockNumber, final boolean maybeJumpToBlock) {
-        logger.debug("{} Acknowledging blocks <= {}", this, acknowledgedBlockNumber);
-
         final long currentBlockStreaming = streamingBlockNumber.get();
         final long currentBlockProducing = blockBufferService.getLastBlockNumberProduced();
 
-        updateAcknowledgementMetrics(acknowledgedBlockNumber);
+        /*
+        Record the acknowledgement in the block buffer. Depending on the minimum number of required acknowledgements,
+        this acknowledgement received may or may not actually cause the block to be fully acknowledged. Regardless of
+        this outcome, we want to treat the acknowledgement received over this connection as the decision maker for
+        whether we should jump ahead, and not use the real acknowledgement level tracked by the block buffer.
+         */
+        blockBufferService.acknowledgeBlock(acknowledgedBlockNumber, blockNode);
 
-        // Update the last verified block by the current connection
-        blockBufferService.setLatestAcknowledgedBlock(acknowledgedBlockNumber);
+        updateAcknowledgementMetrics(acknowledgedBlockNumber);
         connStats.recordAcknowledgement(acknowledgedBlockNumber);
 
         if (maybeJumpToBlock

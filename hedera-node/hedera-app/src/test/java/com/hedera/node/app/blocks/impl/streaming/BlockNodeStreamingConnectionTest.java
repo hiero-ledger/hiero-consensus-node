@@ -398,7 +398,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
 
         verify(stats).recordAcknowledgementAndEvaluate(eq(10L), any(Instant.class), any(Duration.class), anyInt());
         verify(bufferService, atLeastOnce()).getLastBlockNumberProduced();
-        verify(bufferService).setLatestAcknowledgedBlock(10);
+        verify(bufferService).acknowledgeBlock(10L, blockNode);
         verify(bufferService).getHighestAckedBlockNumber();
         verify(bufferService).getEarliestAvailableBlockNumber();
         verify(metrics).recordResponseReceived(ResponseOneOfType.ACKNOWLEDGEMENT);
@@ -424,7 +424,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(streamingBlockNumber).hasValue(10L); // should not change
 
         verify(bufferService, atLeastOnce()).getLastBlockNumberProduced();
-        verify(bufferService).setLatestAcknowledgedBlock(8);
+        verify(bufferService).acknowledgeBlock(8L, blockNode);
         verify(bufferService).getHighestAckedBlockNumber();
         verify(bufferService).getEarliestAvailableBlockNumber();
         verify(metrics).recordResponseReceived(ResponseOneOfType.ACKNOWLEDGEMENT);
@@ -452,7 +452,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(streamingBlockNumber).hasValue(12); // should be 1 + acked block number
 
         verify(bufferService, atLeastOnce()).getLastBlockNumberProduced();
-        verify(bufferService).setLatestAcknowledgedBlock(11L);
+        verify(bufferService).acknowledgeBlock(11L, blockNode);
         verify(bufferService, atLeastOnce()).getHighestAckedBlockNumber();
         verify(bufferService, atLeastOnce()).getEarliestAvailableBlockNumber();
         verify(metrics).recordResponseReceived(ResponseOneOfType.ACKNOWLEDGEMENT);
@@ -480,7 +480,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(streamingBlockNumber).hasValue(12); // should be 1 + acked block number
 
         verify(bufferService, atLeastOnce()).getLastBlockNumberProduced();
-        verify(bufferService).setLatestAcknowledgedBlock(11L);
+        verify(bufferService).acknowledgeBlock(11L, blockNode);
         verify(bufferService).getHighestAckedBlockNumber();
         verify(bufferService).getEarliestAvailableBlockNumber();
         verify(metrics).recordResponseReceived(ResponseOneOfType.ACKNOWLEDGEMENT);
@@ -510,7 +510,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(streamingBlockNumber).hasValue(10L);
 
         verify(bufferService, atLeastOnce()).getLastBlockNumberProduced();
-        verify(bufferService).setLatestAcknowledgedBlock(10L);
+        verify(bufferService).acknowledgeBlock(10L, blockNode);
         verify(bufferService, atLeastOnce()).getHighestAckedBlockNumber();
         verify(bufferService, atLeastOnce()).getEarliestAvailableBlockNumber();
         verify(metrics).recordResponseReceived(ResponseOneOfType.ACKNOWLEDGEMENT);
@@ -545,7 +545,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verify(bufferService, atLeastOnce()).getLastBlockNumberProduced();
         verify(bufferService, times(2)).getHighestAckedBlockNumber();
         verify(bufferService, times(2)).getEarliestAvailableBlockNumber();
-        verify(bufferService).setLatestAcknowledgedBlock(10L);
+        verify(bufferService).acknowledgeBlock(10L, blockNode);
         verify(bufferService, atLeastOnce()).getBlockState(anyLong());
         verify(metrics).recordResponseReceived(ResponseOneOfType.ACKNOWLEDGEMENT);
         verify(metrics).recordHighLatencyEvent();
