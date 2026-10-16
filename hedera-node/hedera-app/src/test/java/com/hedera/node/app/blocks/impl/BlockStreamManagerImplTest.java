@@ -43,6 +43,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.withSettings;
 
+import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.RecordFileItem;
 import com.hedera.hapi.block.stream.output.BlockHeader;
@@ -124,7 +125,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class BlockStreamManagerImplTest {
-
     private static final SemanticVersion CREATION_VERSION = new SemanticVersion(1, 2, 3, "alpha.1", "2");
     private static final long ROUND_NO = 123L;
     private static final long N_MINUS_2_BLOCK_NO = 664L;
@@ -303,6 +303,10 @@ class BlockStreamManagerImplTest {
 
     @Test
     void configuredLimitIsInactiveInBlocksMode() {
+        // The BOTH-mode circuit breaker (isSavepointOutputSuppressed) must never engage in StreamMode.BLOCKS —
+        // that's the independent, BLOCKS-only max-block-size throttle's job (see hasReachedMaxBlockSize tests
+        // below), and the two must stay decoupled so other isSavepointOutputSuppressed() consumers (e.g. trace
+        // data serialization) are unaffected by BLOCKS mode.
         givenSubjectWith(
                 1,
                 0,
@@ -321,6 +325,230 @@ class BlockStreamManagerImplTest {
 
         assertFalse(subject.isSavepointOutputSuppressed());
         assertEquals(lastAssignedTime, subject.lastUsedConsensusTime());
+        verify(aWriter).writePbjItemAndBytes(eq(FAKE_SIGNED_TRANSACTION), any());
+        verify(blockSizeCircuitBreakerTripsCounter, never()).increment();
+    }
+
+    @Test
+    void configuredLimitIsInactiveInRecordsMode() {
+        givenSubjectWith(
+                1,
+                0,
+                StreamMode.RECORDS,
+                1,
+                blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+
+        final var lastAssignedTime = CONSENSUS_NOW.plusNanos(1);
+        subject.writeSavepointItems(List.of(FAKE_SIGNED_TRANSACTION), lastAssignedTime);
+        subject.prngSeed();
+
+        assertFalse(subject.isSavepointOutputSuppressed());
+        assertFalse(subject.hasReachedMaxBlockSize());
+        assertEquals(lastAssignedTime, subject.lastUsedConsensusTime());
+        verify(aWriter).writePbjItemAndBytes(eq(FAKE_SIGNED_TRANSACTION), any());
+    }
+
+    @Test
+    void maxBlockSizeThrottleTripsInBlocksModeWithoutSuppressingOutput() {
+        givenSubjectWith(
+                1,
+                0,
+                StreamMode.BLOCKS,
+                1,
+                blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+
+        final var lastAssignedTime = CONSENSUS_NOW.plusNanos(1);
+        subject.writeSavepointItems(List.of(FAKE_SIGNED_TRANSACTION), lastAssignedTime);
+        subject.prngSeed();
+
+        // The throttle engages (future dispatches should be rejected), but — unlike the BOTH-mode circuit
+        // breaker — the item that tripped it is still written: StreamMode.BLOCKS is canonical, so its output
+        // can never be silently dropped once already committed.
+        assertTrue(subject.hasReachedMaxBlockSize());
+        assertFalse(subject.isSavepointOutputSuppressed());
+        assertEquals(lastAssignedTime, subject.lastUsedConsensusTime());
+        verify(aWriter).writePbjItemAndBytes(eq(FAKE_SIGNED_TRANSACTION), any());
+    }
+
+    @Test
+    void blockSizeDiagnosticsTrackRejectionsAndBytesAfterCutoff() throws Exception {
+        givenSubjectWith(
+                1,
+                0,
+                StreamMode.BLOCKS,
+                1,
+                blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+        assertTrue(subject.hasReachedMaxBlockSize());
+        final var bytesField = BlockStreamManagerImpl.class.getDeclaredField("currentThrottleBlockSizeBytes");
+        bytesField.setAccessible(true);
+        final long before = bytesField.getLong(subject);
+        final var items = List.of(FAKE_SIGNED_TRANSACTION);
+        subject.recordSubmittedTransaction(items, false, true);
+        subject.writeSavepointItems(items, CONSENSUS_NOW.plusNanos(1));
+        subject.recordSubmittedTransaction(items, true, false);
+        subject.writeSavepointItems(items, CONSENSUS_NOW.plusNanos(2));
+        final long batchBytes = Block.PROTOBUF.measureRecord(new Block(items));
+        assertEquals(before + 2 * batchBytes, bytesField.getLong(subject));
+        final var expected = java.util.Map.of(
+                "submittedTransactionCount", 1L,
+                "nodeSubmittedTransactionCount", 1L,
+                "blockFullRejectionCount", 1L,
+                "blockFullRejectionBytes", batchBytes,
+                "signedTransactionCount", 2L);
+        for (final var entry : expected.entrySet()) {
+            final var field = BlockStreamManagerImpl.class.getDeclaredField(entry.getKey());
+            field.setAccessible(true);
+            assertEquals(entry.getValue().longValue(), field.getLong(subject), entry.getKey());
+        }
+    }
+
+    @Test
+    void maxBlockSizeThrottleNeverEngagesInBothMode() {
+        givenSubjectWith(
+                1,
+                0,
+                StreamMode.BOTH,
+                1,
+                blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+
+        subject.startRound(round, state);
+
+        // The BOTH-mode circuit breaker trips as usual (see opensCircuitBreakerWhenARequiredItemCrossesLimit),
+        // but the independent, BLOCKS-only throttle must never engage here.
+        assertTrue(subject.isSavepointOutputSuppressed());
+        assertFalse(subject.hasReachedMaxBlockSize());
+    }
+
+    @Test
+    void maxBlockSizeThrottleNeverEngagesWhenFeatureFlagDisabled() {
+        givenSubjectWith(
+                1,
+                0,
+                StreamMode.BLOCKS,
+                1,
+                false,
+                blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+
+        final var lastAssignedTime = CONSENSUS_NOW.plusNanos(1);
+        subject.writeSavepointItems(List.of(FAKE_SIGNED_TRANSACTION), lastAssignedTime);
+        subject.prngSeed();
+
+        // Even though maxBlockSizeBytes is exceeded, the feature flag being off keeps the throttle from
+        // ever engaging, regardless of stream mode.
+        assertFalse(subject.hasReachedMaxBlockSize());
+    }
+
+    @Test
+    void refreshesExecutionBudgetFeatureFlagAtBlockBoundaries() {
+        givenSubjectWith(
+                1,
+                0,
+                StreamMode.BLOCKS,
+                1,
+                false,
+                blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION),
+                platformStateWithFreezeTime(null),
+                aWriter,
+                bWriter);
+        givenEndOfRoundSetup();
+        given(blockHashSigner.isReady()).willReturn(true);
+        given(blockHashSigner.sign(any(), any()))
+                .willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
+        given(mockSigningFuture.thenAcceptAsync(any())).willReturn(completedFuture(null));
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+
+        // Enable after construction: the first block must use the current flag.
+        given(configProvider.getConfiguration()).willReturn(versionedConfigWith(1, 0, StreamMode.BLOCKS, 1, true, 2L));
+        subject.startRound(round, state);
+        assertTrue(subject.hasReachedMaxBlockSize());
+
+        // A mid-block update must not change the active block's snapshot.
+        given(configProvider.getConfiguration()).willReturn(versionedConfigWith(1, 0, StreamMode.BLOCKS, 1, false, 3L));
+        subject.writeSavepointItems(List.of(FAKE_SIGNED_TRANSACTION), CONSENSUS_NOW.plusNanos(1));
+        assertTrue(subject.hasReachedMaxBlockSize());
+        subject.endRound(state, ROUND_NO);
+
+        // The next block honors the kill switch without a restart.
+        given(round.getRoundNum()).willReturn(ROUND_NO + 1);
+        given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW.plusSeconds(1));
+        subject.startRound(round, state);
+        subject.writeSavepointItems(
+                List.of(FAKE_SIGNED_TRANSACTION), CONSENSUS_NOW.plusSeconds(1).plusNanos(1));
+        assertFalse(subject.hasReachedMaxBlockSize());
+        assertFalse(subject.isSavepointOutputSuppressed());
+    }
+
+    @Test
+    void previewAndExecutionBudgetLimitsAreIndependent() {
+        givenSubjectWith(
+                1,
+                0,
+                StreamMode.BLOCKS,
+                1,
+                blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("blockStream.streamMode", StreamMode.BLOCKS.name())
+                .withValue("blockStream.maxBlockSizeBytes", 1)
+                .withValue("blockStream.maxBlockExecutionSizeBytes", 0)
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 2L));
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.writeSavepointItems(List.of(FAKE_SIGNED_TRANSACTION), CONSENSUS_NOW.plusNanos(1));
+        assertFalse(subject.hasReachedMaxBlockSize());
+        assertFalse(subject.isSavepointOutputSuppressed());
+    }
+
+    @Test
+    void executionBudgetLimitDoesNotEnablePreviewCircuitBreaker() {
+        givenSubjectWith(
+                1,
+                0,
+                StreamMode.BOTH,
+                0,
+                blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("blockStream.streamMode", StreamMode.BOTH.name())
+                .withValue("blockStream.maxBlockSizeBytes", 0)
+                .withValue("blockStream.maxBlockExecutionSizeBytes", 1)
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 2L));
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.writeSavepointItems(List.of(FAKE_SIGNED_TRANSACTION), CONSENSUS_NOW.plusNanos(1));
+        subject.prngSeed();
+        assertFalse(subject.hasReachedMaxBlockSize());
+        assertFalse(subject.isSavepointOutputSuppressed());
         verify(aWriter).writePbjItemAndBytes(eq(FAKE_SIGNED_TRANSACTION), any());
     }
 
@@ -2300,9 +2528,30 @@ class BlockStreamManagerImplTest {
             @NonNull final BlockStreamInfo blockStreamInfo,
             @NonNull final PlatformState platformState,
             @NonNull final BlockItemWriter... writers) {
+        givenSubjectWith(
+                roundsPerBlock,
+                blockPeriod,
+                streamMode,
+                maxBlockSizeBytes,
+                true,
+                blockStreamInfo,
+                platformState,
+                writers);
+    }
+
+    private void givenSubjectWith(
+            final int roundsPerBlock,
+            final int blockPeriod,
+            @NonNull final StreamMode streamMode,
+            final long maxBlockSizeBytes,
+            final boolean maxBlockSizeLimitEnabled,
+            @NonNull final BlockStreamInfo blockStreamInfo,
+            @NonNull final PlatformState platformState,
+            @NonNull final BlockItemWriter... writers) {
         final AtomicInteger nextWriter = new AtomicInteger(0);
         given(configProvider.getConfiguration())
-                .willReturn(versionedConfigWith(roundsPerBlock, blockPeriod, streamMode, maxBlockSizeBytes, 1L));
+                .willReturn(versionedConfigWith(
+                        roundsPerBlock, blockPeriod, streamMode, maxBlockSizeBytes, maxBlockSizeLimitEnabled, 1L));
         subject = new BlockStreamManagerImpl(
                 blockHashSigner,
                 () -> writers[nextWriter.getAndIncrement()],
@@ -2329,7 +2578,7 @@ class BlockStreamManagerImplTest {
 
     private VersionedConfigImpl versionedConfigWith(
             @NonNull final StreamMode streamMode, final long maxBlockSizeBytes, final long version) {
-        return versionedConfigWith(1, 0, streamMode, maxBlockSizeBytes, version);
+        return versionedConfigWith(1, 0, streamMode, maxBlockSizeBytes, true, version);
     }
 
     private VersionedConfigImpl versionedConfigWith(
@@ -2337,6 +2586,7 @@ class BlockStreamManagerImplTest {
             final int blockPeriod,
             @NonNull final StreamMode streamMode,
             final long maxBlockSizeBytes,
+            final boolean maxBlockSizeLimitEnabled,
             final long version) {
         final var config = HederaTestConfigBuilder.create()
                 .withConfigDataType(BlockStreamConfig.class)
@@ -2344,7 +2594,9 @@ class BlockStreamManagerImplTest {
                 .withValue("blockStream.blockPeriod", Duration.of(blockPeriod, ChronoUnit.SECONDS))
                 .withValue("blockStream.streamMode", streamMode.name())
                 .withValue("blockStream.maxBlockSizeBytes", maxBlockSizeBytes)
+                .withValue("blockStream.maxBlockExecutionSizeBytes", maxBlockSizeBytes)
                 .withValue("clpr.enabled", clprEnabled)
+                .withValue("blockStream.maxBlockSizeLimitEnabled", maxBlockSizeLimitEnabled)
                 .getOrCreateConfig();
         return new VersionedConfigImpl(config, version);
     }

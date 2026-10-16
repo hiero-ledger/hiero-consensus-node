@@ -2,6 +2,7 @@
 package com.hedera.node.app.workflows.handle;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.THROTTLED_AT_CONSENSUS;
 import static com.hedera.hapi.services.auxiliary.clpr.ClprMaintenanceReason.ENDPOINT_MANIFEST_RECONCILIATION;
 import static com.hedera.hapi.services.auxiliary.clpr.ClprMaintenanceReason.GENESIS_INITIALIZATION;
 import static com.hedera.hapi.services.auxiliary.clpr.ClprMaintenanceReason.UPGRADE_INITIALIZATION;
@@ -112,6 +113,7 @@ import com.hedera.node.app.workflows.handle.steps.ParentTxnFactory;
 import com.hedera.node.app.workflows.handle.steps.StakePeriodChanges;
 import com.hedera.node.app.workflows.prehandle.PreHandleWorkflow.ShortCircuitCallback;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.ClprConfig;
 import com.hedera.node.config.data.ConsensusConfig;
@@ -811,6 +813,8 @@ public class HandleWorkflow {
         // We only construct an Iterator<ExecutableTxn> if this is not genesis, and we haven't already
         // created and exhausted iterators through the last second in the interval
         if (executionEnd.getEpochSecond() > lastExecutedSecond) {
+            // If no schedule can run, preserve the beginning of the unprocessed interval.
+            executionEnd = executionStart;
             final var config = configProvider.getConfiguration();
             final var schedulingConfig = config.getConfigData(SchedulingConfig.class);
             final var consensusConfig = config.getConfigData(ConsensusConfig.class);
@@ -852,7 +856,12 @@ public class HandleWorkflow {
             final var writableStates = state.getWritableStates(ScheduleService.NAME);
             // Configuration sets a maximum number of execution slots per user transaction
             int n = schedulingConfig.maxExecutionsPerUserTxn();
-            while (iter.hasNext() && !nextTime.isAfter(lastUsableTime) && n > 0) {
+            while (iter.hasNext()
+                    && !nextTime.isAfter(lastUsableTime)
+                    && n > 0
+                    && (streamMode != BLOCKS || !blockStreamManager.hasReachedMaxBlockSize())) {
+                // Leave the next executable schedule in state when the block fills; retry in a later block.
+                // Checking before next() also prevents the iterator cleanup below from purging it.
                 final var executableTxn = iter.next();
                 if (schedulingConfig.longTermEnabled()) {
                     stakePeriodManager.setCurrentStakePeriodFor(nextTime);
@@ -921,6 +930,23 @@ public class HandleWorkflow {
                 exchangeRateManager.exchangeRates(), executableTxn.builderType(), executableTxn.builderSpec());
     }
 
+    /** Returns whether this transaction supports network protocols that must progress after the block budget is full. */
+    private static boolean isExecutionBudgetExempt(@NonNull final HederaFunctionality functionality) {
+        return switch (functionality) {
+            case HINTS_PARTIAL_SIGNATURE,
+                    MIGRATION_ROOT_HASH_VOTE,
+                    HINTS_KEY_PUBLICATION,
+                    HINTS_PREPROCESSING_VOTE,
+                    CRS_PUBLICATION,
+                    HISTORY_PROOF_KEY_PUBLICATION,
+                    HISTORY_ASSEMBLY_SIGNATURE,
+                    HISTORY_PROOF_VOTE,
+                    CLPR_ENDPOINT_PUBLICATION,
+                    CLPR_SUBMIT_BUNDLE -> true;
+            default -> false;
+        };
+    }
+
     /**
      * Executes the user transaction and returns the output that should be externalized in the
      * block stream. (And if still producing records, the precomputed records.)
@@ -940,6 +966,17 @@ public class HandleWorkflow {
         try {
             final var platformStateStore =
                     new ReadablePlatformStateStore(state.getReadableStates(PlatformStateService.NAME));
+            final long payerNum = parentTxn.txnInfo().payerID().accountNumOrElse(0L);
+            final long lastThrottleExempt = configProvider
+                    .getConfiguration()
+                    .getConfigData(AccountsConfig.class)
+                    .lastThrottleExempt();
+            final boolean payerThrottleExempt = payerNum >= 1 && payerNum <= lastThrottleExempt;
+            // Non-exempt block-full submissions follow normal consensus throttle fee charging.
+            final boolean blockFull = streamMode == BLOCKS
+                    && !isExecutionBudgetExempt(parentTxn.functionality())
+                    && !payerThrottleExempt
+                    && blockStreamManager.hasReachedMaxBlockSize();
             if (this.initTrigger != EVENT_STREAM_RECOVERY
                     && eventBirthRound <= platformStateStore.getLatestFreezeRound()) {
                 if (streamMode != RECORDS) {
@@ -963,13 +1000,24 @@ public class HandleWorkflow {
                         hollowAccountCompletions.completeHollowAccounts(parentTxn, dispatch);
                 // In case a TSS callback needs access to the current dispatch's savepoint stack
                 this.inFlightDispatch = dispatch;
-                dispatchProcessor.processDispatch(dispatch, hollowAccountCompletionsDetails);
+                if (blockFull) {
+                    dispatchProcessor.processDispatch(dispatch, hollowAccountCompletionsDetails, true);
+                } else {
+                    dispatchProcessor.processDispatch(dispatch, hollowAccountCompletionsDetails);
+                }
                 updateWorkflowMetrics(parentTxn);
             }
             final var blockNumber = currentBlockNumber();
             final var handleOutput = parentTxn
                     .stack()
                     .buildHandleOutput(parentTxn.consensusNow(), exchangeRateManager.exchangeRates(), blockNumber);
+            if (streamMode == BLOCKS) {
+                blockStreamManager.recordSubmittedTransaction(
+                        handleOutput.blockRecordSourceOrThrow().blockItems(),
+                        parentTxn.functionality() == HederaFunctionality.HINTS_PARTIAL_SIGNATURE
+                                || parentTxn.functionality() == HederaFunctionality.MIGRATION_ROOT_HASH_VOTE,
+                        blockFull && parentTxn.baseBuilder().status() == THROTTLED_AT_CONSENSUS);
+            }
             recordCache.addRecordSource(
                     parentTxn.creatorInfo().nodeId(),
                     parentTxn.txnInfo().transactionID(),

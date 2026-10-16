@@ -44,6 +44,7 @@ import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willAnswer;
 import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -60,6 +61,8 @@ import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.FileID;
+import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.Timestamp;
@@ -111,6 +114,7 @@ import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.roster.RosterService;
+import com.hedera.node.app.service.schedule.ExecutableTxn;
 import com.hedera.node.app.service.schedule.ExecutableTxnIterator;
 import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.token.TokenService;
@@ -126,7 +130,9 @@ import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.state.HederaRecordCache;
+import com.hedera.node.app.state.recordcache.BlockRecordSource;
 import com.hedera.node.app.throttle.CongestionMetrics;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
@@ -137,6 +143,7 @@ import com.hedera.node.app.workflows.handle.cache.CacheWarmer;
 import com.hedera.node.app.workflows.handle.record.MigrationRootHashSubmissions;
 import com.hedera.node.app.workflows.handle.record.SystemTransactions;
 import com.hedera.node.app.workflows.handle.steps.HollowAccountCompletions;
+import com.hedera.node.app.workflows.handle.steps.ParentTxn;
 import com.hedera.node.app.workflows.handle.steps.ParentTxnFactory;
 import com.hedera.node.app.workflows.handle.steps.StakePeriodChanges;
 import com.hedera.node.config.ConfigProvider;
@@ -146,6 +153,7 @@ import com.hedera.node.config.types.BlockStreamWriterMode;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.InitTrigger;
+import com.swirlds.state.State;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.ReadableSingletonState;
@@ -164,6 +172,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.inject.Provider;
@@ -1452,6 +1461,175 @@ class HandleWorkflowTest {
 
         verify(blockRecordManager, never()).endRound(state);
         verify(blockRecordManager, never()).closeCurrentRecordFileIfOpen(state);
+    }
+
+    @Test
+    void fullBlockDelegatesToFeeChargingDispatchPath() throws Exception {
+        givenSubjectWith(BLOCKS, BlockStreamWriterMode.FILE, emptyList());
+        given(blockStreamManager.hasReachedMaxBlockSize()).willReturn(true);
+        final var parent = mock(ParentTxn.class, RETURNS_DEEP_STUBS);
+        given(parent.functionality()).willReturn(HederaFunctionality.CRYPTO_TRANSFER);
+        given(parent.consensusNow()).willReturn(NOW);
+        given(parent.baseBuilder().status()).willReturn(ResponseCodeEnum.THROTTLED_AT_CONSENSUS);
+        final var dispatch = mock(Dispatch.class);
+        given(parentTxnFactory.createDispatch(eq(parent), any())).willReturn(dispatch);
+        given(parent.stack().buildHandleOutput(any(), any(), any()))
+                .willReturn(new HandleOutput(new BlockRecordSource(List.of()), null, NOW));
+        final var method = HandleWorkflow.class.getDeclaredMethod(
+                "executeSubmittedParent", ParentTxn.class, long.class, State.class);
+        method.setAccessible(true);
+        method.invoke(subject, parent, 100L, state);
+        verify(dispatchProcessor).processDispatch(eq(dispatch), any(), eq(true));
+        verify(blockStreamManager).recordSubmittedTransaction(List.of(), false, true);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"0,false", "1,true", "37,true", "38,false"})
+    void fullBlockRespectsConfiguredThrottleExemptPayerRange(final long payerNum, final boolean exempt)
+            throws Exception {
+        givenSubjectWith(BLOCKS, BlockStreamWriterMode.FILE, emptyList(), Map.of("accounts.lastThrottleExempt", "37"));
+        lenient().when(blockStreamManager.hasReachedMaxBlockSize()).thenReturn(true);
+        final var parent = mock(ParentTxn.class, RETURNS_DEEP_STUBS);
+        given(parent.functionality()).willReturn(HederaFunctionality.CRYPTO_TRANSFER);
+        given(parent.txnInfo().payerID())
+                .willReturn(AccountID.newBuilder().accountNum(payerNum).build());
+        given(parent.consensusNow()).willReturn(NOW);
+        final var dispatch = mock(Dispatch.class);
+        given(parentTxnFactory.createDispatch(eq(parent), any())).willReturn(dispatch);
+        given(parent.stack().buildHandleOutput(any(), any(), any()))
+                .willReturn(new HandleOutput(new BlockRecordSource(List.of()), null, NOW));
+        final var method = HandleWorkflow.class.getDeclaredMethod(
+                "executeSubmittedParent", ParentTxn.class, long.class, State.class);
+        method.setAccessible(true);
+
+        method.invoke(subject, parent, 100L, state);
+
+        if (exempt) {
+            verify(dispatchProcessor).processDispatch(eq(dispatch), any());
+            verify(dispatchProcessor, never()).processDispatch(any(), any(), eq(true));
+            verify(blockStreamManager, never()).hasReachedMaxBlockSize();
+        } else {
+            verify(dispatchProcessor).processDispatch(eq(dispatch), any(), eq(true));
+        }
+        verify(blockStreamManager).recordSubmittedTransaction(List.of(), false, false);
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = HederaFunctionality.class,
+            names = {
+                "HINTS_PARTIAL_SIGNATURE",
+                "MIGRATION_ROOT_HASH_VOTE",
+                "HINTS_KEY_PUBLICATION",
+                "HINTS_PREPROCESSING_VOTE",
+                "CRS_PUBLICATION",
+                "HISTORY_PROOF_KEY_PUBLICATION",
+                "HISTORY_ASSEMBLY_SIGNATURE",
+                "HISTORY_PROOF_VOTE",
+                "CLPR_ENDPOINT_PUBLICATION",
+                "CLPR_SUBMIT_BUNDLE"
+            })
+    void fullBlockStillDispatchesProtocolTransactionsWithNonExemptPayer(final HederaFunctionality functionality)
+            throws Exception {
+        givenSubjectWith(BLOCKS, BlockStreamWriterMode.FILE, emptyList());
+        lenient().when(blockStreamManager.hasReachedMaxBlockSize()).thenReturn(true);
+        final var parent = mock(ParentTxn.class, RETURNS_DEEP_STUBS);
+        given(parent.functionality()).willReturn(functionality);
+        given(parent.txnInfo().payerID())
+                .willReturn(AccountID.newBuilder().accountNum(1001L).build());
+        given(parent.consensusNow()).willReturn(NOW);
+        final var dispatch = mock(Dispatch.class);
+        given(parentTxnFactory.createDispatch(eq(parent), any())).willReturn(dispatch);
+        given(parent.stack().buildHandleOutput(any(), any(), any()))
+                .willReturn(new HandleOutput(new BlockRecordSource(List.of()), null, NOW));
+        final var method = HandleWorkflow.class.getDeclaredMethod(
+                "executeSubmittedParent", ParentTxn.class, long.class, State.class);
+        method.setAccessible(true);
+
+        method.invoke(subject, parent, 100L, state);
+
+        verify(dispatchProcessor).processDispatch(eq(dispatch), any());
+        verify(dispatchProcessor, never()).processDispatch(any(), any(), eq(true));
+        verify(blockStreamManager, never()).hasReachedMaxBlockSize();
+        verify(opWorkflowMetrics, never()).incrementThrottled(any());
+    }
+
+    @Test
+    void fullBlockPreservesScheduledWorkUntilNextBlock() throws Exception {
+        assertSchedulesResumeAfterFullBlock(true);
+    }
+
+    @Test
+    void blockFillingDuringScheduledExecutionPreservesRemainingWork() throws Exception {
+        assertSchedulesResumeAfterFullBlock(false);
+    }
+
+    private void assertSchedulesResumeAfterFullBlock(final boolean initiallyFull) throws Exception {
+        givenSubjectWith(BLOCKS, BlockStreamWriterMode.FILE, emptyList(), Map.of("scheduling.longTermEnabled", "true"));
+        final var executionStart = NOW.minusSeconds(2);
+        final var creator = mock(NodeInfo.class);
+        final var entityIdStates =
+                mock(WritableStates.class, withSettings().extraInterfaces(CommittableWritableStates.class));
+        given(state.getWritableStates(EntityIdService.NAME)).willReturn(entityIdStates);
+        given(state.getWritableStates(ScheduleService.NAME)).willReturn(mock(WritableStates.class));
+        given(blockStreamManager.lastUsedConsensusTime()).willReturn(NOW);
+        final var full = new AtomicBoolean(initiallyFull);
+        given(blockStreamManager.hasReachedMaxBlockSize()).willAnswer(ignore -> full.get());
+
+        final var executable = new ExecutableTxn<>(
+                TransactionBody.DEFAULT,
+                AccountID.DEFAULT,
+                key -> true,
+                executionStart,
+                StreamBuilder.class,
+                builder -> {});
+        final var remaining = new AtomicInteger(2);
+        final var iter = mock(ExecutableTxnIterator.class);
+        given(iter.hasNext()).willAnswer(ignore -> remaining.get() > 0);
+        given(iter.next()).willAnswer(ignore -> executable);
+        willAnswer(ignore -> {
+                    remaining.decrementAndGet();
+                    return null;
+                })
+                .given(iter)
+                .remove();
+        given(scheduleService.executableTxns(any(), any(), any())).willReturn(iter);
+
+        final var parent = mock(ParentTxn.class, RETURNS_DEEP_STUBS);
+        given(parentTxnFactory.createSystemTxn(any(), any(), any(), any(), any(), any()))
+                .willReturn(parent);
+        final var dispatch = mock(Dispatch.class);
+        given(parentTxnFactory.createDispatch(eq(parent), any(), any(), any())).willReturn(dispatch);
+        final var source = new BlockRecordSource(List.of());
+        given(parent.stack().buildHandleOutput(any(), any(), any()))
+                .willReturn(new HandleOutput(source, null, NOW.plusNanos(1)));
+        if (!initiallyFull) {
+            willAnswer(ignore -> {
+                        full.set(true);
+                        return null;
+                    })
+                    .given(blockStreamManager)
+                    .writeSavepointItems(any(), any());
+        }
+
+        final var method = HandleWorkflow.class.getDeclaredMethod(
+                "executeAsManyScheduled", State.class, Instant.class, Instant.class, NodeInfo.class);
+        method.setAccessible(true);
+        assertEquals(!initiallyFull, method.invoke(subject, state, executionStart, NOW, creator));
+        final int executedBeforeFull = initiallyFull ? 0 : 1;
+        verify(dispatchProcessor, times(executedBeforeFull)).processDispatch(dispatch);
+        verify(iter, times(executedBeforeFull)).next();
+        verify(iter, times(executedBeforeFull)).remove();
+        verify(blockStreamManager).setLastIntervalProcessTime(executionStart);
+
+        // A new block clears the limit. The old interval must still be eligible for scanning.
+        full.set(false);
+        willAnswer(ignore -> null).given(blockStreamManager).writeSavepointItems(any(), any());
+        assertTrue((boolean) method.invoke(subject, state, executionStart, NOW, creator));
+        assertEquals(0, remaining.get());
+        verify(dispatchProcessor, times(2)).processDispatch(dispatch);
+        verify(iter, times(2)).remove();
+        verify(blockStreamManager).setLastIntervalProcessTime(NOW);
     }
 
     /**
