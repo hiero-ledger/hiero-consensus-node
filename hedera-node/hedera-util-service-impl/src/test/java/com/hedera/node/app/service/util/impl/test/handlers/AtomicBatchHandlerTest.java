@@ -10,11 +10,13 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MISSING_BATCH_KEY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.PAYER_ACCOUNT_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNKNOWN;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.BATCH_ROLLBACK_CALLBACK_CONSUMER;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -25,6 +27,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -511,6 +514,132 @@ class AtomicBatchHandlerTest {
         handleException.maybeReplay(mock(FeeCharging.Context.class), handleContext);
         assertTrue(rollbackCallbackCalledFlag.get());
         verify(recordBuilder).setReplayedFees(any());
+    }
+
+    @Test
+    void chargeReplayRedirectsToOverridePayerWhenProvided() {
+        final var ctx = mock(FeeCharging.Context.class);
+        final var fees = new Fees(1, 2, 3);
+        final var node = AccountID.newBuilder().accountNum(7).build();
+
+        // A charge with no node-disbursement target: billed to the override payer, amount unchanged.
+        new AtomicBatchHandler.RecordedFeeCharging.Charge(payerId1, fees, null).replay(ctx, node, (id, amount) -> {});
+        verify(ctx).charge(eq(node), eq(fees), any());
+
+        // A charge with a node-disbursement target: billed to the override payer, the disbursement target unchanged.
+        new AtomicBatchHandler.RecordedFeeCharging.Charge(payerId2, fees, payerId3)
+                .replay(ctx, node, (id, amount) -> {});
+        verify(ctx).charge(eq(node), eq(fees), eq(payerId3), any());
+
+        // A null override keeps the original payer.
+        new AtomicBatchHandler.RecordedFeeCharging.Charge(payerId1, fees, null).replay(ctx, null, (id, amount) -> {});
+        verify(ctx).charge(eq(payerId1), eq(fees), any());
+    }
+
+    @Test
+    void nodeDueDiligenceInnerFailureFlagsExceptionAndRedirectsPriorFeesToNode() throws PreCheckException {
+        // inner[0] succeeds and records a fee against its own payer; inner[1] fails a node due-diligence check (the
+        // dispatch processor charged the node, not the inner payer, and flagged the inner's builder).
+        final var innerTxn1 = innerTxnFrom("123");
+        final var innerTxn2 = innerTxnFrom("456");
+        final var innerTxnBody1 = newTxnBodyBuilder(payerId2, consensusTimestamp, SIMPLE_KEY_A)
+                .consensusCreateTopic(ConsensusCreateTopicTransactionBody.DEFAULT)
+                .build();
+        final var innerTxnBody2 = newTxnBodyBuilder(payerId3, consensusTimestamp, SIMPLE_KEY_A)
+                .consensusCreateTopic(ConsensusCreateTopicTransactionBody.DEFAULT)
+                .build();
+        final var bytes = transactionsToBytes(innerTxn1, innerTxn2);
+        final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, bytes);
+        final var storeFactoryMock = mock(StoreFactory.class);
+        given(handleContext.body()).willReturn(txnBody);
+        given(handleContext.storeFactory()).willReturn(storeFactoryMock);
+        given(handleContext.consensusNow()).willReturn(Instant.ofEpochSecond(1_234_567L));
+        given(transactionParser.parse(eq(bytes.getFirst()), any())).willReturn(innerTxnBody1);
+        given(transactionParser.parse(eq(bytes.getLast()), any())).willReturn(innerTxnBody2);
+
+        // Both the prior (successful) inner and the failing inner record a distinct fee against distinct payers, so
+        // the replay can be checked to bill each one to the node exactly once and neither to its original payer.
+        final var firstInnerFees = new Fees(1, 2, 3);
+        final var failingInnerFees = new Fees(4, 5, 6);
+        final var innerChargeCtx = mock(FeeCharging.Context.class);
+        final var failingBuilder = mock(ReplayableFeeStreamBuilder.class);
+        final var dispatchCount = new AtomicInteger(0);
+        given(handleContext.dispatch(any())).willAnswer(answer -> {
+            final var options = (DispatchOptions<StreamBuilder>) answer.getArgument(0);
+            final var recorded = (AtomicBatchHandler.RecordedFeeCharging) options.customFeeCharging();
+            if (dispatchCount.getAndIncrement() == 0) {
+                recorded.customized(innerChargeCtx).charge(payerId2, firstInnerFees, null);
+                return recordBuilder;
+            }
+            recorded.customized(innerChargeCtx).charge(payerId3, failingInnerFees, null);
+            return failingBuilder;
+        });
+        given(recordBuilder.status()).willReturn(SUCCESS);
+        given(failingBuilder.status()).willReturn(PAYER_ACCOUNT_DELETED);
+        given(failingBuilder.isNodeDueDiligenceFailure()).willReturn(true);
+
+        final var handleException = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertEquals(INNER_TRANSACTION_FAILED, handleException.getStatus());
+        assertTrue(handleException.isNodeDueDiligence());
+
+        // Replaying against a context whose node is NODE bills every inner's recorded fee -- the prior inner's and the
+        // failing inner's -- to the node exactly once, and neither to its original payer.
+        final var replayCtx = mock(FeeCharging.Context.class);
+        final var node = AccountID.newBuilder().accountNum(99).build();
+        given(replayCtx.nodeAccountId()).willReturn(node);
+        handleException.maybeReplay(replayCtx, handleContext);
+        verify(replayCtx, times(1)).charge(eq(node), eq(firstInnerFees), any());
+        verify(replayCtx, times(1)).charge(eq(node), eq(failingInnerFees), any());
+        verify(replayCtx, never()).charge(eq(payerId2), any(), any());
+        verify(replayCtx, never()).charge(eq(payerId3), any(), any());
+    }
+
+    @Test
+    void ordinaryInnerFailureKeepsPayerChargesAndIsNotNodeDueDiligence() throws PreCheckException {
+        // inner[0] succeeds and records a fee against its own payer; inner[1] fails for a non-due-diligence reason
+        // (its builder is not flagged), so today's behavior holds: inner fees stay with their payers.
+        final var innerTxn1 = innerTxnFrom("123");
+        final var innerTxn2 = innerTxnFrom("456");
+        final var innerTxnBody1 = newTxnBodyBuilder(payerId2, consensusTimestamp, SIMPLE_KEY_A)
+                .consensusCreateTopic(ConsensusCreateTopicTransactionBody.DEFAULT)
+                .build();
+        final var innerTxnBody2 = newTxnBodyBuilder(payerId3, consensusTimestamp, SIMPLE_KEY_A)
+                .consensusCreateTopic(ConsensusCreateTopicTransactionBody.DEFAULT)
+                .build();
+        final var bytes = transactionsToBytes(innerTxn1, innerTxn2);
+        final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, bytes);
+        final var storeFactoryMock = mock(StoreFactory.class);
+        given(handleContext.body()).willReturn(txnBody);
+        given(handleContext.storeFactory()).willReturn(storeFactoryMock);
+        given(handleContext.consensusNow()).willReturn(Instant.ofEpochSecond(1_234_567L));
+        given(transactionParser.parse(eq(bytes.getFirst()), any())).willReturn(innerTxnBody1);
+        given(transactionParser.parse(eq(bytes.getLast()), any())).willReturn(innerTxnBody2);
+
+        final var firstInnerFees = new Fees(1, 2, 3);
+        final var innerChargeCtx = mock(FeeCharging.Context.class);
+        final var failingBuilder = mock(ReplayableFeeStreamBuilder.class);
+        final var dispatchCount = new AtomicInteger(0);
+        given(handleContext.dispatch(any())).willAnswer(answer -> {
+            final var options = (DispatchOptions<StreamBuilder>) answer.getArgument(0);
+            if (dispatchCount.getAndIncrement() == 0) {
+                final var recorded = (AtomicBatchHandler.RecordedFeeCharging) options.customFeeCharging();
+                recorded.customized(innerChargeCtx).charge(payerId2, firstInnerFees, null);
+                return recordBuilder;
+            }
+            return failingBuilder;
+        });
+        given(recordBuilder.status()).willReturn(SUCCESS);
+        given(failingBuilder.status()).willReturn(UNKNOWN);
+        // failingBuilder.isNodeDueDiligenceFailure() is left at its default false: an ordinary inner failure.
+
+        final var handleException = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertEquals(INNER_TRANSACTION_FAILED, handleException.getStatus());
+        assertFalse(handleException.isNodeDueDiligence());
+
+        // In the ordinary path the replay never consults the node account; inner[0]'s fee stays with its own payer.
+        final var replayCtx = mock(FeeCharging.Context.class);
+        handleException.maybeReplay(replayCtx, handleContext);
+        verify(replayCtx).charge(eq(payerId2), eq(firstInnerFees), any());
     }
 
     @Test

@@ -621,6 +621,18 @@ public class PairedStreamBuilder
         blockStreamBuilder.setReplayedFees(transferList);
     }
 
+    @Override
+    public PairedStreamBuilder nodeDueDiligenceFailure(final boolean nodeDueDiligenceFailure) {
+        recordStreamBuilder.nodeDueDiligenceFailure(nodeDueDiligenceFailure);
+        blockStreamBuilder.nodeDueDiligenceFailure(nodeDueDiligenceFailure);
+        return this;
+    }
+
+    @Override
+    public boolean isNodeDueDiligenceFailure() {
+        return recordStreamBuilder.isNodeDueDiligenceFailure();
+    }
+
     @NonNull
     @Override
     public CryptoTransferStreamBuilder tokenTransferLists(@NonNull List<TokenTransferList> tokenTransferLists) {

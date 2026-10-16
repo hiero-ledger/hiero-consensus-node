@@ -283,6 +283,8 @@ public class BlockStreamBuilder
      * The HBAR transfers resulting from the transaction.
      */
     private TransferList transferList = TransferList.DEFAULT;
+
+    private boolean nodeDueDiligenceFailure;
     /**
      * The token transfer lists resulting from the transaction.
      */
@@ -1060,6 +1062,17 @@ public class BlockStreamBuilder
         } else {
             throw new IllegalStateException("Transfer list already set");
         }
+    }
+
+    @Override
+    public BlockStreamBuilder nodeDueDiligenceFailure(final boolean nodeDueDiligenceFailure) {
+        this.nodeDueDiligenceFailure = nodeDueDiligenceFailure;
+        return this;
+    }
+
+    @Override
+    public boolean isNodeDueDiligenceFailure() {
+        return nodeDueDiligenceFailure;
     }
 
     @Override

@@ -173,6 +173,12 @@ public class AtomicBatchHandler implements TransactionHandler {
               transaction types */
         final List<HandleException.OnRollback> rollbackQueue = new ArrayList<>();
 
+        // When an inner fails a node due-diligence check the whole batch is the submitting node's fault, so every
+        // recorded inner fee is replayed to the node instead of its original payer. The decision is only known when
+        // the failing inner is reached, but the fee-replay actions are built per inner before that; they read this
+        // single holder at replay time, which is after it has been set below.
+        final boolean[] redirectInnerFeesToNode = {false};
+
         // The parsing check is done in the pre-handle workflow,
         // Timebox, and duplication checks are done on dispatch. So, no need to repeat here
         boolean batchHasMoreThanOneContractOp = false;
@@ -226,8 +232,11 @@ public class AtomicBatchHandler implements TransactionHandler {
             final var recordedCharges = List.copyOf(recordedFeeCharging.charges());
             rollbackQueue.add((ctx, _) -> {
                 final var adjustments = new TreeMap<AccountID, Long>(ACCOUNT_ID_COMPARATOR);
-                recordedCharges.forEach(
-                        charge -> charge.replay(ctx, (id, amount) -> adjustments.merge(id, amount, Long::sum)));
+                // If the batch failed node due diligence, bill every recorded inner fee to the submitting node
+                // instead of its original payer; the fee amount is unchanged, only who pays.
+                final var overridePayer = redirectInnerFeesToNode[0] ? ctx.nodeAccountId() : null;
+                recordedCharges.forEach(charge ->
+                        charge.replay(ctx, overridePayer, (id, amount) -> adjustments.merge(id, amount, Long::sum)));
                 streamBuilder.setReplayedFees(asTransferList(adjustments));
             });
 
@@ -235,7 +244,12 @@ public class AtomicBatchHandler implements TransactionHandler {
                 /* Finally, if any transaction within the batch fails: throw HandleException and,
                 within its onRollback handler, iterate the rollback queue and replay all collected side effects
                 of previously executed transactions (and the one that has just failed). */
-                throw new HandleException(INNER_TRANSACTION_FAILED, replaying(rollbackQueue));
+                // An inner that fails a node due-diligence check (charged to the node, not its payer, by the dispatch
+                // processor, which flags the builder) makes the whole batch the node's fault: redirect every inner
+                // fee to the node and tell the dispatch processor to charge the batch fee to the node too.
+                final var nodeDueDiligence = streamBuilder.isNodeDueDiligenceFailure();
+                redirectInnerFeesToNode[0] = nodeDueDiligence;
+                throw new HandleException(INNER_TRANSACTION_FAILED, replaying(rollbackQueue), nodeDueDiligence);
             }
         }
     }
@@ -296,16 +310,34 @@ public class AtomicBatchHandler implements TransactionHandler {
                 @NonNull Fees fees,
                 @Nullable AccountID nodeAccountId) {
             /**
-             * Replays the charge on the given {@link Context}.
+             * Replays the charge on the given {@link Context}, billing its original payer.
              *
              * @param ctx the context to replay the charge on
              * @param cb  the callback to be used in the replay
              */
             public void replay(@NonNull final Context ctx, @NonNull ObjLongConsumer<AccountID> cb) {
+                replay(ctx, null, cb);
+            }
+
+            /**
+             * Replays the charge on the given {@link Context}. When {@code overridePayer} is non-null the charge is
+             * billed to it instead of the original payer -- used to redirect a batch's inner fees to the submitting
+             * node when the whole batch is a node due-diligence failure. The fee amount and any node-disbursement
+             * target are unchanged; only who pays changes.
+             *
+             * @param ctx the context to replay the charge on
+             * @param overridePayer the account to bill instead of the original payer, or null to keep the original
+             * @param cb  the callback to be used in the replay
+             */
+            public void replay(
+                    @NonNull final Context ctx,
+                    @Nullable final AccountID overridePayer,
+                    @NonNull final ObjLongConsumer<AccountID> cb) {
+                final var effectivePayer = overridePayer != null ? overridePayer : payerId;
                 if (nodeAccountId == null) {
-                    ctx.charge(payerId, fees, cb);
+                    ctx.charge(effectivePayer, fees, cb);
                 } else {
-                    ctx.charge(payerId, fees, nodeAccountId, cb);
+                    ctx.charge(effectivePayer, fees, nodeAccountId, cb);
                 }
             }
         }
