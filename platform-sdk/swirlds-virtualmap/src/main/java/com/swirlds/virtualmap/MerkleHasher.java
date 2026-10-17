@@ -87,6 +87,12 @@ public final class MerkleHasher {
      */
     @NonNull
     public byte[] internalNodeHashBytes(@NonNull byte[] left, @Nullable byte[] right) {
+        return internalNodeHashBytes(digestWriter, left, right);
+    }
+
+    @NonNull
+    public static byte[] internalNodeHashBytes(
+            @NonNull final WritableMessageDigest digestWriter, @NonNull byte[] left, @Nullable byte[] right) {
         // Unique value to make sure internal node hashes are different from leaf hashes. This
         // value indicates the number of child nodes. All internal virtual nodes have 2 children
         // except a root node in a tree with just one element / leaf.
@@ -123,6 +129,12 @@ public final class MerkleHasher {
      */
     @NonNull
     public byte[] leafNodeHashBytes(@NonNull final VirtualLeafBytes<?> leaf) {
+        return leafNodeHashBytes(digestWriter, leaf);
+    }
+
+    @NonNull
+    public static byte[] leafNodeHashBytes(
+            @NonNull final WritableMessageDigest digestWriter, @NonNull final VirtualLeafBytes<?> leaf) {
         leaf.writeToForHashing(digestWriter);
         // Calling digest() resets the digest
         return digestWriter.digest();
@@ -136,6 +148,14 @@ public final class MerkleHasher {
      */
     @NonNull
     public Hash leafNodeHash(@NonNull final VirtualLeafBytes<?> leaf) {
-        return new Hash(leafNodeHashBytes(leaf), digestType);
+        return leafNodeHash(digestWriter, digestType, leaf);
+    }
+
+    @NonNull
+    public static Hash leafNodeHash(
+            @NonNull final WritableMessageDigest digestWriter,
+            @NonNull final DigestType digestType,
+            @NonNull final VirtualLeafBytes<?> leaf) {
+        return new Hash(leafNodeHashBytes(digestWriter, leaf), digestType);
     }
 }
