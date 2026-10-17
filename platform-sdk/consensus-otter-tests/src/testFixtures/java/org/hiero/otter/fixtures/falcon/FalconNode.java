@@ -158,7 +158,6 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver, 
 
         wiring = new FalconWiring(currentConfiguration, time, selfId, roster(), secureRandom);
         wiring.sentGossipEventsOutputWire().solderTo("EventSubmitter_" + selfId, "event", event -> {
-            // Self-created events have no sender until now; the network identifies the source by this field
             event.setSenderId(selfId);
             networkConnectivity.submitEvent(event);
         });
