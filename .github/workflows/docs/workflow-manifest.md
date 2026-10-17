@@ -81,18 +81,19 @@
 | 826-call-solo-078-to-079-cutover.yaml               | 826: [CALL] Solo 078-079 Cutover            | N/A                                                   | N/A                                                               |
 | 827-call-execute-xts-hapi.yaml                      | 827: [CALL] Exec XTS HAPI Suites            | N/A                                                   | N/A                                                               |
 | 828-call-execute-xts-otter.yaml                     | 828: [CALL] Exec XTS Otter Suites           | N/A                                                   | N/A                                                               |
+| 829-call-execute-xts-hapi-testnet.yaml              | 829: [CALL] Exec XTS HAPI Testnet Suites    | N/A                                                   | N/A                                                               |
 | 831-call-single-day-performance-test.yaml           | 831: [CALL] CITR Exec SDPT                  | zxc-single-day-performance-test.yaml                  | ZXC: [CITR] Single Day Performance Test                           |
 | 832-call-execute-performance-test.yaml              | 832: [CALL] CITR Exec Perf Test             | zxc-execute-performance-test.yaml                     | ZXC: [CITR] Execute Performance Test                              |
 | 833-call-single-day-longevity-test.yaml             | 833: [CALL] CITR Exec SDLT                  | zxc-single-day-longevity-test.yaml                    | ZXC: [CITR] Single Day Longevity Test                             |
 | 835-call-multi-day-longevity-test.yaml              | 835: [CALL] CITR Exec MDLT                  |                                                       |                                                                   |
 | 836-call-execute-hapi-misc.yaml                     | 836: [CALL] Exec HAPI Misc                  | N/A                                                   | N/A                                                               |
 | 837-call-execute-hapi-misc-records-crypto.yaml      | 837: [CALL] Exec HAPI Rec Crypto            | N/A                                                   | N/A                                                               |
-| 838-call-execute-hapi-token-time-consuming.yaml     | 838: [CALL] Exec HAPI Token Time            | N/A                                                   | N/A                                                               |
+| 838-call-execute-hapi-token-time-consuming.yaml     | 838: [CALL] Exec HAPI Time Node Staking     | N/A                                                   | N/A                                                               |
 | 839-call-execute-hapi-simple-fees-nd-reconnect.yaml | 839: [CALL] Exec HAPI Fees NDRec            | N/A                                                   | N/A                                                               |
 | 840-call-execute-hapi-smart-contract-iss.yaml       | 840: [CALL] Exec HAPI SC ISS                | N/A                                                   | N/A                                                               |
 | 841-call-execute-hapi-restart.yaml                  | 841: [CALL] Exec HAPI Restart               | N/A                                                   | N/A                                                               |
 | 842-call-execute-hapi-atomic-batch.yaml             | 842: [CALL] Exec HAPI Atomic Batch          | N/A                                                   | N/A                                                               |
-| 843-call-execute-hapi-state-throttling.yaml         | 843: [CALL] Exec HAPI State Throttle        | N/A                                                   | N/A                                                               |
+| 843-call-execute-hapi-state-throttling.yaml         | 843: [CALL] Exec HAPI Token State Throttle  | N/A                                                   | N/A                                                               |
 | 844-call-execute-hapi-bn-communication.yaml         | 844: [CALL] Exec HAPI BN Comms              | N/A                                                   | N/A                                                               |
 | 845-call-execute-hapi-wraps.yaml                    | 845: [CALL] Exec HAPI Wraps                 | N/A                                                   | N/A                                                               |
 | 846-call-execute-hapi-cutover.yaml                  | 846: [CALL] Exec HAPI Cutover               | N/A                                                   | N/A                                                               |
@@ -137,7 +138,7 @@
   numbered in that consumer's block; per-suite leaves are neutral and are not.
 
 - **The contiguous space below 850 is now exhausted.** The next batch of leaf workflows starts at
-  **870**, on a clean ten boundary. 813-814 and 829-830 are reserved for MATS- and XTS-specific
+  **870**, on a clean ten boundary. 813-814 and 830 are reserved for MATS- and XTS-specific
   callees respectively.
 
 - **`disp`-class operational controllers live in 100-199.** `106-disp-xts-optional-tests.yaml` is

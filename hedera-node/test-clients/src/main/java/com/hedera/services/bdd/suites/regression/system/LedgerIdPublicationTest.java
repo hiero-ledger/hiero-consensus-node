@@ -6,7 +6,7 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.selectedItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePassFrom;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePassWithReplayFrom;
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.SelectedItemsAssertion.SELECTED_ITEMS_KEY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -14,8 +14,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hedera.services.bdd.GenesisSubProcessTest;
-import com.hedera.services.bdd.GenesisSubProcessTest.SubProcessNodeConfig;
+import com.hedera.services.bdd.GenesisSubprocessTest;
+import com.hedera.services.bdd.GenesisSubprocessTest.SubProcessNodeConfig;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator;
 import java.time.Duration;
@@ -24,51 +24,32 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 
 /**
- * Asserts {@code LedgerIdPublication} is externalized to the record stream when TSS is enabled at
- * genesis (#25643). Needs a real multi-node subprocess network; the ceremony can't complete embedded.
+ * Asserts {@code LedgerIdPublication} is externalized when TSS is enabled at genesis (#25643), read from the
+ * record stream, or from the block stream when the node streams only blocks. Needs a real multi-node
+ * subprocess network; the ceremony can't complete embedded.
  */
 public class LedgerIdPublicationTest {
     private static final int NETWORK_SIZE = 4;
 
     @HapiTest
-    @GenesisSubProcessTest(
+    @GenesisSubprocessTest(
             subProcessNodeConfigs = {
                 @SubProcessNodeConfig(
                         nodeId = 0,
-                        applicationPropertiesOverrides = {
-                            "tss.hintsEnabled", "true",
-                            "tss.historyEnabled", "true",
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE"
-                        }),
+                        applicationPropertiesOverrides = {"blockStream.writerMode", "FILE"}),
                 @SubProcessNodeConfig(
                         nodeId = 1,
-                        applicationPropertiesOverrides = {
-                            "tss.hintsEnabled", "true",
-                            "tss.historyEnabled", "true",
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE"
-                        }),
+                        applicationPropertiesOverrides = {"blockStream.writerMode", "FILE"}),
                 @SubProcessNodeConfig(
                         nodeId = 2,
-                        applicationPropertiesOverrides = {
-                            "tss.hintsEnabled", "true",
-                            "tss.historyEnabled", "true",
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE"
-                        }),
+                        applicationPropertiesOverrides = {"blockStream.writerMode", "FILE"}),
                 @SubProcessNodeConfig(
                         nodeId = 3,
-                        applicationPropertiesOverrides = {
-                            "tss.hintsEnabled", "true",
-                            "tss.historyEnabled", "true",
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE"
-                        })
+                        applicationPropertiesOverrides = {"blockStream.writerMode", "FILE"})
             })
     final Stream<DynamicTest> ledgerIdPublicationExternalizedInRecordStream() {
         return hapiTest(
-                streamMustIncludePassFrom(
+                streamMustIncludePassWithReplayFrom(
                         selectedItems(ledgerIdPublicationValidator(), 1, (spec, item) -> {
                             try {
                                 return extractTransactionBody(item.getTransaction())
@@ -94,7 +75,7 @@ public class LedgerIdPublicationTest {
     private static VisibleItemsValidator ledgerIdPublicationValidator() {
         return (spec, allItems) -> {
             final var items = Objects.requireNonNull(allItems.get(SELECTED_ITEMS_KEY));
-            assertEquals(1, items.size(), "Expected exactly one LedgerIdPublication in the record stream");
+            assertEquals(1, items.size(), "Expected exactly one LedgerIdPublication in the stream");
             // PBJ re-parse: protobuf-java LedgerIdPublication type is in a non-exported package.
             final TransactionBody body;
             try {

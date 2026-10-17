@@ -38,6 +38,7 @@ import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfiguration;
+import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
@@ -58,6 +59,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -211,6 +213,18 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         resetMocks();
     }
 
+    @AfterEach
+    void afterEach() throws InterruptedException {
+        // Tests that start the manager spawn a real 'bn-conn-monitor' thread; if it outlives this class
+        // it keeps calling disabled mocks and floods the logger, breaking LogCaptor assertions elsewhere.
+        isConnectionManagerActive().set(false);
+        final Thread monitorThread = connectionMonitorThreadRef().getAndSet(null);
+        if (monitorThread != null) {
+            monitorThread.interrupt();
+            monitorThread.join(5_000);
+        }
+    }
+
     @Test
     void testIsActiveConnectionAutoReset_nullConnection() throws Throwable {
         final boolean isAutoReset = invoke_isActiveConnectionAutoReset(Instant.now(), null);
@@ -262,6 +276,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         when(activeConnection.connectionId()).thenReturn(new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 1));
         when(activeConnection.createTimestamp()).thenReturn(Instant.now());
         when(activeConnection.activeTimestamp()).thenReturn(Instant.now());
+        when(activeConnection.currentState()).thenReturn(ConnectionState.ACTIVE);
 
         blockNodes().clear();
         final BlockNode priority2Node = new BlockNode(
@@ -281,6 +296,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(activeConnection).createTimestamp();
         verify(activeConnection).activeTimestamp();
         verify(activeConnection).connectionStatistics();
+        verify(activeConnection).currentState();
         verifyNoMoreInteractions(activeConnection);
     }
 
@@ -292,6 +308,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         when(activeConnection.connectionId()).thenReturn(new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 1));
         when(activeConnection.createTimestamp()).thenReturn(Instant.now());
         when(activeConnection.activeTimestamp()).thenReturn(Instant.now());
+        when(activeConnection.currentState()).thenReturn(ConnectionState.ACTIVE);
 
         blockNodes().clear();
         final BlockNode priority1Node = new BlockNode(
@@ -311,6 +328,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(activeConnection, times(2)).connectionId();
         verify(activeConnection).createTimestamp();
         verify(activeConnection).activeTimestamp();
+        verify(activeConnection).currentState();
         verifyNoMoreInteractions(activeConnection);
     }
 
@@ -1916,6 +1934,32 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(node).onTerminate(CloseReason.SHUTDOWN);
         verify(bufferService).shutdown();
         verify(blockNodeConfigService).shutdown();
+    }
+
+    @Test
+    void testConnectionMonitor_failedCheckStillBacksOff() {
+        final long intervalNanos = TimeUnit.MILLISECONDS.toNanos(configProvider
+                .getConfiguration()
+                .getConfigData(BlockNodeConnectionConfig.class)
+                .connectionMonitorCheckIntervalMillis());
+        final List<Long> checkTimes = new ArrayList<>();
+        // every connectivity check fails; the second also stops the manager so the loop exits
+        doAnswer(invocation -> {
+                    checkTimes.add(System.nanoTime());
+                    if (checkTimes.size() == 2) {
+                        isConnectionManagerActive().set(false);
+                    }
+                    throw new IllegalStateException("connectivity check failed");
+                })
+                .when(metrics)
+                .recordActiveConnectionCount(anyLong());
+        isConnectionManagerActive().set(true);
+
+        connectionManager.new ConnectionMonitorTask().run();
+
+        // a failed check must still wait out the interval, not retry at once and spin
+        assertThat(checkTimes).hasSize(2);
+        assertThat(checkTimes.get(1) - checkTimes.get(0)).isGreaterThanOrEqualTo(intervalNanos);
     }
 
     // Utilities

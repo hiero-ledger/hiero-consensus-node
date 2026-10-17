@@ -27,6 +27,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.DEFAULT_UPGRADE_FILE_ID;
 import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.upgradeFileHashAt;
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -101,6 +102,10 @@ public class WrapsHandoffsTest implements LifecycleTest {
     @Order(0)
     final Stream<DynamicTest> upgradeRequestingFreshGenesisWrapsProofGroundsOne() {
         return hapiTest(sourcingContextual(spec -> {
+            // Never requested once the cutover is enabled; see ProofControllers.freshGenesisRequested()
+            assumeFalse(
+                    spec.startupProperties().getBoolean("blockStream.enableCutover"),
+                    "A fresh genesis WRAPS proof is not requested once the cutover is enabled");
             if (!hasWrapsArtifactsPath()) {
                 return noOp();
             }

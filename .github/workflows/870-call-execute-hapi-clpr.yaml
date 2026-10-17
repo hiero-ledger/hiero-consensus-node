@@ -27,6 +27,16 @@ on:
         required: false
         type: string
         default: "false"
+      hapi-test-config-profile:
+        description: "Node config profile for the HAPI tasks (e.g. testnet); blank keeps the production defaults"
+        required: false
+        type: string
+        default: ""
+      name-suffix:
+        description: "Suffix for the job, check and artifact names (keeps reruns apart from MATS)"
+        required: false
+        type: string
+        default: ""
     secrets:
       access-token:
         description: "The GitHub access token used to checkout the repository, submodules, and make GitHub API calls."
@@ -58,10 +68,11 @@ env:
   GRADLE_CACHE_USERNAME: ${{ secrets.gradle-cache-username }}
   GRADLE_CACHE_PASSWORD: ${{ secrets.gradle-cache-password }}
   GRADLE_EXEC: ionice -c 2 -n 2 nice -n 19 ./gradlew
+  HAPI_TEST_CONFIG_PROFILE: ${{ inputs.hapi-test-config-profile }}
 
 jobs:
   hapi-tests-clpr:
-    name: "HAPI Tests (CLPR)"
+    name: "HAPI Tests (CLPR)${{ inputs.name-suffix }}"
     runs-on: hl-cn-hapi-lin-lg
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
@@ -112,7 +123,7 @@ jobs:
       - name: Publish HAPI Test (CLPR) Reports
         uses: step-security/publish-unit-test-result-action@681100d67b09305624c089873f12c545ee7cbc24 # v2.23.0
         with:
-          check_name: "Node: HAPI Test (CLPR) Results"
+          check_name: "Node: HAPI Test (CLPR)${{ inputs.name-suffix }} Results"
           json_thousands_separator: ","
           junit_files: "**/test-clients/build/test-results/**/TEST-*.xml"
           comment_mode: errors # only comment if we could not find or parse the JUnit XML files
@@ -120,7 +131,7 @@ jobs:
       - name: Upload HAPI Test (CLPR) Report Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: HAPI Test (CLPR) Reports
+          name: "HAPI Test (CLPR)${{ inputs.name-suffix }} Reports"
           path: "**/test-clients/build/test-results/**/TEST-*.xml"
           retention-days: 7
 
@@ -130,7 +141,7 @@ jobs:
         # logs live under hedera-node/test-clients/build, including the multinetwork-test-clients dir.
         if: ${{ !cancelled() && inputs.enable-network-log-capture && steps.gradle-hapi-clpr.conclusion == 'failure' }}
         with:
-          name: HAPI Test (CLPR) Network Logs
+          name: "HAPI Test (CLPR)${{ inputs.name-suffix }} Network Logs"
           path: |
             hedera-node/test-clients/build/*-test/**/output/**
             hedera-node/test-clients/build/*-test/*.log
@@ -142,7 +153,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ !cancelled() && steps.gradle-hapi-clpr.conclusion == 'failure' }}
         with:
-          name: HAPI Test (CLPR) Failure Artifacts
+          name: "HAPI Test (CLPR)${{ inputs.name-suffix }} Failure Artifacts"
           path: |
             hedera-node/test-clients/build/**/*.blk.gz
             hedera-node/test-clients/build/**/*.rcd.gz
