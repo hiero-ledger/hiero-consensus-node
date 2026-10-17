@@ -42,7 +42,7 @@ import static com.hedera.services.bdd.suites.utils.contracts.FunctionParameters.
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.HTSPrecompileResult.htsPrecompileResult;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.TokenMint;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REVERTED_SUCCESS;
@@ -464,7 +464,7 @@ public class ContractMintHTSSuite {
                                 .contractCallResult(resultWith()
                                         .contractCallResult(htsPrecompileResult()
                                                 .forFunction(FunctionType.HAPI_MINT)
-                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                                .withStatus(INVALID_SIGNATURE)
                                                 .withTotalSupply(0L)
                                                 .withSerialNumbers()))));
     }

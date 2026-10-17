@@ -35,7 +35,6 @@ import static com.hedera.services.bdd.suites.contract.Utils.idAsHeadlongAddress;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractCallSuite.PAY_RECEIVABLE_CONTRACT;
 import static com.hedera.services.bdd.suites.token.TokenAssociationSpecs.MULTI_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -372,9 +371,7 @@ public class ContractKeysStillWorkAsExpectedSuite {
                         .via("burnTxn")
                         .hasKnownStatus(CONTRACT_REVERT_EXECUTED)),
                 childRecordsCheck(
-                        "burnTxn",
-                        CONTRACT_REVERT_EXECUTED,
-                        recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)),
+                        "burnTxn", CONTRACT_REVERT_EXECUTED, recordWith().status(INVALID_SIGNATURE)),
                 sourcing(() -> contractCall(
                                 managementContract, "justFreezeAccount", tokenMirrorAddr.get(), accountAddr.get())
                         .gas(15_000_000L)

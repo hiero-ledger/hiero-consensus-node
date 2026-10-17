@@ -24,7 +24,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.contract.Utils.idAsHeadlongAddress;
 import static com.hedera.services.bdd.suites.file.FileUpdateSuite.CIVILIAN;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
@@ -109,7 +109,7 @@ public class SigningReqsSuite {
                 childRecordsCheck(
                         FIRST_CREATE_TXN,
                         CONTRACT_REVERT_EXECUTED,
-                        TransactionRecordAsserts.recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)),
+                        TransactionRecordAsserts.recordWith().status(INVALID_SIGNATURE)),
                 sourcing(() -> getTokenInfo(asTokenString(createdToken.get())).hasAutoRenewAccount(autoRenew)));
     }
 }

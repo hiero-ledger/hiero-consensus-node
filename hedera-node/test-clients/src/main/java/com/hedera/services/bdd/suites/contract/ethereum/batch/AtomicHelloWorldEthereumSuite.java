@@ -66,7 +66,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_T
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ALIAS_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CONTRACT_ID;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SOLIDITY_ADDRESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -190,7 +189,7 @@ class AtomicHelloWorldEthereumSuite {
                 childRecordsCheck(
                         "creationWithoutTopLevelSig",
                         CONTRACT_REVERT_EXECUTED,
-                        recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)),
+                        recordWith().status(INVALID_SIGNATURE)),
                 getTxnRecord("creationActivatingAdminKeyViaSigMap")
                         .exposingTokenCreationsTo(
                                 createdIds -> assertFalse(createdIds.isEmpty(), "Top-level sig map creation failed")),
@@ -258,9 +257,7 @@ class AtomicHelloWorldEthereumSuite {
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 getTxnRecord(maliciousTxn).andAllChildRecords().logged(),
                 childRecordsCheck(
-                        maliciousTxn,
-                        CONTRACT_REVERT_EXECUTED,
-                        recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)),
+                        maliciousTxn, CONTRACT_REVERT_EXECUTED, recordWith().status(INVALID_SIGNATURE)),
                 sourcing(() -> getAccountBalance(maliciousEOAId.get())
                         .hasTinyBars(spec -> amount -> (amount > maliciousStartBalance)
                                 ? Optional.of("Malicious" + " EOA balance" + " increased")

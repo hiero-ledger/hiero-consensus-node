@@ -37,7 +37,6 @@ import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractCallSuite.PAY_RECEIVABLE_CONTRACT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_IS_IMMUTABLE;
@@ -261,12 +260,10 @@ public class ContractIdKeyManagedTokenTest {
                         .signedBy("operator")
                         .via("controlMint")
                         .hasKnownStatus(CONTRACT_REVERT_EXECUTED)),
-                // MintTranslator uses the OutputFn overload -> STANDARD_FAILURE_CUSTOMIZER, which
-                // remaps INVALID_SIGNATURE to INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE
+                // MintTranslator dispatches with the no-op failure customizer, so the handler's
+                // INVALID_SIGNATURE is surfaced unchanged
                 childRecordsCheck(
-                        "controlMint",
-                        CONTRACT_REVERT_EXECUTED,
-                        recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)),
+                        "controlMint", CONTRACT_REVERT_EXECUTED, recordWith().status(INVALID_SIGNATURE)),
                 getTokenInfo("token").hasTotalSupply(INITIAL_SUPPLY),
 
                 // The caller is created carrying X's copied key ...
@@ -287,9 +284,7 @@ public class ContractIdKeyManagedTokenTest {
                         .via("callerMint")
                         .hasKnownStatus(CONTRACT_REVERT_EXECUTED)),
                 childRecordsCheck(
-                        "callerMint",
-                        CONTRACT_REVERT_EXECUTED,
-                        recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)),
+                        "callerMint", CONTRACT_REVERT_EXECUTED, recordWith().status(INVALID_SIGNATURE)),
                 getTokenInfo("token").hasTotalSupply(INITIAL_SUPPLY));
     }
 

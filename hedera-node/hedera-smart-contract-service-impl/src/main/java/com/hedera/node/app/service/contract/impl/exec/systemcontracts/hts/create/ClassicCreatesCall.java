@@ -16,7 +16,6 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.Ful
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasOnly;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasPlus;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.RC_AND_ADDRESS_ENCODER;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.standardized;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.configOf;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.contractsConfigOf;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.entityIdFactory;
@@ -132,7 +131,6 @@ public class ClassicCreatesCall extends AbstractCall {
         final var dispatchVerificationStrategy = verificationStrategyFor(frame, op);
         final var recordBuilder = systemContractOperations()
                 .dispatch(syntheticCreate, dispatchVerificationStrategy, spenderId, ContractCallStreamBuilder.class);
-        recordBuilder.status(standardized(recordBuilder.status()));
 
         final var status = recordBuilder.status();
         if (status != SUCCESS) {

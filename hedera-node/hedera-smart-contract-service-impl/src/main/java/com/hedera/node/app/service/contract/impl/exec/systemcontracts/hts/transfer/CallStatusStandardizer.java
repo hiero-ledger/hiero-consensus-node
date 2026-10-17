@@ -3,7 +3,6 @@ package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.trans
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.standardized;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.TransferAuditTest.isAuditFlagRaised;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.configOf;
 import static java.util.Objects.requireNonNull;
@@ -49,7 +48,7 @@ public class CallStatusStandardizer {
                     ? INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE
                     : status;
         } else {
-            return standardized(status);
+            return status;
         }
     }
 

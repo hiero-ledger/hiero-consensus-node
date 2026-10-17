@@ -5,7 +5,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ALLOWANCE_SPEND
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.encodedRc;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.standardized;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.setapproval.SetApprovalForAllTranslator.ERC721_SET_APPROVAL_FOR_ALL;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.setapproval.SetApprovalForAllTranslator.SET_APPROVAL_FOR_ALL;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
@@ -85,7 +84,7 @@ public class SetApprovalForAllCall extends AbstractCall {
             }
             return reversionWith(gasRequirement, recordBuilder);
         } else {
-            return completionWith(gasRequirement, recordBuilder, encodedRc(standardized(status)));
+            return completionWith(gasRequirement, recordBuilder, encodedRc(status));
         }
     }
 

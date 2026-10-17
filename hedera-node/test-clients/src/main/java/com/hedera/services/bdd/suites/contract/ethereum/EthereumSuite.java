@@ -93,7 +93,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_SIZE_
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_GAS_LIMIT_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.WRONG_CHAIN_ID;
@@ -625,9 +625,7 @@ public class EthereumSuite {
                                         .ethereumHash(ByteString.copyFrom(
                                                 spec.registry().getBytes(ETH_HASH_KEY)))))),
                 childRecordsCheck(
-                        mintTxn,
-                        CONTRACT_REVERT_EXECUTED,
-                        recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)));
+                        mintTxn, CONTRACT_REVERT_EXECUTED, recordWith().status(INVALID_SIGNATURE)));
     }
 
     @HapiTest

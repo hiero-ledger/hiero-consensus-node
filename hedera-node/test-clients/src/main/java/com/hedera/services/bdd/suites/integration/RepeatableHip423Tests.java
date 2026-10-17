@@ -139,7 +139,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVER
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ALIAS_KEY;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_MAX_AUTO_ASSOCIATIONS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SCHEDULE_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOPIC_ID;
@@ -1392,7 +1391,10 @@ public class RepeatableHip423Tests {
                                 .scheduled()
                                 .andAllChildRecords()
                                 .hasPriority(recordWith().status(CONTRACT_REVERT_EXECUTED))
-                                .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))));
+                                .hasChildRecords(recordWith()
+                                        .status(
+                                                com.hederahashgraph.api.proto.java.ResponseCodeEnum
+                                                        .INVALID_SIGNATURE)))));
     }
 
     @LeakyRepeatableHapiTest(

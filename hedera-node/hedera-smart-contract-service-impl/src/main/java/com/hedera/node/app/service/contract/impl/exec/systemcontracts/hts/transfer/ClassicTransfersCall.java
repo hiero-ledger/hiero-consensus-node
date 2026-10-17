@@ -46,9 +46,9 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
  *     like the ERC calls do.</li>
  *     <li>The legacy versions that don't support approvals will automatically "retry" their synthetic
  *     transaction using approvals for all non-sender debits if the initial attempt fails with
- *     {@link ResponseCodeEnum#INVALID_SIGNATURE} (which they translate to
- *     {@link ResponseCodeEnum#INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE}
- *     for backward compatibility).</li>
+ *     {@link ResponseCodeEnum#INVALID_SIGNATURE}; if the retry also fails, {@code INVALID_SIGNATURE} is reported
+ *     as-is, like every other HTS call (only the immutable-account debit audit still reports
+ *     {@link ResponseCodeEnum#INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE}).</li>
  * </ol>
  * But the basic pattern of constructing and dispatching a synthetic {@link CryptoTransferTransactionBody} remains.
  */
