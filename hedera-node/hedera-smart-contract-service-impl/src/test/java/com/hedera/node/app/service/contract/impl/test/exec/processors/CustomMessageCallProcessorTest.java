@@ -185,11 +185,15 @@ class CustomMessageCallProcessorTest {
         // Unlike a native precompile, a system contract's computeFully() has already run by the time the
         // affordability check fails - so the work was really performed and must still be metered.
         verify(prngPrecompile)
+<<<<<<< HEAD
                 .computeFully(
                         eq(PRNG_CONTRACT_ID),
                         eq(TestHelpers.PRNG_SYSTEM_CONTRACT_ADDRESS.getBytes()),
                         eq(frame),
                         any());
+=======
+                .computeFully(PRNG_CONTRACT_ID, TestHelpers.PRNG_SYSTEM_CONTRACT_ADDRESS.getBytes(), frame);
+>>>>>>> 9b5af88 (fix: cherry-pick (v0.77) Ops Duration Throttle optimisation (#26806) (#570))
         Assertions.assertEquals(
                 GAS_REQUIREMENT,
                 opsDurationTestCounter.opsDurationUnitsConsumed(),
