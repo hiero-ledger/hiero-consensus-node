@@ -1,4 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
+<<<<<<< HEAD
+=======
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+import com.github.jengelman.gradle.plugins.shadow.transformers.Log4j2PluginsCacheFileTransformer
+import org.gradle.kotlin.dsl.get
+
+>>>>>>> 354c2e2 (fix: bump Besu  EVM version and remove Native Libs patch (#571))
 plugins {
     id("org.hiero.gradle.module.application")
     id("org.gradlex.java-module-packaging")
@@ -24,7 +31,47 @@ testModuleInfo {
 
 tasks.withType<JavaCompile>().configureEach { options.compilerArgs.add("-Xlint:-exports") }
 
+<<<<<<< HEAD
 application.mainClass = "com.hedera.services.yahcli.Yahcli"
+=======
+tasks.compileJava { dependsOn(":test-clients:assemble") }
+
+// besu-util ships its own Log4j2Plugins.dat; merge it with log4j-core's instead of letting
+// the duplicates strategy keep whichever jar comes first on the classpath.
+tasks.withType<ShadowJar>().configureEach {
+    // The convention plugin fails on unexpected duplicates; let both copies of the log4j
+    // plugin cache through so the transformer below can merge them into one.
+    filesMatching("META-INF/org/apache/logging/log4j/core/config/plugins/Log4j2Plugins.dat") {
+        duplicatesStrategy = DuplicatesStrategy.INCLUDE
+    }
+    transform(Log4j2PluginsCacheFileTransformer::class.java)
+}
+
+val yahCliJar =
+    tasks.register<ShadowJar>("yahCliJar") {
+        archiveClassifier = "shadow"
+        configurations = listOf(project.configurations["runtimeClasspath"])
+
+        manifest {
+            attributes(
+                "Main-Class" to "com.hedera.services.yahcli.Yahcli",
+                // Declares JNI usage (netty's NativeLibraryUtil) so the JDK does not print a
+                // restricted-method warning for callers in the unnamed module of this JAR.
+                "Enable-Native-Access" to "ALL-UNNAMED",
+            )
+        }
+
+        // Strip log4j2 configs contributed by transitive deps so they do not shadow
+        // yahcli's own config or mislead operators inspecting the jar. yahcli's own
+        // log config uses a distinct filename (src/main/resources/log4j2-yahcli.xml,
+        // pinned via src/main/resources/log4j2.component.properties), so this
+        // exclude does not affect it.
+        exclude("log4j2.xml", "log4j2-test-client.xml", "log4j2-JRS.xml", "regression-log4j2.xml")
+
+        // Include all classes and resources from the main source set
+        from(sourceSets["main"].output)
+    }
+>>>>>>> 354c2e2 (fix: bump Besu  EVM version and remove Native Libs patch (#571))
 
 tasks.register<Copy>("copyYahCli") {
     group = "copy"

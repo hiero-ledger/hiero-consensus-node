@@ -1,4 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
+<<<<<<< HEAD
+=======
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+import com.github.jengelman.gradle.plugins.shadow.transformers.Log4j2PluginsCacheFileTransformer
+>>>>>>> 354c2e2 (fix: bump Besu  EVM version and remove Native Libs patch (#571))
 import java.lang.management.ManagementFactory
 import org.gradlex.javamodule.packaging.tasks.FatModuleJar
 import org.hiero.gradle.environment.EnvAccess
@@ -624,7 +629,22 @@ fun TaskContainer.registerHapiTest(
 
 application.mainClass = "com.hedera.services.bdd.suites.SuiteRunner"
 
+<<<<<<< HEAD
 tasks.fatModuleJar {
+=======
+// besu-util ships its own Log4j2Plugins.dat; merge it with log4j-core's instead of letting
+// the duplicates strategy keep whichever jar comes first on the classpath.
+tasks.withType<ShadowJar>().configureEach {
+    // The convention plugin fails on unexpected duplicates; let both copies of the log4j
+    // plugin cache through so the transformer below can merge them into one.
+    filesMatching("META-INF/org/apache/logging/log4j/core/config/plugins/Log4j2Plugins.dat") {
+        duplicatesStrategy = DuplicatesStrategy.INCLUDE
+    }
+    transform(Log4j2PluginsCacheFileTransformer::class.java)
+}
+
+tasks.shadowJar {
+>>>>>>> 354c2e2 (fix: bump Besu  EVM version and remove Native Libs patch (#571))
     archiveFileName.set("SuiteRunner.jar")
 }
 
