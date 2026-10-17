@@ -7,7 +7,10 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.BiPredicate;
+import java.util.function.Function;
+import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -23,19 +26,29 @@ import org.hiero.consensus.model.node.NodeId;
  * queues to recover the arrival order across all of the senders.
  *
  * <p>A receiver can refuse the events of one sender without affecting the others: the refused connection is left out
- * for the rest of the delivery, its events stay queued, and they are offered again the next time delivery happens.
+ * for the rest of the delivery, its events stay queued, and they are offered again the next time delivery happens. An
+ * event that has become ancient for the receiver while it waited is dropped at delivery instead of being offered.
  *
  * <p>This class is not safe to use from more than one thread.
  */
 public class InFlightEvents extends InFlightConnections<EventInTransit> {
 
     /**
+     * Gives the current event window of a node, which decides which events are ancient for it.
+     */
+    private final Function<NodeId, EventWindow> eventWindows;
+
+    /**
      * Constructor.
      *
-     * @param connected reports whether the connection from a sender to a receiver is currently up
+     * @param connected    reports whether the connection from a sender to a receiver is currently up
+     * @param eventWindows gives the current event window of a node
      */
-    public InFlightEvents(@NonNull final BiPredicate<NodeId, NodeId> connected) {
+    public InFlightEvents(
+            @NonNull final BiPredicate<NodeId, NodeId> connected,
+            @NonNull final Function<NodeId, EventWindow> eventWindows) {
         super(connected);
+        this.eventWindows = Objects.requireNonNull(eventWindows);
     }
 
     /**
@@ -46,7 +59,8 @@ public class InFlightEvents extends InFlightConnections<EventInTransit> {
      * which is down, is left out of the comparison rather than skipped over, so it holds up only its own events and
      * this method always makes progress or returns.
      *
-     * <p>When the receiver refuses an event, only that sender's connection is left out for the remainder of this call;
+     * <p>An event that is ancient for the receiver's current event window is dropped instead of delivered. When the
+     * receiver refuses an event, only that sender's connection is left out for the remainder of this call;
      * the event stays at the head of its queue and the other senders' events are still delivered.
      *
      * @param now      the current time
@@ -68,6 +82,11 @@ public class InFlightEvents extends InFlightConnections<EventInTransit> {
             }
 
             final EventInTransit head = earliestConnection.peek();
+            if (eventWindows.apply(receiverId).isAncient(head.event())) {
+                // the event waited so long that the receiver would discard it, so it is not offered
+                earliestConnection.poll();
+                continue;
+            }
 
             // only remove the event from the queue if it was successfully delivered. If the receiver refuses it,
             // stop delivering from that sender until the next time this method is called.

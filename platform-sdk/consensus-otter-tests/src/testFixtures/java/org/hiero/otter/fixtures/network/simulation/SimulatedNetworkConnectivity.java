@@ -115,7 +115,7 @@ public class SimulatedNetworkConnectivity {
      * <p>Each connection's queue is ordered by arrival time, so delivery does not depend on {@link #arrivalTimeClamp}.
      * The clamp just keeps each kind of route on a connection from being reordered by jitter.
      */
-    private final InFlightEvents inFlightEvents = new InFlightEvents(this::isConnected);
+    private final InFlightEvents inFlightEvents = new InFlightEvents(this::isConnected, nodeEventWindows::get);
 
     /**
      * Event windows that have been transmitted onto the network but not yet delivered.

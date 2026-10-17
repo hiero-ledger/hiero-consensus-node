@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiPredicate;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -32,6 +33,9 @@ class InFlightEventsTest {
      */
     private final Set<Map.Entry<NodeId, NodeId>> downConnections = new HashSet<>();
 
+    /** The receiver's current event window, which tests replace to make events ancient. */
+    private EventWindow eventWindow = EventWindow.getGenesisEventWindow();
+
     /** The structure under test. */
     private InFlightEvents inFlightEvents;
 
@@ -41,10 +45,11 @@ class InFlightEventsTest {
     @BeforeEach
     void setUp() {
         downConnections.clear();
+        eventWindow = EventWindow.getGenesisEventWindow();
 
         final BiPredicate<NodeId, NodeId> connected =
                 (sender, receiver) -> !downConnections.contains(Map.entry(sender, receiver));
-        inFlightEvents = new InFlightEvents(connected);
+        inFlightEvents = new InFlightEvents(connected, nodeId -> eventWindow);
 
         inFlightEvents.addNode(NODE_0);
         inFlightEvents.addNode(NODE_1);
@@ -301,6 +306,63 @@ class InFlightEventsTest {
         assertThat(node0.receivedEvents).containsExactly(before, during);
     }
 
+    @Test
+    @DisplayName("an event that became ancient while it waited on a down connection is dropped at delivery")
+    void anAncientEventIsDroppedAtDelivery() {
+        final PlatformEvent stale = addEvent(NODE_1, 10, 5);
+        final PlatformEvent fresh = addEvent(NODE_1, 20, 15);
+        final PlatformEvent freshFromOther = addEvent(NODE_2, 30, 12);
+        downConnections.add(Map.entry(NODE_1, NODE_0));
+        inFlightEvents.deliverArrived(at(40), node0);
+        assertThat(node0.receivedEvents).containsExactly(freshFromOther);
+
+        eventWindow = new EventWindow(10, 11, 10, 1);
+        downConnections.clear();
+        inFlightEvents.deliverArrived(at(40), node0);
+
+        assertThat(node0.receivedEvents).containsExactly(freshFromOther, fresh).doesNotContain(stale);
+    }
+
+    @Test
+    @DisplayName("an ancient event is not offered to the receiver, so it does not count as a refusal")
+    void anAncientEventIsNotOffered() {
+        addEvent(NODE_1, 10, 5);
+        final PlatformEvent fresh = addEvent(NODE_1, 20, 15);
+        eventWindow = new EventWindow(10, 11, 10, 1);
+
+        inFlightEvents.deliverArrived(at(30), node0);
+
+        assertThat(node0.receivedEvents).containsExactly(fresh);
+        assertThat(node0.receiveEventCalls).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("an event that became ancient during a refusal is dropped once the refusal ends")
+    void anEventThatBecameAncientDuringARefusalIsDropped() {
+        addEvent(NODE_1, 10, 5);
+        final PlatformEvent fresh = addEvent(NODE_1, 20, 15);
+        node0.refusedSenders.add(NODE_1);
+        inFlightEvents.deliverArrived(at(30), node0);
+
+        eventWindow = new EventWindow(10, 11, 10, 1);
+        node0.refusedSenders.clear();
+        inFlightEvents.deliverArrived(at(30), node0);
+
+        assertThat(node0.receivedEvents).containsExactly(fresh);
+    }
+
+    /**
+     * Puts an event with the given birth round in flight towards {@link #NODE_0}.
+     *
+     * @param sender        the node sending the event
+     * @param arrivalMillis how long after the start of the test the event arrives
+     * @param birthRound    the birth round of the event
+     * @return the event that was put in flight
+     */
+    private PlatformEvent addEvent(@NonNull final NodeId sender, final long arrivalMillis, final long birthRound) {
+        return addEvent(NODE_0, sender, arrivalMillis, birthRound);
+    }
+
     /**
      * Puts an event in flight towards {@link #NODE_0}.
      *
@@ -322,8 +384,26 @@ class InFlightEventsTest {
      */
     private PlatformEvent addEvent(
             @NonNull final NodeId receiver, @NonNull final NodeId sender, final long arrivalMillis) {
+        return addEvent(receiver, sender, arrivalMillis, 1);
+    }
+
+    /**
+     * Puts an event in flight.
+     *
+     * @param receiver      the node the event is travelling to
+     * @param sender        the node sending the event
+     * @param arrivalMillis how long after the start of the test the event arrives
+     * @param birthRound    the birth round of the event
+     * @return the event that was put in flight
+     */
+    private PlatformEvent addEvent(
+            @NonNull final NodeId receiver,
+            @NonNull final NodeId sender,
+            final long arrivalMillis,
+            final long birthRound) {
         final PlatformEvent event = mock(PlatformEvent.class);
         when(event.getSenderId()).thenReturn(sender);
+        when(event.getBirthRound()).thenReturn(birthRound);
         inFlightEvents.add(receiver, new EventInTransit(event, sender, at(arrivalMillis)));
         return event;
     }
