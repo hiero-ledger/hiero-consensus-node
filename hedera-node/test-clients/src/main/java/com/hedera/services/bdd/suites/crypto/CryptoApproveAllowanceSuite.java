@@ -47,6 +47,7 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.emptyChildRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
@@ -81,6 +82,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_DELEGA
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NFT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_NFT_SERIAL_NUMBER;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_ALLOWANCES_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NEGATIVE_ALLOWANCE_AMOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NFT_IN_FUNGIBLE_TOKEN_ALLOWANCES;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PAYER_ACCOUNT_NOT_FOUND;
@@ -96,6 +98,11 @@ import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.contracts.ParsingConstants;
 import com.hedera.services.bdd.junit.HapiTest;
+<<<<<<< HEAD
+=======
+import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.spec.HapiSpec;
+>>>>>>> ee6d020 (fix: reject allowance when spender is provided by alias (#608))
 import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hederahashgraph.api.proto.java.NftTransfer;
@@ -132,6 +139,8 @@ public class CryptoApproveAllowanceSuite {
     public static final String FREEZE_KEY = "freezeKey";
     public static final String KYC_KEY = "kycKey";
     public static final String PAUSE_KEY = "pauseKey";
+    private static final ByteString UNKNOWN_EVM_ADDRESS =
+            ByteString.fromHex("c0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3");
 
     @HapiTest
     final Stream<DynamicTest> transferErc20TokenFromContractWithApproval() {
@@ -409,6 +418,259 @@ public class CryptoApproveAllowanceSuite {
                                 .nftApprovedForAllAllowancesCount(0)));
     }
 
+<<<<<<< HEAD
+=======
+    @HapiTest
+    final Stream<DynamicTest> revokingAllowancesBySpenderKeyAliasIsRejected() {
+        final var spenderKey = "spenderEd25519Key";
+        final var byKeyAlias =
+                namingSpenderByAlias(spec -> spec.registry().getKey(spenderKey).toByteString());
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                newKeyNamed(spenderKey).shape(ED25519),
+                cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .initialSupply(1000L)
+                        .treasury(TOKEN_TREASURY),
+                tokenCreate(NON_FUNGIBLE_TOKEN)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0L)
+                        .supplyKey(SUPPLY_KEY)
+                        .treasury(TOKEN_TREASURY),
+                tokenAssociate(OWNER, FUNGIBLE_TOKEN, NON_FUNGIBLE_TOKEN),
+                // Auto-creation gives the spender its key alias; the spec then also knows it by account number
+                cryptoTransfer(tinyBarsFromAccountToAlias(OWNER, spenderKey, 10 * ONE_HBAR)),
+                withOpContext((spec, opLog) -> updateSpecFor(spec, spenderKey)),
+                cryptoApproveAllowance()
+                        .payingWith(OWNER)
+                        .addCryptoAllowance(OWNER, spenderKey, 10 * ONE_HBAR)
+                        .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, spenderKey, 100L)
+                        .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, spenderKey, true, List.of()),
+                getAccountDetails(OWNER)
+                        .payingWith(GENESIS)
+                        .has(accountDetailsWith()
+                                .cryptoAllowancesCount(1)
+                                .tokenAllowancesCount(1)
+                                .nftApprovedForAllAllowancesCount(1)),
+                cryptoApproveAllowance()
+                        .payingWith(OWNER)
+                        .addCryptoAllowance(OWNER, spenderKey, 0L)
+                        .withBodyMutation(byKeyAlias)
+                        .hasKnownStatus(INVALID_ALLOWANCE_SPENDER_ID),
+                cryptoApproveAllowance()
+                        .payingWith(OWNER)
+                        .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, spenderKey, 0L)
+                        .withBodyMutation(byKeyAlias)
+                        .hasKnownStatus(INVALID_ALLOWANCE_SPENDER_ID),
+                cryptoApproveAllowance()
+                        .payingWith(OWNER)
+                        .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, spenderKey, false, List.of())
+                        .withBodyMutation(byKeyAlias)
+                        .hasKnownStatus(INVALID_ALLOWANCE_SPENDER_ID),
+                getAccountDetails(OWNER)
+                        .payingWith(GENESIS)
+                        .has(accountDetailsWith()
+                                .cryptoAllowancesCount(1)
+                                .tokenAllowancesCount(1)
+                                .nftApprovedForAllAllowancesCount(1)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> revokingHbarAllowanceBySpenderEvmAddressIsRejected() {
+        final var spenderKey = "spenderEcdsaKey";
+        return hapiTest(
+                newKeyNamed(spenderKey).shape(SECP256K1),
+                cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
+                cryptoTransfer(tinyBarsFromAccountToAlias(OWNER, spenderKey, 10 * ONE_HBAR)),
+                withOpContext((spec, opLog) -> updateSpecFor(spec, spenderKey)),
+                cryptoApproveAllowance().payingWith(OWNER).addCryptoAllowance(OWNER, spenderKey, 10 * ONE_HBAR),
+                getAccountDetails(OWNER)
+                        .payingWith(GENESIS)
+                        .has(accountDetailsWith().cryptoAllowancesCount(1)),
+                cryptoApproveAllowance()
+                        .payingWith(OWNER)
+                        .addCryptoAllowance(OWNER, spenderKey, 0L)
+                        .withBodyMutation(namingSpenderByAlias(
+                                spec -> ByteString.copyFrom(recoverAddressFromPubKey(spec.registry()
+                                        .getKey(spenderKey)
+                                        .getECDSASecp256K1()
+                                        .toByteArray()))))
+                        .hasKnownStatus(INVALID_ALLOWANCE_SPENDER_ID),
+                getAccountDetails(OWNER)
+                        .payingWith(GENESIS)
+                        .has(accountDetailsWith().cryptoAllowancesCount(1)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> scheduledRevocationBySpenderKeyAliasIsRejected() {
+        final var spenderKey = "spenderEd25519Key";
+        final var createTxn = "scheduleCreateTxn";
+        return hapiTest(
+                newKeyNamed(spenderKey).shape(ED25519),
+                cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
+                cryptoTransfer(tinyBarsFromAccountToAlias(OWNER, spenderKey, 10 * ONE_HBAR)),
+                withOpContext((spec, opLog) -> updateSpecFor(spec, spenderKey)),
+                cryptoApproveAllowance().payingWith(OWNER).addCryptoAllowance(OWNER, spenderKey, 10 * ONE_HBAR),
+                scheduleCreate(
+                                SCHEDULED_TXN,
+                                cryptoApproveAllowance()
+                                        .addCryptoAllowance(OWNER, spenderKey, 0L)
+                                        .withBodyMutation(namingSpenderByAlias(spec -> spec.registry()
+                                                .getKey(spenderKey)
+                                                .toByteString()))
+                                        .fee(ONE_HUNDRED_HBARS))
+                        .via(createTxn),
+                scheduleSign(SCHEDULED_TXN).alsoSigningWith(OWNER),
+                getTxnRecord(createTxn).scheduled().hasPriority(recordWith().status(INVALID_ALLOWANCE_SPENDER_ID)),
+                getAccountDetails(OWNER)
+                        .payingWith(GENESIS)
+                        .has(accountDetailsWith()
+                                .cryptoAllowancesCount(1)
+                                .cryptoAllowancesContaining(spenderKey, 10 * ONE_HBAR)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> ownerFailuresTakePrecedenceOverAliasedSpender() {
+        final var byAlias = namingSpenderByAlias(spec -> UNKNOWN_EVM_ADDRESS);
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(SPENDER),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .initialSupply(1000L)
+                        .treasury(TOKEN_TREASURY),
+                tokenCreate(NON_FUNGIBLE_TOKEN)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0L)
+                        .supplyKey(SUPPLY_KEY)
+                        .treasury(TOKEN_TREASURY),
+                cryptoApproveAllowance()
+                        .payingWith(OWNER)
+                        .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, SPENDER, 0L)
+                        .withBodyMutation(byAlias)
+                        .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT),
+                cryptoApproveAllowance()
+                        .payingWith(OWNER)
+                        .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, false, List.of())
+                        .withBodyMutation(byAlias)
+                        .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT),
+                cryptoDelete(OWNER),
+                cryptoApproveAllowance()
+                        .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, false, List.of())
+                        .signedByPayerAnd(OWNER)
+                        .withBodyMutation(byAlias)
+                        .hasKnownStatus(INVALID_ALLOWANCE_OWNER_ID));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> delegationFailuresTakePrecedenceOverAliasedSpender() {
+        final var delegatingSpender = "delegatingSpender";
+        final var byAlias = namingSpenderByAlias(spec -> UNKNOWN_EVM_ADDRESS);
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(delegatingSpender).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(SPENDER),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(NON_FUNGIBLE_TOKEN)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0L)
+                        .supplyKey(SUPPLY_KEY)
+                        .treasury(TOKEN_TREASURY),
+                tokenAssociate(OWNER, NON_FUNGIBLE_TOKEN),
+                cryptoApproveAllowance()
+                        .payingWith(delegatingSpender)
+                        .addDelegatedNftAllowance(
+                                OWNER, NON_FUNGIBLE_TOKEN, SPENDER, delegatingSpender, false, List.of())
+                        .withBodyMutation(byAlias)
+                        .hasKnownStatus(DELEGATING_SPENDER_DOES_NOT_HAVE_APPROVE_FOR_ALL),
+                cryptoApproveAllowance()
+                        .payingWith(OWNER)
+                        .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, delegatingSpender, true, List.of()),
+                cryptoApproveAllowance()
+                        .payingWith(delegatingSpender)
+                        .addDelegatedNftAllowance(
+                                OWNER, NON_FUNGIBLE_TOKEN, SPENDER, delegatingSpender, false, List.of())
+                        .withBodyMutation(byAlias)
+                        .hasKnownStatus(EMPTY_ALLOWANCES),
+                cryptoDelete(delegatingSpender),
+                cryptoApproveAllowance()
+                        .addDelegatedNftAllowance(
+                                OWNER, NON_FUNGIBLE_TOKEN, SPENDER, delegatingSpender, false, List.of())
+                        .signedByPayerAnd(delegatingSpender)
+                        .withBodyMutation(byAlias)
+                        .hasKnownStatus(INVALID_DELEGATING_SPENDER));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> laterAllowanceFailureTakesPrecedenceOverAliasedSpender() {
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(SPENDER),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(NON_FUNGIBLE_TOKEN)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0L)
+                        .supplyKey(SUPPLY_KEY)
+                        .treasury(TOKEN_TREASURY),
+                cryptoApproveAllowance()
+                        .payingWith(OWNER)
+                        .addCryptoAllowance(OWNER, SPENDER, 0L)
+                        .addTokenAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, 0L)
+                        .withBodyMutation(namingSpenderByAlias(spec -> UNKNOWN_EVM_ADDRESS))
+                        .hasKnownStatus(NFT_IN_FUNGIBLE_TOKEN_ALLOWANCES));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> nftOwnershipFailureTakesPrecedenceOverAliasedSpender() {
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(SPENDER),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(NON_FUNGIBLE_TOKEN)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0L)
+                        .supplyKey(SUPPLY_KEY)
+                        .treasury(TOKEN_TREASURY),
+                mintToken(NON_FUNGIBLE_TOKEN, List.of(ByteString.copyFromUtf8("a"))),
+                tokenAssociate(OWNER, NON_FUNGIBLE_TOKEN),
+                // The treasury still holds serial 1, which is only detected while the allowances are applied
+                cryptoApproveAllowance()
+                        .payingWith(OWNER)
+                        .addCryptoAllowance(OWNER, SPENDER, 0L)
+                        .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, false, List.of(1L))
+                        .withBodyMutation(namingFirstHbarSpenderByAlias(UNKNOWN_EVM_ADDRESS))
+                        .hasKnownStatus(SENDER_DOES_NOT_OWN_NFT_SERIAL_NO),
+                getTokenNftInfo(NON_FUNGIBLE_TOKEN, 1L).hasNoSpender());
+    }
+
+    @LeakyHapiTest(overrides = {"hedera.allowances.maxAccountLimit"})
+    final Stream<DynamicTest> accountAllowanceLimitTakesPrecedenceOverAliasedSpender() {
+        return hapiTest(
+                overriding("hedera.allowances.maxAccountLimit", "1"),
+                cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(SPENDER),
+                cryptoCreate(ANOTHER_SPENDER),
+                cryptoApproveAllowance().payingWith(OWNER).addCryptoAllowance(OWNER, SPENDER, 100L),
+                // The second grant exceeds the limit, which is only detected while the allowances are applied
+                cryptoApproveAllowance()
+                        .payingWith(OWNER)
+                        .addCryptoAllowance(OWNER, SPENDER, 0L)
+                        .addCryptoAllowance(OWNER, ANOTHER_SPENDER, 100L)
+                        .withBodyMutation(namingFirstHbarSpenderByAlias(UNKNOWN_EVM_ADDRESS))
+                        .hasKnownStatus(MAX_ALLOWANCES_EXCEEDED),
+                getAccountDetails(OWNER)
+                        .payingWith(GENESIS)
+                        .has(accountDetailsWith().cryptoAllowancesCount(1).cryptoAllowancesContaining(SPENDER, 100L)));
+    }
+
+>>>>>>> ee6d020 (fix: reject allowance when spender is provided by alias (#608))
     @HapiTest
     final Stream<DynamicTest> duplicateKeysAndSerialsInSameTxnDoesntThrow() {
         return hapiTest(
@@ -1962,4 +2224,30 @@ public class CryptoApproveAllowanceSuite {
                 getAccountBalance(NEW_TREASURY).hasTokenBalance(NFT_TOKEN, 1),
                 getAccountBalance(RECEIVER).hasTokenBalance(NFT_TOKEN, 1));
     }
+<<<<<<< HEAD
+=======
+
+    /** Names the spender of the first hbar allowance by an alias, leaving the other allowances unchanged. */
+    private static BodyMutation namingFirstHbarSpenderByAlias(final ByteString alias) {
+        return (builder, spec) -> {
+            builder.getCryptoApproveAllowanceBuilder()
+                    .getCryptoAllowancesBuilder(0)
+                    .setSpender(AccountID.newBuilder().setAlias(alias));
+            return builder;
+        };
+    }
+
+    /** Names the spender of every allowance in the transaction by an alias, which the DSL cannot express. */
+    private static BodyMutation namingSpenderByAlias(final Function<HapiSpec, ByteString> alias) {
+        return (builder, spec) -> {
+            final var spender =
+                    AccountID.newBuilder().setAlias(alias.apply(spec)).build();
+            final var op = builder.getCryptoApproveAllowanceBuilder();
+            op.getCryptoAllowancesBuilderList().forEach(allowance -> allowance.setSpender(spender));
+            op.getTokenAllowancesBuilderList().forEach(allowance -> allowance.setSpender(spender));
+            op.getNftAllowancesBuilderList().forEach(allowance -> allowance.setSpender(spender));
+            return builder;
+        };
+    }
+>>>>>>> ee6d020 (fix: reject allowance when spender is provided by alias (#608))
 }
