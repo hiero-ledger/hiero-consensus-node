@@ -268,11 +268,30 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      */
     @Override
     public void start() {
+        startAllNodes(HederaNode::start);
+    }
+
+    /**
+     * Starts all nodes in the network with the given config (software) version, instead of the JVM-global
+     * {@code LifecycleTest.CURRENT_CONFIG_VERSION} that {@link #start()} uses.
+     *
+     * <p>Multi-network tests start each network at version 0: a network may boot after another network's
+     * upgrade restart has bumped the global counter, and its genesis state must not carry that higher version,
+     * or a later same-version restart (e.g. {@code FakeNmt.restartNode}, which uses version 0) is refused as a
+     * downgrade.
+     *
+     * @param configVersion the config version to start the nodes with
+     */
+    public void start(final int configVersion) {
+        startAllNodes(node -> ((SubProcessNode) node).startWithConfigVersion(configVersion));
+    }
+
+    private void startAllNodes(@NonNull final Consumer<HederaNode> startAction) {
         nodes.forEach(node -> {
             node.initWorkingDir(network);
             writeNodeSigningKey(node);
             executePostInitWorkingDirActions(node);
-            node.start();
+            startAction.accept(node);
         });
     }
 

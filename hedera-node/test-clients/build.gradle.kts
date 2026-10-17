@@ -591,6 +591,14 @@ fun TaskContainer.registerHapiTest(
                 parallelismValue,
             )
         }
+        // MULTINETWORK groups run in parallel with CLASSES concurrent.
+        if (name == "hapiTestClprMultinetwork") {
+            systemProperty("junit.jupiter.execution.parallel.enabled", true)
+            systemProperty("junit.jupiter.execution.parallel.mode.default", "concurrent")
+            systemProperty("junit.jupiter.execution.parallel.mode.classes.default", "concurrent")
+            systemProperty("junit.jupiter.execution.parallel.config.strategy", "dynamic")
+            systemProperty("junit.jupiter.execution.parallel.config.dynamic.factor", "1")
+        }
         if (embeddedMode != null) {
             systemProperty("hapi.spec.embedded.mode", embeddedMode)
         }

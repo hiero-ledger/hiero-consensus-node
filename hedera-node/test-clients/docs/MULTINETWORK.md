@@ -6,25 +6,28 @@ regeneration) see [`../tss-startup-assets/README.md`](../tss-startup-assets/READ
 
 The main classes:
 
-|                    Class                    |                                                               Role                                                               |
-|---------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------|
-| `MultiNetworkHapiTest` / `@Network`         | Declares the networks a test needs (name, size, setup overrides, mTLS, `tssPreload`).                                            |
-| `SharedMultiNetworkLauncherSessionListener` | Collects the declared networks at test-plan start, starts them once through `MultiNetworkExtension`, and stops them at plan end. |
-| `MultiNetworkExtension`                     | Allocates ports and boots networks for the listener, runs the cold/warm TSS path, hands them to tests, applies test overrides.   |
-| `TssFixtures`                               | Resolves, merges, writes and installs the per-network genesis TSS fixtures.                                                      |
-| `ClprWrapsProvingKeyInstaller`              | Extracts the WRAPS proving-key archive for cold starts.                                                                          |
+|                    Class                    |                                                                 Role                                                                |
+|---------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------|
+| `MultiNetworkHapiTest` / `@Network`         | Declares the networks a test needs (name, size, setup overrides, mTLS, `tssPreload`).                                               |
+| `SharedMultiNetworkLauncherSessionListener` | Collects the declared networks and their groups at test-plan start and reserves their ports; stops any still running at plan end.   |
+| `MultiNetworkGroupQueue` / `NetworkGroup`   | Admits network groups under a node budget, so only as many groups run at once as the budget allows.                                 |
+| `MultiNetworkExtension`                     | Boots a group's networks on its first test and tears them down after its last, runs the cold/warm TSS path, applies test overrides. |
+| `TssFixtures`                               | Resolves, merges, writes and installs the per-network genesis TSS fixtures.                                                         |
+| `ClprWrapsProvingKeyInstaller`              | Extracts the WRAPS proving-key archive for cold starts.                                                                             |
 
 ## Phase 0 — test-plan start
 
 `SharedMultiNetworkLauncherSessionListener` scans the test plan for `@MultiNetworkHapiTest` methods
 (skipping `@Disabled` ones, so e.g. the fixture generators never boot their networks) and collects one
-`@Network` config per network name. It then calls `MultiNetworkExtension.startNetworks` once for all of
-them and keeps the result in `MultiNetworkExtension.SHARED_NETWORKS`. Every test that only uses shared
-networks reuses these instances.
+`@Network` config per network name into `MultiNetworkExtension.DECLARED_CONFIGS`, reserving each one's ports
+up front. It registers every test with `MultiNetworkGroupQueue` under its network group (the set of networks
+it uses). A test class whose `@ResourceLock`s cover the networks of more than one group fails its groups,
+since that could deadlock with the queue. It boots no nodes.
 
 ## Phase 1 — starting a network
 
-For each network, `startNetworks`:
+A group's networks start on its first test (see Phase 2), in parallel, through `startNetworks`. For each
+network, `startNetworks`:
 
 1. **Allocates ports.** `ensureFixturePortReservations` first reserves the port range of every committed
    fixture (its lowest gRPC port and node count), so a network with a fixture gets back the exact ports it
@@ -65,16 +68,21 @@ Typical cost: well under a minute per network.
 
 `MultiNetworkExtension.beforeEach`:
 
-- Looks up the test's networks in `SHARED_NETWORKS` and re-checks each node is `ACTIVE` (an earlier test
-  may have frozen or restarted it). It never starts networks itself: a network the listener did not start
-  (it failed to boot, or the test is `@Disabled`) fails the test.
+- Fails the test if any of its networks was not declared by the listener (e.g. the test is `@Disabled`);
+  networks are never started per test.
+- Waits for the test's group to be admitted by `MultiNetworkGroupQueue`, which runs groups concurrently
+  while their total node count fits the budget, lighter groups first.
+- Boots the group's networks on its first test (Phase 1) and keeps them in `SHARED_NETWORKS`; later tests
+  reuse them and re-check each node is `ACTIVE` (an earlier test may have frozen or restarted it). If the
+  boot fails, the group's nodes are freed and its remaining tests fail fast.
 - Applies the test's `setupOverrides` at runtime through a `0.0.121` file update, after snapshotting the
   previous values. Startup-only node settings (`clpr.mtlsPort`, CA paths) are skipped here — they only take
   effect from `application.properties`.
 
-`MultiNetworkExtension.afterEach` restores the snapshotted values and clears
-each node's CLPR peer-endpoint cache so the next test starts clean.
+`MultiNetworkExtension.afterEach` restores the snapshotted values and clears each node's CLPR peer-endpoint
+cache so the next test starts clean. After a group's last test (including tests that were skipped or never
+ran), its networks are torn down and its nodes are returned to the budget.
 
 ## Phase 3 — test-plan end
 
-The listener stops every shared network.
+The listener stops any shared network still running.
