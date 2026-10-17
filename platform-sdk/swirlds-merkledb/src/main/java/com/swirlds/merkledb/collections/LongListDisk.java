@@ -407,60 +407,26 @@ public class LongListDisk extends AbstractLongList<Long> {
         return (index % longsPerChunk) * Long.BYTES;
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /// {@inheritDoc}
     @Override
-    protected void writeLongsData(@NonNull final FileChannel fc) throws IOException {
+    protected void writeChunkData(
+            @NonNull final FileChannel fc,
+            @NonNull final Long chunk,
+            final int startIndexInChunk,
+            final int endIndexInChunk,
+            final long fileOffset)
+            throws IOException {
         final ByteBuffer transferBuffer = initOrGetTransferBuffer();
-        final int totalNumOfChunks = calculateNumberOfChunks(size());
-        final long currentMinValidIndex = minValidIndex.get();
-        final int firstChunkWithDataIndex = toIntExact(currentMinValidIndex / longsPerChunk);
-
-        // The following logic sequentially processes chunks. This kind of processing allows to get rid of
-        // non-contiguous memory allocation and gaps that may be present in the current file.
-        // MerkleDbFileUtils.completelyTransferFrom would work faster, it wouldn't allow
-        // the required rearrangement of data.
-        for (int i = firstChunkWithDataIndex; i < totalNumOfChunks; i++) {
-            Long currentChunkStartOffset = chunkList.get(i);
-            // if the chunk is null, we write zeroes to the file. If not, we write the data from the chunk
-            if (currentChunkStartOffset != null) {
-                final long chunkOffset;
-                if (i == firstChunkWithDataIndex) {
-                    // writing starts from the first valid index in the first valid chunk
-                    final int firstValidIndexInChunk = toIntExact(currentMinValidIndex % longsPerChunk);
-                    transferBuffer.position(firstValidIndexInChunk * Long.BYTES);
-                    chunkOffset = currentChunkStartOffset + calculateOffsetInChunk(currentMinValidIndex);
-                } else {
-                    // writing the whole chunk
-                    transferBuffer.position(0);
-                    chunkOffset = currentChunkStartOffset;
-                }
-                if (i == (totalNumOfChunks - 1)) {
-                    // the last array, so set limit to only the data needed
-                    final long bytesWrittenSoFar = (long) memoryChunkSize * i;
-                    final long remainingBytes = (size() * Long.BYTES) - bytesWrittenSoFar;
-                    transferBuffer.limit(toIntExact(remainingBytes));
-                } else {
-                    transferBuffer.limit(memoryChunkSize);
-                }
-                int currentPosition = transferBuffer.position();
-                final int toRead = transferBuffer.remaining();
-                final int read = MerkleDbFileUtils.completelyRead(currentFileChannel, transferBuffer, chunkOffset);
-                if (toRead != read) {
-                    throw new IOException("Failed to read a chunk from the file, offset=" + chunkOffset + ", toRead="
-                            + toRead + ", read=" + read + ", file size=" + currentFileChannel.size());
-                }
-                // Restore the position, so the right part of transferBuffer is written to the target
-                // file channel below. No need to restore the limit, it isn't changed by completelyRead()
-                transferBuffer.position(currentPosition);
-            } else {
-                // fillBufferWithZeroes() takes care of buffer position and limit
-                fillBufferWithZeroes(transferBuffer);
-            }
-
-            MerkleDbFileUtils.completelyWrite(fc, transferBuffer);
+        final int bytesToWrite = (endIndexInChunk - startIndexInChunk) * Long.BYTES;
+        transferBuffer.limit(bytesToWrite);
+        final long chunkOffset = chunk + (long) startIndexInChunk * Long.BYTES;
+        final int bytesRead = MerkleDbFileUtils.completelyRead(currentFileChannel, transferBuffer, chunkOffset);
+        if (bytesRead != bytesToWrite) {
+            throw new IOException("Failed to read a chunk from the file, offset=" + chunkOffset + ", toRead="
+                    + bytesToWrite + ", read=" + bytesRead + ", file size=" + currentFileChannel.size());
         }
+        transferBuffer.flip();
+        MerkleDbFileUtils.completelyWrite(fc, transferBuffer, fileOffset);
     }
 
     /**

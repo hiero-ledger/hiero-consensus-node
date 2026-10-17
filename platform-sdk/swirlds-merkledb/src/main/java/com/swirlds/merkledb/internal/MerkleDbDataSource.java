@@ -6,6 +6,7 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.MERKLE_DB;
 import static com.swirlds.merkledb.KeyRange.INVALID_KEY_RANGE;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.base.concurrent.interrupt.Uninterruptable.retryIfInterrupted;
 import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.hedera.pbj.runtime.FieldDefinition;
@@ -45,7 +46,6 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
@@ -56,6 +56,7 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
@@ -204,7 +205,10 @@ public final class MerkleDbDataSource implements VirtualDataSource {
      */
     private final VirtualLeafBytes[] leafRecordCache;
 
-    /** Thread pool creating snapshots, it is unbounded in threads, but we use at most 7 */
+    /// Thread group for this data source's snapshot threads.
+    private final ThreadGroup threadGroup;
+
+    /// Runs the four snapshot groups. Index writers use a separate snapshot-scoped pool.
     private final ExecutorService snapshotExecutor;
 
     /** Flag for if a snapshot is in progress */
@@ -306,8 +310,8 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         this.hashChunkHeight = merkleDbConfig.hashChunkHeight();
 
         // create thread group with label
-        final ThreadGroup threadGroup = new ThreadGroup("MerkleDb-" + tableName);
-        // thread pool creating snapshots, it is unbounded in threads, but we use at most 7
+        threadGroup = new ThreadGroup("MerkleDb-" + tableName);
+        // Pool for the four top-level snapshot groups.
         snapshotExecutor = Executors.newCachedThreadPool(new ThreadConfiguration(getStaticThreadManager())
                 .setThreadGroup(threadGroup)
                 .setThreadNameProvider(CompositeThreadNameProvider.createNumbered(MERKLEDB_COMPONENT, "Snapshot"))
@@ -881,9 +885,9 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             try {
                 // Stop file compaction
                 compactionCoordinator.stopAndDisableBackgroundCompaction(false);
-                // Shut down all executors. If a flush is currently in progress, it will be interrupted
+                // Interrupt flush work, but let started snapshot groups finish before closing their data.
                 flushPool.shutdownNow();
-                snapshotExecutor.shutdownNow();
+                snapshotExecutor.close();
                 // If there is a flush in progress on another thread, that thread may be
                 // stuck in waiting for hashes/leaves or HDHM writing to complete. Flushing
                 // pool shutdown interrupts all existing hashes/leaves/HDHM tasks, but the
@@ -948,56 +952,76 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         }
         logger.info(MERKLE_DB.getMarker(), "[{}] Starting snapshot to {}", tableName, snapshotDirectory);
         try {
-            // start timing snapshot
-            final long START = System.currentTimeMillis();
-            // create snapshot dir if it doesn't exist
+            if (closed.get()) {
+                throw new IOException("Cannot snapshot a closed data source");
+            }
+            final long start = System.currentTimeMillis();
             Files.createDirectories(snapshotDirectory);
             final MerkleDbPaths snapshotDbPaths = new MerkleDbPaths(snapshotDirectory);
-            // main snapshotting process in multiple-threads
+            final AtomicReference<Throwable> snapshotFailure = new AtomicReference<>();
+            InterruptedException snapshotInterrupted = null;
             try {
-                // Flush cached hash chunks to the hash chunk store
-                flushHashChunkCache();
-                final CountDownLatch countDownLatch = new CountDownLatch(6);
-                // write all data stores
-                runWithSnapshotExecutor(countDownLatch, "idToDiskLocationHashChunks", () -> {
-                    idToDiskLocationHashChunks.writeToFile(snapshotDbPaths.idToDiskLocationHashChunksFile);
-                    return true;
-                });
-                runWithSnapshotExecutor(countDownLatch, "pathToDiskLocationLeafNodes", () -> {
-                    pathToDiskLocationLeafNodes.writeToFile(snapshotDbPaths.pathToDiskLocationLeafNodesFile);
-                    return true;
-                });
-                runWithSnapshotExecutor(countDownLatch, "hashChunkStore", () -> {
-                    hashChunkStore.snapshot(snapshotDbPaths.hashChunkDirectory);
-                    return true;
-                });
-                runWithSnapshotExecutor(countDownLatch, "keyToPath", () -> {
-                    keyToPath.snapshot(snapshotDbPaths.keyToPathDirectory);
-                    return true;
-                });
-                runWithSnapshotExecutor(countDownLatch, "keyValueStore", () -> {
-                    keyValueStore.snapshot(snapshotDbPaths.pathToKeyValueDirectory);
-                    return true;
-                });
-                runWithSnapshotExecutor(countDownLatch, "metadata", () -> {
-                    saveMetadata(snapshotDbPaths);
-                    return true;
-                });
-                // wait for the others to finish
-                countDownLatch.await();
+                final int threadsPerLongList = merkleDbConfig.longListWriteThreads();
+                // LongLists sharing the writer pool: pathToDiskLocationLeafNodes, idToDiskLocationHashChunks,
+                // and keyToPath's bucketIndexToBucketLocation.
+                final int longListCount = 3;
+                try (final ExecutorService longListSnapshotExecutor = Executors.newFixedThreadPool(
+                        threadsPerLongList * longListCount,
+                        new ThreadConfiguration(getStaticThreadManager())
+                                .setThreadGroup(threadGroup)
+                                .setThreadNameProvider(CompositeThreadNameProvider.createNumbered(
+                                        MERKLEDB_COMPONENT, "Snapshot index writer"))
+                                .buildFactory())) {
+                    final CountDownLatch countDownLatch = new CountDownLatch(4);
+                    // The groups run independently. Only the hash group waits for the hash-cache flush.
+                    runWithSnapshotExecutor(countDownLatch, snapshotFailure, "hashes", () -> {
+                        flushHashChunkCache();
+                        idToDiskLocationHashChunks.writeToFile(
+                                snapshotDbPaths.idToDiskLocationHashChunksFile,
+                                longListSnapshotExecutor,
+                                threadsPerLongList);
+                        hashChunkStore.snapshot(snapshotDbPaths.hashChunkDirectory);
+                    });
+                    runWithSnapshotExecutor(countDownLatch, snapshotFailure, "leaves", () -> {
+                        pathToDiskLocationLeafNodes.writeToFile(
+                                snapshotDbPaths.pathToDiskLocationLeafNodesFile,
+                                longListSnapshotExecutor,
+                                threadsPerLongList);
+                        keyValueStore.snapshot(snapshotDbPaths.pathToKeyValueDirectory);
+                    });
+                    runWithSnapshotExecutor(countDownLatch, snapshotFailure, "keyToPath", () -> {
+                        keyToPath.snapshot(
+                                snapshotDbPaths.keyToPathDirectory, longListSnapshotExecutor, threadsPerLongList);
+                    });
+                    runWithSnapshotExecutor(
+                            countDownLatch, snapshotFailure, "metadata", () -> saveMetadata(snapshotDbPaths));
+                    // Finish started tasks before closing the writer pool or returning ownership of the directory.
+                    awaitSnapshotTasks(countDownLatch);
+                }
             } catch (final InterruptedException e) {
-                logger.error(
-                        EXCEPTION.getMarker(),
-                        "[{}] InterruptedException from waiting for countDownLatch in snapshot",
-                        tableName,
-                        e);
+                snapshotInterrupted = e;
                 Thread.currentThread().interrupt();
+            }
+            final Throwable failure = snapshotFailure.get();
+            if (failure != null && snapshotInterrupted != null) {
+                failure.addSuppressed(snapshotInterrupted);
+            }
+            if (failure instanceof IOException ioException) {
+                throw ioException;
+            } else if (failure instanceof RuntimeException runtimeException) {
+                throw runtimeException;
+            } else if (failure instanceof Error error) {
+                throw error;
+            } else if (failure != null) {
+                throw new IOException("Snapshot task failed", failure);
+            } else if (snapshotInterrupted != null) {
+                throw new IOException("Interrupted while waiting for snapshot tasks to finish", snapshotInterrupted);
             }
             logger.info(
                     MERKLE_DB.getMarker(),
                     "[{}] Snapshot all finished in {} seconds",
                     tableName,
-                    (System.currentTimeMillis() - START) * UnitConstants.MILLISECONDS_TO_SECONDS);
+                    (System.currentTimeMillis() - start) * UnitConstants.MILLISECONDS_TO_SECONDS);
         } finally {
             snapshotInProgress.set(false);
         }
@@ -1127,36 +1151,58 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     // ==================================================================================================================
     // private methods
 
-    /**
-     * Run a runnable on background thread using snapshot ExecutorService, counting down latch when
-     * done.
-     *
-     * @param countDownLatch latch to count down when done
-     * @param taskName the name of the task for logging
-     * @param runnable the code to run
-     */
+    /// Even after a failure or interruption, finish waiting so no task keeps writing after the
+    /// caller regains ownership of the snapshot directory.
+    ///
+    /// @param countDownLatch tracks the snapshot tasks that have not finished
+    /// @throws InterruptedException if interrupted while waiting, after all tasks have finished
+    private static void awaitSnapshotTasks(final CountDownLatch countDownLatch) throws InterruptedException {
+        try {
+            countDownLatch.await();
+        } catch (final InterruptedException e) {
+            // Finish the started tasks before reporting the interruption to the caller.
+            retryIfInterrupted(() -> countDownLatch.await());
+            throw e;
+        }
+    }
+
+    /// Runs one snapshot group and records its failure. Groups that have not started skip work after a failure.
+    ///
+    /// @param countDownLatch latch to count down when done
+    /// @param snapshotFailure receives the first task failure
+    /// @param taskName the name of the task for logging
+    /// @param runnable the code to run
     private void runWithSnapshotExecutor(
-            final CountDownLatch countDownLatch, final String taskName, final Callable<Object> runnable) {
-        snapshotExecutor.submit(() -> {
-            final long START = System.currentTimeMillis();
-            try {
-                runnable.call();
-                logger.trace(
-                        MERKLE_DB.getMarker(),
-                        "[{}] Snapshot {} complete in {} seconds",
-                        tableName,
-                        taskName,
-                        (System.currentTimeMillis() - START) * UnitConstants.MILLISECONDS_TO_SECONDS);
-                return true; // turns this into a callable, so it can throw checked
-                // exceptions
-            } catch (final Throwable t) {
-                // log and rethrow
-                logger.error(EXCEPTION.getMarker(), "[{}] Snapshot {} failed", tableName, taskName, t);
-                throw t;
-            } finally {
-                countDownLatch.countDown();
-            }
-        });
+            final CountDownLatch countDownLatch,
+            final AtomicReference<Throwable> snapshotFailure,
+            final String taskName,
+            final IORunnable runnable) {
+        try {
+            snapshotExecutor.execute(() -> {
+                final long start = System.currentTimeMillis();
+                try {
+                    if (snapshotFailure.get() != null) {
+                        return;
+                    }
+                    runnable.run();
+                    logger.trace(
+                            MERKLE_DB.getMarker(),
+                            "[{}] Snapshot {} complete in {} seconds",
+                            tableName,
+                            taskName,
+                            (System.currentTimeMillis() - start) * UnitConstants.MILLISECONDS_TO_SECONDS);
+                } catch (final Throwable t) {
+                    snapshotFailure.compareAndSet(null, t);
+                    logger.error(EXCEPTION.getMarker(), "[{}] Snapshot {} failed", tableName, taskName, t);
+                } finally {
+                    countDownLatch.countDown();
+                }
+            });
+        } catch (final RuntimeException | Error e) {
+            // A rejected group will not count down the latch itself. Still wait for the accepted groups.
+            snapshotFailure.compareAndSet(null, e);
+            countDownLatch.countDown();
+        }
     }
 
     /**

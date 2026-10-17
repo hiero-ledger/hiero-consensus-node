@@ -3,8 +3,10 @@ package com.swirlds.merkledb.collections;
 
 import static com.swirlds.merkledb.collections.AbstractLongList.FILE_HEADER_SIZE_V3;
 import static com.swirlds.merkledb.collections.LongList.IMPERMISSIBLE_VALUE;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_MERKLE_DB_CONFIG;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.checkDirectMemoryIsCleanedUpToLessThanBaseUsage;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.getDirectMemoryUsedBytes;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.writeLongListToFileAndVerify;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -23,13 +25,16 @@ import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.URISyntaxException;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.Spliterator;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
@@ -45,6 +50,7 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
+import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -564,15 +570,13 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> extends Abstr
         try (final LongList longList = createLongList(100, MAX_LONGS, 0)) {
             longList.updateValidRange(0, 50);
             longList.put(2, 1002);
-            final Path snapshot1 = testDir.resolve("snapshot1");
-            longList.writeToFile(snapshot1);
+            final Path snapshot1 = writeLongListToFileAndVerify(longList, "snapshot1", testDir);
             try (final LongList restored = createLongList(snapshot1, 100, MAX_LONGS, 0)) {
                 restored.updateValidRange(0, 50);
                 assertEquals(3, restored.size());
                 assertEquals(1002, restored.get(2));
                 restored.put(3, 1003);
-                final Path snapshot2 = testDir.resolve("snapshot2");
-                restored.writeToFile(snapshot2);
+                final Path snapshot2 = writeLongListToFileAndVerify(restored, "snapshot2", testDir);
                 try (final LongList restored2 = createLongList(snapshot2, 100, MAX_LONGS, 0)) {
                     restored2.updateValidRange(0, 50);
                     assertEquals(4, restored2.size());
@@ -592,8 +596,7 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> extends Abstr
             longList.put(1050, 2050); // chunk 5
             longList.put(900, 1900); // chunk 4
             longList.put(700, 1700); // chunk 3
-            final Path snapshot = testDir.resolve("snapshot");
-            longList.writeToFile(snapshot);
+            final Path snapshot = writeLongListToFileAndVerify(longList, "snapshot", testDir);
             try (final LongList restored = createLongList(snapshot, 200, 10000, 0)) {
                 assertEquals(1700, restored.get(700));
                 assertEquals(2050, restored.get(1050));
@@ -601,6 +604,104 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> extends Abstr
                 assertEquals(1599, restored.get(599));
                 // Make sure chunk 3 doesn't have any values carried over from chunk 2
                 assertEquals(0, restored.get(799));
+            }
+        }
+    }
+
+    @Test
+    void testSnapshotSizedBeforeWriters(@TempDir final Path testDir) throws IOException {
+        final int firstIndex = 7;
+        final int lastIndex = 4 * NUM_LONGS_PER_CHUNK + 5;
+        final long expectedFileSize = FILE_HEADER_SIZE_V3 + (lastIndex - firstIndex + 1L) * Long.BYTES;
+        final Path snapshot = testDir.resolve("sizedBeforeWriters.ll");
+        final int threadCount = DEFAULT_MERKLE_DB_CONFIG.longListWriteThreads();
+        final AtomicBoolean writerSubmitted = new AtomicBoolean();
+        try (final LongList longList = createLongList(NUM_LONGS_PER_CHUNK, MAX_LONGS, 0)) {
+            longList.updateValidRange(firstIndex, lastIndex);
+            longList.put(firstIndex + 1, 42);
+            longList.put(lastIndex, 84);
+            longList.writeToFile(
+                    snapshot,
+                    task -> {
+                        try {
+                            assertEquals(expectedFileSize, Files.size(snapshot), "Size before each writer starts");
+                        } catch (final IOException e) {
+                            throw new UncheckedIOException(e);
+                        }
+                        writerSubmitted.set(true);
+                        task.run();
+                    },
+                    threadCount);
+            assertTrue(writerSubmitted.get(), "The size check should run before a writer is submitted");
+            assertEquals(expectedFileSize, Files.size(snapshot));
+            assertThrows(
+                    FileAlreadyExistsException.class, () -> longList.writeToFile(snapshot, Runnable::run, threadCount));
+            try (final LongList restored = createLongList(snapshot, NUM_LONGS_PER_CHUNK, MAX_LONGS, 0)) {
+                assertEquals(firstIndex, restored.getMinValidIndex());
+                assertEquals(lastIndex + 1, restored.size());
+                assertEquals(42, restored.get(firstIndex + 1));
+                assertEquals(84, restored.get(lastIndex));
+                assertEquals(0, restored.get(2 * NUM_LONGS_PER_CHUNK));
+            }
+        }
+    }
+
+    @Test
+    @Timeout(value = 10, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+    void testSnapshotClippedNullEdgeChunks(@TempDir final Path testDir) throws IOException {
+        final int minValidIndex = 2 * NUM_LONGS_PER_CHUNK + 7;
+        final int dataIndex = 4 * NUM_LONGS_PER_CHUNK + 5;
+        final int maxValidIndex = 5 * NUM_LONGS_PER_CHUNK + 9;
+        final int discardedIndex = 7 * NUM_LONGS_PER_CHUNK + 3;
+        try (final T longList = createLongList(NUM_LONGS_PER_CHUNK, MAX_LONGS, 0)) {
+            longList.updateValidRange(0, discardedIndex);
+            longList.put(dataIndex, dataIndex + 1000L);
+            longList.put(discardedIndex, discardedIndex + 1000L);
+            // Keep the snapshot size in a NULL chunk after discarding the far-right value.
+            longList.updateValidRange(minValidIndex, maxValidIndex);
+
+            assertEquals(maxValidIndex + 1, longList.size());
+            assertNull(longList.dataCopy().get(minValidIndex / NUM_LONGS_PER_CHUNK));
+            assertNotNull(longList.dataCopy().get(dataIndex / NUM_LONGS_PER_CHUNK));
+            assertNull(longList.dataCopy().get(maxValidIndex / NUM_LONGS_PER_CHUNK));
+
+            final Path snapshot = writeLongListToFileAndVerify(longList, "clippedNullEdgeChunks.ll", testDir);
+            assertEquals(
+                    FILE_HEADER_SIZE_V3 + (maxValidIndex - minValidIndex + 1L) * Long.BYTES,
+                    Files.size(snapshot),
+                    "Only the clipped valid range should be written, including NULL chunks");
+            try (final LongList restored = createLongList(snapshot, NUM_LONGS_PER_CHUNK, MAX_LONGS, 0)) {
+                assertEquals(minValidIndex, restored.getMinValidIndex());
+                assertEquals(maxValidIndex, restored.getMaxValidIndex());
+                assertEquals(maxValidIndex + 1, restored.size());
+                for (int i = 0; i <= discardedIndex; i++) {
+                    assertEquals(i == dataIndex ? dataIndex + 1000L : 0, restored.get(i), "Value at index " + i);
+                }
+            }
+        }
+    }
+
+    @Test
+    @Timeout(value = 10, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+    void testSnapshotValidRangeBeyondSize(@TempDir final Path testDir) throws IOException {
+        final int populatedIndex = NUM_LONGS_PER_CHUNK / 2;
+        final int minValidIndex = 2 * NUM_LONGS_PER_CHUNK + 7;
+        final int maxValidIndex = 5 * NUM_LONGS_PER_CHUNK + 9;
+        try (final LongList longList = createLongList(NUM_LONGS_PER_CHUNK, MAX_LONGS, 0)) {
+            longList.updateValidRange(0, maxValidIndex);
+            longList.put(populatedIndex, populatedIndex + 1000L);
+            longList.updateValidRange(minValidIndex, maxValidIndex);
+            assertEquals(populatedIndex + 1, longList.size());
+            assertTrue(longList.getMinValidIndex() > longList.size());
+
+            final Path snapshot = writeLongListToFileAndVerify(longList, "validRangeBeyondSize.ll", testDir);
+            assertEquals(
+                    FILE_HEADER_SIZE_V3, Files.size(snapshot), "An empty valid range should write only the header");
+            try (final LongList restored = createLongList(snapshot, NUM_LONGS_PER_CHUNK, MAX_LONGS, 0)) {
+                assertEquals(0, restored.size());
+                assertEquals(-1, restored.getMinValidIndex());
+                assertEquals(-1, restored.getMaxValidIndex());
+                checkEmptyFromIndex(restored, 0, maxValidIndex + 1);
             }
         }
     }
@@ -674,6 +775,9 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> extends Abstr
             () -> new LongListDisk(NUM_LONGS_PER_CHUNK, MAX_LONGS, 0, fileSystemManager));
     static final LongListWriterFactory segmentWriterFactory = new LongListWriterFactory(
             LongListSegment.class.getSimpleName(), () -> new LongListSegment(NUM_LONGS_PER_CHUNK, MAX_LONGS, 0));
+    static final LongListWriterFactory diskSegmentWriterFactory = new LongListWriterFactory(
+            LongListDiskSegment.class.getSimpleName(),
+            () -> new LongListDiskSegment(NUM_LONGS_PER_CHUNK, MAX_LONGS, 0, fileSystemManager));
 
     /**
      * Factories (named BiFunctions) for reconstructing different {@link AbstractLongList}
@@ -1036,8 +1140,7 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> extends Abstr
                 checkData(longListFromFile);
 
                 // Rewrite the data from the first reconstructed list back to the file
-                Files.delete(longListFile);
-                longListFromFile.writeToFile(longListFile);
+                writeLongListToFileAndVerify(longListFromFile, TEMP_FILE_NAME, tempDir);
 
                 // Reconstruct the list again using the second reader implementation
                 try (final AbstractLongList<?> longListFromFile2 = secondReaderFactory
@@ -1386,28 +1489,5 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> extends Abstr
             final long readValue = longList.get(i, 0);
             assertEquals(0, readValue, "Longs don't match for " + i + " got [" + readValue + "] should be [" + 0 + "]");
         }
-    }
-
-    /**
-     * Writes all longs in LongList instance to a temporary file and verifies its existence.
-     *
-     * @param longList   the LongList instance to be written to the file
-     * @param fileName   the name of the file to write
-     * @param tempDir    the directory where the temporary file will be created
-     * @return the path to the created file
-     * @throws IOException if an I/O error occurs
-     */
-    static Path writeLongListToFileAndVerify(final LongList longList, final String fileName, final Path tempDir)
-            throws IOException {
-        final Path file = tempDir.resolve(fileName);
-
-        Files.deleteIfExists(file);
-        longList.writeToFile(file);
-
-        assertTrue(
-                Files.exists(file),
-                String.format("File '%s' does not exist after writing longs.", file.toAbsolutePath()));
-
-        return file;
     }
 }
