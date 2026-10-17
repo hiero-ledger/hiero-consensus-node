@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+<<<<<<< HEAD
 pluginManagement {
     includeBuild("gradle/besu-native-patch")
     includeBuild("gradle/benchmark-tracking")
@@ -9,6 +10,11 @@ plugins {
     id("com.hedera.pbj.pbj-compiler") version "0.15.11" apply false
     id("org.gradlex.java-module-packaging") version "1.3" apply false
     id("org.hiero.gradle.feature.besu-native-patch")
+=======
+plugins {
+    id("org.hiero.gradle.build") version "0.7.11"
+    id("com.hedera.pbj.pbj-compiler") version "0.15.11" apply false
+>>>>>>> 7c794e6 (fix: Remove unused imports for besu native libs patch  (#618))
 }
 
 javaModules {
