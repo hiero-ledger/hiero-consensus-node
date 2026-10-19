@@ -67,16 +67,17 @@ public class DiffCommand implements Callable<Integer> {
     @Override
     public Integer call() {
         try {
-            compare();
+            return compare();
         } catch (final Throwable t) {
             // DiffExporter exits the JVM itself on completion (0 or 1); reaching here means the comparison failed.
             log.error("Diff failed before the states could be compared", t);
             t.printStackTrace();
             System.exit(EXIT_ERROR);
         }
+        return EXIT_ERROR; // unreachable, but required by the compiler
     }
 
-    private void compare() {
+    private int compare() {
         final File outputDirectory = new File(outputDirStr);
         if (!outputDirectory.exists()) {
             throw new RuntimeException(outputDirectory.getAbsolutePath() + " does not exist");
