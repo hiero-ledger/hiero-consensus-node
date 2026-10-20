@@ -392,6 +392,13 @@ public class PreHandleContextImpl implements PreHandleContext {
         }
         if (finisher != null) {
             key = finisher.apply(key);
+            // The finisher may transform the state key into a different key (e.g. wrapping it in a
+            // threshold). Re-validate its output so an invalid derived key fails closed with the
+            // caller's status rather than being silently dropped by requireKey(Key).
+            if (!isValid(key)) {
+                throw new PreCheckException(responseCode);
+            }
+            verifyNotEmptyKey(key, responseCode);
         }
         return requireKey(key);
     }
@@ -458,10 +465,10 @@ public class PreHandleContextImpl implements PreHandleContext {
         verifyNotStakingAccounts(account.accountIdOrThrow(), responseCode);
         // We will require the key. If the key isn't present, then we will throw the given response code.
         final var key = account.key();
-        if (key == null
-                || key.key().kind() == KeyOneOfType.UNSET) { // Or if it is a Contract Key? Or if it is an empty key?
-            // Or a KeyList with no
-            // keys? Or KeyList with Contract keys only?
+        // A key we are about to require must be structurally valid, not
+        // merely present. isValid() also rejects the degenerate shapes kind() cannot see - an empty key list, a
+        // threshold that cannot be met, a malformed public key, or a list holding any of those.
+        if (!isValid(key)) {
             throw new PreCheckException(responseCode);
         }
         return requireKey(key);
