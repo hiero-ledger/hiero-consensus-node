@@ -112,7 +112,7 @@ snapshot of the same data source.
 `createSnapshot()` uses disk-based indexes on purpose: `offlineUse` was added in
 [#16090](https://github.com/hiero-ledger/hiero-consensus-node/pull/16090) so that such copies "should use as little
 resources as possible". An in-memory copy there would add 34.4 GiB of off-heap memory on the learner, when it already
-holds the reconnect data source and, from the next cycle, its copy. Two options:
+holds the reconnect data source and, from the next cycle, its copy. Three options:
 - **Option A, memory-neutral:** inside the pause, write the source's index chunks straight into the copy's
   `LongListDisk` temp files. That's the parallel `writeToFile()` from #26557, aimed at a different file. It's one
   37 GB write instead of three passes, but the pause stays about as long as a snapshot.
@@ -120,6 +120,10 @@ holds the reconnect data source and, from the next cycle, its copy. Two options:
   `LongListDisk` and free it. This holds 34.4 GiB of extra off-heap memory for about 30 s, against the `offlineUse`
   intent. On the learner, that raises non-reclaimable memory from about 186 GiB to about 220 GiB, out of a 256 GiB
   container limit.
+- **Option C, mapped:** inside the pause, take the snapshot as today. Outside it, map the snapshot's index files
+  instead of copying them into `LongListDisk` temp files (see "Alternative: map the indexes" below). Like option A, it
+  pauses for a snapshot, needs no extra off-heap memory and makes two passes over the indexes instead of three. Unlike
+  `LongListDisk`, the copy reads its indexes from memory instead of with a file read per entry.
 
 ### Expected effect (estimate)
 
@@ -127,13 +131,76 @@ holds the reconnect data source and, from the next cycle, its copy. Two options:
 |---|---|---|
 | Teacher (`detach`) | 80–84 s | roughly 10–20 s |
 | Learner (`detachAsDataSourceCopy`) | 52–93 s | roughly 10–20 s |
-| State write (`createSnapshot`) | about 140 s, 28 s of it paused | about 80 s: about 30 s paused (A) or a few seconds (B) |
+| State write (`createSnapshot`) | about 140 s, 28 s of it paused | about 80 s: about 30 s paused (A, C) or a few seconds (B) |
 
 #26557 on its own speeds up snapshots about 3 times, which shrinks the snapshot half of each copy. The rebuild half
 remains, so step 1 still removes most of the copy time.
 
 Peak off-heap memory doesn't change for `detach()` and `detachAsDataSourceCopy()`: today's rebuild already allocates
 a second set of in-memory indexes.
+
+### Alternative: map the indexes
+
+Instead of copying the indexes in memory, a copy can keep today's snapshot and map the snapshot's index files with
+`FileChannel.map(MapMode.PRIVATE, offset, length, arena)` instead of loading them. Mapping only sets up page tables. An
+entry is read from the file when it's first accessed, and a write goes to a private copy of its page, never to the
+file. [`LongListDiskSegment`](../../../../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListDiskSegment.java),
+added in [#25903](https://github.com/hiero-ledger/hiero-consensus-node/pull/25903) for fast upgrades, already maps
+index chunks this way, with `MapMode.READ_WRITE`. A `PRIVATE` variant of it can back the copy's three indexes.
+
+Pros:
+- Loading the indexes, most of the rebuild, takes milliseconds: about 4,400 mapped 8 MiB chunks per data source.
+- Pages the copy doesn't write to are page cache, which the kernel can reclaim. Today a copy takes 34.4 GiB of
+  off-heap memory that it can't. A copy that is only read needs no anonymous memory for its indexes.
+- Only the pages the copy accesses are read. The teacher reads the entries of the nodes it sends, not all 3.26B.
+
+Cons:
+- The snapshot half stays: the indexes are still written to disk, in 28–32 s today and about 10 s with #26557. Step
+  1 removes both halves.
+- The first write to a page costs a page fault and a 4 KB copy. A copy that is written everywhere ends up with as much
+  anonymous memory as today, after 6.4M such faults for the leaf index alone.
+- A page that has been evicted from the page cache costs a disk read on its next access, about 100 µs on NVMe.
+- The mapping keeps the snapshot's files in use: their 37 GB of disk is freed only when the copy is closed, even if
+  the snapshot directory is deleted earlier.
+
+Fit per copy:
+
+| Copy | Fit |
+|---|---|
+| Teacher (`detach`) | Good. The copy is only read, and lives only for the transfer. Its indexes need no anonymous memory, and only the part the transfer touches is read. |
+| State write (`createSnapshot`) | Good, as option C. Flushing the cache snapshot writes to few pages. |
+| Learner (`detachAsDataSourceCopy`) | Poor. The copy becomes the node's live data source. Under load nearly every page gets written, during the reconnect's flushes and after it, and the mapping keeps the snapshot's files for as long as the node runs. Step 1's in-memory copy fits better. |
+
+On the teacher, mapping is slower than step 1 by the snapshot write, about 10 s with #26557, unless skipping its
+`fsync` makes that write much cheaper (item 3 below). In return, it saves 34.4 GiB of non-reclaimable memory on a
+node that keeps handling transactions during the transfer.
+
+Things to get right:
+1. **File layout.** Today's index files can't be mapped as they are. The 12-byte header
+   ([`AbstractLongList.java:515`](../../../../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/AbstractLongList.java#L515))
+   puts every value at an offset of 4 mod 8. `LongListSegment` reads and updates values with volatile access and
+   `compareAndSet`
+   ([`LongListSegment.java:222`](../../../../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListSegment.java#L222)),
+   which need 8-byte alignment. The copy's index files need `LongListDiskSegment`'s layout, value `i` at a fixed
+   offset, with the header padded to a page, so every chunk starts on a page boundary. These files are temporary and
+   read only by the process that wrote them, so their format can change freely. Saved states keep today's format.
+2. **The mapped files must never change.** `PRIVATE` keeps the copy's writes out of the files. But on Linux, pages
+   the copy hasn't written yet show later changes made to the file by anyone else, and truncating the file makes the
+   next access fail with `SIGBUS`. Index files are created with `CREATE_NEW` and never rewritten today. The rebuild
+   hard-links them, so no link to a mapped file may be opened for writing while it's mapped.
+3. **`fsync`.** `writeToFile()` ends with `force(true)`
+   ([`AbstractLongList.java:505`](../../../../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/AbstractLongList.java#L505)).
+   A snapshot that is only mapped by the same process doesn't need it. Without it, the write goes to the page cache
+   at memory speed, until the kernel starts throttling dirty pages. How fast 37 GB can be written this way in the
+   node's cgroup has to be measured.
+4. **The right `map()` overload.** `FileChannel.map(mode, position, size)` returns a `MappedByteBuffer`, limited to
+   2 GiB. The overload with an `Arena` returns a `MemorySegment`. Map each chunk in its own shared arena, as
+   `LongListDiskSegment` does, so chunks below the valid range can be unmapped one by one.
+5. **Memory accounting.** Mapped pages are charged to the container's cgroup as page cache. The kernel can reclaim
+   them, so they don't lead to OOM kills, but they count towards the container's memory usage. They don't appear in
+   NMT or the MerkleDB off-heap metrics, so memory monitoring has to include file-backed memory.
+6. **Garbage scans.** A scan reads the whole index and pulls every page in. The teacher's and the state write's copies
+   are built with compaction disabled, so this applies only if a copy that compacts is mapped.
 
 ## 4. Step 2: keep the pipeline paused only for the snapshot
 
@@ -185,16 +252,16 @@ when the transfer starts. Points to get right:
   `createSnapshot()` may still hold for up to about 28 s.
 
 On its own, step 3 would have saved 40–60 s in the measured cycle. With steps 1 and 2, the learner's copy is hidden
-behind the teacher's, with option B for `createSnapshot()`. With option A, it finishes about 40–50 s into the cycle.
+behind the teacher's, with option B for `createSnapshot()`. With option A or C, it finishes about 40–50 s into the cycle.
 
 ## 6. Combined estimate
 
 | | Today | Steps 1 + 2 + 3 (estimate) |
 |---|---|---|
 | Waiting for the teacher | 41–94 s | about 15–25 s |
-| Learner copy (afterwards) | 52–93 s | hidden (option B), about 20–30 s (option A) |
+| Learner copy (afterwards) | 52–93 s | hidden (option B), about 20–30 s (option A or C) |
 | Transfer | 90–160 s | unchanged |
-| **Cycle** | **4–5 min** | **about 1.8–3.1 min (B) or 2.2–3.5 min (A)** |
+| **Cycle** | **4–5 min** | **about 1.8–3.1 min (B) or 2.2–3.5 min (A or C)** |
 
 At about 10.4 rounds/s, that's a lag of about 1,100–2,200 rounds after a reconnect, instead of about 3,200. A
 retention window of 2,500–3,000 rounds would then be enough, and catch-up would take about 5–10 minutes instead of
