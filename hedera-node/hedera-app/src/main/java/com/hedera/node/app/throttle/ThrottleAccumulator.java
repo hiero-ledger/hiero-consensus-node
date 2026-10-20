@@ -272,11 +272,13 @@ public class ThrottleAccumulator {
             final var enforceGasThrottle =
                     configuration.getConfigData(ContractsConfig.class).throttleThrottleByGas();
 
-            return enforceGasThrottle
+            if (enforceGasThrottle
                     && !gasThrottle.allow(
                             now,
                             query.contractCallLocalOrElse(ContractCallLocalQuery.DEFAULT)
-                                    .gas());
+                                    .gas())) {
+                return true;
+            }
         }
         resetLastAllowedUse();
         final var manager = functionReqs.get(queryFunction);
