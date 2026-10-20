@@ -14,7 +14,8 @@ import java.time.Instant;
 /**
  * Main class responsible for throttling the transactions by "ops duration".
  * Keeps track of the instance the last decision was made and calculates the time elapsed since then.
- * It uses a {@link DiscreteLeakyBucket} underneath of a specified nominal capacity and a brimful capacity of Long.MAX_VALUE.
+ * It uses a {@link DiscreteLeakyBucket} underneath whose brimful capacity equals its nominal capacity,
+ * so usage can never exceed the nominal capacity.
  */
 public class OpsDurationDeterministicThrottle implements CongestibleThrottle {
     private final String throttleName;
@@ -26,17 +27,19 @@ public class OpsDurationDeterministicThrottle implements CongestibleThrottle {
             final String name, final long nominalCapacity, final long capacityFreedPerSecond) {
         this.throttleName = name;
         this.capacityFreedPerSecond = capacityFreedPerSecond;
-        this.bucket = DiscreteLeakyBucket.ofNominalAndBrimfulCapacity(nominalCapacity, Long.MAX_VALUE);
+        this.bucket = DiscreteLeakyBucket.ofFixedCapacity(nominalCapacity);
     }
 
     /**
      * Calculates the amount of nanoseconds that elapsed since the last time the method was called and leaks
-     * an appropriate amount of capacity. Then consumes {@param unitsToConsume}.
+     * an appropriate amount of capacity. Then consumes {@param unitsToConsume}, capped at the remaining
+     * capacity without an error.
      */
     public void useCapacity(@NonNull final Instant now, final long unitsToConsume) {
         final var elapsedNanos = nanosBetween(lastDecisionTime, now);
         if (elapsedNanos < 0L) {
-            throw new IllegalArgumentException("Throttle timeline must advance, but " + now + " is not after " + now);
+            throw new IllegalArgumentException(
+                    "Throttle timeline must advance, but " + now + " is not after " + lastDecisionTime);
         }
         lastDecisionTime = now;
 
@@ -110,7 +113,9 @@ public class OpsDurationDeterministicThrottle implements CongestibleThrottle {
                 : Instant.ofEpochSecond(
                         usageSnapshot.lastDecisionTime().seconds(),
                         usageSnapshot.lastDecisionTime().nanos());
-        bucket.resetUsed(usageSnapshot.used());
+        // Clamp so a snapshot taken when the bucket could overfill (or under a larger
+        // configured capacity) cannot fail to restore.
+        bucket.resetUsed(Math.clamp(usageSnapshot.used(), 0L, bucket.brimfulCapacity()));
     }
 
     private long effectiveLeak(final long elapsedNanos) {
