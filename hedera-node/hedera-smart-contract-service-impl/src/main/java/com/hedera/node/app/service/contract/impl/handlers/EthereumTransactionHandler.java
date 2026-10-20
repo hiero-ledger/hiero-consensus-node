@@ -9,6 +9,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SOLIDITY_ADDRESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 import static com.hedera.hapi.util.HapiUtils.isHollow;
 import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.getTransactionType;
 import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.populateEthTxData;
@@ -34,6 +35,7 @@ import com.hedera.node.app.hapi.utils.ethereum.EthTxSigs;
 import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
 import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculator;
+import com.hedera.node.app.service.contract.impl.hevm.HydratedEthTxData;
 import com.hedera.node.app.service.contract.impl.infra.EthTxSigsCache;
 import com.hedera.node.app.service.contract.impl.infra.EthereumCallDataHydration;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
@@ -51,6 +53,7 @@ import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -97,7 +100,13 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
         final var config = context.configuration().getConfigData(HederaConfig.class);
         final var fileStore = context.createStore(ReadableFileStore.class);
         final var accountStore = context.createStore(ReadableAccountStore.class);
-        final var ethSigs = computeEthTxSigsFor(context.body().ethereumTransactionOrThrow(), fileStore, config);
+        final var op = context.body().ethereumTransactionOrThrow();
+        // Hydrate once and retain the payload so the callData size ceiling and EIP-7623 gas floor can be
+        // enforced here on the hydrated callData for a file-referenced transaction, before signature
+        // recovery, rather than only during execution.
+        final var hydratedTx = hydratedTxDataFor(op, fileStore, config);
+        validateHydratedCallData(hydratedTx, context.configuration());
+        final var ethSigs = sigsFrom(hydratedTx.ethTxDataOrThrow());
         final var account = accountStore.getAliasedAccountById(AccountID.newBuilder()
                 .shardNum(config.shard())
                 .realmNum(config.realm())
@@ -111,7 +120,35 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
             validateTruePreCheck(adminKeyMatchesEcdsaPubKey(adminKey, ethSigs.publicKey()), INVALID_SIGNATURE);
         }
         // Also validate the transaction type
-        validateTransactionType(context.body().ethereumTransactionOrThrow(), context.configuration());
+        validateTransactionType(op, context.configuration());
+    }
+
+    /**
+     * When {@code jumboTransactions.chargeHydratedCallDataSize} is enabled, enforces the callData size
+     * ceiling and the EIP-7623 minimum-gas floor on the fully hydrated callData at pre-handle, but only for
+     * a file-referenced transaction. For such a transaction {@link #pureChecks} sees only empty inline
+     * callData, so otherwise these limits are first enforced during execution
+     * ({@code ContextTransactionProcessor.validatePayloadLength} and {@code CustomGasCharging}); enforcing
+     * them here rejects an oversize or under-gas payload before the transaction reaches the handle path.
+     * Inline callData is left untouched — {@code pureChecks} and execution already cover it.
+     */
+    private void validateHydratedCallData(
+            @NonNull final HydratedEthTxData hydratedTx, @NonNull final Configuration configuration)
+            throws PreCheckException {
+        final var jumboConfig = configuration.getConfigData(JumboTransactionsConfig.class);
+        if (!jumboConfig.chargeHydratedCallDataSize() || !hydratedTx.hydratedFromFile()) {
+            return;
+        }
+        final var ethTxData = hydratedTx.ethTxDataOrThrow();
+        final byte[] callData = ethTxData.hasCallData() ? ethTxData.callData() : new byte[0];
+        validateTruePreCheck(callData.length <= jumboConfig.ethereumMaxCallDataSize(), TRANSACTION_OVERSIZE);
+        final var isContractCreate = !ethTxData.hasToAddress();
+        final var accessLists = parseAccessLists(ethTxData);
+        final List<CodeDelegation> codeDelegations =
+                ethTxData.type().equals(EthTransactionType.EIP7702) ? parseInnerCodeDelegations(ethTxData) : null;
+        final var gasRequirements = gasCalculator.transactionGasRequirements(
+                org.apache.tuweni.bytes.Bytes.wrap(callData), isContractCreate, accessLists, codeDelegations);
+        validateTruePreCheck(ethTxData.gasLimit() >= gasRequirements.minimumGasUsed(), INSUFFICIENT_GAS);
     }
 
     @Override
@@ -255,10 +292,21 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
             @NonNull final ReadableFileStore fileStore,
             @NonNull final HederaConfig hederaConfig)
             throws PreCheckException {
+        return sigsFrom(hydratedTxDataFor(op, fileStore, hederaConfig).ethTxDataOrThrow());
+    }
+
+    private HydratedEthTxData hydratedTxDataFor(
+            @NonNull final EthereumTransactionBody op,
+            @NonNull final ReadableFileStore fileStore,
+            @NonNull final HederaConfig hederaConfig)
+            throws PreCheckException {
         final var hydratedTx = callDataHydration.tryToHydrate(op, fileStore, hederaConfig.firstUserEntity());
         validateTruePreCheck(hydratedTx.status() == OK, hydratedTx.status());
-        final var ethTxData = hydratedTx.ethTxData();
-        validateTruePreCheck(ethTxData != null, INVALID_ETHEREUM_TRANSACTION);
+        validateTruePreCheck(hydratedTx.ethTxData() != null, INVALID_ETHEREUM_TRANSACTION);
+        return hydratedTx;
+    }
+
+    private EthTxSigs sigsFrom(@NonNull final EthTxData ethTxData) throws PreCheckException {
         try {
             return ethereumSignatures.computeIfAbsent(ethTxData);
         } catch (RuntimeException ignore) {

@@ -171,9 +171,14 @@ flowchart LR
   - **Frontend-only.** The bytes throttle is configured on the ingest accumulator; the backend
     handle path does not enforce an excess-bytes ceiling.
   - Enforced on excess bytes for configured functionalities.
+  - For a file-referenced `EthereumTransaction` (empty inline callData plus a callData `FileID`),
+    the decoded size of the referenced file counts toward the transaction's bytes, so a payload
+    delivered by file is metered like an equivalent inline payload.
   - Config in `JumboTransactionsConfig`:
     - `jumboTransactions.maxBytesPerSec`
     - `jumboTransactions.isEnabled`
+    - `jumboTransactions.chargeHydratedCallDataSize` (count file-referenced callData by its decoded
+      size, for both this throttle and the per-byte node fee)
 - Ops-duration throttle (contracts)
   - Enforced in contract execution path via `ThrottleAdviser`.
   - Config in `ContractsConfig`:
