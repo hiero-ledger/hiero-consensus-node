@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+import com.github.jengelman.gradle.plugins.shadow.transformers.Log4j2PluginsCacheFileTransformer
 import org.gradle.kotlin.dsl.get
 
 plugins {
@@ -16,16 +17,28 @@ mainModuleInfo {
 
 testModuleInfo {
     requires("com.fasterxml.jackson.databind")
+    requires("org.apache.commons.lang3")
     requires("org.assertj.core")
     requires("org.junit.jupiter.params")
     requires("org.junit.platform.launcher")
-    requires("org.apache.commons.lang3")
+
     opensTo("org.junit.platform.commons")
 }
 
 tasks.withType<JavaCompile>().configureEach { options.compilerArgs.add("-Xlint:-exports") }
 
 tasks.compileJava { dependsOn(":test-clients:assemble") }
+
+// besu-util ships its own Log4j2Plugins.dat; merge it with log4j-core's instead of letting
+// the duplicates strategy keep whichever jar comes first on the classpath.
+tasks.withType<ShadowJar>().configureEach {
+    // The convention plugin fails on unexpected duplicates; let both copies of the log4j
+    // plugin cache through so the transformer below can merge them into one.
+    filesMatching("META-INF/org/apache/logging/log4j/core/config/plugins/Log4j2Plugins.dat") {
+        duplicatesStrategy = DuplicatesStrategy.INCLUDE
+    }
+    transform(Log4j2PluginsCacheFileTransformer::class.java)
+}
 
 val yahCliJar =
     tasks.register<ShadowJar>("yahCliJar") {
