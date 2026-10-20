@@ -1534,6 +1534,43 @@ public class ThrottleAccumulatorTest {
 
     @ParameterizedTest
     @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
+    void jumboBytesThrottleIsChargedTheRetainedWireSize(ThrottleAccumulator.ThrottleType throttleType) {
+        // given
+        subject = new ThrottleAccumulator(
+                () -> CAPACITY_SPLIT,
+                configProvider::getConfiguration,
+                throttleType,
+                throttleMetrics,
+                gasThrottle,
+                bytesThrottle,
+                opsDurationThrottle);
+        given(configProvider.getConfiguration()).willReturn(configuration);
+        given(configuration.getConfigData(HederaConfig.class)).willReturn(hederaConfig);
+        given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
+        given(accountsConfig.lastThrottleExempt()).willReturn(100L);
+        given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
+        given(contractsConfig.throttleThrottleByGas()).willReturn(false);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(true);
+        given(jumboTransactionsConfig.allowedHederaFunctionalities()).willReturn(Set.of(fromPbj(ETHEREUM_TRANSACTION)));
+
+        given(transactionInfo.payerID())
+                .willReturn(AccountID.newBuilder().accountNum(1234L).build());
+        given(transactionInfo.functionality()).willReturn(ETHEREUM_TRANSACTION);
+
+        // A transaction that retained ~130 KB on the wire, however small its parsed form may measure
+        final int retainedBytes = 130 * 1024;
+        final long expectedExcess = retainedBytes - hederaConfig.transactionMaxBytes();
+        given(transactionInfo.wireSize()).willReturn(retainedBytes);
+        given(bytesThrottle.allow(TIME_INSTANT, expectedExcess)).willReturn(false);
+
+        // when / then
+        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null, false));
+        verify(bytesThrottle).allow(TIME_INSTANT, expectedExcess);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
     void managerRejectsEthereumTransactionWithMissingCryptoCreateThrottle(ThrottleAccumulator.ThrottleType throttleType)
             throws IOException, ParseException {
         // given

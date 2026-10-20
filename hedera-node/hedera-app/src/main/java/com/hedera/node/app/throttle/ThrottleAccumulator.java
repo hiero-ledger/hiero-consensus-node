@@ -608,7 +608,7 @@ public class ThrottleAccumulator {
         if (isJumboTransactionsEnabled) {
             final var jumboConfig = configuration.getConfigData(JumboTransactionsConfig.class);
             if (jumboConfig.allowedHederaFunctionalities().contains(fromPbj(txnInfo.functionality()))) {
-                long bytesUsage = txnInfo.signedTx().protobufSize();
+                long bytesUsage = txnInfo.wireSize();
                 // Count the decoded size of file-referenced callData so a file-delivered payload is metered
                 // by size like an inline one, rather than only by its (small) on-wire size.
                 if (jumboConfig.chargeHydratedCallDataSize()) {
