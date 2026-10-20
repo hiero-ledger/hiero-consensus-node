@@ -42,11 +42,15 @@ import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import java.util.Set;
+import java.util.function.UnaryOperator;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -199,6 +203,51 @@ class PreHandleContextImplTest implements Scenarios {
 
             verify(account).receiverSigRequired();
             verifyNoMoreInteractions(account);
+        }
+
+        @ParameterizedTest
+        @MethodSource("degenerateKeys")
+        void requireKeyIfReceiverSigRequiredForAccountIDThrowsForDegenerateKey(final Key degenerateKey) {
+            final var accountId = AccountID.newBuilder().accountNum(1234L).build();
+            final var account = mock(Account.class);
+            final var accountsConfig = mock(AccountsConfig.class);
+            given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
+            given(accountsConfig.stakingRewardAccount()).willReturn(800L);
+            given(accountsConfig.nodeRewardAccount()).willReturn(801L);
+            given(accountStore.getAccountById(accountId)).willReturn(account);
+            given(account.receiverSigRequired()).willReturn(true);
+            given(account.accountIdOrThrow()).willReturn(accountId);
+            given(account.keyOrElse(any())).willReturn(degenerateKey);
+            given(account.key()).willReturn(degenerateKey);
+
+            // A key that cannot be satisfied must not be silently dropped by requireKey(), leaving the
+            // receiverSigRequired flag unenforced
+            assertThatThrownBy(() -> subject.requireKeyIfReceiverSigRequired(accountId, INVALID_ACCOUNT_ID))
+                    .isInstanceOf(PreCheckException.class)
+                    .has(responseCode(INVALID_ACCOUNT_ID));
+            assertThat(subject.requiredNonPayerKeys()).isEmpty();
+        }
+
+        static Stream<Key> degenerateKeys() {
+            final var goodEd25519 =
+                    Key.newBuilder().ed25519(Bytes.wrap(new byte[32])).build();
+            final var emptyKeyList = Key.newBuilder().keyList(KeyList.DEFAULT).build();
+            return Stream.of(
+                    emptyKeyList,
+                    Key.newBuilder()
+                            .keyList(KeyList.newBuilder().keys(emptyKeyList).build())
+                            .build(),
+                    Key.newBuilder()
+                            .keyList(KeyList.newBuilder()
+                                    .keys(emptyKeyList, goodEd25519)
+                                    .build())
+                            .build(),
+                    Key.newBuilder()
+                            .thresholdKey(ThresholdKey.newBuilder()
+                                    .threshold(0)
+                                    .keys(KeyList.newBuilder().keys(goodEd25519).build()))
+                            .build(),
+                    Key.newBuilder().ed25519(Bytes.wrap(new byte[5])).build());
         }
 
         @Test
@@ -477,5 +526,55 @@ class PreHandleContextImplTest implements Scenarios {
         given(account.keyOrThrow()).willReturn(key);
         return new PreHandleContextImpl(
                 storeFactory, createAccountTransaction(), configuration, dispatcher, transactionChecker, creatorInfo);
+    }
+
+    @Nested
+    @DisplayName("requireKeyOrThrow with a finisher")
+    class RequireKeyOrThrowWithFinisherTests {
+
+        private static final AccountID TARGET =
+                AccountID.newBuilder().accountNum(456L).build();
+        private static final Key VALID_STATE_KEY = Key.newBuilder()
+                .ed25519(Bytes.wrap("12345678901234567890123456789012"))
+                .build();
+
+        @BeforeEach
+        void setup() {
+            final var accountsConfig = mock(AccountsConfig.class);
+            given(accountStore.getAccountById(TARGET)).willReturn(account);
+            given(account.deleted()).willReturn(false);
+            given(account.accountIdOrThrow()).willReturn(TARGET);
+            given(account.keyOrThrow()).willReturn(VALID_STATE_KEY);
+            given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
+            given(accountsConfig.stakingRewardAccount()).willReturn(789L);
+            given(accountsConfig.nodeRewardAccount()).willReturn(987L);
+        }
+
+        @Test
+        @DisplayName("throws the caller's status when the finisher yields a structurally invalid key")
+        void finisherProducingInvalidKeyFailsClosed() {
+            final UnaryOperator<Key> finisher =
+                    ignore -> Key.newBuilder().keyList(KeyList.DEFAULT).build();
+
+            assertThatThrownBy(() -> subject.requireKeyOrThrow(TARGET, finisher, UNRESOLVABLE_REQUIRED_SIGNERS))
+                    .isInstanceOf(PreCheckException.class)
+                    .has(responseCode(UNRESOLVABLE_REQUIRED_SIGNERS));
+            assertThat(subject.requiredNonPayerKeys()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("adds the transformed key when the finisher yields a valid key")
+        void finisherProducingValidKeyIsRequired() throws PreCheckException {
+            final var transformedKey = Key.newBuilder()
+                    .thresholdKey(ThresholdKey.newBuilder()
+                            .threshold(1)
+                            .keys(KeyList.newBuilder().keys(VALID_STATE_KEY)))
+                    .build();
+            final UnaryOperator<Key> finisher = ignore -> transformedKey;
+
+            subject.requireKeyOrThrow(TARGET, finisher, UNRESOLVABLE_REQUIRED_SIGNERS);
+
+            assertThat(subject.requiredNonPayerKeys()).containsExactly(transformedKey);
+        }
     }
 }
