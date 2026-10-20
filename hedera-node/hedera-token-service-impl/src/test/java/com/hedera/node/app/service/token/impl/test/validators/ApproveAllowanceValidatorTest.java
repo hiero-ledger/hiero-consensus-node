@@ -3,6 +3,8 @@ package com.hedera.node.app.service.token.impl.test.validators;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.*;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.CHILD;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -22,14 +24,23 @@ import com.hedera.node.app.service.token.impl.test.handlers.util.CryptoTokenHand
 import com.hedera.node.app.service.token.impl.validators.ApproveAllowanceValidator;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory;
 import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
 
 class ApproveAllowanceValidatorTest extends CryptoTokenHandlerTestBase {
+    private static final AccountID UNKNOWN_ALIAS = AccountID.newBuilder()
+            .alias(Bytes.fromHex("c0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3"))
+            .build();
+
     private ApproveAllowanceValidator subject;
 
     @Mock(strictness = LENIENT)
@@ -38,11 +49,20 @@ class ApproveAllowanceValidatorTest extends CryptoTokenHandlerTestBase {
     @Mock(strictness = LENIENT)
     private ExpiryValidator expiryValidator;
 
+    @Mock(strictness = LENIENT)
+    private HandleContext.SavepointStack stack;
+
+    @Mock(strictness = LENIENT)
+    private StreamBuilder streamBuilder;
+
     @BeforeEach
     public void setUp() {
         super.setUp();
         givenStoresAndConfig(handleContext);
         givenExpiryValidator(handleContext, expiryValidator);
+        given(handleContext.savepointStack()).willReturn(stack);
+        given(stack.getBaseBuilder(StreamBuilder.class)).willReturn(streamBuilder);
+        given(streamBuilder.category()).willReturn(USER);
 
         subject = new ApproveAllowanceValidator();
     }
@@ -448,6 +468,105 @@ class ApproveAllowanceValidatorTest extends CryptoTokenHandlerTestBase {
                 List.of(tokenAllowance),
                 List.of(nftAllowance.copyBuilder().owner(AccountID.DEFAULT).build()));
         assertThatNoException().isThrownBy(() -> subject.validate(handleContext, account, readableAccountStore));
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = TransactionCategory.class, names = "CHILD", mode = EnumSource.Mode.EXCLUDE)
+    void hapiAuthoredHbarRevocationCannotNameSpenderByAlias(final TransactionCategory category) {
+        given(streamBuilder.category()).willReturn(category);
+        givenApproveAllowanceTxn(
+                payerId,
+                false,
+                List.of(cryptoAllowance.copyBuilder().spender(alias).amount(0).build()),
+                List.of(),
+                List.of());
+
+        assertThatThrownBy(() -> subject.validateSpendersNamedByNumber(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(INVALID_ALLOWANCE_SPENDER_ID));
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = TransactionCategory.class, names = "CHILD", mode = EnumSource.Mode.EXCLUDE)
+    void hapiAuthoredFungibleRevocationCannotNameSpenderByAlias(final TransactionCategory category) {
+        given(streamBuilder.category()).willReturn(category);
+        givenApproveAllowanceTxn(
+                payerId,
+                false,
+                List.of(),
+                List.of(tokenAllowance.copyBuilder().spender(alias).amount(0).build()),
+                List.of());
+
+        assertThatThrownBy(() -> subject.validateSpendersNamedByNumber(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(INVALID_ALLOWANCE_SPENDER_ID));
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = TransactionCategory.class, names = "CHILD", mode = EnumSource.Mode.EXCLUDE)
+    void hapiAuthoredApproveForAllRevocationCannotNameSpenderByAlias(final TransactionCategory category) {
+        given(streamBuilder.category()).willReturn(category);
+        givenApproveAllowanceTxn(
+                payerId,
+                false,
+                List.of(),
+                List.of(),
+                List.of(nftAllowance
+                        .copyBuilder()
+                        .spender(alias)
+                        .approvedForAll(Boolean.FALSE)
+                        .serialNumbers(List.of())
+                        .build()));
+
+        assertThatThrownBy(() -> subject.validateSpendersNamedByNumber(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(INVALID_ALLOWANCE_SPENDER_ID));
+    }
+
+    @Test
+    void contractDispatchedRevocationsForUnknownAliasPass() {
+        given(streamBuilder.category()).willReturn(CHILD);
+        givenApproveAllowanceTxn(
+                payerId,
+                false,
+                List.of(cryptoAllowance
+                        .copyBuilder()
+                        .spender(UNKNOWN_ALIAS)
+                        .amount(0)
+                        .build()),
+                List.of(tokenAllowance
+                        .copyBuilder()
+                        .spender(UNKNOWN_ALIAS)
+                        .amount(0)
+                        .build()),
+                List.of(nftAllowance
+                        .copyBuilder()
+                        .spender(UNKNOWN_ALIAS)
+                        .approvedForAll(Boolean.FALSE)
+                        .serialNumbers(List.of())
+                        .build()));
+
+        assertThatNoException().isThrownBy(() -> subject.validate(handleContext, account, readableAccountStore));
+        assertThatNoException().isThrownBy(() -> subject.validateSpendersNamedByNumber(handleContext));
+    }
+
+    @Test
+    void hapiRevocationNamingMissingSpenderByNumberPasses() {
+        final var missingSpender = idFactory.newAccountId(999_999L);
+        assertThat(readableAccountStore.getAccountById(missingSpender)).isNull();
+        givenApproveAllowanceTxn(
+                payerId,
+                false,
+                List.of(cryptoAllowance
+                        .copyBuilder()
+                        .spender(missingSpender)
+                        .amount(0)
+                        .build()),
+                List.of(),
+                List.of());
+
+        assertThatNoException().isThrownBy(() -> subject.validate(handleContext, account, readableAccountStore));
+        assertThatNoException().isThrownBy(() -> subject.validateSpendersNamedByNumber(handleContext));
     }
 
     private TransactionBody givenApproveAllowanceTxn(
