@@ -260,6 +260,9 @@ public class FinalizeRecordHandler extends RecordFinalizerBase {
             @NonNull final Map<TokenID, List<NftTransfer>> nftTransfers,
             @NonNull final Map<AccountID, Long> hbarChanges) {
         final Map<NftID, AccountID> childFinalNftOwners = new HashMap<>();
+        // Where the child records leave each serial once treasury changes are applied, and who they first moved it from
+        final Map<NftID, AccountID> childNftOwnersAfterTreasuryChanges = new HashMap<>();
+        final Map<NftID, AccountID> childFirstNftSenders = new HashMap<>();
         context.forEachChildRecord(ChildStreamBuilder.class, childRecord -> {
             final List<AccountAmount> childHbarChangesFromRecord = childRecord.transferList() == null
                     ? emptyList()
@@ -299,6 +302,19 @@ public class FinalizeRecordHandler extends RecordFinalizerBase {
                     for (final var ownershipChange : tokenTransfers.nftTransfers()) {
                         final var newOwnerId = ownershipChange.receiverAccountIDOrElse(ZERO_ACCOUNT_ID);
                         final var key = new NftID(tokenId, ownershipChange.serialNumber());
+                        if (ownershipChange.serialNumber() == -1) {
+                            // A serial a child sent to the old treasury has no owner, so it follows the treasury to
+                            // the new one (an account that owns serials cannot become an NFT treasury)
+                            final var oldTreasuryId = ownershipChange.senderAccountIDOrElse(ZERO_ACCOUNT_ID);
+                            childNftOwnersAfterTreasuryChanges.replaceAll(
+                                    (nftId, ownerId) -> tokenId.equals(nftId.tokenId()) && oldTreasuryId.equals(ownerId)
+                                            ? newOwnerId
+                                            : ownerId);
+                        } else {
+                            childFirstNftSenders.putIfAbsent(
+                                    key, ownershipChange.senderAccountIDOrElse(ZERO_ACCOUNT_ID));
+                            childNftOwnersAfterTreasuryChanges.put(key, newOwnerId);
+                        }
                         childFinalNftOwners.put(key, newOwnerId);
                     }
                 }
@@ -316,7 +332,9 @@ public class FinalizeRecordHandler extends RecordFinalizerBase {
                     // Remove this NFT transfer from our list if the child record's
                     // transfer list already shows it being transferred to the same
                     // final owner as in our list
-                    return childFinalOwner.equals(ourFinalOwner);
+                    return childFinalOwner.equals(ourFinalOwner)
+                            || (ourFinalOwner.equals(childNftOwnersAfterTreasuryChanges.get(key))
+                                    && transfer.senderAccountIDOrThrow().equals(childFirstNftSenders.get(key)));
                 }
                 return false;
             });
