@@ -137,6 +137,18 @@ class AttributeValidatorImplTest {
                 .has(responseCode(BAD_ENCODING));
     }
 
+    @Test
+    void thresholdKeyWithoutInnerKeyListIsRejected() {
+        // A ThresholdKey with no inner KeyList: the depth check passes it through and isValid() rejects it as
+        // BAD_ENCODING. Previously the depth walk hit keyListOrThrow() on it and threw an unchecked exception.
+        final var thresholdWithoutKeys = Key.newBuilder()
+                .thresholdKey(ThresholdKey.newBuilder().threshold(1).build())
+                .build();
+        assertThatThrownBy(() -> subject.validateKey(thresholdWithoutKeys))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(BAD_ENCODING));
+    }
+
     private static Key.Builder nestKeys(final Key.Builder builder, final int additionalLevels) {
         if (additionalLevels == 0) {
             builder.ed25519(Bytes.wrap(MOCK_ED25519_KEY));

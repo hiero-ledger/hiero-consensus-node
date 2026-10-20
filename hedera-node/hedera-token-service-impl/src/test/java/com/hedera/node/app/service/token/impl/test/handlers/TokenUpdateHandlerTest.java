@@ -34,7 +34,9 @@ import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.
 import static com.hedera.node.app.service.token.impl.handlers.BaseTokenHandler.asToken;
 import static com.hedera.node.app.service.token.impl.test.handlers.util.CryptoHandlerTestBase.A_KEY_LIST;
 import static com.hedera.node.app.service.token.impl.test.handlers.util.CryptoHandlerTestBase.B_COMPLEX_KEY;
+import static com.hedera.node.app.spi.fixtures.NestedKeys.nestedKeyList;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
+import static com.hedera.node.app.spi.validation.AttributeValidator.MAX_NESTED_KEY_LEVELS;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
@@ -247,6 +249,17 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
     @Test
     void failsForInvalidMetaDataKey() {
         txn = new TokenUpdateBuilder().withMetadataKey(Key.DEFAULT).build();
+        given(pureChecksContext.body()).willReturn(txn);
+        assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
+                .isInstanceOf(PreCheckException.class)
+                .has(responseCode(INVALID_METADATA_KEY));
+    }
+
+    @Test
+    void failsForOverlyNestedMetadataKey() {
+        txn = new TokenUpdateBuilder()
+                .withMetadataKey(nestedKeyList(MAX_NESTED_KEY_LEVELS))
+                .build();
         given(pureChecksContext.body()).willReturn(txn);
         assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
                 .isInstanceOf(PreCheckException.class)

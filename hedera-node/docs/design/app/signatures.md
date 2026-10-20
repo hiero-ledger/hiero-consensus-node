@@ -6,8 +6,9 @@ cryptographic key. Hedera supports ED25519 and ECDSA(secp256k1) cryptographic ke
 compound keys, known as _multi-sig_. Multi-sig keys are a collection of keys that are required to sign a
 transaction. Hedera supports both the `KeyList` and `ThresholdKey` multi-sig key types. A `KeyList` is a collection of
 keys, all of which must sign to "activate" the key. A `ThresholdKey` is a collection of keys, a minimum number of which
-must sign to "activate" the key. Both `KeyList` and  `ThresholdKey` can be nested, allowing for arbitrarily complex
-multi-sig schemes.
+must sign to "activate" the key. Both `KeyList` and `ThresholdKey` can be nested, allowing for complex multi-sig
+schemes — though a key may nest no more than 15 levels deep (`AttributeValidator.MAX_NESTED_KEY_LEVELS`), and one that
+nests past the network's `hedera.transaction.maxProtoMessageDepth` is rejected at ingest.
 
 When transactions are sent to the network, they contain the signatures, and they contain the signed bytes. But that
 alone is not sufficient information to know which signature applies to which key. For this reason, the transaction
