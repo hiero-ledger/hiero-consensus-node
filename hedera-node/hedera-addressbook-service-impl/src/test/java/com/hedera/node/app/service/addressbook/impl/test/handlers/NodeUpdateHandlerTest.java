@@ -13,6 +13,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.UPDATE_NODE_ACCOUNT_NOT
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_LABEL;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
+import static com.hedera.node.app.spi.fixtures.NestedKeys.nestedKeyList;
+import static com.hedera.node.app.spi.validation.AttributeValidator.MAX_NESTED_KEY_LEVELS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -152,6 +154,19 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
                 .withNodeId(1)
                 .withAccountId(accountId)
                 .withAdminKey(invalidKey)
+                .build();
+        given(pureChecksContext.body()).willReturn(txn);
+        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+        assertThat(msg.responseCode()).isEqualTo(INVALID_ADMIN_KEY);
+    }
+
+    @Test
+    @DisplayName("invalid adminKey fail when nested beyond the depth cap")
+    void adminKeyOverlyNested() {
+        txn = new NodeUpdateBuilder()
+                .withNodeId(1)
+                .withAccountId(accountId)
+                .withAdminKey(nestedKeyList(MAX_NESTED_KEY_LEVELS))
                 .build();
         given(pureChecksContext.body()).willReturn(txn);
         final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));

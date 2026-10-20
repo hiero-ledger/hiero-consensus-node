@@ -35,6 +35,12 @@ public record HederaConfig(
         @ConfigProperty(value = "transaction.maxBytes", defaultValue = "6144") @NetworkProperty
         int transactionMaxBytes,
 
+        // Max protobuf message-nesting depth accepted when strictly parsing a transaction at ingest (guards against
+        // deeply nested keys that stricter downstream parsers reject); over-depth is rejected as
+        // TRANSACTION_TOO_MANY_LAYERS
+        @ConfigProperty(value = "transaction.maxProtoMessageDepth", defaultValue = "50") @NetworkProperty
+        int transactionMaxProtoMessageDepth,
+
         @ConfigProperty(value = "transaction.maxMemoUtf8Bytes", defaultValue = "100") @NetworkProperty
         int transactionMaxMemoUtf8Bytes,
 
