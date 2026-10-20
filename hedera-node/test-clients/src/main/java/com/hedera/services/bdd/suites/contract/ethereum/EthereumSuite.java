@@ -50,7 +50,9 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createLargeFile;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordedChildBodyWithId;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.inventory.SpecKeyFromEcdsaFile.createAndLinkEcdsaKey;
 import static com.hedera.services.bdd.spec.utilops.inventory.SpecKeyFromEcdsaFile.ecdsaFrom;
@@ -87,12 +89,14 @@ import static com.hedera.services.bdd.suites.token.TokenAssociationSpecs.MULTI_K
 import static com.hedera.services.bdd.suites.token.TokenAssociationSpecs.VANILLA_TOKEN;
 import static com.hedera.services.bdd.suites.token.TokenTransactSpecs.SUPPLY_KEY;
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.HTSPrecompileResult.htsPrecompileResult;
+import static com.hederahashgraph.api.proto.java.ContractCreateTransactionBody.InitcodeSourceCase.INITCODESOURCE_NOT_SET;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_SIZE_LIMIT_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FILE_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_GAS_LIMIT_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -104,6 +108,7 @@ import static org.hyperledger.besu.datatypes.Address.contractAddress;
 import static org.hyperledger.besu.datatypes.Address.fromHexString;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.esaulpaugh.headlong.rlp.RLPEncoder;
@@ -122,9 +127,11 @@ import com.hedera.services.bdd.spec.keys.SigControl;
 import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
+import com.hedera.services.bdd.spec.utilops.mod.BodyMutation;
 import com.hedera.services.bdd.suites.contract.Utils;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ContractID;
+import com.hederahashgraph.api.proto.java.FileID;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
@@ -134,6 +141,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.math.BigInteger;
 import java.nio.file.Files;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HexFormat;
@@ -157,6 +165,7 @@ public class EthereumSuite {
     public static final String ERC20_CONTRACT = "ERC20Contract";
     public static final String EMIT_SENDER_ORIGIN_CONTRACT = "EmitSenderOrigin";
     private static final long DEPOSIT_AMOUNT = 20_000L;
+    private static final long UNUSED_CALL_DATA_FILE_NUM = 1234L;
     private static final long ETH_TXN_FAILURE_FEE = 83_333L;
     private static final long GAS_PRICE = 71;
     private static final String PARTY = "party";
@@ -477,6 +486,142 @@ public class EthereumSuite {
                         .gasLimit(1_000_000L)
                         .hasPrecheck(INVALID_ETHEREUM_TRANSACTION)
                         .via(PAY_TXN));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> ethereumCreateRejectsMalformedCallDataFileId() {
+        return hapiTest(
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
+                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
+                uploadInitCode(TOKEN_CREATE_CONTRACT),
+                // This initcode is above the inline limit, so it is sent through a file and the payload carries
+                // no call data of its own
+                ethereumContractCreate(TOKEN_CREATE_CONTRACT)
+                        .type(EthTxData.EthTransactionType.EIP1559)
+                        .signingWith(SECP_256K1_SOURCE_KEY)
+                        .payingWith(RELAYER)
+                        .nonce(0)
+                        .gasPrice(10L)
+                        .maxGasAllowance(ONE_HUNDRED_HBARS)
+                        .gasLimit(1_000_000L)
+                        .withBodyMutation(withCallDataFileNum(-1L))
+                        .hasPrecheckFrom(INVALID_FILE_ID));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> ethereumCallRejectsMalformedCallDataFileId() {
+        return hapiTest(
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
+                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
+                uploadInitCode(PAY_RECEIVABLE_CONTRACT),
+                contractCreate(PAY_RECEIVABLE_CONTRACT).adminKey(THRESHOLD),
+                ethereumCall(PAY_RECEIVABLE_CONTRACT, "getBalance")
+                        .type(EthTxData.EthTransactionType.EIP1559)
+                        .signingWith(SECP_256K1_SOURCE_KEY)
+                        .payingWith(RELAYER)
+                        .nonce(0)
+                        .gasPrice(10L)
+                        .gasLimit(1_000_000L)
+                        // Moves the call data to a file, leaving the payload without call data of its own
+                        .createCallDataFile()
+                        .withBodyMutation(withCallDataFileNum(-1L))
+                        .hasPrecheckFrom(INVALID_FILE_ID));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> ethereumCreateRejectsCallDataFileIdWithInlineInitcode() {
+        return hapiTest(
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
+                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
+                ethereumContractCreate(PAY_RECEIVABLE_CONTRACT)
+                        .type(EthTxData.EthTransactionType.EIP1559)
+                        .signingWith(SECP_256K1_SOURCE_KEY)
+                        .payingWith(RELAYER)
+                        .nonce(0)
+                        .gasPrice(10L)
+                        .maxGasAllowance(ONE_HUNDRED_HBARS)
+                        .gasLimit(1_000_000L)
+                        .withBodyMutation(withCallDataFileNum(UNUSED_CALL_DATA_FILE_NUM))
+                        .hasPrecheckFrom(INVALID_ETHEREUM_TRANSACTION));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> ethereumCallRejectsCallDataFileIdWithInlineCallData() {
+        return hapiTest(
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
+                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
+                uploadInitCode(PAY_RECEIVABLE_CONTRACT),
+                contractCreate(PAY_RECEIVABLE_CONTRACT).adminKey(THRESHOLD),
+                ethereumCall(PAY_RECEIVABLE_CONTRACT, "getBalance")
+                        .type(EthTxData.EthTransactionType.EIP1559)
+                        .signingWith(SECP_256K1_SOURCE_KEY)
+                        .payingWith(RELAYER)
+                        .nonce(0)
+                        .gasPrice(10L)
+                        .gasLimit(1_000_000L)
+                        // Inline call data is rejected before the (malformed) file id is validated
+                        .withBodyMutation(withCallDataFileNum(-1L))
+                        .hasPrecheckFrom(INVALID_ETHEREUM_TRANSACTION));
+    }
+
+    // A create with inline initcode externalizes a child ContractCreate without an initcode source of its own
+    @HapiTest
+    final Stream<DynamicTest> ethereumCreateWithInlineInitcodeRecordsChildCreateWithoutInitcodeSource() {
+        final var ethCreateTxn = "ethCreateWithInlineInitcode";
+        return hapiTest(
+                streamMustIncludePassFrom(
+                        recordedChildBodyWithId(ethCreateTxn, 1, (spec, body) -> {
+                            assertTrue(body.hasContractCreateInstance());
+                            assertEquals(
+                                    INITCODESOURCE_NOT_SET,
+                                    body.getContractCreateInstance().getInitcodeSourceCase());
+                        }),
+                        Duration.ofSeconds(15)),
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
+                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
+                ethereumContractCreate(PAY_RECEIVABLE_CONTRACT)
+                        .type(EthTxData.EthTransactionType.EIP1559)
+                        .signingWith(SECP_256K1_SOURCE_KEY)
+                        .payingWith(RELAYER)
+                        .nonce(0)
+                        .gasPrice(10L)
+                        .maxGasAllowance(ONE_HUNDRED_HBARS)
+                        .gasLimit(1_000_000L)
+                        .via(ethCreateTxn)
+                        .hasKnownStatus(SUCCESS),
+                getTxnRecord(ethCreateTxn)
+                        .andAllChildRecords()
+                        .hasNonStakingChildRecordCount(1)
+                        .exposingAllTo(records -> {
+                            final var parent = records.getFirst();
+                            final var child = records.stream()
+                                    .skip(1)
+                                    .filter(r -> r.getReceipt().hasContractID())
+                                    .findFirst()
+                                    .orElseThrow(() -> new AssertionError("No child ContractCreate record"));
+                            assertEquals(SUCCESS, child.getReceipt().getStatus());
+                            assertEquals(
+                                    parent.getContractCreateResult().getContractID(),
+                                    child.getReceipt().getContractID());
+                            assertEquals(parent.getConsensusTimestamp(), child.getParentConsensusTimestamp());
+                        })
+                        .logged());
+    }
+
+    private static BodyMutation withCallDataFileNum(final long fileNum) {
+        return (builder, spec) -> {
+            builder.getEthereumTransactionBuilder()
+                    .setCallData(FileID.newBuilder()
+                            .setShardNum(spec.shard())
+                            .setRealmNum(spec.realm())
+                            .setFileNum(fileNum));
+            return builder;
+        };
     }
 
     @HapiTest

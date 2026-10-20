@@ -32,6 +32,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.ThresholdKey;
@@ -93,6 +94,8 @@ import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mock;
 import org.mockito.Mock.Strictness;
 import org.mockito.MockedStatic;
@@ -713,6 +716,59 @@ class EthereumTransactionHandlerTest {
         assertEquals(INVALID_ETHEREUM_TRANSACTION, exception.responseCode());
     }
 
+    @ParameterizedTest
+    @CsvSource({"-1, 0, 1234", "0, -1, 1234", "0, 0, -1"})
+    void validatePureChecksRejectsMalformedCallDataFileId(final long shard, final long realm, final long num) {
+        try (MockedStatic<EthTxData> ethTxData = Mockito.mockStatic(EthTxData.class)) {
+            ethTxData.when(() -> EthTxData.populateEthTxData(any())).thenReturn(ethTxDataReturned);
+            given(pureChecksContext.body())
+                    .willReturn(ethTxWithCallDataFileId(FileID.newBuilder()
+                            .shardNum(shard)
+                            .realmNum(realm)
+                            .fileNum(num)
+                            .build()));
+            given(ethTxDataReturned.hasCallData()).willReturn(false);
+            assertThrowsPreCheck(() -> subject.pureChecks(pureChecksContext), INVALID_FILE_ID);
+        }
+    }
+
+    // Inline call data is rejected before the referenced file id is validated
+    @ParameterizedTest
+    @CsvSource({"0, 0, 1234", "-1, 0, 1234", "0, -1, 1234", "0, 0, -1"})
+    void validatePureChecksRejectsCallDataFileIdWithInlineCallData(final long shard, final long realm, final long num) {
+        try (MockedStatic<EthTxData> ethTxData = Mockito.mockStatic(EthTxData.class)) {
+            ethTxData.when(() -> EthTxData.populateEthTxData(any())).thenReturn(ethTxDataReturned);
+            given(pureChecksContext.body())
+                    .willReturn(ethTxWithCallDataFileId(FileID.newBuilder()
+                            .shardNum(shard)
+                            .realmNum(realm)
+                            .fileNum(num)
+                            .build()));
+            given(ethTxDataReturned.hasCallData()).willReturn(true);
+            assertThrowsPreCheck(() -> subject.pureChecks(pureChecksContext), INVALID_ETHEREUM_TRANSACTION);
+        }
+    }
+
+    @Test
+    void validatePureChecksAcceptsWellFormedCallDataFileIdWithoutInlineCallData() {
+        try (MockedStatic<EthTxData> ethTxData = Mockito.mockStatic(EthTxData.class)) {
+            ethTxData.when(() -> EthTxData.populateEthTxData(any())).thenReturn(ethTxDataReturned);
+            given(pureChecksContext.body())
+                    .willReturn(ethTxWithCallDataFileId(
+                            FileID.newBuilder().fileNum(1234L).build()));
+            given(ethTxDataReturned.hasCallData()).willReturn(false);
+            given(ethTxDataReturned.value()).willReturn(BigInteger.ONE);
+            given(ethTxDataReturned.hasToAddress()).willReturn(true);
+            given(ethTxDataReturned.to()).willReturn(RECEIVER_ADDRESS.toByteArray());
+            given(ethTxDataReturned.type()).willReturn(EthTransactionType.EIP2930);
+            GasCharges gasCharges = TestHelpers.gasChargesFromIntrinsicGas(INTRINSIC_GAS_FOR_0_ARG_METHOD);
+            given(gasCalculator.transactionGasRequirements(any(), anyBoolean(), any(), any()))
+                    .willReturn(gasCharges);
+            given(ethTxDataReturned.gasLimit()).willReturn(INTRINSIC_GAS_FOR_0_ARG_METHOD);
+            assertDoesNotThrow(() -> subject.pureChecks(pureChecksContext));
+        }
+    }
+
     @Test
     void validatePureChecksHbarsToBurnAddress() {
         // check bad to evm address
@@ -909,6 +965,15 @@ class EthereumTransactionHandlerTest {
         return TransactionBody.newBuilder()
                 .ethereumTransaction(EthereumTransactionBody.newBuilder()
                         .ethereumData(Bytes.EMPTY)
+                        .build())
+                .build();
+    }
+
+    private TransactionBody ethTxWithCallDataFileId(final FileID callDataFileId) {
+        return TransactionBody.newBuilder()
+                .ethereumTransaction(EthereumTransactionBody.newBuilder()
+                        .ethereumData(Bytes.EMPTY)
+                        .callData(callDataFileId)
                         .build())
                 .build();
     }
