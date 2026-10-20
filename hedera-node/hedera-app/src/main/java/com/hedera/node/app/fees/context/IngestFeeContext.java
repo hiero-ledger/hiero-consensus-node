@@ -9,15 +9,19 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.FeeManager;
+import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
+import com.hedera.node.app.throttle.HydratedCallDataSize;
 import com.hedera.node.app.throttle.SynchronizedThrottleAccumulator;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.handle.DispatchHandleContext;
+import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -129,10 +133,19 @@ public class IngestFeeContext implements FeeContext {
     @Override
     public int numTxnBytes() {
         // serialized signed transaction is null for system transaction dispatches
-        return (int)
-                (txInfo.serializedSignedTx() != null
-                        ? txInfo.serializedSignedTx().length()
-                        : 0);
+        final long wireBytes = txInfo.serializedSignedTx() != null
+                ? txInfo.serializedSignedTx().length()
+                : 0;
+        // Meter file-referenced EthereumTransaction callData by its decoded (hydrated) size, so the per-byte
+        // node fee matches what an equivalent inline payload would incur (0 for every other transaction).
+        long extraCallDataBytes = 0;
+        if (configuration.getConfigData(JumboTransactionsConfig.class).chargeHydratedCallDataSize()) {
+            extraCallDataBytes = HydratedCallDataSize.fileReferencedCallDataBytes(
+                    txInfo.txBody(),
+                    storeFactory.readableStore(ReadableFileStore.class),
+                    configuration.getConfigData(HederaConfig.class).firstUserEntity());
+        }
+        return (int) (wireBytes + extraCallDataBytes);
     }
 
     @Override
