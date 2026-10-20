@@ -245,7 +245,8 @@ public class CryptoApproveAllowanceHandler implements TransactionHandler {
     /**
      * Applies all changes needed for Crypto allowances from the transaction.
      * If the spender already has an allowance, the allowance value will be replaced with values
-     * from transaction. If the amount specified is 0, the allowance will be removed.
+     * from transaction. If the amount specified is 0, the allowance will be removed. A spender
+     * named by alias is matched by the account the alias names.
      *
      * @param cryptoAllowances         the list of crypto allowances
      * @param payerId                  the payer account id
@@ -265,7 +266,7 @@ public class CryptoApproveAllowanceHandler implements TransactionHandler {
 
         for (final var allowance : cryptoAllowances) {
             final var owner = allowance.owner();
-            final var spender = allowance.spenderOrThrow();
+            final var spender = resolveSpenderId(allowance.spenderOrThrow(), accountStore);
             final var effectiveOwner = getEffectiveOwnerAccount(owner, payerId, accountStore, expiryValidator);
             final var mutableAllowances = new ArrayList<>(effectiveOwner.cryptoAllowances());
 
@@ -315,7 +316,7 @@ public class CryptoApproveAllowanceHandler implements TransactionHandler {
     /**
      * Applies all changes needed for fungible token allowances from the transaction. If the key
      * {token, spender} already has an allowance, the allowance value will be replaced with values
-     * from transaction.
+     * from transaction. A spender named by alias is matched by the account the alias names.
      * @param tokenAllowances          the list of token allowances
      * @param payerId                  the payer account id
      * @param accountStore             the account store
@@ -332,7 +333,7 @@ public class CryptoApproveAllowanceHandler implements TransactionHandler {
             final var owner = allowance.owner();
             final var amount = allowance.amount();
             final var tokenId = allowance.tokenIdOrThrow();
-            final var spender = allowance.spenderOrThrow();
+            final var spender = resolveSpenderId(allowance.spenderOrThrow(), accountStore);
 
             final var effectiveOwner = getEffectiveOwnerAccount(owner, payerId, accountStore, expiryValidator);
             final var mutableTokenAllowances = new ArrayList<>(effectiveOwner.tokenAllowances());
@@ -385,7 +386,8 @@ public class CryptoApproveAllowanceHandler implements TransactionHandler {
     /**
      * Applies all changes needed for NFT allowances from the transaction. If the key{tokenNum,
      * spenderNum} doesn't exist in the map the allowance will be inserted. If the key exists,
-     * existing allowance values will be replaced with new allowances given in operation
+     * existing allowance values will be replaced with new allowances given in operation. A spender
+     * named by alias is matched by the account the alias names.
      *
      * @param nftAllowances            the list of nft allowances
      * @param payerId                  the payer account id
@@ -406,7 +408,7 @@ public class CryptoApproveAllowanceHandler implements TransactionHandler {
         for (final var allowance : nftAllowances) {
             final var owner = allowance.owner();
             final var tokenId = allowance.tokenIdOrThrow();
-            final var spender = allowance.spenderOrThrow();
+            final var spender = resolveSpenderId(allowance.spenderOrThrow(), accountStore);
 
             final var effectiveOwner = getEffectiveOwnerAccount(owner, payerId, accountStore, expiryValidator);
             final var mutableNftAllowances = new ArrayList<>(effectiveOwner.approveForAllNftAllowances());
@@ -538,6 +540,25 @@ public class CryptoApproveAllowanceHandler implements TransactionHandler {
             // If owner is in modifications get the modified account from state
             return TokenHandlerHelper.getIfUsable(owner, accountStore, expiryValidator, INVALID_ALLOWANCE_OWNER_ID);
         }
+    }
+
+    /**
+     * Returns the spender id that the owner's allowances are keyed by. Allowances are stored under the spender's
+     * account number, so a spender named by alias is resolved to the account it names before it is matched against
+     * them. An alias that names no account is returned as is.
+     *
+     * @param spenderId    the spender given in the allowance
+     * @param accountStore the account store
+     * @return the account number of the account the spender alias names, if any; otherwise the given id
+     */
+    private static AccountID resolveSpenderId(
+            @NonNull final AccountID spenderId, @NonNull final ReadableAccountStore accountStore) {
+        if (!spenderId.hasAlias()) {
+            return spenderId;
+        }
+        final var accountId =
+                accountStore.getAccountIDByAlias(spenderId.shardNum(), spenderId.realmNum(), spenderId.aliasOrThrow());
+        return accountId != null ? accountId : spenderId;
     }
 
     /**
