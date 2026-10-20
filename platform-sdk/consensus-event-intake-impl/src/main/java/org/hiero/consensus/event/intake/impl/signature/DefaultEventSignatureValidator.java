@@ -45,6 +45,12 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
     private final SignatureVerifier signatureVerifier;
 
     /**
+     * If true, events read from storage with an empty signature are accepted without verification. Test-only; used to
+     * replay events reconstructed from the block stream.
+     */
+    private final boolean allowUnsignedPcesEvents;
+
+    /**
      * The complete roster history, i.e. all rosters for non-ancient rounds.
      */
     private RosterHistory rosterHistory;
@@ -85,7 +91,30 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
             @NonNull final SignatureVerifier signatureVerifier,
             @Nullable final RosterHistory rosterHistory,
             @NonNull final IntakeEventCounter intakeEventCounter) {
+        this(metrics, time, signatureVerifier, rosterHistory, intakeEventCounter, false);
+    }
 
+    /**
+     * Constructor
+     *
+     * @param metrics                 the metrics system
+     * @param time                    the time source
+     * @param signatureVerifier       a verifier for checking event signatures
+     * @param rosterHistory           the complete roster history
+     * @param intakeEventCounter      keeps track of the number of events in the intake pipeline from each peer
+     * @param allowUnsignedPcesEvents if true, events read from storage with an empty signature are accepted without
+     *                                verification (test-only; used to replay events reconstructed from the block
+     *                                stream)
+     */
+    public DefaultEventSignatureValidator(
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
+            @NonNull final SignatureVerifier signatureVerifier,
+            @Nullable final RosterHistory rosterHistory,
+            @NonNull final IntakeEventCounter intakeEventCounter,
+            final boolean allowUnsignedPcesEvents) {
+
+        this.allowUnsignedPcesEvents = allowUnsignedPcesEvents;
         this.signatureVerifier = Objects.requireNonNull(signatureVerifier);
         this.rosterHistory = Objects.requireNonNull(rosterHistory);
         this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);
@@ -163,6 +192,14 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
 
         if (event.getOrigin() == EventOrigin.RUNTIME) {
             // This is an event we just created and signed, there is no need to validate the signature
+            return event;
+        }
+
+        // Unsigned events reconstructed from the block stream have an empty signature. When allowUnsignedPcesEvents is
+        // enabled, accept them without verification: trust derives from the block proof, not the per-event signature.
+        if (allowUnsignedPcesEvents
+                && event.getOrigin() == EventOrigin.STORAGE
+                && event.getSignature().length() == 0) {
             return event;
         }
 

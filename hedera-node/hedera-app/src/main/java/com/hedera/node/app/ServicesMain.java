@@ -9,7 +9,6 @@ import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMet
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.initLogging;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupGlobalMetrics;
 import static com.swirlds.platform.config.internal.PlatformConfigUtils.checkConfiguration;
-import static com.swirlds.platform.crypto.CryptoStatic.initNodeSecurity;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static com.swirlds.platform.system.InitTrigger.RESTART;
@@ -79,7 +78,9 @@ import org.hiero.base.constructable.RuntimeConstructable;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.PathsConfig;
 import org.hiero.consensus.constructable.ConstructableRegistration;
+import org.hiero.consensus.fakes.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.io.RecycleBinImpl;
+import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.consensus.roster.RosterHistory;
@@ -223,7 +224,16 @@ public class ServicesMain {
             rosterHistory = rosterStore.getRosterHistory();
             rosterEntries = requireNonNull(rosterStore.getActiveRoster()).rosterEntries();
         }
-        final var keysAndCerts = initNodeSecurity(platformConfig, selfId, rosterEntries);
+        // VALIDATOR BRANCH ONLY: always use ephemeral keys, so a node can be started without on-disk key material
+        // (required for PCES replay of reconstructed events).
+        final KeysAndCerts keysAndCerts;
+        logger.info("Generating ephemeral keys for node {}", selfId);
+        try {
+            keysAndCerts =
+                    KeysAndCertsGenerator.generateKeysAndCerts(List.of(selfId)).get(selfId);
+        } catch (final Exception e) {
+            throw new RuntimeException("Failed to generate ephemeral keys", e);
+        }
 
         final String consensusEventStreamName = isGenesis
                 // If at genesis, base the event stream location on the genesis network metadata

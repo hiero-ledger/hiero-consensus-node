@@ -296,4 +296,50 @@ class EventSignatureValidatorTests {
         assertNotNull(validatorWithFalseVerifier.validateSignature(runtime), "Runtime events should be trusted");
         assertEquals(1, exitedIntakePipelineCount.get());
     }
+
+    private PlatformEvent buildUnsignedEvent(final EventOrigin origin) {
+        final PlatformEvent signed = new TestingEventBuilder(random)
+                .setCreatorId(CURRENT_ROSTER_NODE_ID)
+                .setBirthRound(CURRENT_ROSTER_ROUND)
+                .build();
+        final PlatformEvent unsigned = new PlatformEvent(
+                signed.getGossipEvent().copyBuilder().signature(Bytes.EMPTY).build(), origin);
+        unsigned.setHash(signed.getHash());
+        return unsigned;
+    }
+
+    @Test
+    @DisplayName("Unsigned storage events are accepted only when allowUnsignedPcesEvents is enabled")
+    void unsignedStorageEvent() {
+        final EventSignatureValidator allowUnsigned = new DefaultEventSignatureValidator(
+                metrics, time, falseVerifier, rosterHistory, intakeEventCounter, true);
+
+        assertNotNull(
+                allowUnsigned.validateSignature(buildUnsignedEvent(EventOrigin.STORAGE)),
+                "Unsigned storage events should be accepted without verification");
+        assertEquals(0, exitedIntakePipelineCount.get());
+
+        assertNull(
+                validatorWithFalseVerifier.validateSignature(buildUnsignedEvent(EventOrigin.STORAGE)),
+                "Unsigned storage events must be rejected by default");
+        assertEquals(1, exitedIntakePipelineCount.get());
+    }
+
+    @Test
+    @DisplayName("allowUnsignedPcesEvents does not bypass verification for gossip events or signed storage events")
+    void allowUnsignedOnlyAppliesToUnsignedStorageEvents() {
+        final EventSignatureValidator allowUnsigned = new DefaultEventSignatureValidator(
+                metrics, time, falseVerifier, rosterHistory, intakeEventCounter, true);
+
+        assertNull(allowUnsigned.validateSignature(buildUnsignedEvent(EventOrigin.GOSSIP)));
+        assertEquals(1, exitedIntakePipelineCount.get());
+
+        final PlatformEvent signedStorage = new TestingEventBuilder(random)
+                .setCreatorId(CURRENT_ROSTER_NODE_ID)
+                .setBirthRound(CURRENT_ROSTER_ROUND)
+                .setOrigin(EventOrigin.STORAGE)
+                .build();
+        assertNull(allowUnsigned.validateSignature(signedStorage));
+        assertEquals(2, exitedIntakePipelineCount.get());
+    }
 }

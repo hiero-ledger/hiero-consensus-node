@@ -719,12 +719,17 @@ java -jar ./validator-<version>.jar blocks-to-pces \
 loads a saved state snapshot, replays a PCES stream on top of it through the consensus
 node's **real** production replay mechanism, and writes the resulting state to disk.
 
-> **Important:** The `replay-pces` command requires a production platform code change from commit
-> [`140f94f`](https://github.com/hiero-ledger/hiero-consensus-node/commit/140f94fff19a3a6f809df339ed17349ef5ae3426)
-> to work properly. This commit introduces the `allowUnsignedPcesEvents` intake flag
-> which allows reconstructed (unsigned) PCES events produced by `blocks-to-pces` to pass the
-> intake signature validator. Without it, every replayed event is silently dropped at signature
-> validation and no rounds reach consensus
+> **Important:** The `replay-pces` command relies on test-only platform switches. This validator branch is a special
+> purpose build, so they default to enabled here (see also `forceIgnorePcesSignatures=true` and
+> `copyRecentStreamToStateSnapshots=false`, and the ephemeral keys generated in `ServicesMain`). They must never be
+> enabled in a production consensus node build. `replay-pces` also sets them explicitly:
+> - `event.preconsensus.intake.allowUnsignedPcesEvents` lets reconstructed (unsigned) PCES events produced by
+>   `blocks-to-pces` pass the intake signature validator. Without it, every replayed event is silently dropped at
+>   signature validation and no rounds reach consensus.
+> - `consensus.bypassFutureEventBufferDuringPcesReplay` makes the consensus engine skip the future event buffer while
+>   replaying, which would otherwise deadlock on reconstructed events.
+> - The `pces.replayDir` system property points the orphan buffer at the `stale-parents.txt` sidecar written by
+>   `blocks-to-pces` (parents that never reached consensus and are absent from the block stream).
 
 This command builds and starts a genuine `SwirldsPlatform` — the same one `ServicesMain`
 constructs — and drives the body of `SwirldsPlatform.start()` minus gossip. The production

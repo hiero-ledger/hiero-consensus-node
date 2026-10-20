@@ -17,6 +17,7 @@ import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.event.intake.config.EventIntakeWiringConfig;
+import org.hiero.consensus.event.intake.config.PcesReplayIntakeConfig;
 import org.hiero.consensus.event.validation.DefaultEventFieldValidator;
 import org.hiero.consensus.event.validation.EventFieldValidator;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
@@ -26,6 +27,7 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;
 import org.hiero.consensus.orphan.OrphanBuffer;
+import org.hiero.consensus.orphan.StaleParentSet;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.transaction.TransactionLimits;
 import org.hiero.consensus.wiring.framework.component.ComponentWiring;
@@ -136,6 +138,8 @@ public class ConcurrentEventIntakeModule implements EventIntakeModule {
         final EventHasher eventHasher = new DefaultEventHasher();
         final EventFieldValidator eventFieldValidator =
                 new DefaultEventFieldValidator(metrics, time, transactionLimits);
+        final boolean allowUnsigned =
+                configuration.getConfigData(PcesReplayIntakeConfig.class).allowUnsignedPcesEvents();
         final EventIntakeProcessor processor = new ConcurrentEventIntakeProcessor(
                 metrics,
                 time,
@@ -144,10 +148,12 @@ public class ConcurrentEventIntakeModule implements EventIntakeModule {
                 SigningFactory::createVerifier,
                 rosterHistory,
                 intakeEventCounter,
-                pipelineTracker);
+                pipelineTracker,
+                allowUnsigned);
         processorWiring.bind(processor);
 
-        final OrphanBuffer orphanBuffer = new DefaultOrphanBuffer(metrics, intakeEventCounter);
+        final OrphanBuffer orphanBuffer =
+                new DefaultOrphanBuffer(metrics, intakeEventCounter, StaleParentSet.loadForReplay());
         orphanBufferWiring.bind(orphanBuffer);
     }
 

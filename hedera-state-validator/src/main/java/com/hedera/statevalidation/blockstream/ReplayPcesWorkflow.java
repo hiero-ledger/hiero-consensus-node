@@ -45,6 +45,7 @@ import org.hiero.consensus.fakes.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.io.RecycleBinImpl;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.orphan.StaleParentSet;
 import org.hiero.consensus.pces.impl.common.PcesUtilities;
 import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.consensus.roster.ReadableRosterStoreImpl;
@@ -86,6 +87,9 @@ import org.hiero.consensus.state.snapshot.StateToDiskReason;
 public final class ReplayPcesWorkflow {
 
     private static final Logger log = LogManager.getLogger(ReplayPcesWorkflow.class);
+
+    /** Number of directory levels (YYYY/MM/DD) between the PCES root and the leaf holding the .pces files. */
+    private static final int PCES_LEAF_DEPTH = 3;
 
     private ReplayPcesWorkflow() {}
 
@@ -132,6 +136,16 @@ public final class ReplayPcesWorkflow {
         final ConsensusStateEventHandler consensusStateEventHandler = hedera.newConsensusStateEvenHandler();
         final PlatformContext platformContext =
                 PlatformContext.create(platformConfig, time, metrics, fileSystemManager, recycleBin);
+
+        // --- Point the orphan buffer at the stale-parents.txt sidecar written by blocks-to-pces ---
+        // blocks-to-pces writes .pces files into a date-stamped leaf (<pces-root>/YYYY/MM/DD) and the sidecar at the
+        // root of the tree, so the root is three levels above the leaf. The orphan buffer reads this property when the
+        // event intake module is built; without the sidecar it would wait forever for parents that never arrive.
+        Path pcesRoot = pcesDir.toAbsolutePath();
+        for (int i = 0; i < PCES_LEAF_DEPTH && pcesRoot.getParent() != null; i++) {
+            pcesRoot = pcesRoot.getParent();
+        }
+        System.setProperty(StaleParentSet.PCES_REPLAY_DIR_PROPERTY, pcesRoot.toString());
 
         // --- Place the PCES files where the PcesFileTracker will scan them, before the platform is built ---
         stagePcesFiles(pcesDir, platformConfig, fileSystemManager, selfId);
