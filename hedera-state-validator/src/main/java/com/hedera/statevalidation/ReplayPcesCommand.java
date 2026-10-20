@@ -109,10 +109,13 @@ public class ReplayPcesCommand implements Callable<Integer> {
         //  - allowUnsignedPcesEvents: blocks-to-pces produces unsigned reconstructed events; without this the intake
         //    pipeline drops every replayed event at signature validation (see the unsigned-event intake path).
         //  - forceMockSignatures: Tier-1 deterministic block signing with no live TSS network.
-        // IMPORTANT: this flag is non-existent in the production codebase. It requires
-        // production code change that should never be a part of the main branch.
-        // See commit 140f94fff19a3a6f809df339ed17349ef5ae3426 for more details.
+        // IMPORTANT: this flag (and the consensus.bypassFutureEventBufferDuringPcesReplay flag below) is a
+        // test-only platform switch. It is enabled by default on the validator branches only and must never be
+        // enabled in a production consensus node build.
         System.setProperty("event.preconsensus.intake.allowUnsignedPcesEvents", "true");
+        //  - bypassFutureEventBufferDuringPcesReplay: events reconstructed from the block stream are delivered in
+        //    topological order; the consensus future event buffer would otherwise deadlock the replay.
+        System.setProperty("consensus.bypassFutureEventBufferDuringPcesReplay", "true");
         if (forceMockSignatures) {
             System.setProperty("tss.forceMockSignatures", "true");
         }

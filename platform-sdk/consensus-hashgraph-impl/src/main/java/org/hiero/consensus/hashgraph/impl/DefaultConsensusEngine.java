@@ -56,6 +56,12 @@ public class DefaultConsensusEngine implements ConsensusEngine {
 
     private final FreezeRoundController freezeRoundController;
 
+    /** If true, the future event buffer is bypassed while replaying the PCES. Test-only, see {@link ConsensusConfig}. */
+    private final boolean bypassFutureEventBufferDuringPcesReplay;
+
+    /** True while the platform is replaying the PCES. */
+    private boolean pcesMode = false;
+
     /**
      * Constructor
      *
@@ -82,7 +88,9 @@ public class DefaultConsensusEngine implements ConsensusEngine {
         linker = new ConsensusLinker(new DefaultLinkerLogsAndMetrics(metrics, time));
         futureEventBuffer =
                 new FutureEventBuffer(metrics, FutureEventBufferingOption.PENDING_CONSENSUS_ROUND, "consensus");
-        roundsNonAncient = configuration.getConfigData(ConsensusConfig.class).roundsNonAncient();
+        final ConsensusConfig consensusConfig = configuration.getConfigData(ConsensusConfig.class);
+        roundsNonAncient = consensusConfig.roundsNonAncient();
+        bypassFutureEventBufferDuringPcesReplay = consensusConfig.bypassFutureEventBufferDuringPcesReplay();
 
         consensusEngineMetrics = new ConsensusEngineMetrics(selfId, metrics);
         this.freezeRoundController = new FreezeRoundController(freezeChecker);
@@ -93,7 +101,8 @@ public class DefaultConsensusEngine implements ConsensusEngine {
      */
     @Override
     public void updatePlatformStatus(@NonNull final PlatformStatus platformStatus) {
-        consensus.setPcesMode(platformStatus == REPLAYING_EVENTS);
+        pcesMode = platformStatus == REPLAYING_EVENTS;
+        consensus.setPcesMode(pcesMode);
     }
 
     /**
@@ -114,11 +123,22 @@ public class DefaultConsensusEngine implements ConsensusEngine {
                     : new ConsensusEngineOutput(List.of(), List.of(nonFutureEvent), List.of());
         }
 
-        final PlatformEvent consensusRelevantEvent = futureEventBuffer.addEvent(event);
-        if (consensusRelevantEvent == null) {
-            // The event is either a future event or an ancient event.
-            // If it is a future event, it will be added later when the event window is updated.
-            return ConsensusEngineOutput.emptyInstance();
+        final PlatformEvent consensusRelevantEvent;
+        if (pcesMode && bypassFutureEventBufferDuringPcesReplay) {
+            // When replaying events reconstructed from the block stream, events are fully validated and delivered in
+            // topological order, so the future event buffer's holding/reordering role is unnecessary. Its
+            // PENDING_CONSENSUS_ROUND gate would otherwise hold back events that are needed to complete the current
+            // frontier round (they are born a round ahead of the lagging replay pending round), deadlocking
+            // consensus and growing the buffer without bound. Feed the event straight through; ancient events are
+            // still dropped by linker.linkEvent below.
+            consensusRelevantEvent = event;
+        } else {
+            consensusRelevantEvent = futureEventBuffer.addEvent(event);
+            if (consensusRelevantEvent == null) {
+                // The event is either a future event or an ancient event.
+                // If it is a future event, it will be added later when the event window is updated.
+                return ConsensusEngineOutput.emptyInstance();
+            }
         }
 
         final Queue<PlatformEvent> eventsToAdd = new LinkedList<>();

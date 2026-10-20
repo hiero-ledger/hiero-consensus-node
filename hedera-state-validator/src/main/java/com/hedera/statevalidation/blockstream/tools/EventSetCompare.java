@@ -69,7 +69,8 @@ final class EventSetCompare {
         final long lo = fromRound - MARGIN_ROUNDS;
         final long hi = toRound + MARGIN_ROUNDS;
         System.out.printf(
-                "Comparing consensus events in rounds [%d, %d] (collected over [%d, %d])%n", fromRound, toRound, lo, hi);
+                "Comparing consensus events in rounds [%d, %d] (collected over [%d, %d])%n",
+                fromRound, toRound, lo, hi);
 
         final Map<String, EventInfo> original = collect(originalDir, lo, hi);
         final Map<String, EventInfo> reminted = collect(remintedDir, lo, hi);
@@ -123,8 +124,7 @@ final class EventSetCompare {
         System.out.printf("%n=== Different consensus round (%d) ===%n", movedRound.size());
         movedRound.stream()
                 .limit(MAX_PRINTED)
-                .forEach(p -> System.out.printf(
-                        "  round %d -> %d: %s%n", p[0].round(), p[1].round(), p[0].describe()));
+                .forEach(p -> System.out.printf("  round %d -> %d: %s%n", p[0].round(), p[1].round(), p[0].describe()));
 
         System.out.printf("%n=== Same round, different consensus order (%d) ===%n", movedPosition.size());
         movedPosition.stream()

@@ -3,3 +3,9 @@
                                           #############################
 
 state.mainClassNameOverride,                   com.hedera.services.ServicesMain
+event.preconsensus.allowUnsignedPcesEvents,     true
+event.preconsensus.forceIgnorePcesSignatures,     true
+event.preconsensus.copyRecentStreamToStateSnapshots,     false
+state.saveStatePeriod,                    3600
+event.preconsensus.replayHealthThreshold, 10s
+event.preconsensus.maxEventReplayFrequency, 2500
