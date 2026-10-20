@@ -24,6 +24,7 @@ import org.hyperledger.besu.evm.EVM;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
+import org.hyperledger.besu.evm.gascalculator.StateGasCostCalculator;
 import org.hyperledger.besu.evm.internal.UnderflowException;
 import org.hyperledger.besu.evm.operation.Operation;
 import org.hyperledger.besu.evm.worldstate.WorldUpdater;
@@ -135,6 +136,8 @@ class CustomCallCodeOperationTest {
     private void givenWellKnownFrameWith(final long value, final Address to, final long gas) {
         givenWellKnownFrameWithNoGasCalc(value, to, gas);
         given(frame.getRemainingGas()).willReturn(REQUIRED_GAS);
+        lenient().when(gasCalculator.stateGasCostCalculator()).thenReturn(StateGasCostCalculator.NONE);
+        lenient().when(frame.consumeStateGas(anyLong())).thenReturn(true);
         given(gasCalculator.callOperationGasCost(
                         any(),
                         anyLong(),

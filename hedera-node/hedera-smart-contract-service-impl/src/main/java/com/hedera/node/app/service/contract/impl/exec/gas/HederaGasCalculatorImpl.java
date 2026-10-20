@@ -113,7 +113,8 @@ public class HederaGasCalculatorImpl extends PragueGasCalculator implements Hede
 
     /**
      * EIP-7623 transaction floor gas computed from the payload size and its zero-byte count, mirroring
-     * {@link PragueGasCalculator#transactionFloorCost(Bytes, long)} (which itself only reads {@code payload.size()}).
+     * {@link PragueGasCalculator#transactionFloorCost(org.hyperledger.besu.datatypes.Transaction)} (which itself only
+     * reads the payload size and zero-byte count).
      * Keeping this in terms of {@code (size, zeros)} lets callers avoid materializing the payload on every call.
      */
     private long transactionFloorGas(final int payloadSize, final int zeros) {
