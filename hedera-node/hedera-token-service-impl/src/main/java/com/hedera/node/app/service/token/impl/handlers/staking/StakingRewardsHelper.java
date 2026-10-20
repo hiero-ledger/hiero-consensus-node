@@ -24,6 +24,7 @@ import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.SequencedSet;
 import java.util.Set;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -62,9 +63,13 @@ public class StakingRewardsHelper {
      * @param writableAccountStore The store to write to for updated values and original values
      * @param stakeToMeRewardReceivers The accounts which are staked to a node and are special reward receivers
      * @param explicitRewardReceivers Extra accounts to consider for rewards
-     * @return A list of accounts which are staked to a node and could possibly receive a reward
+     * @return the accounts which are staked to a node and could possibly receive a reward, in
+     * discovery order: the stake-to-me receivers first, then the modified accounts in a reward
+     * situation (in modification order), then the explicit receivers. This is the order in which
+     * {@link StakingRewardsDistributor#payRewardsIfPending} assesses them against the shared
+     * funding budget, which decides who is clamped if that budget runs short
      */
-    public static Set<AccountID> getAllRewardReceivers(
+    public static SequencedSet<AccountID> getAllRewardReceivers(
             final WritableAccountStore writableAccountStore,
             final Set<AccountID> stakeToMeRewardReceivers,
             @NonNull final Set<AccountID> explicitRewardReceivers) {
