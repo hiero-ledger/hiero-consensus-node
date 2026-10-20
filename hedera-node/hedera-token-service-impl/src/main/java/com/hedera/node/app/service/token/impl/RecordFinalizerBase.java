@@ -323,32 +323,28 @@ public abstract class RecordFinalizerBase {
         currentNftChanges.add(nftTransfer);
         nftChanges.put(nftId.tokenId(), currentNftChanges);
 
-        if (!tokenRelChanges.isEmpty()) {
-            final var receiverEntityIdPair = EntityIDPair.newBuilder()
-                    .accountId(receiverAccountId)
-                    .tokenId(nftId.tokenId())
-                    .build();
-            final var senderEntityIdPair = EntityIDPair.newBuilder()
-                    .accountId(senderAccountId)
-                    .tokenId(nftId.tokenId())
-                    .build();
-            if (isMint || isWipeOrBurn || isTreasuryChange) {
-                // The mint amount is not shown in the token transfer list. So for a mint transaction we need not show
-                // the token transfer changes to treasury. If it is a treasury change, we need not show the transfer
-                // changes to treasury
+        final var receiverEntityIdPair = EntityIDPair.newBuilder()
+                .accountId(receiverAccountId)
+                .tokenId(nftId.tokenId())
+                .build();
+        final var senderEntityIdPair = EntityIDPair.newBuilder()
+                .accountId(senderAccountId)
+                .tokenId(nftId.tokenId())
+                .build();
+        if (isTreasuryChange) {
+            // If it is a treasury change, we need not show the transfer changes to treasury
+            tokenRelChanges.remove(receiverEntityIdPair);
+            tokenRelChanges.remove(senderEntityIdPair);
+        } else {
+            // Because the NFT transfer list already contains all information about how the
+            // sender/receiver # of owned NFT counts are changing, we don't repeat this in
+            // the tokenTransferLists; these merge() calls remove the duplicate information.
+            // The 0.0.0 side of a mint, burn or wipe has no token relation, so it is skipped.
+            if (!isWipeOrBurn && tokenRelChanges.merge(receiverEntityIdPair, -1L, Long::sum) == 0) {
                 tokenRelChanges.remove(receiverEntityIdPair);
+            }
+            if (!isMint && tokenRelChanges.merge(senderEntityIdPair, 1L, Long::sum) == 0) {
                 tokenRelChanges.remove(senderEntityIdPair);
-            } else {
-                // Because the NFT transfer list already contains all information about how the
-                // sender/receiver # of owned NFT counts are changing, we don't repeat this in
-                // the tokenTransferLists; these merge() calls remove the duplicate information
-                if (tokenRelChanges.merge(receiverEntityIdPair, -1L, Long::sum) == 0) {
-                    tokenRelChanges.remove(receiverEntityIdPair);
-                }
-                // We don't need to show the mint amounts in token transfer List
-                if (tokenRelChanges.merge(senderEntityIdPair, 1L, Long::sum) == 0) {
-                    tokenRelChanges.remove(senderEntityIdPair);
-                }
             }
         }
     }
