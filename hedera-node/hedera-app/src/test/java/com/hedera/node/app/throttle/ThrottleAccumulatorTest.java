@@ -3,6 +3,7 @@ package com.hedera.node.app.throttle;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL_LOCAL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_GET_ACCOUNT_BALANCE;
@@ -334,6 +335,36 @@ public class ThrottleAccumulatorTest {
         assertFalse(noAns);
         assertTrue(yesAns);
         assertEquals(10999999990000L, dNow.used());
+    }
+
+    @Test
+    void worksAsExpectedForContractCallLocalAndGasThrottleDisabled() throws IOException, ParseException {
+        // given
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("contracts.throttle.throttleByGas", false)
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
+        subject = new ThrottleAccumulator(
+                () -> CAPACITY_SPLIT,
+                configProvider::getConfiguration,
+                FRONTEND_THROTTLE,
+                throttleMetrics,
+                gasThrottle,
+                bytesThrottle,
+                opsDurationThrottle);
+
+        final var defs = getThrottleDefs("bootstrap/throttles.json");
+        subject.rebuildFor(defs);
+
+        // when
+        final var queryPayerId = AccountID.newBuilder().accountNum(1_234L).build();
+        var noAns = subject.checkAndEnforceThrottle(CONTRACT_CALL_LOCAL, TIME_INSTANT, query, state, queryPayerId);
+        final var throttlesNow = subject.activeThrottlesFor(CONTRACT_CALL_LOCAL);
+        final var dNow = throttlesNow.getFirst();
+
+        // then
+        assertFalse(noAns);
+        assertEquals(1000000000000L, dNow.used());
     }
 
     @Test
@@ -1838,6 +1869,7 @@ public class ThrottleAccumulatorTest {
                 DeterministicThrottle.withMtpsAndBurstPeriod(5_000, 2),
                 DeterministicThrottle.withMtpsAndBurstPeriod(50_000, 3),
                 DeterministicThrottle.withMtpsAndBurstPeriod(5000, 4),
+                DeterministicThrottle.withMtpsAndBurstPeriod(3000, 1),
                 DeterministicThrottle.withMtpsAndBurstPeriod(3000, 1));
 
         // when
