@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.REVERTED_SUCCESS;
 import static com.hedera.node.app.service.token.api.AccountSummariesApi.SENTINEL_NODE_ID;
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakeIdChangeType.FROM_ACCOUNT_TO_ACCOUNT;
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakingRewardsHelper.getAllRewardReceivers;
+import static com.hedera.node.app.service.token.impl.handlers.staking.StakingRewardsHelper.requiresExternalization;
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakingUtilities.NOT_REWARDED_SINCE_LAST_STAKING_META_CHANGE;
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakingUtilities.hasStakeMetaChanges;
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakingUtilities.roundedToHbar;
@@ -238,6 +239,12 @@ public class StakingRewardsHandlerImpl implements StakingRewardsHandler {
             @NonNull final StakingRewardsDistributor.RewardsDistribution distribution,
             @NonNull final Map<AccountID, Long> rewardsPaid,
             @NonNull final Map<AccountID, Long> earnedRewards) {
+        // If nothing was credited, no account balance changed, so re-deriving the stake-to-me
+        // receivers would return exactly the set already folded into rewardReceivers and this pass
+        // could only find an empty remainder.
+        if (!requiresExternalization(rewardsPaid)) {
+            return;
+        }
         // An account already assessed in this transaction must never be assessed twice; a reward
         // prepaid by a SCHEDULED child dispatch was assessed by that dispatch, from the same
         // original state we would read here, so re-assessing it would pay it a second time.
@@ -250,7 +257,7 @@ public class StakingRewardsHandlerImpl implements StakingRewardsHandler {
         assessed.addAll(distribution.assessmentsByEarner().keySet());
         var newlyAffected = unassessedStakedToMeReceivers(writableStore, assessed);
         while (!newlyAffected.isEmpty()) {
-            // Passing the whole assessed set as the already-paid recipients keeps this round from
+            // Passing the whole assessed set as the already-assessed set keeps this round from
             // assessing anyone twice, including when one of its redirects lands on an account
             // assessed earlier; that redirect is still credited, exactly as in the first pass.
             final var round = rewardsPayer.payRewardsIfPending(
