@@ -10,6 +10,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_ALLOWANCES_EXCEEDED
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NEGATIVE_ALLOWANCE_AMOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SENDER_DOES_NOT_OWN_NFT_SERIAL_NO;
+import static com.hedera.node.app.hapi.utils.CommonUtils.asEvmAddress;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.NFTS_STATE_ID;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
@@ -24,6 +25,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.NftID;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
@@ -61,6 +63,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class CryptoApproveAllowanceHandlerTest extends CryptoTokenHandlerTestBase {
+    /** The legacy alias form: a serialized ED25519 key, which is longer than an EVM address. */
+    private static final Bytes SPENDER_KEY_ALIAS = Key.PROTOBUF.toBytes(Key.newBuilder()
+            .ed25519(Bytes.wrap("spenderEd25519KeyBytes0123456789"))
+            .build());
+
+    private static final Bytes SPENDER_EVM_ADDRESS = Bytes.fromHex("a0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3");
+    private static final Bytes UNKNOWN_EVM_ADDRESS = Bytes.fromHex("c0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3");
 
     @Mock(strictness = Strictness.LENIENT)
     private HandleContext handleContext;
@@ -664,6 +673,126 @@ class CryptoApproveAllowanceHandlerTest extends CryptoTokenHandlerTestBase {
 
         assertThat(existingOwner.cryptoAllowances()).hasSize(1);
         assertThat(existingOwner.tokenAllowances()).hasSize(1);
+
+        subject.handle(handleContext);
+
+        final var modifiedOwner = writableAccountStore.getAccountById(ownerId);
+        assertThat(modifiedOwner.cryptoAllowances()).isEmpty();
+        assertThat(modifiedOwner.tokenAllowances()).isEmpty();
+    }
+
+    @Test
+    void existingAllowancesDeletedWithAmountZeroWhenSpenderNamedByKeyAlias() {
+        writableAccountStore.putAlias(SPENDER_KEY_ALIAS, spenderId);
+
+        assertAmountZeroDeletesExistingAllowances(idFactory.newAccountIdWithAlias(SPENDER_KEY_ALIAS));
+    }
+
+    @Test
+    void existingAllowancesDeletedWithAmountZeroWhenSpenderNamedByEvmAddress() {
+        writableAccountStore.putAlias(SPENDER_EVM_ADDRESS, spenderId);
+
+        assertAmountZeroDeletesExistingAllowances(idFactory.newAccountIdWithAlias(SPENDER_EVM_ADDRESS));
+    }
+
+    @Test
+    void existingAllowancesDeletedWithAmountZeroWhenSpenderNamedByLongZeroAddress() {
+        // A long-zero address encodes the account number itself, so it needs no entry in the alias map
+        final var longZeroAddress = Bytes.wrap(asEvmAddress(spenderId.accountNumOrThrow()));
+
+        assertAmountZeroDeletesExistingAllowances(idFactory.newAccountIdWithAlias(longZeroAddress));
+    }
+
+    @Test
+    void settingApproveForAllToFalseRemovesAllowanceWhenSpenderNamedByAlias() {
+        writableAccountStore.putAlias(SPENDER_KEY_ALIAS, spenderId);
+        final var revoke = NftAllowance.newBuilder()
+                .owner(ownerId)
+                .spender(idFactory.newAccountIdWithAlias(SPENDER_KEY_ALIAS))
+                .tokenId(nonFungibleTokenId)
+                .approvedForAll(Boolean.FALSE)
+                .build();
+        final var txn = cryptoApproveAllowanceTransaction(payerId, false, List.of(), List.of(), List.of(revoke));
+        given(handleContext.body()).willReturn(txn);
+        assertThat(writableAccountStore.getAccountById(ownerId).approveForAllNftAllowances())
+                .containsExactly(AccountApprovalForAllAllowance.newBuilder()
+                        .tokenId(nonFungibleTokenId)
+                        .spenderId(spenderId)
+                        .build());
+
+        subject.handle(handleContext);
+
+        assertThat(writableAccountStore.getAccountById(ownerId).approveForAllNftAllowances())
+                .isEmpty();
+    }
+
+    @Test
+    void amountZeroForUnknownSpenderAliasChangesNothing() {
+        // An alias that names no account cannot match any allowance, so this stays a successful no-op
+        final var unknownSpender = idFactory.newAccountIdWithAlias(UNKNOWN_EVM_ADDRESS);
+        final var txn = cryptoApproveAllowanceTransaction(
+                payerId,
+                false,
+                List.of(cryptoAllowance
+                        .copyBuilder()
+                        .spender(unknownSpender)
+                        .amount(0)
+                        .build()),
+                List.of(tokenAllowance
+                        .copyBuilder()
+                        .spender(unknownSpender)
+                        .amount(0)
+                        .build()),
+                List.of());
+        given(handleContext.body()).willReturn(txn);
+
+        subject.handle(handleContext);
+
+        final var owner = writableAccountStore.getAccountById(ownerId);
+        assertThat(owner.cryptoAllowances()).hasSize(1);
+        assertThat(owner.tokenAllowances()).hasSize(1);
+    }
+
+    @Test
+    void allowanceCannotBeGrantedToSpenderNamedByAlias() {
+        // Only a revocation resolves an aliased spender; a grant still has to name the spender by account number
+        writableAccountStore.putAlias(SPENDER_KEY_ALIAS, spenderId);
+        final var txn = cryptoApproveAllowanceTransaction(
+                payerId,
+                false,
+                List.of(cryptoAllowance
+                        .copyBuilder()
+                        .spender(idFactory.newAccountIdWithAlias(SPENDER_KEY_ALIAS))
+                        .build()),
+                List.of(),
+                List.of());
+        given(handleContext.body()).willReturn(txn);
+
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(INVALID_ALLOWANCE_SPENDER_ID));
+    }
+
+    private void assertAmountZeroDeletesExistingAllowances(final AccountID spenderAlias) {
+        final var txn = cryptoApproveAllowanceTransaction(
+                payerId,
+                false,
+                List.of(cryptoAllowance
+                        .copyBuilder()
+                        .spender(spenderAlias)
+                        .amount(0)
+                        .build()),
+                List.of(tokenAllowance
+                        .copyBuilder()
+                        .spender(spenderAlias)
+                        .amount(0)
+                        .build()),
+                List.of());
+        given(handleContext.body()).willReturn(txn);
+        // Both allowances were granted to the spender by account number
+        final var existingOwner = writableAccountStore.getAccountById(ownerId);
+        assertThat(existingOwner.cryptoAllowances().getFirst().spenderId()).isEqualTo(spenderId);
+        assertThat(existingOwner.tokenAllowances().getFirst().spenderId()).isEqualTo(spenderId);
 
         subject.handle(handleContext);
 
