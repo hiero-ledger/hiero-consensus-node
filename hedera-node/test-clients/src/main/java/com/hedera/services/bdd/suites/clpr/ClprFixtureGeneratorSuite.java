@@ -28,17 +28,17 @@ import org.junit.jupiter.api.Tag;
  * refresh, remove the {@code @Disabled}, and run the specific test. Running the <b>whole</b> suite in one JVM
  * regenerates every fixture with globally-unique, non-overlapping ports, which is what lets a warm start reproduce a
  * fixture's ports without any patching (see {@code MultiNetworkExtension.ensureFixturePortReservations}).
- * The mTLS bases below are kept distinct from every other network's so a full run never collides.
+ * The HAPI TLS port bases below are kept distinct from every other network's so a full run never collides.
  */
 @Tag(MULTINETWORK)
 @DisplayName("CLPR fixture generators")
 @Disabled("Fixture generator")
 public class ClprFixtureGeneratorSuite {
     // Kept in step with the consuming suites so a regenerated fixture matches how it is used.
-    private static final int MTLS_PORT_LEDGER_A_MTLS = 41450; // ClprHieroToHieroMtlsSuite
-    private static final int MTLS_PORT_LEDGER_B_MTLS = 42450;
-    private static final int MTLS_PORT_LEDGER_A_MANIFEST = 43450; // ClprHieroToHieroManifestSuite
-    private static final int MTLS_PORT_LEDGER_B_MANIFEST = 44450;
+    private static final int HAPI_TLS_PORT_LEDGER_A_TLS = 41450; // ClprHieroToHieroTlsSuite
+    private static final int HAPI_TLS_PORT_LEDGER_B_TLS = 42450;
+    private static final int HAPI_TLS_PORT_LEDGER_A_MANIFEST = 43450; // ClprHieroToHieroManifestSuite
+    private static final int HAPI_TLS_PORT_LEDGER_B_MANIFEST = 44450;
 
     @MultiNetworkHapiTest({@Network(name = "ledgerA"), @Network(name = "ledgerB")})
     @DisplayName("Generate ledgerA / ledgerB fixtures")
@@ -59,27 +59,27 @@ public class ClprFixtureGeneratorSuite {
     }
 
     @MultiNetworkHapiTest({
-        @Network(name = "ledgerA_mtls", enableClprMtls = true, firstMtlsPort = MTLS_PORT_LEDGER_A_MTLS),
-        @Network(name = "ledgerB_mtls", enableClprMtls = true, firstMtlsPort = MTLS_PORT_LEDGER_B_MTLS)
+        @Network(name = "ledgerA_tls", enableHapiTls = true, firstHapiTlsPort = HAPI_TLS_PORT_LEDGER_A_TLS),
+        @Network(name = "ledgerB_tls", enableHapiTls = true, firstHapiTlsPort = HAPI_TLS_PORT_LEDGER_B_TLS)
     })
-    @DisplayName("Generate ledgerA_mtls / ledgerB_mtls fixtures")
-    Stream<DynamicTest> generateMtlsLedgerFixtures(final SubProcessNetwork ledgerA, final SubProcessNetwork ledgerB) {
+    @DisplayName("Generate ledgerA_tls / ledgerB_tls fixtures")
+    Stream<DynamicTest> generateTlsLedgerFixtures(final SubProcessNetwork ledgerA, final SubProcessNetwork ledgerB) {
         return multiNetworkHapiTest(
-                "generateMtlsLedgerFixtures",
-                Stream.of(liveness("ledgerA_mtls liveness", ledgerA), liveness("ledgerB_mtls liveness", ledgerB)));
+                "generateTlsLedgerFixtures",
+                Stream.of(liveness("ledgerA_tls liveness", ledgerA), liveness("ledgerB_tls liveness", ledgerB)));
     }
 
     @MultiNetworkHapiTest({
         @Network(
                 name = "ledgerA_manifest",
                 size = 2,
-                enableClprMtls = true,
-                firstMtlsPort = MTLS_PORT_LEDGER_A_MANIFEST,
+                enableHapiTls = true,
+                firstHapiTlsPort = HAPI_TLS_PORT_LEDGER_A_MANIFEST,
                 setupOverrides = {@ConfigOverride(key = "clpr.endpointManifestEnabled", value = "true")}),
         @Network(
                 name = "ledgerB_manifest",
-                enableClprMtls = true,
-                firstMtlsPort = MTLS_PORT_LEDGER_B_MANIFEST,
+                enableHapiTls = true,
+                firstHapiTlsPort = HAPI_TLS_PORT_LEDGER_B_MANIFEST,
                 setupOverrides = {@ConfigOverride(key = "clpr.endpointManifestEnabled", value = "true")})
     })
     @DisplayName("Generate ledgerA_manifest (size 2) / ledgerB_manifest fixtures")

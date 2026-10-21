@@ -26,8 +26,8 @@ class CommittedTssFixturesTest {
             strings = {
                 "ledgerA",
                 "ledgerB",
-                "ledgerA_mtls",
-                "ledgerB_mtls",
+                "ledgerA_tls",
+                "ledgerB_tls",
                 "ledgerA_manifest",
                 "ledgerB_manifest",
                 "ledgerA_restart",
