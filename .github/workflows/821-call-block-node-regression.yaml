@@ -484,7 +484,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ !cancelled() }}
         with:
-          name: SDK TCK Regression Test Report for BN
+          name: SDK TCK Regression Test Report for BN-${{ inputs.bn-release-version || 'latest' }}
           path: "**/sdk-tck/regression/mochawesome-report/mochawesome.*"
           retention-days: 7
 
@@ -521,7 +521,7 @@ jobs:
         id: update_bn_mn_logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: bn-mn-log
+          name: bn-mn-log-${{ inputs.bn-release-version || 'latest' }}
           path: |
             bn0-logs.log
             mn0-logs.log
@@ -531,7 +531,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: cn-logs
+          name: cn-logs-${{ inputs.bn-release-version || 'latest' }}
           path: ${{ env.CN_LOG_FOLDER }}/*.zip
 
       - name: Add Logs to Summary
@@ -590,7 +590,7 @@ jobs:
         env:
           HEADER_TEXT: ":vertical_traffic_light: Hiero Consensus Node - Block Node Regression Test Report"
           STATUS_TEXT: "*Block Node Regression Panel was executed. See status below.*"
-          PANEL_LABEL: "Block Node Regression Panel Result"
+          PANEL_LABEL: "Block Node Regression Panel Result (BN ${{ inputs.bn-release-version || 'latest' }})"
           RESULT: ${{ needs.block-node-regression.result }}
           COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ inputs.ref }}
           WORKFLOW_RUN_ID: ${{ github.run_id }}

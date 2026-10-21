@@ -124,6 +124,7 @@
 | 903-cron-clean.yaml                                 | 903: [CRON] Clean Latitude NS               | zxcron-clean.yaml                                     | CronClean Latitude Namespaces                                     |
 | 904-cron-release-branching.yaml                     | 904: [CRON] Release Branching               | node-zxcron-release-branching.yaml                    | ZXCron: Automatic Release Branching                               |
 | 905-cron-nightly-benchmarks.yaml                    | 905: [CRON] Nightly Benchmarks              | N/A                                                   | N/A                                                               |
+| 906-cron-block-node-matrix.yaml                     | 906: [CRON] Block Node Version Matrix       | N/A                                                   | N/A                                                               |
 
 ## Numbering conventions
 
