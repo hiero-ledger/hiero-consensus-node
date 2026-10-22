@@ -63,5 +63,5 @@ jobs:
           checkout-token: "${{ secrets.GITHUB_TOKEN }}"
           setup-jq: "true"
 
-      - name: Test Block Node Version Resolution
-        run: bash ./.github/workflows/support/tests/test-resolve-bn-versions.sh
+      - name: Test Consensus Node Config Resolution
+        run: bash ./.github/workflows/support/tests/test-resolve-cn-configs.sh

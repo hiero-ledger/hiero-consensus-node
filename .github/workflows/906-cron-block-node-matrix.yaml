@@ -1,17 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0
 name: "906: [CRON] Block Node Version Matrix"
 on:
-  schedule:
-    - cron: "0 4 * * *"
   workflow_dispatch:
     inputs:
-      ref:
-        description: "The branch, tag or SHA of hiero-consensus-node to test (default: the selected branch)."
+      cn-refs:
+        description: "Comma-separated branches, tags or SHAs of hiero-consensus-node to test (default: the selected branch). Each ref is tested with its own pinned Solo, Java, TCK, JS SDK and mirror node versions."
         type: string
         required: false
         default: ""
       bn-versions:
-        description: "Comma-separated Block Node versions to test (e.g. v0.44.0,v0.45.0-alpha1). Default: pinned + newest stable releases + newest prerelease."
+        description: "Comma-separated Block Node versions to test (e.g. v0.44.0,v0.45.0-alpha1). Default: the Block Node version pinned in the first CN ref's .citr-env."
         type: string
         required: false
         default: ""
@@ -32,42 +30,18 @@ concurrency:
   group: block-node-matrix-${{ github.ref }}
   cancel-in-progress: false
 
-env:
-  # how many of the newest stable Block Node releases to test, in addition to the pinned and newest prerelease
-  BN_STABLE_COUNT: "2"
-
 jobs:
-  extract-jdk-version:
-    name: Extract Java Version
-    uses: ./.github/workflows/854-call-extract-jdk-version.yaml
-    if: ${{ github.event.repository.visibility == 'public' }}
-    with:
-      ref: ${{ inputs.ref || github.ref }}
-    secrets:
-      github-token: ${{ secrets.GITHUB_TOKEN }}
-
-  extract-citr-vars:
-    name: Extract CITR Variables
-    uses: ./.github/workflows/855-call-extract-citr-vars.yaml
-    if: ${{ github.event.repository.visibility == 'public' }}
-    with:
-      ref: ${{ inputs.ref || github.ref }}
-    secrets:
-      github-token: ${{ secrets.GITHUB_TOKEN }}
-
   resolve-versions:
-    name: Resolve Block Node Versions
+    name: Resolve Consensus and Block Node Versions
     runs-on: hl-cn-default-lin-sm
-    needs:
-      - extract-citr-vars
+    if: ${{ github.event.repository.visibility == 'public' }}
     outputs:
-      versions: ${{ steps.resolve.outputs.versions }}
+      matrix: ${{ steps.resolve.outputs.matrix }}
     steps:
       - name: Initialize GitHub Job
         uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
-          checkout-ref: "${{ inputs.ref || github.ref }}"
           checkout-token: "${{ secrets.GITHUB_TOKEN }}"
           checkout-fetch-depth: "1"
           setup-jq: "true"
@@ -75,55 +49,62 @@ jobs:
       - name: Resolve Versions
         id: resolve
         env:
-          OVERRIDE: ${{ inputs.bn-versions }}
-          PINNED: ${{ needs.extract-citr-vars.outputs.bn-release-version }}
-          SOLO_VERSION: ${{ needs.extract-citr-vars.outputs.citr-solo-version }}
-          STABLE_COUNT: ${{ env.BN_STABLE_COUNT }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CN_REFS: ${{ inputs.cn-refs || github.ref }}
+          BN_VERSIONS: ${{ inputs.bn-versions }}
         run: |
-          # the Block Node regression panel requires Solo >= 0.44.0 (same gate as 815's solo-ge-0440)
-          SOLO_NUMERIC="${SOLO_VERSION#v}"
-          if [[ "$(printf '%s\n' "${SOLO_NUMERIC}" "0.44.0" | sort -V | head -n1)" != "0.44.0" ]]; then
-            echo "::error::Block Node matrix requires Solo >= 0.44.0 but the CITR solo version is '${SOLO_VERSION}'"
+          # per-ref Solo/Java/TCK/JS SDK/mirror node versions; also enforces Solo >= 0.44.0 for every ref
+          CONFIGS=$(bash .github/workflows/support/scripts/resolve-cn-configs.sh)
+          echo "Consensus node configs: ${CONFIGS}"
+
+          # no explicit list: test the Block Node version pinned by the first CN ref
+          if [[ -z "${BN_VERSIONS}" ]]; then
+            BN_VERSIONS=$(echo "${CONFIGS}" | jq -r '.[0]."pinned-bn-version"')
+          fi
+          # trimmed, de-duplicated; every entry must look like vX.Y.Z[-suffix] since it ends up in scripts and artifact names
+          BN_LIST=$(echo "${BN_VERSIONS}" | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | awk 'NF && !seen[$0]++')
+          if [[ -z "${BN_LIST}" ]]; then
+            echo "::error::No Block Node versions given"
             exit 1
           fi
-          RELEASES_FILE="$(mktemp)"
-          if [[ -z "${OVERRIDE}" ]]; then
-            curl -fsS -H "Accept: application/vnd.github+json" -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-              "https://api.github.com/repos/hiero-ledger/hiero-block-node/releases?per_page=50" > "${RELEASES_FILE}"
-          else
-            echo "[]" > "${RELEASES_FILE}"
-          fi
-          VERSIONS=$(bash .github/workflows/support/scripts/resolve-bn-versions.sh < "${RELEASES_FILE}")
+          while IFS= read -r v; do
+            if [[ ! "${v}" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$ ]]; then
+              echo "::error::Invalid Block Node version '${v}' (expected vX.Y.Z or vX.Y.Z-suffix)"
+              exit 1
+            fi
+          done <<< "${BN_LIST}"
+          VERSIONS=$(echo "${BN_LIST}" | jq -R . | jq -sc .)
           echo "Block Node versions under test: ${VERSIONS}"
-          echo "versions=${VERSIONS}" >> "${GITHUB_OUTPUT}"
+
+          # full cross product: every CN ref x every BN version
+          MATRIX=$(jq -nc --argjson cfgs "${CONFIGS}" --argjson bns "${VERSIONS}" \
+            '[$cfgs[] as $c | $bns[] | . as $b | $c + {"bn-version": $b}]')
+          echo "matrix=${MATRIX}" >> "${GITHUB_OUTPUT}"
           {
-            echo "### Block Node versions under test"
-            echo "${VERSIONS}" | jq -r '.[] | "- `" + . + "`"'
+            echo "### Block Node regression legs"
+            echo "${MATRIX}" | jq -r '.[] | "- CN `" + ."cn-ref" + "` x BN `" + ."bn-version" + "`"'
           } >> "${GITHUB_STEP_SUMMARY}"
 
-  # One full 821 Block Node regression per version; a failing version must not hide the others.
+  # One full 821 Block Node regression per CN ref x BN version; a failing leg must not hide the others.
   block-node-regression:
-    name: BN ${{ matrix.bn-version }}
+    name: CN ${{ matrix.cn-ref }} / BN ${{ matrix.bn-version }}
     needs:
-      - extract-jdk-version
-      - extract-citr-vars
       - resolve-versions
     strategy:
       fail-fast: false
       max-parallel: 3
       matrix:
-        bn-version: ${{ fromJSON(needs.resolve-versions.outputs.versions) }}
+        include: ${{ fromJSON(needs.resolve-versions.outputs.matrix) }}
     uses: ./.github/workflows/821-call-block-node-regression.yaml
     with:
-      ref: ${{ inputs.ref || github.ref }}
-      custom-job-name: "Block Node ${{ matrix.bn-version }}"
-      solo-version: ${{ needs.extract-citr-vars.outputs.citr-solo-version }}
-      java-version: ${{ needs.extract-jdk-version.outputs.jdk-version }}
+      ref: ${{ matrix.cn-ref }}
+      cn-label: ${{ matrix.cn-slug }}
+      custom-job-name: "Block Node ${{ matrix.bn-version }} on CN ${{ matrix.cn-ref }}"
+      solo-version: ${{ matrix.solo-version }}
+      java-version: ${{ matrix.java-version }}
       bn-release-version: ${{ matrix.bn-version }}
-      bn-mirror-node-version: ${{ needs.extract-citr-vars.outputs.bn-mirror-node-version }}
-      tck-version: ${{ needs.extract-citr-vars.outputs.tck-version }}
-      js-sdk-version: ${{ needs.extract-citr-vars.outputs.js-sdk-version }}
+      bn-mirror-node-version: ${{ matrix.bn-mirror-node-version }}
+      tck-version: ${{ matrix.tck-version }}
+      js-sdk-version: ${{ matrix.js-sdk-version }}
     secrets:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       slack-detailed-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
