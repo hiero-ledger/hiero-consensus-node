@@ -9,7 +9,10 @@ not only the single version pinned in `.citr-env`.
 - `resolve-versions` job picks the BN versions; a matrix job calls the unchanged reusable
   `821-call-block-node-regression.yaml` once per version (`fail-fast: false`, `max-parallel: 3`).
 - Version set (`support/scripts/resolve-bn-versions.sh`): the version pinned in `.citr-env` + the newest 2 stable
-  releases + the newest release if it is a prerelease (alpha/rc), de-duplicated.
+  releases + the newest release if it is a prerelease (alpha/rc), de-duplicated. "Newest" is by semver, not API
+  order. A pinned prerelease is skipped once a stable release on the same major.minor line has replaced it.
+- All versions (including overrides) must match `vX.Y.Z[-suffix]`; anything else fails `resolve-versions`.
+  `resolve-versions` also fails early if the CITR Solo version is below 0.44.0.
 - `workflow_dispatch` input `bn-versions` (comma-separated) overrides the set, e.g. for tag-only builds that have
   no GitHub release.
 - Everything else (CN `ref`, solo, mirror node, TCK, JS SDK versions) comes from `.citr-env` / the selected ref.

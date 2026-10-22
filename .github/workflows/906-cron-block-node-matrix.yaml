@@ -77,9 +77,16 @@ jobs:
         env:
           OVERRIDE: ${{ inputs.bn-versions }}
           PINNED: ${{ needs.extract-citr-vars.outputs.bn-release-version }}
+          SOLO_VERSION: ${{ needs.extract-citr-vars.outputs.citr-solo-version }}
           STABLE_COUNT: ${{ env.BN_STABLE_COUNT }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # the Block Node regression panel requires Solo >= 0.44.0 (same gate as 815's solo-ge-0440)
+          SOLO_NUMERIC="${SOLO_VERSION#v}"
+          if [[ "$(printf '%s\n' "${SOLO_NUMERIC}" "0.44.0" | sort -V | head -n1)" != "0.44.0" ]]; then
+            echo "::error::Block Node matrix requires Solo >= 0.44.0 but the CITR solo version is '${SOLO_VERSION}'"
+            exit 1
+          fi
           RELEASES_FILE="$(mktemp)"
           if [[ -z "${OVERRIDE}" ]]; then
             curl -fsS -H "Accept: application/vnd.github+json" -H "Authorization: Bearer ${GITHUB_TOKEN}" \

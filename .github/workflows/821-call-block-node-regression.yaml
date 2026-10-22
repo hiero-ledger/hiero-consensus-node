@@ -107,23 +107,16 @@ jobs:
           echo "CN version from version.txt: ${RAW_VERSION}. Setting value to CN_LATEST_TAG env var"
           echo "CN_LATEST_TAG=${RAW_VERSION}" >> "$GITHUB_ENV"
 
-      #  Checkout the block-node repository
-      - name: Checkout Block-Node Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          path: block-node
-          repository: hiero-ledger/hiero-block-node
-          fetch-depth: 0
-          fetch-tags: true
-
       - name: Retrieve BN Release Tag
+        env:
+          INPUT_BN_RELEASE_VERSION: ${{ inputs.bn-release-version }}
         run: |
           # An explicit version is used directly as the block-node chart/image version: solo pulls the
           # OCI chart oci://ghcr.io/hiero-ledger/hiero-block-node/block-node-server at that version and
           # needs no GitHub release, so tag-only alpha/rc builds (e.g. v0.41.0-alpha1) work. Only
           # "latest"/blank is resolved through the releases API.
-          if [[ -n "${{ inputs.bn-release-version }}" && "${{ inputs.bn-release-version }}" != "latest" ]]; then
-            BN_RELEASE_TAG="${{ inputs.bn-release-version }}"
+          if [[ -n "${INPUT_BN_RELEASE_VERSION}" && "${INPUT_BN_RELEASE_VERSION}" != "latest" ]]; then
+            BN_RELEASE_TAG="${INPUT_BN_RELEASE_VERSION}"
           else
             curl_response=$(curl -s -H "Accept: application/vnd.github+json" "https://api.github.com/repos/hiero-ledger/hiero-block-node/releases/latest") || exit 1
             BN_RELEASE_TAG=$(echo "${curl_response}" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/"tag_name": *"\([^"]*\)"/\1/')
@@ -137,11 +130,24 @@ jobs:
           echo "Block Node Release tag: ${BN_RELEASE_TAG}"
           echo "BLOCK_NODE_TAG=${BN_RELEASE_TAG}" >> "${GITHUB_ENV}"
 
+      #  Checkout the block-node repository
+      - name: Checkout Block-Node Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          path: block-node
+          repository: hiero-ledger/hiero-block-node
+          fetch-depth: 0
+          fetch-tags: true
+          # protos for the grpcurl ServerStatus check must match the BN version under test
+          ref: ${{ env.BLOCK_NODE_TAG }}
+
       - name: Retrieve MN Release Tag
+        env:
+          INPUT_BN_MIRROR_NODE_VERSION: ${{ inputs.bn-mirror-node-version }}
         run: |
           mn_url="https://api.github.com/repos/hiero-ledger/hiero-mirror-node/releases/latest"
-          if [[ "${{ inputs.bn-mirror-node-version }}" != "latest" ]]; then
-            mn_url="https://api.github.com/repos/hiero-ledger/hiero-mirror-node/releases/tags/${{ inputs.bn-mirror-node-version }}"
+          if [[ "${INPUT_BN_MIRROR_NODE_VERSION}" != "latest" ]]; then
+            mn_url="https://api.github.com/repos/hiero-ledger/hiero-mirror-node/releases/tags/${INPUT_BN_MIRROR_NODE_VERSION}"
           fi
           curl_response=$(curl -s -H "Accept: application/vnd.github+json" "${mn_url}") || exit 1
           MN_RELEASE_TAG=$(echo "${curl_response}" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/"tag_name": *"\([^"]*\)"/\1/')
