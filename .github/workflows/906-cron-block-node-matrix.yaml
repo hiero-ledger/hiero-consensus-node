@@ -18,11 +18,12 @@ defaults:
   run:
     shell: bash
 
-# Same permissions as the called 821 workflow requires
+# Same permissions as the called 821 and 844 workflows require
 permissions:
   checks: write
   contents: read
   actions: write
+  pull-requests: write
   statuses: write
   id-token: write
 
