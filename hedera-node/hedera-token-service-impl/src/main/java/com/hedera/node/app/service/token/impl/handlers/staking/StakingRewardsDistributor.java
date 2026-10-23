@@ -46,7 +46,40 @@ public class StakingRewardsDistributor {
     /**
      * Pays out rewards to the possible reward receivers by updating the receiver's balance.
      *
+<<<<<<< HEAD
      * @param possibleRewardReceivers The accounts that are possible reward receivers.
+=======
+     * <p>Processing uses a work queue seeded with the given receivers. When a deleted earner's
+     * reward is redirected to a beneficiary whose own pending reward has not yet been assessed,
+     * that beneficiary is enqueued for its own assessment (computed from its original state, as
+     * usual). This keeps a redirect from silently forfeiting the beneficiary's own accrued reward
+     * periods when its stake metadata is advanced afterward. One shared payable-rewards budget and
+     * one processed-account set — pre-seeded with the accounts the caller has excluded — span the
+     * whole queue, so neither beneficiary chains nor redirects to an excluded account can assess an
+     * account twice or exceed the funding balance.
+     *
+     * @param possibleRewardReceivers The accounts that are possible reward receivers, in the order
+     * they are to be assessed. Order matters: every assessment draws on one shared budget seeded
+     * from the funding account, so when that balance cannot cover all pending rewards, earlier
+     * receivers are paid in full and later ones are clamped (possibly to zero). The
+     * {@link SequencedSet} type makes this encounter-order contract a compile-time guarantee
+     * rather than a property callers happen to satisfy.
+     * @param alreadyAssessed Accounts this transaction has already settled, which must not be
+     * assessed for a reward of their own in this pass — neither as seeded receivers nor when a
+     * redirect lands on them (the redirect itself is still credited). Assessing one twice would
+     * read its still-stale original state and pay it a second time for the same periods. Two kinds
+     * of caller supply this:
+     * <ul>
+     *   <li>the root distribution passes the final recipients already paid by a SCHEDULED child
+     *   dispatch, exactly as externalized in that dispatch's record (so keyed by recipient, not by
+     *   earner); that dispatch ran this same distribution, so any own pending reward such a
+     *   recipient had was assessed there;</li>
+     *   <li>{@code StakingRewardsHandlerImpl#settleStakeesAffectedByRewardsPaid} passes everything
+     *   assessed so far in the transaction — the seeded receivers, the earners of every completed
+     *   assessment (including beneficiaries this method enqueued itself, which never appear in any
+     *   caller's receiver set), and the prepaid recipients above.</li>
+     * </ul>
+>>>>>>> 1348452 (fix: staking rewards follow-up - no-credit shortcut and refactoring (#577))
      * @param fundingAccountId The staking reward funding account
      * @param writableStore The store to update the receiver's balance in.
      * @param stakingRewardsStore The store to update the staking rewards in.
@@ -55,8 +88,14 @@ public class StakingRewardsDistributor {
      * @param recordBuilder The record builder to use for deleted account beneficiaries.
      * @return The map of rewards paid to each receiver, which includes zero rewards if the calculated reward is zero
      */
+<<<<<<< HEAD
     public Map<AccountID, Long> payRewardsIfPending(
             @NonNull final Set<AccountID> possibleRewardReceivers,
+=======
+    public RewardsDistribution payRewardsIfPending(
+            @NonNull final SequencedSet<AccountID> possibleRewardReceivers,
+            @NonNull final Set<AccountID> alreadyAssessed,
+>>>>>>> 1348452 (fix: staking rewards follow-up - no-credit shortcut and refactoring (#577))
             @NonNull final AccountID fundingAccountId,
             @NonNull final WritableAccountStore writableStore,
             @NonNull final WritableNetworkStakingRewardsStore stakingRewardsStore,
@@ -64,8 +103,21 @@ public class StakingRewardsDistributor {
             @NonNull final Instant consensusNow,
             @NonNull final DeleteCapableTransactionStreamBuilder recordBuilder) {
         requireNonNull(possibleRewardReceivers);
+<<<<<<< HEAD
 
         final Map<AccountID, Long> rewardsPaid = new HashMap<>();
+=======
+        requireNonNull(alreadyAssessed);
+
+        final Map<AccountID, Long> rewardsPaid = new HashMap<>();
+        final Map<AccountID, RewardAssessment> assessmentsByEarner = new LinkedHashMap<>();
+        // Seeding from the receiver set in its encounter order (guaranteed by its SequencedSet type)
+        // and appending enqueued beneficiaries keeps the processing order -- and with it, who is
+        // clamped when the funding balance runs short -- deterministic; the processed set makes
+        // each earner's own assessment happen at most once no matter how many redirects land on it
+        final Deque<AccountID> workQueue = new ArrayDeque<>(possibleRewardReceivers);
+        final Set<AccountID> processed = new HashSet<>(alreadyAssessed);
+>>>>>>> 1348452 (fix: staking rewards follow-up - no-credit shortcut and refactoring (#577))
         long payableRewards = -1;
         for (final var receiver : possibleRewardReceivers) {
             final var originalAccount = writableStore.getOriginalValue(receiver);
