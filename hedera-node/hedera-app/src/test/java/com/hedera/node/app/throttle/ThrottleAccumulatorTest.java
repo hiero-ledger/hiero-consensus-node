@@ -1197,6 +1197,90 @@ public class ThrottleAccumulatorTest {
 
     @ParameterizedTest
     @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
+    void managerRejectsExcessAutoAssociationsWhenTransferAlsoDoesImplicitCreations(
+            ThrottleAccumulator.ThrottleType throttleType) throws IOException, ParseException {
+        // given
+        subject = new ThrottleAccumulator(
+                () -> CAPACITY_SPLIT,
+                configProvider::getConfiguration,
+                throttleType,
+                throttleMetrics,
+                gasThrottle,
+                bytesThrottle,
+                opsDurationThrottle);
+        given(configProvider.getConfiguration()).willReturn(configuration);
+        given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
+        given(accountsConfig.lastThrottleExempt()).willReturn(100L);
+        given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
+        given(contractsConfig.throttleThrottleByGas()).willReturn(false);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(false);
+
+        given(transactionInfo.payerID())
+                .willReturn(AccountID.newBuilder().accountNum(1234L).build());
+
+        final var defs = getThrottleDefs("bootstrap/throttles.json");
+
+        given(transactionInfo.functionality()).willReturn(CRYPTO_TRANSFER);
+        givenTransferWithImplicitCreationsAndAutoAssociations(1, 101);
+        given(state.getReadableStates(any())).willReturn(readableStates);
+        given(readableStates.get(anyInt())).willReturn(tokenRels);
+
+        given(configuration.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
+        given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(true);
+
+        // when
+        subject.rebuildFor(defs);
+        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null, false);
+
+        // then
+        assertTrue(ans);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
+    void managerAllowsImplicitCreationsAndAutoAssociationsWithinBothBuckets(
+            ThrottleAccumulator.ThrottleType throttleType) throws IOException, ParseException {
+        // given
+        subject = new ThrottleAccumulator(
+                () -> CAPACITY_SPLIT,
+                configProvider::getConfiguration,
+                throttleType,
+                throttleMetrics,
+                gasThrottle,
+                bytesThrottle,
+                opsDurationThrottle);
+        given(configProvider.getConfiguration()).willReturn(configuration);
+        given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
+        given(accountsConfig.lastThrottleExempt()).willReturn(100L);
+        given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
+        given(contractsConfig.throttleThrottleByGas()).willReturn(false);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(false);
+
+        given(transactionInfo.payerID())
+                .willReturn(AccountID.newBuilder().accountNum(1234L).build());
+
+        final var defs = getThrottleDefs("bootstrap/throttles.json");
+
+        given(transactionInfo.functionality()).willReturn(CRYPTO_TRANSFER);
+        givenTransferWithImplicitCreationsAndAutoAssociations(1, 1);
+        given(state.getReadableStates(any())).willReturn(readableStates);
+        given(readableStates.get(anyInt())).willReturn(tokenRels);
+
+        given(configuration.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
+        given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(true);
+
+        // when
+        subject.rebuildFor(defs);
+        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null, false);
+
+        // then
+        assertFalse(ans);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
     void managerRejectsCryptoTransfersWithMissingCryptoCreateThrottle(ThrottleAccumulator.ThrottleType throttleType)
             throws IOException, ParseException {
         // given
@@ -2764,6 +2848,38 @@ public class ThrottleAccumulatorTest {
         final var cryptoTransferBody = CryptoTransferTransactionBody.newBuilder()
                 .transfers(
                         TransferList.newBuilder().accountAmounts(accountAmounts).build())
+                .build();
+
+        final var txn =
+                TransactionBody.newBuilder().cryptoTransfer(cryptoTransferBody).build();
+        given(transactionInfo.txBody()).willReturn(txn);
+    }
+
+    private void givenTransferWithImplicitCreationsAndAutoAssociations(int numImplicitCreations, int numAutoAssoc) {
+        var hbarAmounts = new ArrayList<AccountAmount>();
+        for (int i = 1; i <= numImplicitCreations; i++) {
+            hbarAmounts.add(AccountAmount.newBuilder()
+                    .accountID(AccountID.newBuilder()
+                            .alias(Bytes.wrap("abcdeabcdeabcdeabcde"))
+                            .build())
+                    .amount(i)
+                    .build());
+        }
+
+        var tokenAmounts = new ArrayList<AccountAmount>();
+        for (int i = 1; i <= numAutoAssoc; i++) {
+            tokenAmounts.add(
+                    AccountAmount.newBuilder().accountID(PAYER_ID).amount(-i).build());
+            tokenAmounts.add(
+                    AccountAmount.newBuilder().accountID(RECEIVER_ID).amount(i).build());
+        }
+
+        final var cryptoTransferBody = CryptoTransferTransactionBody.newBuilder()
+                .transfers(TransferList.newBuilder().accountAmounts(hbarAmounts).build())
+                .tokenTransfers(TokenTransferList.newBuilder()
+                        .token(TOKEN_ID)
+                        .transfers(tokenAmounts)
+                        .build())
                 .build();
 
         final var txn =

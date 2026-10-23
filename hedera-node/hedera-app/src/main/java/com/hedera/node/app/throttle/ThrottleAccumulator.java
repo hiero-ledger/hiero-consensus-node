@@ -877,15 +877,20 @@ public class ThrottleAccumulator {
             final boolean useHighVolumeBucket) {
         final boolean unlimitedAutoAssociations =
                 configuration.getConfigData(EntitiesConfig.class).unlimitedAutoAssociationsEnabled();
-        if (implicitCreationsCount > 0) {
-            return shouldThrottleBasedOnImplicitCreations(
-                    manager, implicitCreationsCount, now, throttleUsages, useHighVolumeBucket);
-        } else if (unlimitedAutoAssociations && autoAssociationsCount > 0) {
-            return shouldThrottleBasedOnAutoAssociations(
-                    manager, autoAssociationsCount, now, throttleUsages, useHighVolumeBucket);
-        } else {
+        final boolean hasImplicitCreations = implicitCreationsCount > 0;
+        final boolean hasAutoAssociations = unlimitedAutoAssociations && autoAssociationsCount > 0;
+        if (!hasImplicitCreations && !hasAutoAssociations) {
             return !manager.allReqsMetAt(now, throttleUsages);
         }
+        // The two dimensions are additive, so a transfer doing both must lease from both buckets
+        if (hasImplicitCreations
+                && shouldThrottleBasedOnImplicitCreations(
+                        manager, implicitCreationsCount, now, throttleUsages, useHighVolumeBucket)) {
+            return true;
+        }
+        return hasAutoAssociations
+                && shouldThrottleBasedOnAutoAssociations(
+                        manager, autoAssociationsCount, now, throttleUsages, useHighVolumeBucket);
     }
 
     private boolean shouldThrottleEthTxn(
