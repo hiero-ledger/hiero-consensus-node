@@ -604,6 +604,55 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> extends Abstr
     }
 
     @Test
+    void testSnapshotWithMissingFirstChunk(@TempDir final Path testDir) throws IOException {
+        try (final T longList = createLongList(4, 100, 0)) {
+            longList.updateValidRange(3, 6);
+            longList.put(4, 40);
+            longList.put(5, 50);
+            longList.put(6, 60);
+            assertNull(longList.dataCopy().get(0));
+
+            final Path snapshot = testDir.resolve("missingFirstChunk");
+            longList.writeToFile(snapshot, Runnable::run, 1);
+
+            assertEquals(FILE_HEADER_SIZE_V3 + 4L * Long.BYTES, Files.size(snapshot));
+            try (final LongList restored = createLongList(snapshot, 4, 100, 0)) {
+                assertEquals(3, restored.getMinValidIndex());
+                assertEquals(7, restored.size());
+                assertEquals(0, restored.get(3));
+                assertEquals(40, restored.get(4));
+                assertEquals(50, restored.get(5));
+                assertEquals(60, restored.get(6));
+            }
+        }
+    }
+
+    @Test
+    void testSnapshotWithMissingLastChunk(@TempDir final Path testDir) throws IOException {
+        try (final T longList = createLongList(4, 100, 0)) {
+            longList.updateValidRange(0, 9);
+            longList.put(1, 10);
+            longList.put(9, 90);
+            longList.updateValidRange(1, 5);
+            assertNull(longList.dataCopy().get(1));
+
+            final Path snapshot = testDir.resolve("missingLastChunk");
+            longList.writeToFile(snapshot, Runnable::run, 1);
+
+            assertEquals(FILE_HEADER_SIZE_V3 + 5L * Long.BYTES, Files.size(snapshot));
+            try (final LongList restored = createLongList(snapshot, 4, 100, 0)) {
+                assertEquals(1, restored.getMinValidIndex());
+                assertEquals(6, restored.size());
+                assertEquals(10, restored.get(1));
+                assertEquals(0, restored.get(2));
+                assertEquals(0, restored.get(3));
+                assertEquals(0, restored.get(4));
+                assertEquals(0, restored.get(5));
+            }
+        }
+    }
+
+    @Test
     void forEachWhileTest() throws Exception {
         try (final LongList list = createLongList(10, 100, 0)) {
             list.updateValidRange(0, 99);

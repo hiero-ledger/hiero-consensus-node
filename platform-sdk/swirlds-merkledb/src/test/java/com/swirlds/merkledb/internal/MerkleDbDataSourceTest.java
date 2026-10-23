@@ -16,6 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -54,6 +55,9 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Cryptography;
@@ -374,6 +378,22 @@ class MerkleDbDataSourceTest extends AbstractMerkelDbTest {
             // the snapshot dir is owned by this test, the restored data source works off a copy
             deleteDirectoryAndContents(snapshotDir);
         }
+    }
+
+    @Test
+    void snapshotGroupIsSkippedWhenFailureIsRecorded() throws IOException {
+        createAndApplyDataSource(10, dataSource -> {
+            final IOException originalFailure = new IOException("Previous snapshot group failed");
+            final AtomicReference<Throwable> snapshotFailure = new AtomicReference<>(originalFailure);
+            final AtomicBoolean operationRan = new AtomicBoolean();
+            final CountDownLatch groupFinished = new CountDownLatch(1);
+
+            dataSource.runWithSnapshotExecutor(groupFinished, snapshotFailure, "skipped", () -> operationRan.set(true));
+
+            assertTrue(groupFinished.await(5, TimeUnit.SECONDS), "Snapshot group did not finish");
+            assertFalse(operationRan.get(), "Snapshot group should be skipped after a failure");
+            assertSame(originalFailure, snapshotFailure.get());
+        });
     }
 
     @ParameterizedTest

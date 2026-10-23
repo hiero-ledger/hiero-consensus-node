@@ -1170,7 +1170,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     /// @param snapshotFailure receives the first task failure
     /// @param taskName the name of the task for logging
     /// @param runnable the code to run
-    private void runWithSnapshotExecutor(
+    void runWithSnapshotExecutor(
             final CountDownLatch countDownLatch,
             final AtomicReference<Throwable> snapshotFailure,
             final String taskName,
