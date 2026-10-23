@@ -76,9 +76,10 @@ import org.openjdk.jmh.annotations.Warmup;
  * its latencies nor in its allocation.
  *
  * <p>Each latency includes one clock read ({@link LatencyRecorder#lap()}). Adding an event and a sync lookup take
- * well under a microsecond, so the clock read is a noticeable part of their latency: on an Apple M4 laptop, 9% to 10%
- * for {@link #addEvent()}, 4% to 7% for {@link #syncLookup()}, and about 1% for {@link #updateEventWindow()}. It is
- * nearly the same for every call, so it does not hide a regression, but it makes one look slightly smaller.
+ * well under a microsecond, so the clock read is a noticeable part of their latency. On an Apple M4 laptop, one more
+ * clock read after each call added 11 to 12 ns: 6% to 7% of {@link #addEvent()}, 2% to 4% of {@link #syncLookup()},
+ * and under 0.5% of {@link #updateEventWindow()}. It is nearly the same for every call, so it does not hide a
+ * regression, but it makes one look slightly smaller.
  *
  * <p>The shadowgraph updates the production metrics implementation, {@link DefaultPlatformMetrics}, and the
  * production {@link DefaultIntakeEventCounter}, which counts the events from each peer. The metrics are not started:
