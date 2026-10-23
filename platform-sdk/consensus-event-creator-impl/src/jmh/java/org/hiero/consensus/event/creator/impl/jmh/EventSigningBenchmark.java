@@ -57,13 +57,26 @@ import org.openjdk.jmh.infra.Blackhole;
  * calls. A pass during which one does is discarded and replaced by the next invocation.
  *
  * <p>Run with {@code -prof org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler}.
+ *
+ * <h2>Calibration</h2>
+ * <ul>
+ *   <li>Date / commit: 2026-10-23, edab840b0d</li>
+ *   <li>Machine: hl-cn-benchmark-lin, AS-2115GT-HNTR, AMD EPYC 9254 24-Core Processor, JDK 25.0.2, -XX:ActiveProcessorCount=12 -Xms2g -Xmx2g -XX:+AlwaysPreTouch</li>
+ *   <li>Parameter sets: digestType=SHA_256,signingSchema=ED25519 / digestType=SHA_256,signingSchema=RSA / digestType=SHA_384,signingSchema=ED25519 / digestType=SHA_384,signingSchema=RSA</li>
+ *   <li>Steady state after: 5 s / 0 s / 5 s / 0 s</li>
+ *   <li>Noise (latency.mean, CV): 0.25% / 0.19% / 0.22% / 0.19% per 5 s iteration, 0.30% / 0.05% / 0.26% / 0.02% between forks, 0.02% / 0.01% / 0.00% / 0.01% between runs (3 of 3 / 3 of 3 / 3 of 3 / 3 of 3 runs quiet)</li>
+ *   <li>Expected detectable regression: 0.43% / 0.10% / 0.38% / 0.08% (95 % CI half-width of one run)</li>
+ *   <li>Samples per iteration: 1.4 M / 0.0 M / 1.3 M / 0.0 M; expected stable: mean, p50, p90, p99, p99.9 / mean, p50, p90, p99, p99.9 / mean, p50, p90, p99, p99.9 / mean, p50, p90, p99, p99.9</li>
+ *   <li>Runtime: 2.5 / 2.8 / 2.5 / 2.8 min per parameter set</li>
+ *   <li>Raw data: https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/39725815238, https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/39725817915, https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/39725820710</li>
+ * </ul>
  */
 @State(Scope.Thread)
 @Fork(
-        value = 1,
+        value = 2,
         jvmArgsAppend = {"-Xms2g", "-Xmx2g", "-XX:+AlwaysPreTouch"})
 @Warmup(iterations = 1, time = 10)
-@Measurement(iterations = 2, time = 10)
+@Measurement(iterations = 2, time = 35)
 public class EventSigningBenchmark {
 
     /** The seed of the random number generator of the hashes. The same seed produces the same hashes. */
