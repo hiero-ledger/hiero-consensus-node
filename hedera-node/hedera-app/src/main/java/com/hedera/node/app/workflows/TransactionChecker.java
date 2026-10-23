@@ -92,6 +92,9 @@ public class TransactionChecker {
     private static final String COUNTER_NON_GOVERNANCE_OVERSIZED_TXNS = "NonGovernanceOversizedTxnsRcv";
     private static final String NON_GOVERNANCE_OVERSIZED_TXNS_DESC =
             "number of oversized txns received from a non-governance payer";
+    private static final String COUNTER_NON_CANONICAL_ENCODING_TXNS = "NonCanonicalTxnEncodingRcv";
+    private static final String NON_CANONICAL_ENCODING_TXNS_DESC =
+            "number of txns whose wire length differs from their parsed size (non-canonical protobuf encoding)";
 
     // Metric config for tracking parse failures by cause type
     private static final String COUNTER_PARSE_ERR_UNKNOWN_FIELD_NAME = "ParseErrUnknownFieldRcv";
@@ -113,6 +116,8 @@ public class TransactionChecker {
     private final Counter superDeprecatedCounter;
     /** The {@link Counter} used to track the number of oversized transactions from a non-governance payer. */
     private final Counter nonGovernanceOversizedTransactionsCounter;
+    /** The {@link Counter} used to track transactions whose wire length exceeds their parsed size. */
+    private final Counter nonCanonicalEncodingCounter;
     /** The {@link Counter} used to track parse failures caused by {@link UnknownFieldException}. */
     private final Counter parseErrUnknownFieldCounter;
     /** The {@link Counter} used to track parse failures caused by {@link BufferUnderflowException}. */
@@ -147,6 +152,9 @@ public class TransactionChecker {
         this.nonGovernanceOversizedTransactionsCounter =
                 metrics.getOrCreate(new Counter.Config("app", COUNTER_NON_GOVERNANCE_OVERSIZED_TXNS)
                         .withDescription(NON_GOVERNANCE_OVERSIZED_TXNS_DESC));
+        this.nonCanonicalEncodingCounter =
+                metrics.getOrCreate(new Counter.Config("app", COUNTER_NON_CANONICAL_ENCODING_TXNS)
+                        .withDescription(NON_CANONICAL_ENCODING_TXNS_DESC));
         this.parseErrUnknownFieldCounter =
                 metrics.getOrCreate(new Counter.Config("app", COUNTER_PARSE_ERR_UNKNOWN_FIELD_NAME)
                         .withDescription(COUNTER_PARSE_ERR_UNKNOWN_FIELD_DESC));
@@ -421,7 +429,7 @@ public class TransactionChecker {
      * @throws PreCheckException if the transaction exceeds the maximum allowed size
      */
     public void checkTransactionSize(@NonNull final TransactionInfo txInfo) throws PreCheckException {
-        final int txSize = txInfo.signedTx().protobufSize();
+        final int txSize = txInfo.wireSize();
         final HederaFunctionality functionality = txInfo.functionality();
 
         // Get max size without payer context (preliminary check)
@@ -453,7 +461,7 @@ public class TransactionChecker {
             return;
         }
 
-        final int txSize = txInfo.signedTx().protobufSize();
+        final int txSize = txInfo.wireSize();
         final HederaFunctionality functionality = txInfo.functionality();
 
         // Get max size with payer context
@@ -686,6 +694,11 @@ public class TransactionChecker {
             @NonNull final SignedTransaction signedTx, @NonNull final Bytes serializedSignedTx, final int maxSize)
             throws PreCheckException {
         validateTruePreCheck(signedTx.hasSigMap(), INVALID_TRANSACTION_BODY);
+        // A canonical encoding round-trips to the same length; when it does not, the received bytes exceed what the
+        // parsed model reflects, so size accounting must be based on the retained wire length.
+        if (serializedSignedTx.length() != signedTx.protobufSize()) {
+            nonCanonicalEncodingCounter.increment();
+        }
         final var signatureMap = signedTx.sigMapOrThrow();
         final var txBody = parseStrict(
                 signedTx.bodyBytes().toReadableSequentialData(),
