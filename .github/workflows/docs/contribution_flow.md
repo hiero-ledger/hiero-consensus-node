@@ -40,10 +40,10 @@ release candidate tag (`build-XXXXX`) and the subsequent workflows that are trig
 2. `300: [FLOW] Build Application` is triggered
 3. `300: [FLOW] Build Application` runs `MATS`
 4. MATS completes
-5. `300: [FLOW] Build Application` TRIGGERS a new workflow, `301: [FLOW] Deploy Prod Release`
-6. `301: [FLOW] Deploy Prod Release` runs
-7. `301: [FLOW] Deploy Prod Release` TRIGGERS a new workflow, `302: [DISP] CITR Prepare XTS`
-8. `301: [FLOW] Deploy Prod Release` TRIGGERS a new workflow, `303: [DISP] Deploy Integration`
+5. `300: [FLOW] Build Application` TRIGGERS a new workflow, `307: [DISP] Build Commit Artifact`
+6. `307: [DISP] Build Commit Artifact` builds and publishes the branch-commit artifact
+7. `307: [DISP] Build Commit Artifact` TRIGGERS a new workflow, `302: [DISP] CITR Prepare XTS`
+8. `307: [DISP] Build Commit Artifact` TRIGGERS a new workflow, `303: [DISP] Deploy Integration`
 9. `302: [DISP] CITR Prepare XTS` tags the commit that was pushed to main in (`1`) with the tag `xts-candidate`
 
 ## XTS PATH
@@ -71,5 +71,5 @@ release candidate tag (`build-XXXXX`) and the subsequent workflows that are trig
 
 1. `301: [FLOW] Deploy Prod Release` is triggered on tag applied to `main` or `release/major.minor` branch
    1. Tag format is required to match `vX.Y.Z*` (allows for alpha, release candidate tags, etc)
-2. `301: [FLOW] Deploy Prod Release` runs checks for `tag` path
-3. `301: [FLOW] Deploy Prod Release` TRIGGERS a new workflow, `303: [DISP] Deploy Integration`
+2. `301: [FLOW] Deploy Prod Release` builds and publishes the release artifacts for the tag
+3. `301: [FLOW] Deploy Prod Release` copies the HAPI protobufs to `hashgraph/hedera-protobufs` and tags them with the release version
