@@ -4,6 +4,7 @@ package com.hedera.node.app.service.token.impl.test.handlers;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
 import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
 import static com.hedera.node.app.service.token.impl.handlers.BaseTokenHandler.asToken;
+import static com.hedera.node.app.service.token.impl.test.handlers.util.TransferUtil.asNftTransferList;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static java.util.Collections.emptyMap;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -13,6 +14,7 @@ import static org.mockito.Mock.Strictness.LENIENT;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -57,6 +59,7 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -86,7 +89,11 @@ class FinalizeRecordHandlerTest extends CryptoTokenHandlerTestBase {
             .accountId(ACCOUNT_5656_ID)
             .tinybarBalance(10000)
             .build();
+    private final AccountID ACCOUNT_7878_ID =
+            AccountID.newBuilder().accountNum(7878).build();
     private static final TokenID TOKEN_321 = asToken(321);
+    private static final TokenID NFT_TOKEN = asToken(654);
+    private static final TokenID OTHER_NFT_TOKEN = asToken(987);
     private final Token TOKEN_321_FUNGIBLE =
             givenValidFungibleToken().copyBuilder().tokenId(TOKEN_321).build();
     private static final Bytes OWNER_ALIAS = Bytes.wrap("01234567890123456789012345678901");
@@ -1415,6 +1422,261 @@ class FinalizeRecordHandlerTest extends CryptoTokenHandlerTestBase {
                 .accountID(accountId)
                 .amount(amount)
                 .isApproval(isApproval)
+                .build();
+    }
+
+    @Test
+    void handleNftTransferAndTreasuryUpdateInChildRecords() {
+        givenNftState(
+                List.of(nftToken(NFT_TOKEN, ACCOUNT_3434_ID)),
+                List.of(
+                        nftRel(ACCOUNT_1212_ID, NFT_TOKEN, 1),
+                        nftRel(ACCOUNT_3434_ID, NFT_TOKEN, 1),
+                        nftRel(ACCOUNT_5656_ID, NFT_TOKEN, 0)),
+                List.of(nft(NFT_TOKEN, 1, ACCOUNT_1212_ID)));
+        writableNftStore.put(nft(NFT_TOKEN, 1, null));
+        writableTokenStore.put(nftToken(NFT_TOKEN, ACCOUNT_5656_ID));
+        writableTokenRelStore.put(nftRel(ACCOUNT_1212_ID, NFT_TOKEN, 0));
+        writableTokenRelStore.put(nftRel(ACCOUNT_3434_ID, NFT_TOKEN, 0));
+        writableTokenRelStore.put(nftRel(ACCOUNT_5656_ID, NFT_TOKEN, 2));
+        givenChildRecordsWith(
+                asNftTransferList(NFT_TOKEN, ACCOUNT_1212_ID, ACCOUNT_3434_ID, 1),
+                asNftTransferList(NFT_TOKEN, ACCOUNT_3434_ID, ACCOUNT_5656_ID, -1));
+
+        subject.finalizeNonStakingRecord(context, HederaFunctionality.ATOMIC_BATCH, TransactionBody.DEFAULT);
+
+        verify(recordBuilder, never()).tokenTransferLists(any());
+    }
+
+    @Test
+    void handleNftMintAndTreasuryUpdateInChildRecords() {
+        givenNftState(
+                List.of(nftToken(NFT_TOKEN, ACCOUNT_3434_ID)),
+                List.of(nftRel(ACCOUNT_5656_ID, NFT_TOKEN, 0)),
+                List.of());
+        writableNftStore.put(nft(NFT_TOKEN, 1, null));
+        writableTokenStore.put(nftToken(NFT_TOKEN, ACCOUNT_5656_ID));
+        writableTokenRelStore.put(nftRel(ACCOUNT_5656_ID, NFT_TOKEN, 1));
+        givenChildRecordsWith(
+                asNftTransferList(NFT_TOKEN, zeroAccountId, ACCOUNT_3434_ID, 1),
+                asNftTransferList(NFT_TOKEN, ACCOUNT_3434_ID, ACCOUNT_5656_ID, -1));
+
+        subject.finalizeNonStakingRecord(context, HederaFunctionality.ATOMIC_BATCH, TransactionBody.DEFAULT);
+
+        verify(recordBuilder, never()).tokenTransferLists(any());
+    }
+
+    @Test
+    void handleNewTokenNftMintAndTreasuryUpdateInChildRecords() {
+        givenNftState(List.of(), List.of());
+        writableTokenStore.put(nftToken(NFT_TOKEN, ACCOUNT_5656_ID));
+        writableNftStore.put(nft(NFT_TOKEN, 1, null));
+        writableTokenRelStore.put(nftRel(ACCOUNT_5656_ID, NFT_TOKEN, 1));
+        givenChildRecordsWith(
+                asNftTransferList(NFT_TOKEN, zeroAccountId, ACCOUNT_3434_ID, 1),
+                asNftTransferList(NFT_TOKEN, ACCOUNT_3434_ID, ACCOUNT_5656_ID, -1));
+
+        subject.finalizeNonStakingRecord(context, HederaFunctionality.ATOMIC_BATCH, TransactionBody.DEFAULT);
+
+        verify(recordBuilder, never()).tokenTransferLists(any());
+    }
+
+    @Test
+    void handleNftTransferAndTreasuryUpdatesInChildRecords() {
+        givenNftState(
+                List.of(nftToken(NFT_TOKEN, ACCOUNT_3434_ID)),
+                List.of(nftRel(ACCOUNT_1212_ID, NFT_TOKEN, 1), nftRel(ACCOUNT_7878_ID, NFT_TOKEN, 0)),
+                List.of(nft(NFT_TOKEN, 1, ACCOUNT_1212_ID)));
+        writableNftStore.put(nft(NFT_TOKEN, 1, null));
+        writableTokenStore.put(nftToken(NFT_TOKEN, ACCOUNT_7878_ID));
+        writableTokenRelStore.put(nftRel(ACCOUNT_1212_ID, NFT_TOKEN, 0));
+        writableTokenRelStore.put(nftRel(ACCOUNT_7878_ID, NFT_TOKEN, 1));
+        givenChildRecordsWith(
+                asNftTransferList(NFT_TOKEN, ACCOUNT_1212_ID, ACCOUNT_3434_ID, 1),
+                asNftTransferList(NFT_TOKEN, ACCOUNT_3434_ID, ACCOUNT_5656_ID, -1),
+                asNftTransferList(NFT_TOKEN, ACCOUNT_5656_ID, ACCOUNT_7878_ID, -1));
+
+        subject.finalizeNonStakingRecord(context, HederaFunctionality.ATOMIC_BATCH, TransactionBody.DEFAULT);
+
+        verify(recordBuilder, never()).tokenTransferLists(any());
+    }
+
+    @Test
+    void handleNftTransferBetweenTreasuryUpdatesInChildRecords() {
+        givenNftState(
+                List.of(nftToken(NFT_TOKEN, ACCOUNT_3434_ID)),
+                List.of(nftRel(ACCOUNT_1212_ID, NFT_TOKEN, 1), nftRel(ACCOUNT_7878_ID, NFT_TOKEN, 0)),
+                List.of(nft(NFT_TOKEN, 1, ACCOUNT_1212_ID)));
+        writableNftStore.put(nft(NFT_TOKEN, 1, null));
+        writableTokenStore.put(nftToken(NFT_TOKEN, ACCOUNT_7878_ID));
+        writableTokenRelStore.put(nftRel(ACCOUNT_1212_ID, NFT_TOKEN, 0));
+        writableTokenRelStore.put(nftRel(ACCOUNT_7878_ID, NFT_TOKEN, 1));
+        givenChildRecordsWith(
+                asNftTransferList(NFT_TOKEN, ACCOUNT_3434_ID, ACCOUNT_5656_ID, -1),
+                asNftTransferList(NFT_TOKEN, ACCOUNT_1212_ID, ACCOUNT_5656_ID, 1),
+                asNftTransferList(NFT_TOKEN, ACCOUNT_5656_ID, ACCOUNT_7878_ID, -1));
+
+        subject.finalizeNonStakingRecord(context, HederaFunctionality.ATOMIC_BATCH, TransactionBody.DEFAULT);
+
+        verify(recordBuilder, never()).tokenTransferLists(any());
+    }
+
+    @Test
+    void handleNftTransfersAndTreasuryUpdateInChildRecords() {
+        givenNftState(
+                List.of(nftToken(NFT_TOKEN, ACCOUNT_3434_ID)),
+                List.of(
+                        nftRel(ACCOUNT_1212_ID, NFT_TOKEN, 1),
+                        nftRel(ACCOUNT_3434_ID, NFT_TOKEN, 1),
+                        nftRel(ACCOUNT_5656_ID, NFT_TOKEN, 0),
+                        nftRel(ACCOUNT_7878_ID, NFT_TOKEN, 0)),
+                List.of(nft(NFT_TOKEN, 1, ACCOUNT_1212_ID), nft(NFT_TOKEN, 2, null)));
+        writableNftStore.put(nft(NFT_TOKEN, 1, null));
+        writableNftStore.put(nft(NFT_TOKEN, 2, ACCOUNT_7878_ID));
+        writableTokenStore.put(nftToken(NFT_TOKEN, ACCOUNT_5656_ID));
+        writableTokenRelStore.put(nftRel(ACCOUNT_1212_ID, NFT_TOKEN, 0));
+        writableTokenRelStore.put(nftRel(ACCOUNT_3434_ID, NFT_TOKEN, 0));
+        writableTokenRelStore.put(nftRel(ACCOUNT_5656_ID, NFT_TOKEN, 1));
+        writableTokenRelStore.put(nftRel(ACCOUNT_7878_ID, NFT_TOKEN, 1));
+        givenChildRecordsWith(
+                asNftTransferList(NFT_TOKEN, ACCOUNT_1212_ID, ACCOUNT_3434_ID, 1),
+                asNftTransferList(NFT_TOKEN, ACCOUNT_3434_ID, ACCOUNT_7878_ID, 2),
+                asNftTransferList(NFT_TOKEN, ACCOUNT_3434_ID, ACCOUNT_5656_ID, -1));
+
+        subject.finalizeNonStakingRecord(context, HederaFunctionality.ATOMIC_BATCH, TransactionBody.DEFAULT);
+
+        verify(recordBuilder, never()).tokenTransferLists(any());
+    }
+
+    @Test
+    void handleTreasuryUpdatesOfTwoTokensInChildRecords() {
+        givenNftState(
+                List.of(nftToken(NFT_TOKEN, ACCOUNT_3434_ID), nftToken(OTHER_NFT_TOKEN, ACCOUNT_3434_ID)),
+                List.of(nftRel(ACCOUNT_1212_ID, OTHER_NFT_TOKEN, 1), nftRel(ACCOUNT_7878_ID, OTHER_NFT_TOKEN, 0)),
+                List.of(nft(OTHER_NFT_TOKEN, 1, ACCOUNT_1212_ID)));
+        writableNftStore.put(nft(OTHER_NFT_TOKEN, 1, null));
+        writableTokenStore.put(nftToken(NFT_TOKEN, ACCOUNT_5656_ID));
+        writableTokenStore.put(nftToken(OTHER_NFT_TOKEN, ACCOUNT_7878_ID));
+        writableTokenRelStore.put(nftRel(ACCOUNT_1212_ID, OTHER_NFT_TOKEN, 0));
+        writableTokenRelStore.put(nftRel(ACCOUNT_7878_ID, OTHER_NFT_TOKEN, 1));
+        givenChildRecordsWith(
+                asNftTransferList(OTHER_NFT_TOKEN, ACCOUNT_1212_ID, ACCOUNT_3434_ID, 1),
+                asNftTransferList(NFT_TOKEN, ACCOUNT_3434_ID, ACCOUNT_5656_ID, -1),
+                asNftTransferList(OTHER_NFT_TOKEN, ACCOUNT_3434_ID, ACCOUNT_7878_ID, -1));
+
+        subject.finalizeNonStakingRecord(context, HederaFunctionality.ATOMIC_BATCH, TransactionBody.DEFAULT);
+
+        verify(recordBuilder, never()).tokenTransferLists(any());
+    }
+
+    @Test
+    void handleTreasuryUpdateAndNftTransferInChildRecords() {
+        givenNftState(
+                List.of(nftToken(NFT_TOKEN, ACCOUNT_3434_ID)),
+                List.of(nftRel(ACCOUNT_1212_ID, NFT_TOKEN, 1), nftRel(ACCOUNT_5656_ID, NFT_TOKEN, 0)),
+                List.of(nft(NFT_TOKEN, 1, ACCOUNT_1212_ID)));
+        writableNftStore.put(nft(NFT_TOKEN, 1, null));
+        writableTokenStore.put(nftToken(NFT_TOKEN, ACCOUNT_5656_ID));
+        writableTokenRelStore.put(nftRel(ACCOUNT_1212_ID, NFT_TOKEN, 0));
+        writableTokenRelStore.put(nftRel(ACCOUNT_5656_ID, NFT_TOKEN, 1));
+        givenChildRecordsWith(
+                asNftTransferList(NFT_TOKEN, ACCOUNT_3434_ID, ACCOUNT_5656_ID, -1),
+                asNftTransferList(NFT_TOKEN, ACCOUNT_1212_ID, ACCOUNT_5656_ID, 1));
+
+        subject.finalizeNonStakingRecord(context, HederaFunctionality.ATOMIC_BATCH, TransactionBody.DEFAULT);
+
+        verify(recordBuilder, never()).tokenTransferLists(any());
+    }
+
+    @Test
+    void handleNftTransferWithOnlyTreasuryUpdateInChildRecords() {
+        givenNftState(
+                List.of(nftToken(NFT_TOKEN, ACCOUNT_3434_ID)),
+                List.of(nftRel(ACCOUNT_1212_ID, NFT_TOKEN, 1), nftRel(ACCOUNT_7878_ID, NFT_TOKEN, 0)),
+                List.of(nft(NFT_TOKEN, 1, ACCOUNT_1212_ID)));
+        writableNftStore.put(nft(NFT_TOKEN, 1, ACCOUNT_7878_ID));
+        writableTokenStore.put(nftToken(NFT_TOKEN, ACCOUNT_5656_ID));
+        writableTokenRelStore.put(nftRel(ACCOUNT_1212_ID, NFT_TOKEN, 0));
+        writableTokenRelStore.put(nftRel(ACCOUNT_7878_ID, NFT_TOKEN, 1));
+        givenChildRecordsWith(asNftTransferList(NFT_TOKEN, ACCOUNT_3434_ID, ACCOUNT_5656_ID, -1));
+
+        subject.finalizeNonStakingRecord(context, HederaFunctionality.ATOMIC_BATCH, TransactionBody.DEFAULT);
+
+        verify(recordBuilder)
+                .tokenTransferLists(List.of(asNftTransferList(NFT_TOKEN, ACCOUNT_1212_ID, ACCOUNT_7878_ID, 1)));
+    }
+
+    @Test
+    void handleNftTransferFromOtherSenderInChildRecords() {
+        givenNftState(
+                List.of(nftToken(NFT_TOKEN, ACCOUNT_3434_ID)),
+                List.of(nftRel(ACCOUNT_1212_ID, NFT_TOKEN, 1), nftRel(ACCOUNT_7878_ID, NFT_TOKEN, 0)),
+                List.of(nft(NFT_TOKEN, 1, ACCOUNT_1212_ID)));
+        writableNftStore.put(nft(NFT_TOKEN, 1, null));
+        writableTokenStore.put(nftToken(NFT_TOKEN, ACCOUNT_7878_ID));
+        writableTokenRelStore.put(nftRel(ACCOUNT_1212_ID, NFT_TOKEN, 0));
+        writableTokenRelStore.put(nftRel(ACCOUNT_7878_ID, NFT_TOKEN, 1));
+        givenChildRecordsWith(
+                asNftTransferList(NFT_TOKEN, ACCOUNT_7878_ID, ACCOUNT_3434_ID, 1),
+                asNftTransferList(NFT_TOKEN, ACCOUNT_3434_ID, ACCOUNT_7878_ID, -1));
+
+        subject.finalizeNonStakingRecord(context, HederaFunctionality.ATOMIC_BATCH, TransactionBody.DEFAULT);
+
+        verify(recordBuilder)
+                .tokenTransferLists(List.of(asNftTransferList(NFT_TOKEN, ACCOUNT_1212_ID, ACCOUNT_7878_ID, 1)));
+    }
+
+    private void givenNftState(final List<Token> tokens, final List<Nft> nfts) {
+        givenNftState(tokens, List.of(), nfts);
+    }
+
+    private void givenNftState(final List<Token> tokens, final List<TokenRelation> rels, final List<Nft> nfts) {
+        setupTestStores(List.of(), rels, tokens, nfts);
+        context = mockContext();
+        given(context.configuration()).willReturn(configuration);
+    }
+
+    private void givenChildRecordsWith(final TokenTransferList... childTransfers) {
+        final List<RecordStreamBuilder> childRecords = new ArrayList<>();
+        for (final var transfers : childTransfers) {
+            final var childRecord = mock(RecordStreamBuilder.class);
+            given(childRecord.tokenTransferLists()).willReturn(List.of(transfers));
+            childRecords.add(childRecord);
+        }
+        given(context.hasChildOrPrecedingRecords()).willReturn(true);
+        doAnswer(invocation -> {
+                    final var consumer = invocation.getArgument(1, Consumer.class);
+                    childRecords.forEach(consumer::accept);
+                    return null;
+                })
+                .when(context)
+                .forEachChildRecord(any(), any());
+    }
+
+    private Token nftToken(final TokenID tokenId, final AccountID treasuryId) {
+        return givenValidNonFungibleToken(false)
+                .copyBuilder()
+                .tokenId(tokenId)
+                .treasuryAccountId(treasuryId)
+                .build();
+    }
+
+    private TokenRelation nftRel(final AccountID accountId, final TokenID tokenId, final long balance) {
+        return givenNonFungibleTokenRelation()
+                .copyBuilder()
+                .accountId(accountId)
+                .tokenId(tokenId)
+                .balance(balance)
+                .build();
+    }
+
+    private static Nft nft(final TokenID tokenId, final long serialNo, @Nullable final AccountID ownerId) {
+        return Nft.newBuilder()
+                .nftId(NftID.newBuilder()
+                        .tokenId(tokenId)
+                        .serialNumber(serialNo)
+                        .build())
+                .ownerId(ownerId)
                 .build();
     }
 
