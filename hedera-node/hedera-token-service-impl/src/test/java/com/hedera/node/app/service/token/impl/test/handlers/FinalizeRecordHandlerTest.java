@@ -684,6 +684,7 @@ class FinalizeRecordHandlerTest extends CryptoTokenHandlerTestBase {
         setupTestStores(List.of(ACCOUNT_1212), List.of(existingTokenRel), List.of(TOKEN_321_FUNGIBLE), List.of(nft1));
         writableNftStore.remove(
                 NftID.newBuilder().tokenId(TOKEN_321).serialNumber(1).build());
+        writableTokenRelStore.put(existingTokenRel.copyBuilder().balance(0).build());
         context = mockContext();
         given(context.configuration()).willReturn(configuration);
 
@@ -703,6 +704,112 @@ class FinalizeRecordHandlerTest extends CryptoTokenHandlerTestBase {
                                 .receiverAccountID(asAccount(0L, 0L, 0))
                                 .build())
                         .build()));
+    }
+
+    @Test
+    void nftWipeAndTransferAreAccounted() {
+        setupTestStores(
+                List.of(),
+                List.of(nonFungibleRel321(ACCOUNT_1212_ID, 1), nonFungibleRel321(ACCOUNT_5656_ID, 1)),
+                List.of(nonFungibleToken321()),
+                List.of(nft321(1, ACCOUNT_1212_ID), nft321(2, ACCOUNT_5656_ID)));
+        writableNftStore.remove(TOKEN_321, 1);
+        writableNftStore.put(nft321(2, ACCOUNT_1212_ID));
+        writableTokenRelStore.put(nonFungibleRel321(ACCOUNT_1212_ID, 1));
+        writableTokenRelStore.put(nonFungibleRel321(ACCOUNT_5656_ID, 0));
+        context = mockContext();
+        given(context.configuration()).willReturn(configuration);
+        givenChildRecordsTransferring(
+                nftTransfer321(1, ACCOUNT_1212_ID, asAccount(0L, 0L, 0)),
+                nftTransfer321(2, ACCOUNT_5656_ID, ACCOUNT_1212_ID));
+
+        subject.finalizeNonStakingRecord(context, HederaFunctionality.ATOMIC_BATCH, TransactionBody.DEFAULT);
+
+        verify(recordBuilder, times(0)).tokenTransferLists(any());
+    }
+
+    @Test
+    void nftMintAndTransferAreAccounted() {
+        setupTestStores(
+                List.of(),
+                List.of(nonFungibleRel321(ACCOUNT_3434_ID, 1), nonFungibleRel321(ACCOUNT_1212_ID, 0)),
+                List.of(nonFungibleToken321()),
+                List.of(nft321(1, null)));
+        writableNftStore.put(nft321(2, null));
+        writableNftStore.put(nft321(1, ACCOUNT_1212_ID));
+        writableTokenRelStore.put(nonFungibleRel321(ACCOUNT_3434_ID, 1));
+        writableTokenRelStore.put(nonFungibleRel321(ACCOUNT_1212_ID, 1));
+        context = mockContext();
+        given(context.configuration()).willReturn(configuration);
+        givenChildRecordsTransferring(
+                nftTransfer321(2, asAccount(0L, 0L, 0), ACCOUNT_3434_ID),
+                nftTransfer321(1, ACCOUNT_3434_ID, ACCOUNT_1212_ID));
+
+        subject.finalizeNonStakingRecord(context, HederaFunctionality.ATOMIC_BATCH, TransactionBody.DEFAULT);
+
+        verify(recordBuilder, times(0)).tokenTransferLists(any());
+    }
+
+    @Test
+    void nftBurnAndTransferAreAccounted() {
+        setupTestStores(
+                List.of(),
+                List.of(nonFungibleRel321(ACCOUNT_3434_ID, 1), nonFungibleRel321(ACCOUNT_1212_ID, 1)),
+                List.of(nonFungibleToken321()),
+                List.of(nft321(1, ACCOUNT_1212_ID), nft321(2, null)));
+        writableNftStore.remove(TOKEN_321, 2);
+        writableNftStore.put(nft321(1, null));
+        writableTokenRelStore.put(nonFungibleRel321(ACCOUNT_3434_ID, 1));
+        writableTokenRelStore.put(nonFungibleRel321(ACCOUNT_1212_ID, 0));
+        context = mockContext();
+        given(context.configuration()).willReturn(configuration);
+        givenChildRecordsTransferring(
+                nftTransfer321(2, ACCOUNT_3434_ID, asAccount(0L, 0L, 0)),
+                nftTransfer321(1, ACCOUNT_1212_ID, ACCOUNT_3434_ID));
+
+        subject.finalizeNonStakingRecord(context, HederaFunctionality.ATOMIC_BATCH, TransactionBody.DEFAULT);
+
+        verify(recordBuilder, times(0)).tokenTransferLists(any());
+    }
+
+    @Test
+    void nftMintAndDissociateFromDeletedTokenAreAccounted() {
+        setupTestStores(
+                List.of(), List.of(nonFungibleRel321(ACCOUNT_3434_ID, 0)), List.of(nonFungibleToken321()), List.of());
+        writableNftStore.put(nft321(1, null));
+        writableTokenStore.put(nonFungibleToken321().copyBuilder().deleted(true).build());
+        writableTokenRelStore.remove(nonFungibleRel321(ACCOUNT_3434_ID, 0));
+        context = mockContext();
+        given(context.configuration()).willReturn(configuration);
+        givenChildRecordsTransferring(
+                nftTransfer321(1, asAccount(0L, 0L, 0), ACCOUNT_3434_ID), fungibleTransfer321(ACCOUNT_3434_ID, -1));
+
+        subject.finalizeNonStakingRecord(context, HederaFunctionality.ATOMIC_BATCH, TransactionBody.DEFAULT);
+
+        verify(recordBuilder, times(0)).tokenTransferLists(any());
+    }
+
+    @Test
+    void nftMintTransferAndDissociateFromDeletedTokenAreAccounted() {
+        setupTestStores(
+                List.of(),
+                List.of(nonFungibleRel321(ACCOUNT_3434_ID, 0), nonFungibleRel321(ACCOUNT_1212_ID, 0)),
+                List.of(nonFungibleToken321()),
+                List.of());
+        writableNftStore.put(nft321(1, ACCOUNT_1212_ID));
+        writableTokenStore.put(nonFungibleToken321().copyBuilder().deleted(true).build());
+        writableTokenRelStore.put(nonFungibleRel321(ACCOUNT_3434_ID, 0));
+        writableTokenRelStore.remove(nonFungibleRel321(ACCOUNT_1212_ID, 0));
+        context = mockContext();
+        given(context.configuration()).willReturn(configuration);
+        givenChildRecordsTransferring(
+                nftTransfer321(1, asAccount(0L, 0L, 0), ACCOUNT_3434_ID),
+                nftTransfer321(1, ACCOUNT_3434_ID, ACCOUNT_1212_ID),
+                fungibleTransfer321(ACCOUNT_1212_ID, -1));
+
+        subject.finalizeNonStakingRecord(context, HederaFunctionality.ATOMIC_BATCH, TransactionBody.DEFAULT);
+
+        verify(recordBuilder, times(0)).tokenTransferLists(any());
     }
 
     @Test
@@ -961,6 +1068,9 @@ class FinalizeRecordHandlerTest extends CryptoTokenHandlerTestBase {
                 .alias(Bytes.wrap("00000000000000000003"))
                 .build());
         writableNftStore.put(nft.copyBuilder().ownerId(ACCOUNT_3434_ID).build());
+        writableTokenRelStore.put(existingTokenRel.copyBuilder().balance(0).build());
+        writableTokenRelStore.put(
+                existingTokenRel.copyBuilder().accountId(ACCOUNT_3434_ID).build());
         context = mockContext();
         given(context.configuration()).willReturn(configuration);
 
@@ -998,6 +1108,8 @@ class FinalizeRecordHandlerTest extends CryptoTokenHandlerTestBase {
                 .ownerId(ACCOUNT_1212_ID)
                 .build();
         writableNftStore.put(newNft.copyBuilder().ownerId(ACCOUNT_3434_ID).build());
+        writableTokenRelStore.put(
+                existingTokenRel.copyBuilder().accountId(ACCOUNT_3434_ID).build());
         context = mockContext();
 
         given(context.configuration()).willReturn(configuration);
@@ -1033,11 +1145,15 @@ class FinalizeRecordHandlerTest extends CryptoTokenHandlerTestBase {
                 .build();
         final var acct1212tokenRel1 = givenNonFungibleTokenRelation()
                 .copyBuilder()
+                .tokenId(TOKEN_321)
                 .accountId(ACCOUNT_1212_ID)
+                .balance(2)
                 .build();
         final var acct3434tokenRel1 = givenNonFungibleTokenRelation()
                 .copyBuilder()
+                .tokenId(TOKEN_321)
                 .accountId(ACCOUNT_3434_ID)
+                .balance(0)
                 .build();
 
         // Set up NFTs for token ID 246 (serials 222, 223)
@@ -1052,11 +1168,15 @@ class FinalizeRecordHandlerTest extends CryptoTokenHandlerTestBase {
                 .build();
         final var acct1212tokenRel2 = givenNonFungibleTokenRelation()
                 .copyBuilder()
+                .tokenId(token246Id)
                 .accountId(ACCOUNT_1212_ID)
+                .balance(0)
                 .build();
         final var acct3434tokenRel2 = givenNonFungibleTokenRelation()
                 .copyBuilder()
+                .tokenId(token246Id)
                 .accountId(ACCOUNT_3434_ID)
+                .balance(2)
                 .build();
 
         // Set up stores
@@ -1070,6 +1190,10 @@ class FinalizeRecordHandlerTest extends CryptoTokenHandlerTestBase {
         writableNftStore.put(nft112.copyBuilder().ownerId(ACCOUNT_3434_ID).build());
         writableNftStore.put(nft222.copyBuilder().ownerId(ACCOUNT_1212_ID).build());
         writableNftStore.put(nft223.copyBuilder().ownerId(ACCOUNT_1212_ID).build());
+        writableTokenRelStore.put(acct1212tokenRel1.copyBuilder().balance(0).build());
+        writableTokenRelStore.put(acct3434tokenRel1.copyBuilder().balance(2).build());
+        writableTokenRelStore.put(acct1212tokenRel2.copyBuilder().balance(2).build());
+        writableTokenRelStore.put(acct3434tokenRel2.copyBuilder().balance(0).build());
         context = mockContext();
         given(context.configuration()).willReturn(configuration);
 
@@ -1455,5 +1579,72 @@ class FinalizeRecordHandlerTest extends CryptoTokenHandlerTestBase {
             readableNftStore = TestStoreFactory.newReadableStoreWithNfts(nfts.toArray(new Nft[0]));
             writableNftStore = TestStoreFactory.newWritableStoreWithNfts(nfts.toArray(new Nft[0]));
         }
+    }
+
+    private void givenChildRecordsTransferring(final TokenTransferList... childTransfers) {
+        final var childRecords = List.of(childTransfers).stream()
+                .map(transfers -> {
+                    final var childRecord = mock(RecordStreamBuilder.class);
+                    given(childRecord.tokenTransferLists()).willReturn(List.of(transfers));
+                    return childRecord;
+                })
+                .toList();
+        given(context.hasChildOrPrecedingRecords()).willReturn(true);
+        doAnswer(invocation -> {
+                    final var consumer = invocation.getArgument(1, Consumer.class);
+                    childRecords.forEach(consumer::accept);
+                    return null;
+                })
+                .when(context)
+                .forEachChildRecord(any(), any());
+    }
+
+    private Token nonFungibleToken321() {
+        return givenValidNonFungibleToken(false)
+                .copyBuilder()
+                .tokenId(TOKEN_321)
+                .treasuryAccountId(ACCOUNT_3434_ID)
+                .build();
+    }
+
+    private TokenRelation nonFungibleRel321(final AccountID accountId, final long balance) {
+        return givenNonFungibleTokenRelation()
+                .copyBuilder()
+                .tokenId(TOKEN_321)
+                .accountId(accountId)
+                .balance(balance)
+                .build();
+    }
+
+    private Nft nft321(final long serialNo, @Nullable final AccountID ownerId) {
+        return givenNft(NftID.newBuilder()
+                        .tokenId(TOKEN_321)
+                        .serialNumber(serialNo)
+                        .build())
+                .copyBuilder()
+                .ownerId(ownerId)
+                .build();
+    }
+
+    private static TokenTransferList fungibleTransfer321(@NonNull final AccountID accountId, final long amount) {
+        return TokenTransferList.newBuilder()
+                .token(TOKEN_321)
+                .transfers(AccountAmount.newBuilder()
+                        .accountID(accountId)
+                        .amount(amount)
+                        .build())
+                .build();
+    }
+
+    private static TokenTransferList nftTransfer321(
+            final long serialNo, @NonNull final AccountID senderId, @NonNull final AccountID receiverId) {
+        return TokenTransferList.newBuilder()
+                .token(TOKEN_321)
+                .nftTransfers(NftTransfer.newBuilder()
+                        .serialNumber(serialNo)
+                        .senderAccountID(senderId)
+                        .receiverAccountID(receiverId)
+                        .build())
+                .build();
     }
 }
