@@ -30,7 +30,11 @@ import org.testcontainers.utility.DockerImageName;
  * A test container for running a block node server instance.
  */
 public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
-    private static final String BLOCK_NODE_VERSION = "0.45.0-tssupdate";
+    private static final String DEFAULT_BLOCK_NODE_VERSION = "0.45.0-tssupdate";
+    /** Env var that overrides the Block Node image version (e.g. {@code v0.45.0} or {@code 0.45.0}). */
+    private static final String BLOCK_NODE_VERSION_ENV = "BLOCK_NODE_VERSION";
+
+    private static final String BLOCK_NODE_VERSION = resolveBlockNodeVersion();
     private static final DockerImageName DEFAULT_IMAGE_NAME =
             DockerImageName.parse("ghcr.io/hiero-ledger/hiero-block-node:" + BLOCK_NODE_VERSION);
     private static final int GRPC_PORT = 40840;
@@ -153,6 +157,16 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
                 java.util.logging.ConsoleHandler.level=ALL
                 java.util.logging.ConsoleHandler.formatter=org.hiero.block.node.app.logging.CleanColorfulFormatter
                 """.formatted(BLOCK_PIPELINE_LOG_LEVEL);
+    }
+
+    /** Returns the env override without a leading {@code v} (image tags have none), or the default if unset or blank. */
+    private static String resolveBlockNodeVersion() {
+        final String override = System.getenv(BLOCK_NODE_VERSION_ENV);
+        if (override == null || override.isBlank()) {
+            return DEFAULT_BLOCK_NODE_VERSION;
+        }
+        final String version = override.strip();
+        return version.startsWith("v") ? version.substring(1) : version;
     }
 
     private static String pluginsDirInContainer() {

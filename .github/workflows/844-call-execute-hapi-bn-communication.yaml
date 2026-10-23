@@ -22,6 +22,16 @@ on:
         type: string
         required: false
         default: "24"
+      bn-release-version:
+        description: "Block Node version used by the tests that start a real Block Node container (default: the version pinned in test-clients):"
+        type: string
+        required: false
+        default: ""
+      artifact-suffix:
+        description: "Optional suffix appended to artifact names so parallel runs stay unique (letters, digits, '.', '_', '-'):"
+        type: string
+        required: false
+        default: ""
       enable-network-log-capture:
         description: "Network Log Capture Enabled"
         type: string
@@ -88,6 +98,7 @@ jobs:
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
+          BLOCK_NODE_VERSION: ${{ inputs.bn-release-version }}
         run: ${GRADLE_EXEC} hapiTestBlockNodeCommunication
 
       - name: Publish HAPI Test (Block Node Communication) Reports
@@ -101,7 +112,7 @@ jobs:
       - name: Upload HAPI Test (Block Node Communication) Report Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: HAPI Test (Block Node Communication) Reports
+          name: HAPI Test (Block Node Communication) Reports${{ inputs.artifact-suffix && format(' {0}', inputs.artifact-suffix) || '' }}
           path: "**/test-clients/build/test-results/**/TEST-*.xml"
           retention-days: 7
 
@@ -109,7 +120,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ !cancelled() && inputs.enable-network-log-capture && steps.gradle-hapi-bn-communication.conclusion == 'failure' }}
         with:
-          name: HAPI Test (Block Node Communication) Network Logs
+          name: HAPI Test (Block Node Communication) Network Logs${{ inputs.artifact-suffix && format(' {0}', inputs.artifact-suffix) || '' }}
           path: |
             hedera-node/test-clients/build/*-test/**/output/**
           retention-days: 7
@@ -118,7 +129,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ !cancelled() && steps.gradle-hapi-bn-communication.conclusion == 'failure' }}
         with:
-          name: HAPI Test (Block Node Communication) Failure Artifacts
+          name: HAPI Test (Block Node Communication) Failure Artifacts${{ inputs.artifact-suffix && format(' {0}', inputs.artifact-suffix) || '' }}
           path: |
             hedera-node/test-clients/build/**/*.blk.gz
             hedera-node/test-clients/build/**/*.rcd.gz
