@@ -5,6 +5,7 @@ import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.RECORD_HASH_
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.services.bdd.junit.TestTags.RESTART;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_DIR;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.WRAPPED_RECORD_HASHES_FILE;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
@@ -20,11 +21,14 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
+import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashes;
+import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashesLog;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
 import com.hedera.hapi.node.base.BlockHashAlgorithm;
@@ -34,6 +38,7 @@ import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.node.app.blocks.impl.BlockImplUtils;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.node.config.data.BlockStreamJumpstartConfig;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
@@ -50,6 +55,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -94,6 +100,7 @@ class JumpstartFileSuite implements LifecycleTest {
         final AtomicReference<BlockStreamJumpstartConfig> jumpstartConfig2 = new AtomicReference<>();
         final AtomicReference<String> nodeComputedHash2 = new AtomicReference<>();
         final AtomicReference<String> freezeBlockNum2 = new AtomicReference<>();
+        final AtomicReference<List<Long>> preUpgradeHashedBlocks = new AtomicReference<>();
 
         // Mutable map so buildDynamicJumpstartConfig can add jumpstart config properties
         // before the restart reads them
@@ -234,12 +241,22 @@ class JumpstartFileSuite implements LifecycleTest {
                                         Duration.ofSeconds(1))
                                 .matchingLast()
                                 .exposingMatchGroupTo(1, liveBlockNum)
-                                .exposingMatchGroupTo(2, liveWrappedHash)),
+                                .exposingMatchGroupTo(2, liveWrappedHash),
+                        doingContextual(spec -> preUpgradeHashedBlocks.set(wrappedHashesBlockNumbers(spec)))),
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
                 assertHgcaaLogContainsPattern(
                         NodeSelector.exceptNodeIds(LATER_NODE_IDS),
                         "Jumpstart migration already applied \\(votingComplete=true\\) and no jumpstart config, skipping",
                         Duration.ofSeconds(30)),
+                // No jumpstart is configured, so the upgrade must have truncated the pre-upgrade entries
+                doingContextual(spec -> {
+                    final var preUpgradeBlocks = preUpgradeHashedBlocks.get();
+                    assertFalse(preUpgradeBlocks.isEmpty(), "Expected wrapped record hashes on node0 before upgrade");
+                    final long preUpgradeLastBlock = Collections.max(preUpgradeBlocks);
+                    assertTrue(
+                            wrappedHashesBlockNumbers(spec).stream().allMatch(b -> b > preUpgradeLastBlock),
+                            "Expected the upgrade to truncate node0's pre-upgrade wrapped record hashes");
+                }),
                 sourcing(() -> verifyLiveWrappedHash(liveWrappedHash.get(), liveBlockNum.get())),
                 logIt("Phase 9: Transition to SHA-256"),
                 MixedOperations.burstOfTps(5, Duration.ofSeconds(30)),
@@ -577,6 +594,20 @@ class JumpstartFileSuite implements LifecycleTest {
                 assertEquals(prevBlockNum + 1, blockNum, "Block numbers should be sequential");
             }
             prevBlockNum = blockNum;
+        }
+    }
+
+    private static List<Long> wrappedHashesBlockNumbers(final HapiSpec spec) {
+        final var node0 = spec.targetNetworkOrThrow().getRequiredNode(NodeSelector.byNodeId(0));
+        try {
+            final var bytes = Files.readAllBytes(node0.getExternalPath(WRAPPED_RECORD_HASHES_FILE));
+            return WrappedRecordFileBlockHashesLog.PROTOBUF.parse(Bytes.wrap(bytes)).entries().stream()
+                    .map(WrappedRecordFileBlockHashes::blockNumber)
+                    .toList();
+        } catch (final IOException e) {
+            throw new UncheckedIOException(e);
+        } catch (final ParseException e) {
+            throw new IllegalStateException("Unable to parse node0's wrapped record hashes file", e);
         }
     }
 
