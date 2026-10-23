@@ -37,6 +37,7 @@ jobs:
     if: ${{ github.event.repository.visibility == 'public' }}
     outputs:
       matrix: ${{ steps.resolve.outputs.matrix }}
+      cn-matrix: ${{ steps.resolve.outputs.cn-matrix }}
     steps:
       - name: Initialize GitHub Job
         uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
@@ -79,6 +80,8 @@ jobs:
           MATRIX=$(jq -nc --argjson cfgs "${CONFIGS}" --argjson bns "${VERSIONS}" \
             '[$cfgs[] as $c | $bns[] | . as $b | $c + {"bn-version": $b}]')
           echo "matrix=${MATRIX}" >> "${GITHUB_OUTPUT}"
+          # the BN communication suite does not depend on the BN version: one leg per CN ref
+          echo "cn-matrix=$(echo "${CONFIGS}" | jq -c '[.[] | {"cn-ref": ."cn-ref", "java-version": ."java-version"}]')" >> "${GITHUB_OUTPUT}"
           {
             echo "### Block Node regression legs"
             echo "${MATRIX}" | jq -r '.[] | "- CN `" + ."cn-ref" + "` x BN `" + ."bn-version" + "`"'
@@ -108,3 +111,22 @@ jobs:
     secrets:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       slack-detailed-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
+
+  # One BN communication HAPI suite (844) per CN ref; it does not use an external Block Node, so BN version is not a dimension.
+  block-node-communication:
+    name: BN Comms on CN ${{ matrix.cn-ref }}
+    needs:
+      - resolve-versions
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        include: ${{ fromJSON(needs.resolve-versions.outputs.cn-matrix) }}
+    uses: ./.github/workflows/844-call-execute-hapi-bn-communication.yaml
+    with:
+      ref: ${{ matrix.cn-ref }}
+      java-version: ${{ matrix.java-version }}
+    secrets:
+      access-token: ${{ secrets.GH_ACCESS_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
