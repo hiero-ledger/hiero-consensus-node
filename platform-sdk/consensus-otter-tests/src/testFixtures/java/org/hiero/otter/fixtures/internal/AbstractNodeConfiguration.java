@@ -14,7 +14,7 @@ import java.util.Map;
 import java.util.function.Supplier;
 import org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerConfiguration;
 import org.hiero.otter.fixtures.NodeConfiguration;
-import org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle;
+import org.hiero.otter.fixtures.internal.AbstractMiniNode.LifeCycle;
 
 /**
  * An abstract base class for node configurations that provides common functionality
@@ -165,7 +165,7 @@ public abstract class AbstractNodeConfiguration implements NodeConfiguration {
     }
 
     protected final void throwIfNodeIsRunning() {
-        if (lifecycleSupplier.get() == LifeCycle.RUNNING) {
+        if (lifecycleSupplier.get() == AbstractMiniNode.LifeCycle.RUNNING) {
             throw new IllegalStateException("Configuration modification is not allowed when the node is running.");
         }
     }

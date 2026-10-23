@@ -2,8 +2,8 @@
 package org.hiero.otter.fixtures.falcon;
 
 import static java.util.Objects.requireNonNull;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
+import static org.hiero.otter.fixtures.internal.AbstractMiniNode.LifeCycle.DESTROYED;
+import static org.hiero.otter.fixtures.internal.AbstractMiniNode.LifeCycle.RUNNING;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.base.time.Time;
@@ -28,7 +28,6 @@ import org.hiero.consensus.status.monitor.actions.DoneReplayingEventsAction;
 import org.hiero.consensus.status.monitor.actions.StartedReplayingEventsAction;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
-import org.hiero.otter.fixtures.ProfilerEvent;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.internal.AbstractNode;
 import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
@@ -332,45 +331,9 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver, 
      * {@inheritDoc}
      */
     @Override
-    public boolean isAlive() {
-        return lifeCycle == RUNNING;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     @NonNull
     public EventWindow latestEventWindow() {
         return latestEventWindow;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void startProfiling(
-            @NonNull final String outputFile,
-            @NonNull final Duration samplingInterval,
-            @NonNull final ProfilerEvent... events) {
-        throw new UnsupportedOperationException("Profiling is not supported in FalconNode.");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void stopProfiling() {
-        throw new UnsupportedOperationException("Profiling is not supported in FalconNode.");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    @NonNull
-    public String dumpThreads() {
-        throw new UnsupportedOperationException("Profiling is not supported in FalconNode.");
     }
 
     /**
