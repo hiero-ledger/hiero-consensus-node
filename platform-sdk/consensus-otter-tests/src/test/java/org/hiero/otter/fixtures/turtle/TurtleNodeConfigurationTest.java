@@ -2,10 +2,10 @@
 package org.hiero.otter.fixtures.turtle;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hiero.otter.fixtures.internal.AbstractMiniNode.LifeCycle.INIT;
 
 import com.swirlds.merkledb.config.MerkleDbConfig_;
 import java.nio.file.Path;
-import org.hiero.otter.fixtures.internal.AbstractMiniNode;
 import org.hiero.otter.fixtures.internal.OverrideProperties;
 import org.junit.jupiter.api.Test;
 
@@ -18,8 +18,8 @@ class TurtleNodeConfigurationTest {
 
     @Test
     void testDefaultIsUsedIfNoValueIsSet() {
-        final TurtleNodeConfiguration configuration = new TurtleNodeConfiguration(
-                () -> AbstractMiniNode.LifeCycle.INIT, new OverrideProperties(), OUTPUT_DIRECTORY);
+        final TurtleNodeConfiguration configuration =
+                new TurtleNodeConfiguration(() -> INIT, new OverrideProperties(), OUTPUT_DIRECTORY);
         assertThat(configuration.current().getValue(MerkleDbConfig_.MAX_NUM_OF_KEYS, Long.class))
                 .isEqualTo(100_000L);
     }
@@ -29,7 +29,7 @@ class TurtleNodeConfigurationTest {
         final OverrideProperties networkProperties =
                 new OverrideProperties().withConfigValue(MerkleDbConfig_.MAX_NUM_OF_KEYS, 200_000L);
         final TurtleNodeConfiguration configuration =
-                new TurtleNodeConfiguration(() -> AbstractMiniNode.LifeCycle.INIT, networkProperties, OUTPUT_DIRECTORY);
+                new TurtleNodeConfiguration(() -> INIT, networkProperties, OUTPUT_DIRECTORY);
         assertThat(configuration.current().getValue(MerkleDbConfig_.MAX_NUM_OF_KEYS, Long.class))
                 .isEqualTo(200_000L);
     }

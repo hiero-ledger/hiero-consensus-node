@@ -39,15 +39,22 @@ public abstract class AbstractMiniNode implements MiniNode {
         DESTROYED
     }
 
+    /** The weight value indicating that the weight has not been set. */
     protected static final long UNSET_WEIGHT = -1;
+
+    /** The default timeout duration for node operations. */
     protected static final Duration DEFAULT_TIMEOUT = Duration.ofMinutes(1);
 
+    /** The unique identifier for this node. */
     protected final NodeId selfId;
 
+    /** The roster of nodes in the network. */
     private Roster roster;
 
+    /** The cryptographic keys and certificates for this node. */
     protected KeysAndCerts keysAndCerts;
 
+    /** The weight of this node. */
     private long weight = UNSET_WEIGHT;
 
     /**
@@ -141,12 +148,18 @@ public abstract class AbstractMiniNode implements MiniNode {
         return new AsyncMiniNodeActionsImpl(timeout);
     }
 
-    @NonNull
+    /**
+     * {@inheritDoc}
+     */
     @Override
+    @NonNull
     public NodeId selfId() {
         return selfId;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public long weight() {
         return weight;
@@ -165,6 +178,9 @@ public abstract class AbstractMiniNode implements MiniNode {
         this.weight = weight;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void keysAndCerts(@NonNull final KeysAndCerts keysAndCerts) {
         throwIsNotInLifecycle(INIT, "KeysAndCerts can only be set during initialization");
@@ -180,6 +196,9 @@ public abstract class AbstractMiniNode implements MiniNode {
         return keysAndCerts.sigCert();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public boolean isAlive() {
         return lifeCycle == RUNNING;
@@ -237,10 +256,19 @@ public abstract class AbstractMiniNode implements MiniNode {
         }
     }
 
+    /**
+     * Implementation of the {@link AsyncMiniNodeActions} interface that provides asynchronous actions for the node.
+     */
     protected class AsyncMiniNodeActionsImpl implements AsyncMiniNodeActions {
 
+        /** The timeout duration for the asynchronous actions. */
         protected final Duration timeout;
 
+        /**
+         * Constructor for the {@code AsyncMiniNodeActionsImpl} class.
+         *
+         * @param timeout the timeout duration for the asynchronous actions
+         */
         protected AsyncMiniNodeActionsImpl(@NonNull final Duration timeout) {
             this.timeout = requireNonNull(timeout);
         }
