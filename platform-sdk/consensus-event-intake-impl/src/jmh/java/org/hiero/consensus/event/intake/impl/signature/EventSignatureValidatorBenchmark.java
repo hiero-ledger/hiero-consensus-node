@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.intake.impl.signature;
 
+import static org.hiero.consensus.benchmark.tools.event.EmpiricalDistribution.constant;
 import static org.hiero.consensus.model.test.fixtures.roster.RosterWrapperHistoryFactory.createRosterWrapperHistory;
 
 import com.swirlds.base.time.Time;
@@ -11,13 +12,14 @@ import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.SigningSchema;
+import org.hiero.consensus.benchmark.tools.event.EventShape;
+import org.hiero.consensus.benchmark.tools.event.EventStreamGenerator;
 import org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler;
 import org.hiero.consensus.benchmark.tools.histogram.LatencyRecorder;
 import org.hiero.consensus.event.DefaultIntakeEventCounter;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GeneratorEventGraphSource;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GeneratorEventGraphSourceBuilder;
 import org.hiero.consensus.metrics.config.MetricsConfig_;
 import org.hiero.consensus.metrics.platform.DefaultMetricsProvider;
+import org.hiero.consensus.model.event.EventHashFactory;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.test.fixtures.roster.RosterWithKeys;
@@ -43,8 +45,10 @@ import org.openjdk.jmh.infra.Blackhole;
  * Measures the latency of {@link DefaultEventSignatureValidator#validateSignature(PlatformEvent)}, which verifies the
  * signature of every event a node receives from its peers.
  *
- * <p>The events are generated and signed once per trial, with keys and a graph derived from fixed seeds. The validator
- * does not change the events, so every invocation verifies the same events. All signatures are valid, as they are in
+ * <p>{@link EventStreamGenerator} generates and signs the events once per trial, from fixed seeds. Each has one other
+ * parent and one transaction of 445 bytes, and is hashed with SHA-256, as in production after the event cutover. Only
+ * the hash is signed, so the shape of the events does not change the validator's work. The validator does not change
+ * the events, so every invocation verifies the same events. All signatures are valid, as they are in
  * production, and the validator uses the production verifier, {@link CryptoUtils#verifySignature}, which creates a new
  * verifier for the creator's public key on every call. The validator's other collaborators are the production ones as
  * well: the platform metrics of {@link DefaultMetricsProvider}, started as on a node, and a
@@ -97,6 +101,9 @@ public class EventSignatureValidatorBenchmark {
     /** The number of events validated in one invocation. */
     private static final int NUMBER_OF_EVENTS = 10_000;
 
+    /** The shape of the events: one other parent and one transaction of 445 bytes. */
+    private static final EventShape SHAPE = new EventShape(constant(1), constant(1), constant(445));
+
     /** The signing schema of the nodes' keys. */
     @Param({"ED25519", "RSA"})
     public SigningSchema signingSchema;
@@ -121,19 +128,17 @@ public class EventSignatureValidatorBenchmark {
      */
     @Setup(Level.Trial)
     public void generateEvents() {
+        // Every event birth round is past the cutover, so every event is hashed with SHA-256.
+        EventHashFactory.initialize(0);
         final RosterWithKeys rosterWithKeys = RosterWrapperFactory.randomRosterWithKeys(
                 new Random(SEED), NUMBER_OF_NODES, WeightGenerators.GAUSSIAN, signingSchema);
-        final GeneratorEventGraphSource generator = GeneratorEventGraphSourceBuilder.builder()
-                .rosterWithKeys(rosterWithKeys)
-                .seed(SEED)
-                .realSignatures(true)
-                .build();
-        events = generator.nextEvents(NUMBER_OF_EVENTS);
+        final RosterWrapper roster = rosterWithKeys.roster();
+        events = EventStreamGenerator.generateSignedEvents(
+                SHAPE, roster, NUMBER_OF_EVENTS, SEED, rosterWithKeys.privateKeys());
 
         final Configuration configuration = new TestConfigBuilder()
                 .withValue(MetricsConfig_.DISABLE_METRICS_OUTPUT, true)
                 .getOrCreateConfig();
-        final RosterWrapper roster = rosterWithKeys.roster();
         metricsProvider = new DefaultMetricsProvider(configuration);
         validator = new DefaultEventSignatureValidator(
                 metricsProvider.createPlatformMetrics(roster.nodeIdAtIndex(0)),
