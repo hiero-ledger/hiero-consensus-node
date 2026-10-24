@@ -13,7 +13,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprSubmitBundl
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprUpdateLedgerConfiguration;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
@@ -72,7 +72,7 @@ public class ClprEthSyncCommitteeVerifierSuite {
 
     @LeakyEmbeddedHapiTest(
             reason = NEEDS_STATE_ACCESS,
-            overrides = {"clpr.verifierGasLimit"})
+            overrides = {"clpr.verifierGasLimit", "clpr.allowInsecureBlsVerifier"})
     @DisplayName("Eth verifier: self-submitted single-message bundle")
     final Stream<DynamicTest> completesChannelAndDeliversBundle() {
         final var crypto = new ClprChannelCrypto();
@@ -95,14 +95,14 @@ public class ClprEthSyncCommitteeVerifierSuite {
 
     @LeakyEmbeddedHapiTest(
             reason = NEEDS_STATE_ACCESS,
-            overrides = {"clpr.verifierGasLimit"})
+            overrides = {"clpr.verifierGasLimit", "clpr.allowInsecureBlsVerifier"})
     @DisplayName("Eth verifier: peer serviceAddress not 20 bytes → CLPR_VERIFIER_CONFIG_FAILED")
     final Stream<DynamicTest> rejectsConfigWithBadServiceAddress() {
         final var crypto = new ClprChannelCrypto();
         return hapiTest(
                 // A full 512-key committee makes the verifier calldata ~25KB+, so the dispatch needs
                 // more than the 300k default verifier gas.
-                overriding("clpr.verifierGasLimit", "5000000"),
+                overridingTwo("clpr.verifierGasLimit", "5000000", "clpr.allowInsecureBlsVerifier", "true"),
                 clprUpdateLedgerConfiguration()
                         .configuration(localLedgerConfig())
                         .payingWith(GENESIS),
@@ -120,7 +120,7 @@ public class ClprEthSyncCommitteeVerifierSuite {
 
     @LeakyEmbeddedHapiTest(
             reason = NEEDS_STATE_ACCESS,
-            overrides = {"clpr.verifierGasLimit"})
+            overrides = {"clpr.verifierGasLimit", "clpr.allowInsecureBlsVerifier"})
     @DisplayName("Eth verifier: tampered bundle account proof → CLPR_BUNDLE_VERIFICATION_FAILED")
     final Stream<DynamicTest> rejectsTamperedBundle() {
         final var crypto = new ClprChannelCrypto();
@@ -148,7 +148,7 @@ public class ClprEthSyncCommitteeVerifierSuite {
      */
     @LeakyEmbeddedHapiTest(
             reason = NEEDS_STATE_ACCESS,
-            overrides = {"clpr.verifierGasLimit"})
+            overrides = {"clpr.verifierGasLimit", "clpr.allowInsecureBlsVerifier"})
     @DisplayName("Eth verifier: rotation bundle updates trust anchor; new-committee bundle succeeds")
     final Stream<DynamicTest> completesChannelAfterCommitteeRotation() {
         final var crypto = new ClprChannelCrypto();
@@ -193,14 +193,14 @@ public class ClprEthSyncCommitteeVerifierSuite {
      */
     @LeakyEmbeddedHapiTest(
             reason = NEEDS_STATE_ACCESS,
-            overrides = {"clpr.verifierGasLimit"})
+            overrides = {"clpr.verifierGasLimit", "clpr.allowInsecureBlsVerifier"})
     @DisplayName("Eth verifier: completeChannel installs the config endpoint manifest (0, 1, N endpoints)")
     final Stream<DynamicTest> completeChannelInstallsConfigManifest() {
         final int[] endpointCounts = {0, 1, 3};
         final List<SpecOperation> ops = new ArrayList<>();
         // A full 512-key committee makes the verifier calldata ~25KB+, so the dispatch needs more than
         // the 300k default verifier gas.
-        ops.add(overriding("clpr.verifierGasLimit", "5000000"));
+        ops.add(overridingTwo("clpr.verifierGasLimit", "5000000", "clpr.allowInsecureBlsVerifier", "true"));
         ops.add(clprUpdateLedgerConfiguration()
                 .configuration(localLedgerConfig())
                 .payingWith(GENESIS));
@@ -237,7 +237,7 @@ public class ClprEthSyncCommitteeVerifierSuite {
      */
     @LeakyEmbeddedHapiTest(
             reason = NEEDS_STATE_ACCESS,
-            overrides = {"clpr.verifierGasLimit"})
+            overrides = {"clpr.verifierGasLimit", "clpr.allowInsecureBlsVerifier"})
     @DisplayName("Eth verifier: bundle carrying a higher-version manifest updates the Channel via Step-1b")
     final Stream<DynamicTest> bundleAdvancesEndpointManifest() {
         final var crypto = new ClprChannelCrypto();
@@ -273,12 +273,12 @@ public class ClprEthSyncCommitteeVerifierSuite {
      */
     @LeakyEmbeddedHapiTest(
             reason = NEEDS_STATE_ACCESS,
-            overrides = {"clpr.verifierGasLimit"})
+            overrides = {"clpr.verifierGasLimit", "clpr.allowInsecureBlsVerifier"})
     @DisplayName("Eth verifier: manifest service_address mismatch → CLPR_VERIFIER_CONFIG_FAILED")
     final Stream<DynamicTest> rejectsManifestWithMismatchedServiceAddress() {
         final var crypto = new ClprChannelCrypto();
         return hapiTest(
-                overriding("clpr.verifierGasLimit", "5000000"),
+                overridingTwo("clpr.verifierGasLimit", "5000000", "clpr.allowInsecureBlsVerifier", "true"),
                 clprUpdateLedgerConfiguration()
                         .configuration(localLedgerConfig())
                         .payingWith(GENESIS),
@@ -318,7 +318,7 @@ public class ClprEthSyncCommitteeVerifierSuite {
         return new SpecOperation[] {
             // A full 512-key committee makes the verifier calldata ~25KB+, so the dispatch needs
             // more than the 300k default verifier gas.
-            overriding("clpr.verifierGasLimit", "5000000"),
+            overridingTwo("clpr.verifierGasLimit", "5000000", "clpr.allowInsecureBlsVerifier", "true"),
             clprUpdateLedgerConfiguration().configuration(localLedgerConfig()).payingWith(GENESIS),
             uploadInitCode(CONNECTOR_CONTRACT),
             contractCreate(CONNECTOR_CONTRACT),

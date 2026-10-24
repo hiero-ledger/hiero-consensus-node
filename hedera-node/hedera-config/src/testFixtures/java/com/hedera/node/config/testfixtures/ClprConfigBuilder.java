@@ -44,6 +44,7 @@ public final class ClprConfigBuilder {
     private int manifestSubmissionRetries = 50;
     private Duration manifestSubmissionRetryDelay = Duration.ofSeconds(5);
     private int manifestSubmissionDistinctTxnIds = 10;
+    private boolean allowInsecureBlsVerifier = false;
 
     private ClprConfigBuilder() {}
 
@@ -221,6 +222,11 @@ public final class ClprConfigBuilder {
         return this;
     }
 
+    public ClprConfigBuilder allowInsecureBlsVerifier(final boolean allowInsecureBlsVerifier) {
+        this.allowInsecureBlsVerifier = allowInsecureBlsVerifier;
+        return this;
+    }
+
     public ClprConfig build() {
         return new ClprConfig(
                 enabled,
@@ -256,6 +262,7 @@ public final class ClprConfigBuilder {
                 manifestMaxGraceExtensions,
                 manifestSubmissionRetries,
                 manifestSubmissionRetryDelay,
-                manifestSubmissionDistinctTxnIds);
+                manifestSubmissionDistinctTxnIds,
+                allowInsecureBlsVerifier);
     }
 }

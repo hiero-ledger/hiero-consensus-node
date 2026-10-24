@@ -125,4 +125,11 @@ public record ClprConfig(
         Duration manifestSubmissionRetryDelay,
 
         @ConfigProperty(defaultValue = "10") @NetworkProperty
-        int manifestSubmissionDistinctTxnIds) {}
+        int manifestSubmissionDistinctTxnIds,
+
+        // --- Ethereum verifier BLS backend (see #24542) ---
+        // No real BLS12-381 aggregate verifier is wired yet. When false (the default), the Ethereum
+        // verifier system contract rejects every sync-committee signature (fail closed). Setting this
+        // to true selects an insecure stub that accepts ANY signature; it must only be used on test networks.
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        boolean allowInsecureBlsVerifier) {}
