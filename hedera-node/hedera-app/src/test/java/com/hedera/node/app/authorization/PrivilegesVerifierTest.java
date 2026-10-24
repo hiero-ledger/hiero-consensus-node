@@ -116,6 +116,77 @@ class PrivilegesVerifierTest {
         subject = new Wrapper(configProvider);
     }
 
+    @ParameterizedTest
+    @MethodSource("foreignShardOrRealmPayers")
+    void privilegedAccountNumberOnForeignShardOrRealmIsNotPrivileged(final long shard, final long realm) {
+        final var freezeBody = com.hedera.hapi.node.transaction.TransactionBody.newBuilder()
+                .freeze(com.hedera.hapi.node.freeze.FreezeTransactionBody.DEFAULT)
+                .build();
+        final var fileUpdateBody = com.hedera.hapi.node.transaction.TransactionBody.newBuilder()
+                .fileUpdate(com.hedera.hapi.node.file.FileUpdateTransactionBody.newBuilder()
+                        .fileID(com.hedera.hapi.node.base.FileID.newBuilder()
+                                .fileNum(112L)
+                                .build())
+                        .build())
+                .build();
+        final var verifier =
+                new PrivilegesVerifier(() -> new VersionedConfigImpl(HederaTestConfigBuilder.createConfig(), 1L));
+        for (final long num : new long[] {TREASURY, SYSTEM_ADMIN, FREEZE_ADMIN}) {
+            assertEquals(
+                    SystemPrivilege.AUTHORIZED,
+                    verifier.hasPrivileges(localPayer(num), HederaFunctionality.FREEZE, freezeBody));
+            assertEquals(
+                    SystemPrivilege.UNAUTHORIZED,
+                    verifier.hasPrivileges(foreignPayer(shard, realm, num), HederaFunctionality.FREEZE, freezeBody));
+        }
+        for (final long num : new long[] {TREASURY, SYSTEM_ADMIN, EXCHANGE_RATES_ADMIN}) {
+            assertEquals(
+                    SystemPrivilege.AUTHORIZED,
+                    verifier.hasPrivileges(localPayer(num), HederaFunctionality.FILE_UPDATE, fileUpdateBody));
+            assertEquals(
+                    SystemPrivilege.UNAUTHORIZED,
+                    verifier.hasPrivileges(
+                            foreignPayer(shard, realm, num), HederaFunctionality.FILE_UPDATE, fileUpdateBody));
+        }
+    }
+
+    private static com.hedera.hapi.node.base.AccountID localPayer(final long num) {
+        return com.hedera.hapi.node.base.AccountID.newBuilder().accountNum(num).build();
+    }
+
+    private static com.hedera.hapi.node.base.AccountID foreignPayer(
+            final long shard, final long realm, final long num) {
+        return com.hedera.hapi.node.base.AccountID.newBuilder()
+                .shardNum(shard)
+                .realmNum(realm)
+                .accountNum(num)
+                .build();
+    }
+
+    static Stream<Arguments> foreignShardOrRealmPayers() {
+        return Stream.of(Arguments.of(1L, 0L), Arguments.of(0L, 1L), Arguments.of(1L, 1L));
+    }
+
+    @Test
+    void treasuryOnForeignShardCannotUpdateSystemAccounts() {
+        final var verifier =
+                new PrivilegesVerifier(() -> new VersionedConfigImpl(HederaTestConfigBuilder.createConfig(), 1L));
+        final var body = com.hedera.hapi.node.transaction.TransactionBody.newBuilder()
+                .cryptoUpdateAccount(com.hedera.hapi.node.token.CryptoUpdateTransactionBody.newBuilder()
+                        .accountIDToUpdate(com.hedera.hapi.node.base.AccountID.newBuilder()
+                                .accountNum(SYSTEM_ADMIN)
+                                .build())
+                        .build())
+                .build();
+        final var foreignTreasury = com.hedera.hapi.node.base.AccountID.newBuilder()
+                .shardNum(1L)
+                .accountNum(TREASURY)
+                .build();
+        assertEquals(
+                SystemPrivilege.UNNECESSARY,
+                verifier.hasPrivileges(foreignTreasury, HederaFunctionality.CRYPTO_UPDATE, body));
+    }
+
     @SuppressWarnings("DataFlowIssue")
     @Test
     void testConstructorWithIllegalParameters() {

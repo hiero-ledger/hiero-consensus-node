@@ -20,6 +20,7 @@ import com.hedera.node.app.spi.authorization.SystemPrivilege;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.FilesConfig;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
@@ -37,6 +38,8 @@ public class PrivilegesVerifier {
     private final AccountsConfig accountsConfig;
     private final FilesConfig filesConfig;
     private final long numReservedSystemEntities;
+    private final long shard;
+    private final long realm;
 
     @Inject
     public PrivilegesVerifier(@NonNull final ConfigProvider configProvider) {
@@ -47,6 +50,9 @@ public class PrivilegesVerifier {
         this.filesConfig = configuration.getConfigData(FilesConfig.class);
         this.numReservedSystemEntities =
                 configuration.getConfigData(LedgerConfig.class).numReservedSystemEntities();
+        final var hederaConfig = configuration.getConfigData(HederaConfig.class);
+        this.shard = hederaConfig.shard();
+        this.realm = hederaConfig.realm();
     }
 
     /**
@@ -90,7 +96,7 @@ public class PrivilegesVerifier {
     }
 
     private boolean isSuperUser(@NonNull final AccountID accountID) {
-        final long accountNum = effectiveNumber(accountID);
+        final long accountNum = payerNumber(accountID);
         return accountNum == accountsConfig.treasury() || accountNum == accountsConfig.systemAdmin();
     }
 
@@ -99,35 +105,35 @@ public class PrivilegesVerifier {
     }
 
     private boolean hasSoftwareUpdatePrivilege(@NonNull final AccountID accountID) {
-        return effectiveNumber(accountID) == accountsConfig.softwareUpdateAdmin() || isSuperUser(accountID);
+        return payerNumber(accountID) == accountsConfig.softwareUpdateAdmin() || isSuperUser(accountID);
     }
 
     private boolean hasFreezePrivilege(@NonNull final AccountID accountID) {
-        return effectiveNumber(accountID) == accountsConfig.freezeAdmin() || isSuperUser(accountID);
+        return payerNumber(accountID) == accountsConfig.freezeAdmin() || isSuperUser(accountID);
     }
 
     private boolean hasSystemDeletePrivilege(@NonNull final AccountID accountID) {
-        return effectiveNumber(accountID) == accountsConfig.systemDeleteAdmin() || isSuperUser(accountID);
+        return payerNumber(accountID) == accountsConfig.systemDeleteAdmin() || isSuperUser(accountID);
     }
 
     private boolean hasSystemUndeletePrivilege(@NonNull final AccountID accountID) {
-        return effectiveNumber(accountID) == accountsConfig.systemUndeleteAdmin() || isSuperUser(accountID);
+        return payerNumber(accountID) == accountsConfig.systemUndeleteAdmin() || isSuperUser(accountID);
     }
 
     private boolean hasAddressBookPrivilege(@NonNull final AccountID accountID) {
-        return effectiveNumber(accountID) == accountsConfig.addressBookAdmin() || isSuperUser(accountID);
+        return payerNumber(accountID) == accountsConfig.addressBookAdmin() || isSuperUser(accountID);
     }
 
     private boolean hasExchangeRatePrivilege(@NonNull final AccountID accountID) {
-        return effectiveNumber(accountID) == accountsConfig.exchangeRatesAdmin() || isSuperUser(accountID);
+        return payerNumber(accountID) == accountsConfig.exchangeRatesAdmin() || isSuperUser(accountID);
     }
 
     private boolean hasFeeSchedulePrivilege(@NonNull final AccountID accountID) {
-        return effectiveNumber(accountID) == accountsConfig.feeSchedulesAdmin() || isSuperUser(accountID);
+        return payerNumber(accountID) == accountsConfig.feeSchedulesAdmin() || isSuperUser(accountID);
     }
 
     private boolean hasNodeCreatePrivilege(@NonNull final AccountID accountID) {
-        return effectiveNumber(accountID) == accountsConfig.addressBookAdmin() || isSuperUser(accountID);
+        return payerNumber(accountID) == accountsConfig.addressBookAdmin() || isSuperUser(accountID);
     }
 
     private SystemPrivilege checkFreeze(@NonNull final AccountID accountID) {
@@ -185,7 +191,7 @@ public class PrivilegesVerifier {
         if (!isSystemEntity(targetNum)) {
             return UNNECESSARY;
         } else {
-            final long payerNum = payerId.accountNumOrElse(0L);
+            final long payerNum = payerNumber(payerId);
             if (payerNum == accountsConfig.treasury()) {
                 return AUTHORIZED;
             } else if (payerNum == accountsConfig.systemAdmin()) {
@@ -242,6 +248,21 @@ public class PrivilegesVerifier {
         } else {
             return accountID.accountNumOrElse(0L);
         }
+    }
+
+    /**
+     * Given a payer account id, returns the effective number for privileges checks, or {@code 0} (which is never a
+     * privileged account) if the account is not on this node's configured shard and realm. This keeps privileged
+     * checks consistent with {@code AuthorizerImpl#isSuperUser}, so e.g. {@code 1.0.2} is never treated as the
+     * treasury {@code 0.0.2}.
+     * @param accountID the payer {@link AccountID} to check
+     * @return the effective number for privileges checks
+     */
+    private long payerNumber(@NonNull final AccountID accountID) {
+        if (accountID.shardNum() != shard || accountID.realmNum() != realm) {
+            return 0L;
+        }
+        return effectiveNumber(accountID);
     }
 
     private long effectiveNumber(@NonNull final ContractID contractID) {
