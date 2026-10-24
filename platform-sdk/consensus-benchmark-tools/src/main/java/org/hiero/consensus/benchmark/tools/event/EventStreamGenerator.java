@@ -38,6 +38,10 @@ import org.hiero.consensus.model.roster.RosterWrapper;
  *   <li>has the origin {@link EventOrigin#GOSSIP}, as an event received from another node.</li>
  * </ul>
  *
+ * <p>A benchmark generates fixed shapes, one parameter set each, for example at chosen quantiles of a production table
+ * ({@link EmpiricalDistribution#quantile(double)}). With a mix, the upper percentiles would measure the heaviest events
+ * instead of how the time of one kind of call varies.
+ *
  * <p>The same arguments give the same events, hashes, and signatures. No production code runs except the hasher and
  * the signer, so the events stay the same when the event creator or the consensus code changes. The events pass
  * internal validation ({@code DefaultEventFieldValidator}) as long as their transactions stay within the transaction

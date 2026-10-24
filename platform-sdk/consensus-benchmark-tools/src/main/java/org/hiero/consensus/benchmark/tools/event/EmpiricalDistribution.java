@@ -12,11 +12,12 @@ import java.util.Random;
  * // 0 with probability 0.7, 1 with probability 0.2, 5 with probability 0.1
  * EmpiricalDistribution transactionsPerEvent = EmpiricalDistribution.of(new long[] {0, 1, 5}, new double[] {7, 2, 1});
  * long transactions = transactionsPerEvent.sample(random);
+ * long p90 = transactionsPerEvent.quantile(0.9); // 1
  * }</pre>
  */
 public final class EmpiricalDistribution {
 
-    /** The values of the table. */
+    /** The values of the table, in ascending order. */
     private final long[] values;
 
     /** {@code cumulative[i]} is the probability of drawing one of {@code values[0..i]}. The last entry is 1. */
@@ -30,12 +31,12 @@ public final class EmpiricalDistribution {
     /**
      * Creates a distribution from a frequency table.
      *
-     * @param values      the values that can be drawn
+     * @param values      the values that can be drawn, in ascending order
      * @param frequencies how often each value occurs, as counts or as shares; {@code frequencies[i]} belongs to
-     *                    {@code values[i]}
+     *                    {@code values[i]}. Counts give exact quantiles, because their sums are exact.
      * @return the distribution
-     * @throws IllegalArgumentException if the table is empty, the arrays differ in length, or a frequency is not positive
-     *                                  and finite
+     * @throws IllegalArgumentException if the table is empty, the arrays differ in length, the values are not in
+     *                                  ascending order, or a frequency is not positive and finite
      */
     @NonNull
     public static EmpiricalDistribution of(@NonNull final long[] values, @NonNull final double[] frequencies) {
@@ -43,9 +44,15 @@ public final class EmpiricalDistribution {
             throw new IllegalArgumentException("Expected as many frequencies as values, and at least one, but got "
                     + values.length + " values and " + frequencies.length + " frequencies");
         }
+        for (int i = 1; i < values.length; i++) {
+            if (values[i] <= values[i - 1]) {
+                throw new IllegalArgumentException(
+                        "Values must be in ascending order, but " + values[i] + " follows " + values[i - 1]);
+            }
+        }
         double sum = 0;
         for (final double frequency : frequencies) {
-            // Positive frequencies keep the cumulative probabilities strictly increasing, which sample() relies on.
+            // Positive frequencies keep the cumulative probabilities strictly increasing, which quantile() relies on.
             if (!Double.isFinite(frequency) || frequency <= 0) {
                 throw new IllegalArgumentException("Frequencies must be positive and finite, but got " + frequency);
             }
@@ -75,15 +82,31 @@ public final class EmpiricalDistribution {
     }
 
     /**
-     * Draws a value. Every draw takes one {@link Random#nextDouble()}, also for a constant distribution.
+     * Draws a value: the quantile of a uniform random number. Every draw takes one {@link Random#nextDouble()}, also
+     * for a constant distribution.
      *
      * @param random the source of randomness
      * @return the drawn value
      */
     public long sample(@NonNull final Random random) {
-        // The drawn value is the first one whose cumulative probability exceeds u.
-        final double u = random.nextDouble();
-        final int index = Arrays.binarySearch(cumulative, u);
-        return values[index >= 0 ? index + 1 : -index - 1];
+        return quantile(random.nextDouble());
+    }
+
+    /**
+     * Returns the smallest value that a share {@code q} of the draws stays at or below. A fixed shape takes its values
+     * from a production table this way: {@code constant(table.quantile(0.99))} gives every event the value that 99% of
+     * the events have at most.
+     *
+     * @param q the share, from 0 to 1
+     * @return the value
+     * @throws IllegalArgumentException if {@code q} is not between 0 and 1
+     */
+    public long quantile(final double q) {
+        if (!(q >= 0 && q <= 1)) {
+            throw new IllegalArgumentException("Expected a share between 0 and 1, but got " + q);
+        }
+        // The first value whose cumulative probability reaches q.
+        final int index = Arrays.binarySearch(cumulative, q);
+        return values[index >= 0 ? index : -index - 1];
     }
 }
