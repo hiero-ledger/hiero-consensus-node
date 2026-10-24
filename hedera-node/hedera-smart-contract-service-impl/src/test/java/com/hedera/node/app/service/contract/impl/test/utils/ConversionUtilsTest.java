@@ -57,6 +57,7 @@ import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
 import com.hedera.hapi.node.contract.ContractLoginfo;
 import com.hedera.hapi.node.contract.EvmTransactionResult;
+import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.streams.ContractStateChange;
 import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.hapi.streams.StorageChange;
@@ -118,6 +119,21 @@ class ConversionUtilsTest {
     private static final com.hedera.pbj.runtime.io.buffer.Bytes FULL_32 =
             com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("00".repeat(32));
     private static final Configuration configuration = HederaTestConfigBuilder.createConfig();
+
+    @Test
+    void fromAToBRejectsNonPositiveDenominator() {
+        assertThrows(IllegalArgumentException.class, () -> ConversionUtils.fromAToB(BigInteger.ONE, 1, 0));
+        assertThrows(IllegalArgumentException.class, () -> ConversionUtils.fromAToB(BigInteger.ONE, 1, -1));
+        assertEquals(BigInteger.valueOf(6), ConversionUtils.fromAToB(BigInteger.valueOf(4), 3, 2));
+    }
+
+    @Test
+    void tinycentTinybarConversionsRejectZeroEquivalents() {
+        final var zeroCent = ExchangeRate.newBuilder().hbarEquiv(1).centEquiv(0).build();
+        final var zeroHbar = ExchangeRate.newBuilder().hbarEquiv(0).centEquiv(1).build();
+        assertThrows(IllegalArgumentException.class, () -> ConversionUtils.fromTinycentsToTinybars(zeroCent, 100L));
+        assertThrows(IllegalArgumentException.class, () -> ConversionUtils.fromTinybarsToTinycents(zeroHbar, 100L));
+    }
 
     @Test
     void unsuccessfulCallThrowsInsufficientGasWhenTraceDataLimitExceeded() {

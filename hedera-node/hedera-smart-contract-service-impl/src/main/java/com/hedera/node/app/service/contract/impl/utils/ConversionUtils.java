@@ -1118,8 +1118,12 @@ public class ConversionUtils {
      * @param bEquiv the numerator of the conversion rate
      * @param aEquiv the denominator of the conversion rate
      * @return the equivalent amount in the other unit
+     * @throws IllegalArgumentException if {@code aEquiv} is not positive
      */
     public static @NonNull BigInteger fromAToB(@NonNull final BigInteger aAmount, final int bEquiv, final int aEquiv) {
+        if (aEquiv <= 0) {
+            throw new IllegalArgumentException("Conversion rate denominator must be positive, was " + aEquiv);
+        }
         return aAmount.multiply(BigInteger.valueOf(bEquiv)).divide(BigInteger.valueOf(aEquiv));
     }
 
