@@ -13,9 +13,14 @@ the JMH benchmarks (`src/jmh`) of other modules. For the modules these tests exe
 
 ## Benchmarks
 
-The classes in this module are the measurement tooling of the
+The classes in this module are the tooling of the
 [benchmark conventions](../docs/consensus-layer/benchmarks/README.md), which every JMH benchmark
-follows, `LatencyHistogramBenchmark` in `src/jmh` included.
+follows, `LatencyHistogramBenchmark` in `src/jmh` included:
+
+- `histogram` — records the latency of every measured call and reports its percentiles to JMH.
+- `event` — benchmark inputs. `EventStreamGenerator` generates independent events, hashed and
+  optionally signed, for the benchmarks that process one event at a time. `EventShape` sets their
+  number of other parents, transactions per event, and transaction sizes.
 
 ## Scripts
 
@@ -45,6 +50,7 @@ script's header gives its usage. The scripts that CI runs live in
 
 May depend on:
 - Any consensus-layer module except structural-transitional ones, including impl modules
+- The `base-*` modules and `hapi`
 
 Must not depend on:
 - Any structural-transitional module — those are on their way out of the consensus layer, and
