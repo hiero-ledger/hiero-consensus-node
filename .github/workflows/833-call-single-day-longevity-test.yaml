@@ -101,7 +101,11 @@ env:
   GRAFANA_SYSADM_DAL: https://grafana.lat.ope.eng.hashgraph.io/d/rYdddlPWk/node-exporter-single-node?orgId=1&timezone=utc&var-datasource=P5C24830FD6F1746E&var-job=performance-dallas-node-exporter
   GRAFANA_SYSADM_CHI: https://grafana.lat.ope.eng.hashgraph.io/d/rYdddlPWk/node-exporter-single-node?orgId=1&timezone=utc&var-datasource=P631E2BA859A814B3&var-job=performance-chicago-node-exporter
   NUM_OF_BLOCK_NODES: 3
-  NETEM: "delay 200ms 50ms loss 5%"
+
+  #Chaos mapping
+  FROM_BN_NETEM: "delay 200ms 20ms 25%"
+  FROM_CN_NETEM: "delay 100ms 50ms distribution normal"
+
 jobs:
   get-chewie-jwt:
     uses: ./.github/workflows/858-call-get-chewie-jwt.yaml
@@ -774,7 +778,8 @@ jobs:
             kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" debug "$pod" -it --image=nicolaka/netshoot --profile=netadmin --target $target \
             -- sh -c " \
               tc qdisc replace dev eth0 root handle 1: prio; \
-              tc qdisc replace dev eth0 parent 1:3 handle 30: netem ${{ env.NETEM }}; \
+              if [ \"$target\" = \"block-node-server\" ]; then netem=\"${{ env.FROM_BN_NETEM }}\"; else netem=\"${{ env.FROM_CN_NETEM }}\"; fi
+              tc qdisc replace dev eth0 parent 1:3 handle 30: netem \${netem}; \
               for ip in $*; do tc filter replace dev eth0 protocol ip parent 1:0 prio 3 u32 match ip dst \${ip}/32 flowid 1:3; done; \
               tc qdisc show dev eth0; \
               tc filter show dev eth0;"
@@ -784,7 +789,7 @@ jobs:
           for pod in `awk '{print $1}' ips.txt`
           do
             echo "Setting pod $pod"
-            myownIP=`grep -F "$pod" ips.txt | awk '{print $2}'`
+            myIP=`grep -F "$pod" ips.txt | awk '{print $2}'`
 
             target="block-node-server"
             echo $pod | grep "network-node" >/dev/null
@@ -794,7 +799,7 @@ jobs:
               target="root-container"
             fi
 
-            list_of_ips=`grep -v -F "$myownIP" ips.txt | awk '{print $2}' | perl -pne '~s/\n/ /g'`
+            list_of_ips=`grep -v -F "$myIP" ips.txt | awk '{print $2}' | perl -pne '~s/\n/ /g'`
             apply $pod $target "$list_of_ips"
           done
 
