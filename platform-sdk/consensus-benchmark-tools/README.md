@@ -50,7 +50,7 @@ script's header gives its usage. The scripts that CI runs live in
 
 May depend on:
 - Any consensus-layer module except structural-transitional ones, including impl modules
-- The `base-*` modules and `hapi`
+- The `base-*` modules
 
 Must not depend on:
 - Any structural-transitional module — those are on their way out of the consensus layer, and

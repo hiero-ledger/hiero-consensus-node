@@ -7,39 +7,47 @@ import static org.hiero.consensus.benchmark.tools.event.EmpiricalDistribution.co
 
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.base.time.Time;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.PublicKey;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Random;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.SigningSchema;
 import org.hiero.consensus.event.validation.DefaultEventFieldValidator;
-import org.hiero.consensus.fakes.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.EventHashFactory;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.roster.RosterEntryWrapper;
+import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterWrapper;
+import org.hiero.consensus.model.test.fixtures.roster.RosterWithKeys;
+import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
+import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.hiero.consensus.transaction.TransactionLimits;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.junit.jupiter.params.provider.NullSource;
 
 /**
  * Checks that {@link EventStreamGenerator} gives the same events for the same seed, events that pass internal
- * validation, and signatures that verify against the roster, made with the keys of {@link KeysAndCertsGenerator}.
+ * validation, and signatures that verify against the roster.
  */
 class EventStreamGeneratorTest {
 
     private static final int NUM_NODES = 4;
     private static final int COUNT = 1_000;
     private static final long SEED = 7;
+
+    /** A roster whose node IDs are 1 to 3 apart, with certificates that no test signs with. */
+    private static final RosterWrapper ROSTER = RosterWrapperFactory.randomRoster(new Random(SEED), NUM_NODES);
 
     /**
      * The consensus layer's default limits ({@code ExecutionLayer#DEFAULT_TRANSACTION_LIMITS}). Hedera allows more bytes
@@ -56,8 +64,7 @@ class EventStreamGeneratorTest {
     @Test
     void eventsFollowTheShape() {
         final EventShape shape = new EventShape(constant(2), constant(3), constant(445));
-        final List<PlatformEvent> events = EventStreamGenerator.generate(shape, NUM_NODES, null, COUNT, SEED)
-                .events();
+        final List<PlatformEvent> events = EventStreamGenerator.generateUnsignedEvents(shape, ROSTER, COUNT, SEED);
 
         assertThat(events).hasSize(COUNT);
         for (final PlatformEvent event : events) {
@@ -65,7 +72,8 @@ class EventStreamGeneratorTest {
             assertThat(event.getSelfParent().creator()).isEqualTo(event.getCreatorId());
             assertThat(event.getOtherParents()).hasSize(2);
             assertThat(event.getAllParents().stream().map(EventDescriptorWrapper::creator))
-                    .doesNotHaveDuplicates();
+                    .doesNotHaveDuplicates()
+                    .isSubsetOf(ROSTER.nodeIds());
             assertThat(event.getBirthRound()).isEqualTo(EventStreamGenerator.BIRTH_ROUND);
             assertThat(event.getAllParents())
                     .allSatisfy(parent -> assertThat(parent.birthRound()).isLessThanOrEqualTo(event.getBirthRound()));
@@ -74,25 +82,29 @@ class EventStreamGeneratorTest {
             assertThat(event.getHash()).isNotNull();
             assertThat(event.getOrigin()).isEqualTo(EventOrigin.GOSSIP);
         }
-        assertThat(events.stream().map(PlatformEvent::getCreatorId).distinct()).hasSize(NUM_NODES);
+        assertThat(events.stream().map(PlatformEvent::getCreatorId).distinct())
+                .containsExactlyInAnyOrderElementsOf(ROSTER.nodeIds());
+    }
+
+    @Test
+    void sameSeedGivesSameUnsignedEvents() {
+        assertSameEvents(
+                EventStreamGenerator.generateUnsignedEvents(MIXED, ROSTER, COUNT, SEED),
+                EventStreamGenerator.generateUnsignedEvents(MIXED, ROSTER, COUNT, SEED),
+                EventStreamGenerator.generateUnsignedEvents(MIXED, ROSTER, COUNT, SEED + 1));
     }
 
     @ParameterizedTest
-    @NullSource
     @EnumSource(SigningSchema.class)
-    void sameSeedGivesSameEvents(@Nullable final SigningSchema signingSchema) {
-        final List<PlatformEvent> first = EventStreamGenerator.generate(MIXED, NUM_NODES, signingSchema, COUNT, SEED)
-                .events();
-        final List<PlatformEvent> second = EventStreamGenerator.generate(MIXED, NUM_NODES, signingSchema, COUNT, SEED)
-                .events();
-        final List<PlatformEvent> otherSeed = EventStreamGenerator.generate(
-                        MIXED, NUM_NODES, signingSchema, COUNT, SEED + 1)
-                .events();
+    void sameSeedGivesSameSignedEvents(final SigningSchema signingSchema) {
+        final RosterWithKeys network = network(signingSchema);
+        final RosterWrapper roster = network.roster();
+        final Map<NodeId, KeysAndCerts> keys = network.privateKeys();
 
-        // A gossip event holds the event core, the parents, the transactions, and the signature.
-        assertThat(gossipEvents(second)).isEqualTo(gossipEvents(first));
-        assertThat(hashes(second)).isEqualTo(hashes(first));
-        assertThat(gossipEvents(otherSeed)).isNotEqualTo(gossipEvents(first));
+        assertSameEvents(
+                EventStreamGenerator.generateSignedEvents(MIXED, roster, COUNT, SEED, keys),
+                EventStreamGenerator.generateSignedEvents(MIXED, roster, COUNT, SEED, keys),
+                EventStreamGenerator.generateSignedEvents(MIXED, roster, COUNT, SEED + 1, keys));
     }
 
     static Stream<Named<EventShape>> shapes() {
@@ -108,8 +120,7 @@ class EventStreamGeneratorTest {
         final DefaultEventFieldValidator validator =
                 new DefaultEventFieldValidator(new NoOpMetrics(), Time.getCurrent(), TRANSACTION_LIMITS);
 
-        final List<PlatformEvent> events = EventStreamGenerator.generate(shape, NUM_NODES, null, COUNT, SEED)
-                .events();
+        final List<PlatformEvent> events = EventStreamGenerator.generateUnsignedEvents(shape, ROSTER, COUNT, SEED);
 
         assertThat(events).allMatch(validator::isValid);
     }
@@ -120,8 +131,7 @@ class EventStreamGeneratorTest {
                 new DefaultEventFieldValidator(new NoOpMetrics(), Time.getCurrent(), TRANSACTION_LIMITS);
         EventHashFactory.initialize(0);
         try {
-            final List<PlatformEvent> events = EventStreamGenerator.generate(MIXED, NUM_NODES, null, COUNT, SEED)
-                    .events();
+            final List<PlatformEvent> events = EventStreamGenerator.generateUnsignedEvents(MIXED, ROSTER, COUNT, SEED);
 
             assertThat(events).allSatisfy(event -> {
                 assertThat(event.getHash().getDigestType()).isEqualTo(DigestType.SHA_256);
@@ -139,10 +149,12 @@ class EventStreamGeneratorTest {
     @ParameterizedTest
     @EnumSource(SigningSchema.class)
     void everySignatureVerifiesAgainstTheRoster(final SigningSchema signingSchema) {
-        final EventStream stream = EventStreamGenerator.generate(MIXED, NUM_NODES, signingSchema, COUNT, SEED);
+        final RosterWithKeys network = network(signingSchema);
+        final List<PlatformEvent> events =
+                EventStreamGenerator.generateSignedEvents(MIXED, network.roster(), COUNT, SEED, network.privateKeys());
 
-        for (final PlatformEvent event : stream.events()) {
-            final PublicKey publicKey = stream.roster()
+        for (final PlatformEvent event : events) {
+            final PublicKey publicKey = network.roster()
                     .rosterEntry(event.getCreatorId())
                     .gossipCaCertificate()
                     .getPublicKey();
@@ -151,44 +163,45 @@ class EventStreamGeneratorTest {
         }
     }
 
-    @ParameterizedTest
-    @EnumSource(SigningSchema.class)
-    void keysComeFromKeysAndCertsGenerator(final SigningSchema signingSchema) throws Exception {
-        final EventStream stream = EventStreamGenerator.generate(MIXED, NUM_NODES, signingSchema, 0, SEED);
+    @Test
+    void unsignedEventsHaveEmptySignatures() {
+        final List<PlatformEvent> events = EventStreamGenerator.generateUnsignedEvents(MIXED, ROSTER, COUNT, SEED);
 
-        assertThat(stream.keys()).hasSize(NUM_NODES);
-        for (final RosterEntryWrapper entry : stream.roster().rosterEntries()) {
-            final byte[] expected = KeysAndCertsGenerator.generate(entry.nodeId(), signingSchema)
-                    .sigKeyPair()
-                    .getPublic()
-                    .getEncoded();
-            assertThat(stream.keys()
-                            .get(entry.nodeId())
-                            .sigKeyPair()
-                            .getPublic()
-                            .getEncoded())
-                    .isEqualTo(expected);
-            assertThat(entry.gossipCaCertificate().getPublicKey().getEncoded()).isEqualTo(expected);
-        }
+        assertThat(events)
+                .allSatisfy(event -> assertThat(event.getSignature().length()).isZero());
     }
 
     @Test
-    void unsignedEventsHaveNoKeysAndEmptySignatures() {
-        final EventStream stream = EventStreamGenerator.generate(MIXED, NUM_NODES, null, COUNT, SEED);
+    void missingKeysAreRejected() {
+        final RosterWithKeys network = network(SigningSchema.ED25519);
+        final Map<NodeId, KeysAndCerts> keys = new HashMap<>(network.privateKeys());
+        keys.remove(network.roster().nodeIdAtIndex(0));
 
-        assertThat(stream.keys()).isEmpty();
-        assertThat(stream.roster().rosterEntries())
-                .allSatisfy(entry -> assertThat(entry.gossipCaCertificate()).isNull());
-        assertThat(stream.events())
-                .allSatisfy(event -> assertThat(event.getSignature().length()).isZero());
+        assertThatThrownBy(() -> EventStreamGenerator.generateSignedEvents(MIXED, network.roster(), 1, SEED, keys))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     void moreOtherParentsThanOtherNodesAreRejected() {
         final EventShape shape = new EventShape(constant(NUM_NODES), constant(0), constant(1));
 
-        assertThatThrownBy(() -> EventStreamGenerator.generate(shape, NUM_NODES, null, 1, SEED))
+        assertThatThrownBy(() -> EventStreamGenerator.generateUnsignedEvents(shape, ROSTER, 1, SEED))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    /** A roster whose node IDs are 1 to 3 apart, with the nodes' keys from {@code KeysAndCertsGenerator}. */
+    private static RosterWithKeys network(final SigningSchema signingSchema) {
+        return RosterWrapperFactory.randomRosterWithKeys(
+                new Random(SEED), NUM_NODES, WeightGenerators.GAUSSIAN, signingSchema);
+    }
+
+    /** Checks that the first two lists hold the same events, and the third different ones. */
+    private static void assertSameEvents(
+            final List<PlatformEvent> first, final List<PlatformEvent> second, final List<PlatformEvent> otherSeed) {
+        // A gossip event holds the event core, the parents, the transactions, and the signature.
+        assertThat(gossipEvents(second)).isEqualTo(gossipEvents(first));
+        assertThat(hashes(second)).isEqualTo(hashes(first));
+        assertThat(gossipEvents(otherSeed)).isNotEqualTo(gossipEvents(first));
     }
 
     private static List<GossipEvent> gossipEvents(final List<PlatformEvent> events) {

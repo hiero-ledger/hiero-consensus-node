@@ -1,13 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.benchmark.tools.event;
 
-import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
-import java.security.KeyStoreException;
-import java.security.cert.CertificateEncodingException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -15,14 +10,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import java.util.concurrent.ExecutionException;
-import java.util.stream.IntStream;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
-import org.hiero.base.crypto.SigningSchema;
 import org.hiero.consensus.crypto.PbjStreamHasher;
 import org.hiero.consensus.crypto.PlatformSigner;
-import org.hiero.consensus.fakes.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.EventHashFactory;
 import org.hiero.consensus.model.event.EventOrigin;
@@ -38,13 +29,12 @@ import org.hiero.consensus.model.roster.RosterWrapper;
  *
  * <p>Each event:
  * <ul>
- *   <li>has a creator drawn uniformly from a roster of {@code numNodes} nodes;</li>
+ *   <li>has a creator drawn uniformly from the roster;</li>
  *   <li>has a self parent and {@link EventShape#otherParents()} other parents, all made up: random hashes, distinct
- *       creators, and birth rounds at or below the event's own;</li>
+ *       creators from the roster, and birth rounds at or below the event's own;</li>
  *   <li>carries {@link EventShape#transactionsPerEvent()} transactions of random bytes, each of a size drawn from
  *       {@link EventShape#transactionSize()};</li>
- *   <li>is hashed, and signed with its creator's key if a signing schema is given; otherwise its signature is
- *       empty;</li>
+ *   <li>is hashed, and signed with its creator's key if keys are given; otherwise its signature is empty;</li>
  *   <li>has the origin {@link EventOrigin#GOSSIP}, as an event received from another node.</li>
  * </ul>
  *
@@ -75,40 +65,71 @@ public final class EventStreamGenerator {
     private EventStreamGenerator() {}
 
     /**
-     * Generates the events.
+     * Generates unsigned events: every signature is empty.
      *
-     * @param shape         the shape of the events
-     * @param numNodes      the number of nodes in the roster
-     * @param signingSchema the schema of the nodes' signing keys, or {@code null} for unsigned events
-     * @param count         the number of events
-     * @param seed          the seed of all random choices
-     * @return the roster, the keys, and the events
-     * @throws IllegalArgumentException if {@code numNodes} or {@code count} is out of range, or the shape draws a
-     *                                  negative count, more other parents than there are other nodes, or an empty
-     *                                  transaction
+     * @param shape  the shape of the events
+     * @param roster the creators of the events
+     * @param count  the number of events
+     * @param seed   the seed of all random choices
+     * @return the events, in the order they were generated
+     * @throws IllegalArgumentException if the roster is empty, {@code count} is negative, or the shape draws a negative
+     *                                  count, more other parents than there are other nodes, or an empty transaction
      */
     @NonNull
-    public static EventStream generate(
+    public static List<PlatformEvent> generateUnsignedEvents(
+            @NonNull final EventShape shape, @NonNull final RosterWrapper roster, final int count, final long seed) {
+        return generateEvents(shape, roster, Map.of(), count, seed);
+    }
+
+    /**
+     * Generates events signed with their creators' keys.
+     *
+     * @param shape  the shape of the events
+     * @param roster the creators of the events
+     * @param count  the number of events
+     * @param seed   the seed of all random choices
+     * @param keys   the keys of every node in the roster
+     * @return the events, in the order they were generated
+     * @throws IllegalArgumentException if a node in the roster has no keys, or for the reasons of
+     *                                  {@link #generateUnsignedEvents(EventShape, RosterWrapper, int, long)}
+     */
+    @NonNull
+    public static List<PlatformEvent> generateSignedEvents(
             @NonNull final EventShape shape,
-            final int numNodes,
-            @Nullable final SigningSchema signingSchema,
+            @NonNull final RosterWrapper roster,
+            final int count,
+            final long seed,
+            @NonNull final Map<NodeId, KeysAndCerts> keys) {
+        final Map<NodeId, PlatformSigner> signers = new HashMap<>();
+        for (final NodeId nodeId : roster.nodeIds()) {
+            final KeysAndCerts nodeKeys = keys.get(nodeId);
+            if (nodeKeys == null) {
+                throw new IllegalArgumentException("No keys for node " + nodeId);
+            }
+            signers.put(nodeId, new PlatformSigner(nodeKeys));
+        }
+        return generateEvents(shape, roster, signers, count, seed);
+    }
+
+    /** Generates the events, signed if there are signers. */
+    @NonNull
+    private static List<PlatformEvent> generateEvents(
+            @NonNull final EventShape shape,
+            @NonNull final RosterWrapper roster,
+            @NonNull final Map<NodeId, PlatformSigner> signers,
             final int count,
             final long seed) {
-        if (numNodes < 1 || count < 0) {
+        if (roster.size() < 1 || count < 0) {
             throw new IllegalArgumentException(
-                    "Expected at least one node and a non-negative count, but got " + numNodes + " and " + count);
+                    "Expected at least one node and a non-negative count, but got " + roster.size() + " and " + count);
         }
         final Random random = new Random(seed);
-        final List<NodeId> nodeIds =
-                IntStream.range(0, numNodes).mapToObj(NodeId::of).toList();
-        final Map<NodeId, KeysAndCerts> keys = signingSchema == null ? Map.of() : generateKeys(nodeIds, signingSchema);
-        final Map<NodeId, PlatformSigner> signers = new HashMap<>();
-        keys.forEach((nodeId, nodeKeys) -> signers.put(nodeId, new PlatformSigner(nodeKeys)));
+        final List<NodeId> nodeIds = roster.nodeIds();
         final PbjStreamHasher hasher = new PbjStreamHasher();
 
         final List<PlatformEvent> events = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
-            final NodeId creator = nodeIds.get(random.nextInt(numNodes));
+            final NodeId creator = nodeIds.get(random.nextInt(nodeIds.size()));
             final Instant timeCreated = START_TIME.plusMillis(i);
             final UnsignedEvent unsignedEvent = new UnsignedEvent(
                     creator,
@@ -117,16 +138,16 @@ public final class EventStreamGenerator {
                     timeCreated,
                     transactions(shape, random),
                     // the creator's range; nextInt, not nextLong(origin, bound), whose algorithm a JDK may change
-                    random.nextInt(numNodes + 1),
+                    random.nextInt(nodeIds.size() + 1),
                     timeCreated,
                     List.of());
             hasher.hashUnsignedEvent(unsignedEvent);
-            final Bytes signature = signingSchema == null
+            final Bytes signature = signers.isEmpty()
                     ? Bytes.EMPTY
                     : signers.get(creator).sign(unsignedEvent.getHash().getBytes());
             events.add(new PlatformEvent(unsignedEvent, signature, EventOrigin.GOSSIP));
         }
-        return new EventStream(roster(nodeIds, keys), keys, Collections.unmodifiableList(events));
+        return Collections.unmodifiableList(events);
     }
 
     /**
@@ -183,46 +204,5 @@ public final class EventStreamGenerator {
             transactions.add(Bytes.wrap(transaction));
         }
         return transactions;
-    }
-
-    /** Generates the nodes' keys with {@link KeysAndCertsGenerator}, which derives them from the node IDs. */
-    @NonNull
-    private static Map<NodeId, KeysAndCerts> generateKeys(
-            @NonNull final List<NodeId> nodeIds, @NonNull final SigningSchema signingSchema) {
-        try {
-            return Map.copyOf(KeysAndCertsGenerator.generateKeysAndCerts(nodeIds, signingSchema));
-        } catch (final InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("Interrupted while generating keys", e);
-        } catch (final ExecutionException | KeyStoreException e) {
-            throw new IllegalStateException("Failed to generate keys", e);
-        }
-    }
-
-    /** Builds a roster of equal weights, with each node's signing certificate if there are keys. */
-    @NonNull
-    private static RosterWrapper roster(
-            @NonNull final List<NodeId> nodeIds, @NonNull final Map<NodeId, KeysAndCerts> keys) {
-        final List<RosterEntry> entries = new ArrayList<>();
-        for (final NodeId nodeId : nodeIds) {
-            entries.add(RosterEntry.newBuilder()
-                    .nodeId(nodeId.id())
-                    .weight(1)
-                    .gossipCaCertificate(certificate(keys.get(nodeId)))
-                    .build());
-        }
-        return RosterWrapper.of(new Roster(entries));
-    }
-
-    @NonNull
-    private static Bytes certificate(@Nullable final KeysAndCerts nodeKeys) {
-        if (nodeKeys == null) {
-            return Bytes.EMPTY;
-        }
-        try {
-            return Bytes.wrap(nodeKeys.sigCert().getEncoded());
-        } catch (final CertificateEncodingException e) {
-            throw new IllegalStateException("Failed to encode a signing certificate", e);
-        }
     }
 }
