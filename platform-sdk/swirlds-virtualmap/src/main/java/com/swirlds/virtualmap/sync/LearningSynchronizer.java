@@ -14,6 +14,7 @@ import com.swirlds.virtualmap.config.VirtualMapLearnerSyncConfig;
 import com.swirlds.virtualmap.config.VirtualMapReconnectMode;
 import com.swirlds.virtualmap.internal.reconnect.LearnerPullVirtualTreeReceiveTask;
 import com.swirlds.virtualmap.internal.reconnect.LearnerPullVirtualTreeSendTask;
+import com.swirlds.virtualmap.internal.reconnect.NodeTraversalOrder;
 import com.swirlds.virtualmap.internal.reconnect.ParallelSyncTraversalOrder;
 import com.swirlds.virtualmap.internal.reconnect.PullVirtualTreeRequest;
 import com.swirlds.virtualmap.internal.reconnect.PullVirtualTreeResponse;
@@ -76,19 +77,23 @@ public class LearningSynchronizer {
         final VirtualMapConfig virtualMapConfig = originalVirtualMap.getVirtualMapConfig();
         final VirtualMapLearner vmapLearner = new VirtualMapLearner(originalVirtualMap, syncConfig.flushInterval());
 
-        return switch (virtualMapConfig.reconnectMode()) {
-            case VirtualMapReconnectMode.PULL_TOP_TO_BOTTOM ->
-                new LearnerTreeExchanger(vmapLearner, new TopToBottomTraversalOrder(), syncMetrics);
-            case VirtualMapReconnectMode.PULL_TWO_PHASE_PESSIMISTIC ->
-                new LearnerTreeExchanger(vmapLearner, new TwoPhasePessimisticTraversalOrder(), syncMetrics);
-            case VirtualMapReconnectMode.PULL_PARALLEL_SYNC ->
-                new LearnerTreeExchanger(vmapLearner, new ParallelSyncTraversalOrder(), syncMetrics);
-            default ->
-                throw new UnsupportedOperationException("Unknown reconnect mode: "
-                        + virtualMapConfig.reconnectMode()
-                        + ". Supported modes: PULL_TOP_TO_BOTTOM,"
-                        + " PULL_TWO_PHASE_PESSIMISTIC, PULL_PARALLEL_SYNC");
-        };
+        final NodeTraversalOrder traversalOrder =
+                switch (virtualMapConfig.reconnectMode()) {
+                    case VirtualMapReconnectMode.PULL_TOP_TO_BOTTOM -> new TopToBottomTraversalOrder();
+                    case VirtualMapReconnectMode.PULL_TWO_PHASE_PESSIMISTIC -> new TwoPhasePessimisticTraversalOrder();
+                    case VirtualMapReconnectMode.PULL_PARALLEL_SYNC -> new ParallelSyncTraversalOrder();
+                    default ->
+                        throw new UnsupportedOperationException("Unknown reconnect mode: "
+                                + virtualMapConfig.reconnectMode()
+                                + ". Supported modes: PULL_TOP_TO_BOTTOM,"
+                                + " PULL_TWO_PHASE_PESSIMISTIC, PULL_PARALLEL_SYNC");
+                };
+        return new LearnerTreeExchanger(
+                vmapLearner,
+                traversalOrder,
+                syncMetrics,
+                syncConfig.maxInFlightLeaves(),
+                syncConfig.statusLogInterval());
     }
 
     /**

@@ -113,6 +113,13 @@ public class ConcurrentBlockingIterator<T> implements Iterator<T> {
     }
 
     /**
+     * @return the number of supplied elements not yet consumed
+     */
+    public int size() {
+        return buffer.size();
+    }
+
+    /**
      * Closes the iterator. After closing, no elements may be added, but existing elements in the iterator
      * can still be retrieved.
      */

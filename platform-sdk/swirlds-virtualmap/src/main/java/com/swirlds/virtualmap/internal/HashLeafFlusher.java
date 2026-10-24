@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
@@ -24,8 +25,9 @@ import org.apache.logging.log4j.Marker;
  *
  * <p>This flusher is thread safe, its methods like {@link #updateHashChunk(VirtualHashChunk)},
  * {@link #updateLeaf(VirtualLeafBytes)}, and {@link #deleteLeaf(VirtualLeafBytes)} can
- * be called from multiple threads. At most one flush runs at a time. However, some of the calling threads may
- * be blocked till the currently accumulated data is flushed to disk.
+ * be called from multiple threads. At most one flush runs at a time, in the calling thread that fills a batch.
+ * While that flush is in progress, other callers append to the next batch; once it reaches
+ * {@link #MAX_PENDING_FLUSH_INTERVALS} flush intervals, they block till the flush is complete.
  *
  * <p>{@link #init(long, long)} must be called in the beginning of flush, and {@link
  * #finish()} must be called in the end.
@@ -52,6 +54,14 @@ public class HashLeafFlusher {
     // protection from that
     private final AtomicBoolean flushInProgress = new AtomicBoolean(false);
 
+    /**
+     * While a flush is in progress, callers keep appending to the next batch. Once the next batch
+     * reaches this many flush intervals, callers block until the in-progress flush completes. This
+     * bounds the memory held by the flusher to roughly this many intervals pending plus the batch
+     * being flushed, and propagates backpressure to receivers, hashing threads, and the leaf deleter.
+     */
+    static final int MAX_PENDING_FLUSH_INTERVALS = 2;
+
     private final int hashChunkHeight;
 
     private final int flushInterval;
@@ -59,6 +69,12 @@ public class HashLeafFlusher {
     private final VirtualMapStatistics statistics;
 
     private final Marker logMarker;
+
+    // Flush stats, reported in reconnect status logs
+    private final AtomicLong flushCount = new AtomicLong();
+    private final AtomicLong totalFlushMillis = new AtomicLong();
+    private volatile long lastFlushMillis;
+    private final AtomicLong backpressureWaitMillis = new AtomicLong();
 
     /**
      * Creates a flusher that logs with the {@code VIRTUAL_MERKLE_STATS} marker.
@@ -136,6 +152,7 @@ public class HashLeafFlusher {
         final List<VirtualLeafBytes> dirtyLeavesToFlush;
         final List<VirtualLeafBytes> deletedLeavesToFlush;
         synchronized (this) {
+            waitWhilePendingLimitReached();
             action.run();
             if (!isFlushNeeded() || !flushInProgress.compareAndSet(false, true)) {
                 return;
@@ -152,14 +169,62 @@ public class HashLeafFlusher {
         flush(dirtyHashChunksToFlush, dirtyLeavesToFlush, deletedLeavesToFlush);
     }
 
+    /**
+     * Blocks the calling thread while a flush is in progress and the next batch has already reached
+     * {@link #MAX_PENDING_FLUSH_INTERVALS} flush intervals. Must be called while holding this object's
+     * monitor. When the in-progress flush completes, {@link #flush(List, List, List)} wakes all waiters.
+     */
+    private void waitWhilePendingLimitReached() {
+        if (!flushInProgress.get() || !isPendingLimitReached()) {
+            return;
+        }
+        final long start = System.currentTimeMillis();
+        try {
+            while (flushInProgress.get() && isPendingLimitReached()) {
+                wait();
+            }
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while waiting for a flush to complete", e);
+        } finally {
+            backpressureWaitMillis.addAndGet(System.currentTimeMillis() - start);
+        }
+    }
+
     private boolean isFlushNeeded() {
+        return isBatchSizeReached(flushInterval);
+    }
+
+    private boolean isPendingLimitReached() {
+        return isBatchSizeReached((long) flushInterval * MAX_PENDING_FLUSH_INTERVALS);
+    }
+
+    private boolean isBatchSizeReached(final long limit) {
         if (flushInterval <= 0) {
             // All data is flushed in finish() only
             return false;
         }
-        return (updatedHashChunks.size() * VirtualHashChunk.getChunkSize(hashChunkHeight) >= flushInterval)
-                || (updatedLeaves.size() >= flushInterval)
-                || (deletedLeaves.size() >= flushInterval);
+        return ((long) updatedHashChunks.size() * VirtualHashChunk.getChunkSize(hashChunkHeight) >= limit)
+                || (updatedLeaves.size() >= limit)
+                || (deletedLeaves.size() >= limit);
+    }
+
+    /**
+     * @return a short human-readable summary of the flusher state, for reconnect status logs
+     */
+    public synchronized String getStatus() {
+        return "pendingLeaves=" + sizeOrZero(updatedLeaves)
+                + ", pendingDeletedLeaves=" + sizeOrZero(deletedLeaves)
+                + ", pendingHashChunks=" + sizeOrZero(updatedHashChunks)
+                + ", flushInProgress=" + flushInProgress.get()
+                + ", flushes=" + flushCount.get()
+                + ", totalFlushMillis=" + totalFlushMillis.get()
+                + ", lastFlushMillis=" + lastFlushMillis
+                + ", backpressureWaitMillis=" + backpressureWaitMillis.get();
+    }
+
+    private static int sizeOrZero(final List<?> list) {
+        return (list == null) ? 0 : list.size();
     }
 
     public synchronized void finish() {
@@ -207,12 +272,19 @@ public class HashLeafFlusher {
                 throwIfInterrupted();
                 final long end = System.currentTimeMillis();
                 statistics.recordFlush(end - start);
+                flushCount.incrementAndGet();
+                totalFlushMillis.addAndGet(end - start);
+                lastFlushMillis = end - start;
                 logger.debug(logMarker, "Flushed in {} ms", end - start);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
         } finally {
-            flushInProgress.set(false);
+            synchronized (this) {
+                flushInProgress.set(false);
+                // Wake up callers blocked in waitWhilePendingLimitReached()
+                notifyAll();
+            }
         }
     }
 

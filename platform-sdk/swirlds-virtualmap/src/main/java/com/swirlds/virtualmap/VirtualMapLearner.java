@@ -239,6 +239,21 @@ public final class VirtualMapLearner {
     }
 
     /**
+     * @return the number of dirty leaves supplied to the hashing pipeline but not yet consumed by the hasher
+     */
+    public int getHashingBufferSize() {
+        return reconnectIterator.size();
+    }
+
+    /**
+     * @return a short human-readable summary of the reconnect flusher state, for reconnect status logs
+     */
+    @NonNull
+    public String getFlusherStatus() {
+        return reconnectFlusher.getStatus();
+    }
+
+    /**
      * Deletes an old leaf, if the new leaf node is in the same path position and leaf keys are different.
      *
      * @param newLeaf new leaf to be checked if

@@ -3,11 +3,18 @@ package com.swirlds.virtualmap.internal;
 
 import static com.swirlds.virtualmap.test.fixtures.TestKey.longToKey;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
@@ -15,6 +22,10 @@ import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
 import com.swirlds.virtualmap.test.fixtures.datasource.InMemoryDataSource;
 import java.nio.ByteBuffer;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Cryptography;
@@ -187,6 +198,115 @@ public class HashLeafFlusherTest {
             bytes = ds.loadLeafRecord(bytes.keyBytes());
             assertNotNull(bytes);
             assertEquals(i, bytes.path());
+        }
+    }
+
+    @Test
+    @DisplayName("Callers block while a flush is in progress and the next batch has reached the pending limit")
+    void testBackpressureWhileFlushInProgress() throws Exception {
+        final int flushInterval = 10;
+        final int pendingLimit = flushInterval * HashLeafFlusher.MAX_PENDING_FLUSH_INTERVALS;
+        final CountDownLatch flushStarted = new CountDownLatch(1);
+        final CountDownLatch releaseFlush = new CountDownLatch(1);
+        final HashLeafFlusher flusher =
+                blockingFlusher("testBackpressureWhileFlushInProgress", flushInterval, flushStarted, releaseFlush);
+
+        // The thread that fills the first batch runs the flush, which blocks in saveRecords()
+        final Thread flushingThread = new Thread(() -> {
+            for (int i = 0; i < flushInterval; i++) {
+                flusher.updateLeaf(leaf(1000 + i, i, i));
+            }
+        });
+        flushingThread.start();
+        assertTrue(flushStarted.await(10, TimeUnit.SECONDS));
+
+        // Another thread appends to the next batch till the pending limit, then blocks
+        final AtomicInteger appended = new AtomicInteger();
+        final Thread appender = new Thread(() -> {
+            for (int i = 0; i < pendingLimit + 5; i++) {
+                flusher.updateLeaf(leaf(1100 + i, 100 + i, i));
+                appended.incrementAndGet();
+            }
+        });
+        appender.start();
+        waitForBlockedThread(appender);
+        assertEquals(pendingLimit, appended.get());
+
+        // Once the flush is complete, the appender is unblocked
+        releaseFlush.countDown();
+        appender.join(TimeUnit.SECONDS.toMillis(10));
+        flushingThread.join(TimeUnit.SECONDS.toMillis(10));
+        assertFalse(appender.isAlive());
+        assertEquals(pendingLimit + 5, appended.get());
+    }
+
+    @Test
+    @DisplayName("A caller blocked by flusher backpressure fails on interrupt")
+    void testBackpressureWaitInterrupted() throws Exception {
+        final int flushInterval = 10;
+        final int pendingLimit = flushInterval * HashLeafFlusher.MAX_PENDING_FLUSH_INTERVALS;
+        final CountDownLatch flushStarted = new CountDownLatch(1);
+        final CountDownLatch releaseFlush = new CountDownLatch(1);
+        final HashLeafFlusher flusher =
+                blockingFlusher("testBackpressureWaitInterrupted", flushInterval, flushStarted, releaseFlush);
+
+        final Thread flushingThread = new Thread(() -> {
+            for (int i = 0; i < flushInterval; i++) {
+                flusher.deleteLeaf(leaf(1000 + i, i, i));
+            }
+        });
+        flushingThread.start();
+        assertTrue(flushStarted.await(10, TimeUnit.SECONDS));
+
+        final AtomicReference<Throwable> failure = new AtomicReference<>();
+        final Thread appender = new Thread(() -> {
+            try {
+                for (int i = 0; i <= pendingLimit; i++) {
+                    flusher.deleteLeaf(leaf(1100 + i, 100 + i, i));
+                }
+            } catch (final Throwable t) {
+                failure.set(t);
+            }
+        });
+        appender.start();
+        waitForBlockedThread(appender);
+        appender.interrupt();
+        appender.join(TimeUnit.SECONDS.toMillis(10));
+        assertInstanceOf(IllegalStateException.class, failure.get());
+
+        releaseFlush.countDown();
+        flushingThread.join(TimeUnit.SECONDS.toMillis(10));
+    }
+
+    /**
+     * Creates an initialized flusher whose first flush blocks in saveRecords() till {@code releaseFlush}
+     * is counted down. Subsequent flushes complete immediately.
+     */
+    private static HashLeafFlusher blockingFlusher(
+            final String name,
+            final int flushInterval,
+            final CountDownLatch flushStarted,
+            final CountDownLatch releaseFlush)
+            throws Exception {
+        final VirtualDataSource ds = mock(VirtualDataSource.class);
+        when(ds.getHashChunkHeight()).thenReturn(6);
+        doAnswer(invocation -> {
+                    flushStarted.countDown();
+                    assertTrue(releaseFlush.await(10, TimeUnit.SECONDS));
+                    return null;
+                })
+                .when(ds)
+                .saveRecords(anyLong(), anyLong(), any(), any(), any(), anyBoolean());
+        final HashLeafFlusher flusher = new HashLeafFlusher(ds, flushInterval, new VirtualMapStatistics(name));
+        flusher.init(1000, 2000);
+        return flusher;
+    }
+
+    private static void waitForBlockedThread(final Thread thread) throws InterruptedException {
+        final long deadline = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(10);
+        while (thread.getState() != Thread.State.WAITING) {
+            assertTrue(System.currentTimeMillis() < deadline, "Thread was not blocked: " + thread.getState());
+            Thread.sleep(10);
         }
     }
 
