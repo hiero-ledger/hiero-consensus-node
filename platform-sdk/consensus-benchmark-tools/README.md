@@ -24,8 +24,8 @@ follows, `LatencyHistogramBenchmark` in `src/jmh` included:
 
 ## Scripts
 
-Developer tools in [`scripts/`](scripts), run locally on a benchmark's profiles and logs. Each
-script's header gives its usage. The scripts that CI runs live in
+Developer tools in [`scripts/`](scripts), run locally on a benchmark's profiles and logs, or on
+production data. Each script's header gives its usage. The scripts that CI runs live in
 [`.github/workflows/support/scripts/benchmarks/`](../../.github/workflows/support/scripts/benchmarks).
 
 - `profile-regions.sh` — checks that a benchmark measures the code it is meant to measure: how
@@ -45,6 +45,9 @@ script's header gives its usage. The scripts that CI runs live in
   components, such as gossip, event intake, and consensus, from Java Flight Recorder recordings.
 - `sloth-stages.sh` — summarizes a [Sloth](../consensus-sloth) run: how long after its arrival an
   event passes each processing stage of a node, and how long the network takes to reach consensus.
+- `event-shapes.py` — counts the shape of every event in mainnet block streams (its other parents,
+  its transactions, and their sizes) and prints the frequency tables of `EventShape.MAINNET`, with
+  how they vary by hour and between weekdays and the weekend.
 
 ## Dependency Rules
 
