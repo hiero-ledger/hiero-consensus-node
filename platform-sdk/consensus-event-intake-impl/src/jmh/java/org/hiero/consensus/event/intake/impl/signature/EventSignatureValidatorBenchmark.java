@@ -2,6 +2,7 @@
 package org.hiero.consensus.event.intake.impl.signature;
 
 import static org.hiero.consensus.benchmark.tools.event.EmpiricalDistribution.constant;
+import static org.hiero.consensus.benchmark.tools.event.EventShape.MAINNET;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
 import static org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory.randomRosterWithKeys;
 import static org.hiero.consensus.model.test.fixtures.roster.RosterWrapperHistoryFactory.createRosterWrapperHistory;
@@ -46,9 +47,10 @@ import org.openjdk.jmh.infra.Blackhole;
  * Measures the latency of {@link DefaultEventSignatureValidator#validateSignature(PlatformEvent)}, which verifies the
  * signature of every event a node receives from its peers.
  *
- * <p>{@link EventStreamGenerator} generates and signs the events once per trial, from fixed seeds. Each has one other
- * parent and one transaction of 445 bytes, and is hashed with SHA-256, as in production after the event cutover. Only
- * the hash is signed, so the shape of the events does not change the validator's work. The validator does not change
+ * <p>{@link EventStreamGenerator} generates and signs the events once per trial, from fixed seeds. Each has the shape of
+ * the median mainnet event ({@link EventShape#MAINNET}), four other parents and no transactions, and is hashed with
+ * SHA-256, as in production after the event cutover. Only the hash is signed, so the shape of the events does not
+ * change the validator's work, and one shape is enough. The validator does not change
  * the events, so every invocation verifies the same events. All signatures are valid, as they are in
  * production, and the validator uses the production verifier, {@link CryptoUtils#verifySignature}, which creates a new
  * verifier for the creator's public key on every call. The validator's other collaborators are the production ones as
@@ -103,8 +105,11 @@ public class EventSignatureValidatorBenchmark {
     /** The number of events validated in one invocation. */
     private static final int NUMBER_OF_EVENTS = 10_000;
 
-    /** The shape of the events: one other parent and one transaction of 445 bytes. */
-    private static final EventShape SHAPE = new EventShape(constant(1), constant(1), constant(445));
+    /** The shape of the events: the median of each quantity of the mainnet shape. */
+    private static final EventShape SHAPE = new EventShape(
+            constant(MAINNET.otherParents().median()),
+            constant(MAINNET.transactionsPerEvent().median()),
+            constant(MAINNET.transactionSize().median()));
 
     /** The signing schema of the nodes' keys. */
     @Param({"ED25519", "RSA"})
