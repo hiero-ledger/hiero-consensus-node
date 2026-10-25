@@ -2,7 +2,10 @@
 package org.hiero.consensus.event.intake.impl.signature;
 
 import static org.hiero.consensus.benchmark.tools.event.EmpiricalDistribution.constant;
+import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
+import static org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory.randomRosterWithKeys;
 import static org.hiero.consensus.model.test.fixtures.roster.RosterWrapperHistoryFactory.createRosterWrapperHistory;
+import static org.hiero.consensus.test.fixtures.WeightGenerators.GAUSSIAN;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
@@ -23,8 +26,6 @@ import org.hiero.consensus.model.event.EventHashFactory;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.test.fixtures.roster.RosterWithKeys;
-import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
-import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -63,22 +64,22 @@ import org.openjdk.jmh.infra.Blackhole;
  * <p>Each invocation's setup ends with {@code System.gc()}, so usually no garbage collection falls into the measured
  * calls. A pass during which one does is discarded and replaced by the next invocation.
  *
- * <p>The calibration detected no warmup in the mean, but in the first 5 s of a fork, p99.9 was up to 31% higher than
+ * <p>The calibration detected no warmup in the mean, but in the first 5 s of a fork, p99.9 was up to 34% higher than
  * later. A warmup iteration of 5 s keeps these slow calls out of the measured iterations.
  *
  * <p>Run with {@code -prof org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler}.
  *
  * <h2>Calibration</h2>
  * <ul>
- *   <li>Date / commit: 2026-10-22, 3e9c98d32d</li>
+ *   <li>Date / commit: 2026-10-24, 5f2e94701c</li>
  *   <li>Machine: hl-cn-benchmark-lin, AS-2115GT-HNTR, AMD EPYC 9254 24-Core Processor, JDK 25.0.2, -XX:ActiveProcessorCount=12 -Xms2g -Xmx2g -XX:+AlwaysPreTouch</li>
  *   <li>Parameter sets: signingSchema=ED25519 / signingSchema=RSA</li>
  *   <li>Steady state after: 0 s / 0 s</li>
- *   <li>Noise (latency.mean, CV): 0.19% / 0.17% per 5 s iteration, 0.02% / 0.15% between forks, - / - between runs (1 of 1 / 1 of 1 runs quiet)</li>
- *   <li>Expected detectable regression: 0.08% / 0.30% (95 % CI half-width of one run)</li>
+ *   <li>Noise (latency.mean, CV): 0.21% / 0.18% per 5 s iteration, 0.12% / 0.23% between forks, 0.00% / 0.00% between runs (3 of 3 / 3 of 3 runs quiet)</li>
+ *   <li>Expected detectable regression: 0.25% / 0.45% (95 % CI half-width of one run)</li>
  *   <li>Samples per iteration: 1.5 M / 1.3 M; expected stable: mean, p50, p90, p99, p99.9 / mean, p50, p90, p99, p99.9</li>
- *   <li>Runtime: 2.4 / 3.0 min per parameter set</li>
- *   <li>Raw data: https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/39719427212</li>
+ *   <li>Runtime: 2.4 / 2.9 min per parameter set</li>
+ *   <li>Raw data: https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/40138349924, https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/40138351818, https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/40138353526</li>
  * </ul>
  */
 @State(Scope.Thread)
@@ -93,10 +94,11 @@ public class EventSignatureValidatorBenchmark {
     private static final long SEED = 0;
 
     /**
-     * The number of nodes, and therefore of distinct public keys. In alternating local runs with 4, 10, and 30 nodes,
-     * the latency of Ed25519 did not change; with RSA, 30 nodes had a p50 about 0.35% higher, a constant offset.
+     * The number of nodes, and therefore of distinct public keys: 32, as in the other consensus-layer benchmarks. One
+     * count is enough. In alternating local runs with 4, 10, and 30 nodes, the latency of Ed25519 did not change; with
+     * RSA, 30 nodes had a p50 about 0.35% higher, a constant offset.
      */
-    private static final int NUMBER_OF_NODES = 4;
+    private static final int NUMBER_OF_NODES = 32;
 
     /** The number of events validated in one invocation. */
     private static final int NUMBER_OF_EVENTS = 10_000;
@@ -130,8 +132,8 @@ public class EventSignatureValidatorBenchmark {
     public void generateEvents() {
         // Every event birth round is past the cutover, so every event is hashed with SHA-256.
         EventHashFactory.initialize(0);
-        final RosterWithKeys rosterWithKeys = RosterWrapperFactory.randomRosterWithKeys(
-                new Random(SEED), NUMBER_OF_NODES, WeightGenerators.GAUSSIAN, signingSchema);
+        final RosterWithKeys rosterWithKeys =
+                randomRosterWithKeys(new Random(SEED), NUMBER_OF_NODES, GAUSSIAN, signingSchema);
         final RosterWrapper roster = rosterWithKeys.roster();
         events = EventStreamGenerator.generateSignedEvents(
                 SHAPE, roster, NUMBER_OF_EVENTS, SEED, rosterWithKeys.privateKeys());
@@ -144,7 +146,7 @@ public class EventSignatureValidatorBenchmark {
                 metricsProvider.createPlatformMetrics(roster.nodeIdAtIndex(0)),
                 Time.getCurrent(),
                 CryptoUtils::verifySignature,
-                createRosterWrapperHistory(0L, roster),
+                createRosterWrapperHistory(ROUND_FIRST, roster),
                 new DefaultIntakeEventCounter(roster));
         metricsProvider.start();
     }
