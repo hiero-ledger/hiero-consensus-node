@@ -109,4 +109,13 @@ public final class EmpiricalDistribution {
         final int index = Arrays.binarySearch(cumulative, q);
         return values[index >= 0 ? index : -index - 1];
     }
+
+    /**
+     * Returns the median: the smallest value that half of the draws stay at or below, {@code quantile(0.5)}.
+     *
+     * @return the median
+     */
+    public long median() {
+        return quantile(0.5);
+    }
 }

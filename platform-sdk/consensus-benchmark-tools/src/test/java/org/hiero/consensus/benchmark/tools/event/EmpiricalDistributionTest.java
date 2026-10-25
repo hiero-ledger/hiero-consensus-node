@@ -89,6 +89,14 @@ class EmpiricalDistributionTest {
         assertThat(distribution.quantile(1)).isEqualTo(445);
     }
 
+    @Test
+    void medianIsTheSmallestValueThatHalfStaysAtOrBelow() {
+        // cumulative probabilities: 1 -> 0.5, 2 -> 1
+        final EmpiricalDistribution distribution = EmpiricalDistribution.of(new long[] {1, 2}, new double[] {1, 1});
+
+        assertThat(distribution.median()).isEqualTo(1);
+    }
+
     @ParameterizedTest
     @ValueSource(doubles = {-0.01, 1.01, Double.NaN})
     void sharesOutsideZeroToOneAreRejected(final double q) {
