@@ -28,7 +28,8 @@ public record EventShape(
      * between the upgrades to v0.78.1 and v0.78.2, counted by {@code scripts/event-shapes.py}
      * from the block stream. The values fall into bins about 25% wide, each at the mean of its
      * values; bins with a frequency below 10<sup>-4</sup> are left out. Each row is a value and
-     * its count: of events, or of transactions for the sizes.
+     * its count: of events, or of transactions for the sizes. The largest size, 5,326 bytes, is
+     * the upload of a software upgrade package to file 0.0.150 on 2026-10-21.
      */
     public static final EventShape MAINNET = new EventShape(
             // other parents
