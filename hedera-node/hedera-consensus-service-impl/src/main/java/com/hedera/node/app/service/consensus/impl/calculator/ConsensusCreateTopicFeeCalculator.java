@@ -9,6 +9,8 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.EnumSet;
+import java.util.Set;
 import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.FeeSchedule;
@@ -46,5 +48,10 @@ public class ConsensusCreateTopicFeeCalculator implements ServiceFeeCalculator {
     @Override
     public TransactionBody.DataOneOfType getTransactionType() {
         return TransactionBody.DataOneOfType.CONSENSUS_CREATE_TOPIC;
+    }
+
+    @Override
+    public Set<Extra> requiredExtras() {
+        return EnumSet.of(Extra.KEYS, Extra.CONSENSUS_CREATE_TOPIC_WITH_CUSTOM_FEE);
     }
 }

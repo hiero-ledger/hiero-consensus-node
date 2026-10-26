@@ -1097,10 +1097,13 @@ public class SystemTransactions {
         parentTxn.initBaseBuilder(exchangeRateManager.exchangeRates());
         final var createMetadata = new HandleContext.DispatchMetadata(SYSTEM_TXN_CREATION_ENTITY_NUM, nextEntityNum);
         createMetadata.putMetadata(INTERNAL_SYSTEM_TRANSACTION, true);
-        final var dispatch = parentTxnFactory.createDispatch(
-                parentTxn, parentTxn.baseBuilder(), ignore -> true, NODE, createMetadata);
-        stakePeriodChanges.advanceTimeTo(parentTxn, applyStakePeriodSideEffects);
         try {
+            // Fee computation for this dispatch (and advancing the stake period) can itself throw, e.g. if the
+            // currently active simple fee schedule cannot price this system transaction's own functionality; that
+            // must fail only this one system transaction, not propagate past this try
+            final var dispatch = parentTxnFactory.createDispatch(
+                    parentTxn, parentTxn.baseBuilder(), ignore -> true, NODE, createMetadata);
+            stakePeriodChanges.advanceTimeTo(parentTxn, applyStakePeriodSideEffects);
             WritableSingletonState<EntityNumber> controlledNum =
                     dispatch.stack().getWritableStates(EntityIdService.NAME).getSingleton(ENTITY_ID_STATE_ID);
             final var prevEntityNum = requireNonNull(controlledNum.get()).number();

@@ -112,7 +112,10 @@ public class HgcaaLogValidator {
                 List.of("QueryWorkflowImpl", "Unexpected ParseException while parsing protobuf"),
                 // HAPI networks run with CLPR enabled but without a CA, so CLPR sync runs without mTLS
                 List.of("ClprCaCertManager", "CLPR CA cert/key not configured"),
-                List.of("Timed out waiting for pending block proofs"));
+                List.of("Timed out waiting for pending block proofs"),
+                // SimpleFeeScheduleCoverageTest deliberately installs schedules the registered calculators
+                // cannot evaluate, to prove FeeManager rejects them
+                List.of("FeeManager", "Rejecting simple fee schedule"));
 
         private int numProblems = 0;
         private int linesSinceInitialProblem = -1;

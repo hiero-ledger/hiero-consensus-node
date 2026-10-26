@@ -111,6 +111,7 @@ import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.roster.RosterService;
+import com.hedera.node.app.service.schedule.ExecutableTxn;
 import com.hedera.node.app.service.schedule.ExecutableTxnIterator;
 import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.token.TokenService;
@@ -126,17 +127,22 @@ import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.state.HederaRecordCache;
+import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
 import com.hedera.node.app.throttle.CongestionMetrics;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
+import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.clpr.ClprCaCertManager;
 import com.hedera.node.app.workflows.clpr.ClprEndpointManifestReconciler;
 import com.hedera.node.app.workflows.clpr.ClprSubmissions;
 import com.hedera.node.app.workflows.handle.cache.CacheWarmer;
 import com.hedera.node.app.workflows.handle.record.MigrationRootHashSubmissions;
 import com.hedera.node.app.workflows.handle.record.SystemTransactions;
+import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import com.hedera.node.app.workflows.handle.steps.HollowAccountCompletions;
+import com.hedera.node.app.workflows.handle.steps.ParentTxn;
 import com.hedera.node.app.workflows.handle.steps.ParentTxnFactory;
 import com.hedera.node.app.workflows.handle.steps.StakePeriodChanges;
 import com.hedera.node.config.ConfigProvider;
@@ -1548,6 +1554,68 @@ class HandleWorkflowTest {
         verify(scheduleService).executableTxns(any(), any(), any());
         // Only the round-start initialization — no scheduled txn dispatch triggered a second call
         verify(stakePeriodManager).setCurrentStakePeriodFor(eq(NOW));
+    }
+
+    /**
+     * A scheduled transaction whose fee cannot be computed makes dispatch creation throw. That must fail only
+     * the one scheduled transaction, not abandon the rest of the interval: the failing transaction is still
+     * consumed from the iterator and its failure output externalized, and the next due transaction still executes.
+     */
+    @Test
+    void scheduledTxnWhoseDispatchCannotBeCreatedDoesNotDropTheNextOne() {
+        final var creatorId = NodeId.of(0);
+        given(event.getCreatorId()).willReturn(creatorId);
+        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
+        given(round.iterator()).willAnswer(ignore -> List.of(event).iterator());
+        given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(NOW);
+        given(blockRecordManager.lastIntervalProcessTime()).willReturn(Instant.EPOCH);
+        given(blockRecordManager.lastUsedConsensusTime()).willReturn(NOW);
+        final var entityIdStates =
+                mock(WritableStates.class, withSettings().extraInterfaces(CommittableWritableStates.class));
+        lenient().when(state.getWritableStates(EntityIdService.NAME)).thenReturn(entityIdStates);
+        lenient().when(state.getWritableStates(ScheduleService.NAME)).thenReturn(mock(WritableStates.class));
+        final var schedIter = mock(ExecutableTxnIterator.class);
+        given(schedIter.hasNext()).willReturn(true, true, false);
+        final var executableTxn = new ExecutableTxn<>(
+                TransactionBody.DEFAULT, AccountID.DEFAULT, key -> true, NOW, StreamBuilder.class, b -> {});
+        Mockito.doReturn(executableTxn, executableTxn).when(schedIter).next();
+        given(scheduleService.executableTxns(any(), any(), any())).willReturn(schedIter);
+        final var failingTxn = mock(ParentTxn.class);
+        final var laterTxn = mock(ParentTxn.class);
+        given(laterTxn.creatorInfo()).willReturn(mock(NodeInfo.class));
+        given(laterTxn.txnInfo()).willReturn(mock(TransactionInfo.class));
+        given(laterTxn.stack()).willReturn(mock(SavepointStackImpl.class));
+        given(parentTxnFactory.createSystemTxn(any(), any(), any(), any(), any(), any()))
+                .willReturn(failingTxn, laterTxn);
+        final var laterDispatch = mock(Dispatch.class);
+        given(parentTxnFactory.createDispatch(any(), any(), any(), any()))
+                .willThrow(new IllegalArgumentException("Extra not defined"))
+                .willReturn(laterDispatch);
+        final var failureOutput = mock(HandleOutput.class);
+        given(failureOutput.lastAssignedConsensusTime()).willReturn(NOW);
+        given(failureOutput.recordSourceOrThrow()).willReturn(new LegacyListRecordSource(List.of(), List.of()));
+        final var laterOutput = mock(HandleOutput.class);
+        given(laterOutput.lastAssignedConsensusTime()).willReturn(NOW);
+        given(laterOutput.recordSourceOrThrow()).willReturn(new LegacyListRecordSource(List.of(), List.of()));
+        given(laterTxn.stack().buildHandleOutput(any(), any(), any())).willReturn(laterOutput);
+        givenSubjectWith(
+                RECORDS, BlockStreamWriterMode.FILE, emptyList(), Map.of("scheduling.longTermEnabled", "true"), 104);
+
+        try (final var handleOutput = Mockito.mockStatic(HandleOutput.class)) {
+            handleOutput
+                    .when(() -> HandleOutput.failInvalidStreamItems(any(), any(), any(), any()))
+                    .thenReturn(failureOutput);
+
+            subject.handleRound(state, round, txns -> {});
+
+            handleOutput.verify(() -> HandleOutput.failInvalidStreamItems(same(failingTxn), any(), any(), any()));
+            handleOutput.verify(
+                    () -> HandleOutput.failInvalidStreamItems(same(laterTxn), any(), any(), any()), never());
+        }
+        verify(dispatchProcessor).processDispatch(same(laterDispatch));
+        verify(blockRecordManager, times(2)).endUserTransaction(any(), same(state));
+        verify(schedIter, times(2)).remove();
     }
 
     @Test

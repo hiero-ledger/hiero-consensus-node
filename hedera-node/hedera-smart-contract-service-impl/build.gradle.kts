@@ -22,3 +22,5 @@ testModuleInfo {
     requires("org.mockito")
     requires("org.mockito.junit.jupiter")
 }
+
+apply(from = "../../gradle/extra-fee-call-site-coverage.gradle.kts")

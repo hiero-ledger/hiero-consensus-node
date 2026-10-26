@@ -22,6 +22,7 @@ import com.hedera.node.app.spi.fees.SimpleFeeContext;
 import com.hedera.node.config.data.ContractsConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Set;
 import org.hiero.hapi.fees.FeeResult;
@@ -53,6 +54,17 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
     @Override
     public TransactionBody.DataOneOfType getTransactionType() {
         return TransactionBody.DataOneOfType.CRYPTO_TRANSFER;
+    }
+
+    @Override
+    public Set<Extra> requiredExtras() {
+        return EnumSet.of(
+                Extra.ACCOUNTS,
+                Extra.HOOK_EXECUTION,
+                Extra.GAS,
+                Extra.TOKEN_TRANSFER_BASE,
+                Extra.TOKEN_TRANSFER_BASE_CUSTOM_FEES,
+                Extra.TOKEN_TYPES);
     }
 
     @Override

@@ -43,7 +43,9 @@ import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.HooksConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.hiero.hapi.fees.FeeResult;
@@ -63,6 +65,11 @@ public class HookStoreHandler implements TransactionHandler {
         @Override
         public TransactionBody.DataOneOfType getTransactionType() {
             return TransactionBody.DataOneOfType.HOOK_STORE;
+        }
+
+        @Override
+        public Set<Extra> requiredExtras() {
+            return EnumSet.of(Extra.HOOK_SLOT_UPDATE);
         }
 
         @Override

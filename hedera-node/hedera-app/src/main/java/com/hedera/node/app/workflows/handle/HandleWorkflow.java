@@ -1004,10 +1004,10 @@ public class HandleWorkflow {
         final var scheduledTxn = parentTxnFactory.createSystemTxn(
                 state, creatorInfo, consensusNow, ORDINARY_TRANSACTION, executableTxn.payerId(), executableTxn.body());
         final var baseBuilder = baseBuilderFor(executableTxn, scheduledTxn);
-        final var dispatch =
-                parentTxnFactory.createDispatch(scheduledTxn, baseBuilder, executableTxn.keyVerifier(), SCHEDULED);
-        stakePeriodChanges.advanceTimeTo(scheduledTxn, true);
         try {
+            final var dispatch =
+                    parentTxnFactory.createDispatch(scheduledTxn, baseBuilder, executableTxn.keyVerifier(), SCHEDULED);
+            stakePeriodChanges.advanceTimeTo(scheduledTxn, true);
             dispatchProcessor.processDispatch(dispatch);
             final var blockNumber = currentBlockNumber();
             final var handleOutput = scheduledTxn
