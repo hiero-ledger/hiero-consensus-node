@@ -14,17 +14,12 @@ import com.hedera.node.app.grpc.impl.usage.GrpcUsageTracker;
 import com.hedera.node.app.service.clpr.ClprEndpointServiceDefinition;
 import com.hedera.node.app.services.ServicesRegistry;
 import com.hedera.node.app.spi.RpcService;
-import com.hedera.node.app.workflows.clpr.ClprChannelManager;
-import com.hedera.node.app.workflows.clpr.ClprLeafCertManager;
-import com.hedera.node.app.workflows.clpr.ClprLeafCredentials;
 import com.hedera.node.app.workflows.clpr.ClprSyncWorkflow;
-import com.hedera.node.app.workflows.clpr.mtls.ClprMtlsContexts;
 import com.hedera.node.app.workflows.ingest.IngestWorkflow;
 import com.hedera.node.app.workflows.query.QueryWorkflow;
 import com.hedera.node.app.workflows.query.annotations.OperatorQueries;
 import com.hedera.node.app.workflows.query.annotations.UserQueries;
 import com.hedera.node.config.ConfigProvider;
-import com.hedera.node.config.data.ClprConfig;
 import com.hedera.node.config.data.GrpcConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.JumboTransactionsConfig;
@@ -46,16 +41,13 @@ import io.grpc.netty.NettyServerBuilder;
 import io.grpc.stub.ServerCalls;
 import io.netty.channel.epoll.EpollEventLoopGroup;
 import io.netty.channel.epoll.EpollServerSocketChannel;
-import io.netty.handler.ssl.ClientAuth;
 import io.netty.handler.ssl.SslContextBuilder;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.security.cert.X509Certificate;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -64,10 +56,8 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.inject.Inject;
-import javax.inject.Provider;
 import javax.inject.Singleton;
 import javax.net.ssl.SSLException;
-import javax.security.auth.x500.X500Principal;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -110,29 +100,10 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
     private Set<ServerServiceDefinition> nodeOperatorServices = Collections.emptySet();
 
     /**
-     * The set of {@link ServiceDescriptor}s exposed on the dedicated CLPR mTLS sync listener — the CLPR
-     * {@code sync} method only. Empty unless mTLS is enabled (in which case {@code sync} is also removed
-     * from {@link #services}).
-     */
-    private Set<ServerServiceDefinition> clprSyncServices = Collections.emptySet();
-
-    /**
      * The configuration provider, so we can figure out ports and other information.
      */
     private final ConfigProvider configProvider;
 
-    /**
-     * Provides this node's CLPR leaf cert/key and whether mTLS is enabled. Used to build the dedicated
-     * mTLS sync listener's server credentials.
-     */
-    private final Provider<ClprLeafCertManager> clprLeafCertManager;
-
-    /**
-     * Lazily resolves the CLPR channel manager, which holds the live set of known peer CA certs the
-     * inbound sync trust manager pins against. A {@link Provider} avoids any construction-order coupling
-     * with the gRPC server (both are singletons started from the {@code ACTIVE} platform-status branch).
-     */
-    private final Provider<ClprChannelManager> clprChannelManager;
     /**
      * The gRPC server listening on the plain (non-tls) port
      */
@@ -148,13 +119,6 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
     private Server nodeOperatorServer;
 
     /**
-     * The dedicated CLPR mTLS sync gRPC server (mutual TLS, ClientAuth.REQUIRE). Started only when mTLS
-     * is enabled; {@code null} otherwise.
-     */
-    @VisibleForTesting
-    Server clprSyncServer;
-
-    /**
      * Utility to collect and periodically log gRPC usage data.
      */
     private final GrpcUsageTracker usageTracker;
@@ -168,8 +132,6 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
      * @param userQueryWorkflow The implementation of the {@link QueryWorkflow} to use for user query rpc methods
      * @param operatorQueryWorkflow The implementation of the {@link QueryWorkflow} to use for node operator query rpc methods
      * @param clprSyncWorkflow The implementation of the {@link ClprSyncWorkflow} to use for CLPR sync rpc methods
-     * @param clprLeafCertManager Lazily supplies this node's CLPR leaf cert/key and whether mTLS is enabled
-     * @param clprChannelManager Lazily supplies the live set of known peer CA certs for inbound sync trust
      * @param metrics Used to get/create metrics for each transaction and query method.
      */
     @Inject
@@ -180,12 +142,8 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
             @NonNull @UserQueries final QueryWorkflow userQueryWorkflow,
             @NonNull @OperatorQueries final QueryWorkflow operatorQueryWorkflow,
             @NonNull final ClprSyncWorkflow clprSyncWorkflow,
-            @NonNull final Provider<ClprLeafCertManager> clprLeafCertManager,
-            @NonNull final Provider<ClprChannelManager> clprChannelManager,
             @NonNull final Metrics metrics) {
         this.configProvider = requireNonNull(configProvider);
-        this.clprLeafCertManager = requireNonNull(clprLeafCertManager);
-        this.clprChannelManager = requireNonNull(clprChannelManager);
         requireNonNull(ingestWorkflow);
         requireNonNull(userQueryWorkflow);
         requireNonNull(operatorQueryWorkflow);
@@ -202,26 +160,9 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
                         .flatMap(s -> s.rpcDefinitions().stream());
 
         // Convert the various RPC service definitions into transaction, query, or CLPR sync endpoints
-        // using the GrpcServiceBuilder. When mTLS is enabled, the CLPR sync method is served only on the
-        // dedicated mTLS listener (built below), so it is removed from the shared HAPI
-        // ports here.
+        // using the GrpcServiceBuilder. All of them, including CLPR sync, are served on the plain and TLS ports.
         services = buildServiceDefinitions(
-                rpcServiceDefinitions,
-                m -> !servesSyncOnMtlsListener(m),
-                ingestWorkflow,
-                userQueryWorkflow,
-                clprSyncWorkflow,
-                metrics);
-        clprSyncServices = buildServiceDefinitions(
-                        rpcServiceDefinitions,
-                        this::servesSyncOnMtlsListener,
-                        ingestWorkflow,
-                        userQueryWorkflow,
-                        clprSyncWorkflow,
-                        metrics)
-                .stream()
-                .filter(d -> !d.getMethods().isEmpty())
-                .collect(Collectors.toUnmodifiableSet());
+                rpcServiceDefinitions, m -> true, ingestWorkflow, userQueryWorkflow, clprSyncWorkflow, metrics);
 
         final var grpcConfig = configProvider.getConfiguration().getConfigData(GrpcConfig.class);
         if (grpcConfig.nodeOperatorPortEnabled()) {
@@ -257,38 +198,6 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
     @VisibleForTesting
     Set<ServerServiceDefinition> hapiServices() {
         return Collections.unmodifiableSet(services);
-    }
-
-    @VisibleForTesting
-    Set<ServerServiceDefinition> clprSyncServices() {
-        return Collections.unmodifiableSet(clprSyncServices);
-    }
-
-    /**
-     * The port the dedicated CLPR mTLS sync server is listening on, or {@code -1} when it is not running —
-     * i.e. mTLS is disabled or the listener failed to start. Exposed primarily for tests and diagnostics.
-     */
-    public int clprSyncPort() {
-        return clprSyncServer == null || clprSyncServer.isTerminated() ? -1 : clprSyncServer.getPort();
-    }
-
-    /**
-     * Whether a given RPC method should be served on the dedicated CLPR mTLS listener rather
-     * than the shared HAPI ports — i.e. mTLS is enabled and {@code m} is the CLPR {@code sync} method.
-     */
-    private boolean servesSyncOnMtlsListener(@NonNull final RpcMethodDefinition<?, ?> m) {
-        return isClprSyncMethod(m)
-                && isClprEnabled()
-                && clprLeafCertManager.get().isMtlsEnabled();
-    }
-
-    /**
-     * Whether {@code m} is the CLPR {@code sync} method. A pure, config-independent fact about the method
-     * (kept {@code static} so the routing split can be unit-tested directly without a manager instance).
-     * Every other method is not sync.
-     */
-    static boolean isClprSyncMethod(@NonNull final RpcMethodDefinition<?, ?> m) {
-        return ClprStreamingSyncPayload.class.equals(m.requestType());
     }
 
     @Override
@@ -349,36 +258,6 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
                 logger.warn("Could not start node operator gRPC server, will continue without it: {}", e.getMessage());
             }
         }
-
-        // Dedicated CLPR mTLS listener: mutual TLS with ClientAuth.REQUIRE, presenting this node's
-        // ephemeral Ed25519 leaf and pinning connecting clients against the known peer CA set. Started
-        // only when mTLS is configured; the advertised ClprEndpoint port must point here so peers dial
-        // the sync listener rather than the (sync-less) shared HAPI ports.
-        final var clprConfig = configProvider.getConfiguration().getConfigData(ClprConfig.class);
-        if (clprConfig.enabled()) {
-            final var leafCertManager = clprLeafCertManager.get();
-            if (leafCertManager.isMtlsEnabled()) {
-                final var mtlsPort = clprConfig.mtlsPort();
-                try {
-                    logger.info("Starting CLPR mTLS sync gRPC server on port {}", mtlsPort);
-                    nettyBuilder = builderFor(mtlsPort, nettyConfig, profile, false);
-                    configureClprMtls(
-                            nettyBuilder,
-                            requireNonNull(leafCertManager.leafCredentials()),
-                            () -> clprChannelManager.get().knownPeerCaCertificatesByIssuer());
-                    clprSyncServer =
-                            startServerWithRetry(clprSyncServices, nettyBuilder, startRetries, startRetryIntervalMs);
-                    logger.info("CLPR mTLS sync gRPC server listening on port {}", clprSyncServer.getPort());
-                } catch (final Exception e) {
-                    throw new IllegalStateException(
-                            "CLPR mTLS is configured but the dedicated sync listener could not start; ", e);
-                }
-            }
-        }
-    }
-
-    private boolean isClprEnabled() {
-        return configProvider.getConfiguration().getConfigData(ClprConfig.class).enabled();
     }
 
     @Override
@@ -403,11 +282,6 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
             terminateServer(nodeOperatorServer);
         } else {
             logger.info("Cannot shut down an already stopped node operator gRPC server");
-        }
-
-        if (clprSyncServer != null && !clprSyncServer.isTerminated()) {
-            logger.info("Shutting down CLPR mTLS sync gRPC server on port {}", clprSyncServer.getPort());
-            terminateServer(clprSyncServer);
         }
     }
 
@@ -566,21 +440,6 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
                 .build();
 
         builder.sslContext(sslContext);
-    }
-
-    /**
-     * Configures mutual TLS for the dedicated CLPR sync listener (clpr-spec PR #46 §3.4). The server
-     * presents this node's ephemeral Ed25519 leaf from {@code leafCredentials} and requires the connecting
-     * client to present a certificate ({@link ClientAuth#REQUIRE}); the client's leaf is accepted only if it
-     * was signed by the peer CA whose subject DN matches the leaf's issuer DN, looked up in the index
-     * currently returned by {@code peerCasByIssuer} (read live on every handshake).
-     */
-    private void configureClprMtls(
-            @NonNull final NettyServerBuilder builder,
-            @NonNull final ClprLeafCredentials leafCredentials,
-            @NonNull final Supplier<Map<X500Principal, List<X509Certificate>>> peerCasByIssuer)
-            throws SSLException {
-        builder.sslContext(ClprMtlsContexts.serverContext(leafCredentials, peerCasByIssuer));
     }
 
     private Set<ServerServiceDefinition> buildServiceDefinitions(

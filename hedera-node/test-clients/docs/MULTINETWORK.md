@@ -6,13 +6,13 @@ WRAPS proving parameters are bundled in the TSS library, so no committed fixture
 
 The main classes:
 
-|                           Class                           |                                                               Role                                                                |
-|-----------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------|
-| `MultiNetworkHapiTest` / `@Network`                       | Declares the networks a test needs (name, size, setup overrides, mTLS).                                                           |
-| `SharedMultiNetworkLauncherSessionListener`               | Collects the declared networks and their groups at test-plan start and reserves their ports; stops any still running at plan end. |
-| `MultiNetworkGroupQueue` / `NetworkGroup`                 | Admits network groups under a node budget, so only as many groups run at once as the budget allows.                               |
-| `ClprNetworkLocksProvider` / `@MultiNetworkLeakyHapiTest` | Locks each test's networks: `READ` by default (tests on a network run concurrently), `READ_WRITE` for leaky tests (run alone).    |
-| `MultiNetworkExtension`                                   | Boots a group's networks on its first test and tears them down after its last, applies test overrides.                            |
+|                           Class                           |                                                                Role                                                                 |
+|-----------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------|
+| `MultiNetworkHapiTest` / `@Network`                       | Declares the networks a test needs (name, size, setup overrides, HAPI TLS, `tssPreload`).                                           |
+| `SharedMultiNetworkLauncherSessionListener`               | Collects the declared networks and their groups at test-plan start and reserves their ports; stops any still running at plan end.   |
+| `MultiNetworkGroupQueue` / `NetworkGroup`                 | Admits network groups under a node budget, so only as many groups run at once as the budget allows.                                 |
+| `ClprNetworkLocksProvider` / `@MultiNetworkLeakyHapiTest` | Locks each test's networks: `READ` by default (tests on a network run concurrently), `READ_WRITE` for leaky tests (run alone).      |
+| `MultiNetworkExtension`                                   | Boots a group's networks on its first test and tears them down after its last, then applies test overrides. |
 
 ## Phase 0 — test-plan start
 
@@ -29,7 +29,7 @@ A group's networks start on its first test (see Phase 2), in parallel, through `
 network, `startNetworks`:
 
 1. **Allocates ports.** Each network gets a free slot that avoids every other network's reserved range.
-2. **Seeds node config.** Infra defaults, the test's `setupOverrides` and the typed mTLS settings go into
+2. **Seeds node config.** Infra defaults, the test's `setupOverrides` and the typed HAPI TLS port go into
    each node's `application.properties`.
 
 Then all networks start in parallel and wait for `ACTIVE`.
@@ -61,7 +61,7 @@ networks never share a lock.
   boot fails, the group's nodes are freed and its remaining tests fail fast. Concurrent tests of a group
   boot or reuse its networks one at a time, under a per-group lock.
 - Applies the test's `setupOverrides` at runtime through a `0.0.121` file update, after snapshotting the
-  previous values. Startup-only node settings (`clpr.mtlsPort`, CA paths) are skipped here — they only take
+  previous values. Startup-only node settings (`grpc.tlsPort`) are skipped here — they only take
   effect from `application.properties`.
 
 `MultiNetworkExtension.afterEach` restores the snapshotted values and clears each node's CLPR peer-endpoint
