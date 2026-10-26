@@ -1086,6 +1086,9 @@ hedera-node/test-clients/*.bin
 ### CLPR node-local runtime cache (default clpr.peerEndpointsFile); regenerated per run
 /hedera-node/test-clients/data/clpr/
 
+### CLPR WRAPS proving artifacts extracted from tss-startup-assets/wraps*.tar.gz
+/hedera-node/test-clients/tss-startup-assets/wraps/
+
 ### Ignore validator files
 hedera-state-validator/slack_report.json
 hedera-state-validator/validator.log
