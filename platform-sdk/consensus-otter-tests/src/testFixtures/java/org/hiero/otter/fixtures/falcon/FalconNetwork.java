@@ -88,7 +88,10 @@ public class FalconNetwork extends SimulatedNetwork implements TimeTickReceiver 
     @Override
     @NonNull
     protected MiniNode doCreateMiniNode(@NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
-        throw new UnsupportedOperationException("Mini nodes are not supported in FalconNetwork");
+        final FalconMiniNode node = new FalconMiniNode(
+                random, timeManager.time(), nodeId, keysAndCerts, simulatedNetworkConnectivity, networkConfiguration);
+        simulatedNetworkConnectivity.addNode(node.getNodeId(), node);
+        return node;
     }
 
     /**
@@ -196,9 +199,9 @@ public class FalconNetwork extends SimulatedNetwork implements TimeTickReceiver 
 
         simulatedNetworkConnectivity.tick(now);
 
-        for (final Node node : nodes()) {
-            final FalconNode falconNode = (FalconNode) node;
-            falconNode.tick(now);
+        for (final MiniNode node : allNodes()) {
+            final TimeTickReceiver tickReceiver = (TimeTickReceiver) node;
+            tickReceiver.tick(now);
         }
     }
 }
