@@ -113,6 +113,10 @@ public final class VirtualMapLearner {
      * The original map's data source is shut down and an independent copy is created for the reconnect process,
      * which will be updated with new leaves and hashes as they are received from the teacher.
      *
+     * <p> Creating the copy takes long for large maps, and it depends only on the original map, so a learner
+     * may be created before the reconnect starts. If the reconnect never starts, {@link #abortOnException()}
+     * must be called to close the copy.
+     *
      * @param originalMap the learner's current virtual map; must not be {@code null}
      * @param flushInterval the number of hashed items to collect before they are flushed to disk, see
      *                      {@link VirtualMapLearnerSyncConfig#flushInterval()}
@@ -149,6 +153,14 @@ public final class VirtualMapLearner {
     @NonNull
     public VirtualMap.Metadata getOriginalMetadata() {
         return originalMetadata;
+    }
+
+    /**
+     * @return the configuration of the original map on the learner.
+     */
+    @NonNull
+    public VirtualMapConfig getVirtualMapConfig() {
+        return virtualMapConfig;
     }
 
     @Nullable
