@@ -25,16 +25,6 @@ permissions:
   actions: read
 
 jobs:
-  extract-jdk-version:
-    name: Extract Java Version
-    uses: ./.github/workflows/854-call-extract-jdk-version.yaml
-    needs:
-      - prepare-tag-release
-    with:
-      ref: ${{ needs.prepare-tag-release.outputs.ref }}
-    secrets:
-      github-token: ${{ secrets.GITHUB_TOKEN }}
-
   prepare-tag-release:
     name: Prepare Release [Tag]
     runs-on: hl-cn-default-lin-sm
@@ -104,6 +94,16 @@ jobs:
 
           echo "version=${FINAL_VERSION}" >>"${GITHUB_OUTPUT}"
           echo "prerelease=${PRERELEASE_FLAG}" >>"${GITHUB_OUTPUT}"
+
+  extract-jdk-version:
+    name: Extract Java Version
+    uses: ./.github/workflows/854-call-extract-jdk-version.yaml
+    needs:
+      - prepare-tag-release
+    with:
+      ref: ${{ needs.prepare-tag-release.outputs.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
 
   release-tag:
     name: Release [Tag]
