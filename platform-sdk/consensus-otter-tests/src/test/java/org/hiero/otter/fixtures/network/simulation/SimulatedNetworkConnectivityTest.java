@@ -52,7 +52,7 @@ class SimulatedNetworkConnectivityTest {
 
     @BeforeEach
     void setUp() {
-        network = new SimulatedNetworkConnectivity(new Random(0));
+        network = new SimulatedNetworkConnectivity(new Random(0), START);
         addNodes();
         now = 0;
         network.tick(at(0));
@@ -245,7 +245,7 @@ class SimulatedNetworkConnectivityTest {
     @DisplayName("the reconnect delay is 5 round trips give or take 20%")
     void reconnectDelayIsWithinJitterOfFiveRoundTrips() {
         for (long seed = 0; seed < 20; seed++) {
-            network = new SimulatedNetworkConnectivity(new Random(seed));
+            network = new SimulatedNetworkConnectivity(new Random(seed), START);
             addNodes();
             now = 0;
             network.tick(at(0));
