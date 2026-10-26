@@ -6,7 +6,7 @@ Canonical structure for the consensus-layer knowledge base in the repo. Tools (T
 
 ## Scope
 
-The consensus layer of the platform-sdk — the topics under `architecture/topics/` and the cross-cutting catalogs that support them. Out of scope: execution-layer internals, block production, TSS, transaction-handling internals, application semantics.
+The consensus layer of the platform-sdk — the topics under `architecture/topics/` and the cross-cutting catalogs that support them — and the conventions for its benchmarks (`benchmarks/`). Out of scope: execution-layer internals, block production, TSS, transaction-handling internals, application semantics.
 
 ## Directory tree
 
@@ -95,6 +95,12 @@ platform-sdk/docs/consensus-layer/
 │   ├── reconnect.md
 │   └── sheriff.md
 │
+├── benchmarks/                            conventions for the JMH benchmarks; narrative, no IDs
+│   ├── README.md                          index, the pipeline, the definition of done
+│   ├── writing.md
+│   ├── calibration.md
+│   └── operations.md
+│
 └── tutor/                                 curriculum content; internal structure deferred
 ```
 
@@ -177,6 +183,10 @@ Per-file heuristic entries of the form **observable symptom → suspected cause 
 
 Per-topic status of "current code vs. proposed design": done / partial / not-started / divergent. One flat file per architecture topic, plus `sheriff.md` for a proposal-only module with no architecture topic yet.
 
+### `benchmarks/`
+
+The conventions guide for the JMH benchmarks of the consensus-layer modules: how to write a benchmark (`writing.md`), calibrate it on the benchmark machine (`calibration.md`), and track it in CI (`operations.md`). `README.md` is the index and holds the pipeline overview and the definition of done. Narrative files without IDs, anchored to the benchmark tooling (`consensus-benchmark-tools`, the `benchmark-tracking` Gradle plugin, the benchmark workflows and their scripts) rather than to consensus-layer topics. The README of every module with a `src/jmh` source set links here; module-specific facts stay in the module.
+
 ### `tutor/`
 
 Curriculum content for the Tutor tool. Internal organization deferred — left to the Tutor implementation.
@@ -207,9 +217,9 @@ Two header orderings apply:
 
 - **Catalog entries** (`decisions/`, `invariants/`, `rules/`, `scenarios/`, `heuristics/`):
   `type` / `id` / `title` / … / `last_reviewed` (the trailing key)
-- **Narrative and single-file catalog files** (`concepts/`, `architecture/**`, `glossary.md`,
-  `symptoms.md`, `tunables.md`): `type` / `title` / `description` (catalog files only) /
-  `last_reviewed`
+- **Narrative and single-file catalog files** (`concepts/`, `architecture/**`, `benchmarks/`,
+  `glossary.md`, `symptoms.md`, `tunables.md`): `type` / `title` / `description` (catalog files
+  only) / `last_reviewed`
 
 Type vocabulary:
 
@@ -228,6 +238,7 @@ Type vocabulary:
 | `delta-map/*.md`               | `delta-map`              |
 | `symptoms.md`                  | `symptom-catalog`        |
 | `tunables.md`                  | `tunable-catalog`        |
+| `benchmarks/*.md`              | `benchmark-guide`        |
 
 ## Canonicalization and non-duplication
 
@@ -247,6 +258,7 @@ Canonical homes, by kind of fact:
 | Why a load-bearing choice was made     | `decisions/` (`ADR-NNN`)                                         |
 | Property true under any correct impl   | `invariants/` (`INV-NNN`)                                        |
 | Property true of the code as it is     | `rules/` (`RUL-NNN`)                                             |
+| Benchmark convention                   | `benchmarks/`                                                    |
 | Catalog entry title + one-line summary | the entry file (mirrored into its `README.md` index — see below) |
 
 ### Narrative restatement vs. duplicated source of truth

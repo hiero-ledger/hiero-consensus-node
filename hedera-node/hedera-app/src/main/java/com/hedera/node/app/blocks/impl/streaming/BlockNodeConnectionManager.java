@@ -582,8 +582,11 @@ public class BlockNodeConnectionManager {
         // Remove from active connection if it is the current active
         activeConnectionRef.compareAndSet(connection, null);
 
-        final BlockNodeConfiguration config = connection.configuration();
-        final BlockNode node = nodes.get(config.streamingEndpoint());
+        final BlockNodeEndpoint streamingEndpoint = connection.configuration().streamingEndpoint();
+        final BlockNode node = nodes.get(streamingEndpoint);
+
+        // regardless of whether the node is in the local node map, always notify the block buffer of the disconnect
+        blockBufferService.notifyBlockNodeDisconnected(streamingEndpoint);
 
         if (node == null) {
             logger.warn(
@@ -622,13 +625,19 @@ public class BlockNodeConnectionManager {
             while (isConnectionManagerActive.get()) {
                 try {
                     updateConnectionIfNeeded();
+                } catch (final Exception e) {
+                    logger.warn("Error caught in connection monitor loop; continuing", e);
+                }
 
+                // The wait is deliberately outside the block above: if the connectivity check throws, the
+                // loop must still back off rather than spin and flood the log.
+                try {
                     Thread.sleep(bncConfig().connectionMonitorCheckIntervalMillis());
                 } catch (final InterruptedException e) {
                     Thread.currentThread().interrupt();
                     logger.warn("Connection monitor loop was interrupted; continuing", e);
                 } catch (final Exception e) {
-                    logger.warn("Error caught in connection monitor loop; continuing", e);
+                    logger.warn("Error caught while backing off in connection monitor loop; continuing", e);
                 }
             }
         }

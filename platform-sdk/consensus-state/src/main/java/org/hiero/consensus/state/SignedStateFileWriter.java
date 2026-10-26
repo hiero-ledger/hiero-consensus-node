@@ -211,45 +211,45 @@ public final class SignedStateFileWriter {
             logger.error(
                     EXCEPTION.getMarker(),
                     "Timed out waiting for async snapshot for round {} to {} after {} seconds",
-                    signedState.getRound(),
+                    round,
                     directory,
                     stateConfig.asyncSnapshotTimeout(),
                     e);
             if (snapshotFuture != null) {
                 snapshotFuture.cancel(true);
             }
-            throw new IOException("Async snapshot timed out for round " + signedState.getRound(), e);
+            throw new IOException("Async snapshot timed out for round " + round, e);
         } catch (final ExecutionException e) {
             logger.error(
                     EXCEPTION.getMarker(),
                     "Async snapshot failed for round {} to {}: {}",
-                    signedState.getRound(),
+                    round,
                     directory,
                     e.getCause());
-            throw new IOException("Async snapshot failed for round " + signedState.getRound(), e);
+            throw new IOException("Async snapshot failed for round " + round, e);
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
             logger.error(
                     EXCEPTION.getMarker(),
                     "Interrupted while waiting for async snapshot for round {} to {}",
-                    signedState.getRound(),
+                    round,
                     directory,
                     e);
             if (snapshotFuture != null) {
                 snapshotFuture.cancel(true);
             }
-            throw new IOException("Async snapshot interrupted for round " + signedState.getRound(), e);
+            throw new IOException("Async snapshot interrupted for round " + round, e);
         } catch (final Throwable e) {
             logger.error(
                     EXCEPTION.getMarker(),
                     "Unexpected error when writing a snapshot for round {} to {}",
-                    signedState.getRound(),
+                    round,
                     directory,
                     e);
             if (snapshotFuture != null) {
                 snapshotFuture.cancel(true);
             }
-            throw new IOException("Snapshot creation failed for round " + signedState.getRound(), e);
+            throw new IOException("Snapshot creation failed for round " + round, e);
         } finally {
             // Ensures cleanup if an error occurs during snapshot creation. The isClosed() check
             // prevents double-close since ReservedSignedState can only be closed once.
@@ -431,12 +431,15 @@ public final class SignedStateFileWriter {
         requireNonNull(stateLifecycleManager);
 
         final SignedState signedState = reservedSignedState.get();
+        // Read the round before writing: an async snapshot releases the reservation, and the state's data
+        // source may be closed by the time the write returns
+        final long round = signedState.getRound();
 
         try {
             logger.info(
                     STATE_TO_DISK.getMarker(),
                     "Started writing round {} state to disk. Reason: {}, directory: {}",
-                    signedState.getRound(),
+                    round,
                     stateToDiskReason == null ? "UNKNOWN" : stateToDiskReason,
                     savedStateDirectory);
 
@@ -452,17 +455,14 @@ public final class SignedStateFileWriter {
                             stateLifecycleManager));
 
             logger.info(STATE_TO_DISK.getMarker(), () -> new StateSavedToDiskPayload(
-                            signedState.getRound(),
+                            round,
                             signedState.isFreezeState(),
                             stateToDiskReason == null ? "UNKNOWN" : stateToDiskReason.toString(),
                             savedStateDirectory)
                     .toString());
         } catch (final Throwable e) {
             logger.error(
-                    EXCEPTION.getMarker(),
-                    "Exception when writing the signed state for round {} to disk:",
-                    signedState.getRound(),
-                    e);
+                    EXCEPTION.getMarker(), "Exception when writing the signed state for round {} to disk:", round, e);
             throw e;
         }
     }

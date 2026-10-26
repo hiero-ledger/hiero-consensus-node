@@ -4,13 +4,20 @@ package org.hiero.otter.fixtures.turtle.gossip;
 import static org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerConfiguration.DIRECT_THREADSAFE_CONFIGURATION;
 import static org.hiero.otter.fixtures.network.BandwidthLimit.UNLIMITED_BANDWIDTH;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -21,12 +28,20 @@ import java.util.function.Consumer;
 import org.assertj.core.data.Percentage;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
+import org.hiero.consensus.gossip.impl.gossip.sync.protocol.SyncStatusChecker;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.gossip.SyncProgress;
+import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
+import org.hiero.consensus.monitoring.FallenBehindMonitor;
+import org.hiero.consensus.monitoring.FallenBehindStatus;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.roster.test.fixtures.RosterFactory;
+import org.hiero.consensus.status.monitor.actions.FallenBehindAction;
+import org.hiero.consensus.status.monitor.actions.PlatformStatusAction;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.consensus.wiring.framework.model.TraceableWiringModel;
 import org.hiero.consensus.wiring.framework.model.WiringModel;
@@ -38,8 +53,11 @@ import org.hiero.consensus.wiring.framework.wires.output.StandardOutputWire;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
 import org.hiero.otter.fixtures.network.Topology.ConnectionState;
 import org.hiero.otter.fixtures.network.simulation.SimulatedNetworkConnectivity;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentCaptor;
 
 class SimulatedGossipTests {
 
@@ -57,7 +75,6 @@ class SimulatedGossipTests {
         return uniqueDescriptors;
     }
 
-    @SuppressWarnings("unchecked")
     @ParameterizedTest
     @ValueSource(ints = {1, 2, 4, 8, 16, 32})
     void randomDataTest(final int networkSize) {
@@ -71,7 +88,7 @@ class SimulatedGossipTests {
                 .sorted()
                 .toList();
 
-        final SimulatedNetworkConnectivity network = new SimulatedNetworkConnectivity(randotron);
+        final SimulatedNetworkConnectivity network = new SimulatedNetworkConnectivity(randotron, time.now());
 
         // We can safely choose large numbers because time is simulated
         final Duration averageDelay = Duration.ofMillis(randotron.nextInt(1, 1_000_000));
@@ -97,40 +114,12 @@ class SimulatedGossipTests {
 
         // Wire things up
         for (final NodeId nodeId : nodeIds) {
-            final WiringModel model = WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent())
-                    .deterministic()
-                    .build();
-
-            final TaskScheduler<Void> eventInputShim = model.<Void>schedulerBuilder("eventInputShim")
-                    .configure(DIRECT_THREADSAFE_CONFIGURATION)
-                    .build();
-
             final List<PlatformEvent> receivedEventsForNode = new ArrayList<>();
             receivedEvents.put(nodeId, receivedEventsForNode);
-            final StandardOutputWire<PlatformEvent> eventOutputWire = new StandardOutputWire<>(
-                    (TraceableWiringModel) model, "eventOutputWire", ExceptionHandlers.RETHROW_UNCAUGHT_EXCEPTION);
-            eventOutputWire.solderTo("handleOutputEvent", "event", receivedEventsForNode::add);
-
-            final BindableInputWire<PlatformEvent, Void> eventInputWire =
-                    eventInputShim.buildInputWire("eventInputWire");
-            eventSubmitters.put(nodeId, eventInputWire::inject);
-
-            final SimulatedGossip gossip = new SimulatedGossip(network, nodeId);
-            gossip.bind(
-                    model,
-                    eventInputWire,
-                    mock(BindableInputWire.class),
-                    eventOutputWire,
-                    mock(BindableInputWire.class),
-                    mock(BindableInputWire.class),
-                    mock(BindableInputWire.class),
-                    mock(BindableInputWire.class),
-                    mock(BindableInputWire.class),
-                    mock(BindableInputWire.class),
-                    mock(BindableInputWire.class),
-                    mock(StandardOutputWire.class));
-            network.addNode(nodeId, gossip);
-            model.start();
+            eventSubmitters.put(
+                    nodeId,
+                    addNode(network, nodeId, PlatformStatus.ACTIVE, receivedEventsForNode, new ArrayList<>())
+                            .eventSubmitter());
         }
 
         // For each event, choose a random subset of nodes that will submit the event. Our end goal is to see
@@ -177,5 +166,227 @@ class SimulatedGossipTests {
             final Set<EventDescriptorWrapper> uniqueDescriptors = getUniqueDescriptors(receivedEvents.get(nodeId));
             assertEquals(expectedDescriptors, uniqueDescriptors);
         }
+    }
+
+    /**
+     * Receiving must be refused in exactly the statuses that don't permit syncing, while submissions to the network
+     * are unaffected by the status.
+     */
+    @ParameterizedTest
+    @EnumSource(PlatformStatus.class)
+    void statusGatesReceivingButNotSubmitting(final PlatformStatus status) {
+        final Randotron randotron = Randotron.create();
+        final FakeTime time = new FakeTime();
+        final NodeId selfId = NodeId.of(0);
+        final NodeId peerId = NodeId.of(1);
+
+        final SimulatedNetworkConnectivity network = new SimulatedNetworkConnectivity(randotron, time.now());
+        final ConnectionState connectionState =
+                new ConnectionState(true, Duration.ofMillis(1), Percentage.withPercentage(0.0), UNLIMITED_BANDWIDTH);
+        network.setConnections(Map.of(
+                new ConnectionKey(selfId, peerId), connectionState,
+                new ConnectionKey(peerId, selfId), connectionState));
+
+        final List<PlatformEvent> selfReceived = new ArrayList<>();
+        final List<PlatformEvent> peerReceived = new ArrayList<>();
+        final TestNode self = addNode(network, selfId, status, selfReceived, new ArrayList<>());
+        final TestNode peer = addNode(network, peerId, PlatformStatus.ACTIVE, peerReceived, new ArrayList<>());
+
+        // submissions are unaffected by the status of the submitter
+        final PlatformEvent submitted =
+                new TestingEventBuilder(randotron).setCreatorId(selfId).build();
+        new DefaultEventHasher().hashEvent(submitted);
+        self.eventSubmitter().accept(submitted);
+
+        // an event from the peer is only delivered if the status permits syncing
+        final PlatformEvent fromPeer =
+                new TestingEventBuilder(randotron).setCreatorId(peerId).build();
+        new DefaultEventHasher().hashEvent(fromPeer);
+        peer.eventSubmitter().accept(fromPeer);
+
+        network.tick(time.now());
+        time.tick(Duration.ofSeconds(1));
+        network.tick(time.now());
+
+        final boolean permitted = SyncStatusChecker.doesStatusPermitSync(status);
+        assertEquals(1, peerReceived.size());
+        assertEquals(permitted ? 1 : 0, selfReceived.size());
+
+        assertEquals(permitted, self.gossip().receiveEvent(fromPeer));
+        assertEquals(permitted, self.gossip().receiveEventWindow(peerId, EventWindow.getGenesisEventWindow()));
+        if (permitted) {
+            assertTrue(selfReceived.contains(fromPeer));
+        } else {
+            assertFalse(selfReceived.contains(fromPeer));
+        }
+    }
+
+    @Test
+    void peerWindowProducesSyncProgress() {
+        final SimulatedNetworkConnectivity network =
+                new SimulatedNetworkConnectivity(Randotron.create(), Instant.EPOCH);
+        final NodeId self = NodeId.of(0);
+        final NodeId peer = NodeId.of(1);
+        final List<SyncProgress> progress = new ArrayList<>();
+        final SimulatedGossip gossip = addNode(network, self, PlatformStatus.ACTIVE, new ArrayList<>(), progress)
+                .gossip();
+
+        final EventWindow peerWindow = new EventWindow(30, 31, 5, 1);
+        assertTrue(gossip.receiveEventWindow(peer, peerWindow));
+
+        assertEquals(List.of(new SyncProgress(peer, EventWindow.getGenesisEventWindow(), peerWindow)), progress);
+    }
+
+    @Test
+    void ownWindowChangeProducesSyncProgressForEveryPeer() {
+        final SimulatedNetworkConnectivity network =
+                new SimulatedNetworkConnectivity(Randotron.create(), Instant.EPOCH);
+        final NodeId self = NodeId.of(0);
+        final NodeId peerA = NodeId.of(1);
+        final NodeId peerB = NodeId.of(2);
+        final List<SyncProgress> progress = new ArrayList<>();
+        final TestNode node = addNode(network, self, PlatformStatus.ACTIVE, new ArrayList<>(), progress);
+        final SimulatedGossip gossip = node.gossip();
+
+        final EventWindow windowA1 = new EventWindow(30, 31, 5, 1);
+        final EventWindow windowA2 = new EventWindow(32, 33, 7, 1);
+        final EventWindow windowB = new EventWindow(40, 41, 15, 1);
+        gossip.receiveEventWindow(peerA, windowA1);
+        gossip.receiveEventWindow(peerB, windowB);
+        gossip.receiveEventWindow(peerA, windowA2);
+        progress.clear();
+
+        final EventWindow ownWindow = new EventWindow(10, 11, 1, 1);
+        node.eventWindowSubmitter().accept(ownWindow);
+
+        assertEquals(2, progress.size());
+        assertEquals(
+                Set.of(new SyncProgress(peerA, ownWindow, windowA2), new SyncProgress(peerB, ownWindow, windowB)),
+                Set.copyOf(progress));
+    }
+
+    /**
+     * A change of the node's own window must re-evaluate every peer using its last window, and the resulting status
+     * must gate events from that peer and send the node to BEHIND.
+     */
+    @Test
+    void ownWindowChangeReevaluatesAllPeers() {
+        final NodeId selfId = NodeId.of(0);
+        final NodeId peer1 = NodeId.of(1);
+        final NodeId peer2 = NodeId.of(2);
+        final SimulatedNetworkConnectivity network = new SimulatedNetworkConnectivity(Randotron.create());
+        final TestNode node = addNode(network, selfId, PlatformStatus.ACTIVE, new ArrayList<>(), new ArrayList<>());
+        final SimulatedGossip self = node.gossip();
+
+        final FallenBehindMonitor monitor = mock(FallenBehindMonitor.class);
+        final List<PlatformStatusAction> actions = new ArrayList<>();
+        self.provideFallenBehindMonitor(monitor);
+        self.provideStatusActionSubmitter(actions::add);
+
+        final EventWindow ownOld = new EventWindow(10, 11, 1, 1);
+        final EventWindow ownNew = new EventWindow(500, 501, 400, 300);
+        final EventWindow window1 = new EventWindow(100, 101, 50, 40);
+        final EventWindow window2 = new EventWindow(200, 201, 150, 140);
+
+        node.eventWindowSubmitter().accept(ownOld);
+        when(monitor.check(any(), any(), any())).thenReturn(FallenBehindStatus.NONE_FALLEN_BEHIND);
+        assertTrue(self.receiveEventWindow(peer1, window1));
+        assertTrue(self.receiveEventWindow(peer2, window2));
+        verify(monitor).check(ownOld, window1, peer1);
+        verify(monitor).check(ownOld, window2, peer2);
+
+        // only the own window moves: every peer is re-evaluated with its last window
+        when(monitor.check(ownNew, window1, peer1)).thenReturn(FallenBehindStatus.OTHER_FALLEN_BEHIND);
+        when(monitor.check(ownNew, window2, peer2)).thenReturn(FallenBehindStatus.SELF_FALLEN_BEHIND);
+        when(monitor.hasFallenBehind()).thenReturn(true);
+        node.eventWindowSubmitter().accept(ownNew);
+        verify(monitor).check(ownNew, window1, peer1);
+        verify(monitor).check(ownNew, window2, peer2);
+
+        // both peers are refused now, and the node goes to BEHIND exactly once
+        final PlatformEvent event1 =
+                new TestingEventBuilder(Randotron.create()).setCreatorId(peer1).build();
+        event1.setSenderId(peer1);
+        assertFalse(self.receiveEvent(event1));
+        assertEquals(1, actions.size());
+        assertTrue(actions.getFirst() instanceof FallenBehindAction);
+        node.eventWindowSubmitter().accept(ownNew);
+        assertEquals(1, actions.size());
+
+        // a peer that is no longer a problem is accepted again after its window is re-evaluated
+        when(monitor.check(ownNew, window1, peer1)).thenReturn(FallenBehindStatus.NONE_FALLEN_BEHIND);
+        assertTrue(self.receiveEventWindow(peer1, window1));
+        assertTrue(self.receiveEvent(event1));
+    }
+
+    /**
+     * A node of the simulated network.
+     *
+     * @param gossip the gossip instance of the node
+     * @param eventSubmitter passing an event to it makes the node gossip the event to the network
+     * @param eventWindowSubmitter passing an event window to it changes the node's own event window
+     */
+    private record TestNode(
+            @NonNull SimulatedGossip gossip,
+            @NonNull Consumer<PlatformEvent> eventSubmitter,
+            @NonNull Consumer<EventWindow> eventWindowSubmitter) {}
+
+    /**
+     * Creates a node with a gossip instance in the given status, and adds it to the network.
+     *
+     * @param network the network to add the node to
+     * @param nodeId the ID of the node
+     * @param status the platform status the node is in
+     * @param received collects the events the gossip instance forwards
+     * @param syncProgress collects the sync progress the gossip instance reports
+     * @return the created node
+     */
+    @SuppressWarnings("unchecked")
+    private static TestNode addNode(
+            @NonNull final SimulatedNetworkConnectivity network,
+            @NonNull final NodeId nodeId,
+            @NonNull final PlatformStatus status,
+            @NonNull final List<PlatformEvent> received,
+            @NonNull final List<SyncProgress> syncProgress) {
+        final WiringModel model = WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent())
+                .deterministic()
+                .build();
+        final TaskScheduler<Void> shim = model.<Void>schedulerBuilder("eventInputShim")
+                .configure(DIRECT_THREADSAFE_CONFIGURATION)
+                .build();
+        final BindableInputWire<PlatformEvent, Void> eventInput = shim.buildInputWire("eventInputWire");
+        final StandardOutputWire<PlatformEvent> output = new StandardOutputWire<>(
+                (TraceableWiringModel) model, "eventOutputWire", ExceptionHandlers.RETHROW_UNCAUGHT_EXCEPTION);
+        output.solderTo("handleOutputEvent", "event", received::add);
+        final StandardOutputWire<SyncProgress> syncProgressOutput = new StandardOutputWire<>(
+                (TraceableWiringModel) model, "syncProgressOutput", ExceptionHandlers.RETHROW_UNCAUGHT_EXCEPTION);
+        syncProgressOutput.solderTo("syncProgressCollector", "syncProgress", syncProgress::add);
+
+        // The gossip instance binds consumers to these; capture them to drive the instance from the test
+        final BindableInputWire<EventWindow, Void> eventWindowInput = mock(BindableInputWire.class);
+        final ArgumentCaptor<Consumer<EventWindow>> eventWindowCaptor = ArgumentCaptor.forClass(Consumer.class);
+        doNothing().when(eventWindowInput).bindConsumer(eventWindowCaptor.capture());
+        final BindableInputWire<PlatformStatus, Void> statusInput = mock(BindableInputWire.class);
+        final ArgumentCaptor<Consumer<PlatformStatus>> statusCaptor = ArgumentCaptor.forClass(Consumer.class);
+        doNothing().when(statusInput).bindConsumer(statusCaptor.capture());
+
+        final SimulatedGossip gossip = new SimulatedGossip(network, nodeId);
+        gossip.bind(
+                model,
+                eventInput,
+                eventWindowInput,
+                output,
+                mock(BindableInputWire.class),
+                mock(BindableInputWire.class),
+                mock(BindableInputWire.class),
+                mock(BindableInputWire.class),
+                mock(BindableInputWire.class),
+                mock(BindableInputWire.class),
+                statusInput,
+                syncProgressOutput);
+        statusCaptor.getValue().accept(status);
+        network.addNode(nodeId, gossip);
+        model.start();
+        return new TestNode(gossip, eventInput::inject, eventWindowCaptor.getValue());
     }
 }

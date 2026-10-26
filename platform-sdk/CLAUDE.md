@@ -64,6 +64,8 @@ principles as `consensus-*` modules.
 - **Prohibited everywhere — legacy modules being eliminated:** `swirlds-common`, `swirlds-platform-core`
 - **Prohibited everywhere — implementation modules; depend on the API instead:** `swirlds-metrics-impl`, `swirlds-logging-log4j-appender`
 
+**Benchmarks:** the JMH benchmarks in the `src/jmh` source sets of the `swirlds-*` modules follow the [benchmark conventions](docs/consensus-layer/benchmarks/README.md).
+
 ### consensus-* Module Categories
 
 **Supporting modules** — shared data model, helpers, and metrics consumed across the layer. They form a strict DAG; no circular dependencies are permitted. See

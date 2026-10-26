@@ -65,7 +65,7 @@ class V0780ClprSchemaTest {
 
     @Test
     void leavesInitializationToGenesisAndPostUpgradeSetup() {
-        subject.migrate(migrationContext);
+        subject.restart(migrationContext);
 
         verify(migrationContext, never()).newStates();
         verify(migrationContext, never()).appConfig();

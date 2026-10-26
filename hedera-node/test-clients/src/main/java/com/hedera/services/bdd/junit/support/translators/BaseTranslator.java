@@ -631,7 +631,9 @@ public class BaseTranslator {
         } else {
             receiptBuilder.exchangeRate(activeRates);
         }
-        final boolean followsUserRecord = asInstant(parts.consensusTimestamp()).isAfter(userTimestamp);
+        // Null when the unit's only top-level part is a state signature, e.g. node transactions at a block's end
+        final boolean followsUserRecord =
+                userTimestamp != null && asInstant(parts.consensusTimestamp()).isAfter(userTimestamp);
         if ((!followsUserRecord
                         || parts.transactionIdOrThrow().scheduled()
                         || NODE_TSS_FUNCTIONS.contains(parts.functionality()))

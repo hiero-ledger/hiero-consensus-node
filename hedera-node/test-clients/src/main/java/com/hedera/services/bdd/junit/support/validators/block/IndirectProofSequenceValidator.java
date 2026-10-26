@@ -24,6 +24,7 @@ import com.hedera.hapi.block.stream.TssSignedBlockProof;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.node.app.blocks.impl.BlockImplUtils;
 import com.hedera.node.app.hapi.utils.CommonUtils;
+import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.utility.Pair;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -34,6 +35,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.DigestType;
@@ -186,8 +188,12 @@ class IndirectProofSequenceValidator {
 
     /**
      * Verifies the contents of all proofs (unsigned and signed) in the sequence
+     *
+     * @param signatureVerifier checks a signature on the signed block's hash, for an indirect proof that embeds a
+     *     different signature than the signed block's own proof
      */
-    void verify() {
+    void verify(@NonNull final Predicate<Bytes> signatureVerifier) {
+        requireNonNull(signatureVerifier);
         if (!endOfSequenceReached) {
             throw new IllegalStateException(
                     "Cannot verify indirect proof sequence: end of sequence not reached, signed proof missing");
@@ -195,7 +201,7 @@ class IndirectProofSequenceValidator {
 
         log.info("Beginning verification of proof sequence for blocks {} to {}", firstUnsignedBlockNum, signedBlockNum);
 
-        verifyIndirectProofs();
+        verifyIndirectProofs(signatureVerifier);
         verifyHashSequence();
 
         log.info("Successfully verified sequence of proofs for blocks {} to {}", firstUnsignedBlockNum, signedBlockNum);
@@ -272,7 +278,7 @@ class IndirectProofSequenceValidator {
     /**
      * Verifies all collected state proofs
      */
-    private void verifyIndirectProofs() {
+    private void verifyIndirectProofs(@NonNull final Predicate<Bytes> signatureVerifier) {
         if (!containsIndirectProofs()) {
             throw new IllegalStateException("No indirect proofs to verify in indirect proof sequence");
         }
@@ -308,9 +314,54 @@ class IndirectProofSequenceValidator {
         // Compare each reconstructed state proof with the actual state proof for each unsigned block
         for (long i = firstUnsignedBlockNum; i < signedBlockNum; i++) {
             log.info("Verifying state proof for block {}", i);
-            assertEquals(expectedIndirectProofs.get(i), actualIndirectProofs.get(i));
-            log.info("Actual and expected state proofs for block {} are identical", i);
+            assertMatchingStateProof(i, expectedIndirectProofs.get(i), actualIndirectProofs.get(i), signatureVerifier);
+            log.info("Actual and expected state proofs for block {} match", i);
         }
+    }
+
+    /**
+     * Asserts an actual indirect state proof matches the reconstructed one. Only the aggregate signature may differ: a
+     * block node can hold this block and the signed block from different publishers, each with its own valid aggregate
+     * signature on the signed block's hash, so a different signature must still verify.
+     */
+    static void assertMatchingStateProof(
+            final long blockNumber,
+            @NonNull final StateProof expected,
+            @Nullable final StateProof actual,
+            @NonNull final Predicate<Bytes> signatureVerifier) {
+        assertNotNull(actual, "No state proof for block %s".formatted(blockNumber));
+        if (expected.equals(actual)) {
+            return;
+        }
+        assertTrue(
+                actual.hasSignedBlockProof(),
+                "State proof for block %s has no signed block proof".formatted(blockNumber));
+        assertEquals(
+                expected,
+                actual.copyBuilder()
+                        .signedBlockProof(expected.signedBlockProofOrThrow())
+                        .build(),
+                "State proof for block %s differs beyond its signature".formatted(blockNumber));
+        final var actualSignature = actual.signedBlockProofOrThrow().blockSignature();
+        assertTrue(
+                hasSameVerificationKey(expected.signedBlockProofOrThrow().blockSignature(), actualSignature),
+                "State proof for block %s has a different verification key".formatted(blockNumber));
+        assertTrue(
+                signatureVerifier.test(actualSignature),
+                "State proof for block %s has an invalid signature".formatted(blockNumber));
+    }
+
+    /**
+     * Whether two hinTS signatures on the same block start with the same verification key; every publisher signs with
+     * the same construction, so only the aggregate after the key can differ.
+     */
+    private static boolean hasSameVerificationKey(@NonNull final Bytes expected, @NonNull final Bytes actual) {
+        final int vkLength = HintsLibraryImpl.VK_LENGTH;
+        if (expected.length() < vkLength + HintsLibraryImpl.SIGNATURE_LENGTH) {
+            // Not a key-prefixed hinTS signature (e.g. a mock), so there is no key to compare
+            return true;
+        }
+        return actual.length() >= vkLength && expected.slice(0, vkLength).equals(actual.slice(0, vkLength));
     }
 
     /**
@@ -551,7 +602,8 @@ class IndirectProofSequenceValidator {
             validator.registerProof(
                     10L, BLOCK_10.proof, BLOCK_10_HASH, BLOCK_9_HASH, BLOCK_10.timestamp, BLOCK_10.siblings);
 
-            validator.verify();
+            // No TSS libraries here, so the indirect proofs must embed the signed block's own signature
+            validator.verify(signature -> false);
         }
 
         // --- Inputs for test case ---

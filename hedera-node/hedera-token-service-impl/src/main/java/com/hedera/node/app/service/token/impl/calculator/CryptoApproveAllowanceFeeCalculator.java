@@ -27,9 +27,12 @@ public class CryptoApproveAllowanceFeeCalculator implements ServiceFeeCalculator
                 lookupServiceFee(feeSchedule, HederaFunctionality.CRYPTO_APPROVE_ALLOWANCE);
         feeResult.setServiceBaseFeeTinycents(serviceDef.baseFee());
 
+        // Each NFT serial is its own allowance; an approve-for-all allowance counts once
         final int totalAllowances = op.cryptoAllowances().size()
                 + op.tokenAllowances().size()
-                + op.nftAllowances().size();
+                + op.nftAllowances().stream()
+                        .mapToInt(nft -> Math.max(1, nft.serialNumbers().size()))
+                        .sum();
 
         if (totalAllowances > 0) {
             addExtraFee(feeResult, serviceDef, ALLOWANCES, feeSchedule, totalAllowances);

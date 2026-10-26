@@ -30,6 +30,7 @@ import java.math.BigInteger;
 import java.security.MessageDigest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.DigestType;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 
 /**
@@ -91,15 +92,15 @@ public class VerifyConfigCall extends AbstractCall {
         // layer otherwise reports such an escape only as an opaque INVALID_TRANSACTION_BODY, with no
         // indication of where in verifyConfig it died).
         try {
-            final var digest = CommonUtils.digestOrThrow(
-                    configOf(frame).getConfigData(BlockStreamConfig.class).digestType());
-            return doExecute(digest);
+            final var configuredDigestType =
+                    configOf(frame).getConfigData(BlockStreamConfig.class).digestType();
+            return doExecute(configuredDigestType);
         } catch (final RuntimeException e) {
             return failAsError("unexpected exception during verifyConfig: " + e, e);
         }
     }
 
-    private @NonNull PricedResult doExecute(@NonNull final MessageDigest digest) {
+    private @NonNull PricedResult doExecute(@NonNull final DigestType configuredDigestType) {
         final StateProof proof;
         try {
             proof = StateProof.PROTOBUF.parseStrict(Bytes.wrap(stateProofBytes).toReadableSequentialData());
@@ -110,6 +111,12 @@ public class VerifyConfigCall extends AbstractCall {
                 "verifyConfig PROOF parsed: paths={} signedBlockProof={}",
                 proof.paths().size(),
                 proof.hasSignedBlockProof());
+
+        // The proving ledger built this proof with its own genesis-pinned digest, independent of this node's
+        // configured blockStream.digestType; infer it from the proof's hash lengths so a proof verifies under
+        // whichever digest produced it, falling back to configuration when the proof carries no length signal.
+        final DigestType inferred = StateProofVerifier.inferDigestType(proof);
+        final MessageDigest digest = CommonUtils.digestOrThrow(inferred != null ? inferred : configuredDigestType);
 
         // 1. Extract the single state-item leaf and parse the inner ClprLedgerConfiguration —
         //    we need its initial_trust_anchor to know which TSS authority should have signed
