@@ -71,41 +71,43 @@ class VirtualMapRehashTest extends VirtualTestBase {
     @DisplayName("Test rehash is triggered if first leaf hash does not match")
     void testRehashTriggeredIfHashMismatches() throws IOException {
         VirtualMap vm = new VirtualMap(builder, DEFAULT_CONFIGURATION);
-        vm.getMetadata().setPaths(1, 2);
+        try {
+            vm.getMetadata().setPaths(1, 2);
 
-        final VirtualDataSource dataSource = vm.getDataSource();
-        // Prepare data in a data source with a wrong hash
-        VirtualLeafBytes<TestValue> leaf1 = appleLeaf(1);
-        Hash correctHash = hash(leaf1);
-        byte[] wrongHashBytes = new byte[48];
-        wrongHashBytes[0] = 1; // Just to make it non-zero
-        Hash wrongHash = new Hash(wrongHashBytes, Cryptography.DEFAULT_DIGEST_TYPE);
+            final VirtualDataSource dataSource = vm.getDataSource();
+            // Prepare data in a data source with a wrong hash
+            VirtualLeafBytes<TestValue> leaf1 = appleLeaf(1);
+            Hash correctHash = hash(leaf1);
+            byte[] wrongHashBytes = new byte[Cryptography.DEFAULT_DIGEST_TYPE.digestLength()];
+            wrongHashBytes[0] = 1; // Just to make it non-zero
+            Hash wrongHash = new Hash(wrongHashBytes, Cryptography.DEFAULT_DIGEST_TYPE);
 
-        // Also add a second leaf to make it a bit more interesting
-        VirtualLeafBytes<TestValue> leaf2 = bananaLeaf(2);
-        Hash correctHash2 = hash(leaf2);
+            // Also add a second leaf to make it a bit more interesting
+            VirtualLeafBytes<TestValue> leaf2 = bananaLeaf(2);
+            Hash correctHash2 = hash(leaf2);
 
-        final VirtualHashChunk chunk0 = new VirtualHashChunk(0, dataSource.getHashChunkHeight());
-        chunk0.setHashAtPath(1, wrongHash);
-        chunk0.setHashAtPath(2, wrongHash);
-        // Save with wrong hashes. Using a separate dataSource instance and builder to avoid any caching issues.
-        dataSource.saveRecords(1, 2, Stream.of(chunk0), Stream.of(leaf1, leaf2), Stream.empty(), false);
+            final VirtualHashChunk chunk0 = new VirtualHashChunk(0, dataSource.getHashChunkHeight());
+            chunk0.setHashAtPath(1, wrongHash);
+            chunk0.setHashAtPath(2, wrongHash);
+            // Save with wrong hashes. Using a separate dataSource instance and builder to avoid any caching issues.
+            dataSource.saveRecords(1, 2, Stream.of(chunk0), Stream.of(leaf1, leaf2), Stream.empty(), false);
 
-        vm.fullLeafRehashIfNecessary();
+            vm.fullLeafRehashIfNecessary();
 
-        assertEquals(correctHash, vm.getRecords().findHash(1), "Hash for leaf 1 should be corrected");
-        assertEquals(correctHash2, vm.getRecords().findHash(2), "Hash for leaf 2 should be corrected");
+            assertEquals(correctHash, vm.getRecords().findHash(1), "Hash for leaf 1 should be corrected");
+            assertEquals(correctHash2, vm.getRecords().findHash(2), "Hash for leaf 2 should be corrected");
 
-        // Internal node (path 0) should also be hashed
-        final WritableMessageDigest digestWriter =
-                new WritableMessageDigest(Cryptography.DEFAULT_DIGEST_TYPE.buildDigest());
-        assertEquals(
-                MerkleHasher.internalNodeHash(
-                        correctHash, correctHash2, digestWriter, Cryptography.DEFAULT_DIGEST_TYPE),
-                vm.getRecords().rootHash(),
-                "Root hash should be computed");
-
-        vm.release();
+            // Internal node (path 0) should also be hashed
+            final WritableMessageDigest digestWriter =
+                    new WritableMessageDigest(Cryptography.DEFAULT_DIGEST_TYPE.buildDigest());
+            assertEquals(
+                    MerkleHasher.internalNodeHash(
+                            correctHash, correctHash2, digestWriter, Cryptography.DEFAULT_DIGEST_TYPE),
+                    vm.getRecords().rootHash(),
+                    "Root hash should be computed");
+        } finally {
+            vm.release();
+        }
     }
 
     @Test
@@ -113,7 +115,7 @@ class VirtualMapRehashTest extends VirtualTestBase {
     void testRehashTimeout() throws IOException {
         // Prepare data in a data source with a wrong hash
         VirtualLeafBytes<TestValue> leaf1 = appleLeaf(1);
-        byte[] wrongHashBytes = new byte[48];
+        byte[] wrongHashBytes = new byte[Cryptography.DEFAULT_DIGEST_TYPE.digestLength()];
         wrongHashBytes[0] = 1;
         Hash wrongHash = new Hash(wrongHashBytes, Cryptography.DEFAULT_DIGEST_TYPE);
 
@@ -123,22 +125,26 @@ class VirtualMapRehashTest extends VirtualTestBase {
                 .withValue(VirtualMapConfig_.FULL_REHASH_TIMEOUT_MS, "0")
                 .build();
         VirtualMap vm = new VirtualMap(builder, configuration);
-        vm.getMetadata().setPaths(1, 1);
+        try {
+            vm.getMetadata().setPaths(1, 1);
 
-        final VirtualDataSource dataSource = vm.getDataSource();
-        final int chunkHeight = dataSource.getHashChunkHeight();
-        final VirtualHashChunk chunk0 = new VirtualHashChunk(0, chunkHeight);
-        chunk0.setHashAtPath(1, wrongHash);
-        dataSource.saveRecords(1, 1, Stream.of(chunk0), Stream.of(leaf1), Stream.empty(), false);
+            final VirtualDataSource dataSource = vm.getDataSource();
+            final int chunkHeight = dataSource.getHashChunkHeight();
+            final VirtualHashChunk chunk0 = new VirtualHashChunk(0, chunkHeight);
+            chunk0.setHashAtPath(1, wrongHash);
+            dataSource.saveRecords(1, 1, Stream.of(chunk0), Stream.of(leaf1), Stream.empty(), false);
 
-        // This should throw RuntimeException caused by TimeoutException
-        final RuntimeException exception = assertThrows(RuntimeException.class, vm::fullLeafRehashIfNecessary);
-        assertInstanceOf(
-                TimeoutException.class,
-                exception.getCause(),
-                "Cause should be TimeoutException, but was: "
-                        + (exception.getCause() == null
-                                ? "null"
-                                : exception.getCause().getClass().getName()));
+            // This should throw RuntimeException caused by TimeoutException
+            final RuntimeException exception = assertThrows(RuntimeException.class, vm::fullLeafRehashIfNecessary);
+            assertInstanceOf(
+                    TimeoutException.class,
+                    exception.getCause(),
+                    "Cause should be TimeoutException, but was: "
+                            + (exception.getCause() == null
+                                    ? "null"
+                                    : exception.getCause().getClass().getName()));
+        } finally {
+            vm.release();
+        }
     }
 }

@@ -7,6 +7,7 @@ import static org.hiero.otter.fixtures.network.BandwidthLimit.UNLIMITED_BANDWIDT
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -16,6 +17,7 @@ import java.util.Random;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import org.hiero.otter.fixtures.InstrumentedNode;
+import org.hiero.otter.fixtures.MiniNode;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.network.GeoMeshTopology;
 import org.hiero.otter.fixtures.network.GeoMeshTopologyConfiguration;
@@ -26,11 +28,13 @@ import org.hiero.otter.fixtures.network.LatencyRange;
  */
 public class GeoMeshTopologyImpl implements GeoMeshTopology {
 
-    private final Map<Node, Location> nodes = new LinkedHashMap<>();
+    private final List<Node> nodes = new ArrayList<>();
+    private final Map<MiniNode, Location> allNodes = new LinkedHashMap<>();
     private final Map<Connection, ConnectionState> connectionDataMap = new LinkedHashMap<>();
 
-    private final Function<Integer, List<? extends Node>> nodeFactory;
+    private final Function<Integer, List<Node>> nodeFactory;
     private final Supplier<InstrumentedNode> instrumentedNodeFactory;
+    private final Function<Integer, List<MiniNode>> miniNodeFactory;
     private final Random random;
 
     private final GeoMeshTopologyConfiguration configuration;
@@ -42,15 +46,19 @@ public class GeoMeshTopologyImpl implements GeoMeshTopology {
      * @param random a random number generator for simulating network conditions
      * @param nodeFactory a function that creates a list of nodes given the count
      * @param instrumentedNodeFactory a supplier that creates an instrumented node
+     * @param miniNodeFactory a function that creates a list of mini nodes given the count
+     * @throws NullPointerException if any parameter is {@code null}
      */
     public GeoMeshTopologyImpl(
             @NonNull final GeoMeshTopologyConfiguration configuration,
             @NonNull final Random random,
-            @NonNull final Function<Integer, List<? extends Node>> nodeFactory,
-            @NonNull final Supplier<InstrumentedNode> instrumentedNodeFactory) {
+            @NonNull final Function<Integer, List<Node>> nodeFactory,
+            @NonNull final Supplier<InstrumentedNode> instrumentedNodeFactory,
+            @NonNull final Function<Integer, List<MiniNode>> miniNodeFactory) {
         this.configuration = requireNonNull(configuration);
         this.nodeFactory = requireNonNull(nodeFactory);
         this.instrumentedNodeFactory = requireNonNull(instrumentedNodeFactory);
+        this.miniNodeFactory = requireNonNull(miniNodeFactory);
         this.random = requireNonNull(random);
     }
 
@@ -60,9 +68,10 @@ public class GeoMeshTopologyImpl implements GeoMeshTopology {
     @Override
     @NonNull
     public List<Node> addNodes(final int count) {
-        final List<? extends Node> newNodes = nodeFactory.apply(count);
+        final List<Node> newNodes = nodeFactory.apply(count);
         for (int i = 0; i < count; i++) {
-            nodes.put(newNodes.get(i), calculateNextLocation(configuration, nodes));
+            allNodes.put(newNodes.get(i), calculateNextLocation(configuration, allNodes));
+            nodes.add(newNodes.get(i));
         }
         return Collections.unmodifiableList(newNodes);
     }
@@ -77,7 +86,8 @@ public class GeoMeshTopologyImpl implements GeoMeshTopology {
         requireNonNull(region);
         final List<? extends Node> newNodes = nodeFactory.apply(count);
         for (final Node node : newNodes) {
-            nodes.put(node, new Location(continent, region));
+            allNodes.put(node, new Location(continent, region));
+            nodes.add(node);
         }
         return Collections.unmodifiableList(newNodes);
     }
@@ -91,7 +101,8 @@ public class GeoMeshTopologyImpl implements GeoMeshTopology {
         requireNonNull(continent);
         requireNonNull(region);
         final InstrumentedNode newNode = instrumentedNodeFactory.get();
-        nodes.put(newNode, new Location(continent, region));
+        allNodes.put(newNode, new Location(continent, region));
+        nodes.add(newNode);
         return newNode;
     }
 
@@ -102,7 +113,8 @@ public class GeoMeshTopologyImpl implements GeoMeshTopology {
     @NonNull
     public InstrumentedNode addInstrumentedNode() {
         final InstrumentedNode newNode = instrumentedNodeFactory.get();
-        nodes.put(newNode, calculateNextLocation(configuration, nodes));
+        allNodes.put(newNode, calculateNextLocation(configuration, allNodes));
+        nodes.add(newNode);
         return newNode;
     }
 
@@ -111,8 +123,36 @@ public class GeoMeshTopologyImpl implements GeoMeshTopology {
      */
     @Override
     @NonNull
-    public String getContinent(@NonNull final Node node) {
-        final Location location = nodes.get(node);
+    public List<MiniNode> addMiniNodes(final int count) {
+        final List<MiniNode> newNodes = miniNodeFactory.apply(count);
+        for (int i = 0; i < count; i++) {
+            allNodes.put(newNodes.get(i), calculateNextLocation(configuration, allNodes));
+        }
+        return Collections.unmodifiableList(newNodes);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public List<MiniNode> addMiniNodes(final int count, @NonNull final String continent, @NonNull final String region) {
+        requireNonNull(continent);
+        requireNonNull(region);
+        final List<MiniNode> newNodes = miniNodeFactory.apply(count);
+        for (final MiniNode node : newNodes) {
+            allNodes.put(node, new Location(continent, region));
+        }
+        return Collections.unmodifiableList(newNodes);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public String getContinent(@NonNull final MiniNode node) {
+        final Location location = allNodes.get(node);
         if (location == null) {
             throw new IllegalArgumentException("The node is not part of this topology");
         }
@@ -124,8 +164,8 @@ public class GeoMeshTopologyImpl implements GeoMeshTopology {
      */
     @Override
     @NonNull
-    public String getRegion(@NonNull final Node node) {
-        final Location location = nodes.get(node);
+    public String getRegion(@NonNull final MiniNode node) {
+        final Location location = allNodes.get(node);
         if (location == null) {
             throw new IllegalArgumentException("The node is not part of this topology");
         }
@@ -138,7 +178,7 @@ public class GeoMeshTopologyImpl implements GeoMeshTopology {
     @Override
     @NonNull
     public List<Node> nodes() {
-        return nodes.keySet().stream().toList();
+        return Collections.unmodifiableList(nodes);
     }
 
     /**
@@ -146,19 +186,30 @@ public class GeoMeshTopologyImpl implements GeoMeshTopology {
      */
     @Override
     @NonNull
-    public ConnectionState getConnectionData(@NonNull final Node sender, @NonNull final Node receiver) {
+    public List<MiniNode> allNodes() {
+        return allNodes.keySet().stream().toList();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public ConnectionState getConnectionData(@NonNull final MiniNode sender, @NonNull final MiniNode receiver) {
         final Connection connection = new Connection(sender, receiver);
         return connectionDataMap.computeIfAbsent(connection, this::addConnectionData);
     }
 
     @NonNull
     private ConnectionState addConnectionData(@NonNull final Connection connection) {
-        final Node node1 = connection.node1;
-        final Node node2 = connection.node2;
+        final MiniNode node1 = connection.node1;
+        final MiniNode node2 = connection.node2;
         final LatencyRange latencyRange;
-        if (!Objects.equals(nodes.get(node1).continent, nodes.get(node2).continent)) {
+        final Location location1 = allNodes.get(node1);
+        final Location location2 = allNodes.get(node2);
+        if (!Objects.equals(location1.continent, location2.continent)) {
             latencyRange = configuration.intercontinental();
-        } else if (!Objects.equals(nodes.get(node1).region, nodes.get(node2).region)) {
+        } else if (!Objects.equals(location1.region, location2.region)) {
             latencyRange = configuration.sameContinent();
         } else {
             latencyRange = configuration.sameRegion();
@@ -169,8 +220,9 @@ public class GeoMeshTopologyImpl implements GeoMeshTopology {
         return new ConnectionState(true, latency, latencyRange.jitterPercent(), UNLIMITED_BANDWIDTH);
     }
 
-    private record Connection(@NonNull Node node1, @NonNull Node node2) {
-        private Connection(@NonNull final Node node1, @NonNull final Node node2) {
+    private record Connection(
+            @NonNull MiniNode node1, @NonNull MiniNode node2) {
+        private Connection(@NonNull final MiniNode node1, @NonNull final MiniNode node2) {
             final boolean isFirstIdLess = node1.selfId().id() < node2.selfId().id();
             this.node1 = isFirstIdLess ? node1 : node2;
             this.node2 = isFirstIdLess ? node2 : node1;
@@ -183,5 +235,6 @@ public class GeoMeshTopologyImpl implements GeoMeshTopology {
      * @param continent the continent of the node
      * @param region the region within the continent
      */
-    public record Location(@NonNull String continent, @NonNull String region) {}
+    public record Location(
+            @NonNull String continent, @NonNull String region) {}
 }

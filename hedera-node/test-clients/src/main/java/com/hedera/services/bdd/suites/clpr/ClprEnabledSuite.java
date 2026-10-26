@@ -140,8 +140,8 @@ public class ClprEnabledSuite {
     }
 
     @HapiTest
-    @DisplayName("All ten CLPR transaction types are blacklisted inside separate atomic batches")
-    final Stream<DynamicTest> allClprTransactionsAreBlacklistedInsideAtomicBatches() {
+    @DisplayName("All ten CLPR transaction types are not whitelisted inside separate atomic batches")
+    final Stream<DynamicTest> allClprTransactionsAreNotWhitelistedInsideAtomicBatches() {
         return exerciseTransactions(true, false);
     }
 
@@ -152,8 +152,8 @@ public class ClprEnabledSuite {
     }
 
     @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST)
-    @DisplayName("All ten CLPR transaction types are blacklisted in batches when ingest is bypassed")
-    final Stream<DynamicTest> allClprTransactionsAreBlacklistedInBatchesAtConsensus() {
+    @DisplayName("All ten CLPR transaction types are not whitelisted in batches when ingest is bypassed")
+    final Stream<DynamicTest> allClprTransactionsAreNotWhitelistedInBatchesAtConsensus() {
         return exerciseTransactions(true, true);
     }
 

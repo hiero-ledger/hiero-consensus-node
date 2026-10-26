@@ -51,6 +51,7 @@ import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerConfiguration;
 import org.hiero.otter.fixtures.AsyncNetworkActions;
 import org.hiero.otter.fixtures.InstrumentedNode;
+import org.hiero.otter.fixtures.MiniNode;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TimeManager;
@@ -152,7 +153,11 @@ public abstract class AbstractNetwork implements Network {
         this.useRandomNodeIds = useRandomNodeIds;
         // Initialize with default GeoMeshTopology
         this.currentTopology = new GeoMeshTopologyImpl(
-                GeoMeshTopologyConfiguration.DEFAULT, random, this::createNodes, this::createInstrumentedNode);
+                GeoMeshTopologyConfiguration.DEFAULT,
+                random,
+                this::createNodes,
+                this::createInstrumentedNode,
+                this::createMiniNodes);
         this.networkConfiguration = new NetworkConfiguration();
     }
 
@@ -177,18 +182,21 @@ public abstract class AbstractNetwork implements Network {
         requireNonNull(configuration);
 
         // Prevent reconfiguration if nodes already added
-        if (!topology().nodes().isEmpty()) {
+        if (!topology().allNodes().isEmpty()) {
             throw new IllegalStateException("Cannot configure topology after nodes have been added to the network.");
         }
 
         // Dispatch to appropriate implementation based on configuration type
         this.currentTopology = switch (configuration) {
             case MeshTopologyConfiguration meshConfig ->
-                new MeshTopologyImpl(meshConfig, this::createNodes, this::createInstrumentedNode);
+                new MeshTopologyImpl(
+                        meshConfig, this::createNodes, this::createInstrumentedNode, this::createMiniNodes);
             case GeoMeshTopologyConfiguration geoConfig ->
-                new GeoMeshTopologyImpl(geoConfig, random, this::createNodes, this::createInstrumentedNode);
+                new GeoMeshTopologyImpl(
+                        geoConfig, random, this::createNodes, this::createInstrumentedNode, this::createMiniNodes);
             case PredefinedPingTopologyConfiguration pingConfig ->
-                new PredefinedPingTopologyImpl(this::createNodes, this::createInstrumentedNode, pingConfig);
+                new PredefinedPingTopologyImpl(
+                        this::createNodes, this::createInstrumentedNode, this::createMiniNodes, pingConfig);
             default ->
                 throw new IllegalArgumentException("Unknown topology configuration type: " + configuration.getClass());
         };
@@ -240,7 +248,7 @@ public abstract class AbstractNetwork implements Network {
             throw new IllegalArgumentException("Weight must be positive");
         }
         networkConfiguration.weight(weight);
-        nodes().forEach(n -> n.weight(weight));
+        allNodes().forEach(n -> n.weight(weight));
     }
 
     @Override
@@ -290,6 +298,28 @@ public abstract class AbstractNetwork implements Network {
         final NodeId nodeId = getNextNodeId();
         final KeysAndCerts keysAndCerts = createKeysAndCerts(List.of(nodeId)).get(nodeId);
         return doCreateInstrumentedNode(nodeId, keysAndCerts);
+    }
+
+    /**
+     * Creates a new mini-node with the given ID and keys and certificates. This is a factory method that subclasses must
+     * implement to create mini-nodes specific to the environment.
+     *
+     * @param nodeId the ID of the mini-node to create
+     * @param keysAndCerts the keys and certificates for the mini-node
+     * @return the newly created mini-node
+     */
+    protected abstract MiniNode doCreateMiniNode(
+            @NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts);
+
+    private List<MiniNode> createMiniNodes(final int count) {
+        throwIfInLifecycle(Lifecycle.RUNNING, "Cannot add nodes while the network is running.");
+        throwIfInLifecycle(Lifecycle.SHUTDOWN, "Cannot add nodes after the network has been started.");
+
+        final List<NodeId> nodeIds =
+                IntStream.range(0, count).mapToObj(i -> getNextNodeId()).toList();
+        return createKeysAndCerts(nodeIds).entrySet().stream()
+                .map(e -> doCreateMiniNode(e.getKey(), e.getValue()))
+                .toList();
     }
 
     /**
@@ -346,7 +376,7 @@ public abstract class AbstractNetwork implements Network {
 
         lifecycle = Lifecycle.RUNNING;
         updateConnections();
-        for (final Node node : nodes()) {
+        for (final MiniNode node : allNodes()) {
             ((AbstractNode) node).roster(roster);
             node.start();
         }
@@ -359,27 +389,27 @@ public abstract class AbstractNetwork implements Network {
     }
 
     private Roster createRoster() {
-        final boolean anyNodeHasExplicitWeight = nodes().stream().anyMatch(node -> node.weight() > 0);
+        final boolean anyNodeHasExplicitWeight = allNodes().stream().anyMatch(node -> node.weight() > 0);
         final List<RosterEntry> rosterEntries;
         if (anyNodeHasExplicitWeight) {
-            rosterEntries = nodes().stream()
-                    .sorted(Comparator.comparing(Node::selfId))
+            rosterEntries = allNodes().stream()
+                    .sorted(Comparator.comparing(MiniNode::selfId))
                     .map(node -> createRosterEntry(node, node.weight() == UNSET_WEIGHT ? 0 : node.weight()))
                     .toList();
         } else {
-            final int count = nodes().size();
+            final int count = allNodes().size();
             final Iterator<Long> weightIterator =
                     weightGenerator.getWeights(random.nextLong(), count).iterator();
 
-            rosterEntries = nodes().stream()
-                    .sorted(Comparator.comparing(Node::selfId))
+            rosterEntries = allNodes().stream()
+                    .sorted(Comparator.comparing(MiniNode::selfId))
                     .map(node -> createRosterEntry(node, weightIterator.next()))
                     .toList();
         }
         return Roster.newBuilder().rosterEntries(rosterEntries).build();
     }
 
-    private RosterEntry createRosterEntry(final Node node, final long weight) {
+    private RosterEntry createRosterEntry(final MiniNode node, final long weight) {
         try {
             final long id = node.selfId().id();
             final byte[] certificate =
@@ -419,7 +449,8 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     @NonNull
-    public BidirectionalConnection bidirectionalConnection(@NonNull final Node node1, @NonNull final Node node2) {
+    public BidirectionalConnection bidirectionalConnection(
+            @NonNull final MiniNode node1, @NonNull final MiniNode node2) {
         return new BidirectionalConnectionImpl(
                 unidirectionalConnection(node1, node2), unidirectionalConnection(node2, node1));
     }
@@ -429,7 +460,8 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     @NonNull
-    public UnidirectionalConnection unidirectionalConnection(@NonNull final Node sender, @NonNull final Node receiver) {
+    public UnidirectionalConnection unidirectionalConnection(
+            @NonNull final MiniNode sender, @NonNull final MiniNode receiver) {
         return new UnidirectionalConnectionImpl(sender, receiver);
     }
 
@@ -438,7 +470,7 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     @NonNull
-    public ConnectionState connectionState(@NonNull final Node sender, @NonNull final Node receiver) {
+    public ConnectionState connectionState(@NonNull final MiniNode sender, @NonNull final MiniNode receiver) {
         final ConnectionKey key = new ConnectionKey(sender.selfId(), receiver.selfId());
         ConnectionState connectionState = topology().getConnectionData(sender, receiver);
         if (getNetworkPartitionContaining(sender) != getNetworkPartitionContaining(receiver)) {
@@ -464,28 +496,28 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     @NonNull
-    public Partition createNetworkPartition(@NonNull final Collection<Node> partitionNodes) {
+    public Partition createNetworkPartition(@NonNull final Collection<? extends MiniNode> partitionNodes) {
         log.info("Creating network partition...");
         if (partitionNodes.isEmpty()) {
             throw new IllegalArgumentException("Cannot create a partition with no nodes.");
         }
         final PartitionImpl partition = new PartitionImpl(partitionNodes);
-        final List<Node> allNodes = nodes();
+        final List<MiniNode> allNodes = allNodes();
         if (partition.size() == allNodes.size()) {
             throw new IllegalArgumentException("Cannot create a partition with all nodes.");
         }
-        for (final Node node : partitionNodes) {
+        for (final MiniNode node : partitionNodes) {
             final PartitionImpl oldPartition = networkPartitions.put(node.selfId(), partition);
             if (oldPartition != null) {
                 oldPartition.nodes.remove(node);
             }
         }
         if (remainingNetworkPartition == null) {
-            final List<Node> remainingNodes = allNodes.stream()
+            final List<MiniNode> remainingNodes = allNodes.stream()
                     .filter(node -> !partitionNodes.contains(node))
                     .toList();
             remainingNetworkPartition = new PartitionImpl(remainingNodes);
-            for (final Node node : remainingNodes) {
+            for (final MiniNode node : remainingNodes) {
                 networkPartitions.put(node.selfId(), remainingNetworkPartition);
             }
         }
@@ -510,7 +542,7 @@ public abstract class AbstractNetwork implements Network {
             remainingNetworkPartition = null;
         } else {
             assert remainingNetworkPartition != null; // because there are at least 3 partitions
-            for (final Node node : partition.nodes()) {
+            for (final MiniNode node : partition.nodes()) {
                 networkPartitions.put(node.selfId(), remainingNetworkPartition);
                 remainingNetworkPartition.nodes.add(node);
             }
@@ -533,7 +565,7 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     @Nullable
-    public Partition getNetworkPartitionContaining(@NonNull final Node node) {
+    public Partition getNetworkPartitionContaining(@NonNull final MiniNode node) {
         return networkPartitions.get(node.selfId());
     }
 
@@ -542,15 +574,15 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     @NonNull
-    public Partition isolate(@NonNull final Node node) {
-        return createNetworkPartition(Set.of(node));
+    public Partition isolate(@NonNull final MiniNode node) {
+        return createNetworkPartition(node);
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public void rejoin(@NonNull final Node node) {
+    public void rejoin(@NonNull final MiniNode node) {
         final Partition partition = networkPartitions.get(node.selfId());
         if (partition == null) {
             throw new IllegalArgumentException("Node is not isolated: " + node.selfId());
@@ -562,7 +594,7 @@ public abstract class AbstractNetwork implements Network {
      * {@inheritDoc}
      */
     @Override
-    public boolean isIsolated(@NonNull final Node node) {
+    public boolean isIsolated(@NonNull final MiniNode node) {
         final Partition partition = networkPartitions.get(node.selfId());
         return partition != null && partition.size() == 1;
     }
@@ -571,9 +603,9 @@ public abstract class AbstractNetwork implements Network {
      * {@inheritDoc}
      */
     @Override
-    public void setLatencyForAllConnections(@NonNull final Node node, @NonNull final LatencyRange latencyRange) {
+    public void setLatencyForAllConnections(@NonNull final MiniNode node, @NonNull final LatencyRange latencyRange) {
         log.info("Setting latency for all connections from node {} to range {}", node.selfId(), latencyRange);
-        for (final Node otherNode : nodes()) {
+        for (final MiniNode otherNode : allNodes()) {
             if (!node.equals(otherNode)) {
                 setLatencyRange(node, otherNode, latencyRange);
                 setLatencyRange(otherNode, node, latencyRange);
@@ -586,9 +618,9 @@ public abstract class AbstractNetwork implements Network {
      * {@inheritDoc}
      */
     @Override
-    public void restoreLatencyForAllConnections(@NonNull final Node node) {
+    public void restoreLatencyForAllConnections(@NonNull final MiniNode node) {
         log.info("Restoring latency for all connections from node {}", node);
-        for (final Node otherNode : nodes()) {
+        for (final MiniNode otherNode : allNodes()) {
             if (!node.equals(otherNode)) {
                 latencyOverrides.remove(new ConnectionKey(node.selfId(), otherNode.selfId()));
                 latencyOverrides.remove(new ConnectionKey(otherNode.selfId(), node.selfId()));
@@ -598,7 +630,9 @@ public abstract class AbstractNetwork implements Network {
     }
 
     private void setLatencyRange(
-            @NonNull final Node sender, @NonNull final Node receiver, @NonNull final LatencyRange latencyRange) {
+            @NonNull final MiniNode sender,
+            @NonNull final MiniNode receiver,
+            @NonNull final LatencyRange latencyRange) {
         final long nanos = latencyRange.min().equals(latencyRange.max())
                 ? latencyRange.max().toNanos()
                 : random.nextLong(
@@ -612,9 +646,10 @@ public abstract class AbstractNetwork implements Network {
      * {@inheritDoc}
      */
     @Override
-    public void setBandwidthForAllConnections(@NonNull final Node node, @NonNull final BandwidthLimit bandwidthLimit) {
+    public void setBandwidthForAllConnections(
+            @NonNull final MiniNode node, @NonNull final BandwidthLimit bandwidthLimit) {
         log.info("Setting bandwidth for all connections from node {} to {}", node.selfId(), bandwidthLimit);
-        for (final Node otherNode : nodes()) {
+        for (final MiniNode otherNode : allNodes()) {
             if (!node.equals(otherNode)) {
                 bandwidthOverrides.put(new ConnectionKey(node.selfId(), otherNode.selfId()), bandwidthLimit);
                 bandwidthOverrides.put(new ConnectionKey(otherNode.selfId(), node.selfId()), bandwidthLimit);
@@ -623,10 +658,13 @@ public abstract class AbstractNetwork implements Network {
         updateConnections();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    public void restoreBandwidthLimitsForAllConnections(@NonNull final Node node) {
+    public void restoreBandwidthLimitsForAllConnections(@NonNull final MiniNode node) {
         log.info("Restoring bandwidth for all connections from node {}", node);
-        for (final Node otherNode : nodes()) {
+        for (final MiniNode otherNode : allNodes()) {
             if (!node.equals(otherNode)) {
                 bandwidthOverrides.remove(new ConnectionKey(node.selfId(), otherNode.selfId()));
                 bandwidthOverrides.remove(new ConnectionKey(otherNode.selfId(), node.selfId()));
@@ -749,7 +787,7 @@ public abstract class AbstractNetwork implements Network {
     public Network withConfigValue(@NonNull final String key, @NonNull final String value) {
         throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
         networkConfiguration.withConfigValue(key, value);
-        nodes().forEach(node -> node.configuration().withConfigValue(key, value));
+        allNodes().forEach(node -> node.configuration().withConfigValue(key, value));
         return this;
     }
 
@@ -760,7 +798,7 @@ public abstract class AbstractNetwork implements Network {
     public @NonNull Network withConfigValue(@NonNull final String key, @NonNull final Duration value) {
         throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
         networkConfiguration.withConfigValue(key, value);
-        nodes().forEach(node -> node.configuration().withConfigValue(key, value));
+        allNodes().forEach(node -> node.configuration().withConfigValue(key, value));
         return this;
     }
 
@@ -772,7 +810,7 @@ public abstract class AbstractNetwork implements Network {
     public Network withConfigValue(@NonNull final String key, final int value) {
         throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
         networkConfiguration.withConfigValue(key, value);
-        nodes().forEach(node -> node.configuration().withConfigValue(key, value));
+        allNodes().forEach(node -> node.configuration().withConfigValue(key, value));
         return this;
     }
 
@@ -784,7 +822,7 @@ public abstract class AbstractNetwork implements Network {
     public Network withConfigValue(@NonNull final String key, final long value) {
         throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
         networkConfiguration.withConfigValue(key, value);
-        nodes().forEach(node -> node.configuration().withConfigValue(key, value));
+        allNodes().forEach(node -> node.configuration().withConfigValue(key, value));
         return this;
     }
 
@@ -796,7 +834,7 @@ public abstract class AbstractNetwork implements Network {
     public Network withConfigValue(@NonNull final String key, @NonNull final Path value) {
         throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
         networkConfiguration.withConfigValue(key, value);
-        nodes().forEach(node -> node.configuration().withConfigValue(key, value));
+        allNodes().forEach(node -> node.configuration().withConfigValue(key, value));
         return this;
     }
 
@@ -808,7 +846,7 @@ public abstract class AbstractNetwork implements Network {
     public Network withConfigValue(@NonNull final String key, final boolean value) {
         throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
         networkConfiguration.withConfigValue(key, value);
-        nodes().forEach(node -> node.configuration().withConfigValue(key, value));
+        allNodes().forEach(node -> node.configuration().withConfigValue(key, value));
         return this;
     }
 
@@ -820,7 +858,7 @@ public abstract class AbstractNetwork implements Network {
     public Network withConfigValue(@NonNull final String key, final double value) {
         throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
         networkConfiguration.withConfigValue(key, value);
-        nodes().forEach(node -> node.configuration().withConfigValue(key, value));
+        allNodes().forEach(node -> node.configuration().withConfigValue(key, value));
         return this;
     }
 
@@ -832,7 +870,7 @@ public abstract class AbstractNetwork implements Network {
     public Network withConfigValue(@NonNull final String key, @NonNull final Enum<?> value) {
         throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
         networkConfiguration.withConfigValue(key, value);
-        nodes().forEach(node -> node.configuration().withConfigValue(key, value));
+        allNodes().forEach(node -> node.configuration().withConfigValue(key, value));
         return this;
     }
 
@@ -844,7 +882,7 @@ public abstract class AbstractNetwork implements Network {
     public Network withConfigValue(@NonNull final String key, @NonNull final List<String> values) {
         throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
         networkConfiguration.withConfigValue(key, values);
-        nodes().forEach(node -> node.configuration().withConfigValue(key, values));
+        allNodes().forEach(node -> node.configuration().withConfigValue(key, values));
         return this;
     }
 
@@ -856,7 +894,7 @@ public abstract class AbstractNetwork implements Network {
     public Network withConfigValue(@NonNull final String key, @NonNull final TaskSchedulerConfiguration value) {
         throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
         networkConfiguration.withConfigValue(key, value);
-        nodes().forEach(node -> node.configuration().withConfigValue(key, value));
+        allNodes().forEach(node -> node.configuration().withConfigValue(key, value));
         return this;
     }
 
@@ -879,7 +917,7 @@ public abstract class AbstractNetwork implements Network {
         throwIfInLifecycle(Lifecycle.SHUTDOWN, "Network has already been shut down.");
 
         log.info("Killing nodes immediately...");
-        for (final Node node : nodes()) {
+        for (final MiniNode node : allNodes()) {
             node.killImmediately();
         }
 
@@ -977,22 +1015,21 @@ public abstract class AbstractNetwork implements Network {
      * {@inheritDoc}
      */
     @Override
-    public boolean nodeIsBehindByNodeWeight(@NonNull final Node maybeBehindNode) {
-        final Set<Node> otherNodes = nodes().stream()
+    public boolean nodeIsBehindByNodeWeight(@NonNull final MiniNode maybeBehindNode) {
+        final Set<MiniNode> otherNodes = allNodes().stream()
                 .filter(n -> !n.selfId().equals(maybeBehindNode.selfId()))
                 .collect(Collectors.toSet());
 
         // For simplicity, consider the node that we are checking as "behind" to be the "self" node.
-        final EventWindow selfEventWindow = maybeBehindNode.newConsensusResult().getLatestEventWindow();
+        final EventWindow selfEventWindow = maybeBehindNode.latestEventWindow();
 
         long weightOfAheadNodes = 0;
-        for (final Node maybeAheadNode : otherNodes) {
-            final EventWindow peerEventWindow =
-                    maybeAheadNode.newConsensusResult().getLatestEventWindow();
+        for (final MiniNode maybeAheadNode : otherNodes) {
+            final EventWindow peerEventWindow = maybeAheadNode.latestEventWindow();
 
-            // If any peer in the required list says the "self" node is not behind, the node is not behind.
+            // If the peer says the "self" node is behind, the peer is ahead, so add its weight
             if (FallenBehindStatus.getStatus(selfEventWindow, peerEventWindow)
-                    != FallenBehindStatus.SELF_FALLEN_BEHIND) {
+                    == FallenBehindStatus.SELF_FALLEN_BEHIND) {
                 weightOfAheadNodes += maybeAheadNode.weight();
             }
         }
@@ -1004,20 +1041,19 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     public boolean nodesAreBehindByNodeCount(
-            @NonNull final Node maybeBehindNode, @Nullable final Node... otherMaybeBehindNodes) {
-        final Set<Node> maybeBehindNodes = Utils.toSet(maybeBehindNode, otherMaybeBehindNodes);
-        final Set<Node> peerNodes =
-                nodes().stream().filter(n -> !maybeBehindNodes.contains(n)).collect(Collectors.toSet());
+            @NonNull final MiniNode maybeBehindNode, @Nullable final MiniNode... otherMaybeBehindNodes) {
+        final Set<MiniNode> maybeBehindNodes = Utils.toSet(maybeBehindNode, otherMaybeBehindNodes);
+        final Set<MiniNode> peerNodes =
+                allNodes().stream().filter(n -> !maybeBehindNodes.contains(n)).collect(Collectors.toSet());
 
         boolean allNodesAreBehind = true;
-        for (final Node node : maybeBehindNodes) {
+        for (final MiniNode node : maybeBehindNodes) {
             // For simplicity, consider the node that we are checking as "behind" to be the "self" node.
-            final EventWindow selfEventWindow = node.newConsensusResult().getLatestEventWindow();
+            final EventWindow selfEventWindow = node.latestEventWindow();
 
             int numNodesAhead = 0;
-            for (final Node maybeAheadNode : peerNodes) {
-                final EventWindow peerEventWindow =
-                        maybeAheadNode.newConsensusResult().getLatestEventWindow();
+            for (final MiniNode maybeAheadNode : peerNodes) {
+                final EventWindow peerEventWindow = maybeAheadNode.latestEventWindow();
                 final EventWindow peerEventWindowWithBuffer = new EventWindow(
                         peerEventWindow.latestConsensusRound(),
                         peerEventWindow.newEventBirthRound(),
@@ -1091,8 +1127,8 @@ public abstract class AbstractNetwork implements Network {
     @NonNull
     private Map<ConnectionKey, ConnectionState> computeConnections() {
         final Map<ConnectionKey, ConnectionState> connections = new HashMap<>();
-        for (final Node sender : nodes()) {
-            for (final Node receiver : nodes()) {
+        for (final MiniNode sender : allNodes()) {
+            for (final MiniNode receiver : allNodes()) {
                 if (sender.selfId().equals(receiver.selfId())) {
                     continue; // Skip self-connections
                 }
@@ -1173,14 +1209,14 @@ public abstract class AbstractNetwork implements Network {
 
     private static class PartitionImpl implements Partition {
 
-        private final Set<Node> nodes = new HashSet<>();
+        private final Set<MiniNode> nodes = new HashSet<>();
 
         /**
          * Creates a partition from a collection of nodes.
          *
          * @param nodes the nodes to include in the partition
          */
-        public PartitionImpl(@NonNull final Collection<? extends Node> nodes) {
+        public PartitionImpl(@NonNull final Collection<? extends MiniNode> nodes) {
             this.nodes.addAll(nodes);
         }
 
@@ -1193,7 +1229,7 @@ public abstract class AbstractNetwork implements Network {
          * @return an unmodifiable set of nodes in this partition
          */
         @NonNull
-        public Set<Node> nodes() {
+        public Set<MiniNode> nodes() {
             return Collections.unmodifiableSet(nodes);
         }
 
@@ -1203,7 +1239,7 @@ public abstract class AbstractNetwork implements Network {
          * @param node the node to check
          * @return true if the node is in this partition
          */
-        public boolean contains(@NonNull final Node node) {
+        public boolean contains(@NonNull final MiniNode node) {
             return nodes.contains(requireNonNull(node));
         }
 
@@ -1222,8 +1258,8 @@ public abstract class AbstractNetwork implements Network {
      */
     private class UnidirectionalConnectionImpl implements UnidirectionalConnection {
 
-        private final Node sender;
-        private final Node receiver;
+        private final MiniNode sender;
+        private final MiniNode receiver;
         private final ConnectionKey connectionKey;
 
         /**
@@ -1233,7 +1269,7 @@ public abstract class AbstractNetwork implements Network {
          * @param receiver           the ending node of the connection
          * @throws NullPointerException if any of the parameters are null
          */
-        public UnidirectionalConnectionImpl(@NonNull final Node sender, @NonNull final Node receiver) {
+        public UnidirectionalConnectionImpl(@NonNull final MiniNode sender, @NonNull final MiniNode receiver) {
             this.sender = requireNonNull(sender);
             this.receiver = requireNonNull(receiver);
             this.connectionKey = new ConnectionKey(sender.selfId(), receiver.selfId());
@@ -1244,7 +1280,7 @@ public abstract class AbstractNetwork implements Network {
          */
         @Override
         @NonNull
-        public Node sender() {
+        public MiniNode sender() {
             return sender;
         }
 
@@ -1253,7 +1289,7 @@ public abstract class AbstractNetwork implements Network {
          */
         @Override
         @NonNull
-        public Node receiver() {
+        public MiniNode receiver() {
             return receiver;
         }
 
