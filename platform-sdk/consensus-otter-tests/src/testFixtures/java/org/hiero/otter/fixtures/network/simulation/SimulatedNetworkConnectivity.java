@@ -84,9 +84,10 @@ public class SimulatedNetworkConnectivity {
 
     /**
      * The time of the most recent {@link #tick(Instant)}. This is the time that changes to the connections are taken
-     * to happen at, and the time that delivery is judged against.
+     * to happen at, and the time that delivery is judged against. Before the first tick it is the start of the
+     * simulation, so that anything sent then gets an arrival time the in-flight queues can measure from the start.
      */
-    private Instant currentTime = Instant.MIN;
+    private Instant currentTime;
 
     /**
      * For every link that came up recently, the time before which nothing is delivered over it in either direction.
@@ -205,6 +206,7 @@ public class SimulatedNetworkConnectivity {
      */
     public SimulatedNetworkConnectivity(@NonNull final Random random, @NonNull final Instant start) {
         this.random = requireNonNull(random);
+        this.currentTime = requireNonNull(start);
         inFlightEvents = new InFlightEvents(this::isConnected, nodeEventWindows::get, start);
         inFlightEventWindows = new InFlightEventWindows(this::isConnected, start);
         inFlightInDeliveryOrder = List.of(inFlightEventWindows, inFlightEvents);

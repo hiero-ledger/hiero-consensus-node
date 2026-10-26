@@ -71,12 +71,8 @@ final class InFlightQueue<T extends InTransit> {
     }
 
     /**
-     * Converts an instant to the nanoseconds since the start of the queues it is compared with.
-     *
-     * <p>An instant more than about 292 years from the start is clamped to {@link Long#MIN_VALUE} or
-     * {@link Long#MAX_VALUE}. That only happens to something sent before the network's first tick, while the
-     * network's clock still reads {@link Instant#MIN}; it has arrived by any current time, as it would be without the
-     * clamp.
+     * Converts an instant to the nanoseconds since the start of the queues it is compared with. The result overflows
+     * for an instant more than about 292 years from the start.
      *
      * @param start the instant arrival times are measured from
      * @param time  the instant to convert
