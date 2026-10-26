@@ -326,18 +326,12 @@ jobs:
               env:
                 SPRING_PROFILES_ACTIVE: 'blocknode'
                 HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_ENDPOINTS_0_HOST: "block-node-1.${{ env.SOLO_NAMESPACE }}.svc.cluster.local"
-              # FUTURE: drop once the native importer image bundles the WRAPS verification key; until then every
-              # block fails TSS verification there, so use the JVM image (the chart default Solo overrides)
-              image:
-                registry: gcr.io
-                repository: mirrornode/hedera-mirror-importer
-              # Solo sizes the importer for the native image (220Mi, 1 CPU); the JVM needs more
+              # Solo caps the importer at 220Mi, which was OOMKilled on block 0 once it carried the genesis WRAPS proof
               resources:
                 requests:
-                  memory: 1Gi
+                  memory: 512Mi
                 limits:
-                  cpu: 2
-                  memory: 2Gi
+                  memory: 1Gi
           EOF
           fi
 
@@ -390,6 +384,10 @@ jobs:
           solo consensus node setup -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}" --local-build-path ./hedera-node/data
           solo consensus node start -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo mirror node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --pinger --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --enable-ingress --mirror-node-version "${{ env.MIRROR_NODE_TAG }}" -f mirror-bn-values.yaml
+          # FUTURE: drop once a mirror node release bundles the WRAPS verification key in its native image.
+          # Solo forces the importer tag to the release version, so swap in the candidate image afterwards
+          kubectl -n "${{ env.SOLO_NAMESPACE }}" set image deployment/mirror-1-importer importer=docker.io/xin323/importer-native:0.165.2-1ae2d00fbc
+          kubectl -n "${{ env.SOLO_NAMESPACE }}" rollout status deployment/mirror-1-importer --timeout=5m
 
       - name: Show running pods and services and wait on BN readiness
         run: |
