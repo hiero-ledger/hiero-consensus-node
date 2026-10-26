@@ -70,7 +70,7 @@ on:
         required: true
       cdn-bucket-name:
         required: false
-        description: "Release only: the CDN bucket the release archive is copied to."
+        description: "Release only: the CDN bucket the release artifacts are copied to."
       central-publishing-username:
         required: false
         description: "Release only: Maven Central (Central Portal) publishing."
