@@ -1,9 +1,19 @@
 # Three-stage block-stream cutover
 
 `solo-three-stage-block-stream-cutover.sh` implements the cutover scenario for [#27649](https://github.com/hiero-ledger/hiero-consensus-node/issues/27649).
-The 0.79.0, 0.79.1 and 0.80.0 directories describe configuration stages. Every stage uses the
-checkout's local CN build until published versions are available. `hedera.config.version`
+The network starts at genesis on a published CN release (`CN_BASELINE_RELEASE_TAG`, default
+**v0.78.1**) with record streaming only, then upgrades to the checkout's local CN build. The 0.79.0,
+0.79.1 and 0.80.0 directories describe the three configuration stages that follow; every one uses
+the local build until published versions are available. `hedera.config.version`
 increases from 0 to 1 to 2 so the same binary exercises upgrade initialization at each hop.
+
+All pinned versions sit together at the top of the script:
+
+|          Variable          |   Default   |                                Purpose                                 |
+|----------------------------|-------------|------------------------------------------------------------------------|
+| `CN_BASELINE_RELEASE_TAG`  | v0.78.1     | Published CN release deployed at genesis (alias: `DEPLOY_RELEASE_TAG`) |
+| `BLOCK_NODE_TOOLS_REF`     | v0.45.0-rc2 | `hiero-block-node` tag for the offline `blocks wrap` CLI and BN protos |
+| `BLOCK_NODE_CHART_VERSION` | v0.45.0-rc4 | Block Node chart/image deployed after stage 2 and kept through cutover |
 
 Every stage explicitly preserves Solo's local-network settings: `contracts.chainId=298` and
 `nodes.gossipFqdnRestricted=false`. An upgrade replaces `application.properties`; omitting these
@@ -11,11 +21,12 @@ settings restores CN defaults (295 and true), breaking TCK Ethereum and gossip-d
 independently of the block-stream cutover. Runtime checks assert both values on every CN after
 each deployment or upgrade.
 
-| Stage  |                                              Behavior                                               |                                                                  Required verification                                                                   |
-|--------|-----------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------|
-| 0.79.0 | BOTH / FILE_AND_GRPC, mock signatures, TSS off, wrapped-record streaming and disk writing on, no BN | Runtime properties and local JAR version; hashes file exists and grows on every CN                                                                       |
-| 0.79.1 | Jumpstart, live wrapped records, TSS enabled, mock signatures; then add BN v0.44.2                  | Offline jumpstart matches every CN's saved hashes; migration consumes the file; every migration vote matches an offline replay; WRAPS constructs a proof |
-| 0.80.0 | BLOCKS / GRPC, cutover enabled, real signatures                                                     | Runtime properties and local JAR version; WRAPS proof construction; BN verifies and persists new blocks; CN restart has no SELF_ISS                      |
+| Stage  |                                                          Behavior                                                           |                                                                  Required verification                                                                   |
+|--------|-----------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 0.78.1 | Published release genesis: BOTH / FILE, mock signatures, TSS off, no wrapped hashes, no BN                                  | Runtime properties and release JAR version                                                                                                               |
+| 0.79.0 | Upgrade to local build: BOTH / FILE_AND_GRPC, mock signatures, TSS off, wrapped-record streaming and disk writing on, no BN | Runtime properties and local JAR version; hashes file exists and grows on every CN                                                                       |
+| 0.79.1 | Jumpstart, live wrapped records, TSS enabled, mock signatures; then add BN v0.45.0-rc4                                      | Offline jumpstart matches every CN's saved hashes; migration consumes the file; every migration vote matches an offline replay; WRAPS constructs a proof |
+| 0.80.0 | BLOCKS / GRPC, cutover enabled, real signatures                                                                             | Runtime properties and local JAR version; WRAPS proof construction; BN verifies and persists new blocks; CN restart has no SELF_ISS                      |
 
 The jumpstart flow uses `cutover-jumpstart.sh`:
 discover record files through mirror REST, download records and signatures from Solo MinIO,
@@ -23,8 +34,8 @@ compress day archives, run Block Node `blocks wrap`, parse `jumpstart.bin`, and 
 into a generated stage 2 properties file. Both current-block hashes are injected to require the
 CN's disk hash match check. A standard-library Python verifier checks overlap, contiguous entries,
 and both hashes on every node before upgrading. A second offline wrap reaches the migration
-block and verifies the previous root, subtree hashes, and leaf count on every node. BN v0.44.2
-is deployed only after the jumpstart + TSS upgrade and remains at that version through cutover
+block and verifies the previous root, subtree hashes, and leaf count on every node. The BN
+(`BLOCK_NODE_CHART_VERSION`) is deployed only after the jumpstart + TSS upgrade and remains at that version through cutover
 unless `BLOCK_NODE_UPGRADE_VERSION` explicitly requests a different version.
 
 MN is deployed once at **v0.165.0-rc1** and stays at that version through all three stages.
@@ -89,8 +100,9 @@ Build CN artifacts with `./gradlew assemble`. Install Solo (the CI-selected vers
 Docker, kubectl, Helm, curl, unzip, Node/npm, jq, OpenSSL, grpcurl, Python 3, Git, and the JDK
 required by the CN and Block Node builds. SDK TCK also needs lsof, pgrep and pnpm; the script installs pnpm
 with `npm install -g pnpm` if missing. Clone `hiero-block-node` next to this repository,
-or set `BLOCK_NODE_REPO_PATH`. Its Git history must include the pinned `v0.45.0-sha256.1` tag.
-The script uses that tools revision in both CI and local runs. If your checkout is on another
+or set `BLOCK_NODE_REPO_PATH`. Its Git history must include the pinned `BLOCK_NODE_TOOLS_REF`
+tag (`v0.45.0-rc2`). The script uses that tools revision in both CI and local runs; it is
+independent of the deployed BN chart version. If your checkout is on another
 revision or has changes, it creates an isolated Git worktree under
 `~/.cache/hiero-solo/block-node-tools/`, preserving your original branch and files. Set
 `BLOCK_NODE_TOOLS_CACHE_DIR` to relocate the cache, or `BLOCK_NODE_TOOLS_REF` to deliberately
@@ -98,12 +110,12 @@ select another compatible tools revision. Install `zstd` or allow the shared hel
 the Gradle-cached `zstd-jni` fallback.
 
 The tools' HAPI wire definitions and hash algorithm must agree with the CN's. The CN encodes
-`BlockHashAlgorithm.SHA2_256` as `0` and `SHA2_384` as `1`, and still hashes with SHA-384
-(`blockStream.digestType` defaults to `SHA_384`). Block Node tools older than the enum change
-omit the SHA-384 header field, and tools that hash with SHA-256 produce 32-byte hashes; either
-changes the serialized block header or every wrapped-block root. `v0.45.0-sha256.1` has the new
-enum and keeps the wrap CLI on SHA-384. A completed hash mismatch fails immediately with
-both hashes; only unfinished CN file snapshots are retried.
+`BlockHashAlgorithm.SHA2_256` as `0` and `SHA2_384` as `1`, and hashes with
+`blockStream.digestType`. The `v0.45.0-rc2` wrap CLI hashes with SHA-256 and writes 32-byte
+hashes to `jumpstart.bin`, so the CN must also run with SHA-256. The jumpstart parser and
+`verify-jumpstart-hashes.py` infer the hash width (32 or 48 bytes) from the file length and
+require the CN's saved hashes to use the same width. A completed hash mismatch fails immediately
+with both hashes; only unfinished CN file snapshots are retried.
 
 Allocate **32 GiB RAM to Docker Desktop** for the four CNs, BN and MN. A 16 GiB VM has
 caused OOM kills, swap pressure, DNS failures and a NotReady Kind node during cutover, even
@@ -150,8 +162,9 @@ hedera-node/test-clients/scripts/solo/e2e-block-stream-cutover/solo-three-stage-
 The script recreates its named Kind cluster. It leaves the network and UI forwards running for
 inspection; remove the cluster with `kind delete cluster -n solo-three-stage-cutover`.
 `SOLO_CLUSTER_NAME`, `SOLO_DEPLOYMENT`, `NODE_ALIASES`, `LOCAL_BUILD_PATH`, and
-`GENERATED_DIR` can override the defaults. `DEPLOY_RELEASE_TAG` optionally selects a published
-stage 1 baseline; leave it empty to use local JARs. The remaining stages always use local JARs.
+`GENERATED_DIR` can override the defaults. `CN_BASELINE_RELEASE_TAG` (or the legacy
+`DEPLOY_RELEASE_TAG`, which the workflows' `starting-tag` input sets) overrides the published
+genesis baseline. All three stages after it always use local JARs.
 `RESTART_REPLAY_CHECK=true` is the default; setting it false skips the replay acceptance check.
 
 SDK TCK runs by default. Set `ENABLE_TCK_TESTS=false` to skip it, or select test files with

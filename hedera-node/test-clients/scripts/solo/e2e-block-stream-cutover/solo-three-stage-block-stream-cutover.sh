@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
 #
-# Three-stage block-stream cutover using the checkout's local CN build at every stage:
-#   1. 0.79.0 configuration: WRB streaming + disk hashes with mock signatures, without a BN.
+# Three-stage block-stream cutover from a published CN baseline to the checkout's local CN build:
+#   0. Genesis on the published CN baseline (v0.78.1) with record streaming only, without a BN.
+#   1. 0.79.0 configuration: upgrade to the local build; WRB streaming + disk hashes with mock
+#      signatures, without a BN.
 #   2. 0.79.1 configuration: generate jumpstart.bin with offline Block Node tooling,
 #      verify it against every node's saved hashes, then
 #      enable jumpstart + TSS. Replay the records to verify every node's migration vote.
@@ -18,16 +20,23 @@ set +m
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../../../" && pwd)"
 
+# ---- Pinned versions ------------------------------------------------------------------------
+# Published CN release deployed at genesis, before the three local-build stages.
+# DEPLOY_RELEASE_TAG is accepted as a legacy alias (the workflows' starting-tag input).
+CN_BASELINE_RELEASE_TAG="${CN_BASELINE_RELEASE_TAG:-${DEPLOY_RELEASE_TAG:-v0.78.1}}"
+# Block Node source tag used offline for `blocks wrap` (jumpstart + replay) and BN protos.
+# The wrapping CLI must hash with the same algorithm the CN uses for wrapped record hashes.
+BLOCK_NODE_TOOLS_REF="${BLOCK_NODE_TOOLS_REF:-v0.45.0-rc2}"
+# Block Node chart/image deployed after the stage 2 upgrade and kept through cutover.
+BLOCK_NODE_CHART_VERSION="${BLOCK_NODE_CHART_VERSION:-v0.45.0-rc4}"
+# ---------------------------------------------------------------------------------------------
+
 SOLO_CLUSTER_NAME="${SOLO_CLUSTER_NAME:-solo-three-stage-cutover}"
 SOLO_DEPLOYMENT="${SOLO_DEPLOYMENT:-solo-three-stage-cutover}"
 SOLO_NAMESPACE="${SOLO_NAMESPACE:-solo}"
 SOLO_CLUSTER_SETUP_NAMESPACE="${SOLO_CLUSTER_SETUP_NAMESPACE:-solo-setup}"
 NODE_ALIASES="${NODE_ALIASES:-node1,node2,node3,node4}"
 
-# Optional published genesis baseline for the follow-on release-tag migration. Empty uses local JARs.
-DEPLOY_RELEASE_TAG="${DEPLOY_RELEASE_TAG:-}"
-# Solo uses this as a deployment label; node setup below supplies the actual local binary.
-DEPLOY_VERSION_LABEL="${DEPLOY_VERSION_LABEL:-v$(cat "${REPO_ROOT}/version.txt")}"
 LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH:-${REPO_ROOT}/hedera-node/data}"
 
 # Cap the WRAPS (Nova/rayon) prover's thread pool to limit its off-heap memory during the genesis
@@ -38,6 +47,7 @@ LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH:-${REPO_ROOT}/hedera-node/data}"
 # concurrent provers from starving consensus on shared CI runners. Set empty (or 0) to use all cores.
 WRAPS_NUM_CORES="${WRAPS_NUM_CORES:-1}"
 
+APP_PROPS_BASELINE_FILE="${APP_PROPS_BASELINE_FILE:-${SCRIPT_DIR}/resources/0.78.1/application.properties}"
 APP_PROPS_STAGE1_FILE="${APP_PROPS_STAGE1_FILE:-${SCRIPT_DIR}/resources/0.79.0/application.properties}"
 APP_PROPS_STAGE2_FILE="${APP_PROPS_STAGE2_FILE:-${SCRIPT_DIR}/resources/0.79.1/application.properties}"
 APP_PROPS_STAGE3_FILE="${APP_PROPS_STAGE3_FILE:-${SCRIPT_DIR}/resources/0.80.0/application.properties}"
@@ -74,14 +84,13 @@ OPERATOR_ACCOUNT_ID="${OPERATOR_ACCOUNT_ID:-0.0.2}"
 OPERATOR_PRIVATE_KEY="${OPERATOR_PRIVATE_KEY:-302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137}"
 NUDGE_TX_COUNT="${NUDGE_TX_COUNT:-5}"
 
-# Deploy BN v0.44.2 only after the stage 2 jumpstart + TSS upgrade. Seed its TSS ledger
-# id before stage 3 so it can verify real signatures at the BLOCKS-only cutover.
-# The offline wrapping tools are pinned to the same BN release.
+# Deploy the BN (BLOCK_NODE_CHART_VERSION) only after the stage 2 jumpstart + TSS upgrade. Seed
+# its TSS ledger id before stage 3 so it can verify real signatures at the BLOCKS-only cutover.
+# The offline wrapping tools are pinned separately by BLOCK_NODE_TOOLS_REF.
 MINIO_NAMESPACE="${MINIO_NAMESPACE:-${SOLO_NAMESPACE}}"
 MINIO_BUCKET="${MINIO_BUCKET:-solo-streams}"
 BLOCK_NODE_ID="${BLOCK_NODE_ID:-1}"
 BLOCK_NODE_REPO_PATH="${BLOCK_NODE_REPO_PATH:-${REPO_ROOT}/../hiero-block-node}"
-BLOCK_NODE_CHART_VERSION="${BLOCK_NODE_CHART_VERSION:-v0.44.2}"
 BLOCK_NODE_UPGRADE_VERSION="${BLOCK_NODE_UPGRADE_VERSION:-${BLOCK_NODE_CHART_VERSION}}"
 BLOCK_NODE_INIT_IMAGE="${BLOCK_NODE_INIT_IMAGE:-docker.io/library/busybox:1.36.1}"
 BLOCK_NODE_MIN_FREE_DISK_MIB="${BLOCK_NODE_MIN_FREE_DISK_MIB:-1024}"
@@ -423,7 +432,7 @@ verify_local_build_on_consensus_nodes() {
 }
 
 # Verifies each consensus node runs a release whose Implementation-Version contains the expected
-# substring. Used when DEPLOY_RELEASE_TAG selects a published stage 1 baseline.
+# substring. Used for the published CN_BASELINE_RELEASE_TAG genesis.
 verify_release_version_on_consensus_nodes() {
   local expected_substr="$1"
   local node pod pod_version
@@ -1501,35 +1510,40 @@ run_step() {
   "$@"
 }
 
-# No published 0.79.0 binary is needed: node setup supplies the checkout's local JARs.
-deploy_stage1_hash_writing() {
-  CURRENT_STAGE="stage1-hash-writing"
-  log "=== Stage 1 (0.79.0 configuration): dual-write and save wrapped record hashes ==="
+# Genesis on a published CN release so stage 1 is a real release -> local-build upgrade.
+deploy_stage0_baseline() {
+  CURRENT_STAGE="stage0-baseline"
+  log "=== Stage 0 (${CN_BASELINE_RELEASE_TAG}): record-stream baseline, no BN ==="
   solo keys consensus generate --gossip-keys --tls-keys \
     --deployment "${SOLO_DEPLOYMENT}" --node-aliases "${NODE_ALIASES}"
   solo consensus network deploy \
     --deployment "${SOLO_DEPLOYMENT}" --node-aliases "${NODE_ALIASES}" \
-    --application-properties "${APP_PROPS_STAGE1_FILE}" --log4j2-xml "${LOG4J2_XML_PATH}" \
-    --pvcs true --release-tag "${DEPLOY_RELEASE_TAG:-${DEPLOY_VERSION_LABEL}}"
-  local setup_args=(solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" --node-aliases "${NODE_ALIASES}")
-  if [[ -n "${DEPLOY_RELEASE_TAG}" ]]; then
-    setup_args+=(--release-tag "${DEPLOY_RELEASE_TAG}")
-  else
-    # Without an explicit version, setup falls back to Solo's default release (v0.76.4) and looks
-    # for that version's staging files instead of the ones prepared by network deploy.
-    setup_args+=(--local-build-path "${LOCAL_BUILD_PATH}" --consensus-node-version "${DEPLOY_VERSION_LABEL}")
-  fi
-  "${setup_args[@]}"
+    --application-properties "${APP_PROPS_BASELINE_FILE}" --log4j2-xml "${LOG4J2_XML_PATH}" \
+    --pvcs true --release-tag "${CN_BASELINE_RELEASE_TAG}"
+  solo consensus node setup \
+    --deployment "${SOLO_DEPLOYMENT}" --node-aliases "${NODE_ALIASES}" \
+    --release-tag "${CN_BASELINE_RELEASE_TAG}"
+  # Inject before the first start so every later stage inherits the same WRAPS core limit.
   inject_wraps_env_into_statefulsets
-  reapply_application_property_overrides "${APP_PROPS_STAGE1_FILE}"
+  reapply_application_property_overrides "${APP_PROPS_BASELINE_FILE}"
   solo consensus node start --deployment "${SOLO_DEPLOYMENT}" --node-aliases "${NODE_ALIASES}" --force-port-forward false
   wait_for_consensus_pods_ready 600
   wait_for_haproxy_ready 600
-  if [[ -z "${DEPLOY_RELEASE_TAG}" ]]; then
-    verify_local_build_on_consensus_nodes
-  else
-    verify_release_version_on_consensus_nodes "${DEPLOY_RELEASE_TAG#v}"
-  fi
+  verify_release_version_on_consensus_nodes "${CN_BASELINE_RELEASE_TAG#v}"
+  verify_runtime_config_on_consensus_nodes "stage 0 baseline" \
+    "contracts.chainId=298" "nodes.gossipFqdnRestricted=false" \
+    "hedera.config.version=0" \
+    "blockStream.streamMode=BOTH" "blockStream.writerMode=FILE" \
+    "blockStream.enableCutover=false" \
+    "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk=false"
+  nudge_consensus_with_transactions
+}
+
+# Upgrade the baseline to the checkout's local JARs; no published 0.79.0 binary is needed.
+upgrade_stage1_hash_writing() {
+  CURRENT_STAGE="stage1-hash-writing"
+  log "=== Stage 1 (0.79.0 configuration): upgrade to local build, dual-write and save wrapped record hashes ==="
+  upgrade_local_stage "${APP_PROPS_STAGE1_FILE}"
   verify_runtime_config_on_consensus_nodes "stage 1 hash writing" \
     "contracts.chainId=298" "nodes.gossipFqdnRestricted=false" \
     "hedera.config.version=0" \
@@ -2020,7 +2034,7 @@ done
 prepare_block_node_tools_checkout
 validate_block_node_repo
 [[ -x "${BLOCK_NODE_REPO_PATH}/gradlew" ]] || { echo "Block Node tools require an executable gradlew" >&2; exit 1; }
-for file in "${APP_PROPS_STAGE1_FILE}" "${APP_PROPS_STAGE2_FILE}" "${APP_PROPS_STAGE3_FILE}" "${LOG4J2_XML_PATH}"; do
+for file in "${APP_PROPS_BASELINE_FILE}" "${APP_PROPS_STAGE1_FILE}" "${APP_PROPS_STAGE2_FILE}" "${APP_PROPS_STAGE3_FILE}" "${LOG4J2_XML_PATH}"; do
   [[ -f "${file}" ]] || { echo "Missing file: ${file}" >&2; exit 1; }
 done
 validate_local_build_path "${LOCAL_BUILD_PATH}" || {
@@ -2033,7 +2047,10 @@ rm -rf "${RECORD_STREAMS_DIR}" "${WRAPPED_BLOCKS_DIR}" "${REPLAY_WRAPPED_BLOCKS_
 create_cluster
 configure_solo
 setup_cluster_prereqs
-deploy_stage1_hash_writing
+deploy_stage0_baseline
+collect_stage_diagnostics "stage0-baseline"
+
+upgrade_stage1_hash_writing
 verify_wrapped_hash_files_grow
 # Mirror is required to discover the record files and metadata for offline wrapping.
 deploy_mirror_and_explorer
@@ -2044,7 +2061,7 @@ generate_stage2_jumpstart
 collect_stage_diagnostics "stage1-hash-writing"
 
 upgrade_stage2_jumpstart_and_tss
-# Only now add BN v0.44.2, after jumpstart + TSS. Give it a floor above the current stream.
+# Only now add the BN, after jumpstart + TSS. Give it a floor above the current stream.
 BLOCK_NODE_CUTOVER_START_BLOCK="${BLOCK_NODE_CUTOVER_START_BLOCK:-$((JUMPSTART_BLOCK_NUMBER + 1000))}"
 BLOCK_STREAM_WRITER_MODE=FILE_AND_GRPC deploy_block_node
 reapply_application_property_overrides "${TMP_STAGE2_APP_PROPS}"
@@ -2068,6 +2085,6 @@ run_post_cutover_tck
 cleanup_tck_resources
 verify_post_tck_continuity
 
-log "PASS: three-stage hash writing -> jumpstart + TSS -> BLOCKS-only cutover"
+log "PASS: ${CN_BASELINE_RELEASE_TAG} baseline -> hash writing -> jumpstart + TSS -> BLOCKS-only cutover"
 log "PASS: Block Node ${BLOCK_NODE_UPGRADE_VERSION} verified and persisted real-TSS blocks"
 log "Explorer UI: http://127.0.0.1:${EXPLORER_INGRESS_LOCAL_PORT}    Mirror REST: http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}"
