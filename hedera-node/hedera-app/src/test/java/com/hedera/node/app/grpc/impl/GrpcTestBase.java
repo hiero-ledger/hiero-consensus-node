@@ -8,8 +8,6 @@ import com.hedera.hapi.node.transaction.TransactionResponse;
 import com.hedera.node.app.grpc.impl.netty.NettyGrpcServerManager;
 import com.hedera.node.app.services.ServicesRegistryImpl;
 import com.hedera.node.app.spi.RpcService;
-import com.hedera.node.app.workflows.clpr.ClprCaCertManager;
-import com.hedera.node.app.workflows.clpr.ClprLeafCertManager;
 import com.hedera.node.app.workflows.clpr.ClprStreamingSyncSession;
 import com.hedera.node.app.workflows.clpr.ClprSyncWorkflow;
 import com.hedera.node.app.workflows.ingest.IngestWorkflow;
@@ -213,8 +211,6 @@ public abstract class GrpcTestBase extends TestBase {
                         throw new UnsupportedOperationException();
                     }
                 },
-                () -> new ClprLeafCertManager(new ClprCaCertManager(configProvider)),
-                () -> null,
                 metrics);
 
         grpcServer.start();

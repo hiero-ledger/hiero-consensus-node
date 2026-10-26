@@ -160,6 +160,13 @@ not a single message.
   channel is completed.
 - gRPC service for sync is **separate** from the HAPI gRPC service — different proto
   service, different Netty service registrations.
+- **Transport.** `sync` is served on the same listeners as HAPI (`grpc.port` plaintext,
+  `grpc.tlsPort` TLS); there is no dedicated CLPR port and no mutual TLS. A node whose HAPI TLS
+  certificate and key (`netty.tlsCrt.path` / `netty.tlsKey.path`) exist advertises `grpc.tlsPort`
+  and that certificate (DER) in its `ClprEndpoint.tls_certificate` (`ClprHapiTlsEndpoint`);
+  otherwise it advertises its address-book HAPI port with an empty `tls_certificate`. Peers dial
+  over TLS iff `tls_certificate` is non-empty, and **do not verify** the certificate or hostname —
+  TLS gives confidentiality only; authenticity comes from the state proofs in the payload.
 
 ## Spec-step → code mapping cheat sheet
 
