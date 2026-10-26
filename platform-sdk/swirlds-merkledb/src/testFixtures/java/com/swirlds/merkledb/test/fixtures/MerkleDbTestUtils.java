@@ -167,21 +167,24 @@ public class MerkleDbTestUtils {
     }
 
     /**
-     * Creates a hash of the default digest type whose digest holds the 4 big-endian bytes of the given int,
-     * written every 6 bytes from offset 4 for as long as they fit, with zeros in between. MerkleDB only stores
-     * hashes of {@link Cryptography#DEFAULT_DIGEST_TYPE}.
+     * Creates a deterministic test hash using {@link Cryptography#DEFAULT_DIGEST_TYPE}.
      *
-     * @return hash with a digest determined by the given value
+     * <p>The input integer's four bytes are repeated consecutively in big-endian
+     * order throughout the digest. Any trailing bytes that cannot hold a complete
+     * copy remain zero. No cryptographic hashing is performed.
+     *
+     * @param value the value used to populate the hash bytes
+     * @return a test hash with the default digest type and its required length
      */
     public static Hash hash(final int value) {
-        final int firstOffset = Integer.BYTES;
-        final int stride = 6;
         final byte[] valueBytes =
                 new byte[] {(byte) (value >>> 24), (byte) (value >>> 16), (byte) (value >>> 8), (byte) value};
         final byte[] digest = new byte[Cryptography.DEFAULT_DIGEST_TYPE.digestLength()];
-        for (int offset = firstOffset; offset + Integer.BYTES <= digest.length; offset += stride) {
-            System.arraycopy(valueBytes, 0, digest, offset, Integer.BYTES);
+
+        for (int offset = 0; offset + valueBytes.length <= digest.length; offset += valueBytes.length) {
+            System.arraycopy(valueBytes, 0, digest, offset, valueBytes.length);
         }
+
         return new Hash(digest, Cryptography.DEFAULT_DIGEST_TYPE);
     }
 
