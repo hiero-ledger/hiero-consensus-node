@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.schedule;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.protoToPbj;
 import static com.hedera.node.app.hapi.utils.contracts.HookUtils.minimalRepresentationOf;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomForAll;
@@ -44,6 +45,7 @@ import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.BlockStreamAssertion;
 import java.math.BigInteger;
 import java.time.Duration;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -87,6 +89,49 @@ public class ScheduledEvmInterleavingTest {
     @LeakyHapiTest(overrides = {"scheduling.whitelist", "contracts.sidecars"})
     final Stream<DynamicTest> nestedCreatedContractIdsStayWithTheirExecutionScope() {
         return overlappingWrites(10, 11, List.of(22), 33, true);
+    }
+
+    @LeakyHapiTest(overrides = "contracts.sidecars")
+    final Stream<DynamicTest> ordinaryEvmExecutionsAlwaysIdentifyTheirCreatedContracts() {
+        final Map<TransactionID, List<ContractID>> createdIdsByExecution = new LinkedHashMap<>();
+        final Map<TransactionID, List<ContractID>> syntheticCreatedIds = new LinkedHashMap<>();
+        return hapiTest(
+                overriding("contracts.sidecars", "CONTRACT_STATE_CHANGE,CONTRACT_BYTECODE"),
+                uploadInitCode(CONTRACT),
+                contractCreate(CONTRACT, BigInteger.TEN).gas(2_000_000).via("ordinaryCreate"),
+                getTxnRecord("ordinaryCreate").exposingTo(record -> captureCreatedIds(record, createdIdsByExecution)),
+                contractCall(CONTRACT, "set", BigInteger.valueOf(11))
+                        .gas(1_000_000)
+                        .via("ordinaryCall"),
+                getTxnRecord("ordinaryCall").exposingTo(record -> {
+                    captureCreatedIds(record, createdIdsByExecution);
+                    assertEquals(List.of(), record.getContractCallResult().getCreatedContractIDsList());
+                }),
+                contractCall(
+                                CONTRACT,
+                                "runWithCreations",
+                                new Address[0],
+                                BigInteger.valueOf(11),
+                                new BigInteger[0],
+                                false,
+                                BigInteger.ZERO)
+                        .gas(3_000_000)
+                        .via("ordinaryCallWithCreations"),
+                getTxnRecord("ordinaryCallWithCreations")
+                        .exposingTo(record -> {
+                            captureCreatedIds(record, createdIdsByExecution);
+                            assertEquals(2, record.getContractCallResult().getCreatedContractIDsCount());
+                        })
+                        .exposingAllTo(records -> {
+                            records.stream()
+                                    .filter(record -> record.hasContractCreateResult()
+                                            && record.getTransactionID().getNonce() != 0)
+                                    .forEach(record -> captureCreatedIds(record, syntheticCreatedIds));
+                            assertEquals(2, syntheticCreatedIds.size(), "Both EVM creations have synthetic records");
+                        }),
+                streamMustIncludePassWithReplayFrom(
+                        spec -> ordinaryCreatedContractIds(spec, createdIdsByExecution, syntheticCreatedIds),
+                        Duration.ofSeconds(30)));
     }
 
     private Stream<DynamicTest> overlappingWrites(
@@ -185,9 +230,69 @@ public class ScheduledEvmInterleavingTest {
             final Map<TransactionID, List<ContractID>> createdIdsByExecution) {
         createdIdsByExecution.put(
                 protoToPbj(record.getTransactionID(), TransactionID.class),
-                record.getContractCallResult().getCreatedContractIDsList().stream()
-                        .map(id -> protoToPbj(id, ContractID.class))
-                        .toList());
+                (record.hasContractCreateResult() ? record.getContractCreateResult() : record.getContractCallResult())
+                        .getCreatedContractIDsList().stream()
+                                .map(id -> protoToPbj(id, ContractID.class))
+                                .toList());
+    }
+
+    private static BlockStreamAssertion ordinaryCreatedContractIds(
+            final HapiSpec spec,
+            final Map<TransactionID, List<ContractID>> createdIdsByExecution,
+            final Map<TransactionID, List<ContractID>> syntheticCreatedIds) {
+        final var splitter = new RoleFreeBlockUnitSplit();
+        final var translator = new BlockTransactionalUnitTranslator(spec.shard(), spec.realm());
+        final var seenExecutions = new HashSet<TransactionID>();
+        final var seenSyntheticCreations = new HashSet<TransactionID>();
+        return block -> {
+            translator.scanBlockForGenesis(block);
+            for (final var rawUnit : splitter.split(block)) {
+                final var unit = rawUnit.withBatchTransactionParts();
+                if (unit.blockTransactionParts().stream()
+                        .noneMatch(parts -> createdIdsByExecution.containsKey(parts.transactionIdOrThrow()))) {
+                    continue;
+                }
+                final var translated = translator.translate(unit);
+                for (final var parts : unit.blockTransactionParts()) {
+                    final var id = parts.transactionIdOrThrow();
+                    final boolean actualExecution = createdIdsByExecution.containsKey(id);
+                    if (!actualExecution && !syntheticCreatedIds.containsKey(id)) {
+                        continue;
+                    }
+                    final var rawResult = parts.functionality() == CONTRACT_CREATE
+                            ? parts.createContractOutputOrThrow().evmTransactionResultOrThrow()
+                            : parts.callContractOutputOrThrow().evmTransactionResultOrThrow();
+                    final var expected = actualExecution ? createdIdsByExecution.get(id) : syntheticCreatedIds.get(id);
+                    if (actualExecution) {
+                        assertTrue(
+                                rawResult.hasCreatedContractIds(),
+                                "Every actual EVM execution identifies its creations");
+                        assertEquals(
+                                expected, rawResult.createdContractIdsOrThrow().contractIds());
+                        seenExecutions.add(id);
+                    } else {
+                        assertFalse(
+                                rawResult.hasCreatedContractIds(), "Synthetic CREATE records are not EVM executions");
+                        seenSyntheticCreations.add(id);
+                    }
+                    final var record = translated.stream()
+                            .filter(candidate -> candidate
+                                    .transactionRecord()
+                                    .transactionIDOrThrow()
+                                    .equals(id))
+                            .findFirst()
+                            .orElseThrow()
+                            .transactionRecord();
+                    final var result = record.hasContractCreateResult()
+                            ? record.contractCreateResultOrThrow()
+                            : record.contractCallResultOrThrow();
+                    assertEquals(
+                            expected, result.createdContractIDs(), "Translated creations match the producer record");
+                }
+            }
+            return seenExecutions.containsAll(createdIdsByExecution.keySet())
+                    && seenSyntheticCreations.containsAll(syntheticCreatedIds.keySet());
+        };
     }
 
     private static BlockStreamAssertion overlappingStorageTraces(

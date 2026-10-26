@@ -401,7 +401,7 @@ public class BlockStreamBuilderTest {
 
     @ParameterizedTest(name = "ethereum={0}, create={1}, empty={2}")
     @MethodSource("scopedCreatedIdCases")
-    void retainsScopedCreatedIdsOnlyForOverlappingExecutions(
+    void preservesCapturedCreatedIdsForEverySuccessfulExecution(
             final boolean ethereum, final boolean create, final boolean empty) throws Exception {
         final var ids = empty
                 ? List.<ContractID>of()
@@ -412,10 +412,7 @@ public class BlockStreamBuilderTest {
                 .createdContractIds(new CreatedContractIds(ids))
                 .build();
         final var ordinary = evmOutputBuilder(ethereum, create, result);
-        assertThat(emittedEvmResult(ordinary))
-                .isEqualTo(result.copyBuilder()
-                        .createdContractIds((CreatedContractIds) null)
-                        .build());
+        assertThat(emittedEvmResult(ordinary)).isEqualTo(result);
 
         final var overlapping = evmOutputBuilder(ethereum, create, result);
         overlapping.retainEvmScopeDetails();
@@ -424,6 +421,22 @@ public class BlockStreamBuilderTest {
         final var roundTrip = EvmTransactionResult.PROTOBUF.parse(EvmTransactionResult.PROTOBUF.toBytes(emitted));
         assertThat(roundTrip).isEqualTo(emitted);
         assertThat(roundTrip.hasCreatedContractIds()).isTrue();
+    }
+
+    @ParameterizedTest(name = "ethereum={0}, create={1}")
+    @MethodSource("evmOutputCases")
+    void doesNotInventCreatedIdsForResultsWithoutAnExecutionScope(final boolean ethereum, final boolean create) {
+        final var result = EvmTransactionResult.newBuilder().gasUsed(123).build();
+        final var builder = evmOutputBuilder(ethereum, create, result);
+        assertThat(emittedEvmResult(builder).hasCreatedContractIds()).isFalse();
+
+        builder.retainEvmScopeDetails();
+        assertThat(emittedEvmResult(builder).hasCreatedContractIds()).isFalse();
+    }
+
+    private static Stream<Arguments> evmOutputCases() {
+        return Stream.of(false, true)
+                .flatMap(ethereum -> Stream.of(false, true).map(create -> Arguments.of(ethereum, create)));
     }
 
     private static Stream<Arguments> scopedCreatedIdCases() {

@@ -869,9 +869,8 @@ public class BlockStreamBuilder
     }
 
     /**
-     * Selects captured storage writes and created-contract IDs for overlapping EVM executions. This policy must be
-     * set before storage usages are added, so their full serialized size is checked while the handler can still fail
-     * and revert.
+     * Selects captured storage writes for overlapping EVM executions. This policy must be set before storage usages
+     * are added, so their full serialized size is checked while the handler can still fail and revert.
      */
     public void retainEvmScopeDetails() {
         retainsEvmScopeDetails = true;
@@ -1735,7 +1734,7 @@ public class BlockStreamBuilder
     }
 
     private @Nullable EvmTransactionResult externalizedEvmTransactionResult() {
-        if (evmTransactionResult == null || retainsEvmScopeDetails && status == SUCCESS) {
+        if (evmTransactionResult == null || status == SUCCESS) {
             return evmTransactionResult;
         }
         return evmTransactionResult

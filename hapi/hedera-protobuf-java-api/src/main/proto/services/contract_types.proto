@@ -104,11 +104,15 @@ message EvmTransactionResult {
      * The contracts created within this EVM execution's completed scope,
      * including creations performed by nested executions.
      * <p>
-     * This field SHALL be set for successful overlapping EVM execution scopes
-     * when the transactional unit's state changes cannot identify each scope's
-     * creations independently. A present message with an empty list means this
-     * scope created no contracts. An absent message leaves creation identifiers
-     * to be derived from the other block items using the existing rules.
+     * This field SHALL be set for every successful, committed EVM execution
+     * scope, including ordinary, scheduled, and batch-inner executions. A present
+     * message with an empty list means this scope created no contracts.
+     * Synthetic child or system-precompile results that do not represent a
+     * completed EVM execution scope SHALL NOT populate this field.
+     * <p>
+     * Older producers may omit this field. An absent message leaves creation
+     * identifiers to be derived from the other block items using the existing
+     * rules; it does not establish that the execution created no contracts.
      * <p>
      * When present, this list SHALL take precedence over creation identifiers
      * inferred from the transactional unit's state changes or contract actions.
