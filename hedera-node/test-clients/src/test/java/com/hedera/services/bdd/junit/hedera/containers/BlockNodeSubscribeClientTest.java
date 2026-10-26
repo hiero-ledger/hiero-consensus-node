@@ -60,13 +60,14 @@ class BlockNodeSubscribeClientTest {
     }
 
     @Test
-    void ignoresQueuedLiveBlocksPastTheRequestedEnd() throws InterruptedException {
-        final var collector = oneCompletedBlockOfTwo();
+    void ignoresLiveBlockStreamedPastTheRequestedEnd() throws InterruptedException {
+        final var collector = new BlockNodeSubscribeClient.BlockCollector(44, 45);
+        collector.onNext(items(header(44)));
+        collector.onNext(end(44));
         collector.onNext(items(header(45)));
         collector.onNext(end(45));
         collector.onNext(items(header(46)));
         collector.onNext(end(46));
-        collector.onNext(items(header(47)));
         collector.onNext(success());
         collector.onComplete();
         final var blocks = collector.await(Duration.ZERO);
