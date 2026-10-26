@@ -41,7 +41,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
-import com.hedera.services.bdd.junit.extensions.MultiNetworkExtension;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -136,18 +135,6 @@ public abstract class HieroToHieroBase implements LifecycleTest {
             Pattern.compile("History proof constructed \\(#\\d+, WRAPS-extensible\\? true\\)");
 
     /**
-     * Substring logged by {@code TssStartupNetworks.initializeHistoryState} when the dev-only
-     * history startup state has been preloaded from a captured fixture (warm-cache path).
-     * Equivalent end-state to a runtime-constructed WRAPS-extensible proof, BUT — unlike the
-     * runtime log line — fires at JVM startup, before any block has been signed. So matching
-     * this alone is not enough; {@link #awaitWrapsExtensible} chains {@link #awaitWrapsSyncPoint}
-     * after this match so the warm path doesn't return until a real WRAPS-carrying block proof
-     * has materialized.
-     */
-    static final Pattern WRAPS_PRELOADED_PATTERN = Pattern.compile(
-            "TssStartupNetworks - Initialized dev-only history startup state:.*hasChainOfTrustProof=true");
-
-    /**
      * One-shot log line emitted by {@code BlockStreamManagerImpl.finishProofWithSignature} when
      * the first block proof embeds the WRAPS recursive proof. After this fires, captured
      * {@code clprGetLedgerConfiguration} state proofs reference WRAPS-carrying state and the
@@ -178,39 +165,21 @@ public abstract class HieroToHieroBase implements LifecycleTest {
 
     // ── Shared setup helper ───────────────────────────────────────────────────
 
-    /** Distinguishes how WRAPS-extensible readiness was reached, so callers can settle only when needed. */
-    public enum WrapsReadiness {
-        /** Runtime-constructed at this JVM start (cold path) — proof needs settle to fully bake before peers can verify. */
-        COLD_CONSTRUCTED,
-        /** Loaded from a captured fixture (warm path) — already mature, no settle required. */
-        WARM_PRELOADED
-    }
-
     /**
      * Blocks until this network is ready to produce signatures that cross-network bundle
      * verification will accept. Returns when BOTH conditions hold:
      *
      * <ol>
-     *   <li>The history proof construction is WRAPS-extensible — either freshly built at
-     *       runtime ({@code History proof constructed (#N, WRAPS-extensible? true)} log line,
-     *       cold path) or loaded from a captured fixture ({@code TssStartupNetworks -
-     *       Initialized dev-only history startup state: ... hasChainOfTrustProof=true},
-     *       warm-cache path); AND</li>
+     *   <li>The history proof construction is WRAPS-extensible — freshly built at runtime
+     *       ({@code History proof constructed (#N, WRAPS-extensible? true)} log line); AND</li>
      *   <li>The first block proof embeds the WRAPS recursive material (the one-shot
-     *       {@code [CLPR-SYNC-POINT]} log emitted by {@code BlockStreamManagerImpl}). On
-     *       cold path this fires shortly after the runtime construction event; on warm
-     *       path the preload log fires at JVM startup BEFORE any block is signed, so this
-     *       wait is what keeps the downstream {@link #captureConfigProof} from polling
-     *       against an empty StateProof.</li>
+     *       {@code [CLPR-SYNC-POINT]} log emitted by {@code BlockStreamManagerImpl}), which
+     *       fires shortly after the runtime construction event.</li>
      * </ol>
      *
-     * <p>Returns which readiness path was taken; the caller decides whether to settle.
-     *
-     * <p>Cold-path latency: a few minutes (waits for runtime WRAPS construction).
-     * Warm-path latency: ~few seconds (preload log fires immediately, then waits for the
-     * first WRAPS-carrying block — usually within 1-5 sec of network ACTIVE).
+     * <p>Latency: a few minutes (waits for runtime WRAPS construction).
      */
-    public static WrapsReadiness awaitWrapsExtensible(final SubProcessNetwork network) {
+    public static void awaitWrapsExtensible(final SubProcessNetwork network) {
         final Path logPath = network.nodes()
                 .getFirst()
                 .metadata()
@@ -222,28 +191,15 @@ public abstract class HieroToHieroBase implements LifecycleTest {
         while (Instant.now().isBefore(deadline)) {
             if (Files.exists(logPath)) {
                 try (var lines = Files.lines(logPath)) {
-                    // Match either: (a) runtime-constructed WRAPS-extensible proof (cold path,
-                    // implies blocks have been signed), or (b) preloaded WRAPS state from a
-                    // cached fixture (warm path, fires at JVM startup before any block).
-                    final var matched = lines.map(line -> {
-                                if (WRAPS_EXTENSIBLE_PATTERN.matcher(line).find()) {
-                                    return WrapsReadiness.COLD_CONSTRUCTED;
-                                }
-                                if (WRAPS_PRELOADED_PATTERN.matcher(line).find()) {
-                                    return WrapsReadiness.WARM_PRELOADED;
-                                }
-                                return null;
-                            })
-                            .filter(r -> r != null)
-                            .findFirst();
-                    if (matched.isPresent()) {
+                    // Match the runtime-constructed WRAPS-extensible proof (implies blocks have been signed).
+                    final boolean matched = lines.anyMatch(
+                            line -> WRAPS_EXTENSIBLE_PATTERN.matcher(line).find());
+                    if (matched) {
                         // Ensure the first WRAPS-carrying block proof has materialized before
-                        // returning. On warm path this also serves as the "at least one block
-                        // signed" gate — the preload log fires at JVM startup, and
-                        // [CLPR-SYNC-POINT] is the first signal that a real block proof has
-                        // been produced with WRAPS material attached.
+                        // returning — [CLPR-SYNC-POINT] is the first signal that a real block
+                        // proof has been produced with WRAPS material attached.
                         awaitWrapsSyncPoint(network);
-                        return matched.get();
+                        return;
                     }
                 } catch (final IOException ignored) {
                     // log may be mid-rotation; retry
@@ -272,18 +228,10 @@ public abstract class HieroToHieroBase implements LifecycleTest {
      * it fires <b>exactly once per process</b>: on the first signed block whose proof
      * embeds the WRAPS recursive material.
      *
-     * <p>Both bootstrap paths require this gate:
-     * <ul>
-     *   <li><b>Cold (TSS metadata generation)</b> — the runtime
-     *       {@code History proof constructed (..., WRAPS-extensible? true)} log fires once
-     *       the history+TSS state is ready, but it can take an additional block or two
-     *       before that material actually shows up inside a block proof. {@code [CLPR-SYNC-POINT]}
-     *       is the deterministic moment cross-network state proofs become peer-verifiable.</li>
-     *   <li><b>Warm (TSS preload)</b> — the {@code TssStartupNetworks} preload log fires at
-     *       JVM startup, before any block has been signed. {@code [CLPR-SYNC-POINT]} marks
-     *       the first real signed block carrying WRAPS data, which is what downstream
-     *       captures actually need.</li>
-     * </ul>
+     * <p>The runtime {@code History proof constructed (..., WRAPS-extensible? true)} log fires once
+     * the history+TSS state is ready, but it can take an additional block or two before that material
+     * actually shows up inside a block proof. {@code [CLPR-SYNC-POINT]} is the deterministic moment
+     * cross-network state proofs become peer-verifiable.
      *
      * <p>Used in place of a fixed wall-clock settle after {@code WRAPS-extensible? true}.
      */
@@ -1043,19 +991,12 @@ public abstract class HieroToHieroBase implements LifecycleTest {
             final int expectedMaxMessagesPerBundle,
             final int expectedMaxQueueDepth) {
         return networkHapiTest("Capture ledger-config StateProof", network, withOpContext((spec, ignored) -> {
-                    final var readiness = awaitWrapsExtensible(network);
-                    if (readiness == WrapsReadiness.COLD_CONSTRUCTED
-                            && !MultiNetworkExtension.wasTssBootstrapHandled(network)) {
-                        // Cold path AND the extension didn't already pay the wait on our
-                        // behalf — poll for the [CLPR-SYNC-POINT] log emitted by
-                        // BlockStreamManagerImpl when the first block proof embeds the
-                        // WRAPS recursive proof, then briefly settle so a few WRAPS-
-                        // carrying blocks accumulate before capture. Skipped when
-                        // tssPreload=true cold first-run (extension paid it in
-                        // startNetworks) and when warm (preload fixture is mature).
-                        awaitWrapsSyncPoint(network);
-                        Thread.sleep(POST_SYNC_POINT_SETTLE.toMillis());
-                    }
+                    awaitWrapsExtensible(network);
+                    // Poll for the [CLPR-SYNC-POINT] log emitted by BlockStreamManagerImpl when the
+                    // first block proof embeds the WRAPS recursive proof, then briefly settle so a few
+                    // WRAPS-carrying blocks accumulate before capture.
+                    awaitWrapsSyncPoint(network);
+                    Thread.sleep(POST_SYNC_POINT_SETTLE.toMillis());
                     final var deadline = Instant.now().plus(MANIFEST_APPEAR_TIMEOUT);
                     while (Instant.now().isBefore(deadline)) {
                         sink.set(ByteString.EMPTY);

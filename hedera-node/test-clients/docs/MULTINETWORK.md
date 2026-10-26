@@ -1,24 +1,23 @@
 # Multi-network tests
 
 How a `@MultiNetworkHapiTest` run brings up its subprocess networks, from test-plan start through a
-cold or warm network start to teardown. For the fixture files themselves (layout and
-regeneration) see [`../tss-startup-assets/README.md`](../tss-startup-assets/README.md).
+network cold start to teardown. Every network bootstraps TSS and WRAPS from scratch each run; the
+WRAPS proving parameters are bundled in the TSS library, so no committed fixtures are needed.
 
 The main classes:
 
-|                           Class                           |                                                                Role                                                                 |
-|-----------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------|
-| `MultiNetworkHapiTest` / `@Network`                       | Declares the networks a test needs (name, size, setup overrides, mTLS, `tssPreload`).                                               |
-| `SharedMultiNetworkLauncherSessionListener`               | Collects the declared networks and their groups at test-plan start and reserves their ports; stops any still running at plan end.   |
-| `MultiNetworkGroupQueue` / `NetworkGroup`                 | Admits network groups under a node budget, so only as many groups run at once as the budget allows.                                 |
-| `ClprNetworkLocksProvider` / `@MultiNetworkLeakyHapiTest` | Locks each test's networks: `READ` by default (tests on a network run concurrently), `READ_WRITE` for leaky tests (run alone).      |
-| `MultiNetworkExtension`                                   | Boots a group's networks on its first test and tears them down after its last, runs the cold/warm TSS path, applies test overrides. |
-| `TssFixtures`                                             | Resolves, merges, writes and installs the per-network genesis TSS fixtures.                                                         |
+|                           Class                           |                                                               Role                                                                |
+|-----------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------|
+| `MultiNetworkHapiTest` / `@Network`                       | Declares the networks a test needs (name, size, setup overrides, mTLS).                                                           |
+| `SharedMultiNetworkLauncherSessionListener`               | Collects the declared networks and their groups at test-plan start and reserves their ports; stops any still running at plan end. |
+| `MultiNetworkGroupQueue` / `NetworkGroup`                 | Admits network groups under a node budget, so only as many groups run at once as the budget allows.                               |
+| `ClprNetworkLocksProvider` / `@MultiNetworkLeakyHapiTest` | Locks each test's networks: `READ` by default (tests on a network run concurrently), `READ_WRITE` for leaky tests (run alone).    |
+| `MultiNetworkExtension`                                   | Boots a group's networks on its first test and tears them down after its last, applies test overrides.                            |
 
 ## Phase 0 — test-plan start
 
 `SharedMultiNetworkLauncherSessionListener` scans the test plan for `@MultiNetworkHapiTest` methods
-(skipping `@Disabled` ones, so e.g. the fixture generators never boot their networks) and collects one
+(skipping `@Disabled` ones) and collects one
 `@Network` config per network name into `MultiNetworkExtension.DECLARED_CONFIGS`, reserving each one's ports
 up front. It registers every test with `MultiNetworkGroupQueue` under its network group (the set of networks
 it uses). A test class whose `@ResourceLock`s cover the networks of more than one group fails its groups,
@@ -29,40 +28,18 @@ since that could deadlock with the queue. It boots no nodes.
 A group's networks start on its first test (see Phase 2), in parallel, through `startNetworks`. For each
 network, `startNetworks`:
 
-1. **Allocates ports.** `ensureFixturePortReservations` first reserves the port range of every committed
-   fixture (its lowest gRPC port and node count), when they do not overlap another fixture. Networks without a usable reservation get a free slot
-   that avoids the reserved ranges.
+1. **Allocates ports.** Each network gets a free slot that avoids every other network's reserved range.
 2. **Seeds node config.** Infra defaults, the test's `setupOverrides` and the typed mTLS settings go into
    each node's `application.properties`.
-3. **Chooses cold or warm.** Warm if `TssFixtures.fixturePresent(name)`; otherwise cold.
 
 Then all networks start in parallel and wait for `ACTIVE`.
 
-### Warm start (fixture present)
-
-1. Before the node JVM starts, `TssFixtures.installFixture` gunzips the network's fixture into each node's
-   `data/config/genesis-network.json`. If reserved ports overlap another fixture, the loader patches
-   transport endpoints and construction roster references while preserving keys, weights and proofs.
-2. At genesis, `TssStartupNetworks` preloads the hinTS and history (WRAPS) state from the file and writes
-   only the self node's private key to its local key files.
-3. The harness waits for the preload log line, then for `[CLPR-SYNC-POINT]` (the first block proof that
-   embeds the WRAPS proof). From then on, state proofs captured on this network are verifiable by peers.
-
-Typical cost: well under a minute per network.
-
-### Cold start (no fixture)
-
-1. The export overrides `networkAdmin.diskNetworkExport=ONLY_FREEZE_BLOCK` and
-   `networkAdmin.diskNetworkExportTss=true` are added. WRAPS parameters are bundled in the library.
-2. The nodes bootstrap TSS and WRAPS from scratch; this can take a few minutes depending on hardware.
-3. After `WRAPS-extensible? true` and `[CLPR-SYNC-POINT]`, the harness settles briefly, then freezes the
-   network (with background traffic so the freeze block's proof gets signed). Each node writes a
-   TSS-enriched `output/network.json` carrying only its own private key.
-4. `TssFixtures.generateNetworkFixture` merges the per-node exports into one
-   `<network>-genesis-network.json.gz`: network-wide data from the lowest node, plus every node's own
-   private-key entry. The merge fails if an export carries another node's private key or lacks its own.
-5. The frozen network is replaced by a fresh one on the same ports with the new fixture installed — i.e. a
-   warm start. Every later run then takes the warm path.
+Every network boots cold: the nodes bootstrap TSS and WRAPS from scratch (the WRAPS proving parameters are
+bundled in the TSS library). This can take a few minutes depending on hardware. The in-test layer gates on
+readiness rather than this bootstrap being pre-baked: `HieroToHieroBase.captureConfigProof` waits for
+`WRAPS-extensible? true` and then for `[CLPR-SYNC-POINT]` (the first block proof that embeds the WRAPS
+recursive proof), settling briefly so a few WRAPS-carrying blocks accumulate before a state proof is
+captured. From that point on, state proofs captured on this network are verifiable by peers.
 
 ## Phase 2 — each test
 
