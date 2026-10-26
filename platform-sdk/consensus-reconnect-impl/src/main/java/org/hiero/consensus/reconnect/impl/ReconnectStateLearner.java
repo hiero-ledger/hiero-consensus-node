@@ -245,7 +245,7 @@ public class ReconnectStateLearner {
                     final VirtualMapLearner learner = synchronizer.createLearner(originalMap);
                     logger.info(
                             RECONNECT.getMarker(),
-                            "Learner is ready to synchronize in {} seconds",
+                            "Learner took {} seconds to prepare it's state for synchronization",
                             (System.currentTimeMillis() - start) * MILLISECONDS_TO_SECONDS);
                     return learner;
                 },
