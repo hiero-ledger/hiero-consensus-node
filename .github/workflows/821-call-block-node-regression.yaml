@@ -326,12 +326,18 @@ jobs:
               env:
                 SPRING_PROFILES_ACTIVE: 'blocknode'
                 HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_ENDPOINTS_0_HOST: "block-node-1.${{ env.SOLO_NAMESPACE }}.svc.cluster.local"
-              # Solo caps the importer at 220Mi, which was OOMKilled on block 0 once it carried the genesis WRAPS proof
+              # FUTURE: drop once the native importer image bundles the WRAPS verification key; until then every
+              # block fails TSS verification there, so use the JVM image (the chart default Solo overrides)
+              image:
+                registry: gcr.io
+                repository: mirrornode/hedera-mirror-importer
+              # Solo sizes the importer for the native image (220Mi, 1 CPU); the JVM needs more
               resources:
                 requests:
-                  memory: 512Mi
-                limits:
                   memory: 1Gi
+                limits:
+                  cpu: 2
+                  memory: 2Gi
           EOF
           fi
 
