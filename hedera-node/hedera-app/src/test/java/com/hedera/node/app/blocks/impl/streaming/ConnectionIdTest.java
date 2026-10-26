@@ -123,12 +123,10 @@ class ConnectionIdTest {
         final ConnectionId streamingId = new ConnectionId(37, ConnectionType.BLOCK_STREAMING, 6);
         final ConnectionId serviceId = new ConnectionId(37, ConnectionType.SERVER_STATUS, 41);
 
-        assertThat(streamingId).hasToString("N37-STR6");
-        assertThat(streamingId.correlationId())
+        assertThat(streamingId.toString())
                 .matches("N37-STR6" + JVM_SUFFIX_PATTERN)
                 .isEqualTo("N37-STR6" + ConnectionId.JVM_SUFFIX);
-        assertThat(serviceId).hasToString("N37-SVC41");
-        assertThat(serviceId.correlationId())
+        assertThat(serviceId.toString())
                 .matches("N37-SVC41" + JVM_SUFFIX_PATTERN)
                 .isEqualTo("N37-SVC41" + ConnectionId.JVM_SUFFIX);
     }
@@ -138,10 +136,8 @@ class ConnectionIdTest {
         final ConnectionId first = ConnectionId.newConnectionId(1, ConnectionType.BLOCK_STREAMING);
         final ConnectionId second = ConnectionId.newConnectionId(2, ConnectionType.SERVER_STATUS);
 
-        assertThat(first.correlationId()).matches("N1-STR\\d+" + JVM_SUFFIX_PATTERN);
-        assertThat(second.correlationId()).matches("N2-SVC\\d+" + JVM_SUFFIX_PATTERN);
-        assertThat(first.correlationId().substring(first.toString().length()))
-                .isEqualTo(second.correlationId().substring(second.toString().length()));
+        assertThat(first.toString()).matches("N1-STR\\d+" + JVM_SUFFIX_PATTERN).endsWith(ConnectionId.JVM_SUFFIX);
+        assertThat(second.toString()).matches("N2-SVC\\d+" + JVM_SUFFIX_PATTERN).endsWith(ConnectionId.JVM_SUFFIX);
     }
 
     @Test
@@ -154,13 +150,12 @@ class ConnectionIdTest {
 
     @Test
     void testCorrelationIdFitsWithinHeaderLimit() {
-        // worst case: max node ID / sequence number, combined with the largest JVM ID
+        // worst case: max node ID / sequence number; the JVM ID is always a fixed length
         final ConnectionId connectionId =
                 new ConnectionId(Long.MAX_VALUE, ConnectionType.BLOCK_STREAMING, Integer.MAX_VALUE);
-        final String worstCaseJvmId = ConnectionId.formatJvmId(ConnectionId.JVM_ID_BOUND - 1);
-        final String correlationId = connectionId.toString() + "-JVM" + worstCaseJvmId;
 
-        assertThat(correlationId.length()).isLessThanOrEqualTo(MAX_CORRELATION_ID_HEADER_LENGTH);
-        assertThat(connectionId.correlationId().length()).isLessThanOrEqualTo(MAX_CORRELATION_ID_HEADER_LENGTH);
+        assertThat(connectionId.toString())
+                .matches("N\\d+-STR\\d+" + JVM_SUFFIX_PATTERN)
+                .hasSizeLessThanOrEqualTo(MAX_CORRELATION_ID_HEADER_LENGTH);
     }
 }

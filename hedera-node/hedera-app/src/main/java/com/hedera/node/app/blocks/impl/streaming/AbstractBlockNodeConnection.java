@@ -183,10 +183,10 @@ public abstract class AbstractBlockNodeConnection implements AutoCloseable {
      * in logs; the correlation ID header sent to block nodes is always the connection-level correlation ID.
      *
      * @param connectionRequestNumber the connection-level request number
-     * @return correlation ID in the format of N#-[STR|SVC]#-JVM&lt;token&gt;-CRN#
+     * @return correlation ID in the format of {@code N#-[STR|SVC]#-JVM<token>-CRN#}
      */
     final @NonNull String buildRequestCorrelationId(final long connectionRequestNumber) {
-        return connectionId.correlationId() + "-CRN" + connectionRequestNumber;
+        return connectionId + "-CRN" + connectionRequestNumber;
     }
 
     /**
@@ -198,15 +198,15 @@ public abstract class AbstractBlockNodeConnection implements AutoCloseable {
      * @param blockNumber the block number
      * @param blockRequestNumber the block-level request number
      * @param blockAttemptNumber number of times this block has been attempted on this connection
-     * @return correlation ID in the format of N#-[STR|SVC]#-JVM&lt;token&gt;-BLK#-BAN#-REQ#-CRN#
+     * @return correlation ID in the format of {@code N#-[STR|SVC]#-JVM<token>-BLK#-BAN#-REQ#-CRN#}
      */
     final @NonNull String buildRequestCorrelationId(
             final long connectionRequestNumber,
             final long blockNumber,
             final int blockRequestNumber,
             final int blockAttemptNumber) {
-        return connectionId.correlationId() + "-BLK" + blockNumber + "-BAN" + blockAttemptNumber + "-REQ"
-                + blockRequestNumber + "-CRN" + connectionRequestNumber;
+        return connectionId + "-BLK" + blockNumber + "-BAN" + blockAttemptNumber + "-REQ" + blockRequestNumber + "-CRN"
+                + connectionRequestNumber;
     }
 
     /**
@@ -222,7 +222,7 @@ public abstract class AbstractBlockNodeConnection implements AutoCloseable {
                     case SERVER_STATUS -> configuration.servicePort();
                 };
         final String idToDisplay =
-                (correlationId == null || correlationId.isBlank()) ? connectionId.correlationId() : correlationId;
+                (correlationId == null || correlationId.isBlank()) ? connectionId.toString() : correlationId;
         return "[" + idToDisplay + "/" + configuration.address() + ":" + port + "/" + stateRef.get() + "]";
     }
 

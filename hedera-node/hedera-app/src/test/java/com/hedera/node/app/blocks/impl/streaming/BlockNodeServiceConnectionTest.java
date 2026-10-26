@@ -125,7 +125,7 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
                 .createServiceClient(
                         eq(nodeConfiguration),
                         any(Duration.class),
-                        eq(connection.connectionId().correlationId()),
+                        eq(connection.connectionId().toString()),
                         any(BlockStreamGrpcCompressionType.class));
 
         verifyNoInteractions(executorService);
@@ -540,7 +540,7 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
 
         verify(client).serverStatus(any(ServerStatusRequest.class), any(ServiceInterface.RequestOptions.class));
         verify(clientFactory)
-                .requestOptionsForCorrelationId(connection.connectionId().correlationId());
+                .requestOptionsForCorrelationId(connection.connectionId().toString());
         verifyNoMoreInteractions(client);
         verifyNoMoreInteractions(clientFactory);
         verifyNoInteractions(executorService);

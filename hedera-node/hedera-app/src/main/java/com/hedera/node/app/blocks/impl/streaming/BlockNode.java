@@ -165,7 +165,7 @@ public class BlockNode {
                             .reversed())
                     .toList();
             for (final ConnectionHistory history : sortedHistory) {
-                sb.append("\n    ").append(history.connectionId.correlationId()).append(" => ");
+                sb.append("\n    ").append(history.connectionId).append(" => ");
                 sb.append("created: ").append(history.createTimestamp);
                 sb.append(", activated: ").append(history.activeTimestamp == null ? NIL : history.activeTimestamp);
 
@@ -292,8 +292,8 @@ public class BlockNode {
                     "[{}:{}] Block node has multiple active connections (new: {}, old: {}); closing old connection",
                     endpoint.host(),
                     endpoint.port(),
-                    connection.connectionId().correlationId(),
-                    oldConnection.connectionId().correlationId());
+                    connection.connectionId(),
+                    oldConnection.connectionId());
             oldConnection.closeAtBlockBoundary(CloseReason.NEW_CONNECTION);
         }
 
@@ -313,7 +313,7 @@ public class BlockNode {
                             + "unregistering so this block node remains selectable",
                     endpoint.host(),
                     endpoint.port(),
-                    connection.connectionId().correlationId());
+                    connection.connectionId());
             connectionHistories.remove(connection.connectionId(), connectionHistory);
             globalActiveStreamingConnectionCount.decrementAndGet();
             localActiveStreamingConnectionCount.decrementAndGet();
@@ -377,7 +377,7 @@ public class BlockNode {
                     "[{}:{}] Block node does not have a history entry for connection ({})",
                     endpoint.host(),
                     endpoint.port(),
-                    connection.connectionId().correlationId());
+                    connection.connectionId());
             return;
         }
 
@@ -596,7 +596,7 @@ public class BlockNode {
                         "[{}:{}] Block node connection ({}) was closed without a close reason",
                         endpoint.host(),
                         endpoint.port(),
-                        connection.connectionId().correlationId());
+                        connection.connectionId());
                 closeReason = CloseReason.UNKNOWN;
             }
         }

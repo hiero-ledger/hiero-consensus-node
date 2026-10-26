@@ -242,7 +242,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
             client = clientFactory.createStreamingClient(
                     configuration(),
                     timeoutDuration,
-                    connectionId().correlationId(),
+                    connectionId().toString(),
                     bncConfig().grpcCompressionType());
             final GrpcCall<PublishStreamRequestBytes, PublishStreamResponse> call = client.publishBlockStream(this);
             requestCallRef.set(call);
@@ -281,9 +281,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
         }
 
         // start worker thread to handle sending requests
-        final Thread workerThread = new Thread(
-                new ConnectionWorkerLoopTask(),
-                "bn-conn-worker-" + connectionId().correlationId());
+        final Thread workerThread = new Thread(new ConnectionWorkerLoopTask(), "bn-conn-worker-" + connectionId());
         if (workerThreadRef.compareAndSet(null, workerThread)) {
             workerThread.setDaemon(true);
             workerThread.start();

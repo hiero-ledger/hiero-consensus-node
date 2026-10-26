@@ -232,9 +232,9 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
                 .createStreamingClient(
                         any(BlockNodeConfiguration.class),
                         any(Duration.class),
-                        eq(connection.connectionId().correlationId()),
+                        eq(connection.connectionId().toString()),
                         any(BlockStreamGrpcCompressionType.class));
-        assertThat(connection.connectionId().correlationId()).matches("N\\d+-STR\\d+-JVM[0-9a-z]{8}");
+        assertThat(connection.connectionId().toString()).matches("N\\d+-STR\\d+-JVM[0-9a-z]{8}");
     }
 
     @Test
@@ -246,7 +246,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         final Thread workerThread = workerThreadRef().get();
         assertThat(workerThread).isNotNull();
         assertThat(workerThread.getName())
-                .isEqualTo("bn-conn-worker-" + connection.connectionId().correlationId())
+                .isEqualTo("bn-conn-worker-" + connection.connectionId().toString())
                 .matches("bn-conn-worker-N\\d+-STR\\d+-JVM[0-9a-z]{8}");
     }
 

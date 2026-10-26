@@ -80,7 +80,6 @@ public class ConnectionId {
     private final ConnectionType type;
     private final int sequenceNumber;
     private final String asString;
-    private final String correlationId;
 
     /**
      * Create a new connection ID with fixed values. For production code, you should create a new connection ID by
@@ -95,8 +94,7 @@ public class ConnectionId {
         this.type = requireNonNull(type, "Type is required");
         this.sequenceNumber = sequenceNumber;
 
-        asString = "N" + nodeId + "-" + type.key + sequenceNumber;
-        correlationId = asString + JVM_SUFFIX;
+        asString = "N" + nodeId + "-" + type.key + sequenceNumber + JVM_SUFFIX;
     }
 
     public long nodeId() {
@@ -114,13 +112,6 @@ public class ConnectionId {
     /**
      * @return the connection-level correlation ID in the format of {@code N#-[STR|SVC]#-JVM<token>}. This is the value
      * sent to block nodes and used to identify this connection in logs.
-     */
-    public @NonNull String correlationId() {
-        return correlationId;
-    }
-
-    /**
-     * @return the connection ID without the JVM instance token, in the format of {@code N#-[STR|SVC]#}
      */
     @Override
     public @NonNull String toString() {
