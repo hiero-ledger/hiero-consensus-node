@@ -26,6 +26,9 @@ script's header gives its usage. The scripts that CI runs live in
 - `profile-regions.sh` — checks that a benchmark measures the code it is meant to measure: how
   much of a CPU profile falls in the measured code, in the benchmark's own setup, and in other
   threads such as the garbage collector.
+- `fork-modes.sh` — runs a benchmark in single forks and records an allocation profile and the JIT
+  compiler's log in each, grouped by the memory the forks allocate per call: the input that
+  `alloc-sites.py` and `inline-tree.py` need when forks of a benchmark run differently.
 - `alloc-sites.py` — shows which code allocates how much memory per benchmark call, side by side
   for several runs. The JIT compiler sometimes optimizes the same code differently from one run
   to the next, so that some runs allocate more and run slower; the script points at the code

@@ -44,6 +44,7 @@ import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.PathsConfig;
 import org.hiero.consensus.event.stream.config.EventConfig;
 import org.hiero.consensus.model.event.EventHashFactory;
+import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
@@ -122,7 +123,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     private final ContainerControlServiceGrpc.ContainerControlServiceBlockingStub containerControlBlockingStub;
 
     /** The gRPC service used to communicate with the consensus node */
-    private NodeCommunicationServiceGrpc.NodeCommunicationServiceBlockingStub nodeCommBlockingStub;
+    protected NodeCommunicationServiceGrpc.NodeCommunicationServiceBlockingStub nodeCommBlockingStub;
 
     /** The configuration of this node */
     private final ContainerNodeConfiguration nodeConfiguration;
@@ -413,6 +414,15 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
             }
         }
         return response.getAlive();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public EventWindow latestEventWindow() {
+        return newConsensusResult().getLatestEventWindow();
     }
 
     /**

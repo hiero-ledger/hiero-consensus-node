@@ -102,7 +102,8 @@ public class PeerCommunicationTests {
                     new NoOpMetrics(),
                     Time.getCurrent(),
                     new ArrayList<>(),
-                    selfPeer,
+                    selfPeer.nodeId(),
+                    selfPeer.port(),
                     perNodeCerts.get(selfPeer.nodeId()),
                     new StackTraceDeduplicator());
 

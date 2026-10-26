@@ -20,6 +20,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -58,6 +59,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.DigestType;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
@@ -330,6 +332,9 @@ class JumpstartFileSuite implements LifecycleTest {
      * {@code (pre-compaction)} stride in the AFTER-SHA-256 dump: proof that the switch to 32-byte block hashing did
      * NOT compact the window (compaction is deferred until well past cutover). Exact pre-/post-cutover values are
      * additionally pinned by {@link #verifyCutoverLogFields}.
+     *
+     * <p>A network that starts on SHA-256 has no digest switch (Phase 9b's upgrade changes nothing), so it must log
+     * no transition, and its pre-cutover window is native rather than 48-byte padded.
      */
     private static void verifyTrailingHashTransitionLogs(final HapiSpec spec) {
         final var node0 = spec.targetNetworkOrThrow().getRequiredNode(NodeSelector.byNodeId(0));
@@ -338,6 +343,14 @@ class JumpstartFileSuite implements LifecycleTest {
             log = Files.readString(node0.getExternalPath(ExternalPath.APPLICATION_LOG));
         } catch (IOException e) {
             fail(e);
+            return;
+        }
+
+        if (DigestType.valueOf(spec.startupProperties().get("blockStream.digestType")) == DigestType.SHA_256) {
+            assertFalse(
+                    log.contains("Trailing hashes BEFORE SHA-384 -> SHA-256 transition"),
+                    "A network that starts on SHA-256 must not log a SHA-384 -> SHA-256 transition");
+            trailingDumpSegment(log, "Trailing hashes BEFORE block-stream cutover (final pre-cutover window)");
             return;
         }
 

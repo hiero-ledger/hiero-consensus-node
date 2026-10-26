@@ -11,7 +11,9 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.transaction.TransactionRecord;
 import com.hedera.hapi.streams.RecordStreamItem;
 import com.hedera.node.app.fixtures.AppTestBase;
+import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
+import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.io.IOException;
@@ -103,10 +105,15 @@ class WrappedRecordFileBlockHashesDiskWriterTest extends AppTestBase {
                     List.of(),
                     1024 * 1024);
 
-            final var e0 = WrappedRecordFileBlockHashesCalculator.compute(
-                    in0, com.hedera.node.app.hapi.utils.CommonUtils::sha384DigestOrThrow);
-            final var e1 = WrappedRecordFileBlockHashesCalculator.compute(
-                    in1, com.hedera.node.app.hapi.utils.CommonUtils::sha384DigestOrThrow);
+            // The writer hashes with the configured block stream digest type
+            final var digestType = app.configProvider()
+                    .getConfiguration()
+                    .getConfigData(BlockStreamConfig.class)
+                    .digestType();
+            final var e0 =
+                    WrappedRecordFileBlockHashesCalculator.compute(in0, () -> CommonUtils.digestOrThrow(digestType));
+            final var e1 =
+                    WrappedRecordFileBlockHashesCalculator.compute(in1, () -> CommonUtils.digestOrThrow(digestType));
 
             writer.appendAsync(in0).join();
             // A reconnected/restarted node may attempt to append a block that was already appended earlier;

@@ -141,19 +141,19 @@ public class SimulatedNetworkConnectivity {
      * <p>Each connection's queue is ordered by arrival time, so delivery does not depend on {@link #arrivalTimeClamp}.
      * The clamp just keeps each kind of route on a connection from being reordered by jitter.
      */
-    private final InFlightEvents inFlightEvents = new InFlightEvents(this::isConnected, nodeEventWindows::get);
+    private final InFlightEvents inFlightEvents;
 
     /**
      * Event windows that have been transmitted onto the network but not yet delivered.
      */
-    private final InFlightEventWindows inFlightEventWindows = new InFlightEventWindows(this::isConnected);
+    private final InFlightEventWindows inFlightEventWindows;
 
     /**
      * Everything in flight, in the order it is delivered within a tick: event windows first, then events. Only delivery
      * is driven from this list; what is put in flight comes from different places, see
      * {@link #scheduleForDelivery(Instant)}.
      */
-    private final List<InFlightConnections<?>> inFlightInDeliveryOrder = List.of(inFlightEventWindows, inFlightEvents);
+    private final List<InFlightConnections<?>> inFlightInDeliveryOrder;
 
     /**
      * The gossip "component" for each node in the network.
@@ -175,9 +175,14 @@ public class SimulatedNetworkConnectivity {
      * Constructor.
      *
      * @param random the random number generator to use for simulating network delays
+     * @param start  the instant the simulation starts at; arrival times are measured from it internally, so it only
+     *               needs to be within a few centuries of the times the network is ticked with
      */
-    public SimulatedNetworkConnectivity(@NonNull final Random random) {
+    public SimulatedNetworkConnectivity(@NonNull final Random random, @NonNull final Instant start) {
         this.random = requireNonNull(random);
+        inFlightEvents = new InFlightEvents(this::isConnected, nodeEventWindows::get, start);
+        inFlightEventWindows = new InFlightEventWindows(this::isConnected, start);
+        inFlightInDeliveryOrder = List.of(inFlightEventWindows, inFlightEvents);
         eventLog = new CursoredLog<>(
                 ConsensusConstants.ROUND_FIRST,
                 INITIAL_SEQUENCE_NUMBER_CAPACITY,

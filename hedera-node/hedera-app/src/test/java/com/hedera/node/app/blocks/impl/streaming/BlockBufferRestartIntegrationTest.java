@@ -361,6 +361,9 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordBufferSizeInBytes(anyLong());
         verify(blockStreamMetrics).recordBackPressureDisabled();
         verify(blockStreamMetrics).recordBufferSaturation(anyDouble());
+        verify(blockStreamMetrics).recordUnackedBlocksSaturation(anyDouble());
+        verify(blockStreamMetrics).recordUnackedBytesSaturation(anyDouble());
+        verify(blockStreamMetrics).recordInProgressBlocksSaturation(anyDouble());
         verify(blockStreamMetrics).recordNumberOfBlocksPruned(anyInt());
         verify(blockStreamMetrics).recordBufferOldestBlock(anyLong());
         verify(blockStreamMetrics).recordBufferNewestBlock(anyLong());
