@@ -89,12 +89,25 @@ import org.openjdk.jmh.annotations.Warmup;
  * never contended.
  *
  * <p>Run with {@code -prof org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler}.
+ *
+ * <h2>Calibration</h2>
+ * <ul>
+ *   <li>Date / commit: 2026-10-23, 468541c502</li>
+ *   <li>Machine: hl-cn-benchmark-lin, AS-2115GT-HNTR, AMD EPYC 9254 24-Core Processor, JDK 25.0.2, -XX:ActiveProcessorCount=12 -Xms1g -Xmx1g -XX:+AlwaysPreTouch</li>
+ *   <li>Parameter sets: MetricUpdateBenchmark.runningAverageUpdate / MetricUpdateBenchmark.speedometerCycle</li>
+ *   <li>Steady state after: 5 s / 5 s</li>
+ *   <li>Noise (latency.mean, CV): 0.41% / 0.70% per 5 s iteration, 0.10% / 0.04% between forks, 0.07% / 0.02% between runs (3 of 3 / 3 of 3 runs quiet)</li>
+ *   <li>Expected detectable regression: 0.45% / 0.69% (95 % CI half-width of one run)</li>
+ *   <li>Samples per iteration: 28.0 M / 49.0 M; expected stable: mean, p50, p90, p99, p99.99 / mean, p50, p90, p99</li>
+ *   <li>Runtime: 0.5 / 0.5 min per parameter set</li>
+ *   <li>Raw data: https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/39942067825, https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/39942077255, https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/39942086611</li>
+ * </ul>
  */
 @Fork(
-        value = 5,
+        value = 2,
         jvmArgsAppend = {"-Xms1g", "-Xmx1g", "-XX:+AlwaysPreTouch"})
-@Warmup(iterations = 1, time = 15)
-@Measurement(iterations = 2, time = 15)
+@Warmup(iterations = 1, time = 5)
+@Measurement(iterations = 2, time = 5)
 public class MetricUpdateBenchmark {
 
     /** The number of measured updates in one invocation. */
