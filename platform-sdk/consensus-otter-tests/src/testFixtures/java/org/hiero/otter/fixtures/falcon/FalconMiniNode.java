@@ -115,17 +115,10 @@ public class FalconMiniNode extends AbstractMiniNode implements MiniNode, TimeTi
         if (lifeCycle != RUNNING) {
             return false;
         }
-        assert eventCreationManager != null;
 
         final PlatformEvent deduplicatedEvent = eventDeduplicator.handleEvent(event);
         if (deduplicatedEvent != null) {
-            final List<PlatformEvent> orderedEvents = orphanBuffer.handleEvent(deduplicatedEvent);
-            for (int i = 0, n = orderedEvents.size(); i < n; i++) {
-                final PlatformEvent orderedEvent = orderedEvents.get(i);
-                eventCreationManager.registerEvent(orderedEvent);
-                orderedEvent.setSenderId(selfId);
-                networkConnectivity.submitEvent(orderedEvent);
-            }
+            registerAndSubmit(orphanBuffer.handleEvent(deduplicatedEvent));
         }
         return true;
     }
@@ -140,11 +133,28 @@ public class FalconMiniNode extends AbstractMiniNode implements MiniNode, TimeTi
         if (eventWindow.latestConsensusRound() > currentEventWindow.latestConsensusRound()) {
             currentEventWindow = eventWindow;
             eventDeduplicator.setEventWindow(eventWindow);
-            orphanBuffer.setEventWindow(eventWindow);
+            final List<PlatformEvent> orderedEvents = orphanBuffer.setEventWindow(eventWindow);
             eventCreationManager.setEventWindow(eventWindow);
             networkConnectivity.updateEventWindow(selfId, eventWindow);
+            registerAndSubmit(orderedEvents);
         }
         return true;
+    }
+
+    /**
+     * Registers events released by the orphan buffer with the event creation manager and submits them to the network,
+     * in the order they were released.
+     *
+     * @param orderedEvents the released events
+     */
+    private void registerAndSubmit(@NonNull final List<PlatformEvent> orderedEvents) {
+        assert eventCreationManager != null;
+        for (int i = 0, n = orderedEvents.size(); i < n; i++) {
+            final PlatformEvent orderedEvent = orderedEvents.get(i);
+            eventCreationManager.registerEvent(orderedEvent);
+            orderedEvent.setSenderId(selfId);
+            networkConnectivity.submitEvent(orderedEvent);
+        }
     }
 
     @Override
