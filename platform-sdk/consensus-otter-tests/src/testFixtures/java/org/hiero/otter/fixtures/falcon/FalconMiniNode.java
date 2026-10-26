@@ -17,15 +17,11 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Random;
 import org.hiero.base.crypto.BytesSigner;
-import org.hiero.consensus.event.IntakeEventCounter;
-import org.hiero.consensus.event.NoOpIntakeEventCounter;
 import org.hiero.consensus.event.creator.config.EventCreationConfig;
 import org.hiero.consensus.event.creator.impl.DefaultEventCreationManager;
 import org.hiero.consensus.event.creator.impl.EventCreationManager;
 import org.hiero.consensus.event.creator.impl.EventCreator;
 import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator;
-import org.hiero.consensus.event.intake.impl.deduplication.EventDeduplicator;
-import org.hiero.consensus.event.intake.impl.deduplication.StandardEventDeduplicator;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -35,8 +31,6 @@ import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.EventTransactionSupplier;
 import org.hiero.consensus.model.transaction.SignatureTransactionCheck;
-import org.hiero.consensus.orphan.DefaultOrphanBuffer;
-import org.hiero.consensus.orphan.OrphanBuffer;
 import org.hiero.otter.fixtures.MiniNode;
 import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.internal.AbstractMiniNode;
@@ -64,13 +58,8 @@ public class FalconMiniNode extends AbstractMiniNode implements MiniNode, TimeTi
     /** The metrics for this node. */
     private final Metrics metrics = new NoOpMetrics();
 
-    /** The event deduplicator for this node. */
-    @NonNull
-    private final EventDeduplicator eventDeduplicator;
-
-    /** The orphan buffer for this node. */
-    @NonNull
-    private final OrphanBuffer orphanBuffer;
+    /** The intake for this node, which takes the place of an event deduplicator and an orphan buffer. */
+    private final FalconMiniIntake intake = new FalconMiniIntake();
 
     /** The event creation manager for this node. */
     @Nullable
@@ -99,10 +88,6 @@ public class FalconMiniNode extends AbstractMiniNode implements MiniNode, TimeTi
         this.networkConnectivity = requireNonNull(networkConnectivity);
         this.nodeConfiguration =
                 new FalconNodeConfiguration(() -> lifeCycle, networkConfiguration.overrideProperties());
-
-        final IntakeEventCounter intakeEventCounter = new NoOpIntakeEventCounter();
-        eventDeduplicator = new StandardEventDeduplicator(metrics, intakeEventCounter);
-        orphanBuffer = new DefaultOrphanBuffer(metrics, intakeEventCounter);
     }
 
     @Override
@@ -116,10 +101,7 @@ public class FalconMiniNode extends AbstractMiniNode implements MiniNode, TimeTi
             return false;
         }
 
-        final PlatformEvent deduplicatedEvent = eventDeduplicator.handleEvent(event);
-        if (deduplicatedEvent != null) {
-            registerAndSubmit(orphanBuffer.handleEvent(deduplicatedEvent));
-        }
+        registerAndSubmit(intake.handleEvent(event));
         return true;
     }
 
@@ -132,8 +114,7 @@ public class FalconMiniNode extends AbstractMiniNode implements MiniNode, TimeTi
 
         if (eventWindow.latestConsensusRound() > currentEventWindow.latestConsensusRound()) {
             currentEventWindow = eventWindow;
-            eventDeduplicator.setEventWindow(eventWindow);
-            final List<PlatformEvent> orderedEvents = orphanBuffer.setEventWindow(eventWindow);
+            final List<PlatformEvent> orderedEvents = intake.setEventWindow(eventWindow);
             eventCreationManager.setEventWindow(eventWindow);
             networkConnectivity.updateEventWindow(selfId, eventWindow);
             registerAndSubmit(orderedEvents);
@@ -142,7 +123,7 @@ public class FalconMiniNode extends AbstractMiniNode implements MiniNode, TimeTi
     }
 
     /**
-     * Registers events released by the orphan buffer with the event creation manager and submits them to the network,
+     * Registers events released by the intake with the event creation manager and submits them to the network,
      * in the order they were released.
      *
      * @param orderedEvents the released events
@@ -214,7 +195,7 @@ public class FalconMiniNode extends AbstractMiniNode implements MiniNode, TimeTi
      *
      * <p>Attempts to create an event once at least {@code event.creation.period} has passed since the previous attempt,
      * as the heartbeat of a regular node does. A created event takes the same path as the wiring gives it: it enters
-     * the deduplicator like an event received from a peer.
+     * the intake like an event received from a peer.
      */
     @Override
     public void tick(@NonNull final Instant now) {
