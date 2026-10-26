@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.container;
 
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
+import static org.hiero.otter.fixtures.internal.AbstractMiniNode.LifeCycle.RUNNING;
 import static org.hiero.otter.fixtures.internal.InstrumentedModules.INSTRUMENTED_EVENT_CREATOR;
 
 import com.swirlds.platform.builder.ModulesConfig_;
