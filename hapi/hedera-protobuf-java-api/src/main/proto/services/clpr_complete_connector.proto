@@ -18,6 +18,10 @@ import "services/clpr_complete_channel.proto";
  *   2. Verifies keccak256(connectorId || publicKey) was committed.
  *   3. Verifies sig over keccak256(connectorId || 0x000000000000000000000000000000000000016e).
  *   4. Creates the Connector in state keyed by (channelId, connectorId).
+ *
+ * The commitment is not consumed: it stays registered permanently, even
+ * after the Connector is deregistered, so the same Connector cannot be
+ * created again.
  */
 message ClprCompleteConnectorTransactionBody {
     /**

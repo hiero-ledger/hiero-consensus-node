@@ -349,9 +349,9 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
         // 8. Reject peer configs with a semantically invalid timestamp
         validateTimestamp(peerConfig.timestamp(), CLPR_VERIFIER_CONFIG_FAILED);
 
-        // 9. Create Channel in ACTIVE state. The ownership_commitment is stored on the
-        // channel record so that CloseChannel can remove it from the pending-commitments
-        // store when the channel is closed, freeing the commitment for potential reuse.
+        // 9. Create Channel in ACTIVE state. The commitment is not consumed: it stays in the
+        // pending-commitments store while the channel record exists, including after CLOSED
+        // (so it cannot be re-registered). The channel links back to it via ownership_commitment.
         // Seed Channel.trust_anchor / trust_anchor_id from the verified config's
         // initial_trust_anchor / initial_trust_anchor_id. For Hiero TSS this is the peer
         // ledger_id (populated by the source ledger on its config). completeChannel is the

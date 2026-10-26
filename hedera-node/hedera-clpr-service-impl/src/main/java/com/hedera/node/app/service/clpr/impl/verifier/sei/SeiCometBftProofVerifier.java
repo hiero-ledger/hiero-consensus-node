@@ -2,7 +2,6 @@
 package com.hedera.node.app.service.clpr.impl.verifier.sei;
 
 import static com.hedera.node.app.service.clpr.impl.verifier.evm.ProofBytes.endpointManifestCommitmentSlot;
-import static com.hedera.node.app.service.clpr.impl.verifier.evm.ProofBytes.keccak256;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
@@ -19,6 +18,7 @@ import com.hedera.hapi.node.state.clpr.SeiStorageProofEntry;
 import com.hedera.hapi.node.state.clpr.SeiTrustAnchor;
 import com.hedera.hapi.node.state.clpr.SeiValidatorEntry;
 import com.hedera.hapi.node.state.clpr.SeiValidatorSet;
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.service.clpr.impl.verifier.ProofException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -681,7 +681,7 @@ public final class SeiCometBftProofVerifier {
         SeiIcs23.verifyMembership(proof, SeiIcs23.IAVL_SPEC, storeRoot, key, value);
 
         // Bind the supplied preimage to the proven commitment: commitment = keccak256(preimage).
-        if (!Arrays.equals(keccak256(manifestPreimage), value)) {
+        if (!Arrays.equals(MiscCryptoUtils.keccak256DigestOf(manifestPreimage), value)) {
             throw ProofException.sei("endpoint_manifest preimage does not match the proven commitment (slot 18)");
         }
         final ClprEndpointManifest manifest;

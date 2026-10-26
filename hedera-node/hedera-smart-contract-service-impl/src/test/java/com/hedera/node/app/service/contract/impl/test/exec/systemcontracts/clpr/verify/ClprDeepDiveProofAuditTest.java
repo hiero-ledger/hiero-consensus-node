@@ -6,6 +6,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 
@@ -30,7 +31,9 @@ import com.hedera.node.app.hapi.utils.blocks.TssVerifier;
 import com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierAbi;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.clpr.verify.VerifyBundleCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult;
+import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -38,12 +41,15 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigInteger;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Stream;
+import org.hiero.base.crypto.DigestType;
 import org.hyperledger.besu.evm.frame.MessageFrame;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -119,7 +125,7 @@ class ClprDeepDiveProofAuditTest {
                 if (!path.hasStateItemLeaf()) {
                     continue;
                 }
-                blockRootHash = StateProofVerifier.computeBlockRootHashFromPath(path);
+                blockRootHash = StateProofVerifier.computeBlockRootHashFromPath(path, DigestType.SHA_384.buildDigest());
                 break;
             }
             assertThat(blockRootHash)
@@ -168,6 +174,11 @@ class ClprDeepDiveProofAuditTest {
         private static final byte[] TRUST_ANCHOR = {1, 2, 3, 4};
         private static final Bytes SERVICE_ADDR = Bytes.wrap(new byte[20]);
 
+        @BeforeEach
+        void stubFrameConfig() {
+            stubFrameConfigOn(frame);
+        }
+
         @Test
         @DisplayName("manifest-only bundle (no channel leaf) → SUCCESS with absent metadata + manifest")
         void manifestOnlyBundleSucceeds() {
@@ -210,9 +221,10 @@ class ClprDeepDiveProofAuditTest {
             // path verifier: both leaves verify against one block root and reach the branch together.
             // Without the messages.isEmpty() guard this would wrongly return manifestOnlySuccess.
             try (final var verifier = mockStatic(StateProofVerifier.class)) {
-                verifier.when(() -> StateProofVerifier.computeBlockRootHashFromPath(any()))
+                verifier.when(() -> StateProofVerifier.computeBlockRootHashFromPath(any(), any()))
                         .thenReturn(new byte[32]);
-                verifier.when(() -> StateProofVerifier.verifyPath(any(), any())).thenReturn(true);
+                verifier.when(() -> StateProofVerifier.verifyPath(any(), any(), any()))
+                        .thenReturn(true);
 
                 final var result = subject(
                                 multiLeafProof(manifestLeaf(manifest), keyedMessageLeaf(CHANNEL_ID, 1, message)))
@@ -262,6 +274,11 @@ class ClprDeepDiveProofAuditTest {
                 .receivedRunningHash(Bytes.wrap(new byte[32]))
                 .status(ClprChannelStatus.ACTIVE)
                 .build();
+
+        @BeforeEach
+        void stubFrameConfig() {
+            stubFrameConfigOn(frame);
+        }
 
         @Test
         @DisplayName("given messages 4 and 5 with nothing acked, then nextMessageId is 6, one past the last key")
@@ -335,6 +352,46 @@ class ClprDeepDiveProofAuditTest {
                     result.fullResult().output().toArray());
             assertThat((byte[][]) decoded.get(1)).hasNumberOfRows(messageIds.size());
             assertThat(nextMessageIdOf(decoded.get(0))).isEqualTo(expectedNextMessageId);
+        }
+
+        @Test
+        @DisplayName("given a SHA-384 bundle but local digest SHA-256, then the verifier infers the proof's digest")
+        void capturedBundleVerifiesWhenLocalConfigDigestDiffersFromProof() throws IOException, ParseException {
+            // The captured bundle was built by a ledger whose genesis digest is SHA-384. A verifying node whose
+            // own blockStream.digestType is SHA-256 must still verify it: the proving ledger's digest is pinned at
+            // its genesis and is independent of our configuration, so the verifier infers it from the proof.
+            lenient()
+                    .when(frame.getContextVariable(FrameUtils.CONFIG_CONTEXT_VARIABLE))
+                    .thenReturn(HederaTestConfigBuilder.create()
+                            .withValue("blockStream.digestType", "SHA_256")
+                            .getOrCreateConfig());
+
+            final byte[] proofBytes = loadResource("stateProof.bin");
+            final byte[] trustAnchor = loadResource("trustAnchor.bin");
+            final var proof = StateProof.PROTOBUF.parse(Bytes.wrap(proofBytes).toReadableSequentialData());
+            ClprChannel channel = null;
+            for (final var path : proof.paths()) {
+                if (!path.hasStateItemLeaf()) {
+                    continue;
+                }
+                final var item =
+                        StateItem.PROTOBUF.parse(path.stateItemLeafOrThrow().toReadableSequentialData());
+                if (item.valueOrThrow().hasClprServiceIChannels()) {
+                    channel = item.valueOrThrow().clprServiceIChannelsOrThrow();
+                }
+            }
+            assertThat(channel).as("captured proof carries a channel leaf").isNotNull();
+
+            final var result = new VerifyBundleCall(
+                            mockEnhancement(),
+                            gasCalculator,
+                            proofBytes,
+                            trustAnchor,
+                            channel.channelId().toByteArray(),
+                            new NativeTssVerifier())
+                    .execute(frame);
+
+            assertThat(result.responseCode()).isEqualTo(SUCCESS);
         }
 
         @Test
@@ -428,9 +485,10 @@ class ClprDeepDiveProofAuditTest {
 
         private PricedResult executeWithStubbedPathsForResult(@NonNull final Bytes... leaves) {
             try (var verifier = mockStatic(StateProofVerifier.class)) {
-                verifier.when(() -> StateProofVerifier.computeBlockRootHashFromPath(any()))
+                verifier.when(() -> StateProofVerifier.computeBlockRootHashFromPath(any(), any()))
                         .thenReturn(new byte[32]);
-                verifier.when(() -> StateProofVerifier.verifyPath(any(), any())).thenReturn(true);
+                verifier.when(() -> StateProofVerifier.verifyPath(any(), any(), any()))
+                        .thenReturn(true);
                 return new VerifyBundleCall(
                                 mockEnhancement(),
                                 gasCalculator,
@@ -461,6 +519,20 @@ class ClprDeepDiveProofAuditTest {
         private static Bytes messageLeaf(final long messageId) {
             return keyedMessageLeaf(CHANNEL_ID, messageId, messageValue(messageId));
         }
+    }
+
+    /**
+     * Stubs a mock {@link MessageFrame} so {@code FrameUtils.configOf(frame)} resolves: an empty frame stack
+     * (so the frame is its own initial frame) carrying a default config whose
+     * {@code BlockStreamConfig.digestType()} is {@code SHA_384}. Lenient because the verifier only reads the
+     * configured digest as a fallback — a proof carrying a usable hash-length signal is verified with the
+     * inferred digest and never touches the config, which strict stubbing would flag as unnecessary.
+     */
+    private static void stubFrameConfigOn(@NonNull final MessageFrame frame) {
+        lenient().when(frame.getMessageFrameStack()).thenReturn(new ArrayDeque<>());
+        lenient()
+                .when(frame.getContextVariable(FrameUtils.CONFIG_CONTEXT_VARIABLE))
+                .thenReturn(HederaTestConfigBuilder.create().getOrCreateConfig());
     }
 
     private static TssVerifier acceptingTss() {
@@ -554,6 +626,11 @@ class ClprDeepDiveProofAuditTest {
 
     @Nested
     class ChannelBindingAudit extends CallTestBase {
+        @BeforeEach
+        void stubFrameConfig() {
+            stubFrameConfigOn(frame);
+        }
+
         @Test
         void auditRealSignedProofMustBeRejectedForWrongChannel() throws Exception {
             final byte[] proofBytes;

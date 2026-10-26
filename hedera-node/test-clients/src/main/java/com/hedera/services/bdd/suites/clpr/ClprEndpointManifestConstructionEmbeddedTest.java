@@ -61,7 +61,6 @@ public class ClprEndpointManifestConstructionEmbeddedTest {
     @DisplayName("cold start: the node self-publishes and the manifest is derived (version >= 2)")
     final Stream<DynamicTest> coldStartDerivesManifest() {
         return hapiTest(
-                overriding("clpr.enabled", "true"),
                 // Embedded runs only node 0 of a 4-node network, so the construction can never
                 // "fast-close" on all-published — it must time out. Shrink the grace window (default
                 // 300s + 2 extensions) so the single-node construction force-closes within the test.

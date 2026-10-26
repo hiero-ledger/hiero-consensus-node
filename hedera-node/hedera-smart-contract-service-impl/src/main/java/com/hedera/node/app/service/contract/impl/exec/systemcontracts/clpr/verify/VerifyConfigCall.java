@@ -7,6 +7,7 @@ import static com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierAbi.man
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.ordinalRevertResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.successResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasOnly;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.configOf;
 import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Tuple;
@@ -14,18 +15,22 @@ import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.clpr.ClprThrottles;
+import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.hapi.utils.blocks.StateProofVerifier;
 import com.hedera.node.app.hapi.utils.blocks.TssVerifier;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCall;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
+import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.math.BigInteger;
+import java.security.MessageDigest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.DigestType;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 
 /**
@@ -87,13 +92,15 @@ public class VerifyConfigCall extends AbstractCall {
         // layer otherwise reports such an escape only as an opaque INVALID_TRANSACTION_BODY, with no
         // indication of where in verifyConfig it died).
         try {
-            return doExecute();
+            final var configuredDigestType =
+                    configOf(frame).getConfigData(BlockStreamConfig.class).digestType();
+            return doExecute(configuredDigestType);
         } catch (final RuntimeException e) {
             return failAsError("unexpected exception during verifyConfig: " + e, e);
         }
     }
 
-    private @NonNull PricedResult doExecute() {
+    private @NonNull PricedResult doExecute(@NonNull final DigestType configuredDigestType) {
         final StateProof proof;
         try {
             proof = StateProof.PROTOBUF.parseStrict(Bytes.wrap(stateProofBytes).toReadableSequentialData());
@@ -104,6 +111,12 @@ public class VerifyConfigCall extends AbstractCall {
                 "verifyConfig PROOF parsed: paths={} signedBlockProof={}",
                 proof.paths().size(),
                 proof.hasSignedBlockProof());
+
+        // The proving ledger built this proof with its own genesis-pinned digest, independent of this node's
+        // configured blockStream.digestType; infer it from the proof's hash lengths so a proof verifies under
+        // whichever digest produced it, falling back to configuration when the proof carries no length signal.
+        final DigestType inferred = StateProofVerifier.inferDigestType(proof);
+        final MessageDigest digest = CommonUtils.digestOrThrow(inferred != null ? inferred : configuredDigestType);
 
         // 1. Extract the single state-item leaf and parse the inner ClprLedgerConfiguration —
         //    we need its initial_trust_anchor to know which TSS authority should have signed
@@ -159,7 +172,7 @@ public class VerifyConfigCall extends AbstractCall {
         // 2. Structural Merkle validation + compute block root hash.
         final byte[] rootHash;
         try {
-            rootHash = StateProofVerifier.computeBlockRootHash(proof);
+            rootHash = StateProofVerifier.computeBlockRootHash(proof, digest);
         } catch (final Exception e) {
             return fail("structurally invalid proof; trustAnchor=" + shortHex(trustAnchorBytes), e);
         }
@@ -202,12 +215,13 @@ public class VerifyConfigCall extends AbstractCall {
                 "verifyConfig EXIT: SUCCESS trustAnchor={} rootHash={}",
                 shortHex(trustAnchorBytes),
                 shortHex(Bytes.wrap(rootHash)));
-        return manifestSuccess(parsed);
+        return manifestSuccess(parsed, digest);
     }
 
     @NonNull
-    private PricedResult manifestSuccess(@NonNull final ClprLedgerConfiguration parsed) {
-        final ClprEndpointManifest manifest = verifyManifest(parsed);
+    private PricedResult manifestSuccess(
+            @NonNull final ClprLedgerConfiguration parsed, @NonNull final MessageDigest digest) {
+        final ClprEndpointManifest manifest = verifyManifest(parsed, digest);
         if (manifest == null) {
             return failureResult();
         }
@@ -261,7 +275,8 @@ public class VerifyConfigCall extends AbstractCall {
      * requires a non-empty proof. Returns {@code null} on any failure (already logged via fail()).
      */
     @Nullable
-    private ClprEndpointManifest verifyManifest(@NonNull final ClprLedgerConfiguration parsedConfig) {
+    private ClprEndpointManifest verifyManifest(
+            @NonNull final ClprLedgerConfiguration parsedConfig, @NonNull final MessageDigest digest) {
         final byte[] proofBytes = requireNonNull(manifestProofBytes);
         if (proofBytes.length == 0) {
             fail("manifest-aware verifyConfig requires a non-empty endpoint_manifest_proof_bytes");
@@ -276,7 +291,7 @@ public class VerifyConfigCall extends AbstractCall {
         }
         final byte[] blockRootHash;
         try {
-            blockRootHash = StateProofVerifier.computeBlockRootHash(proof);
+            blockRootHash = StateProofVerifier.computeBlockRootHash(proof, digest);
         } catch (final Exception e) {
             fail("structurally invalid manifest proof", e);
             return null;

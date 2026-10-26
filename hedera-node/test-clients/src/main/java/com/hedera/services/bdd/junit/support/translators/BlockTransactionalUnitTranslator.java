@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.junit.support.translators;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_ENDPOINT_PUBLICATION;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_MAINTENANCE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_DELETE_TOPIC;
@@ -138,6 +139,7 @@ public class BlockTransactionalUnitTranslator {
                     put(CONSENSUS_CREATE_TOPIC, new TopicCreateTranslator());
                     put(CONSENSUS_DELETE_TOPIC, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(CONSENSUS_SUBMIT_MESSAGE, new SubmitMessageTranslator());
+                    put(CLPR_ENDPOINT_PUBLICATION, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(CONSENSUS_UPDATE_TOPIC, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(CONTRACT_CALL, new ContractCallTranslator());
                     put(CONTRACT_CREATE, new ContractCreateTranslator());

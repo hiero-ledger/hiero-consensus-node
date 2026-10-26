@@ -7,6 +7,7 @@ import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.clpr.ClprQbftLedgerConfigurationPayload;
 import com.hedera.node.app.hapi.utils.EthSigsUtils;
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.sun.jna.ptr.LongByReference;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -24,7 +25,6 @@ import java.util.Objects;
 import java.util.Optional;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.bouncycastle.crypto.digests.KeccakDigest;
 import org.hyperledger.besu.nativelib.secp256k1.LibSecp256k1;
 
 /**
@@ -301,7 +301,7 @@ public final class BesuQbftVerifier {
         }
         final byte[] stateRoot32 =
                 checkedCopy(headerItem.children().get(HEADER_STATE_ROOT_INDEX).asBytes(), 32, "blockHeader.stateRoot");
-        final byte[] blockHash32 = keccak256(headerItem.rawBytes());
+        final byte[] blockHash32 = MiscCryptoUtils.keccak256DigestOf(headerItem.rawBytes());
         log.debug(
                 "BesuQbftProofVerifier.verifyBundle header: blockHash=0x{}, stateRoot=0x{}, headerFields={}",
                 HEX.formatHex(blockHash32),
@@ -318,7 +318,7 @@ public final class BesuQbftVerifier {
         }
         final byte[] contractAddress20 = config.expectedContractAddress20();
         final byte[][] accountProof = decodeNodeList(fields.get(2), "accountProof");
-        final byte[] accountKey = keccak256(contractAddress20);
+        final byte[] accountKey = MiscCryptoUtils.keccak256DigestOf(contractAddress20);
         final byte[] accountRlp = Mpt.get(stateRoot32, accountKey, accountProof)
                 .orElseThrow(() -> ProofException.besuQbft("contract account is absent from state trie"));
         final Account provenAccount = Account.decode(accountRlp);
@@ -364,7 +364,7 @@ public final class BesuQbftVerifier {
             for (int i = 0; i < entryCount; i++) {
                 final StorageProofEntry entry = orderedStorageProof.get(i);
                 final byte[] slot32 = leftPad32(entry.key(), "storageProof[" + i + "].key");
-                final byte[] storageKey = keccak256(slot32);
+                final byte[] storageKey = MiscCryptoUtils.keccak256DigestOf(slot32);
                 final byte[] provenValue32 = Mpt.get(provenAccount.storageRoot32(), storageKey, entry.proofNodes())
                         .map(Rlp::decodeTrieStorageValueAsBytes32)
                         .orElseGet(() -> new byte[32]);
@@ -530,7 +530,7 @@ public final class BesuQbftVerifier {
                 currentHeaderItem.children().get(HEADER_STATE_ROOT_INDEX).asBytes(),
                 32,
                 "currentBlockHeader.stateRoot");
-        final byte[] blockHash32 = keccak256(currentHeaderItem.rawBytes());
+        final byte[] blockHash32 = MiscCryptoUtils.keccak256DigestOf(currentHeaderItem.rawBytes());
 
         // --- 2. Extract all validators from genesis extra-data ----------------------------
         final List<byte[]> genesisValidators = extractValidators(genesisHeaderItem);
@@ -548,7 +548,7 @@ public final class BesuQbftVerifier {
         final byte[][] accountProof = payload.clprServiceAccountProof().stream()
                 .map(Bytes::toByteArray)
                 .toArray(byte[][]::new);
-        final byte[] accountKey = keccak256(contractAddress20);
+        final byte[] accountKey = MiscCryptoUtils.keccak256DigestOf(contractAddress20);
         final byte[] accountRlp = Mpt.get(stateRoot32, accountKey, accountProof)
                 .orElseThrow(() -> ProofException.besuQbft("CLPR service account absent from state trie"));
         final Account provenAccount = Account.decode(accountRlp);
@@ -573,7 +573,7 @@ public final class BesuQbftVerifier {
                 .orElseThrow(() -> ProofException.besuQbft(
                         "clprServiceStorageProofs does not contain an entry for the serviceAddress slot (0x"
                                 + HEX.formatHex(SERVICE_ADDR_STORAGE_SLOT) + ")"));
-        final byte[] storageKey = keccak256(SERVICE_ADDR_STORAGE_SLOT);
+        final byte[] storageKey = MiscCryptoUtils.keccak256DigestOf(SERVICE_ADDR_STORAGE_SLOT);
         final byte[][] storageProofNodes =
                 serviceAddrEntry.proof().stream().map(Bytes::toByteArray).toArray(byte[][]::new);
         final byte[] provenValue32 = Mpt.get(provenAccount.storageRoot32(), storageKey, storageProofNodes)
@@ -665,7 +665,8 @@ public final class BesuQbftVerifier {
         // 2. Authenticate the CLPR-service account against the header's state root (codeHash unpinned).
         final byte[][] accountProof =
                 decodeNodeList(p.get(CFG_MANIFEST_ACCOUNT_PROOF_INDEX), "endpointManifestConfigProof.accountProof");
-        final byte[] accountRlp = Mpt.get(stateRoot32, keccak256(serviceAddress20), accountProof)
+        final byte[] accountRlp = Mpt.get(
+                        stateRoot32, MiscCryptoUtils.keccak256DigestOf(serviceAddress20), accountProof)
                 .orElseThrow(() -> ProofException.besuQbft(
                         "CLPR service account absent from state trie in endpoint-manifest config proof"));
         final Account provenAccount = Account.decode(accountRlp);
@@ -721,11 +722,12 @@ public final class BesuQbftVerifier {
         if (!Arrays.equals(slot32, endpointManifestCommitmentSlot())) {
             throw ProofException.besuQbft("endpoint-manifest storage proof is not for the commitment slot (18)");
         }
-        final byte[] provenCommitment = Mpt.get(storageRoot32, keccak256(slot32), entry.proofNodes())
+        final byte[] provenCommitment = Mpt.get(
+                        storageRoot32, MiscCryptoUtils.keccak256DigestOf(slot32), entry.proofNodes())
                 .map(Rlp::decodeTrieStorageValueAsBytes32)
                 .orElseThrow(() ->
                         ProofException.besuQbft("endpoint-manifest commitment slot absent from the storage trie"));
-        if (!Arrays.equals(keccak256(manifestPreimage), provenCommitment)) {
+        if (!Arrays.equals(MiscCryptoUtils.keccak256DigestOf(manifestPreimage), provenCommitment)) {
             throw ProofException.besuQbft("endpoint-manifest preimage does not match the proven commitment");
         }
         final ClprEndpointManifest manifest;
@@ -1043,7 +1045,7 @@ public final class BesuQbftVerifier {
                             ? Rlp.encodeBytes(sealingExtraData)
                             : headerChildren.get(i).rawBytes());
         }
-        return keccak256(Rlp.encodeList(sealingHeaderFields));
+        return MiscCryptoUtils.keccak256DigestOf(Rlp.encodeList(sealingHeaderFields));
     }
 
     /**
@@ -1168,7 +1170,7 @@ public final class BesuQbftVerifier {
             @NonNull final byte[] channelId32) {
         final int n = slotKeys.length; // CHANNEL_STORAGE_SLOTS (ACK-only) or +1 (with a message)
         final boolean hasMessage = n == CHANNEL_STORAGE_SLOTS + 1;
-        final byte[] base = keccak256(concat(channelId32, uint256Bytes(CHANNELS_MAPPING_SLOT)));
+        final byte[] base = MiscCryptoUtils.keccak256DigestOf(concat(channelId32, uint256Bytes(CHANNELS_MAPPING_SLOT)));
         final byte[] kStatus = addToBytes32(base, CHANNEL_OFFSET_STATUS_NEXTMSGID);
         final byte[] kReceived = addToBytes32(base, CHANNEL_OFFSET_ACKED_RECEIVED);
         final byte[] kSentHash = addToBytes32(base, CHANNEL_OFFSET_SENT_RUNNING_HASH);
@@ -1553,7 +1555,7 @@ public final class BesuQbftVerifier {
                 if (node.length == 0) {
                     throw ProofException.besuQbft("empty proof node");
                 }
-                nodesByHash.put(new BytesKey(keccak256(node)), node.clone());
+                nodesByHash.put(new BytesKey(MiscCryptoUtils.keccak256DigestOf(node)), node.clone());
             }
 
             byte[] nodeRef = rootHash32.clone();
@@ -1681,14 +1683,6 @@ public final class BesuQbftVerifier {
     // -----------------------------------------------------------------------------------
     // Byte / hex helpers
     // -----------------------------------------------------------------------------------
-
-    private static byte[] keccak256(final byte[] input) {
-        final KeccakDigest digest = new KeccakDigest(256);
-        digest.update(input, 0, input.length);
-        final byte[] out = new byte[32];
-        digest.doFinal(out, 0);
-        return out;
-    }
 
     static byte[] checkedCopy(final byte[] bytes, final int len, final String name) {
         Objects.requireNonNull(bytes, name);

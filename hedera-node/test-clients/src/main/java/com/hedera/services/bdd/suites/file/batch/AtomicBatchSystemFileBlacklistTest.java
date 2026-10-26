@@ -118,20 +118,33 @@ class AtomicBatchSystemFileBlacklistTest {
                 }));
     }
 
+    /** The default atomic batch whitelist plus {@code ScheduleSign}, so an inner {@code ScheduleSign} is allowed. */
+    private static final String WHITELIST_WITH_SCHEDULE_SIGN =
+            "CryptoTransfer,CryptoUpdate,CryptoDelete,ContractCall,ContractCreate,ContractUpdate,"
+                    + "FileCreate,FileAppend,FileUpdate,FileDelete,CryptoCreate,ContractDelete,"
+                    + "ConsensusCreateTopic,ConsensusUpdateTopic,ConsensusDeleteTopic,ConsensusSubmitMessage,"
+                    + "TokenCreate,TokenFreezeAccount,TokenUnfreezeAccount,TokenGrantKycToAccount,"
+                    + "TokenRevokeKycFromAccount,TokenDelete,TokenUpdate,TokenMint,TokenBurn,TokenAccountWipe,"
+                    + "TokenAssociateToAccount,TokenDissociateFromAccount,ScheduleDelete,TokenFeeScheduleUpdate,"
+                    + "TokenPause,TokenUnpause,CryptoApproveAllowance,CryptoDeleteAllowance,EthereumTransaction,"
+                    + "UtilPrng,TokenUpdateNfts,NodeCreate,NodeDelete,TokenReject,TokenAirdrop,"
+                    + "TokenCancelAirdrop,TokenClaimAirdrop,HookStore,RegisteredNodeCreate,RegisteredNodeUpdate,"
+                    + "RegisteredNodeDelete,ScheduleSign";
+
     /**
      * A system-file update dispatched as a child of a batch inner is rejected too. With {@code ScheduleSign} allowed
      * in batches, an inner {@code ScheduleSign} supplies the last signature a scheduled exchange-rate update needs,
      * and a later inner fails. The scheduled update must not run, so the active rate still matches the committed
      * file.
      */
-    @LeakyHapiTest(overrides = {"atomicBatch.blacklist"})
+    @LeakyHapiTest(overrides = {"atomicBatch.whitelist"})
     final Stream<DynamicTest> scheduledExchangeRateUpdateTriggeredInBatchIsRejected() {
         final AtomicReference<byte[]> fileBefore = new AtomicReference<>();
         final AtomicReference<byte[]> fileAfter = new AtomicReference<>();
         final AtomicReference<ExchangeRate> rateBefore = new AtomicReference<>();
         final AtomicReference<ExchangeRate> rateAfter = new AtomicReference<>();
         return hapiTest(
-                overriding("atomicBatch.blacklist", "Freeze,AtomicBatch,ScheduleCreate"),
+                overriding("atomicBatch.whitelist", WHITELIST_WITH_SCHEDULE_SIGN),
                 cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
                 cryptoCreate(BROKE).balance(0L),
                 fileUpdate(EXCHANGE_RATES)

@@ -29,6 +29,7 @@ import com.hedera.hapi.node.state.clpr.ClprBundleResponse;
 import com.hedera.hapi.node.state.clpr.ClprStreamingSyncPayload;
 import com.hedera.hapi.platform.state.StateItem;
 import com.hedera.hapi.platform.state.StateValue;
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hederahashgraph.api.proto.java.ClprLedgerConfiguration;
@@ -36,7 +37,6 @@ import com.hederahashgraph.api.proto.java.ClprSignatureScheme;
 import com.hederahashgraph.api.proto.java.ClprThrottles;
 import java.nio.charset.StandardCharsets;
 import java.util.stream.Stream;
-import org.bouncycastle.jcajce.provider.digest.Keccak;
 import org.bouncycastle.math.ec.rfc8032.Ed25519;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -69,7 +69,6 @@ public class ClprOrchestratorSubmitTest {
 
         final var proofBytes = buildProofBytes();
         return hapiTest(
-                overriding("clpr.enabled", "true"),
                 overriding("clpr.minLockedStake", String.valueOf(MIN_LOCKED_STAKE)),
                 // Fund the self node's account (account 3 in embedded) so the inbound
                 // ClprSubmitBundle transaction — submitted by the node and paying with its
@@ -188,18 +187,14 @@ public class ClprOrchestratorSubmitTest {
 
         Crypto() {
             Ed25519.generatePublicKey(TEST_PRIVATE_KEY, 0, publicKey, 0);
-            channelId = keccak256("orch-test-conn-v1".getBytes(StandardCharsets.UTF_8));
-            channelCommitment = keccak256(concat(channelId, publicKey));
-            final var connSig = keccak256(channelId);
+            channelId = MiscCryptoUtils.keccak256DigestOf("orch-test-conn-v1".getBytes(StandardCharsets.UTF_8));
+            channelCommitment = MiscCryptoUtils.keccak256DigestOf(concat(channelId, publicKey));
+            final var connSig = MiscCryptoUtils.keccak256DigestOf(channelId);
             Ed25519.sign(TEST_PRIVATE_KEY, 0, connSig, 0, connSig.length, channelSignature, 0);
-            connectorId = keccak256(concat(channelId, concat(publicKey, connectorSalt)));
-            connectorCommitment = keccak256(concat(connectorId, publicKey));
-            final var connectorSig = keccak256(concat(connectorId, CLPR_SERVICE_ADDRESS));
+            connectorId = MiscCryptoUtils.keccak256DigestOf(concat(channelId, concat(publicKey, connectorSalt)));
+            connectorCommitment = MiscCryptoUtils.keccak256DigestOf(concat(connectorId, publicKey));
+            final var connectorSig = MiscCryptoUtils.keccak256DigestOf(concat(connectorId, CLPR_SERVICE_ADDRESS));
             Ed25519.sign(TEST_PRIVATE_KEY, 0, connectorSig, 0, connectorSig.length, connectorSignature, 0);
-        }
-
-        private static byte[] keccak256(final byte[] in) {
-            return new Keccak.Digest256().digest(in);
         }
 
         private static byte[] concat(final byte[] a, final byte[] b) {

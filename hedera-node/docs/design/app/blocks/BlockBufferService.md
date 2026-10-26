@@ -57,6 +57,12 @@ The system maintains a buffer of block states in `BlockBufferService` with the f
 - Entries remain in the buffer until acknowledged.
 - A periodic pruning mechanism removes acknowledged entries.
 
+One or more unique acknowledgements may be required before a block is truly considered acknowledged and eligible for
+pruning. A unique acknowledgement is defined as an acknowledgement received from a unique block node. If multiple
+acknowledgements are received for the same block from the same block node, they are treated as one acknowledgement.
+To change the number of required unique acknowledgements, you can update the application property
+`blockStream.buffer.minAcksRequiredPerBlock`.
+
 Within the block buffer, there are two capacity limits that are enforced:
 - Max number of unacknowledged blocks - governed by `blockStream.buffer.maxBlocks`.
 - Max number of bytes consumed by the buffer for unacknowledge blocks - governed by `blockStream.buffer.maxBytes`.

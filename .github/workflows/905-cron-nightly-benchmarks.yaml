@@ -35,6 +35,7 @@ jobs:
   extract-jdk-version:
     name: Extract Java Version
     uses: ./.github/workflows/854-call-extract-jdk-version.yaml
+    if: ${{ github.event.repository.visibility == 'public' }}
     with:
       ref: ${{ inputs.ref || github.ref }}
     secrets:
@@ -53,6 +54,7 @@ jobs:
       matrix:
         runner: ["hl-cn-benchmark-lin"]
     runs-on: ${{ matrix.runner }}
+    if: ${{ github.event.repository.visibility == 'public' }}
     timeout-minutes: 360
     needs:
       - extract-jdk-version

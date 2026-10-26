@@ -45,7 +45,9 @@ public class ClprCloseChannelSuite {
 
     private static final String VERIFIER_CONTRACT = "ClprPassThroughVerifier";
 
-    @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
+    @LeakyHapiTest(
+            requirement = PROPERTY_OVERRIDES,
+            overrides = {"clpr.enabled"})
     final Stream<DynamicTest> rejectsCloseWhenDisabled() {
         return hapiTest(
                 overriding("clpr.enabled", "false"),
@@ -55,7 +57,6 @@ public class ClprCloseChannelSuite {
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
     final Stream<DynamicTest> nonAdminCannotCloseChannel() {
         return hapiTest(
-                overriding("clpr.enabled", "true"),
                 cryptoCreate("civilian").balance(ONE_HUNDRED_HBARS),
                 clprCloseChannel()
                         .channelId(new byte[32])
@@ -66,14 +67,12 @@ public class ClprCloseChannelSuite {
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
     final Stream<DynamicTest> rejectsInvalidChannelIdLength() {
         return hapiTest(
-                overriding("clpr.enabled", "true"),
                 clprCloseChannel().channelId(new byte[16]).payingWith(GENESIS).hasPrecheck(INVALID_TRANSACTION_BODY));
     }
 
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
     final Stream<DynamicTest> rejectsCloseOfNonexistentChannel() {
         return hapiTest(
-                overriding("clpr.enabled", "true"),
                 clprCloseChannel().channelId(new byte[32]).payingWith(GENESIS).hasKnownStatus(CLPR_CHANNEL_NOT_FOUND));
     }
 
@@ -81,7 +80,6 @@ public class ClprCloseChannelSuite {
     final Stream<DynamicTest> canCloseActiveChannel() {
         final var crypto = new ClprChannelCrypto();
         return hapiTest(
-                overriding("clpr.enabled", "true"),
                 // Deploy a simple contract to act as the verifier
                 uploadInitCode(VERIFIER_CONTRACT),
                 contractCreate(VERIFIER_CONTRACT),
@@ -121,7 +119,6 @@ public class ClprCloseChannelSuite {
                 .build();
         final var hashAfterBundle1 = ClprTestProofs.runningHashAfter(new byte[32], drainingBundle.getMessagesList());
         return hapiTest(
-                overriding("clpr.enabled", "true"),
                 uploadInitCode(VERIFIER_CONTRACT),
                 contractCreate(VERIFIER_CONTRACT),
                 clprRegisterChannel().ownershipCommitment(crypto.commitment()).payingWith(GENESIS),

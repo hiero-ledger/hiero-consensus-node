@@ -87,7 +87,7 @@ public class AtomicBatchHandler implements TransactionHandler {
     private static final Set<TransactionBody.DataOneOfType> CONTRACT_OP_BODIES =
             EnumSet.of(CONTRACT_CALL, CONTRACT_CREATE_INSTANCE, ETHEREUM_TRANSACTION);
     /**
-     * Transaction types that are never allowed inside an atomic batch, regardless of the configured blacklist.
+     * Transaction types that are never allowed inside an atomic batch, regardless of the configured whitelist.
      */
     private static final Set<TransactionBody.DataOneOfType> NEVER_ALLOWED_BODIES = EnumSet.of(
             NODE_UPDATE,
@@ -168,7 +168,7 @@ public class AtomicBatchHandler implements TransactionHandler {
         // not using a stream below as throwing exception in the middle of a functional pipeline is a terrible idea
         for (final var txnBytes : txns) {
             final var innerTxBody = innerTxnCache.computeIfAbsent(txnBytes);
-            validateFalsePreCheck(isNotAllowedFunction(innerTxBody, atomicBatchConfig), BATCH_TRANSACTION_IN_BLACKLIST);
+            validateTruePreCheck(isAllowedFunction(innerTxBody, atomicBatchConfig), BATCH_TRANSACTION_IN_BLACKLIST);
             validateFalsePreCheck(
                     isNeverAllowedInBatch(innerTxBody, ledgerConfig.numReservedSystemEntities()),
                     BATCH_TRANSACTION_IN_BLACKLIST);
@@ -298,7 +298,7 @@ public class AtomicBatchHandler implements TransactionHandler {
 
     /**
      * Returns whether the given transaction is never allowed inside an atomic batch, regardless of the configured
-     * blacklist. This applies both to the batch's inner transactions and to any transaction they dispatch.
+     * whitelist. This applies both to the batch's inner transactions and to any transaction they dispatch.
      *
      * @param body the transaction body
      * @param numReservedSystemEntities the number of reserved system entities, which bounds the system file range
@@ -331,19 +331,20 @@ public class AtomicBatchHandler implements TransactionHandler {
     }
 
     /**
-     * Checks if the given transaction type is not allowed to be included as an inner transaction in an atomic batch.
+     * Checks if the given transaction type is in the atomic batch whitelist, and so may be included as an inner
+     * transaction in an atomic batch.
      *
      * @param transactionBody the transaction body to check
      * @param config          the atomic batch configuration
-     * @return true if the transaction type is not allowed, false otherwise
+     * @return true if the transaction type is allowed, false otherwise
      */
-    private boolean isNotAllowedFunction(
+    private boolean isAllowedFunction(
             @NonNull final TransactionBody transactionBody, @NonNull final AtomicBatchConfig config) {
         try {
             final var hederaFunctionality = HapiUtils.functionOf(transactionBody);
-            return config.blacklist().functionalitySet().contains(hederaFunctionality);
+            return config.whitelist().functionalitySet().contains(hederaFunctionality);
         } catch (final UnknownHederaFunctionality e) {
-            return true;
+            return false;
         }
     }
 

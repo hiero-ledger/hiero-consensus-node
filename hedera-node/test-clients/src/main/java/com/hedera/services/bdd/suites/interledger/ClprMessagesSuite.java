@@ -24,6 +24,7 @@ import static com.hedera.services.bdd.suites.clpr.HieroToHieroBase.POST_SYNC_POI
 import static com.hedera.services.bdd.suites.clpr.HieroToHieroBase.awaitWrapsExtensible;
 import static com.hedera.services.bdd.suites.clpr.HieroToHieroBase.awaitWrapsSyncPoint;
 import static com.hedera.services.bdd.suites.clpr.HieroToHieroBase.captureManifestProof;
+import static com.hedera.services.bdd.suites.clpr.HieroToHieroBase.multiNetworkHapiTest;
 import static com.hedera.services.bdd.suites.clpr.HieroToHieroBase.pollManifest;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
@@ -47,6 +48,7 @@ import com.google.protobuf.ByteString;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.MultiNetworkHapiTest;
 import com.hedera.services.bdd.junit.MultiNetworkHapiTest.Network;
+import com.hedera.services.bdd.junit.MultiNetworkLeakyHapiTest;
 import com.hedera.services.bdd.junit.TestTags;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.spec.queries.QueryVerbs;
@@ -93,6 +95,7 @@ import org.junit.jupiter.api.Tag;
  * manifest, supplied to the pass-through verifier as a synthetic proof.
  */
 @Tag(TestTags.MULTINETWORK)
+@MultiNetworkLeakyHapiTest
 public class ClprMessagesSuite {
 
     private static final String NET_A_CHAIN_ID = "hiero:msgs-a";
@@ -140,14 +143,7 @@ public class ClprMessagesSuite {
     /** Polling interval between responseCount queries. */
     private static final Duration POLL_INTERVAL = Duration.ofSeconds(5);
 
-    // Pin the gRPC port bases to the values the committed TSS fixtures were captured at
-    // (ledgerA gossip 35403/35404, ledgerB gossip 36403/36404). This keeps the runtime roster
-    // hash identical to the preloaded construction's, so rewriteFixturePortsToRuntime is a no-op
-    // and the warm WRAPS-extensible proof is reused instead of forcing a fresh construction #2.
-    @MultiNetworkHapiTest({
-        @Network(value = "ledgerA", firstGrpcPort = 35400),
-        @Network(value = "ledgerB", firstGrpcPort = 36400)
-    })
+    @MultiNetworkHapiTest({@Network("ledgerA"), @Network("ledgerB")})
     @DisplayName("Multi-message CLPR: 3×7 messages with EchoApplication auto-sync round-trip")
     Stream<DynamicTest> multiMessageRoundTrip(final SubProcessNetwork netA, final SubProcessNetwork netB) {
         // ── Channel keypair ────────────────────────────────────────────────────────────────────
@@ -399,8 +395,11 @@ public class ClprMessagesSuite {
         }
         // NET_B's finalized manifest StateProof, threaded into NET_A's completeChannel.
         final var netBManifestCapture = captureManifestProof(netB, manifestProofForNetA);
-        return Stream.concat(
-                Stream.of(netAManifestCapture, netBSetup, netBManifestCapture, netASetup), Stream.of(invocationTests));
+        return multiNetworkHapiTest(
+                "multiMessageRoundTrip",
+                Stream.concat(
+                        Stream.of(netAManifestCapture, netBSetup, netBManifestCapture, netASetup),
+                        Stream.of(invocationTests)));
     }
 
     /**

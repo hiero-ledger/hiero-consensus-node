@@ -5,6 +5,14 @@ import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.WORKING_DIR;
 import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.awaitStatus;
 import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.prCheckOverrides;
+import static com.hedera.services.bdd.junit.hedera.subprocess.TssFixtures.CACHE_DIR;
+import static com.hedera.services.bdd.junit.hedera.subprocess.TssFixtures.GENESIS_NETWORK_JSON;
+import static com.hedera.services.bdd.junit.hedera.subprocess.TssFixtures.fixtureBaseAndNodeCount;
+import static com.hedera.services.bdd.junit.hedera.subprocess.TssFixtures.fixtureNetworkName;
+import static com.hedera.services.bdd.junit.hedera.subprocess.TssFixtures.fixturePresent;
+import static com.hedera.services.bdd.junit.hedera.subprocess.TssFixtures.generateNetworkFixture;
+import static com.hedera.services.bdd.junit.hedera.subprocess.TssFixtures.installFixture;
+import static com.hedera.services.bdd.junit.hedera.subprocess.TssFixtures.resolveCachedFixturePath;
 import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigRealm;
 import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigShard;
 import static com.hedera.services.bdd.spec.HapiSpec.networkHapiTest;
@@ -22,23 +30,18 @@ import com.hedera.services.bdd.junit.ConfigOverride;
 import com.hedera.services.bdd.junit.MultiNetworkHapiTest;
 import com.hedera.services.bdd.junit.MultiNetworkHapiTest.Network;
 import com.hedera.services.bdd.junit.hedera.HederaNetwork;
-import com.hedera.services.bdd.junit.hedera.HederaNode;
+import com.hedera.services.bdd.junit.hedera.NodeMetadata;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.spec.infrastructure.HapiClients;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -51,13 +54,16 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.zip.GZIPInputStream;
-import java.util.zip.GZIPOutputStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.config.Configurator;
+import org.hiero.consensus.roster.RosterUtils;
 import org.junit.jupiter.api.extension.AfterEachCallback;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
@@ -75,18 +81,50 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
     private static final String NETWORKS_KEY = "multiNetworks";
     private static final String PARAM_INDEXES_KEY = "networkParamIndexes";
     private static final String ANNOTATION_KEY = "multiNetworkAnnotation";
-    private static final String SHARED_FLAG_KEY = "networksShared";
     private static final String CAPTURED_PROPS_KEY = "capturedProps";
+    private static final String TEST_ID_KEY = "multiNetworkTestId";
     private static final Duration STARTUP_TIMEOUT = Duration.ofMinutes(5);
+    /**
+     * Config version every multi-network network starts at, regardless of upgrade restarts other networks have
+     * already done (see {@link SubProcessNetwork#start(int)}).
+     */
+    private static final int GENESIS_CONFIG_VERSION = 0;
     /** How long to wait for an already-started shared network to be ACTIVE again before reusing it. */
     private static final Duration SHARED_REUSE_ACTIVE_TIMEOUT = Duration.ofMinutes(5);
 
     /**
-     * Networks pre-started once per test plan by {@code SharedMultiNetworkLauncherSessionListener}
-     * and reused across every {@link MultiNetworkHapiTest} method whose declared network names
-     * resolve here. Empty unless the launcher-session listener populated it.
+     * Shared networks that have been started, by name. A network is started on the first test of its network
+     * group (see {@link #getOrStartShared}), reused by the group's later tests, and removed when the group's
+     * last test tears it down.
      */
     public static final Map<String, SubProcessNetwork> SHARED_NETWORKS = new ConcurrentHashMap<>();
+
+    /**
+     * Canonical {@code @Network} config per shared-network name, recorded up front by
+     * {@code SharedMultiNetworkLauncherSessionListener} (which also reserves each one's ports). A network
+     * whose name is a key here is SHARED: it is started lazily on first demand (see
+     * {@link #getOrStartShared}) and kept warm in {@link #SHARED_NETWORKS} for reuse. A test whose network
+     * name is absent fails; the extension never starts networks per test.
+     */
+    public static final Map<String, Network> DECLARED_CONFIGS = new ConcurrentHashMap<>();
+
+    /**
+     * Admits the network groups of shared networks under the node budget. Every enabled test on shared
+     * networks is registered here by {@code SharedMultiNetworkLauncherSessionListener} during its test-plan walk.
+     */
+    public static final MultiNetworkGroupQueue NETWORK_GROUP_QUEUE =
+            new MultiNetworkGroupQueue(MultiNetworkGroupQueue.DEFAULT_CAPACITY);
+
+    /** Guards the one-time driver-log reconfigure done on the first lazily-started shared network. */
+    private static final AtomicBoolean SHARED_LOGGING_CONFIGURED = new AtomicBoolean(false);
+
+    /** System property keys consumed by {@code log4j2-test-client.xml}'s {@code RollingFile} appender. */
+    private static final String TEST_CLIENT_LOG_FILE = "hapi.test.clients.log.file";
+
+    private static final String TEST_CLIENT_LOG_FILE_PATTERN = "hapi.test.clients.log.filePattern";
+
+    /** Sibling dir (of the per-network {@code <scope>-test/} dirs) for the multi-network driver log. */
+    private static final String MULTINETWORK_LOG_DIR = "multinetwork-test-clients";
 
     static final String CLPR_MTLS_PORT_KEY = "clpr.mtlsPort";
     static final String CLPR_CA_CRT_PATH_KEY = "clpr.caCrtPath";
@@ -124,8 +162,7 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
      * {@code [SHARED_PORT_BASE, SHARED_PORT_BASE + SHARED_POOL_SLOTS * SHARED_PORT_SLOT)} for
      * the first slot that doesn't overlap any prior reservation. Explicit allocations fail loudly
      * if their range overlaps any prior reservation (including ranges outside the pool). Repeat
-     * lookups for the same name return the cached base so both discovery paths (per-test boot
-     * and listener) resolve identically.
+     * lookups for the same name return the cached base.
      *
      * <p>Slot width of 100 accommodates any {@code size <= 16} (each node reserves 6 ports);
      * larger sizes must pin {@code firstGrpcPort} explicitly.
@@ -147,27 +184,8 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
 
     private static final Map<String, Reservation> RESERVATIONS_BY_NAME = new ConcurrentHashMap<>();
 
-    /**
-     * Where {@link Network#tssPreload tssPreload}-opted networks read cached fixtures from /
-     * write fresh ones to. Resolved against the project root (gradle/test working dir varies,
-     * so we walk up from CWD until we find a directory containing {@code tss-startup-assets/}).
-     * The dir is gitignored; co-locates with the extracted WRAPS artifacts
-     * ({@code wraps-vX.Y.Z/}, which {@code TSS_LIB_WRAPS_ARTIFACTS_PATH} points at).
-     */
-    private static final Path TSS_FIXTURE_CACHE_DIR = resolveTssFixtureCacheDir();
-
-    /**
-     * Where {@code BlockStreamManagerImpl} writes the network-info export. Dev defaults route
-     * here (see {@link com.hedera.node.config.data.NetworkAdminConfig#diskNetworkExportFile} =
-     * {@code output/network.json}). For cold-cache prep runs we override the mode to
-     * {@code EVERY_BLOCK} so the snapshot is continually refreshed; the opted-in prep test
-     * then settles a few seconds past WRAPS-extensible to ensure the snapshot captures a
-     * resume-safe {@code HistoryProofConstruction} (hasTargetProof=true).
-     */
-    private static final String EXPORTED_NETWORK_RELATIVE = "output/network.json";
-
-    /** Filename consumed by DiskStartupNetworks during subprocess genesis. */
-    private static final String GENESIS_NETWORK_JSON = "genesis-network.json";
+    /** Set once we have seeded {@link #RESERVATIONS_BY_NAME} from the committed fixtures (see below). */
+    private static boolean fixturePortReservationsSeeded = false;
 
     // ── TSS-readiness gate (called from startNetworks for tssPreload-opted networks) ──
     /** Runtime log line from {@code ProofControllerImpl} when the cold WRAPS bootstrap finishes. */
@@ -185,10 +203,7 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
     private static final Pattern WRAPS_SYNC_POINT_PATTERN =
             Pattern.compile("\\[CLPR-SYNC-POINT\\] block #\\d+ is the first to embed the WRAPS recursive proof");
 
-    /** Extracts a node fixture's {@code blsPrivateKey} for the distinct-per-node TSS-key assertion. */
-    private static final Pattern BLS_PRIVATE_KEY = Pattern.compile("\"blsPrivateKey\"\\s*:\\s*\"([^\"]*)\"");
-
-    private static final Duration WRAPS_EXTENSIBLE_TIMEOUT = Duration.ofMinutes(25);
+    private static final Duration WRAPS_EXTENSIBLE_TIMEOUT = Duration.ofMinutes(10);
     /**
      * Upper bound on how long we'll wait between {@code WRAPS-extensible? true} and the
      * {@code [CLPR-SYNC-POINT]} log line. Typically fires within seconds (1-2 block-times after
@@ -217,7 +232,7 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
      * WRAPS bootstrap (wait-for-extensible + 5-min settle) before the test runs. Test-layer
      * helpers (e.g. {@code HieroToHieroBase.captureConfigProof}) consult this via
      * {@link #wasTssBootstrapHandled} to skip their own settle when the extension already paid
-     * for it. Cleared in {@link #afterEach} so stale entries can't leak into the next test.
+     * for it.
      */
     private static final Set<SubProcessNetwork> TSS_BOOTSTRAP_HANDLED = ConcurrentHashMap.newKeySet();
 
@@ -233,7 +248,6 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
      * Per-network-name CLPR mTLS CA material, provisioned in {@link #provisionClprMtls} when a
      * {@link Network#enableClprMtls()} network starts (or restarts warm). Keyed by name so it survives the
      * cold-path {@link #restartWithFixture} that swaps the {@link SubProcessNetwork} instance.
-     * Cleared in {@link #afterEach}.
      */
     private static final Map<String, ClprMtlsCa> CLPR_MTLS_CAS = new ConcurrentHashMap<>();
 
@@ -256,40 +270,52 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
         findAnnotation(ctx).ifPresent(annotation -> {
             store(ctx).put(ANNOTATION_KEY, annotation);
             final var configs = annotation.value();
-            final SubProcessNetwork[] networks;
-            final boolean shared;
-            if (!SHARED_NETWORKS.isEmpty() && allShared(configs)) {
-                networks = new SubProcessNetwork[configs.length];
-                for (int i = 0; i < configs.length; i++) {
-                    networks[i] = SHARED_NETWORKS.get(resolveName(configs[i]));
-                }
-                shared = true;
-                log.info(
-                        "[MultiNetworkExtension] Reusing shared networks {} for test {}",
-                        Arrays.stream(configs)
-                                .map(MultiNetworkExtension::resolveName)
-                                .toList(),
-                        ctx.getDisplayName());
-                // SubProcessNetwork#awaitReady memoizes its result for the lifetime of the instance and
-                // is never re-armed, so it is a no-op on reuse. A shared network that an earlier suite
-                // left non-ACTIVE (e.g. freeze/shutdown/restart) would
-                // otherwise be handed straight to applySetupOverrides below, whose specs then fail with
-                // PLATFORM_NOT_ACTIVE. Re-verify per node; this returns immediately when already ACTIVE.
-                for (final var network : networks) {
-                    network.nodes().forEach(node -> awaitStatus(node, SHARED_REUSE_ACTIVE_TIMEOUT, ACTIVE));
-                }
-            } else {
-                log.info(
-                        "[MultiNetworkExtension] Starting per-test networks {} for test {} (no compatible shared set)",
-                        Arrays.stream(configs)
-                                .map(MultiNetworkExtension::resolveName)
-                                .toList(),
-                        ctx.getDisplayName());
-                networks = startNetworks(configs);
-                shared = false;
+            // Per-network serialization is done by JUnit via ClprNetworkLocksProvider (a @ResourceLock
+            // provider on @MultiNetworkHapiTest): same-network tests take turns (READ overlaps, a @Leaky
+            // WRITE runs alone), different groups run in parallel. So there is no lock to take here.
+            final var names = Arrays.stream(configs)
+                    .map(MultiNetworkExtension::resolveName)
+                    .toList();
+            final var undeclared = names.stream()
+                    .filter(name -> !DECLARED_CONFIGS.containsKey(name))
+                    .toList();
+            if (!undeclared.isEmpty()) {
+                throw new IllegalStateException("Networks " + undeclared + " for test " + ctx.getDisplayName()
+                        + " were not declared by SharedMultiNetworkLauncherSessionListener (is the test @Disabled?)");
             }
+            // Lazy start: get each shared network, starting it on first demand and
+            // reusing it thereafter. Start under the canonical config the launcher reserved ports
+            // for, not this test's copy, so every test on the name hits the same subprocess.
+            // Wait for this test's network group to be admitted under the node budget, then lazily boot
+            // its networks. The test id is stored first, so afterEach counts the test as finished even
+            // if admission or the boot throws.
+            final String testId = ctx.getUniqueId();
+            store(ctx).put(TEST_ID_KEY, testId);
+            final var group = NETWORK_GROUP_QUEUE.awaitTurn(testId);
+            final var networks = new SubProcessNetwork[configs.length];
+            // READ tests of one group can get here together. Boot (or reuse) under a per-group lock, so a
+            // failed boot is torn down and marked failed before another test of the group can see the
+            // networks missing and boot them again outside the node budget.
+            final var bootLock = GROUP_BOOT_LOCKS.computeIfAbsent(group.id(), id -> new ReentrantLock());
+            lockManaged(bootLock);
+            try {
+                // Throws if an earlier test of the group failed to boot; returns at once while it runs
+                NETWORK_GROUP_QUEUE.awaitTurn(testId);
+                try {
+                    startSharedNetworks(configs, networks);
+                } catch (final RuntimeException | Error e) {
+                    // Tear down whatever started and free the group's nodes right away; its remaining
+                    // tests then fail fast instead of retrying the boot
+                    log.warn("[MultiNetworkExtension] Networks of network group [{}] failed to start", group.id(), e);
+                    tearDownSharedGroup(group);
+                    NETWORK_GROUP_QUEUE.bootFailed(testId);
+                    throw e;
+                }
+            } finally {
+                bootLock.unlock();
+            }
+            log.info("[MultiNetworkExtension] Using shared networks {} for test {}", names, ctx.getDisplayName());
             store(ctx).put(NETWORKS_KEY, networks);
-            store(ctx).put(SHARED_FLAG_KEY, shared);
             store(ctx).put(PARAM_INDEXES_KEY, networkParamIndexes(ctx, networks.length));
             // Snapshot each override's pre-test value on its network, then apply the test's value.
             // The captured map is stashed on the JUnit store so afterEach can undo exactly what
@@ -301,43 +327,19 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
     @Override
     public void afterEach(@NonNull final ExtensionContext ctx) {
         final var networks = store(ctx).remove(NETWORKS_KEY, SubProcessNetwork[].class);
-        final var annotation = store(ctx).remove(ANNOTATION_KEY, MultiNetworkHapiTest.class);
-        final Boolean sharedFlag = store(ctx).remove(SHARED_FLAG_KEY, Boolean.class);
-        final boolean shared = sharedFlag != null && sharedFlag;
+        store(ctx).remove(ANNOTATION_KEY, MultiNetworkHapiTest.class);
         @SuppressWarnings("unchecked")
         final var captured =
                 (Map<SubProcessNetwork, Map<String, String>>) store(ctx).remove(CAPTURED_PROPS_KEY, Map.class);
-        // Restore each network by replaying the pre-test value of every key this test touched.
-        // Done BEFORE any termination so shared networks are clean for the next test.
+        // Restore each network by replaying the pre-test value of every key this test touched,
+        // so shared networks are clean for the next test.
         if (networks != null && captured != null) {
             restoreCapturedProperties(networks, captured);
         }
-        if (networks != null && !shared) {
-            // On success, harvest fresh TSS fixtures for any tssPreload-opted network that
-            // doesn't yet have one cached. Run BEFORE terminating so the exported file is
-            // guaranteed to be flushed; the per-block writer is idempotent.
-            if (annotation != null && ctx.getExecutionException().isEmpty()) {
-                final var configs = annotation.value();
-                for (int i = 0; i < networks.length && i < configs.length; i++) {
-                    if (configs[i].tssPreload()) {
-                        cacheTssFixtureIfMissing(networks[i]);
-                    }
-                }
-            }
-
-            // Collect URIs before terminating so we can clean up stale channels.
-            // Dead channels accumulate in the static HapiClients.channelPools and cause
-            // "Connection refused" on subsequent runs because the round-robin picks them.
-            final List<String> uris = new ArrayList<>();
-            for (final var n : networks) {
-                n.nodes().forEach(node -> uris.add(node.getHost() + ":" + node.getGrpcPort()));
-            }
-            for (final var n : networks) {
-                TSS_BOOTSTRAP_HANDLED.remove(n);
-                CLPR_MTLS_CAS.remove(n.name());
-                safeTerminate(n);
-            }
-            HapiClients.removeChannelsFor(uris);
+        // A shared network group stays warm across all its tests; its last test tears it down and frees its nodes
+        final String testId = store(ctx).remove(TEST_ID_KEY, String.class);
+        if (testId != null) {
+            finishSharedTests(testId);
         }
         if (networks != null) {
             wipeClprPeerEndpointsCache(networks);
@@ -345,13 +347,85 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
         store(ctx).remove(PARAM_INDEXES_KEY);
     }
 
-    private static boolean allShared(@NonNull final Network[] configs) {
-        for (final var cfg : configs) {
-            if (!SHARED_NETWORKS.containsKey(resolveName(cfg))) {
-                return false;
+    /**
+     * Boots (or reuses) the shared networks {@code configs} name into {@code networks}, and waits for every node
+     * to be ACTIVE.
+     */
+    private static void startSharedNetworks(
+            @NonNull final Network[] configs, @NonNull final SubProcessNetwork[] networks) {
+        // Boot the group's networks in PARALLEL (one virtual thread per network) rather than one
+        // after another: getOrStartShared is start-once per name (its own per-name lock), and
+        // distinct names boot independently, so a group's start is the slowest single network's
+        // time, not the sum. Warm reuse (cache hit) returns ~immediately, so already-started
+        // networks cost nothing here.
+        try (final var startExecutor = Executors.newVirtualThreadPerTaskExecutor()) {
+            final List<Future<?>> startFutures = new ArrayList<>();
+            for (int i = 0; i < configs.length; i++) {
+                final int idx = i;
+                startFutures.add(startExecutor.submit(
+                        () -> networks[idx] = getOrStartShared(DECLARED_CONFIGS.get(resolveName(configs[idx])))));
+            }
+            for (final var f : startFutures) {
+                try {
+                    f.get();
+                } catch (final ExecutionException e) {
+                    final var cause = e.getCause();
+                    throw (cause instanceof RuntimeException re)
+                            ? re
+                            : new RuntimeException("Shared network startup failed", cause);
+                } catch (final InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("Interrupted while starting shared networks", e);
+                }
             }
         }
-        return true;
+        // SubProcessNetwork#awaitReady memoizes its result for the lifetime of the instance and
+        // is never re-armed, so it is a no-op on reuse. A shared network that an earlier suite
+        // left non-ACTIVE (e.g. freeze/shutdown/restart) would
+        // otherwise be handed straight to applySetupOverrides, whose specs then fail with
+        // PLATFORM_NOT_ACTIVE. Re-verify per node; this returns immediately when already ACTIVE.
+        for (final var network : networks) {
+            network.nodes().forEach(node -> awaitStatus(node, SHARED_REUSE_ACTIVE_TIMEOUT, ACTIVE));
+        }
+    }
+
+    /**
+     * Marks the registered tests under {@code uniqueId} (a test, or a container whose tests never ran) as
+     * finished, and tears down every shared network group whose last test this was.
+     */
+    public static void finishSharedTests(@NonNull final String uniqueId) {
+        for (final var group : NETWORK_GROUP_QUEUE.testsFinished(uniqueId)) {
+            try {
+                tearDownSharedGroup(group);
+            } finally {
+                NETWORK_GROUP_QUEUE.release(group);
+            }
+        }
+    }
+
+    /** Terminates whichever of {@code group}'s shared networks are started and drops them from the warm cache. */
+    private static void tearDownSharedGroup(@NonNull final NetworkGroup group) {
+        final var networks = group.networkNames().stream()
+                .map(SHARED_NETWORKS::remove)
+                .filter(Objects::nonNull)
+                .toArray(SubProcessNetwork[]::new);
+        terminateNetworks(networks);
+    }
+
+    private static void terminateNetworks(@NonNull final SubProcessNetwork[] networks) {
+        // Collect URIs before terminating so we can clean up stale channels.
+        // Dead channels accumulate in the static HapiClients.channelPools and cause
+        // "Connection refused" on subsequent runs because the round-robin picks them.
+        final List<String> uris = new ArrayList<>();
+        for (final var n : networks) {
+            n.nodes().forEach(node -> uris.add(node.getHost() + ":" + node.getGrpcPort()));
+        }
+        for (final var n : networks) {
+            TSS_BOOTSTRAP_HANDLED.remove(n);
+            CLPR_MTLS_CAS.remove(n.name());
+            safeTerminate(n);
+        }
+        HapiClients.removeChannelsFor(uris);
     }
 
     @Override
@@ -376,6 +450,108 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
         return networks[pos];
     }
 
+    /**
+     * Reserves the gRPC/mTLS port window for each declared network WITHOUT starting any nodes. Called
+     * once up front by the launcher-session listener (with explicit-port networks sorted first) so that
+     * shared networks starting lazily and out of order can't land on each other's ports.
+     */
+    public static void reservePorts(@NonNull final Network[] configs) {
+        ensureFixturePortReservations();
+        for (final var cfg : configs) {
+            resolveFirstGrpcPort(cfg);
+        }
+    }
+
+    /**
+     * Returns the shared subprocess network for {@code canonical}, starting it on first demand and
+     * caching it in {@link #SHARED_NETWORKS} for reuse. The caller holds this
+     * network's scheduler WRITE lock, so no two threads race to start the same name; distinct names may
+     * start concurrently. The first network to boot reconfigures the shared driver log.
+     */
+    public static SubProcessNetwork getOrStartShared(@NonNull final Network canonical) {
+        final String name = resolveName(canonical);
+        final var existing = SHARED_NETWORKS.get(name);
+        if (existing != null) {
+            return existing;
+        }
+        // Under concurrent (READ) methods, several tests on the same network can reach here at once;
+        // a per-name lock (double-checked) guarantees the network is started exactly once and the rest
+        // reuse it. Distinct names lock independently, so different groups still boot in parallel.
+        synchronized (START_LOCKS.computeIfAbsent(name, k -> new Object())) {
+            final var started = SHARED_NETWORKS.get(name);
+            if (started != null) {
+                return started;
+            }
+            log.info("[MultiNetworkExtension] Lazily starting shared network '{}'", name);
+            final var network = startNetworks(new Network[] {canonical})[0];
+            if (SHARED_LOGGING_CONFIGURED.compareAndSet(false, true)) {
+                reconfigureSharedSubProcessLogging(network);
+            }
+            SHARED_NETWORKS.put(name, network);
+            return network;
+        }
+    }
+
+    /** Per-network-group locks, so the tests of a group boot (or reuse) its networks one at a time. */
+    private static final Map<String, ReentrantLock> GROUP_BOOT_LOCKS = new ConcurrentHashMap<>();
+
+    /**
+     * Acquires {@code lock} through {@link ForkJoinPool#managedBlock}, so a JUnit worker waiting for another test
+     * of its group to finish booting is compensated for instead of starving the pool.
+     */
+    private static void lockManaged(@NonNull final ReentrantLock lock) {
+        try {
+            ForkJoinPool.managedBlock(new ForkJoinPool.ManagedBlocker() {
+                @Override
+                public boolean block() throws InterruptedException {
+                    lock.lockInterruptibly();
+                    return true;
+                }
+
+                @Override
+                public boolean isReleasable() {
+                    return lock.isHeldByCurrentThread() || lock.tryLock();
+                }
+            });
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while waiting to boot a network group", e);
+        }
+    }
+
+    /** Per-network-name monitors so concurrent readers start a shared network exactly once. */
+    private static final Map<String, Object> START_LOCKS = new ConcurrentHashMap<>();
+
+    /**
+     * Routes the multi-network driver log to a sibling of each network's working dir (e.g.
+     * {@code build/multinetwork-test-clients/}), not inside any one network's node0 output. Called once,
+     * on the first lazily-started shared network. The first node's working dir is
+     * {@code build/<scope>-test/node0}; two parents up is the gradle build root (subtask-name nesting is
+     * disabled for MULTINETWORK in build.gradle.kts, so the depth is fixed).
+     */
+    private static void reconfigureSharedSubProcessLogging(@NonNull final SubProcessNetwork network) {
+        final var workingDir = network.nodes()
+                .getFirst()
+                .getExternalPath(WORKING_DIR)
+                .toAbsolutePath()
+                .normalize();
+        final Path outputDir;
+        try {
+            outputDir = workingDir.getParent().getParent().resolve(MULTINETWORK_LOG_DIR);
+            Files.createDirectories(outputDir);
+        } catch (final RuntimeException | IOException e) {
+            log.warn("Could not resolve multi-network test-client log dir from '{}'", workingDir, e);
+            return;
+        }
+        System.setProperty(
+                TEST_CLIENT_LOG_FILE, outputDir.resolve("test-clients.log").toString());
+        System.setProperty(
+                TEST_CLIENT_LOG_FILE_PATTERN,
+                outputDir.resolve("test-clients-%d{yyyy-MM-dd}-%i.log").toString());
+        Configurator.reconfigure();
+        log.info("Configured shared multi-network test-client logging under {}", outputDir);
+    }
+
     public static SubProcessNetwork[] startNetworks(@NonNull final Network[] configs) {
         final var dupes = Arrays.stream(configs)
                 .collect(Collectors.groupingBy(MultiNetworkExtension::resolveName, Collectors.counting()))
@@ -385,6 +561,11 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
                 .map(Map.Entry::getKey)
                 .toList();
         if (!dupes.isEmpty()) throw new IllegalArgumentException("Duplicate network names: " + dupes);
+
+        // Reserve the ports every committed fixture was captured with, so a network that has a fixture
+        // reproduces those exact ports on warm start (no JSON patching needed) and a brand-new network
+        // is allocated a range that avoids them.
+        ensureFixturePortReservations();
 
         final List<SubProcessNetwork> networks = new ArrayList<>();
         for (final var cfg : configs) {
@@ -396,21 +577,7 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
             // Collect setup overrides (defaults + annotation-declared + tssPreload-injected) into
             // one map so duplicates are merged predictably. Defaults are seeded first so a per-test
             // setupOverrides entry with the same key wins.
-            final var overrides = new LinkedHashMap<String, String>();
-            // Multi-network tests register connectors as part of setup; the prod default
-            // clpr.minLockedStake (100M tinybars) requires a hbar transfer to register, which the
-            // tests don't fund. Lower the threshold so simple test connectors succeed without
-            // forcing every test annotation to repeat this override.
-            overrides.put("clpr.minLockedStake", "100");
-            overrides.put("clpr.nodeSubmitBundleMaxFee", "10000000000");
-            overrides.put("clpr.verifierGasLimit", "5000000");
-            // Apply the per-task build.gradle.kts overrides (hapi.spec.test.overrides) so ANY network
-            // property can be set from the build file for the multi-network tasks — e.g. the CLPR
-            // tasks set clpr.enabled=true. These are seeded into each node's application.properties
-            // (via seedPerNodeApplicationOverrides below), the reliable path that takes effect at
-            // genesis. Layered above the infra defaults but below the test's own setupOverrides, so a
-            // per-test @ConfigOverride still wins.
-            overrides.putAll(prCheckOverrides());
+            final var overrides = defaultSetupOverrides();
             for (final var o : cfg.setupOverrides()) {
                 overrides.put(o.key(), o.value());
             }
@@ -424,7 +591,7 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
                 overrides.put(CLPR_CA_CRT_PATH_KEY, CLPR_CA_CRT_PATH);
                 overrides.put(CLPR_CA_KEY_PATH_KEY, CLPR_CA_KEY_PATH);
             }
-            final boolean cacheHit = cfg.tssPreload() && allPerNodeFixturesPresent(resolveName(cfg), cfg.size());
+            final boolean cacheHit = cfg.tssPreload() && fixturePresent(resolveName(cfg));
             if (cfg.tssPreload() && !cacheHit) {
                 // Cold-cache run: trigger a single TSS-enriched export at the freeze block
                 // (after the WRAPS sync-point is reached). ONLY_FREEZE_BLOCK pays the export
@@ -441,14 +608,11 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
                 log.info("[CLPR-FIXTURE] per-node preload hit for '{}' ({} nodes)", resolveName(cfg), cfg.size());
                 network.getPostInitWorkingDirActions().add(node -> {
                     try {
-                        // Install THIS node's own fixture (carrying its own TSS private key).
-                        final var src = resolvePerNodeCachedFixturePath(resolveName(cfg), node.getNodeId(), cfg.size());
+                        // Install the network's merged fixture into every node; at genesis each node
+                        // loads only its own key (filtered by selfNodeId), so one file warm-starts all.
+                        final var src = resolveCachedFixturePath(resolveName(cfg));
                         final var dst = node.getExternalPath(DATA_CONFIG_DIR).resolve(GENESIS_NETWORK_JSON);
                         installFixture(src, dst);
-                        // The fixture holds ports from cold-bootstrap capture time; every warm run
-                        // auto-allocates a fresh random base port. Without this rewrite,
-                        // Node.serviceEndpoint in state would keep the capture-time port while the
-                        // live gRPC server listens on the runtime port — peer dials would miss.
                         rewriteFixturePortsToRuntime(dst, network);
                     } catch (final IOException e) {
                         throw new UncheckedIOException(
@@ -461,7 +625,7 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
                                 + "will cache after passing test",
                         resolveName(cfg),
                         cfg.size(),
-                        TSS_FIXTURE_CACHE_DIR);
+                        CACHE_DIR);
             }
 
             // Provision the per-network CLPR mTLS CA (cert/key PEMs into the working dir + DER stashed
@@ -480,49 +644,70 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
             try (final var executor = Executors.newVirtualThreadPerTaskExecutor()) {
                 final List<Callable<Void>> tasks = networks.stream()
                         .<Callable<Void>>map(n -> () -> {
-                            n.start();
+                            n.start(GENESIS_CONFIG_VERSION);
                             n.awaitReady(STARTUP_TIMEOUT);
                             return null;
                         })
                         .toList();
                 awaitAllFailFast(executor, tasks, "Network startup failed");
             }
-            // Second pass: per-network TSS-readiness gate for tssPreload-opted networks.
+            // Second pass: per-network TSS-readiness gate for tssPreload-opted networks, run in
+            // parallel (one virtual thread per network) — every step below is per-network state
+            // (own subprocess dir, own fixture filename, own reserved ports, TssFixtures's
+            // thread-safe shared mapper, distinct networks.set index), so the wall time is the slowest single
+            // network's cold bootstrap, not the sum across networks.
+            //
             // Warm path (cached fixture preloaded at JVM start): returns ~immediately once the
             // preload log fires + first signed block arrives. Cold path (no fixture): waits up to
-            // 25 min for the runtime WRAPS-extensible event (~14 min on a 1-node subprocess),
+            // 10 min for the runtime WRAPS-extensible event (a few minutes on a 1-node subprocess),
             // polls for [CLPR-SYNC-POINT] (first WRAPS-carrying block, ~seconds later), settles
             // POST_SYNC_POINT_SETTLE so a few WRAPS-carrying blocks accumulate, triggers a
             // freezeOnly to fire ONLY_FREEZE_BLOCK export of a TSS-enriched output/network.json,
             // harvests it into the cache, then restarts the network with the just-cached fixture
             // preloaded so the test runs against a warm-loaded network (byte-identical to every
-            // subsequent run). Both networks bootstrap in parallel — wait wall time is whichever
-            // finishes last, not the sum.
-            for (int i = 0; i < networks.size(); i++) {
-                final var n = networks.get(i);
-                final var cfg = configs[i];
-                if (!cfg.tssPreload()) continue;
-                final boolean coldBootstrap = awaitTssReady(n);
-                if (coldBootstrap) {
-                    log.info("[CLPR-FIXTURE] '{}' cold WRAPS bootstrap complete — awaiting sync-point log", n.name());
-                    awaitWrapsSyncPoint(n);
-                    Thread.sleep(POST_SYNC_POINT_SETTLE.toMillis());
-                    // Trigger the single ONLY_FREEZE_BLOCK export, then harvest the fixture.
-                    log.info("[CLPR-FIXTURE] '{}' triggering freeze to flush TSS-enriched snapshot", n.name());
-                    runFreezeForExport(n);
-                    harvestFreshFixtureOrThrow(n);
-                    // Restart the network with the just-cached per-node fixtures preloaded so the test
-                    // runs against a warm-loaded network rather than a frozen one.
-                    if (!allPerNodeFixturesPresent(resolveName(cfg), cfg.size())) {
-                        throw new IllegalStateException(
-                                "Cold-bootstrap harvest reported success but per-node fixtures are missing for '"
-                                        + resolveName(cfg) + "'");
+            // subsequent run).
+            try (final var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+                final List<Future<Void>> futures = new ArrayList<>();
+                for (int i = 0; i < networks.size(); i++) {
+                    final int idx = i;
+                    final var cfg = configs[idx];
+                    if (!cfg.tssPreload()) continue;
+                    futures.add(executor.submit(() -> {
+                        final var n = networks.get(idx);
+                        final boolean coldBootstrap = awaitTssReady(n);
+                        if (coldBootstrap) {
+                            log.info(
+                                    "[CLPR-FIXTURE] '{}' cold WRAPS bootstrap complete — awaiting sync-point log",
+                                    n.name());
+                            awaitWrapsSyncPoint(n);
+                            Thread.sleep(POST_SYNC_POINT_SETTLE.toMillis());
+                            // Trigger the single ONLY_FREEZE_BLOCK export, then harvest the fixture.
+                            log.info("[CLPR-FIXTURE] '{}' triggering freeze to flush TSS-enriched snapshot", n.name());
+                            runFreezeForExport(n);
+                            generateNetworkFixture(n);
+                            // Restart with the just-cached per-node fixtures preloaded so the test runs
+                            // against a warm-loaded network rather than a frozen one.
+                            if (!fixturePresent(resolveName(cfg))) {
+                                throw new IllegalStateException(
+                                        "Cold-bootstrap harvest reported success but per-node fixtures are missing for '"
+                                                + resolveName(cfg) + "'");
+                            }
+                            final var freshNetwork = restartWithFixture(cfg, n);
+                            // Distinct index per task; f.get() below establishes the happens-before edge.
+                            networks.set(idx, freshNetwork);
+                            // The fresh network is warm-preloaded — captureConfigProof will see
+                            // WARM_PRELOADED and skip its own settle without needing the BOOTSTRAP_HANDLED
+                            // flag, so no entry to add here.
+                        }
+                        return null;
+                    }));
+                }
+                for (final var f : futures) {
+                    try {
+                        f.get();
+                    } catch (final ExecutionException e) {
+                        throw new RuntimeException("Network TSS bootstrap failed", e.getCause());
                     }
-                    final var freshNetwork = restartWithFixture(cfg, n);
-                    networks.set(i, freshNetwork);
-                    // The fresh network is warm-preloaded — captureConfigProof will see
-                    // WARM_PRELOADED and skip its own settle without needing the BOOTSTRAP_HANDLED
-                    // flag, so no entry to add here.
                 }
             }
             return networks.toArray(SubProcessNetwork[]::new);
@@ -668,6 +853,65 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
     }
 
     /**
+     * Seeds {@link #RESERVATIONS_BY_NAME} from the ports baked into the committed fixtures, so
+     * {@link #resolveFirstGrpcPort} hands each fixtured network back its own capture-time base (a warm
+     * start reproduces the fixture's in-state gossip/service ports verbatim, with no JSON patching),
+     * while a network without a fixture is allocated a slot that avoids all of them.
+     *
+     * <p>Runs once per JVM, under the same class lock as {@code resolveFirstGrpcPort}. Each network is
+     * read once by streaming only its {@code nodeMetadata} (never the ~42MB {@code tssMetadata}); the
+     * base is the lowest node gRPC (service) port and the footprint is {@code nodeCount * PORTS_PER_NODE},
+     * matching {@code resolveFirstGrpcPort}'s own reservation shape.
+     */
+    private static synchronized void ensureFixturePortReservations() {
+        if (fixturePortReservationsSeeded) {
+            return;
+        }
+        fixturePortReservationsSeeded = true;
+        if (!Files.isDirectory(CACHE_DIR)) {
+            return;
+        }
+        try (var files = Files.list(CACHE_DIR)) {
+            files.sorted().forEach(path -> {
+                final String network = fixtureNetworkName(path.getFileName().toString());
+                if (network == null || RESERVATIONS_BY_NAME.containsKey(network)) {
+                    return;
+                }
+                try {
+                    final int[] baseAndSize = fixtureBaseAndNodeCount(path);
+                    if (baseAndSize == null) {
+                        return;
+                    }
+                    final int base = baseAndSize[0];
+                    final int footprint = baseAndSize[1] * PORTS_PER_NODE;
+                    final Reservation conflict = firstOverlapping(base, base + footprint);
+                    if (conflict != null) {
+                        log.warn(
+                                "[CLPR-FIXTURE] fixture '{}' base [{}, {}) overlaps '{}' [{}, {}); not reserving",
+                                network,
+                                base,
+                                base + footprint,
+                                conflict.name(),
+                                conflict.base(),
+                                conflict.end());
+                        return;
+                    }
+                    RESERVATIONS_BY_NAME.put(network, new Reservation(network, base, footprint));
+                    log.info(
+                            "[CLPR-FIXTURE] reserved ports [{}, {}) for fixtured network '{}'",
+                            base,
+                            base + footprint,
+                            network);
+                } catch (final IOException e) {
+                    log.warn("[CLPR-FIXTURE] could not read fixture {} for port reservation: {}", path, e.getMessage());
+                }
+            });
+        } catch (final IOException e) {
+            log.warn("[CLPR-FIXTURE] could not enumerate fixtures for port reservation: {}", e.getMessage());
+        }
+    }
+
+    /**
      * Polls the network's {@code hgcaa.log} for either the cold-path runtime construction event
      * or the warm-path preload event, then (warm only — cold implies it) waits for the first
      * signed block. Returns whether the path taken was a cold bootstrap (caller settles +
@@ -798,6 +1042,25 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
     }
 
     /**
+     * Returns the setup overrides every multi-network test network starts with, before any test-declared
+     * {@code setupOverrides}; shared by the primary start path and {@link #restartWithFixture} so a network
+     * restarted warm after a cold bootstrap runs with the same configuration as one that started warm.
+     */
+    private static LinkedHashMap<String, String> defaultSetupOverrides() {
+        final var overrides = new LinkedHashMap<String, String>();
+        // Multi-network tests register connectors as part of setup; the prod default
+        // clpr.minLockedStake (100M tinybars) requires a hbar transfer to register, which the
+        // tests don't fund. Lower the threshold so simple test connectors succeed without
+        // forcing every test annotation to repeat this override.
+        overrides.put("clpr.minLockedStake", "100");
+        overrides.put("clpr.nodeSubmitBundleMaxFee", "10000000000");
+        overrides.put("clpr.verifierGasLimit", "5000000");
+        // Task defaults apply at genesis and fixture restart, while per-test setup overrides win.
+        overrides.putAll(prCheckOverrides());
+        return overrides;
+    }
+
+    /**
      * Terminates the cold-bootstrapped network and brings up a fresh {@link SubProcessNetwork}
      * with the just-cached fixture preloaded, so the upcoming test sees a warm-loaded network
      * (the warm-path code path, byte-for-byte identical to second-and-later runs). Reuses the
@@ -819,11 +1082,7 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
         // re-inject the ONLY_FREEZE_BLOCK export overrides: with a cached fixture in place this
         // is now a warm run, and the test isn't expected to issue another freeze.
         // Same defaults shape as the primary path above.
-        final var overrides = new LinkedHashMap<String, String>();
-        overrides.put("clpr.minLockedStake", "100");
-        // Same build.gradle.kts override pass as the primary path (see there) so the warm restart
-        // brings the network back up with the identical property set.
-        overrides.putAll(prCheckOverrides());
+        final var overrides = defaultSetupOverrides();
         for (final var o : cfg.setupOverrides()) {
             overrides.put(o.key(), o.value());
         }
@@ -839,7 +1098,7 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
         // Preload each node's OWN fixture via the same postInitWorkingDirAction the warm-cache hit uses.
         fresh.getPostInitWorkingDirActions().add(node -> {
             try {
-                final var src = resolvePerNodeCachedFixturePath(resolveName(cfg), node.getNodeId(), cfg.size());
+                final var src = resolveCachedFixturePath(resolveName(cfg));
                 final var dst = node.getExternalPath(DATA_CONFIG_DIR).resolve(GENESIS_NETWORK_JSON);
                 installFixture(src, dst);
                 rewriteFixturePortsToRuntime(dst, fresh);
@@ -858,7 +1117,7 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
                 "[CLPR-FIXTURE] '{}' restarting with just-cached per-node fixtures preloaded ({} nodes)",
                 resolveName(cfg),
                 cfg.size());
-        fresh.start();
+        fresh.start(GENESIS_CONFIG_VERSION);
         fresh.awaitReady(STARTUP_TIMEOUT);
         return fresh;
     }
@@ -907,6 +1166,106 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
     }
 
     /**
+     * Rewrite the port fields of every {@code nodeMetadata} entry in a just-installed fixture at
+     * {@code fixturePath} so they match the runtime ports of {@code subNet} (random-allocated per
+     * run). Rebinds construction references to the changed roster while preserving TSS keys,
+     * proofs, weights, and gossip CA certificates so the fixture still skips WRAPS bootstrap.
+     *
+     * <p>Patches, per node: {@code node.serviceEndpoint[0]}, {@code node.gossipEndpoint[0..1]},
+     * and {@code rosterEntry.gossipEndpoint[0..1]}. IP address is reset to loopback (fixtures are
+     * captured on loopback and warm runs always come up on loopback too).
+     */
+    private static void rewriteFixturePortsToRuntime(
+            @NonNull final Path fixturePath, @NonNull final SubProcessNetwork subNet) throws IOException {
+        final var loaded = DiskStartupNetworks.loadNetworkFrom(fixturePath)
+                .orElseThrow(() ->
+                        new IllegalStateException("Failed to reload freshly-installed fixture at " + fixturePath));
+        final Map<Long, NodeMetadata> byId = new LinkedHashMap<>();
+        for (final var n : subNet.nodes()) {
+            byId.put(n.getNodeId(), n.metadata());
+        }
+        final var patched = withRuntimePorts(loaded, byId);
+        // FQN: `Network` is already imported as the `MultiNetworkHapiTest.Network` annotation,
+        // so the internal-network PBJ type must be spelled out inline for the JSON codec.
+        Files.writeString(fixturePath, com.hedera.node.internal.network.Network.JSON.toJSON(patched));
+    }
+
+    /** Applies transport-only fixture changes and keeps construction roster references consistent. */
+    static com.hedera.node.internal.network.Network withRuntimePorts(
+            @NonNull final com.hedera.node.internal.network.Network loaded,
+            @NonNull final Map<Long, NodeMetadata> byId) {
+        final var localhost = Bytes.wrap(new byte[] {127, 0, 0, 1});
+        final var patched = loaded.copyBuilder()
+                .nodeMetadata(loaded.nodeMetadata().stream()
+                        .map(md -> {
+                            final long id = md.rosterEntryOrThrow().nodeId();
+                            final var meta = byId.get(id);
+                            if (meta == null) {
+                                throw new IllegalStateException("Fixture references unknown runtime nodeId=" + id);
+                            }
+                            final var internal = ServiceEndpoint.newBuilder()
+                                    .ipAddressV4(localhost)
+                                    .port(meta.internalGossipPort())
+                                    .build();
+                            final var external = ServiceEndpoint.newBuilder()
+                                    .ipAddressV4(localhost)
+                                    .port(meta.externalGossipPort())
+                                    .build();
+                            final var service = ServiceEndpoint.newBuilder()
+                                    .ipAddressV4(localhost)
+                                    .port(meta.grpcPort())
+                                    .build();
+                            return md.copyBuilder()
+                                    .rosterEntry(md.rosterEntryOrThrow()
+                                            .copyBuilder()
+                                            .gossipEndpoint(List.of(internal, external))
+                                            .build())
+                                    .node(md.nodeOrThrow()
+                                            .copyBuilder()
+                                            .gossipEndpoint(List.of(internal, external))
+                                            .serviceEndpoint(List.of(service))
+                                            .build())
+                                    .build();
+                        })
+                        .toList())
+                .build();
+        if (!loaded.hasTssMetadata()) {
+            return patched;
+        }
+        final var oldRosterHash =
+                RosterUtils.hash(RosterUtils.rosterFrom(loaded)).getBytes();
+        final var newRosterHash =
+                RosterUtils.hash(RosterUtils.rosterFrom(patched)).getBytes();
+        if (oldRosterHash.equals(newRosterHash)) {
+            return patched;
+        }
+        final var metadata = loaded.tssMetadataOrThrow();
+        final var updatedMetadata = metadata.copyBuilder();
+        // Genesis reconciliation matches both source and target to the loaded platform roster.
+        // These references are bookkeeping: hinTS and WRAPS commit to keys, node IDs and weights,
+        // not transport ports. Preserve references to any different, historical roster.
+        if (metadata.hasActiveHintsConstruction()) {
+            final var hints = metadata.activeHintsConstructionOrThrow();
+            updatedMetadata.activeHintsConstruction(hints.copyBuilder()
+                    .sourceRosterHash(rebindFixtureHash(hints.sourceRosterHash(), oldRosterHash, newRosterHash))
+                    .targetRosterHash(rebindFixtureHash(hints.targetRosterHash(), oldRosterHash, newRosterHash))
+                    .build());
+        }
+        if (metadata.hasActiveProofConstruction()) {
+            final var history = metadata.activeProofConstructionOrThrow();
+            updatedMetadata.activeProofConstruction(history.copyBuilder()
+                    .sourceRosterHash(rebindFixtureHash(history.sourceRosterHash(), oldRosterHash, newRosterHash))
+                    .targetRosterHash(rebindFixtureHash(history.targetRosterHash(), oldRosterHash, newRosterHash))
+                    .build());
+        }
+        return patched.copyBuilder().tssMetadata(updatedMetadata).build();
+    }
+
+    private static Bytes rebindFixtureHash(final Bytes hash, final Bytes oldRosterHash, final Bytes newRosterHash) {
+        return hash.equals(oldRosterHash) ? newRosterHash : hash;
+    }
+
+    /**
      * Generates a per-network ECDSA P-384 CLPR CA and registers a post-init working-dir action that
      * drops its cert + PKCS#8 key PEMs into each node's working dir at {@code data/clpr/ca.crt} /
      * {@code data/clpr/ca.key} — the relative paths the suite advertises via {@code clpr.caCrtPath} /
@@ -939,314 +1298,8 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
     }
 
     /**
-     * Mandatory variant of {@link #cacheTssFixtureIfMissing} used in the cold-bootstrap path
-     * where {@link #runFreezeForExport} has just successfully fired and the source file MUST
-     * exist. Throws on any failure so the test surfaces a clear error instead of silently
-     * proceeding to {@link #restartWithFixture} (which would then fail with a generic
-     * {@code NoSuchFileException} for the missing cache file).
-     */
-    private static void harvestFreshFixtureOrThrow(@NonNull final SubProcessNetwork network) {
-        try {
-            Files.createDirectories(TSS_FIXTURE_CACHE_DIR);
-            final int size = network.nodes().size();
-            // Harvest each node's OWN export: node<i>/output/network.json carries node<i>'s dev TSS
-            // private key. All nodes export at the same freeze block, so the public/aggregation material
-            // is identical across them; only the embedded private key differs. Installing each node's
-            // fixture back to that node is what makes a warm multi-node start work.
-            for (final var node : network.nodes()) {
-                final long nodeId = node.getNodeId();
-                final var src = node.getExternalPath(WORKING_DIR).resolve(EXPORTED_NETWORK_RELATIVE);
-                if (!Files.exists(src)) {
-                    throw new IllegalStateException("Cold-bootstrap harvest expected freeze export at " + src + " (node"
-                            + nodeId + ") — not found");
-                }
-                final var dst = TSS_FIXTURE_CACHE_DIR.resolve(perNodeFixtureBase(network.name(), nodeId, size) + ".gz");
-                gzipTo(src, dst);
-                log.info(
-                        "[CLPR-FIXTURE] harvested fresh '{}' node{} fixture to {} ({} bytes, from {} bytes raw)",
-                        network.name(),
-                        nodeId,
-                        dst,
-                        Files.size(dst),
-                        Files.size(src));
-            }
-        } catch (final IOException e) {
-            throw new UncheckedIOException("Failed to harvest fresh TSS fixture for '" + network.name() + "'", e);
-        }
-    }
-
-    /**
-     * Copy the network's exported-network.json (the TSS-enriched snapshot
-     * {@code BlockStreamManagerImpl} writes when {@code networkAdmin.diskNetworkExport*}
-     * are enabled) into the persistent fixture cache, but only if no fixture exists yet.
-     * First-writer-wins so a flaky later test can't corrupt a good fixture.
-     */
-    private static void cacheTssFixtureIfMissing(@NonNull final SubProcessNetwork network) {
-        try {
-            // First-writer-wins: if every node already has a cached per-node fixture, leave them be.
-            if (allPerNodeFixturesPresent(network.name(), network.nodes().size())) {
-                return;
-            }
-            Files.createDirectories(TSS_FIXTURE_CACHE_DIR);
-            final int size = network.nodes().size();
-            // Harvest each node's own export (node<i>/output/network.json), which carries node<i>'s TSS
-            // private key. Written by BlockStreamManagerImpl on the freeze block — if absent, the
-            // opted-in test didn't trigger a freeze before terminating; warn and skip.
-            for (final var node : network.nodes()) {
-                final long nodeId = node.getNodeId();
-                if (resolvePerNodeCachedFixturePath(network.name(), nodeId, size) != null) {
-                    continue;
-                }
-                final var src = node.getExternalPath(WORKING_DIR).resolve(EXPORTED_NETWORK_RELATIVE);
-                if (!Files.exists(src)) {
-                    log.warn(
-                            "[CLPR-FIXTURE] '{}' node{} passed but no {} — opted-in test should run "
-                                    + "freezeOnly()+waitForFrozenNetwork() as its last step",
-                            network.name(),
-                            nodeId,
-                            src);
-                    return;
-                }
-                final var dst = TSS_FIXTURE_CACHE_DIR.resolve(perNodeFixtureBase(network.name(), nodeId, size) + ".gz");
-                gzipTo(src, dst);
-                log.info(
-                        "[CLPR-FIXTURE] cached '{}' node{} fixture to {} ({} bytes, from {} bytes raw)",
-                        network.name(),
-                        nodeId,
-                        dst,
-                        Files.size(dst),
-                        Files.size(src));
-            }
-        } catch (final IOException e) {
-            log.warn("[CLPR-FIXTURE] failed to cache fixture for '{}': {}", network.name(), e.getMessage());
-        }
-    }
-
-    /**
-     * Fixture base filename for one node. <b>Size-1</b> networks keep the legacy single-file name
-     * {@code <network>-genesis-network.json} (backward-compatible with every committed size-1 fixture);
-     * <b>multi-node</b> networks use {@code <network>-node<id>-genesis-network.json}, because each
-     * node's fixture carries only <em>its own</em> TSS private key and one shared file can't warm-start
-     * the others.
-     */
-    private static String perNodeFixtureBase(@NonNull final String networkName, final long nodeId, final int size) {
-        return size == 1
-                ? networkName + "-" + GENESIS_NETWORK_JSON
-                : networkName + "-node" + nodeId + "-" + GENESIS_NETWORK_JSON;
-    }
-
-    /**
-     * Locate the cached fixture for a single node of {@code networkName} ({@code size} nodes total),
-     * preferring the gzipped form (the committed CI source-of-truth) over a stale uncompressed local
-     * copy. Returns {@code null} if neither exists.
-     *
-     * <p>For multi-node networks the fixtures are <b>per node</b>: each carries only that node's TSS
-     * private key (harvested per node — see {@link #harvestFreshFixtureOrThrow}). A single shared
-     * fixture cannot warm-start a size&gt;1 network, because the harvesting node cannot know the other
-     * nodes' secrets, so those nodes would find no usable private key and generate non-matching ones
-     * (invalid hinTS signatures → no block proof completes). Size-1 networks are unaffected and keep
-     * the legacy single-file name.
-     */
-    @Nullable
-    private static Path resolvePerNodeCachedFixturePath(
-            @NonNull final String networkName, final long nodeId, final int size) {
-        final var base = perNodeFixtureBase(networkName, nodeId, size);
-        final var gz = TSS_FIXTURE_CACHE_DIR.resolve(base + ".gz");
-        if (Files.exists(gz)) return gz;
-        final var raw = TSS_FIXTURE_CACHE_DIR.resolve(base);
-        return Files.exists(raw) ? raw : null;
-    }
-
-    /** True iff every node of a {@code size}-node {@code networkName} has a cached fixture. */
-    private static boolean allPerNodeFixturesPresent(@NonNull final String networkName, final int size) {
-        for (long id = 0; id < size; id++) {
-            if (resolvePerNodeCachedFixturePath(networkName, id, size) == null) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /**
-     * Test hook: verifies the per-node TSS fixtures for {@code networkName} each carry exactly one
-     * {@code blsPrivateKey} and that those keys are pairwise <b>distinct</b> — proving the per-node
-     * harvest captured each node's own secret rather than a single shared node0 key (which is what
-     * silently broke multi-node warm start). Throws {@link AssertionError} otherwise. Call after the
-     * network is up (fixtures are harvested during network start).
-     */
-    public static void assertPerNodeFixturesHaveDistinctKeys(@NonNull final String networkName, final int size) {
-        final Set<String> keys = new HashSet<>();
-        for (long id = 0; id < size; id++) {
-            final var path = resolvePerNodeCachedFixturePath(networkName, id, size);
-            if (path == null) {
-                throw new AssertionError("Missing per-node TSS fixture for '" + networkName + "' node" + id);
-            }
-            final String key = extractSingleBlsPrivateKey(readFixtureJson(path), networkName, id);
-            if (!keys.add(key)) {
-                throw new AssertionError("Per-node TSS fixtures for '" + networkName + "' share a blsPrivateKey — "
-                        + "node" + id + " duplicates another node's key (harvest is not per-node)");
-            }
-        }
-        log.info("[CLPR-FIXTURE] verified {} distinct per-node blsPrivateKeys for '{}'", size, networkName);
-    }
-
-    private static String readFixtureJson(@NonNull final Path path) {
-        try {
-            if (path.getFileName().toString().endsWith(".gz")) {
-                try (var in = new GZIPInputStream(Files.newInputStream(path))) {
-                    return new String(in.readAllBytes(), StandardCharsets.UTF_8);
-                }
-            }
-            return Files.readString(path);
-        } catch (final IOException e) {
-            throw new UncheckedIOException("Failed to read TSS fixture " + path, e);
-        }
-    }
-
-    private static String extractSingleBlsPrivateKey(
-            @NonNull final String json, @NonNull final String networkName, final long nodeId) {
-        final var m = BLS_PRIVATE_KEY.matcher(json);
-        if (!m.find()) {
-            throw new AssertionError("No blsPrivateKey in '" + networkName + "' node" + nodeId + " fixture");
-        }
-        final String key = m.group(1);
-        if (key.isEmpty()) {
-            throw new AssertionError("Empty blsPrivateKey in '" + networkName + "' node" + nodeId + " fixture");
-        }
-        if (m.find()) {
-            throw new AssertionError("Multiple blsPrivateKey entries in '" + networkName + "' node" + nodeId
-                    + " fixture — expected exactly one (this node's own key)");
-        }
-        return key;
-    }
-
-    /**
-     * Install a cached fixture at {@code dst}, decompressing on the fly if {@code src} is gzipped.
-     * The subprocess's DiskStartupNetworks always reads plain JSON, so the destination is always
-     * uncompressed regardless of the cached form.
-     */
-    private static void installFixture(@NonNull final Path src, @NonNull final Path dst) throws IOException {
-        if (src.getFileName().toString().endsWith(".gz")) {
-            try (var in = new GZIPInputStream(Files.newInputStream(src))) {
-                Files.copy(in, dst, StandardCopyOption.REPLACE_EXISTING);
-            }
-        } else {
-            Files.copy(src, dst, StandardCopyOption.REPLACE_EXISTING);
-        }
-    }
-
-    /**
-     * Rewrite the port fields of every {@code nodeMetadata} entry in a just-installed fixture at
-     * {@code fixturePath} so they match the runtime ports of {@code subNet} (random-allocated per
-     * run). Keeps every other field — TSS keys, rosters, weights, gossip CA cert — intact, so the
-     * whole point of the fixture (skip the ~14-min WRAPS bootstrap) is preserved.
-     *
-     * <p>Patches, per node: {@code node.serviceEndpoint[0]}, {@code node.gossipEndpoint[0..1]},
-     * and {@code rosterEntry.gossipEndpoint[0..1]}. IP address is reset to loopback (fixtures are
-     * captured on loopback and warm runs always come up on loopback too).
-     */
-    private static void rewriteFixturePortsToRuntime(
-            @NonNull final Path fixturePath, @NonNull final SubProcessNetwork subNet) throws IOException {
-        final var loaded = DiskStartupNetworks.loadNetworkFrom(fixturePath)
-                .orElseThrow(() ->
-                        new IllegalStateException("Failed to reload freshly-installed fixture at " + fixturePath));
-        final Map<Long, HederaNode> byId = new LinkedHashMap<>();
-        for (final var n : subNet.nodes()) {
-            byId.put(n.getNodeId(), n);
-        }
-        final var localhost = Bytes.wrap(new byte[] {127, 0, 0, 1});
-        final var patched = loaded.copyBuilder()
-                .nodeMetadata(loaded.nodeMetadata().stream()
-                        .map(md -> {
-                            final long id = md.rosterEntryOrThrow().nodeId();
-                            final var live = byId.get(id);
-                            if (live == null) {
-                                throw new IllegalStateException("Fixture references unknown nodeId=" + id
-                                        + " (runtime network '" + subNet.name() + "' has "
-                                        + subNet.nodes().size() + " nodes)");
-                            }
-                            final var meta = live.metadata();
-                            final var internal = ServiceEndpoint.newBuilder()
-                                    .ipAddressV4(localhost)
-                                    .port(meta.internalGossipPort())
-                                    .build();
-                            final var external = ServiceEndpoint.newBuilder()
-                                    .ipAddressV4(localhost)
-                                    .port(meta.externalGossipPort())
-                                    .build();
-                            final var service = ServiceEndpoint.newBuilder()
-                                    .ipAddressV4(localhost)
-                                    .port(meta.grpcPort())
-                                    .build();
-                            return md.copyBuilder()
-                                    .rosterEntry(md.rosterEntryOrThrow()
-                                            .copyBuilder()
-                                            .gossipEndpoint(List.of(internal, external))
-                                            .build())
-                                    .node(md.nodeOrThrow()
-                                            .copyBuilder()
-                                            .gossipEndpoint(List.of(internal, external))
-                                            .serviceEndpoint(List.of(service))
-                                            .build())
-                                    .build();
-                        })
-                        .toList())
-                .build();
-        // FQN: `Network` is already imported as the `MultiNetworkHapiTest.Network` annotation,
-        // so the internal-network PBJ type must be spelled out inline for the JSON codec.
-        Files.writeString(fixturePath, com.hedera.node.internal.network.Network.JSON.toJSON(patched));
-    }
-
-    /**
-     * Stream-gzip {@code src} into {@code dst}. Used by the cold-bootstrap harvest so the
-     * harvested fixture lands in the cache directory already in committable form — no manual
-     * {@code gzip} step needed before {@code git add}.
-     */
-    private static void gzipTo(@NonNull final Path src, @NonNull final Path dst) throws IOException {
-        try (var in = Files.newInputStream(src);
-                var out = new GZIPOutputStream(Files.newOutputStream(dst))) {
-            in.transferTo(out);
-        }
-    }
-
-    /**
-     * Walk up from the test JVM's working dir to find {@code tss-startup-assets/} — the
-     * developer-local dir holding warm-cache fixtures alongside the extracted WRAPS proving
-     * artifacts. Canonical location is {@code hedera-node/test-clients/tss-startup-assets/}
-     * (it's used only by HAPI tests). The walk-up handles both:
-     *
-     * <ul>
-     *   <li>{@code :test-clients:testSubprocess} — CWD is the test-clients project dir, so
-     *       {@code tss-startup-assets/} is found on iteration 0;</li>
-     *   <li>any other invocation — walks up until it finds either {@code tss-startup-assets/}
-     *       directly or the canonical {@code hedera-node/test-clients/tss-startup-assets/}
-     *       path under a parent.</li>
-     * </ul>
-     *
-     * <p>Falls back to a plain relative path if neither is found; the cache then won't
-     * persist across runs, which is harmless (just slow).
-     */
-    private static Path resolveTssFixtureCacheDir() {
-        var dir = Paths.get("").toAbsolutePath();
-        for (int i = 0; i < 6; i++) {
-            if (Files.isDirectory(dir.resolve("tss-startup-assets"))) {
-                return dir.resolve("tss-startup-assets");
-            }
-            final var canonical =
-                    dir.resolve("hedera-node").resolve("test-clients").resolve("tss-startup-assets");
-            if (Files.isDirectory(canonical)) {
-                return canonical;
-            }
-            final var parent = dir.getParent();
-            if (parent == null) break;
-            dir = parent;
-        }
-        return Paths.get("tss-startup-assets");
-    }
-
-    /**
-     * Deletes {@code data/clpr/peer-endpoints.json} on every node of every network. Safe for both
-     * per-test (terminated) networks and live shared networks.
+     * Deletes {@code data/clpr/peer-endpoints.json} on every node of every network. Safe on live
+     * shared networks.
      */
     private static void wipeClprPeerEndpointsCache(@NonNull final SubProcessNetwork[] networks) {
         for (final var n : networks) {

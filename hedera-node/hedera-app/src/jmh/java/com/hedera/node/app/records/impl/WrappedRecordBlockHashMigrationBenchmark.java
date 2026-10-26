@@ -18,6 +18,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
+import org.hiero.base.crypto.DigestType;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -135,7 +136,8 @@ public class WrappedRecordBlockHashMigrationBenchmark {
 
     @Benchmark
     public void execute() {
-        new WrappedRecordBlockHashMigration().execute(StreamMode.BOTH, config, jumpstartConfig, false);
+        new WrappedRecordBlockHashMigration()
+                .execute(StreamMode.BOTH, config, jumpstartConfig, false, DigestType.SHA_384);
     }
 
     public static void main(String... args) throws Exception {

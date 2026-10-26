@@ -58,7 +58,7 @@ public record StateValue<V>(int stateId, @NonNull V value) {
      *
      * @param <V> domain value type
      */
-    public static final class StateValueCodec<V> implements Codec<StateValue<V>> {
+    public static final class StateValueCodec<V> extends Codec<StateValue<V>> {
 
         private final int stateId;
 
@@ -100,7 +100,7 @@ public record StateValue<V>(int stateId, @NonNull V value) {
          * {@inheritDoc}
          */
         @Override
-        public void write(@NonNull final StateValue<V> value, @NonNull final WritableSequentialData out)
+        protected void writeImpl(@NonNull final StateValue<V> value, @NonNull final WritableSequentialData out)
                 throws IOException {
             // Write tag
             final int stateId = value.stateId();
@@ -121,7 +121,7 @@ public record StateValue<V>(int stateId, @NonNull V value) {
          */
         @NonNull
         @Override
-        public StateValue<V> parse(
+        protected StateValue<V> parseImpl(
                 @NonNull final ReadableSequentialData in,
                 final boolean strictMode,
                 final boolean parseUnknownFields,
@@ -149,46 +149,6 @@ public record StateValue<V>(int stateId, @NonNull V value) {
                 in.limit(limit);
             }
             return new StateValue<>(stateId, value);
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public boolean fastEquals(@NonNull StateValue<V> value, @NonNull ReadableSequentialData in)
-                throws ParseException {
-            final int tag = in.readVarInt(false);
-            final int fieldNum = tag >> ProtoParserTools.TAG_FIELD_OFFSET;
-            if (fieldNum != stateId) {
-                return false;
-            }
-            final int wireType = tag & ProtoConstants.TAG_WIRE_TYPE_MASK;
-            if (wireType != ProtoConstants.WIRE_TYPE_VARINT_OR_ZIGZAG.ordinal()) {
-                return false;
-            }
-            final int size = in.readVarInt(false);
-            final boolean equals;
-            if (size == 0) {
-                equals = value.equals(valueCodec.getDefaultInstance());
-            } else {
-                final long limit = in.limit();
-                in.limit(in.position() + size);
-                equals = value.equals(valueCodec.parse(in));
-                in.limit(limit);
-            }
-            return equals;
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public int measure(@NonNull final ReadableSequentialData in) throws ParseException {
-            // This implementation can be optimized a bit to avoid V parsing
-            final var start = in.position();
-            parse(in);
-            final var end = in.position();
-            return (int) (end - start);
         }
 
         @Override

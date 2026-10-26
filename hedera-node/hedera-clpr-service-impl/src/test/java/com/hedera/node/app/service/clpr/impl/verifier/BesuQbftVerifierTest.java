@@ -11,6 +11,7 @@ import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.clpr.ClprQbftLedgerConfigurationPayload;
 import com.hedera.hapi.node.state.clpr.StorageProofEntry;
 import com.hedera.node.app.hapi.utils.EthSigsUtils;
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.sun.jna.ptr.IntByReference;
 import java.math.BigInteger;
@@ -19,7 +20,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HexFormat;
 import java.util.List;
-import org.bouncycastle.crypto.digests.KeccakDigest;
 import org.hyperledger.besu.nativelib.secp256k1.LibSecp256k1;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -54,7 +54,7 @@ class BesuQbftVerifierTest {
         (byte) 0x01, (byte) 0x02, (byte) 0x03, (byte) 0x04, (byte) 0x05
     };
 
-    // keccak256(RLP(empty)) — the canonical empty MPT root
+    // MiscCryptoUtils.keccak256DigestOf(RLP(empty)) — the canonical empty MPT root
     private static final byte[] EMPTY_TRIE_ROOT =
             HexFormat.of().parseHex("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421");
 
@@ -379,7 +379,7 @@ class BesuQbftVerifierTest {
 
         @Test
         void proofNodesMissingForHashReference_throwsProofException() {
-            byte[] nonEmptyRoot = keccak256(new byte[] {0x01});
+            byte[] nonEmptyRoot = MiscCryptoUtils.keccak256DigestOf(new byte[] {0x01});
             byte[] genesisHeader = buildGenesisHeader(VALIDATOR_ADDR);
             byte[] currentHeader = buildSignedHeader(VALIDATOR_ADDR, nonEmptyRoot, VALIDATOR_PRIV);
             byte[] payload = serialize(ClprQbftLedgerConfigurationPayload.newBuilder()
@@ -830,7 +830,7 @@ class BesuQbftVerifierTest {
             // absent sentinel (nextMessageId == 0). This is the positive side of the §8.1.4 invariant (mirrors
             // the Ethereum verifier: manifest-only is a normal bundle with empty content, not a special shape).
             byte[] preimage = manifestPreimage(1L, SERVICE_ADDR);
-            byte[] commitment = keccak256(preimage);
+            byte[] commitment = MiscCryptoUtils.keccak256DigestOf(preimage);
             byte[][] storageMpt = buildStorageMptProof(manifestCommitmentSlot(), commitment);
             byte[][] accountProof = buildAccountMptProof(SERVICE_ADDR, storageMpt[0], new byte[32]);
             byte[] signedHeader = buildSignedHeader(VALIDATOR_ADDR, accountProof[0], VALIDATOR_PRIV);
@@ -1128,7 +1128,7 @@ class BesuQbftVerifierTest {
             vRunningHash[0] = (byte) 0xCC;
             byte[][] keys = {
                 plusOffset(base, 1), plusOffset(base, 2), plusOffset(base, 4),
-                plusOffset(base, 5), plusOffset(base, 16), keccak256(connId)
+                plusOffset(base, 5), plusOffset(base, 16), MiscCryptoUtils.keccak256DigestOf(connId)
             };
             byte[][] vals = {new byte[32], new byte[32], new byte[32], new byte[32], new byte[32], vRunningHash};
             byte[] bundle = buildBundleWithSlots(keys, vals);
@@ -1351,7 +1351,7 @@ class BesuQbftVerifierTest {
     class BuildCommitSealHash {
         @Test
         void sealsStrippedFromHashInput_sealedAndUnsealedProduceSameHash() {
-            byte[] stateRoot = keccak256(new byte[] {0x42});
+            byte[] stateRoot = MiscCryptoUtils.keccak256DigestOf(new byte[] {0x42});
 
             byte[] headerWithSeal = buildSignedHeader(VALIDATOR_ADDR, stateRoot, VALIDATOR_PRIV);
             byte[] headerWithNoSeals =
@@ -1372,7 +1372,7 @@ class BesuQbftVerifierTest {
 
         @Test
         void differentRoundProducesDifferentHash() {
-            byte[] stateRoot = keccak256(new byte[] {(byte) 0x99});
+            byte[] stateRoot = MiscCryptoUtils.keccak256DigestOf(new byte[] {(byte) 0x99});
 
             byte[] extraRound0 = buildQbftExtraWithRound(List.of(VALIDATOR_ADDR), 0L, List.of());
             byte[] extraRound1 = buildQbftExtraWithRound(List.of(VALIDATOR_ADDR), 1L, List.of());
@@ -1407,7 +1407,7 @@ class BesuQbftVerifierTest {
 
         @Test
         void v27AndV28NormalizedCorrectly() {
-            byte[] hash = keccak256(new byte[] {0x01});
+            byte[] hash = MiscCryptoUtils.keccak256DigestOf(new byte[] {0x01});
             byte[] sig = sign(hash, VALIDATOR_PRIV);
 
             byte[] sigWithOffset = Arrays.copyOf(sig, 65);
@@ -1419,7 +1419,7 @@ class BesuQbftVerifierTest {
 
         @Test
         void vEquals2_throwsProofException() {
-            byte[] hash = keccak256(new byte[] {0x02});
+            byte[] hash = MiscCryptoUtils.keccak256DigestOf(new byte[] {0x02});
             byte[] sig = sign(hash, VALIDATOR_PRIV);
             sig[64] = 2;
 
@@ -1430,7 +1430,7 @@ class BesuQbftVerifierTest {
 
         @Test
         void validSignatureRecoversCorrectAddress() {
-            byte[] hash = keccak256(new byte[] {0x03, 0x04, 0x05});
+            byte[] hash = MiscCryptoUtils.keccak256DigestOf(new byte[] {0x03, 0x04, 0x05});
             byte[] sig = sign(hash, VALIDATOR_PRIV);
             assertThat(BesuQbftVerifier.recoverEthereumAddress(hash, sig)).isEqualTo(VALIDATOR_ADDR);
         }
@@ -1777,24 +1777,24 @@ class BesuQbftVerifierTest {
     // ── MPT proof builders ───────────────────────────────────────────────────
 
     private static byte[][] buildAccountMptProof(byte[] contractAddr20, byte[] storageRoot32, byte[] codeHash32) {
-        byte[] accountKey32 = keccak256(contractAddr20);
+        byte[] accountKey32 = MiscCryptoUtils.keccak256DigestOf(contractAddr20);
         byte[] accountRlp = Rlp.encodeList(List.of(
                 Rlp.encodeUint(0L), Rlp.encodeUint(0L), Rlp.encodeBytes(storageRoot32), Rlp.encodeBytes(codeHash32)));
         byte[] hexPrefix = new byte[33];
         hexPrefix[0] = 0x20;
         System.arraycopy(accountKey32, 0, hexPrefix, 1, 32);
         byte[] leafNode = Rlp.encodeList(List.of(Rlp.encodeBytes(hexPrefix), Rlp.encodeBytes(accountRlp)));
-        return new byte[][] {keccak256(leafNode), leafNode};
+        return new byte[][] {MiscCryptoUtils.keccak256DigestOf(leafNode), leafNode};
     }
 
     private static byte[][] buildStorageMptProof(byte[] storageSlotKey32, byte[] provenValue32) {
-        byte[] storageKeyHash = keccak256(storageSlotKey32);
+        byte[] storageKeyHash = MiscCryptoUtils.keccak256DigestOf(storageSlotKey32);
         byte[] hexPrefix = new byte[33];
         hexPrefix[0] = 0x20;
         System.arraycopy(storageKeyHash, 0, hexPrefix, 1, 32);
         byte[] encodedValue = Rlp.encodeBytes(provenValue32);
         byte[] leafNode = Rlp.encodeList(List.of(Rlp.encodeBytes(hexPrefix), Rlp.encodeBytes(encodedValue)));
-        return new byte[][] {keccak256(leafNode), leafNode};
+        return new byte[][] {MiscCryptoUtils.keccak256DigestOf(leafNode), leafNode};
     }
 
     // ── Payload / trust-anchor helpers ───────────────────────────────────────
@@ -1875,10 +1875,10 @@ class BesuQbftVerifierTest {
             byte[] slotKey3,
             byte[] value3) {
 
-        byte[] path0 = keccak256(slotKey0);
-        byte[] path1 = keccak256(slotKey1);
-        byte[] path2 = keccak256(slotKey2);
-        byte[] path3 = keccak256(slotKey3);
+        byte[] path0 = MiscCryptoUtils.keccak256DigestOf(slotKey0);
+        byte[] path1 = MiscCryptoUtils.keccak256DigestOf(slotKey1);
+        byte[] path2 = MiscCryptoUtils.keccak256DigestOf(slotKey2);
+        byte[] path3 = MiscCryptoUtils.keccak256DigestOf(slotKey3);
 
         int n0 = (path0[0] >>> 4) & 0xF;
         int n1 = (path1[0] >>> 4) & 0xF;
@@ -1895,12 +1895,12 @@ class BesuQbftVerifierTest {
 
         List<byte[]> branchItems = new ArrayList<>();
         for (int i = 0; i < 17; i++) branchItems.add(Rlp.encodeBytes(new byte[0]));
-        branchItems.set(n0, Rlp.encodeBytes(keccak256(leaf0)));
-        branchItems.set(n1, Rlp.encodeBytes(keccak256(leaf1)));
-        branchItems.set(n2, Rlp.encodeBytes(keccak256(leaf2)));
-        branchItems.set(n3, Rlp.encodeBytes(keccak256(leaf3)));
+        branchItems.set(n0, Rlp.encodeBytes(MiscCryptoUtils.keccak256DigestOf(leaf0)));
+        branchItems.set(n1, Rlp.encodeBytes(MiscCryptoUtils.keccak256DigestOf(leaf1)));
+        branchItems.set(n2, Rlp.encodeBytes(MiscCryptoUtils.keccak256DigestOf(leaf2)));
+        branchItems.set(n3, Rlp.encodeBytes(MiscCryptoUtils.keccak256DigestOf(leaf3)));
         byte[] branchNode = Rlp.encodeList(branchItems);
-        byte[] storageRoot = keccak256(branchNode);
+        byte[] storageRoot = MiscCryptoUtils.keccak256DigestOf(branchNode);
 
         return new byte[][][] {
             {storageRoot}, {branchNode, leaf0}, {branchNode, leaf1}, {branchNode, leaf2}, {branchNode, leaf3}
@@ -1915,7 +1915,7 @@ class BesuQbftVerifierTest {
         final int[] nibbles = new int[5];
         final byte[][] leaves = new byte[5][];
         for (int i = 0; i < 5; i++) {
-            final byte[] path = keccak256(slotKeys[i]);
+            final byte[] path = MiscCryptoUtils.keccak256DigestOf(slotKeys[i]);
             nibbles[i] = (path[0] >>> 4) & 0xF;
             leaves[i] = buildTrieLeafNode(path, values[i]);
         }
@@ -1928,9 +1928,10 @@ class BesuQbftVerifierTest {
         }
         final List<byte[]> branchItems = new ArrayList<>();
         for (int i = 0; i < 17; i++) branchItems.add(Rlp.encodeBytes(new byte[0]));
-        for (int i = 0; i < 5; i++) branchItems.set(nibbles[i], Rlp.encodeBytes(keccak256(leaves[i])));
+        for (int i = 0; i < 5; i++)
+            branchItems.set(nibbles[i], Rlp.encodeBytes(MiscCryptoUtils.keccak256DigestOf(leaves[i])));
         final byte[] branchNode = Rlp.encodeList(branchItems);
-        final byte[] storageRoot = keccak256(branchNode);
+        final byte[] storageRoot = MiscCryptoUtils.keccak256DigestOf(branchNode);
         return new byte[][][] {
             {storageRoot},
             {branchNode, leaves[0]},
@@ -1968,7 +1969,7 @@ class BesuQbftVerifierTest {
         final int[] nibbles = new int[n];
         final byte[][] leaves = new byte[n][];
         for (int i = 0; i < n; i++) {
-            final byte[] path = keccak256(slotKeys[i]);
+            final byte[] path = MiscCryptoUtils.keccak256DigestOf(slotKeys[i]);
             nibbles[i] = (path[0] >>> 4) & 0xF;
             leaves[i] = buildTrieLeafNode(path, values[i]);
         }
@@ -1981,9 +1982,10 @@ class BesuQbftVerifierTest {
         }
         final List<byte[]> branchItems = new ArrayList<>();
         for (int i = 0; i < 17; i++) branchItems.add(Rlp.encodeBytes(new byte[0]));
-        for (int i = 0; i < n; i++) branchItems.set(nibbles[i], Rlp.encodeBytes(keccak256(leaves[i])));
+        for (int i = 0; i < n; i++)
+            branchItems.set(nibbles[i], Rlp.encodeBytes(MiscCryptoUtils.keccak256DigestOf(leaves[i])));
         final byte[] branchNode = Rlp.encodeList(branchItems);
-        final byte[] storageRoot = keccak256(branchNode);
+        final byte[] storageRoot = MiscCryptoUtils.keccak256DigestOf(branchNode);
         final byte[][][] out = new byte[n + 1][][];
         out[0] = new byte[][] {storageRoot};
         for (int i = 0; i < n; i++) out[i + 1] = new byte[][] {branchNode, leaves[i]};
@@ -2000,7 +2002,7 @@ class BesuQbftVerifierTest {
      */
     private static byte[] buildManifestBundle(
             byte[] commitmentPreimage, byte[] index6Preimage, byte[] index5SlotKey, int index5EntryCount) {
-        final byte[] commitment = keccak256(commitmentPreimage);
+        final byte[] commitment = MiscCryptoUtils.keccak256DigestOf(commitmentPreimage);
         final int[] offs = {1, 2, 4, 5, 16};
         for (int b = 0; b < 256; b++) {
             boolean clashesManifestSlot = false;
@@ -2081,7 +2083,7 @@ class BesuQbftVerifierTest {
 
     private static byte[] buildConfigManifestProof(
             byte[] commitmentPreimage, byte[] preimageField, byte[] slotKey, byte[] headerSignerPriv) {
-        byte[] commitment = keccak256(commitmentPreimage);
+        byte[] commitment = MiscCryptoUtils.keccak256DigestOf(commitmentPreimage);
         byte[][] storageMpt = buildStorageMptProof(manifestCommitmentSlot(), commitment);
         byte[][] accountProof = buildAccountMptProof(SERVICE_ADDR, storageMpt[0], new byte[32]);
         byte[] hdr = buildSignedHeader(VALIDATOR_ADDR, accountProof[0], headerSignerPriv);
@@ -2096,12 +2098,12 @@ class BesuQbftVerifierTest {
 
     // ── Exact connId-based Channel-slot matching helpers ──────────────────
 
-    /** The SC-189 `_channels[connId]` struct base slot: keccak256(connId(32) || uint256(15)). */
+    /** The SC-189 `_channels[connId]` struct base slot: MiscCryptoUtils.keccak256DigestOf(connId(32) || uint256(15)). */
     private static byte[] connSlotBase(byte[] connId32) {
         byte[] pre = new byte[64];
         System.arraycopy(connId32, 0, pre, 0, 32);
         pre[63] = 15; // CHANNELS_MAPPING_SLOT
-        return keccak256(pre);
+        return MiscCryptoUtils.keccak256DigestOf(pre);
     }
 
     /** base32 + offset (big-endian, offset small). */
@@ -2150,7 +2152,8 @@ class BesuQbftVerifierTest {
                     plusOffset(base, 16)));
             byte[][] vals = {new byte[32], new byte[32], new byte[32], new byte[32], new byte[32]};
             if (withMessage) {
-                keys.add(keccak256(connId)); // a far outlier, standing in for the message running-hash slot
+                keys.add(MiscCryptoUtils.keccak256DigestOf(
+                        connId)); // a far outlier, standing in for the message running-hash slot
                 vals = new byte[][] {new byte[32], new byte[32], new byte[32], new byte[32], new byte[32], new byte[32]
                 };
             }
@@ -2168,13 +2171,5 @@ class BesuQbftVerifierTest {
         List<byte[]> nodeItems = new ArrayList<>();
         for (byte[] node : proofNodes) nodeItems.add(Rlp.encodeBytes(node));
         return Rlp.encodeList(List.of(Rlp.encodeBytes(slotKey32), Rlp.encodeList(nodeItems)));
-    }
-
-    private static byte[] keccak256(byte[] input) {
-        KeccakDigest digest = new KeccakDigest(256);
-        digest.update(input, 0, input.length);
-        byte[] out = new byte[32];
-        digest.doFinal(out, 0);
-        return out;
     }
 }

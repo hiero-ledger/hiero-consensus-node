@@ -7,8 +7,6 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
-import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
@@ -21,35 +19,9 @@ import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
 
 /**
  * Interface representing a node in the network.
- *
- * <p>This interface provides methods to control the state of the node, such as killing and reviving it.
  */
 @SuppressWarnings("unused")
-public interface Node {
-
-    /**
-     * The default software version of the node when no specific version is set for the node.
-     */
-    SemanticVersion DEFAULT_VERSION = SemanticVersion.newBuilder().major(1).build();
-
-    /**
-     * Start the node.
-     *
-     * <p>The method will wait for a environment-specific timeout before throwing an exception if the node cannot be
-     * started. The default can be overridden by calling {@link #withTimeout(Duration)}.
-     */
-    void start();
-
-    /**
-     * Kill the node without prior cleanup.
-     *
-     * <p>This method simulates a sudden failure of the node. No attempt to finish ongoing work,
-     * preserve the current state, or any other similar operation is made.
-     *
-     * <p>The method will wait for a environment-specific timeout before throwing an exception if the nodes cannot be
-     * killed. The default can be overridden by calling {@link #withTimeout(Duration)}.
-     */
-    void killImmediately();
+public interface Node extends MiniNode {
 
     /**
      * Start a synthetic bottleneck on the node.
@@ -120,51 +92,10 @@ public interface Node {
     void submitTransactions(@NonNull List<OtterTransaction> transactions);
 
     /**
-     * Overrides the default timeout for node operations.
-     *
-     * @param timeout the duration to wait before considering the operation as failed
-     * @return an instance of {@link AsyncNodeActions} that can be used to perform node actions
+     * {@inheritDoc}
      */
+    @Override
     AsyncNodeActions withTimeout(@NonNull Duration timeout);
-
-    /**
-     * Gets the configuration of the node. The returned object can be used to evaluate the current configuration, but
-     * also for modifications.
-     *
-     * @return the configuration of the node
-     */
-    @NonNull
-    NodeConfiguration configuration();
-
-    /**
-     * Gets the self id of the node. This value can be used to identify a node.
-     *
-     * @return the self id
-     */
-    @NonNull
-    NodeId selfId();
-
-    /**
-     * Gets the weight of the node. This value is always non-negative.
-     *
-     * @return the weight
-     */
-    long weight();
-
-    /**
-     * Sets the weight of the node. This method can only be called while the node is not running.
-     *
-     * @param weight the new weight. Must be non-negative.
-     */
-    void weight(long weight);
-
-    /**
-     * Sets the keys and certificates of the node. These signing certificates will become part of the new roster. This
-     * method can only be called while the node has not been started yet.
-     *
-     * @param keysAndCerts the new keys and certificates
-     */
-    void keysAndCerts(@NonNull KeysAndCerts keysAndCerts);
 
     /**
      * Returns the status of the platform while the node is running or {@code null} if not.
@@ -222,7 +153,7 @@ public interface Node {
     /**
      * Sets the software version of the node.
      *
-     * <p>If no version is set, {@link #DEFAULT_VERSION} will be used. This method can only be called while the node is
+     * <p>If no version is set, {@link MiniNode#DEFAULT_VERSION} will be used. This method can only be called while the node is
      * not running.
      *
      * @param version the software version to set for the node
@@ -293,71 +224,4 @@ public interface Node {
      * @param savedStateDirectory the software version to set for the node
      */
     void startFromSavedState(@NonNull final Path savedStateDirectory);
-
-    /**
-     * Checks if the consensus node is currently running.
-     *
-     * @return true if the node is running, false otherwise
-     */
-    boolean isAlive();
-
-    /**
-     * Starts Java Flight Recorder (JFR) profiling on this node with default settings.
-     * Uses 10 ms sampling rate and enables CPU and allocation profiling by default.
-     * The profiler runs in the background until {@link #stopProfiling} is called.
-     * <p>
-     * <b>Warning:</b> Please keep in mind that Otter tests run in an artificial environment. Results obtained from
-     * profiling in such environments may not accurately reflect real-world performance characteristics.
-     * <p>
-     * <b>Note:</b> This feature is not supported in all environments.
-     * Calling this on unsupported environments will throw {@link UnsupportedOperationException}.
-     *
-     * @param outputFile filename for the profile output (must end with ".jfr")
-     * @param events the profiling events to enable (e.g., ProfilerEvent.CPU, ProfilerEvent.ALLOCATION).
-     *               If empty, defaults to CPU and ALLOCATION profiling.
-     * @throws UnsupportedOperationException if profiling is not supported in this environment
-     */
-    default void startProfiling(@NonNull final String outputFile, @NonNull final ProfilerEvent... events) {
-        startProfiling(outputFile, Duration.ofMillis(10L), events);
-    }
-
-    /**
-     * Starts Java Flight Recorder (JFR) profiling on this node with custom settings.
-     * The profiler runs in the background until {@link #stopProfiling} is called.
-     * <p>
-     * <b>Warning:</b> Please keep in mind that Otter tests run in an artificial environment. Results obtained from
-     * profiling in such environments may not accurately reflect real-world performance characteristics.
-     * <p>
-     * <b>Note:</b> This feature is not supported in all environments.
-     * Calling this on unsupported environments will throw {@link UnsupportedOperationException}.
-     *
-     * @param outputFile filename for the profile output (must end with ".jfr")
-     * @param samplingInterval sampling interval for timed events (e.g., Duration.ofMillis(1) for 1ms sampling)
-     * @param events the profiling events to enable (e.g., ProfilerEvent.CPU, ProfilerEvent.ALLOCATION).
-     *               If empty, defaults to CPU and ALLOCATION profiling.
-     * @throws UnsupportedOperationException if profiling is not supported in this environment
-     */
-    void startProfiling(
-            @NonNull String outputFile, @NonNull Duration samplingInterval, @NonNull ProfilerEvent... events);
-
-    /**
-     * Stops Java Flight Recorder profiling and automatically downloads the profiling results to the host machine.
-     * The file is saved to {@code build/container/node-<selfId>/<filename>} where filename was
-     * specified in {@link #startProfiling}.
-     * <p>
-     * <b>Note:</b> This feature is not supported in all environments.
-     * Calling this on unsupported environments will throw {@link UnsupportedOperationException}.
-     *
-     * @throws UnsupportedOperationException if profiling is not supported in this environment
-     */
-    void stopProfiling();
-
-    /**
-     * Captures a JVM thread dump of the node for diagnostics, typically to investigate a node that is stuck.
-     *
-     * @return the thread dump as text
-     * @throws UnsupportedOperationException if thread dumps are not supported in this environment
-     */
-    @NonNull
-    String dumpThreads();
 }

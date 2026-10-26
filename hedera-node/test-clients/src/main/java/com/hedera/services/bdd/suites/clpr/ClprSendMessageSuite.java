@@ -15,7 +15,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.toConfigProofBytes;
@@ -52,7 +51,7 @@ public class ClprSendMessageSuite {
     final Stream<DynamicTest> sendMessageOnActiveChannelSucceeds() {
         final var crypto = new ClprChannelCrypto();
         return hapiTest(
-                overridingTwo("clpr.enabled", "true", "clpr.minLockedStake", String.valueOf(MIN_LOCKED_STAKE)),
+                overriding("clpr.minLockedStake", String.valueOf(MIN_LOCKED_STAKE)),
                 clprUpdateLedgerConfiguration()
                         .configuration(defaultLedgerConfig())
                         .payingWith(GENESIS),
@@ -104,7 +103,6 @@ public class ClprSendMessageSuite {
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
     final Stream<DynamicTest> sendMessageWithNoChannelReverts() {
         return hapiTest(
-                overriding("clpr.enabled", "true"),
                 uploadInitCode(CLPR_CONTRACT),
                 contractCreate(CLPR_CONTRACT),
                 cryptoCreate("caller").balance(ONE_HUNDRED_HBARS),
@@ -121,7 +119,9 @@ public class ClprSendMessageSuite {
                         .hasKnownStatus(CONTRACT_REVERT_EXECUTED));
     }
 
-    @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
+    @LeakyHapiTest(
+            requirement = PROPERTY_OVERRIDES,
+            overrides = {"clpr.enabled"})
     final Stream<DynamicTest> sendMessageWhenDisabledReverts() {
         return hapiTest(
                 overriding("clpr.enabled", "false"),
@@ -138,7 +138,6 @@ public class ClprSendMessageSuite {
     final Stream<DynamicTest> sendMessageWithMissingConnectorReverts() {
         final var crypto = new ClprChannelCrypto();
         return hapiTest(
-                overriding("clpr.enabled", "true"),
                 clprUpdateLedgerConfiguration()
                         .configuration(defaultLedgerConfig())
                         .payingWith(GENESIS),

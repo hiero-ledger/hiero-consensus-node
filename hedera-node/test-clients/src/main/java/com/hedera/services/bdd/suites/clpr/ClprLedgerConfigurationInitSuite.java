@@ -6,7 +6,6 @@ import static com.hedera.services.bdd.junit.TestTags.CLPR;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.clprGetLedgerConfiguration;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprUpdateLedgerConfiguration;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 
 import com.hedera.services.bdd.junit.LeakyHapiTest;
@@ -55,7 +54,6 @@ public class ClprLedgerConfigurationInitSuite {
                 .build();
 
         return hapiTest(
-                overriding("clpr.enabled", "true"),
 
                 // Step 1: Verify genesis configuration is present and well-formed.
                 clprGetLedgerConfiguration().exposingConfigTo(genesisConfig::set),

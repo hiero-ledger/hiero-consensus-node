@@ -10,8 +10,8 @@ import java.security.SecureRandom;
 import java.security.cert.X509Certificate;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.NamedParameterSpec;
-import java.util.Base64;
 import org.hiero.base.crypto.CertificateUtils;
+import org.hiero.base.crypto.PEMEncoder;
 
 /**
  * Test fixture for CLPR mTLS certificates. Each instance is one self-signed ECDSA P-384 CA
@@ -77,8 +77,10 @@ public final class ClprTestCa {
 
     /** Writes this CA as the cert + unencrypted PKCS#8 key PEMs that {@link ClprCaCertManager} loads. */
     public void writePem(final Path certPath, final Path keyPath) throws Exception {
-        Files.writeString(certPath, pem("CERTIFICATE", caCert.getEncoded()));
-        Files.writeString(keyPath, pem("PRIVATE KEY", caKeyPair.getPrivate().getEncoded()));
+        Files.writeString(certPath, PEMEncoder.encode(PEMEncoder.CERTIFICATE, caCert.getEncoded()));
+        Files.writeString(
+                keyPath,
+                PEMEncoder.encode(PEMEncoder.PRIVATE_KEY, caKeyPair.getPrivate().getEncoded()));
     }
 
     private static KeyPair newP384KeyPair() throws Exception {
@@ -91,10 +93,5 @@ public final class ClprTestCa {
         final var gen = KeyPairGenerator.getInstance("EdDSA");
         gen.initialize(new NamedParameterSpec("Ed25519"));
         return gen.generateKeyPair();
-    }
-
-    private static String pem(final String type, final byte[] der) {
-        final var body = Base64.getMimeEncoder(64, new byte[] {'\n'}).encodeToString(der);
-        return "-----BEGIN " + type + "-----\n" + body + "\n-----END " + type + "-----\n";
     }
 }

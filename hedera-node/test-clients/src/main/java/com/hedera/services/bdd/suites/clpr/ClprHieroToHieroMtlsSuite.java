@@ -41,89 +41,83 @@ public class ClprHieroToHieroMtlsSuite extends HieroToHieroBase {
             value = {
                 @MultiNetworkHapiTest.Network(
                         name = "ledgerA_mtls",
-                        // Dedicated base clear of the shared pool and of ledgerA_manifest's
-                        // [32000,32012) reservation (the fixtures were both captured at 32000).
-                        // The ledgerA_mtls fixture is regenerated at this base via the cold path.
-                        firstGrpcPort = 39400,
                         enableClprMtls = true,
                         firstMtlsPort = MTLS_PORT_A),
-                @MultiNetworkHapiTest.Network(
-                        name = "ledgerB_mtls",
-                        // Dedicated base adjacent to ledgerA_mtls (39400), clear of all other
-                        // reservations. Fixture regenerated at this base via the cold path.
-                        firstGrpcPort = 40400,
-                        enableClprMtls = true,
-                        firstMtlsPort = MTLS_PORT_B)
+                @MultiNetworkHapiTest.Network(name = "ledgerB_mtls", enableClprMtls = true, firstMtlsPort = MTLS_PORT_B)
             })
     @DisplayName("mTLS one-way: message from ledger A crosses to ledger B over the dedicated mTLS listener")
     Stream<DynamicTest> mtlsOneWayDelivery(final SubProcessNetwork ledgerA, final SubProcessNetwork ledgerB) {
         final var crypto = new ClprCrypto();
 
-        return Stream.concat(
-                // Each network's endpoint manifest advertises its mtlsPort and CA cert, so the channel
-                // syncs over the dedicated mTLS listener.
-                setupBothNetworks(
-                        ledgerA,
-                        ledgerB,
-                        MTLS_PORT_A,
-                        MTLS_PORT_B,
-                        crypto,
-                        DEFAULT_MAX_MESSAGES_PER_BUNDLE,
-                        DEFAULT_MAX_QUEUE_DEPTH),
-                Stream.of(
-                        // Positive: each node started its dedicated CLPR mTLS sync listener on the
-                        // advertised port (mTLS was actually enabled, not skipped for a missing CA).
-                        networkHapiTest(
-                                        "Assert A started the mTLS sync listener on " + MTLS_PORT_A,
-                                        ledgerA,
-                                        withOpContext((spec, opLog) -> awaitLogLine(
+        return multiNetworkHapiTest(
+                "mtlsOneWayDelivery",
+                Stream.concat(
+                        // Each network's endpoint manifest advertises its mtlsPort and CA cert, so the channel
+                        // syncs over the dedicated mTLS listener.
+                        setupBothNetworks(
+                                ledgerA,
+                                ledgerB,
+                                MTLS_PORT_A,
+                                MTLS_PORT_B,
+                                crypto,
+                                DEFAULT_MAX_MESSAGES_PER_BUNDLE,
+                                DEFAULT_MAX_QUEUE_DEPTH),
+                        Stream.of(
+                                // Positive: each node started its dedicated CLPR mTLS sync listener on the
+                                // advertised port (mTLS was actually enabled, not skipped for a missing CA).
+                                networkHapiTest(
+                                                "Assert A started the mTLS sync listener on " + MTLS_PORT_A,
                                                 ledgerA,
-                                                Pattern.compile(
-                                                        "Starting CLPR mTLS sync gRPC server on port " + MTLS_PORT_A),
-                                                Duration.ofSeconds(30))))
-                                .findFirst()
-                                .orElseThrow(),
-                        networkHapiTest(
-                                        "Assert B started the mTLS sync listener on " + MTLS_PORT_B,
-                                        ledgerB,
-                                        withOpContext((spec, opLog) -> awaitLogLine(
+                                                withOpContext((spec, opLog) -> awaitLogLine(
+                                                        ledgerA,
+                                                        Pattern.compile(
+                                                                "Starting CLPR mTLS sync gRPC server on port "
+                                                                        + MTLS_PORT_A),
+                                                        Duration.ofSeconds(30))))
+                                        .findFirst()
+                                        .orElseThrow(),
+                                networkHapiTest(
+                                                "Assert B started the mTLS sync listener on " + MTLS_PORT_B,
                                                 ledgerB,
-                                                Pattern.compile(
-                                                        "Starting CLPR mTLS sync gRPC server on port " + MTLS_PORT_B),
-                                                Duration.ofSeconds(30))))
-                                .findFirst()
-                                .orElseThrow(),
-                        // Send one message from A; a receive on B + ack on A proves the bytes crossed
-                        // the mutual-TLS handshake (peer pinned A's on-chain CA, A presented its leaf).
-                        networkHapiTest(
-                                        "Send 'hello-mtls' from A over the mTLS listener",
-                                        ledgerA,
-                                        cryptoCreate("callerA").balance(ONE_HUNDRED_HBARS),
-                                        uploadInitCode(CLPR_CONTRACT),
-                                        contractCreate(CLPR_CONTRACT),
-                                        contractCall(
-                                                        CLPR_CONTRACT,
-                                                        SEND_MESSAGE,
-                                                        crypto.channelId,
-                                                        crypto.connectorId,
-                                                        new byte[20],
-                                                        "hello-mtls".getBytes(StandardCharsets.UTF_8))
-                                                .gas(GAS)
-                                                .payingWith("callerA"))
-                                .findFirst()
-                                .orElseThrow(),
-                        awaitReceivedMessage(ledgerB, crypto.channelId, 1),
-                        awaitAckedMessage(ledgerA, crypto.channelId, 1),
-                        // Negative: neither side fell back to the plaintext skip (which would mean a
-                        // peer's tls_certificate was empty, i.e. mTLS was not really exercised).
-                        networkHapiTest(
-                                        "Assert neither side skipped a peer for a missing tls_certificate",
-                                        ledgerA,
-                                        withOpContext((spec, opLog) -> {
-                                            assertLogLineAbsent(ledgerA, SKIP_PATTERN);
-                                            assertLogLineAbsent(ledgerB, SKIP_PATTERN);
-                                        }))
-                                .findFirst()
-                                .orElseThrow()));
+                                                withOpContext((spec, opLog) -> awaitLogLine(
+                                                        ledgerB,
+                                                        Pattern.compile(
+                                                                "Starting CLPR mTLS sync gRPC server on port "
+                                                                        + MTLS_PORT_B),
+                                                        Duration.ofSeconds(30))))
+                                        .findFirst()
+                                        .orElseThrow(),
+                                // Send one message from A; a receive on B + ack on A proves the bytes crossed
+                                // the mutual-TLS handshake (peer pinned A's on-chain CA, A presented its leaf).
+                                networkHapiTest(
+                                                "Send 'hello-mtls' from A over the mTLS listener",
+                                                ledgerA,
+                                                cryptoCreate("callerA").balance(ONE_HUNDRED_HBARS),
+                                                uploadInitCode(CLPR_CONTRACT),
+                                                contractCreate(CLPR_CONTRACT),
+                                                contractCall(
+                                                                CLPR_CONTRACT,
+                                                                SEND_MESSAGE,
+                                                                crypto.channelId,
+                                                                crypto.connectorId,
+                                                                new byte[20],
+                                                                "hello-mtls".getBytes(StandardCharsets.UTF_8))
+                                                        .gas(GAS)
+                                                        .payingWith("callerA"))
+                                        .findFirst()
+                                        .orElseThrow(),
+                                awaitReceivedMessage(ledgerB, crypto.channelId, 1),
+                                awaitAckedMessage(ledgerA, crypto.channelId, 1),
+                                // Negative: neither side fell back to the plaintext skip (which would mean a
+                                // peer's tls_certificate was empty, i.e. mTLS was not really exercised).
+                                networkHapiTest(
+                                                "Assert neither side skipped a peer for a missing tls_certificate",
+                                                ledgerA,
+                                                withOpContext((spec, opLog) -> {
+                                                    assertLogLineAbsent(ledgerA, SKIP_PATTERN);
+                                                    assertLogLineAbsent(ledgerB, SKIP_PATTERN);
+                                                }))
+                                        .findFirst()
+                                        .orElseThrow())));
     }
 }

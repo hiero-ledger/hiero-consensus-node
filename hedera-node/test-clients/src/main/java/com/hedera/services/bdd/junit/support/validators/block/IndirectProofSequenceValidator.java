@@ -8,6 +8,7 @@ import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.FINAL_NEX
 import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.ROOT_HASH_MERKLE_PATH_INDEX;
 import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.SIGNED_BLOCK_SIBLING_COUNT;
 import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.UNSIGNED_BLOCK_SIBLING_COUNT;
+import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -22,17 +23,22 @@ import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.block.stream.TssSignedBlockProof;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.node.app.blocks.impl.BlockImplUtils;
+import com.hedera.node.app.hapi.utils.CommonUtils;
+import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.utility.Pair;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.DigestType;
 
 class IndirectProofSequenceValidator {
     private static final Logger log = LogManager.getLogger(IndirectProofSequenceValidator.class);
@@ -72,6 +78,21 @@ class IndirectProofSequenceValidator {
     private boolean endOfSequenceReached = false;
 
     /**
+     * Which digest algorithm block hashes in this sequence were produced with, per {@code BlockStreamConfig.digestType}.
+     * Must match the digest the block stream under validation was produced with, or every recomputed merkle hash will
+     * mismatch.
+     */
+    private final DigestType digestType;
+
+    IndirectProofSequenceValidator(final DigestType digestType) {
+        this.digestType = digestType;
+    }
+
+    private MessageDigest digest() {
+        return CommonUtils.digestOrThrow(digestType);
+    }
+
+    /**
      * Runs a test case verifying an indirect proof sequence.
      * <p>
      * <b>FOR DEVELOPMENT PURPOSES ONLY</b>
@@ -79,7 +100,7 @@ class IndirectProofSequenceValidator {
      * @param ignore not used
      */
     public static void main(String[] ignore) {
-        TestCase.run();
+        TestCase.run(); // Only works for sha384
     }
 
     boolean containsIndirectProofs() {
@@ -167,8 +188,12 @@ class IndirectProofSequenceValidator {
 
     /**
      * Verifies the contents of all proofs (unsigned and signed) in the sequence
+     *
+     * @param signatureVerifier checks a signature on the signed block's hash, for an indirect proof that embeds a
+     *     different signature than the signed block's own proof
      */
-    void verify() {
+    void verify(@NonNull final Predicate<Bytes> signatureVerifier) {
+        requireNonNull(signatureVerifier);
         if (!endOfSequenceReached) {
             throw new IllegalStateException(
                     "Cannot verify indirect proof sequence: end of sequence not reached, signed proof missing");
@@ -176,7 +201,7 @@ class IndirectProofSequenceValidator {
 
         log.info("Beginning verification of proof sequence for blocks {} to {}", firstUnsignedBlockNum, signedBlockNum);
 
-        verifyIndirectProofs();
+        verifyIndirectProofs(signatureVerifier);
         verifyHashSequence();
 
         log.info("Successfully verified sequence of proofs for blocks {} to {}", firstUnsignedBlockNum, signedBlockNum);
@@ -253,7 +278,7 @@ class IndirectProofSequenceValidator {
     /**
      * Verifies all collected state proofs
      */
-    private void verifyIndirectProofs() {
+    private void verifyIndirectProofs(@NonNull final Predicate<Bytes> signatureVerifier) {
         if (!containsIndirectProofs()) {
             throw new IllegalStateException("No indirect proofs to verify in indirect proof sequence");
         }
@@ -289,9 +314,54 @@ class IndirectProofSequenceValidator {
         // Compare each reconstructed state proof with the actual state proof for each unsigned block
         for (long i = firstUnsignedBlockNum; i < signedBlockNum; i++) {
             log.info("Verifying state proof for block {}", i);
-            assertEquals(expectedIndirectProofs.get(i), actualIndirectProofs.get(i));
-            log.info("Actual and expected state proofs for block {} are identical", i);
+            assertMatchingStateProof(i, expectedIndirectProofs.get(i), actualIndirectProofs.get(i), signatureVerifier);
+            log.info("Actual and expected state proofs for block {} match", i);
         }
+    }
+
+    /**
+     * Asserts an actual indirect state proof matches the reconstructed one. Only the aggregate signature may differ: a
+     * block node can hold this block and the signed block from different publishers, each with its own valid aggregate
+     * signature on the signed block's hash, so a different signature must still verify.
+     */
+    static void assertMatchingStateProof(
+            final long blockNumber,
+            @NonNull final StateProof expected,
+            @Nullable final StateProof actual,
+            @NonNull final Predicate<Bytes> signatureVerifier) {
+        assertNotNull(actual, "No state proof for block %s".formatted(blockNumber));
+        if (expected.equals(actual)) {
+            return;
+        }
+        assertTrue(
+                actual.hasSignedBlockProof(),
+                "State proof for block %s has no signed block proof".formatted(blockNumber));
+        assertEquals(
+                expected,
+                actual.copyBuilder()
+                        .signedBlockProof(expected.signedBlockProofOrThrow())
+                        .build(),
+                "State proof for block %s differs beyond its signature".formatted(blockNumber));
+        final var actualSignature = actual.signedBlockProofOrThrow().blockSignature();
+        assertTrue(
+                hasSameVerificationKey(expected.signedBlockProofOrThrow().blockSignature(), actualSignature),
+                "State proof for block %s has a different verification key".formatted(blockNumber));
+        assertTrue(
+                signatureVerifier.test(actualSignature),
+                "State proof for block %s has an invalid signature".formatted(blockNumber));
+    }
+
+    /**
+     * Whether two hinTS signatures on the same block start with the same verification key; every publisher signs with
+     * the same construction, so only the aggregate after the key can differ.
+     */
+    private static boolean hasSameVerificationKey(@NonNull final Bytes expected, @NonNull final Bytes actual) {
+        final int vkLength = HintsLibraryImpl.VK_LENGTH;
+        if (expected.length() < vkLength + HintsLibraryImpl.SIGNATURE_LENGTH) {
+            // Not a key-prefixed hinTS signature (e.g. a mock), so there is no key to compare
+            return true;
+        }
+        return actual.length() >= vkLength && expected.slice(0, vkLength).equals(actual.slice(0, vkLength));
     }
 
     /**
@@ -337,7 +407,7 @@ class IndirectProofSequenceValidator {
             allSiblingHashes.add(SiblingNode.newBuilder()
                     .isLeft(true)
                     .hash(BlockImplUtils.hashLeaf(
-                            currentBlockPaths.left().leaf().timestampLeafOrThrow()))
+                            digest(), currentBlockPaths.left().leaf().timestampLeafOrThrow()))
                     .build());
         }
 
@@ -471,17 +541,17 @@ class IndirectProofSequenceValidator {
         var hash = mp2.hashOrThrow();
         for (final SiblingNode sibling : allSiblings) {
             if (sibling.isLeft()) {
-                hash = BlockImplUtils.hashInternalNode(sibling.hash(), hash);
+                hash = BlockImplUtils.hashInternalNode(digest(), sibling.hash(), hash);
             } else {
-                hash = BlockImplUtils.hashInternalNode(hash, sibling.hash());
+                hash = BlockImplUtils.hashInternalNode(digest(), hash, sibling.hash());
             }
         }
         // Combine the signed block's timestamp with the computed block contents hash to get the final block hash
         final var signedTimestamp = paths.getFirst().timestampLeafOrThrow();
         final var signedTimestampBytes = Timestamp.PROTOBUF.toBytes(signedBlockTimestamp);
         assertEquals(signedTimestampBytes, signedTimestamp, "Mismatch in signed block's timestamp bytes");
-        final var hashedTsBytes = BlockImplUtils.hashLeaf(signedTimestampBytes);
-        hash = BlockImplUtils.hashInternalNode(hashedTsBytes, hash);
+        final var hashedTsBytes = BlockImplUtils.hashLeaf(digest(), signedTimestampBytes);
+        hash = BlockImplUtils.hashInternalNode(digest(), hashedTsBytes, hash);
 
         // This hash must now equal the root hash of the signed block
         return hash;
@@ -522,7 +592,7 @@ class IndirectProofSequenceValidator {
          * Runs the indirect proof sequence test case
          */
         static void run() {
-            final var validator = new IndirectProofSequenceValidator();
+            final var validator = new IndirectProofSequenceValidator(DigestType.SHA_384);
 
             validator.registerProof(
                     8L, BLOCK_8.proof, BLOCK_8_HASH, INITIAL_PREV_BLOCK_HASH, BLOCK_8.timestamp, BLOCK_8.siblings);
@@ -532,7 +602,8 @@ class IndirectProofSequenceValidator {
             validator.registerProof(
                     10L, BLOCK_10.proof, BLOCK_10_HASH, BLOCK_9_HASH, BLOCK_10.timestamp, BLOCK_10.siblings);
 
-            validator.verify();
+            // No TSS libraries here, so the indirect proofs must embed the signed block's own signature
+            validator.verify(signature -> false);
         }
 
         // --- Inputs for test case ---
@@ -758,7 +829,7 @@ class IndirectProofSequenceValidator {
                                                 "2d1149d3e744ac28a809b89959869d7432f29f5998d1000abe92a28501a8369f9af2d9cc8ae7ae7f308d3258ccac955c"))
                                 .build()
                     };
-            final var hashedTs9Bytes = hashLeaf(BLOCK_9.timestampBytes());
+            final var hashedTs9Bytes = hashLeaf(sha384DigestOrThrow(), BLOCK_9.timestampBytes());
             final var proof8 = BlockProof.newBuilder()
                     .block(8)
                     .blockStateProof(StateProof.newBuilder()

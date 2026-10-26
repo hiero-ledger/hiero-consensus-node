@@ -4,6 +4,7 @@ package com.hedera.node.app.service.clpr.impl.verifier.evm;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.service.clpr.impl.verifier.ProofException;
 import java.util.HexFormat;
 import org.junit.jupiter.api.Test;
@@ -15,7 +16,7 @@ class ProofBytesTest {
     @Test
     void keccak256_matchesKnownEmptyInputDigest() {
         // keccak256("") is a well-known constant.
-        assertThat(HEX.formatHex(ProofBytes.keccak256(new byte[0])))
+        assertThat(HEX.formatHex(MiscCryptoUtils.keccak256DigestOf(new byte[0])))
                 .isEqualTo("c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470");
     }
 

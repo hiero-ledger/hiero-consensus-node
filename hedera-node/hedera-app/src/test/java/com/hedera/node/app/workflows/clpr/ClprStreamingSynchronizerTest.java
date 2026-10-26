@@ -45,8 +45,10 @@ import com.hedera.node.app.workflows.clpr.ClprEndpointClientImpl.ClientException
 import com.hedera.node.app.workflows.clpr.ClprPeerSelector.SelectedPeer;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfiguration;
+import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.ClprConfig;
 import com.hedera.node.config.testfixtures.ClprConfigBuilder;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.BinaryState;
 import com.swirlds.state.State;
@@ -119,6 +121,10 @@ class ClprStreamingSynchronizerTest {
                         .enabled(true)
                         .syncPeerExclusionEnabled(true)
                         .build());
+        // Simulate the configured digest type
+        lenient()
+                .when(versionedConfig.getConfigData(BlockStreamConfig.class))
+                .thenReturn(HederaTestConfigBuilder.createConfig().getConfigData(BlockStreamConfig.class));
         // Peer selection is covered by ClprPeerSelectorTest; here it just hands back the one peer.
         lenient().when(peerSelector.selectEndpoint(any(), any())).thenReturn(new SelectedPeer(PEER_ID, endpoint()));
         lenient().when(clientCache.clientFor(any(), anyInt(), any(), any())).thenReturn(client);

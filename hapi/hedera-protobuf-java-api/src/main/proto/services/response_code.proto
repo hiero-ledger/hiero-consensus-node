@@ -1710,7 +1710,7 @@ enum ResponseCodeEnum {
 
     /**
      * The list of batch transactions contains a transaction type that is
-     * in the AtomicBatch blacklist as configured in the network.
+     * not in the AtomicBatch whitelist as configured in the network.
      */
     BATCH_TRANSACTION_IN_BLACKLIST = 390;
 
@@ -2016,7 +2016,10 @@ enum ResponseCodeEnum {
     CLPR_INVALID_SEED_ENDPOINT = 541;
 
     /**
-     * A CLPR Channel with the given channel_id already exists.
+     * A CLPR Channel with the given channel_id already exists, or (on
+     * registerChannel) the ownership commitment is already registered, either
+     * pending reveal or bound to an existing Channel in any status, including
+     * CLOSED.
      */
     CLPR_CHANNEL_ALREADY_EXISTS = 542;
 
@@ -2083,7 +2086,10 @@ enum ResponseCodeEnum {
     CLPR_CONNECTOR_NOT_FOUND = 555;
 
     /**
-     * A Connector with the same (channel_id, connector_id) already exists.
+     * A Connector with the same (channel_id, connector_id) already exists, or
+     * (on registerConnector) the commitment is already registered, either
+     * pending reveal or already used to create a Connector, including one that
+     * has since been deregistered.
      */
     CLPR_CONNECTOR_ALREADY_EXISTS = 556;
 

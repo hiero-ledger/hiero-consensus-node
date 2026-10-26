@@ -2,7 +2,6 @@
 package com.hedera.node.app.hints.schemas;
 
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
@@ -107,11 +106,11 @@ class V073HintsSchemaTest {
                         .nextContributingNodeId(0L)
                         .crs(newCrs)
                         .build());
-        verify(signingContext, never()).setConstruction(HintsConstruction.DEFAULT);
+        verifyNoInteractions(signingContext);
     }
 
     @Test
-    void restartInitializesSigningContextFromExistingActiveConstruction() {
+    void restartLeavesSigningContextInitializationToTheLatestSchema() {
         final var subject = new V073HintsSchema(library, signingContext);
         final var activeConstruction = HintsConstruction.newBuilder()
                 .constructionId(1L)
@@ -135,7 +134,7 @@ class V073HintsSchemaTest {
 
         subject.restart(ctx);
 
-        verify(signingContext).setConstruction(activeConstruction);
+        verifyNoInteractions(signingContext);
     }
 
     @Test

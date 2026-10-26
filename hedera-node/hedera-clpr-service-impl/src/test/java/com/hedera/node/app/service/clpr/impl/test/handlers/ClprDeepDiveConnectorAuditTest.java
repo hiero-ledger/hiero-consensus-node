@@ -392,7 +392,7 @@ class ClprDeepDiveConnectorAuditTest {
     }
 
     @Test
-    @DisplayName("should register connector, transfer stake, remove commitment on success")
+    @DisplayName("should register connector, transfer stake, and keep commitment registered on success")
     void registersConnectorSuccessfully() {
         commitmentStore.put(ecdsaCommitment);
         setupSmartContractMock();
@@ -408,7 +408,7 @@ class ClprDeepDiveConnectorAuditTest {
         assertThat(connector.connectorContract()).isEqualTo(CONTRACT_ID);
         assertThat(connector.lockedStake()).isEqualTo(VALID_STAKE);
         assertThat(connector.slashCount()).isZero();
-        assertThat(commitmentStore.contains(ecdsaCommitment)).isFalse();
+        assertThat(commitmentStore.contains(ecdsaCommitment)).isTrue();
         verify(tokenServiceApi).transferFromTo(PAYER_ID, STAKING_ACCOUNT_ID, VALID_STAKE);
     }
 
@@ -438,7 +438,7 @@ class ClprDeepDiveConnectorAuditTest {
         assertThat(connector).isNotNull();
         assertThat(connector.connectorId()).isEqualTo(ed25519ConnectorId);
         assertThat(connector.lockedStake()).isEqualTo(VALID_STAKE);
-        assertThat(commitmentStore.contains(ed25519Commitment)).isFalse();
+        assertThat(commitmentStore.contains(ed25519Commitment)).isTrue();
         verify(tokenServiceApi).transferFromTo(PAYER_ID, STAKING_ACCOUNT_ID, VALID_STAKE);
     }
 

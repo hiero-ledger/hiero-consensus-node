@@ -39,6 +39,24 @@ import java.util.List;
  * add up to the duration of the pass, so their mean agrees with JMH's own average. The price is that each latency also
  * contains the work between two calls, including the recording itself, so keep that work small.
  *
+ * <h2>Leaving out work between calls</h2>
+ *
+ * <p>Some benchmarks run work between two measured calls that must not count, for example calls of the code under test
+ * that another benchmark method measures. {@link #pause()}, right after a {@code lap()}, and {@link #resume()}, right
+ * before the next measured call, leave that work out of the next latency and out of the allocation:
+ *
+ * <pre>
+ * lap()                  reads the clock: t1, records t1 - t0
+ * pause()                reads the allocated bytes
+ * otherWork()            neither timed nor counted in the allocation
+ * resume()               reads the allocated bytes, then the clock: t2
+ * operation(input2)
+ * lap()                  reads the clock: t3, records t3 - t2
+ * </pre>
+ *
+ * <p>Each pause costs a clock read and two reads of the allocated bytes, outside the recorded latencies. A garbage
+ * collection during a pause still discards the pass, because it can leave work for the measured calls.
+ *
  * <p>Reading the clock takes time and has a limited resolution. On Apple Silicon, {@link System#nanoTime()} advances in
  * steps of about 42 ns, so latencies below a few microseconds are coarse on a Mac.
  *
@@ -126,8 +144,11 @@ public final class LatencyRecorder {
     /** The total bytes allocated by the kept passes. */
     private long allocatedBytes;
 
-    /** The bytes allocated by the running pass at its start. */
+    /** The bytes allocated by the running pass at its start, plus the bytes allocated while it was paused. */
     private long allocatedBytesAtStart;
+
+    /** The bytes allocated by the current thread at the latest {@link #pause()}. */
+    private long allocatedBytesAtPause;
 
     /** The number of garbage collections in the JVM at the start of the running pass. */
     private long gcCountAtStart;
@@ -167,6 +188,23 @@ public final class LatencyRecorder {
         final long now = System.nanoTime();
         passHistogram.record(now - lapStart);
         lapStart = now;
+    }
+
+    /**
+     * Pauses the pass, so that the work until {@link #resume()} counts neither in a latency nor in the allocation. Call
+     * it right after {@link #lap()}, and call {@code resume()} before the next measured call.
+     */
+    public void pause() {
+        allocatedBytesAtPause = THREAD_MX_BEAN.getCurrentThreadAllocatedBytes();
+    }
+
+    /**
+     * Resumes the pass paused by {@link #pause()} and starts the next lap. Call it right before the next measured call.
+     */
+    public void resume() {
+        allocatedBytesAtStart += THREAD_MX_BEAN.getCurrentThreadAllocatedBytes() - allocatedBytesAtPause;
+        // last, so that the read above is not part of the next latency
+        lapStart = System.nanoTime();
     }
 
     /**

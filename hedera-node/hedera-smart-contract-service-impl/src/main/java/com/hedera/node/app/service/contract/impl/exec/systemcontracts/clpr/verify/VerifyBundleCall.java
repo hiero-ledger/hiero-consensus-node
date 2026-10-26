@@ -10,6 +10,7 @@ import static com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierAbi.met
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.ordinalRevertResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.successResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasOnly;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.configOf;
 import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Tuple;
@@ -21,20 +22,24 @@ import com.hedera.hapi.node.state.clpr.ClprMessageKey;
 import com.hedera.hapi.node.state.clpr.ClprMessagePayload;
 import com.hedera.hapi.node.state.clpr.ClprMessageValue;
 import com.hedera.hapi.node.state.clpr.ClprQueueMetadata;
+import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.hapi.utils.blocks.StateProofVerifier;
 import com.hedera.node.app.hapi.utils.blocks.TssVerifier;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCall;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
+import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.DigestType;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 
 /**
@@ -112,6 +117,16 @@ public class VerifyBundleCall extends AbstractCall {
             return fail();
         }
 
+        // The proving ledger built this proof with its own genesis-pinned digest, which is independent of
+        // this node's configured blockStream.digestType; infer it from the proof's hash lengths so a SHA-384
+        // ledger's proof verifies on a SHA-256 node and vice versa. Fall back to configuration only when the
+        // proof carries no usable length signal.
+        final DigestType inferred = StateProofVerifier.inferDigestType(proof);
+        final DigestType digestType = inferred != null
+                ? inferred
+                : configOf(frame).getConfigData(BlockStreamConfig.class).digestType();
+        final MessageDigest digest = CommonUtils.digestOrThrow(digestType);
+
         // 1. The bundle paths are independent leaf-to-block-root paths, so we cannot use
         //    computeBlockRootHash (which assumes a single connected proof tree). Each path
         //    independently authenticates to the block root, so we compute the block root hash
@@ -130,7 +145,7 @@ public class VerifyBundleCall extends AbstractCall {
                 continue;
             }
             try {
-                blockRootHash = StateProofVerifier.computeBlockRootHashFromPath(path);
+                blockRootHash = StateProofVerifier.computeBlockRootHashFromPath(path, digest);
             } catch (final IllegalStateException e) {
                 log.error("verifyBundle: structurally invalid path for trustAnchor {}", trustAnchorBytes, e);
                 return fail();
@@ -167,7 +182,7 @@ public class VerifyBundleCall extends AbstractCall {
             if (!path.hasStateItemLeaf()) {
                 continue;
             }
-            if (!StateProofVerifier.verifyPath(path, expectedBlockRoot)) {
+            if (!StateProofVerifier.verifyPath(path, expectedBlockRoot, digest)) {
                 log.error("verifyBundle: Merkle path failed verification for trustAnchor {}", trustAnchorBytes);
                 return fail();
             }

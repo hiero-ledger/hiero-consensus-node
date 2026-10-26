@@ -5,6 +5,7 @@ import static com.hedera.node.app.hapi.utils.CommonPbjConverters.protoToPbj;
 
 import com.esaulpaugh.headlong.rlp.RLPEncoder;
 import com.google.protobuf.ByteString;
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hederahashgraph.api.proto.java.ClprBundleContent;
 import com.hederahashgraph.api.proto.java.ClprChannelStatus;
 import com.hederahashgraph.api.proto.java.ClprEndpoint;
@@ -20,7 +21,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import org.bouncycastle.jcajce.provider.digest.Keccak;
 
 /**
  * Self-contained generator for the Ethereum sync-committee verifier's wire payloads, used by
@@ -229,7 +229,7 @@ final class EthSyncCommitteeProofs {
         //    state root commits the clean leaf; when tampering, the leaf served in the proof is
         //    corrupted so it no longer hashes to that root and the account proof fails.
         final byte[] accountLeaf = accountLeaf(SERVICE_ADDRESS, storageTrie.root);
-        final byte[] executionStateRoot = keccak256(accountLeaf);
+        final byte[] executionStateRoot = MiscCryptoUtils.keccak256DigestOf(accountLeaf);
         final byte[] servedAccountLeaf;
         if (tamperAccountProof) {
             servedAccountLeaf = accountLeaf.clone();
@@ -306,7 +306,7 @@ final class EthSyncCommitteeProofs {
     static byte[] rotationBundlePayload(final ClprBundleContent content) {
         final StorageTrie storageTrie = StorageTrie.of(computeSlotValues(content.getMetadata()));
         final byte[] accountLeaf = accountLeaf(SERVICE_ADDRESS, storageTrie.root);
-        final byte[] executionStateRoot = keccak256(accountLeaf);
+        final byte[] executionStateRoot = MiscCryptoUtils.keccak256DigestOf(accountLeaf);
 
         // stateRoot must commit nextCommitteeRoot at leaf index 23 via an all-zero branch.
         final byte[] nextCommitteeRoot = syncCommitteeHashTreeRoot(NEXT_PUBKEYS, NEXT_AGGREGATE_PUBKEY);
@@ -353,7 +353,7 @@ final class EthSyncCommitteeProofs {
     static byte[] postRotationBundlePayload(final ClprBundleContent content) {
         final StorageTrie storageTrie = StorageTrie.of(computeSlotValues(content.getMetadata()));
         final byte[] accountLeaf = accountLeaf(SERVICE_ADDRESS, storageTrie.root);
-        final byte[] executionStateRoot = keccak256(accountLeaf);
+        final byte[] executionStateRoot = MiscCryptoUtils.keccak256DigestOf(accountLeaf);
 
         final byte[] bodyRoot =
                 foldBranch(executionStateRoot, zeroBranch(EXECUTION_STATE_ROOT_DEPTH), EXECUTION_STATE_ROOT_LEAF_INDEX);
@@ -394,11 +394,11 @@ final class EthSyncCommitteeProofs {
      * No committee rotation is carried.
      */
     static byte[] bundlePayloadWithManifest(final ClprBundleContent content, final byte[] manifestBytes) {
-        final byte[] manifestCommitment = keccak256(manifestBytes);
+        final byte[] manifestCommitment = MiscCryptoUtils.keccak256DigestOf(manifestBytes);
         final StorageTrie storageTrie =
                 StorageTrie.ofWithManifest(computeSlotValues(content.getMetadata()), manifestCommitment);
         final byte[] accountLeaf = accountLeaf(SERVICE_ADDRESS, storageTrie.root);
-        final byte[] executionStateRoot = keccak256(accountLeaf);
+        final byte[] executionStateRoot = MiscCryptoUtils.keccak256DigestOf(accountLeaf);
 
         final byte[] bodyRoot =
                 foldBranch(executionStateRoot, zeroBranch(EXECUTION_STATE_ROOT_DEPTH), EXECUTION_STATE_ROOT_LEAF_INDEX);
@@ -517,7 +517,7 @@ final class EthSyncCommitteeProofs {
             final List<int[]> keyHashes = new ArrayList<>();
             final List<byte[]> values = new ArrayList<>();
             collectNonZeroSlots(slotValues, keyHashes, values);
-            keyHashes.add(nibbles(keccak256(slotKey(MANIFEST_COMMITMENT_SLOT_INDEX))));
+            keyHashes.add(nibbles(MiscCryptoUtils.keccak256DigestOf(slotKey(MANIFEST_COMMITMENT_SLOT_INDEX))));
             values.add(manifestCommitment);
             return build(keyHashes, values);
         }
@@ -526,7 +526,7 @@ final class EthSyncCommitteeProofs {
                 final byte[][] slotValues, final List<int[]> keyHashes, final List<byte[]> values) {
             for (int i = 0; i < slotValues.length; i++) {
                 if (!isZero(slotValues[i])) {
-                    keyHashes.add(nibbles(keccak256(slotKey(i))));
+                    keyHashes.add(nibbles(MiscCryptoUtils.keccak256DigestOf(slotKey(i))));
                     values.add(slotValues[i]);
                 }
             }
@@ -535,7 +535,7 @@ final class EthSyncCommitteeProofs {
         private static StorageTrie build(final List<int[]> keyHashes, final List<byte[]> values) {
             if (keyHashes.isEmpty()) {
                 // No non-zero slots: an empty trie. Empty proof nodes + empty-trie root resolve all to zero.
-                return new StorageTrie(keccak256(RLPEncoder.sequence(new byte[0])), List.of());
+                return new StorageTrie(MiscCryptoUtils.keccak256DigestOf(RLPEncoder.sequence(new byte[0])), List.of());
             }
             final List<Object> nodes = new ArrayList<>();
             final List<Integer> all = new ArrayList<>(keyHashes.size());
@@ -543,7 +543,7 @@ final class EthSyncCommitteeProofs {
                 all.add(i);
             }
             final byte[] rootNode = buildNode(keyHashes, values, all, 0, nodes);
-            return new StorageTrie(keccak256(rootNode), nodes);
+            return new StorageTrie(MiscCryptoUtils.keccak256DigestOf(rootNode), nodes);
         }
 
         /**
@@ -619,7 +619,7 @@ final class EthSyncCommitteeProofs {
 
     /** A single-leaf account proof committing {@code storageRoot}; returns the leaf node RLP. */
     private static byte[] accountLeaf(final byte[] address20, final byte[] storageRoot32) {
-        final int[] path = nibbles(keccak256(address20));
+        final int[] path = nibbles(MiscCryptoUtils.keccak256DigestOf(address20));
         // account = [nonce=0, balance=0, storageRoot, codeHash=0]
         final byte[] account = RLPEncoder.list(List.of(new byte[0], new byte[0], storageRoot32, ZERO_32));
         return RLPEncoder.list(List.of(hexPrefix(path, 0, 64, true), account));
@@ -632,7 +632,7 @@ final class EthSyncCommitteeProofs {
 
     /** A branch/extension child reference: the node inline if &lt;32 bytes, else its keccak hash. */
     private static byte[] childRef(final byte[] node) {
-        return node.length < 32 ? node : keccak256(node);
+        return node.length < 32 ? node : MiscCryptoUtils.keccak256DigestOf(node);
     }
 
     /** Hex-prefix encoding of {@code nibbles[from..to)} per the Ethereum trie spec. */
@@ -872,10 +872,6 @@ final class EthSyncCommitteeProofs {
             out[i] = (byte) (seed + i * 31);
         }
         return out;
-    }
-
-    static byte[] keccak256(final byte[] input) {
-        return new Keccak.Digest256().digest(input);
     }
 
     private static byte[] sha256(final byte[]... inputs) {

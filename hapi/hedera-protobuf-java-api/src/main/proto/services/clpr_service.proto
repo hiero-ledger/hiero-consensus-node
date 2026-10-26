@@ -68,8 +68,9 @@ service ClprService {
     /**
      * Register a Connector commitment on the CLPR Service (Phase 1: Commit).
      * <p>
-     * Permissionless and idempotent. Stores a commitment hash on-ledger
-     * so the reveal phase can verify key ownership.<br/>
+     * Permissionless. Stores a commitment hash on-ledger so the reveal
+     * phase can verify key ownership. Rejects a commitment that is already
+     * registered.<br/>
      * The request body MUST be a
      * [ClprRegisterConnectorTransactionBody](#com.hedera.hapi.node.clpr.ClprRegisterConnectorTransactionBody)
      */
