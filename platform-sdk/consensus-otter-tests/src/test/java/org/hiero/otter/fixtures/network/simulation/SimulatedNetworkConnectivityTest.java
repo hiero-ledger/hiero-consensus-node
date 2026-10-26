@@ -2,6 +2,7 @@
 package org.hiero.otter.fixtures.network.simulation;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hiero.otter.fixtures.network.BandwidthLimit.UNLIMITED_BANDWIDTH;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -54,18 +55,16 @@ class SimulatedNetworkConnectivityTest {
     @BeforeEach
     void setUp() {
         network = new SimulatedNetworkConnectivity(new Random(0), START);
-        addNodes();
+        setUpNodes();
         now = 0;
         network.tick(at(0));
     }
 
-    private void addNodes() {
+    private void setUpNodes() {
         node0 = new RecordingReceiver(NODE_0);
         node1 = new RecordingReceiver(NODE_1);
         node2 = new RecordingReceiver(NODE_2);
-        network.addNode(NODE_0, node0);
-        network.addNode(NODE_1, node1);
-        network.addNode(NODE_2, node2);
+        network.setUp(List.of(node0, node1, node2));
     }
 
     @Test
@@ -79,6 +78,51 @@ class SimulatedNetworkConnectivityTest {
 
         assertThat(node1.receivedEvents).hasSize(1);
         assertThat(node1.receivedEvents.getFirst().getDescriptor()).isEqualTo(event.getDescriptor());
+    }
+
+    @Test
+    @DisplayName("connections set before the network is set up are applied in order when it is")
+    void connectionsSetBeforeSetUpAreAppliedInOrder() {
+        network = new SimulatedNetworkConnectivity(new Random(0), START);
+        network.setConnections(connections(true));
+        network.setConnections(connections(false));
+        network.setConnections(connections(true));
+        setUpNodes();
+        network.tick(at(0));
+
+        // the links came up again after the first connections, so they wait out a reconnect delay
+        submit(NODE_0);
+        tickTo(1);
+        tickTo(MIN_RECONNECT_DELAY_MILLIS - 1);
+        assertThat(node1.receivedEvents).isEmpty();
+        tickTo(MAX_RECONNECT_DELAY_MILLIS);
+        assertThat(node1.receivedEvents).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("setting up again with the same nodes keeps the network, and with other nodes is rejected")
+    void settingUpAgainKeepsTheNetwork() {
+        network.setConnections(connections(true));
+
+        // the same nodes in a different order are still the same nodes
+        network.setUp(
+                List.of(new RecordingReceiver(NODE_2), new RecordingReceiver(NODE_0), new RecordingReceiver(NODE_1)));
+        submit(NODE_0);
+        tickTo(1);
+        tickTo(101);
+        assertThat(node1.receivedEvents).hasSize(1);
+
+        assertThatThrownBy(() -> network.setUp(List.of(new RecordingReceiver(NODE_0), new RecordingReceiver(NODE_1))))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    @DisplayName("a node cannot have more than one event receiver")
+    void duplicateEventReceiversAreRejected() {
+        final SimulatedNetworkConnectivity fresh = new SimulatedNetworkConnectivity(new Random(0), START);
+
+        assertThatThrownBy(() -> fresh.setUp(List.of(new RecordingReceiver(NODE_0), new RecordingReceiver(NODE_0))))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
@@ -247,7 +291,7 @@ class SimulatedNetworkConnectivityTest {
     void reconnectDelayIsWithinJitterOfFiveRoundTrips() {
         for (long seed = 0; seed < 20; seed++) {
             network = new SimulatedNetworkConnectivity(new Random(seed), START);
-            addNodes();
+            setUpNodes();
             now = 0;
             network.tick(at(0));
             network.setConnections(connections(true));

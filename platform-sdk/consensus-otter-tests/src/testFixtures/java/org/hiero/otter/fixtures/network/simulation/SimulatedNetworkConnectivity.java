@@ -9,6 +9,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -123,11 +124,22 @@ public class SimulatedNetworkConnectivity {
     private final Map<NodeId, List<PlatformEvent>> newlySubmittedEvents = new ConcurrentHashMap<>();
 
     /**
-     * Every node in the network, in node id order. Maintained as nodes are added rather than being sorted on each tick,
-     * and never reordered, so that it can serve as the canonical starting point for the shuffle in
-     * {@link #addSubmittedEventsToEventLog()}.
+     * Every node in the network, in node id order. Filled once by {@link #setUp(Collection)} and never reordered, so
+     * that it can serve as the canonical starting point for the shuffle in {@link #addSubmittedEventsToEventLog()}.
      */
     private final List<NodeId> sortedNodeIds = new ArrayList<>();
+
+    /**
+     * Whether {@link #setUp(Collection)} has been called.
+     */
+    private boolean isSetUp = false;
+
+    /**
+     * The connection data passed to {@link #setConnections(Map)} before the network was set up, in the order it was
+     * passed. It is applied by {@link #setUp(Collection)} in the same order, so that the outcome is the same as
+     * if every node had been present all along.
+     */
+    private final List<Map<ConnectionKey, ConnectionState>> connectionsBeforeSetUp = new ArrayList<>();
 
     /**
      * The order {@link #newlySubmittedEvents} is drained in on the current tick. A shuffled copy of
@@ -218,27 +230,57 @@ public class SimulatedNetworkConnectivity {
     }
 
     /**
-     * Adds a node that is part of this simulated network.
+     * Sets up the whole network at once, with one node for every event receiver. Connection data passed to
+     * {@link #setConnections(Map)} before this call is applied now, in the order it was passed.
      *
-     * <p>Nodes have to be added in a deterministic order to ensure that the simulation is deterministic.
+     * <p>The nodes are visited in node id order throughout the simulation, whatever order the event receivers are given
+     * in. Visiting them in a fixed order is what keeps the simulation deterministic.
      *
-     * @param newNodeId        the id of the node to add
-     * @param eventReceiver the event receiver for the node
+     * <p>Setting up again with the same nodes, as happens when a network is restarted, keeps the current state.
+     * Changing the nodes of a network that is already set up is not supported.
+     *
+     * @param eventReceivers the event receiver of every node in the network, in any order
+     * @throws IllegalArgumentException if two event receivers belong to the same node
+     * @throws IllegalStateException    if the network has already been set up with different nodes
      */
-    public void addNode(@NonNull final NodeId newNodeId, @NonNull final EventReceiver eventReceiver) {
-        for (final InFlightConnections<?> inFlight : inFlightInDeliveryOrder) {
-            inFlight.addNode(newNodeId);
+    public void setUp(@NonNull final Collection<? extends EventReceiver> eventReceivers) {
+        final Map<NodeId, EventReceiver> receiversById = new HashMap<>();
+        for (final EventReceiver eventReceiver : eventReceivers) {
+            if (receiversById.put(eventReceiver.getNodeId(), eventReceiver) != null) {
+                throw new IllegalArgumentException(
+                        "There is more than one event receiver for " + eventReceiver.getNodeId());
+            }
         }
-        eventReceivers.put(newNodeId, eventReceiver);
-        nodeCursors.put(newNodeId, eventLog.newCursor());
-        nodeEventWindows.put(newNodeId, EventWindow.getGenesisEventWindow());
-        newlySubmittedEvents.put(newNodeId, new ArrayList<>());
-        sortedNodeIds.add(newNodeId);
-        Collections.sort(sortedNodeIds);
+        final List<NodeId> nodeIds = receiversById.keySet().stream().sorted().toList();
+        if (isSetUp) {
+            if (!sortedNodeIds.equals(nodeIds)) {
+                throw new IllegalStateException(
+                        "Changing the nodes of the network is not supported: " + sortedNodeIds + " -> " + nodeIds);
+            }
+            return;
+        }
+
+        for (final InFlightConnections<?> inFlight : inFlightInDeliveryOrder) {
+            inFlight.setUp(nodeIds);
+        }
+        for (final NodeId nodeId : nodeIds) {
+            this.eventReceivers.put(nodeId, receiversById.get(nodeId));
+            nodeCursors.put(nodeId, eventLog.newCursor());
+            nodeEventWindows.put(nodeId, EventWindow.getGenesisEventWindow());
+            newlySubmittedEvents.put(nodeId, new ArrayList<>());
+        }
+        sortedNodeIds.addAll(nodeIds);
+        isSetUp = true;
+
+        for (final Map<ConnectionKey, ConnectionState> pendingConnections : connectionsBeforeSetUp) {
+            setConnections(pendingConnections);
+        }
+        connectionsBeforeSetUp.clear();
     }
 
     /**
-     * Set the connection data for this simulated network.
+     * Set the connection data for this simulated network. If the network has not been set up yet, the data is held and
+     * applied by {@link #setUp(Collection)}.
      *
      * <p>The new state is compared with the old one link by link, where a link is a pair of nodes and is up only if
      * both directions are connected. A link that has come up is not usable until a reconnect delay has passed, and its
@@ -251,6 +293,11 @@ public class SimulatedNetworkConnectivity {
      * @param newConnections the connection data
      */
     public void setConnections(@NonNull final Map<ConnectionKey, ConnectionState> newConnections) {
+        if (!isSetUp) {
+            connectionsBeforeSetUp.add(Map.copyOf(newConnections));
+            return;
+        }
+
         final boolean initial = connections.isEmpty();
         final Map<ConnectionKey, ConnectionState> oldConnections = new HashMap<>(connections);
         connections.clear();
@@ -363,7 +410,7 @@ public class SimulatedNetworkConnectivity {
     private void resendEventWindow(@NonNull final NodeId sender, @NonNull final NodeId receiver) {
         final EventWindow eventWindow = nodeEventWindows.get(sender);
         if (eventWindow == null || !eventReceivers.containsKey(receiver)) {
-            // a node that has not been added yet has no window to send and nowhere to receive one
+            // a node that is not part of the network has no window to send and nowhere to receive one
             return;
         }
         final Instant arrivalTime = nextArrivalTime(sender, receiver, MessageRoute.BROADCAST, currentTime);
