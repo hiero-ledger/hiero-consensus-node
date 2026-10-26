@@ -29,6 +29,7 @@ import com.hederahashgraph.api.proto.java.ClprThrottles;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 /**
@@ -37,6 +38,8 @@ import org.junit.jupiter.api.Tag;
  * record stream, the same way {@code throttles.json} is applied with a synthetic {@code FileUpdate}.
  */
 @Tag(CLPR)
+// Genesis tests build their own network, so they must run before any shared network exists
+@Order(Integer.MIN_VALUE)
 public class ClprLedgerConfigurationUpgradeTest {
     private static final ClprThrottles UPGRADE_THROTTLES = ClprThrottles.newBuilder()
             .setMaxMessagesPerBundle(500)
