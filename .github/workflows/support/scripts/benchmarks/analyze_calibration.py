@@ -35,7 +35,8 @@ Method:
     percentile can be estimated from one iteration;
   - warmup: the detected warmup time times --warmup-buffer, rounded up to whole iterations;
   - iterations: the fewest whose noise is at most a tenth of the fork noise in a fork's mean, at least 2, so that the
-    noise within forks stays measurable;
+    noise within forks stays measurable; fewer if one fork already reaches --target, or if doubling the iterations
+    would lower a fork's CV by less than --gain;
   - forks: the fewest that reach a predicted CV of --target, or after which doubling them would lower the predicted
     CV by less than --gain, whichever is fewer; times --fork-buffer. In quiet slots the unit component is small, so
     the target usually decides: it is the trade between noise and CI time.
@@ -443,17 +444,25 @@ def recommend(units, c, first, measured_length, args):
               " below is meaningless.\n")
     fork_var = 0.0 if math.isnan(c["between"]) else c["between"]
     iteration_var = 0.0 if math.isnan(c["within"]) else c["within"] * measured_length / length
-    count = 2
-    while fork_var > 0 and iteration_var / count > fork_var / 10 and count < 50:
-        count += 1
     unit_var = 0.0 if math.isnan(c["unit"]) else c["unit"]
+    target = math.log(1 + args.target) ** 2
+    count = 2
+    iteration_reason = "whose noise is at most a tenth of the fork noise"
+    while fork_var > 0 and iteration_var / count > fork_var / 10 and count < 50:
+        # with forks that barely differ, the tenth above asks for dozens of iterations that lower no noise that matters
+        if unit_var + fork_var + iteration_var / count <= target:
+            iteration_reason = f"with which one fork reaches the target CV of {100 * args.target:.2f}%"
+            break
+        if fork_var + iteration_var / (2 * count) > (1 - args.gain) ** 2 * (fork_var + iteration_var / count):
+            iteration_reason = f"after which doubling them would lower a fork's CV by less than {100 * args.gain:.0f}%"
+            break
+        count += 1
     per_fork = fork_var + iteration_var / count
     # where doubling the forks lowers the CV by less than the gain: forks >= per_fork * (1/2 - g) / (g * unit), with
     # g = 1 - (1 - gain)^2; without a unit component there is no such point
     g = 1 - (1 - args.gain) ** 2
     gain_forks = per_fork * (0.5 - g) / (g * unit_var) if unit_var > 0 and g < 0.5 else math.inf
     # where the predicted CV reaches the target; unreachable if the unit component alone exceeds it
-    target = math.log(1 + args.target) ** 2
     target_forks = per_fork / (target - unit_var) if target > unit_var else math.inf
     if gain_forks <= target_forks:
         floor_forks = gain_forks
@@ -471,8 +480,8 @@ def recommend(units, c, first, measured_length, args):
     overshoot = st.median(overshoots) if overshoots else 0.0
     runtime = forks * (overhead + (warmup + count) * (length + overshoot)) if overhead is not None else None
     return {"length": length, "rate": rate, "warmup": warmup, "warmup_s": warmup_s, "iterations": count,
-            "forks": forks, "floor_forks": floor_forks, "reason": reason, "overhead": overhead,
-            "overshoot": overshoot, "runtime": runtime}
+            "iteration_reason": iteration_reason, "forks": forks, "floor_forks": floor_forks, "reason": reason,
+            "overhead": overhead, "overshoot": overshoot, "runtime": runtime}
 
 
 def analyze(units, key, args):
@@ -508,6 +517,14 @@ def analyze(units, key, args):
     if args.warmup is None and end > (min(trend) + max(trend)) / 2:
         print("WARNING: the detected warmup covers more than half of the iterations. Changing load or too few units can"
               " hide where warmup ends; pass --warmup with the value from pooled units.\n")
+    tail_off = {i: st.median(r) - 1 for i, r in trend_tail.items() if i >= first}
+    later = [abs(d) for i, d in tail_off.items() if i > first]
+    if first in tail_off and later and abs(tail_off[first]) > 2 * max(later):
+        print(f"WARNING: latency.p99.9 of iteration {first}, the first one analyzed, is"
+              f" {100 * tail_off[first]:+.1f}% off its steady state, more than twice as far as any later iteration."
+              " The warmup detection looks at"
+              f" {args.metric} only; a short warmup iteration (--warmup-iterations, --warmup-length) keeps these slow"
+              " calls out of the measurement.\n")
 
     # units
     print("### Units\n")
@@ -620,8 +637,7 @@ def analyze(units, key, args):
           f" {fmt(rec['rate'] / 1e3 if rec['rate'] else None)}k samples/s.")
     print(f"- Warmup: {rec['warmup']} iteration(s), for {rec['warmup_s']:g} s of measured warmup times"
           f" {args.warmup_buffer:g} as a buffer.")
-    print(f"- Iterations: {rec['iterations']}, the fewest (at least 2) whose noise is at most a tenth of the fork"
-          " noise.")
+    print(f"- Iterations: {rec['iterations']}, the fewest (at least 2) {rec['iteration_reason']}.")
     print(f"- Forks: {rec['forks']}, {math.ceil(rec['floor_forks'])} because {rec['reason']}, times"
           f" {args.fork_buffer:g} as a buffer.")
     if rec["overhead"] is not None:
@@ -638,11 +654,13 @@ def evaluate(s, config, args):
     rec = s["rec"]
     ml = s["measured_length"]
     forks, warmup, count, length = config["forks"], config["warmup"], config["iterations"], config["length"]
+    warmup_length = config["warmup_length"]
     stable = [m.replace("latency.", "") for m, cm in s["pooled"].items()
               if predicted_cv(cm, forks, count, length, ml) <= math.log(1 + args.stable_cv)]
     return {
         "cv": predicted_cv(c, forks, count, length, ml), "stable": stable,
-        "runtime": forks * (rec["overhead"] + (warmup + count) * (length + rec["overshoot"]))
+        "runtime": forks * (rec["overhead"] + warmup * (warmup_length + rec["overshoot"])
+                            + count * (length + rec["overshoot"]))
         if rec["overhead"] is not None else None,
         "samples": rec["rate"] * length if rec["rate"] else None,
         "cv_iteration": math.sqrt(c["within"]), "cv_fork": math.sqrt(c["between"]),
@@ -655,8 +673,10 @@ def choose(summaries, args):
     their recommendations, unless given on the command line"""
     def pick(name, given):
         return given if given is not None else max(s["rec"][name] for s in summaries)
+    length = pick("length", args.length)
     return {"forks": pick("forks", args.forks), "warmup": pick("warmup", args.warmup_iterations),
-            "iterations": pick("iterations", args.iterations), "length": pick("length", args.length)}
+            "iterations": pick("iterations", args.iterations), "length": length,
+            "warmup_length": args.warmup_length if args.warmup_length is not None else length}
 
 
 def calibration_block(summaries, config, args):
@@ -713,8 +733,9 @@ def main():
     parser.add_argument("--tolerance", type=float, default=0.01, help="warmup tolerance (default 0.01)")
     parser.add_argument("--warmup", type=int, help="warmup iterations to drop, instead of the detected value")
     parser.add_argument("--benchmark", help="only parameter sets whose key contains this text")
-    parser.add_argument("--samples", type=float, default=1.5e6,
-                        help="samples per iteration the recommendation aims for (default 1.5 M)")
+    # p99.99 needs 10^6 samples per iteration; the buffer keeps a night that is 20% slower above that
+    parser.add_argument("--samples", type=float, default=1.25e6,
+                        help="samples per iteration the recommendation aims for (default 1.25 M)")
     parser.add_argument("--warmup-buffer", type=float, default=2.0,
                         help="factor on the measured warmup time (default 2)")
     parser.add_argument("--gain", type=float, default=0.10,
@@ -728,6 +749,8 @@ def main():
     parser.add_argument("--iterations", type=int, help="chosen measurement iterations")
     parser.add_argument("--length", type=float, help="chosen iteration length in seconds")
     parser.add_argument("--warmup-iterations", type=int, help="chosen warmup iterations")
+    parser.add_argument("--warmup-length", type=float,
+                        help="chosen warmup iteration length in seconds (default: the iteration length)")
     parser.add_argument("--dump", help="write every iteration's scores to this CSV file")
     args = parser.parse_args()
     args.metrics = args.metrics.split(",")
@@ -739,7 +762,7 @@ def main():
     if summaries:
         config = choose(summaries, args)
         print("## Configuration for all parameter sets\n")
-        print(f"@Fork({config['forks']}), @Warmup(iterations = {config['warmup']}, time = {config['length']:g}),"
+        print(f"@Fork({config['forks']}), @Warmup(iterations = {config['warmup']}, time = {config['warmup_length']:g}),"
               f" @Measurement(iterations = {config['iterations']}, time = {config['length']:g}), in seconds.\n")
         rows = []
         for s in summaries:

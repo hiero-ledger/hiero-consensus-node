@@ -24,6 +24,10 @@ testing {
         targets.configureEach {
             // Forwards e.g. -Dfalcon.repetitions=10 to the test JVM
             testTask { systemProperties(providers.systemPropertiesPrefixedBy("falcon.").get()) }
+            // Attributes the output to each test case instead of the whole class, so a Falcon sweep
+            // with thousands of repetitions does not end up in a single CDATA section that is too
+            // large for the test report parser
+            testTask { reports.junitXml.isOutputPerTestCase = true }
         }
 
         targets.named("testOtter") {

@@ -65,8 +65,6 @@ public class BlockNodeTlsSuite {
                         blockNodeIds = {0},
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC",
                             "blockStream.streamWrappedRecordBlocks", "false",
                             "blockNode.globalCoolDownSeconds", "1",
                             "blockNode.basicNodeCoolDownSeconds", "1",
@@ -92,8 +90,6 @@ public class BlockNodeTlsSuite {
                         blockNodeIds = {0},
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC",
                             "blockStream.streamWrappedRecordBlocks", "false",
                             "blockNode.globalCoolDownSeconds", "1",
                             "blockNode.basicNodeCoolDownSeconds", "1",
@@ -122,8 +118,6 @@ public class BlockNodeTlsSuite {
                         blockNodeIds = {0},
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC",
                             "blockStream.streamWrappedRecordBlocks", "false",
                             "blockNode.globalCoolDownSeconds", "1",
                             "blockNode.basicNodeCoolDownSeconds", "1",
@@ -159,8 +153,6 @@ public class BlockNodeTlsSuite {
                         blockNodeIds = {0, 1},
                         blockNodePriorities = {0, 1},
                         applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC",
                             "blockStream.streamWrappedRecordBlocks", "false",
                             "blockNode.globalCoolDownSeconds", "1",
                             "blockNode.basicNodeCoolDownSeconds", "1",
@@ -218,8 +210,6 @@ public class BlockNodeTlsSuite {
                         blockNodeIds = {0, 1},
                         blockNodePriorities = {0, 1},
                         applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC",
                             "blockStream.streamWrappedRecordBlocks", "false",
                             "blockNode.globalCoolDownSeconds", "1",
                             "blockNode.basicNodeCoolDownSeconds", "1",
@@ -250,8 +240,6 @@ public class BlockNodeTlsSuite {
                         blockNodeIds = {0, 1},
                         blockNodePriorities = {0, 1},
                         applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC",
                             "blockStream.streamWrappedRecordBlocks", "false",
                             "blockNode.globalCoolDownSeconds", "1",
                             "blockNode.basicNodeCoolDownSeconds", "1",

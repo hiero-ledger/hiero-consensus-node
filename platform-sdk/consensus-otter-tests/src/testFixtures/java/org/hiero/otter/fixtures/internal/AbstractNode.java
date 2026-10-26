@@ -23,6 +23,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.AsyncNodeActions;
+import org.hiero.otter.fixtures.MiniNode;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionFactory;
@@ -70,7 +71,7 @@ public abstract class AbstractNode implements Node {
     protected volatile LifeCycle lifeCycle = LifeCycle.INIT;
 
     /** Current software version of the platform */
-    protected SemanticVersion version = Node.DEFAULT_VERSION;
+    protected SemanticVersion version = MiniNode.DEFAULT_VERSION;
 
     /** Saved state directory */
     protected Path savedStateDirectory;

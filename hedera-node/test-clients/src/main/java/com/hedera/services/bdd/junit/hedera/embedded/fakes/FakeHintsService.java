@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.hedera.embedded.fakes;
 
+import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.hints.HintsService;
@@ -13,7 +14,6 @@ import com.hedera.node.app.hints.impl.OnHintsFinished;
 import com.hedera.node.app.hints.impl.RsaContext;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
-import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.tss.TssSubmissions;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.TssConfig;
@@ -97,9 +97,8 @@ public class FakeHintsService implements HintsService {
             @NonNull final WritableHintsStore hintsStore,
             @NonNull final Roster previousRoster,
             @NonNull final Roster adoptedRoster,
-            @NonNull final Bytes adoptedRosterHash,
-            final boolean forceHandoff) {
-        return delegate.handoff(hintsStore, previousRoster, adoptedRoster, adoptedRosterHash, forceHandoff);
+            @NonNull final Bytes adoptedRosterHash) {
+        return delegate.handoff(hintsStore, previousRoster, adoptedRoster, adoptedRosterHash);
     }
 
     @Override
@@ -113,12 +112,14 @@ public class FakeHintsService implements HintsService {
     }
 
     @Override
-    public void executeCrsWork(
+    public void reconcile(
+            @NonNull final ActiveRosters activeRosters,
             @NonNull final WritableHintsStore hintsStore,
             @NonNull final Instant now,
-            final boolean isActive,
-            @NonNull final NetworkInfo networkInfo) {
-        delegate.executeCrsWork(hintsStore, now, isActive, networkInfo);
+            @NonNull final Instant crsWorkTime,
+            @NonNull final TssConfig tssConfig,
+            final boolean isActive) {
+        delegate.reconcile(activeRosters, hintsStore, now, crsWorkTime, tssConfig, isActive);
     }
 
     @Override
@@ -140,7 +141,7 @@ public class FakeHintsService implements HintsService {
     }
 
     @Override
-    public void setActiveConstruction(@NonNull final HintsConstruction construction) {
-        delegate.setActiveConstruction(construction);
+    public void setActiveConstruction(@NonNull final HintsConstruction construction, @NonNull final CRSState crsState) {
+        delegate.setActiveConstruction(construction, crsState);
     }
 }

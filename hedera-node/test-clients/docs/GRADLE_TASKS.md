@@ -1,12 +1,13 @@
 # Gradle Tasks
 
-`test-clients/build.gradle.kts` defines four base `Test` tasks plus dozens of `hapiTest*` and
+`test-clients/build.gradle.kts` defines base `Test` tasks plus dozens of `hapiTest*` and
 `remoteTest*` PR-check tasks that delegate to them with specific tag/network/property combinations.
 
 ## Base test tasks
 
 |            Task            |            Targets             |             Tag filter             |                                                                                                                                                       Notes                                                                                                                                                        |
 |----------------------------|--------------------------------|------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `unitTest`                 | Unit tests from `src/test`     | none                               | Runs all test-client unit tests with JUnit Platform. The `test` task depends on it, so CI's test aggregation runs it automatically. Run directly with `./gradlew :test-clients:unitTest`.                                                                                                                          |
 | `test`                     | Embedded (per-class)           | `(INTEGRATION\|STREAM_VALIDATION)` | Default Gradle `test` task. Uses `hapi.spec.embedded.mode=per-class` so each class picks its mode via `@TargetEmbeddedMode`. Skips standard log validation after the suite, because the embedded tests intentionally corrupt state to exercise `FAIL_INVALID` paths.                                               |
 | `testSubprocess`           | `SubProcessNetwork` (serial)   | varies by caller                   | Runs HAPI tests in subprocess mode, one test class at a time within JUnit (`mode.classes.default=same_thread`). Used by all serial `hapiTest*Serial` checks.                                                                                                                                                       |
 | `testSubprocessConcurrent` | `SubProcessNetwork` (parallel) | varies by caller                   | Same as `testSubprocess` but runs test classes concurrently (`mode.classes.default=concurrent`) with `fixed` parallelism — 3 threads when `hapi.spec.network.size ≤ 3`, else 2. Excludes `SERIAL` tests other than `CONCURRENT_SUBPROCESS_VALIDATION`. See [`SUBPROCESS_CONCURRENT.md`](SUBPROCESS_CONCURRENT.md). |
@@ -34,13 +35,15 @@ sibling tasks can run in parallel without clashing.
 | `hapiTestSmartContractSerial`    | `(SMART_CONTRACT&SERIAL)`                     | `testSubprocess`           | 3                     |
 | `hapiTestNDReconnect`            | `ND_RECONNECT`                                | `testSubprocess`           | default               |
 | `hapiTestWraps`                  | `WRAPS`                                       | `testSubprocess`           | default               |
-| `hapiTestWrapsDownload`          | `WRAPS_DOWNLOAD`                              | `testSubprocess`           | default               |
 | `hapiTestCutover`                | `CUTOVER`                                     | `testSubprocess`           | default               |
 | `hapiTestTimeConsuming`          | `LONG_RUNNING`                                | `testSubprocessConcurrent` | default               |
 | `hapiTestTimeConsumingSerial`    | `(LONG_RUNNING&SERIAL)`                       | `testSubprocess`           | default               |
+| `hapiTestNodeStaking`            | `(NODE_STAKING)&!(SERIAL)`                    | `testSubprocess`           | 3                     |
+| `hapiTestNodeStakingSerial`      | `(NODE_STAKING&SERIAL)`                       | `testSubprocess`           | default               |
 | `hapiTestIss`                    | `ISS`                                         | `testSubprocess`           | default               |
 | `hapiTestBlockNodeCommunication` | `BLOCK_NODE`                                  | `testSubprocess`           | default               |
 | `hapiTestMisc`                   | everything outside the area tags (see source) | `testSubprocessConcurrent` | default               |
+| `hapiTestGenesisSubProcess`      | `GENESIS_SUBPROCESS`                          | `testSubprocess`           | default               |
 | `hapiTestMiscSerial`             | `<miscTags>&SERIAL`                           | `testSubprocess`           | default               |
 | `hapiTestMiscRecords`            | misc + records mode                           | `testSubprocessConcurrent` | default               |
 | `hapiTestMiscRecordsSerial`      | misc + records mode + SERIAL                  | `testSubprocess`           | default               |
@@ -65,7 +68,7 @@ except for the ISS and BLOCK_NODE tasks, which skip validation:
 ## `remoteTest*` PR check tasks
 
 For every entry in `prCheckTags` other than `hapiTestIss`, `hapiTestRestart`, `hapiTestToken`,
-`hapiTestTokenSerial`, `hapiTestWrapsDownload`, a sibling `remoteTest…` task is generated that
+`hapiTestTokenSerial`, a sibling `remoteTest…` task is generated that
 delegates to `testRemote` with the same tag expression.
 
 ## `hapiTest*Embedded` and `hapiTest*Repeatable` PR check tasks
@@ -83,13 +86,41 @@ delegates to `testRemote` with the same tag expression.
 Each task that needs to ship configuration changes adds them to a comma-separated
 `hapi.spec.test.overrides` string consumed at network startup. Examples:
 
-- `hapiTestRestart` enables `tss.hintsEnabled`, forces handoffs, sets `quiescence.enabled=true`,
+- `hapiTestRestart` enables `tss.hintsEnabled`, sets `quiescence.enabled=true`,
   and shrinks `hedera.transaction.maximumPermissibleUnhealthySeconds`.
 - `hapiTestMisc` enables `blockStream.streamWrappedRecordBlocks` and `quiescence.enabled`.
 - `hapiTestCutover` configures TSS to start with `tss.hintsEnabled=false` to exercise the cutover
   path.
 
 See `build.gradle.kts` for the full table.
+
+`preCutoverDefaultsOverrides` holds the pins a task needs only while the production block stream and TSS
+defaults are pre-cutover (e.g. `tss.forceMockSignatures=false` for `hapiTestCrypto`); it goes away once
+those defaults switch to the cutover values.
+
+### Testnet configuration profile
+
+`-PhapiTestConfigProfile=testnet` (or `HAPI_TEST_CONFIG_PROFILE=testnet`) runs the HAPI tasks with the cutover
+block stream and TSS values planned for testnet (`cutoverConfigValues` in `build.gradle.kts`) instead of the
+production defaults:
+
+- each task's `prCheckPropOverrides` still win (e.g. the `writerMode=FILE` pins that keep `hapiTestRestart`
+  and `hapiTestIss` off the block node), and `preCutoverDefaultsOverrides` are skipped;
+- a real block node is started for the gRPC writer;
+- embedded and repeatable tasks keep the `FILE` writer and mock signatures;
+- `hapiTestGenesisSubProcess`, `hapiTestClpr` and `hapiTestClprMultinetwork` keep the `FILE` writer (genesis and
+  multi-network nets get no block node);
+- `hapiTestMiscRecords*`, `hapiTestCutover` and `hapiTestBlockNodeCommunication` ignore it.
+
+Stream assertions follow the effective stream mode: with no record stream (`BLOCKS`), record-stream checks read
+the block stream instead.
+
+XTS reruns the MATS HAPI panels, `hapiTestWraps` and `hapiTestWrapsDownload` this way
+(`829-call-execute-xts-hapi-testnet.yaml`).
+
+```bash
+./gradlew :test-clients:hapiTestCrypto -PhapiTestConfigProfile=testnet
+```
 
 ## Platform overrides (`prCheckPlatformOverrides`)
 

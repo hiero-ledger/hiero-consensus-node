@@ -4,7 +4,6 @@ package com.hedera.node.app.fixtures.state;
 import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.spi.fixtures.TestSchema.CURRENT_VERSION;
-import static com.hedera.node.app.state.merkle.SchemaApplicationType.MIGRATION;
 import static com.hedera.node.app.state.merkle.SchemaApplicationType.RESTART;
 import static com.hedera.node.app.state.merkle.SchemaApplicationType.STATE_DEFINITIONS;
 import static java.util.Objects.requireNonNull;
@@ -82,8 +81,8 @@ public class FakeSchemaRegistry implements SchemaRegistry<SemanticVersion> {
             return;
         }
         // For each schema, create the underlying raw data sources (maps, or lists) and the writable states that
-        // will wrap them. Then call the schema's migrate method to populate those states, and commit each of them
-        // to the underlying data sources. At that point, we have properly migrated the state.
+        // will wrap them. Then call the latest schema's restart method, and commit each of them to the underlying
+        // data sources. At that point, we have properly initialized the state.
         final var latestVersion = schemas.getLast().getVersion();
         logger.info(
                 "Applying {} schemas for service {} and latest service schema version {}",
@@ -91,8 +90,7 @@ public class FakeSchemaRegistry implements SchemaRegistry<SemanticVersion> {
                 () -> serviceName,
                 () -> HapiUtils.toString(latestVersion));
         for (final var schema : schemas) {
-            final var applications =
-                    schemaApplications.computeApplications(previousVersion, latestVersion, schema, appConfig);
+            final var applications = schemaApplications.computeApplications(latestVersion, schema, appConfig);
             logger.info("Applying {} schema {} ({})", serviceName, schema.getVersion(), applications);
             final var readableStates = state.getReadableStates(serviceName);
             final var previousStates = new FilteredReadableStates(readableStates, readableStates.stateIds());
@@ -113,9 +111,6 @@ public class FakeSchemaRegistry implements SchemaRegistry<SemanticVersion> {
                     platformConfig,
                     sharedValues,
                     startupNetworks);
-            if (applications.contains(MIGRATION)) {
-                schema.migrate(context);
-            }
             if (applications.contains(RESTART)) {
                 schema.restart(context);
             }

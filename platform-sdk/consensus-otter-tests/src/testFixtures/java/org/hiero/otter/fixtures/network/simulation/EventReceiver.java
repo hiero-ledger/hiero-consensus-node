@@ -40,7 +40,8 @@ public interface EventReceiver {
      * in Turtle (<a href="https://github.com/hiero-ledger/hiero-consensus-node/issues/27528">#27528</a>).
      *
      * <p>Only the newest window a peer has sent is delivered; the ones it supersedes are discarded by the network. A
-     * window is therefore the peer's current position, not a step in a sequence, and no window is delivered twice.
+     * window is therefore the peer's current position, not a step in a sequence. The same window may be delivered again
+     * when a link comes up or a node restarts, since the network then sends each peer's latest window afresh.
      *
      * @param sender      the node whose event window this is
      * @param eventWindow the event window to receive
