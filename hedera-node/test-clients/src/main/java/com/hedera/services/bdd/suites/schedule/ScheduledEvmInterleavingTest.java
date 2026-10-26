@@ -7,7 +7,9 @@ import static com.hedera.node.app.hapi.utils.contracts.HookUtils.minimalRepresen
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.bloomForAll;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.contractWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
@@ -25,13 +27,19 @@ import static com.hedera.services.bdd.suites.contract.Utils.mirrorAddrWith;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.esaulpaugh.headlong.abi.Address;
+import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.block.stream.trace.TraceData;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.state.contract.SlotKey;
+import com.hedera.hapi.node.state.contract.SlotValue;
+import com.hedera.hapi.node.state.entity.EntityCounts;
+import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.streams.ContractStateChange;
 import com.hedera.hapi.streams.StorageChange;
 import com.hedera.hapi.streams.TransactionSidecarRecord;
@@ -45,10 +53,12 @@ import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.BlockStreamAssertion;
 import java.math.BigInteger;
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -74,6 +84,16 @@ public class ScheduledEvmInterleavingTest {
     @LeakyHapiTest(overrides = {"scheduling.whitelist", "contracts.sidecars"})
     final Stream<DynamicTest> multipleScheduledWritesPreserveEachIntermediateValue() {
         return overlappingWrites(10, 11, List.of(22, 44), 33);
+    }
+
+    @LeakyHapiTest(overrides = {"scheduling.whitelist", "contracts.sidecars"})
+    final Stream<DynamicTest> scheduledInsertionIsCountedOnceAcrossScopes() {
+        return overlappingWrites(0, 11, List.of(22), 33);
+    }
+
+    @LeakyHapiTest(overrides = {"scheduling.whitelist", "contracts.sidecars"})
+    final Stream<DynamicTest> laterScheduledExecutionReinsertsDeletedSlot() {
+        return overlappingWrites(10, 11, List.of(0, 22), 33);
     }
 
     @LeakyHapiTest(overrides = {"scheduling.whitelist", "contracts.sidecars"})
@@ -219,6 +239,10 @@ public class ScheduledEvmInterleavingTest {
                         assertEquals(nestedCreated.getFirst(), byNumber.get(1), "Y creates B between X's A and C");
                     }
                 }),
+                getContractInfo(CONTRACT)
+                        .has(contractWith()
+                                .numKvPairs(
+                                        (afterValue == null ? scheduledValues.getLast() : afterValue) == 0 ? 0 : 1)),
                 streamMustIncludePassWithReplayFrom(
                         spec -> overlappingStorageTraces(
                                 spec, initialValue, beforeValue, scheduledValues, afterValue, createdIdsByExecution),
@@ -320,7 +344,9 @@ public class ScheduledEvmInterleavingTest {
         }
         final var splitter = new RoleFreeBlockUnitSplit();
         final var translator = new BlockTransactionalUnitTranslator(spec.shard(), spec.realm());
-        return block -> {
+        final var bookkeeping = new StorageBookkeeping(contractId);
+        return inBlockOrder(block -> {
+            bookkeeping.apply(block);
             translator.scanBlockForGenesis(block);
             for (final var rawUnit : splitter.split(block)) {
                 final var unit = rawUnit.withBatchTransactionParts();
@@ -377,10 +403,113 @@ public class ScheduledEvmInterleavingTest {
                             sidecars.getFirst().stateChangesOrThrow().contractStateChanges(),
                             "Storage writes must belong to their execution scope, including intermediate zero values");
                 }
+                bookkeeping.assertConsistent(finalValue);
                 return true;
             }
             return false;
+        });
+    }
+
+    private static BlockStreamAssertion inBlockOrder(final BlockStreamAssertion assertion) {
+        // Existing files replay asynchronously in filesystem order, interleaved with live notifications.
+        // State reconstruction requires every preceding block, once, in ledger order.
+        return new BlockStreamAssertion() {
+            private final Map<Long, Block> pending = new TreeMap<>();
+            private long nextBlock;
+
+            @Override
+            public synchronized boolean test(final Block block) {
+                final long number =
+                        block.items().getFirst().blockHeaderOrThrow().number();
+                if (number < nextBlock) {
+                    return false;
+                }
+                pending.putIfAbsent(number, block);
+                Block ready;
+                while ((ready = pending.remove(nextBlock)) != null) {
+                    nextBlock++;
+                    if (assertion.test(ready)) {
+                        return true;
+                    }
+                }
+                return false;
+            }
         };
+    }
+
+    /** Checks persisted storage independently of the trace/record reconstruction, also on embedded networks. */
+    private static final class StorageBookkeeping {
+        private final ContractID contractId;
+        private final Map<SlotKey, SlotValue> slots = new HashMap<>();
+        private Account account;
+        private EntityCounts counts;
+
+        private StorageBookkeeping(final ContractID contractId) {
+            this.contractId = contractId;
+        }
+
+        private void apply(final Block block) {
+            for (final var item : block.items()) {
+                if (!item.hasStateChanges()) {
+                    continue;
+                }
+                for (final var change : item.stateChangesOrThrow().stateChanges()) {
+                    if (change.hasMapUpdate()) {
+                        final var update = change.mapUpdateOrThrow();
+                        final var key = update.keyOrThrow();
+                        final var value = update.valueOrThrow();
+                        if (key.hasSlotKeyKey()) {
+                            slots.put(key.slotKeyKeyOrThrow(), value.slotValueValueOrThrow());
+                        } else if (key.hasAccountIdKey()) {
+                            final var id = key.accountIdKeyOrThrow();
+                            if (id.shardNum() == contractId.shardNum()
+                                    && id.realmNum() == contractId.realmNum()
+                                    && id.accountNumOrThrow().equals(contractId.contractNumOrThrow())) {
+                                account = value.accountValueOrThrow();
+                            }
+                        }
+                    } else if (change.hasMapDelete()) {
+                        final var key = change.mapDeleteOrThrow().keyOrThrow();
+                        if (key.hasSlotKeyKey()) {
+                            slots.remove(key.slotKeyKeyOrThrow());
+                        }
+                    } else if (change.hasSingletonUpdate()
+                            && change.singletonUpdateOrThrow().hasEntityCountsValue()) {
+                        counts = change.singletonUpdateOrThrow().entityCountsValueOrThrow();
+                    }
+                }
+            }
+        }
+
+        private void assertConsistent(final int finalValue) {
+            assertNotNull(counts, "The replay must include entity counts");
+            assertEquals(slots.size(), counts.numContractStorageSlots(), "Global storage count matches live slots");
+            assertNotNull(account, "The replay must include the contract account");
+            final var liveKeys = slots.keySet().stream()
+                    .filter(key -> key.contractID().equals(contractId))
+                    .collect(java.util.stream.Collectors.toSet());
+            assertEquals(finalValue == 0 ? 0 : 1, liveKeys.size(), "Zero values do not occupy storage");
+            assertEquals(liveKeys.size(), account.contractKvPairsNumber(), "Contract count matches live slots");
+            final var visited = new HashSet<SlotKey>();
+            var previous = Bytes.EMPTY;
+            var next = account.firstContractStorageKey();
+            while (next.length() != 0) {
+                final var key = new SlotKey(contractId, next);
+                assertTrue(visited.add(key), "Storage linked list must not contain a cycle");
+                final var slot = slots.get(key);
+                assertNotNull(slot, "Storage linked list must not reference a missing slot");
+                assertEquals(previous, slot.previousKey(), "Storage links must be bidirectional");
+                previous = next;
+                next = slot.nextKey();
+            }
+            assertEquals(liveKeys, visited, "Every live slot must be reachable from the contract's head");
+            if (finalValue != 0) {
+                assertEquals(
+                        Bytes.fromHex(String.format("%064x", finalValue)),
+                        slots.get(new SlotKey(contractId, Bytes.wrap(new byte[32])))
+                                .value());
+            }
+        }
     }
 
     private static void assertStorageUsage(
