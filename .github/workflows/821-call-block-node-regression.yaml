@@ -384,10 +384,6 @@ jobs:
           solo consensus node setup -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}" --local-build-path ./hedera-node/data
           solo consensus node start -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
           solo mirror node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --pinger --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --enable-ingress --mirror-node-version "${{ env.MIRROR_NODE_TAG }}" -f mirror-bn-values.yaml
-          # FUTURE: drop once a mirror node release bundles the WRAPS verification key in its native image.
-          # Solo forces the importer tag to the release version, so swap in the candidate image afterwards
-          kubectl -n "${{ env.SOLO_NAMESPACE }}" set image deployment/mirror-1-importer importer=docker.io/xin323/importer-native:0.165.2-1ae2d00fbc
-          kubectl -n "${{ env.SOLO_NAMESPACE }}" rollout status deployment/mirror-1-importer --timeout=5m
 
       - name: Show running pods and services and wait on BN readiness
         run: |
