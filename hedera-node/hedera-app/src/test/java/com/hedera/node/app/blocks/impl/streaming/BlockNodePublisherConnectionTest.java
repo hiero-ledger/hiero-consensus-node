@@ -4,6 +4,7 @@ package com.hedera.node.app.blocks.impl.streaming;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchRuntimeException;
+import static org.assertj.core.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -31,15 +32,18 @@ import com.hedera.hapi.block.internal.EndStreamBytes;
 import com.hedera.hapi.block.internal.PublishStreamRequestBytes;
 import com.hedera.hapi.block.internal.PublishStreamRequestBytes.RequestOneOfType;
 import com.hedera.hapi.block.stream.BlockItem;
-import com.hedera.node.app.blocks.impl.streaming.BlockNodeStreamingConnection.BlockItemsStreamRequest;
-import com.hedera.node.app.blocks.impl.streaming.BlockNodeStreamingConnection.SendRequestResult;
-import com.hedera.node.app.blocks.impl.streaming.BlockNodeStreamingConnection.SendRequestStatus;
-import com.hedera.node.app.blocks.impl.streaming.BlockNodeStreamingConnection.StreamRequest;
+import com.hedera.hapi.block.stream.BlockItem.ItemOneOfType;
+import com.hedera.node.app.blocks.impl.streaming.BlockNodePublisherConnection.BlockItemsStreamRequest;
+import com.hedera.node.app.blocks.impl.streaming.BlockNodePublisherConnection.ConnectionMode;
+import com.hedera.node.app.blocks.impl.streaming.BlockNodePublisherConnection.SendRequestResult;
+import com.hedera.node.app.blocks.impl.streaming.BlockNodePublisherConnection.SendRequestStatus;
+import com.hedera.node.app.blocks.impl.streaming.BlockNodePublisherConnection.StreamRequest;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeEndpoint;
 import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.types.BlockStreamGrpcCompressionType;
 import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.grpc.GrpcCall;
@@ -56,6 +60,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Flow;
@@ -82,7 +87,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
+class BlockNodePublisherConnectionTest extends BlockNodeCommunicationTestBase {
 
     private static final long NODE_ID = 0L;
     private static final VarHandle connectionStateHandle;
@@ -95,7 +100,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
     static {
         try {
             final Lookup lookup = MethodHandles.lookup();
-            final Class<?> cls = BlockNodeStreamingConnection.class;
+            final Class<?> cls = BlockNodePublisherConnection.class;
 
             connectionStateHandle = MethodHandles.privateLookupIn(AbstractBlockNodeConnection.class, lookup)
                     .findVarHandle(AbstractBlockNodeConnection.class, "stateRef", AtomicReference.class);
@@ -117,7 +122,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         }
     }
 
-    private BlockNodeStreamingConnection connection;
+    private BlockNodePublisherConnection connection;
     private ConfigProvider configProvider;
     private BlockNodeStats stats;
     private BlockNode blockNode;
@@ -192,7 +197,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
                         any(Duration.class),
                         anyString(),
                         any(BlockStreamGrpcCompressionType.class));
-        connection = new BlockNodeStreamingConnection(
+        connection = new BlockNodePublisherConnection(
                 configProvider,
                 blockNode,
                 connectionManager,
@@ -202,7 +207,8 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
                 null,
                 clientFactory,
                 NODE_ID,
-                streamingObs);
+                streamingObs,
+                ConnectionMode.STREAMING);
 
         // To avoid potential non-deterministic effects due to the worker thread, assign a fake worker thread to the
         // connection that does nothing.
@@ -257,7 +263,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
     @Test
     void testConstructorWithInitialBlock() {
         // Create connection with initial block number
-        connection = new BlockNodeStreamingConnection(
+        connection = new BlockNodePublisherConnection(
                 configProvider,
                 blockNode,
                 connectionManager,
@@ -267,7 +273,8 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
                 100L,
                 clientFactory,
                 NODE_ID,
-                streamingObs);
+                streamingObs,
+                ConnectionMode.STREAMING);
 
         // Verify the streamingBlockNumber was set
         final AtomicLong streamingBlockNumber = streamingBlockNumber();
@@ -1001,7 +1008,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         openConnectionAndResetMocks();
         doThrow(new RuntimeException("kaboom!")).when(requestCall).sendRequest(any(), anyBoolean());
 
-        final BlockNodeStreamingConnection spiedConnection = spy(connection);
+        final BlockNodePublisherConnection spiedConnection = spy(connection);
         doReturn(ConnectionState.ACTIVE, ConnectionState.CLOSING)
                 .when(spiedConnection)
                 .currentState();
@@ -1194,7 +1201,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         activateConnection();
 
         // Create a spy to intercept the close method and change state during execution
-        final BlockNodeStreamingConnection spyConnection = spy(connection);
+        final BlockNodePublisherConnection spyConnection = spy(connection);
         final AtomicBoolean stateChanged = new AtomicBoolean(false);
 
         // Override status to trigger state change on first call
@@ -1297,7 +1304,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
 
         // Use reflection to set streamShutdownInProgress to true without closing the connection
         // This simulates the race condition where shutdown begins but onComplete arrives first
-        final var field = BlockNodeStreamingConnection.class.getDeclaredField("streamShutdownInProgress");
+        final var field = BlockNodePublisherConnection.class.getDeclaredField("streamShutdownInProgress");
         field.setAccessible(true);
         final AtomicBoolean streamShutdownInProgress = (AtomicBoolean) field.get(connection);
         streamShutdownInProgress.set(true);
@@ -1347,7 +1354,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
 
         // Call doWork directly instead of starting the worker thread
         final Object worker = createWorker();
-        invokeDoWork(worker);
+        invokeDoStreamingWork(worker);
 
         assertThat(streamingBlockNumber).hasValue(101);
 
@@ -1369,7 +1376,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(streamingBlockNumber).hasValue(-1);
 
         final Object worker = createWorker();
-        invokeDoWork(worker);
+        invokeDoStreamingWork(worker);
 
         assertThat(streamingBlockNumber).hasValue(-1);
 
@@ -1390,7 +1397,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
 
         // Call doWork directly - with no items in the block, nothing should be sent
         final Object worker = createWorker();
-        invokeDoWork(worker);
+        invokeDoStreamingWork(worker);
 
         assertThat(streamingBlockNumber).hasValue(10);
 
@@ -1413,7 +1420,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
 
         // block 10 is too far behind, should send TOO_FAR_BEHIND
         final Object worker = createWorker();
-        invokeDoWork(worker);
+        invokeDoStreamingWork(worker);
 
         assertThat(streamingBlockNumber).hasValue(10);
         assertThat(connection.closeReason()).isEqualTo(CloseReason.BLOCK_NODE_BEHIND);
@@ -1459,7 +1466,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         final Object worker = createWorker();
 
         // Call doWork - accumulates block 10 header (doesn't send yet)
-        invokeDoWork(worker);
+        invokeDoStreamingWork(worker);
 
         // Verify nothing sent yet
         verify(requestCall, times(0)).sendRequest(any(), anyBoolean());
@@ -1470,7 +1477,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
 
         // Call doWork again - should now process block 11 header
         block11.closeBlock(); // Close block 11 to force sending
-        invokeDoWork(worker);
+        invokeDoStreamingWork(worker);
 
         // After sending block 11 completely, it will advance to block 12
         assertThat(streamingBlockNumber).hasValue(12);
@@ -1528,16 +1535,16 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         final Object worker = createWorker();
 
         block.addItem(header);
-        invokeDoWork(worker); // header should get sent
+        invokeDoStreamingWork(worker); // header should get sent
 
         Thread.sleep(200);
         block.addItem(item);
-        invokeDoWork(worker); // the block item should get sent
+        invokeDoStreamingWork(worker); // the block item should get sent
 
         Thread.sleep(200);
         block.addItem(proof);
         block.closeBlock();
-        invokeDoWork(worker); // the proof should be sent
+        invokeDoStreamingWork(worker); // the proof should be sent
 
         verify(requestCall, times(4)).sendRequest(requestCaptor.capture(), anyBoolean());
 
@@ -1590,7 +1597,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
                 ArgumentCaptor.forClass(PublishStreamRequestBytes.class);
         final Object worker = createWorker();
 
-        invokeDoWork(worker);
+        invokeDoStreamingWork(worker);
 
         // The connection must NOT have been fatally closed: both items are valid and can each be sent in their own
         // request. This is the primary signal of the bug.
@@ -1647,7 +1654,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
                 ArgumentCaptor.forClass(PublishStreamRequestBytes.class);
         final Object worker = createWorker();
 
-        invokeDoWork(worker);
+        invokeDoStreamingWork(worker);
 
         verify(requestCall, times(5)).sendRequest(requestCaptor.capture(), anyBoolean());
 
@@ -2384,9 +2391,284 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verifyNoMoreInteractions(bufferService);
     }
 
+    @Test
+    void testConnectionWorker_observer_noBlocksProducedYet() throws Throwable {
+        createAndActivateObserverConnection();
+        final Object worker = createWorker();
+
+        when(bufferService.getLastBlockNumberProduced()).thenReturn(-1L);
+
+        invokeDoObservingWork(worker);
+        // it is the first attempt so we will try to send it, but since no blocks have been produced we just exit early
+
+        verify(bufferService).getLastBlockNumberProduced();
+        verify(bufferService).getHighestAckedBlockNumber();
+        verifyNoMoreInteractions(bufferService);
+        verifyNoInteractions(metrics);
+        verifyNoInteractions(requestCall);
+        verifyNoInteractions(connectionManager);
+    }
+
+    @Test
+    void testConnectionWorker_observer_ackRequestFailedExceptionally() throws Throwable {
+        createAndActivateObserverConnection();
+        final Object worker = createWorker();
+
+        when(bufferService.getLastBlockNumberProduced()).thenReturn(0L);
+        when(bufferService.getHighestAckedBlockNumber()).thenReturn(-1L);
+        doAnswer(inv -> {
+                    final PublishStreamRequestBytes req = inv.getArgument(0);
+                    if (req.hasAcknowledgeOnly()) {
+                        throw new RuntimeException(
+                                "I remember when things just worked; now things are failing left and right");
+                    }
+
+                    return null;
+                })
+                .when(requestCall)
+                .sendRequest(any(PublishStreamRequestBytes.class), anyBoolean());
+
+        invokeDoObservingWork(worker);
+        // the sending of the block ack request will fail due to the exception
+        // this will in turn cause the connection to be closed
+
+        verify(bufferService).getLastBlockNumberProduced();
+        verify(bufferService).getEarliestAvailableBlockNumber();
+        verify(bufferService, times(2)).getHighestAckedBlockNumber();
+        verify(metrics).recordRequestSendFailure();
+        verify(metrics).recordRequestEndStreamSent(EndStream.Code.RESET);
+        verify(metrics).recordRequestLatency(anyLong());
+        verify(metrics).recordConnectionClosed(CloseReason.CONNECTION_ERROR);
+        verify(requestCall, times(2)).sendRequest(any(PublishStreamRequestBytes.class), anyBoolean());
+        verify(connectionManager).notifyConnectionClosed(connection);
+
+        verifyNoMoreInteractions(bufferService);
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(requestCall);
+        verifyNoMoreInteractions(connectionManager);
+    }
+
+    @Test
+    void testConnectionWorker_observer_ackRequestFailedNonExceptionally() throws Throwable {
+        createAndActivateObserverConnection();
+        final Object worker = createWorker();
+
+        when(bufferService.getLastBlockNumberProduced()).thenReturn(0L);
+        when(bufferService.getHighestAckedBlockNumber()).thenReturn(-1L);
+
+        // mark the connection state as being terminal so the request fails "non-exceptionally"
+        connectionState().set(ConnectionState.CLOSING);
+
+        invokeDoObservingWork(worker);
+
+        verify(bufferService).getLastBlockNumberProduced();
+
+        verifyNoMoreInteractions(bufferService);
+        verifyNoInteractions(metrics);
+        verifyNoInteractions(requestCall);
+        verifyNoInteractions(connectionManager);
+    }
+
+    @Test
+    void testConnectionWorker_observer_ackRequestSuccess() throws Throwable {
+        createAndActivateObserverConnection();
+        final Object worker = createWorker();
+        final long blockPeriodMillis = configProvider
+                .getConfiguration()
+                .getConfigData(BlockStreamConfig.class)
+                .blockPeriod()
+                .toMillis();
+
+        when(bufferService.getLastBlockNumberProduced()).thenReturn(0L);
+        when(bufferService.getHighestAckedBlockNumber()).thenReturn(-1L);
+
+        // this test will invoke the observer task multiple times over about two block periods
+        // sending an ack request to the block node is expected to happen once per block period
+        // thus, there should be approximately 2 calls made
+        final long cutoffMillis = System.currentTimeMillis() + (blockPeriodMillis * 2);
+        int numInvocations = 0;
+
+        while (System.currentTimeMillis() < cutoffMillis) {
+            ++numInvocations;
+            invokeDoObservingWork(worker);
+            Thread.sleep(200);
+        }
+
+        assertThat(numInvocations).isGreaterThan(15);
+
+        final ArgumentCaptor<PublishStreamRequestBytes> sendCaptor =
+                ArgumentCaptor.forClass(PublishStreamRequestBytes.class);
+        verify(requestCall, atLeastOnce()).sendRequest(sendCaptor.capture(), anyBoolean());
+        int numBlockAcksRequested = 0;
+        for (final PublishStreamRequestBytes req : sendCaptor.getAllValues()) {
+            if (req.hasAcknowledgeOnly()) {
+                ++numBlockAcksRequested;
+            }
+        }
+        if (numBlockAcksRequested < 2 || numBlockAcksRequested > 4) {
+            fail("Expected ~2-3 block ack requests to be sent, but actually there were " + numBlockAcksRequested);
+        }
+
+        verify(bufferService, atLeast(2)).getLastBlockNumberProduced();
+        verify(metrics, atLeast(2)).recordRequestLatency(anyLong());
+        verify(metrics, atLeast(2)).recordRequestSent(RequestOneOfType.ACKNOWLEDGE_ONLY);
+        verifyNoMoreInteractions(bufferService);
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(requestCall);
+        verifyNoInteractions(connectionManager);
+    }
+
+    @Test
+    void testSetConnectionMode_observerToStreamer() throws Throwable {
+        createAndActivateObserverConnection();
+
+        final BlockState block0 = new BlockState(0, 2_000);
+        block0.addSerializedItem(BlockItem.PROTOBUF.toBytes(newBlockHeaderItem(0)), ItemOneOfType.BLOCK_HEADER);
+
+        final List<PublishStreamRequestBytes> requests = new ArrayList<>();
+        final CountDownLatch ackRequestSentLatch = new CountDownLatch(1);
+        final CountDownLatch blockItemSentLatch = new CountDownLatch(1);
+
+        doAnswer(inv -> {
+                    final PublishStreamRequestBytes request = inv.getArgument(0);
+                    requests.add(request);
+
+                    if (request.hasAcknowledgeOnly()) {
+                        ackRequestSentLatch.countDown();
+                    } else if (request.hasBlockItems()) {
+                        blockItemSentLatch.countDown();
+                    }
+
+                    return null;
+                })
+                .when(requestCall)
+                .sendRequest(any(PublishStreamRequestBytes.class), anyBoolean());
+
+        when(bufferService.getBlockState(0L)).thenReturn(block0);
+        when(bufferService.getLastBlockNumberProduced()).thenReturn(0L);
+        when(bufferService.getHighestAckedBlockNumber()).thenReturn(-1L);
+
+        startWorkerLoop();
+
+        // wait for the first block ack request to be sent
+        assertThat(ackRequestSentLatch.await(2, TimeUnit.SECONDS)).isTrue();
+
+        // after the first block ack request is sent, change the connection mode to streaming
+        // since we are in observing mode, there isn't a delay like there is waiting for a block boundary when going
+        // from streaming to observing, thus the switch should happen very fast
+        connection.setConnectionMode(ConnectionMode.STREAMING);
+
+        assertThat(blockItemSentLatch.await(2, TimeUnit.SECONDS)).isTrue();
+        assertThat(requests).hasSize(2);
+
+        final PublishStreamRequestBytes request1 = requests.get(0);
+        final PublishStreamRequestBytes request2 = requests.get(1);
+
+        assertThat(request1.hasAcknowledgeOnly()).isTrue();
+        assertThat(request2.hasBlockItems()).isTrue();
+        assertThat(request2.blockItems().blockItems()).hasSize(1);
+    }
+
+    @Test
+    void testSetConnectionMode_streamerToObserver() throws Throwable {
+        activateConnection();
+
+        final BlockState block0 = new BlockState(0, 2_000);
+        block0.addSerializedItem(BlockItem.PROTOBUF.toBytes(newBlockHeaderItem(0)), ItemOneOfType.BLOCK_HEADER);
+
+        final List<PublishStreamRequestBytes> requests = new ArrayList<>();
+        final CountDownLatch blockItemSentLatch = new CountDownLatch(1);
+        final CountDownLatch ackRequestSentLatch = new CountDownLatch(1);
+
+        doAnswer(inv -> {
+                    final PublishStreamRequestBytes request = inv.getArgument(0);
+                    requests.add(request);
+
+                    if (request.hasAcknowledgeOnly()) {
+                        ackRequestSentLatch.countDown();
+                    } else if (request.hasBlockItems()) {
+                        blockItemSentLatch.countDown();
+                    }
+
+                    return null;
+                })
+                .when(requestCall)
+                .sendRequest(any(PublishStreamRequestBytes.class), anyBoolean());
+
+        when(bufferService.getBlockState(0L)).thenReturn(block0);
+        when(bufferService.getLastBlockNumberProduced()).thenReturn(0L);
+        when(bufferService.getHighestAckedBlockNumber()).thenReturn(-1L);
+
+        startWorkerLoop();
+
+        // wait for the first block item to be sent
+        assertThat(blockItemSentLatch.await(2, TimeUnit.SECONDS)).isTrue();
+
+        // after the first item is sent, change the connection move to observing and then add more items to the block
+        // and eventually close the block. we should see the block be fully sent and then after it is sent, the
+        // connection will switch to the observer mode
+        connection.setConnectionMode(ConnectionMode.OBSERVING);
+
+        block0.addSerializedItem(BlockItem.PROTOBUF.toBytes(newBlockTxItem(2_000)), ItemOneOfType.SIGNED_TRANSACTION);
+        block0.addSerializedItem(BlockItem.PROTOBUF.toBytes(newBlockFooter()), ItemOneOfType.BLOCK_FOOTER);
+        block0.addSerializedItem(BlockItem.PROTOBUF.toBytes(newBlockProofItem(0, 1_000)), ItemOneOfType.BLOCK_PROOF);
+        block0.closeBlock();
+
+        // the connection worker should eventually switch to observer mode
+        // to confirm this, wait for the first block ack request to be sent
+        assertThat(ackRequestSentLatch.await(2, TimeUnit.SECONDS)).isTrue();
+
+        // there should be 4 requests sent in total: 1) block header 2) tx + footer + proof 3) block end 4) block ack
+        assertThat(requests).hasSize(4);
+        final PublishStreamRequestBytes request1 = requests.get(0);
+        final PublishStreamRequestBytes request2 = requests.get(1);
+        final PublishStreamRequestBytes request3 = requests.get(2);
+        final PublishStreamRequestBytes request4 = requests.get(3);
+        assertThat(request1.hasBlockItems()).isTrue();
+        assertThat(request1.blockItems().blockItems()).hasSize(1);
+        assertThat(request2.hasBlockItems()).isTrue();
+        assertThat(request2.blockItems().blockItems()).hasSize(3);
+        assertThat(request3.hasEndOfBlock()).isTrue();
+        assertThat(request4.hasAcknowledgeOnly()).isTrue();
+    }
+
     // Utilities
 
+    /**
+     * Creates a new instance of the connection worker task and then starts the worker loop in a separate thread.
+     *
+     * @throws Throwable if something bad happens
+     */
+    private void startWorkerLoop() throws Throwable {
+        final Object workerInstance = createWorker();
+        assertThat(workerInstance).isInstanceOf(Runnable.class);
+
+        new Thread(() -> {
+                    final Runnable worker = (Runnable) workerInstance;
+                    worker.run();
+                })
+                .start();
+    }
+
+    private void createAndActivateObserverConnection() {
+        connection = new BlockNodePublisherConnection(
+                configProvider,
+                blockNode,
+                connectionManager,
+                bufferService,
+                metrics,
+                pipelineExecutor,
+                null,
+                clientFactory,
+                NODE_ID,
+                streamingObs,
+                ConnectionMode.OBSERVING);
+        workerThreadRef().set(FAKE_WORKER_THREAD);
+        activateConnection();
+    }
+
     private void activateConnection() {
+        lenient().doReturn(requestCall).when(grpcServiceClient).publishBlockStream(connection);
         connection.initialize();
         connection.updateConnectionState(ConnectionState.ACTIVE);
         resetMocks();
@@ -2455,7 +2737,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
      */
     private Object createWorker() throws Exception {
         Class<?> workerClass = null;
-        for (final Class<?> innerClass : BlockNodeStreamingConnection.class.getDeclaredClasses()) {
+        for (final Class<?> innerClass : BlockNodePublisherConnection.class.getDeclaredClasses()) {
             if (innerClass.getSimpleName().equals("ConnectionWorkerLoopTask")) {
                 workerClass = innerClass;
                 break;
@@ -2465,22 +2747,35 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
             throw new IllegalStateException("ConnectionWorkerLoopTask inner class not found");
         }
 
-        final Constructor<?> constructor = workerClass.getDeclaredConstructor(BlockNodeStreamingConnection.class);
+        final Constructor<?> constructor = workerClass.getDeclaredConstructor(BlockNodePublisherConnection.class);
         constructor.setAccessible(true);
         return constructor.newInstance(connection);
     }
 
     /**
-     * Helper method to invoke the doWork() method on a ConnectionWorkerLoopTask instance
+     * Helper method to invoke the doStreamingWork() method on a ConnectionWorkerLoopTask instance
      * using reflection.
      *
      * @param worker the worker instance (from createWorker())
-     * @throws Exception if reflection or doWork() execution fails
+     * @throws Exception if reflection or doStreamingWork() execution fails
      */
-    private void invokeDoWork(final Object worker) throws Exception {
-        final Method doWorkMethod = worker.getClass().getDeclaredMethod("doWork");
-        doWorkMethod.setAccessible(true);
-        doWorkMethod.invoke(worker);
+    private void invokeDoStreamingWork(final Object worker) throws Exception {
+        final Method doStreamingWork = worker.getClass().getDeclaredMethod("doStreamingWork");
+        doStreamingWork.setAccessible(true);
+        doStreamingWork.invoke(worker);
+    }
+
+    /**
+     * Helper method to invoke the doObservingWork() method on a ConnectionWorkerLoopTask instance
+     * using reflection.
+     *
+     * @param worker the worker instance (from createWorker())
+     * @throws Exception if reflection or doObservingWork() execution fails
+     */
+    private void invokeDoObservingWork(final Object worker) throws Exception {
+        final Method doObservingWork = worker.getClass().getDeclaredMethod("doObservingWork");
+        doObservingWork.setAccessible(true);
+        doObservingWork.invoke(worker);
     }
 
     private void invokeUpdateAcknowledgementMetrics(
@@ -2493,7 +2788,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         return sendRequest(connection, request);
     }
 
-    private SendRequestResult sendRequest(final BlockNodeStreamingConnection connection, final StreamRequest request) {
+    private SendRequestResult sendRequest(final BlockNodePublisherConnection connection, final StreamRequest request) {
         try {
             return (SendRequestResult) sendRequestHandle.invoke(connection, request);
         } catch (final Throwable e) {

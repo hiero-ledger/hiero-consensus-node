@@ -44,6 +44,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.block.api.BlockEnd;
+import org.hiero.block.api.PublishStreamRequest.AcknowledgeOnly;
 import org.hiero.block.api.PublishStreamRequest.EndStream;
 import org.hiero.block.api.PublishStreamResponse;
 import org.hiero.block.api.PublishStreamResponse.BehindPublisher;
@@ -65,10 +66,10 @@ import org.hiero.block.api.PublishStreamResponse.SkipBlock;
  * The connection goes through multiple states defined in {@link ConnectionState} and
  * uses exponential backoff for retries when errors occur.
  */
-public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
+public class BlockNodePublisherConnection extends AbstractBlockNodeConnection
         implements Pipeline<PublishStreamResponse> {
 
-    private static final Logger logger = LogManager.getLogger(BlockNodeStreamingConnection.class);
+    private static final Logger logger = LogManager.getLogger(BlockNodePublisherConnection.class);
     /**
      * Default window (in milliseconds) for timeouts.
      */
@@ -161,6 +162,29 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
      * Set of the most recent timestamps (as milliseconds) when an operations timed out.
      */
     private final SortedSet<Long> mostRecentOpTimeoutTimestamps = Collections.synchronizedSortedSet(new TreeSet<>());
+    /**
+     * The current mode this connection is in.
+     */
+    private final AtomicReference<ConnectionMode> connectionModeRef = new AtomicReference<>();
+    /**
+     * Flag indicating if this connection should switch from streaming mode to observing mode at the next block
+     * boundary. This is used to ensure we complete sending an inflight block to the block node before transitioning.
+     */
+    private final AtomicBoolean observeAtNextBlockBoundary = new AtomicBoolean(false);
+
+    /**
+     * Enumeration of the different publisher connection modes
+     */
+    public enum ConnectionMode {
+        /**
+         * The connection is actively attempting to stream blocks to a block node.
+         */
+        STREAMING,
+        /**
+         * The connection is not streaming blocks, but rather observing acknowledgments from the block node.
+         */
+        OBSERVING
+    }
 
     /**
      * Construct a new BlockNodeConnection.
@@ -174,7 +198,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
      * @param clientFactory the factory for creating block stream clients
      * @param nodeId the id of the node owning this connection
      */
-    public BlockNodeStreamingConnection(
+    public BlockNodePublisherConnection(
             @NonNull final ConfigProvider configProvider,
             @NonNull final BlockNode blockNode,
             @NonNull final BlockNodeConnectionManager connectionManager,
@@ -184,7 +208,8 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
             @Nullable final Long initialBlockToStream,
             @NonNull final BlockNodeClientFactory clientFactory,
             final long nodeId,
-            @NonNull final BlockStreamingObs streamingObs) {
+            @NonNull final BlockStreamingObs streamingObs,
+            @NonNull final ConnectionMode connectionMode) {
         super(ConnectionType.BLOCK_STREAMING, blockNode.configuration(), configProvider, nodeId);
         this.blockNode = blockNode;
         this.connectionManager = requireNonNull(connectionManager, "blockNodeConnectionManager must not be null");
@@ -195,17 +220,35 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
         this.streamResetPeriod = bncConfig().streamResetPeriod();
         this.streamResetPeriodJitter = bncConfig().streamResetPeriodJitter();
         this.clientFactory = requireNonNull(clientFactory, "clientFactory must not be null");
+        connectionModeRef.set(requireNonNull(connectionMode, "connectionMode must not be null"));
 
         if (initialBlockToStream != null && initialBlockToStream != -1) {
             streamingBlockNumber.set(initialBlockToStream);
             logger.info(
                     "{} Block node connection will initially stream with block {}",
-                    BlockNodeStreamingConnection.this,
+                    BlockNodePublisherConnection.this,
                     initialBlockToStream);
         }
 
         autoResetTimestamp = calculateAutoResetTimestamp();
         connStats = new StreamingConnectionStatistics();
+    }
+
+    /**
+     * Updates the connection mode for this connection. If the connection is currently streaming blocks and the mode is
+     * switching to observing only, the update will be applied at the next block boundary.
+     *
+     * @param newConnectionMode the new connection mode
+     */
+    public void setConnectionMode(@NonNull final ConnectionMode newConnectionMode) {
+        requireNonNull(newConnectionMode, "newConnectionMode must not be null");
+
+        if (ConnectionMode.OBSERVING == newConnectionMode && ConnectionMode.STREAMING == connectionModeRef.get()) {
+            // we are transitioning from streaming to observing; make sure we do the transition at a block boundary
+            observeAtNextBlockBoundary.set(true);
+        } else {
+            connectionModeRef.set(newConnectionMode);
+        }
     }
 
     /**
@@ -726,8 +769,10 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
      * @param status the outcome of the request send operation
      * @param nanosTickStart the nanosecond tick when the request send started
      * @param nanosTickEnd the nanosecond tick when the request send completed
+     * @param connectionRequestNumber the unique request number within this connection
      */
-    record SendRequestResult(SendRequestStatus status, long nanosTickStart, long nanosTickEnd) {}
+    record SendRequestResult(
+            SendRequestStatus status, long nanosTickStart, long nanosTickEnd, long connectionRequestNumber) {}
 
     /**
      * Sends the specified request over this connection, if active, to a block node. If the connection is not active,
@@ -753,23 +798,17 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
         } else {
             correlationId = buildRequestCorrelationId(connectionRequestNumber);
         }
+        final String connectionContext = connectionContext(correlationId);
 
-        if (logger.isDebugEnabled()) {
-            logger.debug(
-                    "{} Sending request to block node (type: {})",
-                    connectionContext(correlationId),
-                    request.streamRequestType());
-        }
+        logger.debug("{} Sending request to block node (type: {})", connectionContext, request.streamRequestType());
 
         final GrpcCall<PublishStreamRequestBytes, PublishStreamResponse> call = requestCallRef.get();
 
         if (!isActive() || call == null) {
-            if (logger.isDebugEnabled()) {
-                logger.debug(
-                        "{} Tried to send a request but the connection is not active or initialized; ignoring request",
-                        connectionContext(correlationId));
-            }
-            return new SendRequestResult(SendRequestStatus.CONNECTION_CLOSED, -1, -1);
+            logger.debug(
+                    "{} Tried to send a request but the connection is not active or initialized; ignoring request",
+                    connectionContext);
+            return new SendRequestResult(SendRequestStatus.CONNECTION_CLOSED, -1, -1, connectionRequestNumber);
         }
 
         final AtomicLong startNanos = new AtomicLong(-1);
@@ -802,14 +841,19 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
             endNanos.compareAndSet(-1, System.nanoTime());
             future.cancel(true);
             return handleSendTimeout(
-                    request, System.currentTimeMillis(), correlationId, startNanos.get(), endNanos.get());
+                    request,
+                    System.currentTimeMillis(),
+                    startNanos.get(),
+                    endNanos.get(),
+                    connectionContext,
+                    connectionRequestNumber);
         } catch (final InterruptedException e) {
             endNanos.compareAndSet(-1, System.nanoTime());
             Thread.currentThread().interrupt();
-            return handleSendInterrupt(e, correlationId, startNanos.get(), endNanos.get());
+            return handleSendInterrupt(e, startNanos.get(), endNanos.get(), connectionContext, connectionRequestNumber);
         } catch (final Exception e) {
             endNanos.compareAndSet(-1, System.nanoTime());
-            return handleSendError(e, correlationId, startNanos.get(), endNanos.get());
+            return handleSendError(e, startNanos.get(), endNanos.get(), connectionContext, connectionRequestNumber);
         }
 
         final long durationMicros = calculateDurationMicros(startNanos.get(), endNanos.get());
@@ -821,18 +865,17 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
         if (durationMillis > slowThresholdMillis) {
             logger.warn(
                     "{} Slow request detected (threshold: {}ms, observed: {}ms, requestSize: {}B)",
-                    connectionContext(correlationId),
+                    connectionContext,
                     slowThresholdMillis,
                     durationMillis,
                     request.streamRequest().protobufSize());
-        } else if (logger.isTraceEnabled() && request instanceof BlockRequest) {
-            logger.trace(
-                    "{} Request successfully sent (duration: {}μs)", connectionContext(correlationId), durationMicros);
+        } else if (request instanceof BlockRequest) {
+            logger.trace("{} Request successfully sent (duration: {}μs)", connectionContext, durationMicros);
         }
 
         // spotless:off
         switch (request) {
-            case final EndStreamRequest r -> blockStreamMetrics.recordRequestEndStreamSent(r.code());
+            case final EndStreamRequest esr -> blockStreamMetrics.recordRequestEndStreamSent(esr.code());
             case final BlockRequest br -> {
                 switch (br) {
                     case final BlockEndRequest r -> blockStreamMetrics.recordRequestSent(r.streamRequestType());
@@ -856,23 +899,30 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                     }
                 }
             }
+            case final AcknowledgeOnlyRequest aor -> blockStreamMetrics.recordRequestSent(aor.streamRequestType());
         }
         // spotless:on
 
-        return new SendRequestResult(SendRequestStatus.SUCCESS, startNanos.get(), endNanos.get());
+        return new SendRequestResult(
+                SendRequestStatus.SUCCESS, startNanos.get(), endNanos.get(), connectionRequestNumber);
     }
 
     /**
      * Handle an unexpected error encountered when sending a request.
      *
      * @param e the error encountered
-     * @param correlationId the correlation ID of the failing request
      * @param reqStartNanos the nanosecond tick when the request send started
      * @param reqEndNanos the nanosecond tick when the request send completed
+     * @param connectionContext this connection's context string
+     * @param connectionRequestNumber the unique request number within this connection
      * @return the result of handling the error
      */
     private SendRequestResult handleSendError(
-            final Exception e, final String correlationId, final long reqStartNanos, final long reqEndNanos) {
+            final Exception e,
+            final long reqStartNanos,
+            final long reqEndNanos,
+            final String connectionContext,
+            final long connectionRequestNumber) {
         final long durationMicros = calculateDurationMicros(reqStartNanos, reqEndNanos);
         blockStreamMetrics.recordRequestSendFailure();
         final Throwable error = e instanceof ExecutionException ? e.getCause() : e;
@@ -882,13 +932,13 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
             if (failureType.isCommonFailure()) {
                 logger.warn(
                         "{} Error encountered while sending request to block node (duration: {}μs, error: {})",
-                        connectionContext(correlationId),
+                        connectionContext,
                         durationMicros,
                         failureType);
             } else {
                 logger.warn(
                         "{} Error encountered while sending request to block node (duration: {}μs)",
-                        connectionContext(correlationId),
+                        connectionContext,
                         durationMicros,
                         error);
             }
@@ -898,18 +948,19 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
             if (failureType.isCommonFailure()) {
                 logger.info(
                         "{} Error encountered while sending request to block node (duration: {}μs, error: {}) - suppressing because connection is no longer active",
-                        connectionContext(correlationId),
+                        connectionContext,
                         durationMicros,
                         failureType);
             } else {
                 logger.info(
                         "{} Error encountered while sending request to block node (duration: {}μs) - suppressing because connection is no longer active",
-                        connectionContext(correlationId),
+                        connectionContext,
                         durationMicros,
                         error);
             }
 
-            return new SendRequestResult(SendRequestStatus.FAILURE, reqStartNanos, reqEndNanos);
+            return new SendRequestResult(
+                    SendRequestStatus.FAILURE, reqStartNanos, reqEndNanos, connectionRequestNumber);
         }
     }
 
@@ -917,31 +968,34 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
      * Handle an interrupt encountered when sending a request.
      *
      * @param e the interrupt encountered
-     * @param correlationId the correlation ID of the failing request
      * @param reqStartNanos the nanosecond tick when the request send started
      * @param reqEndNanos the nanosecond tick when the request send completed
+     * @param connectionContext this connection's context string
+     * @param connectionRequestNumber the unique request number within this connection
      * @return the result of handling the interrupt
      */
     private SendRequestResult handleSendInterrupt(
             final InterruptedException e,
-            final String correlationId,
             final long reqStartNanos,
-            final long reqEndNanos) {
+            final long reqEndNanos,
+            final String connectionContext,
+            final long connectionRequestNumber) {
         blockStreamMetrics.recordRequestSendFailure();
         final long durationMicros = calculateDurationMicros(reqStartNanos, reqEndNanos);
 
         if (isActive()) {
             logger.warn(
                     "{} Interrupted while sending request to block node (duration: {}μs)",
-                    connectionContext(correlationId),
+                    connectionContext,
                     durationMicros);
             throw new RuntimeException("Interrupted while sending request to block node", e);
         } else {
             logger.info(
                     "{} Interrupted while sending request to block node (duration: {}μs) - suppressing because connection is no longer active",
-                    connectionContext(correlationId),
+                    connectionContext,
                     durationMicros);
-            return new SendRequestResult(SendRequestStatus.WAIT_INTERRUPT, reqStartNanos, reqEndNanos);
+            return new SendRequestResult(
+                    SendRequestStatus.WAIT_INTERRUPT, reqStartNanos, reqEndNanos, connectionRequestNumber);
         }
     }
 
@@ -950,17 +1004,19 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
      *
      * @param request the request that timed out
      * @param timeoutTimestamp the timestamp of when the timeout happened
-     * @param correlationId the correlation ID of the failing request
      * @param reqStartNanos the nanosecond tick when the request send started
      * @param reqEndNanos the nanosecond tick when the request send completed
+     * @param connectionContext this connection's context string
+     * @param connectionRequestNumber the unique request number within this connection
      * @return the result of handling the timeout
      */
     private SendRequestResult handleSendTimeout(
             final StreamRequest request,
             final long timeoutTimestamp,
-            final String correlationId,
             final long reqStartNanos,
-            final long reqEndNanos) {
+            final long reqEndNanos,
+            final String connectionContext,
+            final long connectionRequestNumber) {
         /*
         We've timed out sending a request to the block node. If we've encountered too many timeouts in a short period,
         then we need to close the connection. If we haven't reached the max timeouts, then we can retry sending the
@@ -974,16 +1030,17 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
             // the connection is no longer active... no need to process any further
             logger.info(
                     "{} Timed out sending request to block node (timeout: {}ms, duration: {}μs, requestSize: {}B) - suppressing because connection is no longer active",
-                    connectionContext(correlationId),
+                    connectionContext,
                     request.timeoutMillis(),
                     durationMicros,
                     request.streamRequest().protobufSize());
-            return new SendRequestResult(SendRequestStatus.CONNECTION_CLOSED, reqStartNanos, reqEndNanos);
+            return new SendRequestResult(
+                    SendRequestStatus.CONNECTION_CLOSED, reqStartNanos, reqEndNanos, connectionRequestNumber);
         }
 
         logger.warn(
                 "{} Timed out sending request to block node (timeout: {}ms, duration: {}μs, requestSize: {}B)",
-                connectionContext(correlationId),
+                connectionContext,
                 request.timeoutMillis(),
                 durationMicros,
                 request.streamRequest().protobufSize());
@@ -1007,19 +1064,19 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
             // we've reached the max number of timeouts permitted... close the connection
             logger.warn(
                     "{} Max timeouts reached for sending requests (maxAllowed: {}) - closing connection",
-                    connectionContext(correlationId),
+                    connectionContext,
                     maxTimeoutsAllowed);
             close(CloseReason.TIMEOUT, true);
-            return new SendRequestResult(SendRequestStatus.TIMEOUT_CLOSE, reqStartNanos, reqEndNanos);
+            return new SendRequestResult(
+                    SendRequestStatus.TIMEOUT_CLOSE, reqStartNanos, reqEndNanos, connectionRequestNumber);
         } else {
-            if (logger.isDebugEnabled()) {
-                logger.debug(
-                        "{} Max timeouts have not been reached; block re-send is permitted (max: {}, attempts: {})",
-                        connectionContext(correlationId),
-                        maxTimeoutsAllowed,
-                        mostRecentOpTimeoutTimestamps.size());
-            }
-            return new SendRequestResult(SendRequestStatus.TIMEOUT, reqStartNanos, reqEndNanos);
+            logger.debug(
+                    "{} Max timeouts have not been reached; block re-send is permitted (max: {}, attempts: {})",
+                    connectionContext,
+                    maxTimeoutsAllowed,
+                    mostRecentOpTimeoutTimestamps.size());
+            return new SendRequestResult(
+                    SendRequestStatus.TIMEOUT, reqStartNanos, reqEndNanos, connectionRequestNumber);
         }
     }
 
@@ -1324,6 +1381,8 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
         private final int requestBasePaddingBytes;
         private final int requestItemPaddingBytes;
         private int blockAttemptNumber = 1;
+        private ConnectionMode localConnectionMode;
+        private long observerLastRequestMillis = -1;
 
         private ConnectionWorkerLoopTask() {
             softLimitBytes = configuration().messageSizeSoftLimitBytes();
@@ -1332,17 +1391,19 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
             requestItemPaddingBytes = bncConfig().streamingRequestItemPaddingBytes();
 
             pendingRequestBytes = requestBasePaddingBytes;
+            localConnectionMode = connectionModeRef.get();
         }
 
         @Override
         public void run() {
             logger.info(
-                    "{} Worker thread started (messageSizeSoftLimit: {}, messageSizeHardLimit: {}, requestPadding: {}, itemPadding: {})",
-                    BlockNodeStreamingConnection.this,
+                    "{} Worker thread started (messageSizeSoftLimit: {}, messageSizeHardLimit: {}, requestPadding: {}, itemPadding: {}, connectionMode: {})",
+                    BlockNodePublisherConnection.this,
                     softLimitBytes,
                     hardLimitBytes,
                     requestBasePaddingBytes,
-                    requestItemPaddingBytes);
+                    requestItemPaddingBytes,
+                    localConnectionMode);
 
             while (true) {
                 try {
@@ -1350,7 +1411,30 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                         break;
                     }
 
-                    final boolean shouldSleep = doWork();
+                    final ConnectionMode globalConnectionMode = connectionModeRef.get();
+                    if (globalConnectionMode != localConnectionMode) {
+                        logger.info(
+                                "{} Worker thread is transitioning from {} to {}",
+                                BlockNodePublisherConnection.this,
+                                localConnectionMode,
+                                globalConnectionMode);
+                        localConnectionMode = globalConnectionMode;
+                    }
+
+                    final boolean shouldSleep;
+
+                    if (ConnectionMode.STREAMING == localConnectionMode) {
+                        shouldSleep = doStreamingWork();
+                    } else if (ConnectionMode.OBSERVING == localConnectionMode) {
+                        shouldSleep = doObservingWork();
+                    } else {
+                        logger.warn(
+                                "{} Unexpected connection mode: {} - exiting",
+                                BlockNodePublisherConnection.this,
+                                localConnectionMode);
+                        close(CloseReason.INTERNAL_ERROR, false);
+                        shouldSleep = false;
+                    }
 
                     if (currentState().isTerminal()) {
                         // The connection is in a terminal state so allow the worker to stop
@@ -1364,15 +1448,77 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                     }
                 } catch (final InterruptedException _) {
                     Thread.currentThread().interrupt();
-                    logger.warn("{} Worker loop was interrupted", BlockNodeStreamingConnection.this);
+                    logger.warn("{} Worker loop was interrupted", BlockNodePublisherConnection.this);
                 } catch (final Exception e) {
-                    logger.warn("{} Error caught in connection worker loop", BlockNodeStreamingConnection.this, e);
+                    logger.warn("{} Error caught in connection worker loop", BlockNodePublisherConnection.this, e);
                 }
             }
 
             // if we exit the worker loop, then this thread is over... remove it from the worker thread reference
-            logger.info("{} Worker thread exiting", BlockNodeStreamingConnection.this);
+            logger.info("{} Worker thread exiting", BlockNodePublisherConnection.this);
             workerThreadRef.compareAndSet(Thread.currentThread(), null);
+        }
+
+        /**
+         * Main entry point for the worker that is responsible for periodically sending block acknowledgement requests.
+         *
+         * @return true (to trigger the worker to sleep)
+         */
+        private boolean doObservingWork() {
+            final long blockPeriodMillis = bsConfig().blockPeriod().toMillis();
+            final long millisSinceLastRequest = System.currentTimeMillis() - observerLastRequestMillis;
+
+            if (millisSinceLastRequest < blockPeriodMillis) {
+                logger.trace(
+                        "{} Not enough time elapsed since last AckOnly send; skipping",
+                        BlockNodePublisherConnection.this);
+                // not enough time has elapsed since the last request was sent; signal the worker to sleep
+                return true;
+            }
+
+            // it's been long enough since the last request so we can send another one
+            final long latestBlockNumber = blockBufferService.getLastBlockNumberProduced();
+            final long latestBlockAcknowledged = blockBufferService.getHighestAckedBlockNumber();
+
+            if (latestBlockNumber == -1 || latestBlockNumber == latestBlockAcknowledged) {
+                // no new, unacked blocks have been produced yet; signal the worker to sleep
+                logger.trace(
+                        "{} No new blocks produced to request acknowledgement for (latestProduced: {}, latestAcked: {}); skipping",
+                        BlockNodePublisherConnection.this,
+                        latestBlockNumber,
+                        latestBlockAcknowledged);
+                return true;
+            }
+
+            final PublishStreamRequestBytes request = PublishStreamRequestBytes.newBuilder()
+                    .acknowledgeOnly(AcknowledgeOnly.newBuilder()
+                            .blockNumber(latestBlockNumber)
+                            .build())
+                    .build();
+            final long timeoutMillis = calculateRequestTimeout(request.protobufSize());
+            final AcknowledgeOnlyRequest req = new AcknowledgeOnlyRequest(request, timeoutMillis);
+
+            final SendRequestResult result;
+
+            try {
+                result = sendRequest(req);
+            } catch (final RuntimeException e) {
+                logger.warn("{} Error sending AcknowledgeOnly request", BlockNodePublisherConnection.this, e);
+                close(CloseReason.CONNECTION_ERROR, false);
+                return true; // signal the worker to sleep
+            }
+
+            if (SendRequestStatus.SUCCESS == result.status) {
+                observerLastRequestMillis = System.currentTimeMillis();
+            } else {
+                logger.warn(
+                        "{} Sending AcknowledgeOnly request failed for non-exceptional reason (crn: {}, reason: {})",
+                        BlockNodePublisherConnection.this,
+                        result.connectionRequestNumber,
+                        result.status);
+            }
+
+            return true; // signal the worker to sleep
         }
 
         /**
@@ -1382,7 +1528,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
          * @return true if the worker should sleep before trying to do more work, else false if the worker should not
          * sleep and instead immediately try to do more work
          */
-        private boolean doWork() {
+        private boolean doStreamingWork() {
             connStats.recordHeartbeat(System.currentTimeMillis());
 
             switchBlockIfNeeded();
@@ -1394,10 +1540,12 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                     // since no block is available to stream, we are at a safe "boundary" and can close the connection
                     logger.info(
                             "{} Block boundary reached; closing connection (no block available)",
-                            BlockNodeStreamingConnection.this);
+                            BlockNodePublisherConnection.this);
                     sendEndStream(RESET);
                     final CloseReason closeReason = pendingCloseReason.get();
                     close(closeReason != null ? closeReason : CloseReason.UNKNOWN, true);
+                } else if (observeAtNextBlockBoundary.get() && observeAtNextBlockBoundary.compareAndSet(true, false)) {
+                    connectionModeRef.set(ConnectionMode.OBSERVING);
                 }
 
                 return true;
@@ -1412,7 +1560,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                 if (itemIndex == 0) {
                     logger.trace(
                             "{} Starting to process items for block {}",
-                            BlockNodeStreamingConnection.this,
+                            BlockNodePublisherConnection.this,
                             block.blockNumber());
                     blockStreamMetrics.recordStreamingBlockNumber(block.blockNumber());
                     if (lastSendTimeMillis == -1) {
@@ -1428,7 +1576,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                 if (logger.isTraceEnabled()) {
                     logger.trace(
                             "{} Trying to add item to pending request (block: {}, itemIndex: {}, itemBytes: {}, itemType: {}, pendingItems: {}->{}, estimatedPendingBytes: {}->{})",
-                            BlockNodeStreamingConnection.this,
+                            BlockNodePublisherConnection.this,
                             block.blockNumber(),
                             itemIndex,
                             itemSize,
@@ -1446,7 +1594,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                     if (!pendingRequestItems.isEmpty()) {
                         logger.trace(
                                 "{} Block item exceeds the max message size hard limit; attempting to send any preceding items (largeItemIndex: {})",
-                                BlockNodeStreamingConnection.this,
+                                BlockNodePublisherConnection.this,
                                 item.index());
                         if (trySendPendingRequest() && itemIndex != item.index()) {
                             // we've successfully sent some pending items, but there are still more to send so try again
@@ -1457,7 +1605,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                     blockStreamMetrics.recordRequestExceedsHardLimit();
                     logger.error(
                             "{} !!! FATAL: Block item exceeds max message size hard limit; closing connection (block: {}, itemIndex: {}, itemSize: {} bytes, itemType: {}, sizeHardLimit: {} bytes)",
-                            BlockNodeStreamingConnection.this,
+                            BlockNodePublisherConnection.this,
                             block.blockNumber(),
                             itemIndex,
                             itemSize,
@@ -1470,7 +1618,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                     if (logger.isTraceEnabled()) {
                         logger.trace(
                                 "{} Item (block: {}, index: {}, type: {}, bytes: {}) will cause current pending request to exceed soft limit; it will be sent in another request (expectedBytes: {}, softLimitBytes: {})",
-                                BlockNodeStreamingConnection.this,
+                                BlockNodePublisherConnection.this,
                                 block.blockNumber(),
                                 itemIndex,
                                 item.itemType(),
@@ -1551,7 +1699,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                 if (diffMillis >= maxDelayMillis) {
                     logger.trace(
                             "{} Max delay exceeded (target: {}ms, actual: {}ms) - sending {} item(s)",
-                            BlockNodeStreamingConnection.this,
+                            BlockNodePublisherConnection.this,
                             maxDelayMillis,
                             diffMillis,
                             pendingRequestItems.size());
@@ -1589,19 +1737,19 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                 } else if (SendRequestStatus.TIMEOUT == result.status) {
                     logger.warn(
                             "{} Timed out sending block end request; resetting to block start for retry (block: {})",
-                            BlockNodeStreamingConnection.this,
+                            BlockNodePublisherConnection.this,
                             block.blockNumber());
                     resetForBlockStart(true);
                 } else {
                     logger.warn(
                             "{} Sending the block end request failed for a non-exceptional reason (block: {}, request: {}, reason: {})",
-                            BlockNodeStreamingConnection.this,
+                            BlockNodePublisherConnection.this,
                             block.blockNumber(),
                             requestCtr.get(),
                             result.status);
                 }
             } catch (final RuntimeException e) {
-                logger.warn("{} Error sending EndOfBlock request", BlockNodeStreamingConnection.this, e);
+                logger.warn("{} Error sending EndOfBlock request", BlockNodePublisherConnection.this, e);
                 close(CloseReason.CONNECTION_ERROR, false);
             }
 
@@ -1639,20 +1787,22 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                 // the connection manager wants us to gracefully stop this connection
                 logger.info(
                         "{} Block boundary reached; closing connection (finished sending block)",
-                        BlockNodeStreamingConnection.this);
+                        BlockNodePublisherConnection.this);
                 sendEndStream(RESET);
                 final CloseReason closeReason = pendingCloseReason.get();
                 close(closeReason != null ? closeReason : CloseReason.UNKNOWN, true);
+            } else if (observeAtNextBlockBoundary.get() && observeAtNextBlockBoundary.compareAndSet(true, false)) {
+                connectionModeRef.set(ConnectionMode.OBSERVING);
             } else {
                 // the connection manager hasn't informed us to close this connection, so we are now free to advance to
                 // the next block
                 final long nextBlockNumber = block.blockNumber() + 1;
                 if (streamingBlockNumber.compareAndSet(block.blockNumber(), nextBlockNumber)) {
-                    logger.trace("{} Advancing to block {}", BlockNodeStreamingConnection.this, nextBlockNumber);
+                    logger.trace("{} Advancing to block {}", BlockNodePublisherConnection.this, nextBlockNumber);
                 } else {
                     logger.trace(
                             "{} Tried to advance to block {} but the block to stream was updated externally",
-                            BlockNodeStreamingConnection.this,
+                            BlockNodePublisherConnection.this,
                             nextBlockNumber);
                 }
 
@@ -1693,7 +1843,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                 pendingRequestItems.forEach(item -> joiner.add(Integer.toString(item.index())));
                 logger.trace(
                         "{} Wanting to send pending items (block: {}, items: {}=[{}], reqBytes: {})",
-                        BlockNodeStreamingConnection.this,
+                        BlockNodePublisherConnection.this,
                         block.blockNumber(),
                         pendingRequestItems.size(),
                         joiner,
@@ -1706,7 +1856,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                 blockStreamMetrics.recordMultiItemRequestExceedsSoftLimit();
                 logger.trace(
                         "{} Multi-item request exceeds soft limit; will attempt to remove last item and send again (items: {}, requestSize: {}, softLimitBytes: {})",
-                        BlockNodeStreamingConnection.this,
+                        BlockNodePublisherConnection.this,
                         pendingRequestItems.size(),
                         reqBytes,
                         softLimitBytes);
@@ -1727,7 +1877,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                 logger.error(
                         "{} !!! FATAL: Request exceeds maximum size hard limit of {} bytes "
                                 + "(block: {}, requestSize: {} bytes); Closing connection",
-                        BlockNodeStreamingConnection.this,
+                        BlockNodePublisherConnection.this,
                         hardLimitBytes,
                         block.blockNumber(),
                         reqBytes);
@@ -1741,7 +1891,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                 pendingRequestItems.forEach(item -> joiner.add(Integer.toString(item.index())));
                 logger.trace(
                         "{} Attempting to send request (block: {}, request: {}, items: {}=[{}], bytes: {})",
-                        BlockNodeStreamingConnection.this,
+                        BlockNodePublisherConnection.this,
                         block.blockNumber(),
                         requestCtr.get(),
                         pendingRequestItems.size(),
@@ -1777,15 +1927,17 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                     return true;
                 } else if (SendRequestStatus.TIMEOUT == result.status) {
                     logger.warn(
-                            "{} Timed out sending request; resetting to block start for retry (block: {})",
-                            BlockNodeStreamingConnection.this,
+                            "{} Timed out sending request; resetting to block start for retry (crn: {}, block: {})",
+                            BlockNodePublisherConnection.this,
+                            result.connectionRequestNumber,
                             block.blockNumber());
                     resetForBlockStart(true);
                     return false;
                 } else {
                     logger.warn(
-                            "{} Sending the request failed for a non-exceptional reason (block: {}, request: {}, itemCount: {}, bytes: {}, reason: {})",
-                            BlockNodeStreamingConnection.this,
+                            "{} Sending the request failed for a non-exceptional reason (crn: {}, block: {}, request: {}, itemCount: {}, bytes: {}, reason: {})",
+                            BlockNodePublisherConnection.this,
+                            result.connectionRequestNumber,
                             block.blockNumber(),
                             requestCtr.get(),
                             pendingRequestItems.size(),
@@ -1797,7 +1949,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                 if (failureType.isCommonFailure()) {
                     logger.warn(
                             "{} UncheckedIOException caught in connection worker thread (block: {}, request: {}, itemCount: {}, bytes: {}, error: {})",
-                            BlockNodeStreamingConnection.this,
+                            BlockNodePublisherConnection.this,
                             block.blockNumber(),
                             requestCtr.get(),
                             pendingRequestItems.size(),
@@ -1806,7 +1958,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                 } else {
                     logger.warn(
                             "{} UncheckedIOException caught in connection worker thread (block: {}, request: {}, itemCount: {}, bytes: {})",
-                            BlockNodeStreamingConnection.this,
+                            BlockNodePublisherConnection.this,
                             block.blockNumber(),
                             requestCtr.get(),
                             pendingRequestItems.size(),
@@ -1819,7 +1971,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                 if (failureType.isCommonFailure()) {
                     logger.warn(
                             "{} Exception caught in connection worker thread (block: {}, request: {}, itemCount: {}, bytes: {}, error: {})",
-                            BlockNodeStreamingConnection.this,
+                            BlockNodePublisherConnection.this,
                             block.blockNumber(),
                             requestCtr.get(),
                             pendingRequestItems.size(),
@@ -1828,7 +1980,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                 } else {
                     logger.warn(
                             "{} Exception caught in connection worker thread (block: {}, request: {}, itemCount: {}, bytes: {})",
-                            BlockNodeStreamingConnection.this,
+                            BlockNodePublisherConnection.this,
                             block.blockNumber(),
                             requestCtr.get(),
                             pendingRequestItems.size(),
@@ -1885,7 +2037,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                 if (latestBlock != -1 && streamingBlockNumber.compareAndSet(-1L, latestBlock)) {
                     logger.info(
                             "{} Connection was not initialized with a starting block; defaulting to latest block produced ({})",
-                            BlockNodeStreamingConnection.this,
+                            BlockNodePublisherConnection.this,
                             latestBlock);
                 }
             }
@@ -1907,7 +2059,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                 // Indicate that the block node should catch up from another trustworthy block node
                 logger.warn(
                         "{} Wanted block ({}) is not obtainable; notifying block node it is too far behind and closing connection",
-                        BlockNodeStreamingConnection.this,
+                        BlockNodePublisherConnection.this,
                         latestActiveBlockNumber);
                 sendEndStream(TOO_FAR_BEHIND);
                 close(CloseReason.BLOCK_NODE_BEHIND, true);
@@ -1919,13 +2071,13 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
             if (block == null) {
                 logger.trace(
                         "{} Wanted to switch from block {} to block {}, but it is not available",
-                        BlockNodeStreamingConnection.this,
+                        BlockNodePublisherConnection.this,
                         connStats.lastBlockSent(),
                         latestActiveBlockNumber);
             } else {
                 logger.trace(
                         "{} Switched from block {} to block {}",
-                        BlockNodeStreamingConnection.this,
+                        BlockNodePublisherConnection.this,
                         connStats.lastBlockSent(),
                         latestActiveBlockNumber);
             }
@@ -1935,7 +2087,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
     /**
      * Wrapper interface for a PublishStreamRequest.
      */
-    sealed interface StreamRequest permits EndStreamRequest, BlockRequest {
+    sealed interface StreamRequest permits EndStreamRequest, BlockRequest, AcknowledgeOnlyRequest {
 
         /**
          * @return the PublishStreamRequestBytes to send
@@ -1975,6 +2127,19 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
          * @return number of times this block ({@link #blockNumber()}) has been attempted on this connection
          */
         int blockAttemptNumber();
+    }
+
+    /**
+     * A PublishStreamRequest of type AcknowledgeOnly.
+     *
+     * @param streamRequest the PublishStreamRequest to send
+     * @param timeoutMillis the timeout (in milliseconds) to apply when sending this request
+     */
+    record AcknowledgeOnlyRequest(@NonNull PublishStreamRequestBytes streamRequest, long timeoutMillis)
+            implements StreamRequest {
+        AcknowledgeOnlyRequest {
+            requireNonNull(streamRequest);
+        }
     }
 
     /**

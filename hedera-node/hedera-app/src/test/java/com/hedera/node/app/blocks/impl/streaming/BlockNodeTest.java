@@ -203,12 +203,12 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testOnActive_openMultipleConnections() {
-        final BlockNodeStreamingConnection existingConnection = mock(BlockNodeStreamingConnection.class);
+        final BlockNodePublisherConnection existingConnection = mock(BlockNodePublisherConnection.class);
         localActiveStreamingConnectionCount().set(1);
         globalActiveStreamConnectionCount.set(1);
         activeStreamingConnectionRef().set(existingConnection);
 
-        final BlockNodeStreamingConnection newConnection = mock(BlockNodeStreamingConnection.class);
+        final BlockNodePublisherConnection newConnection = mock(BlockNodePublisherConnection.class);
         when(newConnection.configuration()).thenReturn(configuration);
         when(newConnection.connectionId()).thenReturn(new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 2));
         when(newConnection.currentState()).thenReturn(ConnectionState.ACTIVE);
@@ -254,7 +254,7 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
         connectionHistories().put(conn5Id, conn5History);
 
         final ConnectionId conn6Id = new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 6);
-        final BlockNodeStreamingConnection newConnection = mock(BlockNodeStreamingConnection.class);
+        final BlockNodePublisherConnection newConnection = mock(BlockNodePublisherConnection.class);
         when(newConnection.createTimestamp()).thenReturn(now);
         when(newConnection.configuration()).thenReturn(configuration);
         when(newConnection.connectionId()).thenReturn(conn6Id);
@@ -294,7 +294,7 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
         // Current History: STR1 - STR2 - STR3 - STR4 - STR5
 
         final ConnectionId conn6Id = new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 6);
-        final BlockNodeStreamingConnection conn6 = mock(BlockNodeStreamingConnection.class);
+        final BlockNodePublisherConnection conn6 = mock(BlockNodePublisherConnection.class);
         when(conn6.createTimestamp()).thenReturn(now);
         when(conn6.configuration()).thenReturn(configuration);
         when(conn6.connectionId()).thenReturn(conn6Id);
@@ -308,7 +308,7 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
         // Current History: STR1 - STR3 - STR4 - STR5 - STR6
         // now close Conn 1 and add a new connection... now Conn 1 should be removed
 
-        final BlockNodeStreamingConnection conn1 = mock(BlockNodeStreamingConnection.class);
+        final BlockNodePublisherConnection conn1 = mock(BlockNodePublisherConnection.class);
         when(conn1.closeTimestamp()).thenReturn(now.minusSeconds(30));
         when(conn1.closeReason()).thenReturn(CloseReason.CONNECTION_ERROR);
         when(conn1.configuration()).thenReturn(configuration);
@@ -317,7 +317,7 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
         node.onClose(conn1);
 
         final ConnectionId conn7Id = new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 7);
-        final BlockNodeStreamingConnection conn7 = mock(BlockNodeStreamingConnection.class);
+        final BlockNodePublisherConnection conn7 = mock(BlockNodePublisherConnection.class);
         when(conn7.createTimestamp()).thenReturn(now);
         when(conn7.configuration()).thenReturn(configuration);
         when(conn7.connectionId()).thenReturn(conn7Id);
@@ -333,7 +333,7 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
     @Test
     void testOnActive_connectionAlreadyClosedIsUnregistered() {
         final ConnectionId connId = new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 1);
-        final BlockNodeStreamingConnection connection = mock(BlockNodeStreamingConnection.class);
+        final BlockNodePublisherConnection connection = mock(BlockNodePublisherConnection.class);
         when(connection.configuration()).thenReturn(configuration);
         when(connection.connectionId()).thenReturn(connId);
         when(connection.currentState()).thenReturn(ConnectionState.CLOSED);
@@ -351,7 +351,7 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
     @Test
     void testOnActive_connectionClosedDuringRegistrationIsCleanedUpOnce() {
         final ConnectionId connId = new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 1);
-        final BlockNodeStreamingConnection connection = mock(BlockNodeStreamingConnection.class);
+        final BlockNodePublisherConnection connection = mock(BlockNodePublisherConnection.class);
         when(connection.configuration()).thenReturn(configuration);
         when(connection.connectionId()).thenReturn(connId);
         when(connection.closeReason()).thenReturn(CloseReason.PERIODIC_RESET);
@@ -374,7 +374,7 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
     @Test
     void testOnActive_connectionStillClosingKeepsItsCoolDown() {
         final ConnectionId connId = new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 1);
-        final BlockNodeStreamingConnection connection = mock(BlockNodeStreamingConnection.class);
+        final BlockNodePublisherConnection connection = mock(BlockNodePublisherConnection.class);
         when(connection.configuration()).thenReturn(configuration);
         when(connection.connectionId()).thenReturn(connId);
         when(connection.closeReason()).thenReturn(CloseReason.CONNECTION_ERROR);
@@ -404,7 +404,7 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
         localActiveStreamingConnectionCount().set(1);
         globalActiveStreamConnectionCount.set(1);
         // don't create a history entry for the connection
-        final BlockNodeStreamingConnection connection = mock(BlockNodeStreamingConnection.class);
+        final BlockNodePublisherConnection connection = mock(BlockNodePublisherConnection.class);
         when(connection.configuration()).thenReturn(configuration);
         when(connection.connectionId()).thenReturn(new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 134));
 
@@ -424,7 +424,7 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
         localActiveStreamingConnectionCount().set(1);
         globalActiveStreamConnectionCount.set(1);
         final ConnectionId connectionId = new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 110);
-        final BlockNodeStreamingConnection connection = mock(BlockNodeStreamingConnection.class);
+        final BlockNodePublisherConnection connection = mock(BlockNodePublisherConnection.class);
         when(connection.configuration()).thenReturn(configuration);
         when(connection.connectionId()).thenReturn(connectionId);
         final Instant closeTimestamp = Instant.now();
@@ -456,7 +456,7 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
         localActiveStreamingConnectionCount().set(1);
         globalActiveStreamConnectionCount.set(1);
         final ConnectionId connectionId = new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 110);
-        final BlockNodeStreamingConnection connection = mock(BlockNodeStreamingConnection.class);
+        final BlockNodePublisherConnection connection = mock(BlockNodePublisherConnection.class);
         when(connection.configuration()).thenReturn(configuration);
         when(connection.connectionId()).thenReturn(connectionId);
         final Instant closeTimestamp = Instant.now();
@@ -487,7 +487,7 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testOnTerminate() {
-        final BlockNodeStreamingConnection activeConnection = mock(BlockNodeStreamingConnection.class);
+        final BlockNodePublisherConnection activeConnection = mock(BlockNodePublisherConnection.class);
         activeStreamingConnectionRef().set(activeConnection);
         isTerminated().set(false);
 
@@ -500,7 +500,7 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testCloseConnection() {
-        final BlockNodeStreamingConnection activeConnection = mock(BlockNodeStreamingConnection.class);
+        final BlockNodePublisherConnection activeConnection = mock(BlockNodePublisherConnection.class);
         activeStreamingConnectionRef().set(activeConnection);
 
         node.closeConnection(CloseReason.HIGHER_PRIORITY_FOUND);
@@ -511,7 +511,7 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
     @Test
     void testIsRemovable_false() {
         isTerminated().set(false);
-        activeStreamingConnectionRef().set(mock(BlockNodeStreamingConnection.class));
+        activeStreamingConnectionRef().set(mock(BlockNodePublisherConnection.class));
 
         assertThat(node.isRemovable()).isFalse();
     }
@@ -533,7 +533,7 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testOnConfigUpdate() {
-        final BlockNodeStreamingConnection activeConnection = mock(BlockNodeStreamingConnection.class);
+        final BlockNodePublisherConnection activeConnection = mock(BlockNodePublisherConnection.class);
         activeStreamingConnectionRef().set(activeConnection);
         nodeCoolDownTimestampRef().set(Instant.now());
 
@@ -564,7 +564,7 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
     void testIsStreamingCandidate_activeConnectionPresent() {
         isTerminated().set(false);
         nodeCoolDownTimestampRef().set(null);
-        activeStreamingConnectionRef().set(mock(BlockNodeStreamingConnection.class));
+        activeStreamingConnectionRef().set(mock(BlockNodePublisherConnection.class));
 
         assertThat(node.isStreamingCandidate()).isFalse();
     }
@@ -759,8 +759,8 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
     }
 
     @SuppressWarnings("unchecked")
-    AtomicReference<BlockNodeStreamingConnection> activeStreamingConnectionRef() {
-        return (AtomicReference<BlockNodeStreamingConnection>) activeStreamingConnectionRefHandle.get(node);
+    AtomicReference<BlockNodePublisherConnection> activeStreamingConnectionRef() {
+        return (AtomicReference<BlockNodePublisherConnection>) activeStreamingConnectionRefHandle.get(node);
     }
 
     AtomicBoolean isTerminated() {

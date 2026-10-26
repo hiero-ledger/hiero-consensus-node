@@ -99,5 +99,10 @@ message PublishStreamRequestBytes {
      * A message indicating the end of a block.
      */
     org.hiero.block.api.BlockEnd end_of_block = 3;
+
+    /**
+     * A message requesting a block acknowledgement.
+     */
+    org.hiero.block.api.PublishStreamRequest.AcknowledgeOnly acknowledge_only = 4;
   }
 }

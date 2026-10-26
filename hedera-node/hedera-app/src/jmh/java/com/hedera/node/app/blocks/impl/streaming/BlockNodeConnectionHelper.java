@@ -29,7 +29,7 @@ public final class BlockNodeConnectionHelper {
      * @param newState the new state to transition to
      */
     public static void updateConnectionState(
-            @NonNull final BlockNodeStreamingConnection connection, @NonNull final ConnectionState newState) {
+            @NonNull final BlockNodePublisherConnection connection, @NonNull final ConnectionState newState) {
         connection.updateConnectionState(newState);
     }
 }

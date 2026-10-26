@@ -11,8 +11,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.block.internal.PublishStreamRequestBytes;
-import com.hedera.node.app.blocks.impl.streaming.BlockNodeStreamingConnection.BlockEndRequest;
-import com.hedera.node.app.blocks.impl.streaming.BlockNodeStreamingConnection.StreamRequest;
+import com.hedera.node.app.blocks.impl.streaming.BlockNodePublisherConnection.BlockEndRequest;
+import com.hedera.node.app.blocks.impl.streaming.BlockNodePublisherConnection.ConnectionMode;
+import com.hedera.node.app.blocks.impl.streaming.BlockNodePublisherConnection.StreamRequest;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
@@ -42,7 +43,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class BlockNodeStreamingConnectionLoggingTest extends BlockNodeCommunicationTestBase {
+class BlockNodePublisherConnectionLoggingTest extends BlockNodeCommunicationTestBase {
 
     private static final VarHandle connectionStateHandle;
 
@@ -52,7 +53,7 @@ class BlockNodeStreamingConnectionLoggingTest extends BlockNodeCommunicationTest
     static {
         try {
             final Lookup lookup = MethodHandles.lookup();
-            final Class<?> cls = BlockNodeStreamingConnection.class;
+            final Class<?> cls = BlockNodePublisherConnection.class;
 
             connectionStateHandle = MethodHandles.privateLookupIn(AbstractBlockNodeConnection.class, lookup)
                     .findVarHandle(AbstractBlockNodeConnection.class, "stateRef", AtomicReference.class);
@@ -71,7 +72,7 @@ class BlockNodeStreamingConnectionLoggingTest extends BlockNodeCommunicationTest
 
     private static final long SLOW_REQ_THRESHOLD_MILLIS = 200;
 
-    private BlockNodeStreamingConnection connection;
+    private BlockNodePublisherConnection connection;
     private LogCaptor logCaptor;
 
     ExecutorService blockingIoExecutor;
@@ -103,7 +104,7 @@ class BlockNodeStreamingConnectionLoggingTest extends BlockNodeCommunicationTest
                 .thenReturn(client);
         when(client.publishBlockStream(any(Pipeline.class))).thenReturn(requestCall);
 
-        connection = new BlockNodeStreamingConnection(
+        connection = new BlockNodePublisherConnection(
                 configProvider,
                 blockNode,
                 connectionManager,
@@ -113,9 +114,10 @@ class BlockNodeStreamingConnectionLoggingTest extends BlockNodeCommunicationTest
                 null,
                 clientFactory,
                 0L,
-                streamingObs);
+                streamingObs,
+                ConnectionMode.STREAMING);
 
-        logCaptor = new LogCaptor(LogManager.getLogger(BlockNodeStreamingConnection.class));
+        logCaptor = new LogCaptor(LogManager.getLogger(BlockNodePublisherConnection.class));
     }
 
     @AfterEach

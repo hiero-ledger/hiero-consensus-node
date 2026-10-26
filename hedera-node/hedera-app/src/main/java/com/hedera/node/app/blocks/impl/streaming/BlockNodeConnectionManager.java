@@ -5,14 +5,13 @@ import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toList;
 
 import com.hedera.node.app.blocks.impl.streaming.BlockNode.BlockNodeOutOfRange;
+import com.hedera.node.app.blocks.impl.streaming.BlockNodePublisherConnection.ConnectionMode;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeEndpoint;
 import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.config.ConfigProvider;
-import com.hedera.node.config.data.BlockNodeConnectionConfig;
-import com.hedera.node.config.data.BlockStreamConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -54,7 +53,7 @@ import org.apache.logging.log4j.Logger;
  * </ul>
  */
 @Singleton
-public class BlockNodeConnectionManager {
+public class BlockNodeConnectionManager extends BlockStreamingBase {
 
     private static final Logger logger = LogManager.getLogger(BlockNodeConnectionManager.class);
 
@@ -67,10 +66,6 @@ public class BlockNodeConnectionManager {
      */
     private final BlockStreamMetrics blockStreamMetrics;
     /**
-     * Mechanism to retrieve configuration properties related to block-node communication.
-     */
-    private final ConfigProvider configProvider;
-    /**
      * Flag that indicates if this connection manager is active or not. In this case, being active means it is actively
      * processing blocks and attempting to send them to a block node.
      */
@@ -82,7 +77,7 @@ public class BlockNodeConnectionManager {
     /**
      * Reference to the currently active connection. If this reference is null, then there is no active connection.
      */
-    private final AtomicReference<BlockNodeStreamingConnection> activeConnectionRef = new AtomicReference<>();
+    private final AtomicReference<BlockNodePublisherConnection> activeConnectionRef = new AtomicReference<>();
     /**
      * Factory for creating new block node clients.
      */
@@ -182,7 +177,7 @@ public class BlockNodeConnectionManager {
             @NonNull @Named("bn-blockingio-exec") final Supplier<ExecutorService> blockingIoExecutorSupplier,
             @NonNull final BlockNodeConfigService blockNodeConfigService,
             @NonNull final BlockStreamingObs streamingObs) {
-        this.configProvider = requireNonNull(configProvider, "configProvider must not be null");
+        super(configProvider);
         this.blockBufferService = requireNonNull(blockBufferService, "blockBufferService must not be null");
         this.blockStreamMetrics = requireNonNull(blockStreamMetrics, "blockStreamMetrics must not be null");
         this.selfNodeId = requireNonNull(networkInfo, "networkInfo must not be null")
@@ -195,23 +190,6 @@ public class BlockNodeConnectionManager {
         this.streamingObs = requireNonNull(streamingObs);
 
         blockingIoExecutorRef.set(blockingIoExecutorSupplier.get());
-    }
-
-    /**
-     * @return the current {@link BlockNodeConnectionConfig} instance
-     */
-    private @NonNull BlockNodeConnectionConfig bncConfig() {
-        return configProvider.getConfiguration().getConfigData(BlockNodeConnectionConfig.class);
-    }
-
-    /**
-     * @return true if block node streaming is enabled, else false
-     */
-    private boolean isStreamingEnabled() {
-        return configProvider
-                .getConfiguration()
-                .getConfigData(BlockStreamConfig.class)
-                .streamToBlockNodes();
     }
 
     /**
@@ -393,7 +371,7 @@ public class BlockNodeConnectionManager {
         final List<RetrieveBlockNodeStatusTask> tasks = new ArrayList<>();
         for (final BlockNode node : nodes) {
             final BlockNodeServiceConnection svcConnection = new BlockNodeServiceConnection(
-                    configProvider, node.configuration(), blockingIoExecutor, clientFactory, selfNodeId);
+                    configProvider(), node.configuration(), blockingIoExecutor, clientFactory, selfNodeId);
             tasks.add(new RetrieveBlockNodeStatusTask(svcConnection));
         }
 
@@ -578,7 +556,7 @@ public class BlockNodeConnectionManager {
      *
      * @param connection the connection that has been closed
      */
-    public void notifyConnectionClosed(@NonNull final BlockNodeStreamingConnection connection) {
+    public void notifyConnectionClosed(@NonNull final BlockNodePublisherConnection connection) {
         // Remove from active connection if it is the current active
         activeConnectionRef.compareAndSet(connection, null);
 
@@ -601,7 +579,7 @@ public class BlockNodeConnectionManager {
      *
      * @param connection the connection that has been activated
      */
-    public void notifyConnectionActive(@NonNull final BlockNodeStreamingConnection connection) {
+    public void notifyConnectionActive(@NonNull final BlockNodePublisherConnection connection) {
         final BlockNodeConfiguration config = connection.configuration();
         final BlockNode node = nodes.get(config.streamingEndpoint());
 
@@ -668,7 +646,7 @@ public class BlockNodeConnectionManager {
         blockStreamMetrics.recordActiveConnectionCount(globalActiveStreamingConnectionCount.get());
 
         final Instant now = Instant.now();
-        final BlockNodeStreamingConnection activeConnection = activeConnectionRef.get();
+        final BlockNodePublisherConnection activeConnection = activeConnectionRef.get();
 
         // Re-emit the active connection IP (0 when there is no active connection) so the gauge does not
         // remain stale after the active connection closes (e.g. when all block node configuration is removed).
@@ -764,7 +742,7 @@ public class BlockNodeConnectionManager {
      * @param activeConnection the connection to test
      * @return true if the connection is null, else false
      */
-    private boolean isMissingActiveConnection(@Nullable final BlockNodeStreamingConnection activeConnection) {
+    private boolean isMissingActiveConnection(@Nullable final BlockNodePublisherConnection activeConnection) {
         return activeConnection == null;
     }
 
@@ -813,7 +791,7 @@ public class BlockNodeConnectionManager {
                     nodes.put(
                             newNodeConfig.streamingEndpoint(),
                             new BlockNode(
-                                    configProvider,
+                                    configProvider(),
                                     newNodeConfig,
                                     globalActiveStreamingConnectionCount,
                                     new BlockNodeStats()));
@@ -902,7 +880,7 @@ public class BlockNodeConnectionManager {
      * @param activeConnection the connection to compare against
      * @return true if there is a higher priority node available, else false
      */
-    private boolean isHigherPriorityNodeAvailable(@Nullable final BlockNodeStreamingConnection activeConnection) {
+    private boolean isHigherPriorityNodeAvailable(@Nullable final BlockNodePublisherConnection activeConnection) {
         if (activeConnection == null) {
             return false;
         }
@@ -932,7 +910,7 @@ public class BlockNodeConnectionManager {
      * @param activeConnection the connection to check if stalled
      */
     private void checkActiveConnectionStalled(
-            @NonNull final Instant now, @Nullable final BlockNodeStreamingConnection activeConnection) {
+            @NonNull final Instant now, @Nullable final BlockNodePublisherConnection activeConnection) {
         if (activeConnection == null) {
             return;
         }
@@ -963,7 +941,7 @@ public class BlockNodeConnectionManager {
      * @return true if the specified connection should be reset, else false
      */
     private boolean isActiveConnectionAutoReset(
-            @NonNull final Instant now, @Nullable final BlockNodeStreamingConnection activeConnection) {
+            @NonNull final Instant now, @Nullable final BlockNodePublisherConnection activeConnection) {
         if (activeConnection == null) {
             return false;
         }
@@ -993,7 +971,7 @@ public class BlockNodeConnectionManager {
             final boolean force,
             @NonNull final NodeSelectionCriteria criteria,
             @NonNull final CloseReason closeReason,
-            @Nullable final BlockNodeStreamingConnection activeConnection) {
+            @Nullable final BlockNodePublisherConnection activeConnection) {
         requireNonNull(criteria, "Selection criteria is required");
         pruneNodes();
 
@@ -1072,8 +1050,8 @@ public class BlockNodeConnectionManager {
                 endpoint.host(),
                 endpoint.port(),
                 wantedBlock);
-        final BlockNodeStreamingConnection connection = new BlockNodeStreamingConnection(
-                configProvider,
+        final BlockNodePublisherConnection connection = new BlockNodePublisherConnection(
+                configProvider(),
                 selectedNode,
                 this,
                 blockBufferService,
@@ -1082,7 +1060,8 @@ public class BlockNodeConnectionManager {
                 wantedBlock,
                 clientFactory,
                 selfNodeId,
-                streamingObs);
+                streamingObs,
+                ConnectionMode.STREAMING);
 
         try {
             connection.initialize();

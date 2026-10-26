@@ -10,8 +10,9 @@ import com.hedera.node.app.blocks.impl.streaming.BlockNodeClientFactory;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConfigService;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionHelper;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager;
+import com.hedera.node.app.blocks.impl.streaming.BlockNodePublisherConnection;
+import com.hedera.node.app.blocks.impl.streaming.BlockNodePublisherConnection.ConnectionMode;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeStats;
-import com.hedera.node.app.blocks.impl.streaming.BlockNodeStreamingConnection;
 import com.hedera.node.app.blocks.impl.streaming.ConnectionState;
 import com.hedera.node.app.blocks.impl.streaming.GrpcBlockItemWriter;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
@@ -466,7 +467,7 @@ public class BlockStreamingBenchmark {
                 .clientGrpcConfig(grpcConfig)
                 .build();
 
-        final BlockNodeStreamingConnection connection = new BlockNodeStreamingConnection(
+        final BlockNodePublisherConnection connection = new BlockNodePublisherConnection(
                 configProvider,
                 new BlockNode(configProvider, nodeConfig, new AtomicInteger(), new BlockNodeStats()),
                 connectionManager,
@@ -476,7 +477,8 @@ public class BlockStreamingBenchmark {
                 0L,
                 new BlockNodeClientFactory(),
                 0L,
-                streamingObs);
+                streamingObs,
+                ConnectionMode.STREAMING);
 
         connection.initialize();
         BlockNodeConnectionHelper.updateConnectionState(connection, ConnectionState.ACTIVE);

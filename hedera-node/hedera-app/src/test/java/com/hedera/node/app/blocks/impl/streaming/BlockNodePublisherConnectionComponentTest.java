@@ -25,7 +25,8 @@ import com.hedera.hapi.block.internal.EndStreamBytes;
 import com.hedera.hapi.block.internal.PublishStreamRequestBytes;
 import com.hedera.hapi.block.internal.PublishStreamRequestBytes.RequestOneOfType;
 import com.hedera.hapi.block.stream.BlockItem;
-import com.hedera.node.app.blocks.impl.streaming.BlockNodeStreamingConnection.SendRequestResult;
+import com.hedera.node.app.blocks.impl.streaming.BlockNodePublisherConnection.ConnectionMode;
+import com.hedera.node.app.blocks.impl.streaming.BlockNodePublisherConnection.SendRequestResult;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeHelidonGrpcConfiguration;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeHelidonHttpConfiguration;
@@ -82,7 +83,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
  * These tests spawn actual worker threads and test end-to-end behavior with timing dependencies.
  */
 @ExtendWith(MockitoExtension.class)
-class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTestBase {
+class BlockNodePublisherConnectionComponentTest extends BlockNodeCommunicationTestBase {
     private static final long NODE_ID = 0L;
     private static final VarHandle streamingBlockNumberHandle;
     private static final VarHandle workerThreadRefHandle;
@@ -92,7 +93,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
     static {
         try {
             final Lookup lookup = MethodHandles.lookup();
-            final Class<?> cls = BlockNodeStreamingConnection.class;
+            final Class<?> cls = BlockNodePublisherConnection.class;
 
             streamingBlockNumberHandle = MethodHandles.privateLookupIn(cls, lookup)
                     .findVarHandle(cls, "streamingBlockNumber", AtomicLong.class);
@@ -100,7 +101,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
                     .findVarHandle(cls, "workerThreadRef", AtomicReference.class);
 
             final Method sendRequest =
-                    cls.getDeclaredMethod("sendRequest", BlockNodeStreamingConnection.StreamRequest.class);
+                    cls.getDeclaredMethod("sendRequest", BlockNodePublisherConnection.StreamRequest.class);
             sendRequest.setAccessible(true);
             sendRequestHandle = lookup.unreflect(sendRequest);
 
@@ -112,7 +113,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         }
     }
 
-    private BlockNodeStreamingConnection connection;
+    private BlockNodePublisherConnection connection;
     private ConfigProvider configProvider;
     private BlockNodeConfiguration nodeConfig;
     private BlockNodeConnectionManager connectionManager;
@@ -178,7 +179,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
                         any(Duration.class),
                         anyString(),
                         any(BlockStreamGrpcCompressionType.class));
-        connection = new BlockNodeStreamingConnection(
+        connection = new BlockNodePublisherConnection(
                 configProvider,
                 new BlockNode(configProvider, nodeConfig, globalActiveStreamingConnectionCount, stats),
                 connectionManager,
@@ -188,7 +189,8 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
                 null,
                 clientFactory,
                 NODE_ID,
-                streamingObs);
+                streamingObs,
+                ConnectionMode.STREAMING);
 
         // Unlike unit tests, we do NOT set a fake worker thread here
         // This allows real worker threads to be spawned during tests
@@ -273,7 +275,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
                 .clientHttpConfig(BlockNodeHelidonHttpConfiguration.DEFAULT)
                 .build();
 
-        connection = new BlockNodeStreamingConnection(
+        connection = new BlockNodePublisherConnection(
                 configProvider,
                 new BlockNode(configProvider, cfgWithMax, globalActiveStreamingConnectionCount, new BlockNodeStats()),
                 connectionManager,
@@ -283,7 +285,8 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
                 null,
                 localFactory,
                 NODE_ID,
-                streamingObs);
+                streamingObs,
+                ConnectionMode.STREAMING);
 
         // Ensure publish stream returns pipeline
         lenient().doReturn(requestCall).when(grpcServiceClient).publishBlockStream(connection);
@@ -337,7 +340,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
                 .withValue("blockNode.streamingRequestPaddingBytes", "0")
                 .withValue("blockNode.streamingRequestItemPaddingBytes", "0");
         configProvider = createConfigProvider(cfgBuilder);
-        connection = new BlockNodeStreamingConnection(
+        connection = new BlockNodePublisherConnection(
                 configProvider,
                 new BlockNode(configProvider, nodeConfig, globalActiveStreamingConnectionCount, new BlockNodeStats()),
                 connectionManager,
@@ -347,7 +350,8 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
                 null,
                 clientFactory,
                 NODE_ID,
-                streamingObs);
+                streamingObs,
+                ConnectionMode.STREAMING);
 
         lenient().doReturn(requestCall).when(grpcServiceClient).publishBlockStream(connection);
         openConnectionAndResetMocks();
@@ -440,7 +444,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
                 .withValue("blockNode.streamingRequestPaddingBytes", "0")
                 .withValue("blockNode.streamingRequestItemPaddingBytes", "0");
         configProvider = createConfigProvider(cfgBuilder);
-        connection = new BlockNodeStreamingConnection(
+        connection = new BlockNodePublisherConnection(
                 configProvider,
                 new BlockNode(configProvider, nodeConfig, globalActiveStreamingConnectionCount, new BlockNodeStats()),
                 connectionManager,
@@ -450,7 +454,8 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
                 null,
                 clientFactory,
                 NODE_ID,
-                streamingObs);
+                streamingObs,
+                ConnectionMode.STREAMING);
 
         lenient().doReturn(requestCall).when(grpcServiceClient).publishBlockStream(connection);
         openConnectionAndResetMocks();
@@ -702,7 +707,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
                 .withValue("blockNode.streamingRequestPaddingBytes", "0")
                 .withValue("blockNode.streamingRequestItemPaddingBytes", "0");
         configProvider = createConfigProvider(cfgBuilder);
-        connection = new BlockNodeStreamingConnection(
+        connection = new BlockNodePublisherConnection(
                 configProvider,
                 new BlockNode(configProvider, nodeConfig, globalActiveStreamingConnectionCount, new BlockNodeStats()),
                 connectionManager,
@@ -712,7 +717,8 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
                 null,
                 clientFactory,
                 NODE_ID,
-                streamingObs);
+                streamingObs,
+                ConnectionMode.STREAMING);
 
         lenient().doReturn(requestCall).when(grpcServiceClient).publishBlockStream(connection);
         openConnectionAndResetMocks();
@@ -835,7 +841,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
                 .withValue("blockNode.streamingRequestPaddingBytes", "0")
                 .withValue("blockNode.streamingRequestItemPaddingBytes", "0");
         configProvider = createConfigProvider(cfgBuilder);
-        connection = new BlockNodeStreamingConnection(
+        connection = new BlockNodePublisherConnection(
                 configProvider,
                 new BlockNode(configProvider, nodeConfig, globalActiveStreamingConnectionCount, new BlockNodeStats()),
                 connectionManager,
@@ -845,7 +851,8 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
                 null,
                 clientFactory,
                 NODE_ID,
-                streamingObs);
+                streamingObs,
+                ConnectionMode.STREAMING);
 
         lenient().doReturn(requestCall).when(grpcServiceClient).publishBlockStream(connection);
         openConnectionAndResetMocks();
@@ -1018,7 +1025,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         final long blockNumber = 10;
         // indicate we want to start with block 10, but don't add the block to the buffer
 
-        connection = new BlockNodeStreamingConnection(
+        connection = new BlockNodePublisherConnection(
                 configProvider,
                 new BlockNode(configProvider, nodeConfig, globalActiveStreamingConnectionCount, new BlockNodeStats()),
                 connectionManager,
@@ -1028,7 +1035,8 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
                 blockNumber, // start streaming with block 10
                 clientFactory,
                 NODE_ID,
-                streamingObs);
+                streamingObs,
+                ConnectionMode.STREAMING);
 
         lenient().doReturn(requestCall).when(grpcServiceClient).publishBlockStream(connection);
 
@@ -1085,7 +1093,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         final BlockState block = new BlockState(blockNumber, 2_000L);
         lenient().when(bufferService.getBlockState(blockNumber)).thenReturn(block);
 
-        connection = new BlockNodeStreamingConnection(
+        connection = new BlockNodePublisherConnection(
                 configProvider,
                 new BlockNode(configProvider, nodeConfig, globalActiveStreamingConnectionCount, new BlockNodeStats()),
                 connectionManager,
@@ -1095,7 +1103,8 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
                 blockNumber, // start streaming with block 10
                 clientFactory,
                 NODE_ID,
-                streamingObs);
+                streamingObs,
+                ConnectionMode.STREAMING);
 
         lenient().doReturn(requestCall).when(grpcServiceClient).publishBlockStream(connection);
 
@@ -1237,7 +1246,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         // Send request in a separate thread
         final Thread testThread = Thread.ofVirtual().start(() -> {
             try {
-                sendRequest(new BlockNodeStreamingConnection.BlockItemsStreamRequest(
+                sendRequest(new BlockNodePublisherConnection.BlockItemsStreamRequest(
                         request, 1L, 1, 1, false, false, 3_000, 1));
             } catch (final RuntimeException e) {
                 exceptionRef.set(e);
@@ -1450,7 +1459,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
                 .withValue("blockNode.operationTimeout.timeoutWindowDuration", "60s")
                 .withValue("blockNode.maxRequestDelay", "25ms");
         configProvider = createConfigProvider(cfgBuilder);
-        connection = new BlockNodeStreamingConnection(
+        connection = new BlockNodePublisherConnection(
                 configProvider,
                 new BlockNode(configProvider, nodeConfig, globalActiveStreamingConnectionCount, new BlockNodeStats()),
                 connectionManager,
@@ -1460,7 +1469,8 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
                 null,
                 clientFactory,
                 NODE_ID,
-                streamingObs);
+                streamingObs,
+                ConnectionMode.STREAMING);
 
         lenient().doReturn(requestCall).when(grpcServiceClient).publishBlockStream(connection);
         openConnectionAndResetMocks();
@@ -1551,7 +1561,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
                 .withValue("blockNode.operationTimeout.timeoutWindowDuration", "60s")
                 .withValue("blockNode.maxRequestDelay", "25ms");
         configProvider = createConfigProvider(cfgBuilder);
-        connection = new BlockNodeStreamingConnection(
+        connection = new BlockNodePublisherConnection(
                 configProvider,
                 new BlockNode(configProvider, nodeConfig, globalActiveStreamingConnectionCount, new BlockNodeStats()),
                 connectionManager,
@@ -1561,7 +1571,8 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
                 null,
                 clientFactory,
                 NODE_ID,
-                streamingObs);
+                streamingObs,
+                ConnectionMode.STREAMING);
 
         lenient().doReturn(requestCall).when(grpcServiceClient).publishBlockStream(connection);
         openConnectionAndResetMocks();
@@ -1684,7 +1695,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
                 .withValue("blockNode.operationTimeout.microsPerKilobyte", "250")
                 .withValue("blockNode.operationTimeout.maxMillis", "30000");
         configProvider = createConfigProvider(cfgBuilder);
-        connection = new BlockNodeStreamingConnection(
+        connection = new BlockNodePublisherConnection(
                 configProvider,
                 new BlockNode(configProvider, nodeConfig, globalActiveStreamingConnectionCount, new BlockNodeStats()),
                 connectionManager,
@@ -1694,7 +1705,8 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
                 null,
                 clientFactory,
                 NODE_ID,
-                streamingObs);
+                streamingObs,
+                ConnectionMode.STREAMING);
 
         final long timeoutMillis = invokeCalculateRequestTimestamp(payloadSize);
         assertThat(timeoutMillis).isEqualTo(expectedTimeoutMillis);
@@ -1750,12 +1762,12 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         return (long) calculateRequestTimeoutHandle.invoke(connection, payloadSizeInBytes);
     }
 
-    private SendRequestResult sendRequest(final BlockNodeStreamingConnection.StreamRequest request) {
+    private SendRequestResult sendRequest(final BlockNodePublisherConnection.StreamRequest request) {
         return sendRequest(connection, request);
     }
 
     private SendRequestResult sendRequest(
-            final BlockNodeStreamingConnection connection, final BlockNodeStreamingConnection.StreamRequest request) {
+            final BlockNodePublisherConnection connection, final BlockNodePublisherConnection.StreamRequest request) {
         try {
             return (SendRequestResult) sendRequestHandle.invoke(connection, request);
         } catch (final Throwable e) {

@@ -1,4 +1,4 @@
-# BlockNodeStreamingConnection.md
+# BlockNodePublisherConnection.md
 
 ## Table of Contents
 
@@ -17,13 +17,14 @@
 
 ## Abstract
 
-`BlockNodeStreamingConnection` represents a single connection between a consensus node and a block node.
+`BlockNodePublisherConnection` represents a single connection between a consensus node and a block node. This connection
+may be used to stream blocks or it may be an "observer" connection that just requests block acknowledgements.
 It manages connection state, handles communication, and reports errors to the `BlockNodeConnectionManager`.
 
 ## Definitions
 
 <dl>
-<dt>BlockNodeStreamingConnection</dt>
+<dt>BlockNodePublisherConnection</dt>
 <dd>A connection instance managing communication and state with a block node.</dd>
 
 <dt>ConnectionState</dt>
@@ -43,7 +44,22 @@ It manages connection state, handles communication, and reports errors to the `B
 
 - Communicates bi-directionally with `BlockNodeConnectionManager`.
 
-## Lifecycle
+## Streaming vs Observing
+
+A publisher connection between a consensus node and a block node will exist in one of two modes: streaming or observing.
+When a connection is in the streaming mode, it will send blocks to the connected block node and handle any related
+responses from the block node. If a connection is in the observer mode, then the connection will not send blocks to the
+connection block node, but will instead periodically request block acknowledgements from the connected block node.
+
+At any given time, there should be at most one, primary streaming connection and there may be zero or more observer
+connections. A connection may transition from one mode to the other at any time depending on the health of the system.
+For example, if there are two active connections - one streaming and one observer, if the block node being streamed to
+has problems or slows down sending acknowledgements, then the observer connection may be promoted to the streaming
+connection while the original streaming connection is demoted to an observer. If a connection is transitioning from
+streaming to observing, the update will happen at the next block boundary to ensure the current inflight block is fully
+sent to the block node first.
+
+## Lifecycle of a Streaming Connection
 
 A block node connection gets spawned by the `BlockNodeConnectionManager`. There are multiple ways in which a connection
 may get created, such as:
@@ -287,7 +303,7 @@ stateDiagram-v2
     note right of CLOSED
         When a connection reaches CLOSED,
         the manager may create a new
-        BlockNodeStreamingConnection instance that
+        BlockNodePublisherConnection instance that
         starts at UNINITIALIZED
     end note
 ```
@@ -296,7 +312,7 @@ stateDiagram-v2
 
 ```mermaid
 sequenceDiagram
-    participant Connection as BlockNodeStreamingConnection
+    participant Connection as BlockNodePublisherConnection
     participant Manager as BlockNodeConnectionManager
 
     Connection->>Connection: initialize transport
@@ -310,7 +326,7 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant Connection as BlockNodeStreamingConnection
+    participant Connection as BlockNodePublisherConnection
     participant Manager as BlockNodeConnectionManager
 
     Connection-->>Manager: reportError(error)

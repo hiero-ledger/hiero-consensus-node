@@ -23,7 +23,7 @@ blocks.
 <dt>BlockNodeConnectionManager</dt>
 <dd>The class responsible for managing and tracking all active block node connections, including creation, teardown, and error recovery.</dd>
 
-<dt>BlockNodeStreamingConnection</dt>
+<dt>BlockNodePublisherConnection</dt>
 <dd>A single connection to a block node that is used to stream blocks, managed by the connection manager.</dd>
 
 <dt>BlockNodeServiceConnection</dt>
@@ -141,7 +141,7 @@ buffer service remains active.
 sequenceDiagram
     participant Manager as BlockNodeConnectionManager
     participant Task as BlockNodeConnectionTask
-    participant Conn as BlockNodeStreamingConnection
+    participant Conn as BlockNodePublisherConnection
 
     Manager->>Manager: Select next priority block node
     Manager->>Conn: Create connection with new gRPC client
@@ -168,7 +168,7 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant Conn as BlockNodeStreamingConnection
+    participant Conn as BlockNodePublisherConnection
     participant Manager as BlockNodeConnectionManager
 
     Conn->>Conn: Transition to CLOSING state
@@ -190,7 +190,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant Manager as BlockNodeConnectionManager
-    participant Conn as BlockNodeStreamingConnection
+    participant Conn as BlockNodePublisherConnection
 
     alt shutdown
       Manager -> Manager: Stop configuration watcher

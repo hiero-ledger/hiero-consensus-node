@@ -9,7 +9,7 @@ class or component and its role, including interactions with other components.
 | Document                                                           |          Component           | Description                                                                                                    |
 |:-------------------------------------------------------------------|------------------------------|:---------------------------------------------------------------------------------------------------------------|
 | [BlockNodeConnectionManager.md](BlockNodeConnectionManager.md)     | BlockNodeConnectionManager   | Internal design and behavior of the BlockNodeConnectionManager class, managing node connections.               |
-| [BlockNodeStreamingConnection.md](BlockNodeStreamingConnection.md) | BlockNodeStreamingConnection | Internal design and behavior of the BlockNodeStreamingConnection class, representing an individual connection. |
+| [BlockNodePublisherConnection.md](BlockNodePublisherConnection.md) | BlockNodePublisherConnection | Internal design and behavior of the BlockNodePublisherConnection class, representing an individual connection. |
 | [BlockState.md](BlockState.md)                                     | BlockState                   | Internal design of the BlockState component, managing state information for blocks.                            |
 | [BlockBufferService.md](BlockBufferService.md)                     | BlockBufferService           | Internal design and responsibilities of BlockBufferService, handling stream state and synchronization.         |
 | [block-nodes-json.md](block-nodes-json.md)                         | Configuration                | JSON structure and options for `block-nodes.json`, protocol overrides, and live reload behavior.               |
@@ -21,7 +21,7 @@ The following diagram illustrates the main flow and interactions between these c
 ```mermaid
 sequenceDiagram
     participant Manager as BlockNodeConnectionManager
-    participant Connection as BlockNodeStreamingConnection
+    participant Connection as BlockNodePublisherConnection
     participant Buffer as BlockBufferService
     participant BlockState as BlockState
 

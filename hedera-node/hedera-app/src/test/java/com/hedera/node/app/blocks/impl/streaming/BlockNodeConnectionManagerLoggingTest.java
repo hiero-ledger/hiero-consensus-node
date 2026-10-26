@@ -67,7 +67,7 @@ class BlockNodeConnectionManagerLoggingTest extends BlockNodeCommunicationTestBa
             updateConnectionIfNeededHandle = lookup.unreflect(updateConnectionIfNeeded);
 
             final Method checkActiveConnectionStalled = cls.getDeclaredMethod(
-                    "checkActiveConnectionStalled", Instant.class, BlockNodeStreamingConnection.class);
+                    "checkActiveConnectionStalled", Instant.class, BlockNodePublisherConnection.class);
             checkActiveConnectionStalled.setAccessible(true);
             checkActiveConnectionStalledHandle = lookup.unreflect(checkActiveConnectionStalled);
         } catch (final Exception e) {
@@ -196,8 +196,8 @@ class BlockNodeConnectionManagerLoggingTest extends BlockNodeCommunicationTestBa
 
         blockNodes().put(nodeConfig.streamingEndpoint(), node);
 
-        try (final MockedConstruction<BlockNodeStreamingConnection> mockConnection =
-                mockConstruction(BlockNodeStreamingConnection.class, (mock, context) -> {
+        try (final MockedConstruction<BlockNodePublisherConnection> mockConnection =
+                mockConstruction(BlockNodePublisherConnection.class, (mock, context) -> {
                     when(mock.configuration()).thenReturn(nodeConfig);
                     when(mock.connectionId()).thenReturn(new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 1));
                     when(mock.autoResetTimestamp()).thenReturn(Instant.now().plusSeconds(180));
@@ -206,7 +206,7 @@ class BlockNodeConnectionManagerLoggingTest extends BlockNodeCommunicationTestBa
             invoke_updateConnectionIfNeeded();
 
             // one connection should have been created
-            final List<BlockNodeStreamingConnection> createdConnections = mockConnection.constructed();
+            final List<BlockNodePublisherConnection> createdConnections = mockConnection.constructed();
             assertThat(createdConnections).hasSize(1);
         }
 
@@ -242,7 +242,7 @@ class BlockNodeConnectionManagerLoggingTest extends BlockNodeCommunicationTestBa
     @Test
     void testCheckActiveConnectionStalled_true() throws Throwable {
         final Instant now = Instant.now();
-        final BlockNodeStreamingConnection activeConnection = mock(BlockNodeStreamingConnection.class);
+        final BlockNodePublisherConnection activeConnection = mock(BlockNodePublisherConnection.class);
         final StreamingConnectionStatistics stats = mock(StreamingConnectionStatistics.class);
         final long lastHeartbeat =
                 now.minusMillis(STALLED_CONNECTION_THRESHOLD_MILLIS + 10).toEpochMilli();
@@ -264,7 +264,7 @@ class BlockNodeConnectionManagerLoggingTest extends BlockNodeCommunicationTestBa
     @Test
     void testCheckActiveConnectionStalled_false() throws Throwable {
         final Instant now = Instant.now();
-        final BlockNodeStreamingConnection activeConnection = mock(BlockNodeStreamingConnection.class);
+        final BlockNodePublisherConnection activeConnection = mock(BlockNodePublisherConnection.class);
         final StreamingConnectionStatistics stats = mock(StreamingConnectionStatistics.class);
         final long lastHeartbeat =
                 now.minusMillis(STALLED_CONNECTION_THRESHOLD_MILLIS - 10).toEpochMilli();
@@ -298,7 +298,7 @@ class BlockNodeConnectionManagerLoggingTest extends BlockNodeCommunicationTestBa
         updateConnectionIfNeededHandle.invoke(connectionManager);
     }
 
-    void invoke_checkActiveConnectionStalled(final Instant now, final BlockNodeStreamingConnection activeConnection)
+    void invoke_checkActiveConnectionStalled(final Instant now, final BlockNodePublisherConnection activeConnection)
             throws Throwable {
         checkActiveConnectionStalledHandle.invoke(connectionManager, now, activeConnection);
     }
