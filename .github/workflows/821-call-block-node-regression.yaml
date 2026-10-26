@@ -326,6 +326,12 @@ jobs:
               env:
                 SPRING_PROFILES_ACTIVE: 'blocknode'
                 HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_ENDPOINTS_0_HOST: "block-node-1.${{ env.SOLO_NAMESPACE }}.svc.cluster.local"
+              # Solo caps the importer at 220Mi, which was OOMKilled on block 0 once it carried the genesis WRAPS proof
+              resources:
+                requests:
+                  memory: 512Mi
+                limits:
+                  memory: 1Gi
           EOF
           fi
 
