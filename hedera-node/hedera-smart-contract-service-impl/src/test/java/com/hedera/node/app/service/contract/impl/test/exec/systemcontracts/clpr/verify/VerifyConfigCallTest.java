@@ -62,7 +62,10 @@ class VerifyConfigCallTest extends CallTestBase {
 
     @BeforeEach
     void setUpFrame() {
-        final Configuration config = HederaTestConfigBuilder.create().getOrCreateConfig();
+        // Pinned to SHA-384 so the SHA-256 proofs in verifiesProofsHashedWithADifferentDigestThanConfigured differ
+        final Configuration config = HederaTestConfigBuilder.create()
+                .withValue("blockStream.digestType", DigestType.SHA_384.name())
+                .getOrCreateConfig();
         given(frame.getMessageFrameStack()).willReturn(new ArrayDeque<>());
         given(frame.getContextVariable(FrameUtils.CONFIG_CONTEXT_VARIABLE)).willReturn(config);
     }

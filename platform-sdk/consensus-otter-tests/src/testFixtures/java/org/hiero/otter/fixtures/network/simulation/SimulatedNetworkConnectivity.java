@@ -128,19 +128,19 @@ public class SimulatedNetworkConnectivity {
      * <p>Each connection's queue is ordered by arrival time, so delivery does not depend on {@link #arrivalTimeClamp}.
      * The clamp just keeps each kind of route on a connection from being reordered by jitter.
      */
-    private final InFlightEvents inFlightEvents = new InFlightEvents(this::isConnected, nodeEventWindows::get);
+    private final InFlightEvents inFlightEvents;
 
     /**
      * Event windows that have been transmitted onto the network but not yet delivered.
      */
-    private final InFlightEventWindows inFlightEventWindows = new InFlightEventWindows(this::isConnected);
+    private final InFlightEventWindows inFlightEventWindows;
 
     /**
      * Everything in flight, in the order it is delivered within a tick: event windows first, then events. Only delivery
      * is driven from this list; what is put in flight comes from different places, see
      * {@link #scheduleForDelivery(Instant)}.
      */
-    private final List<InFlightConnections<?>> inFlightInDeliveryOrder = List.of(inFlightEventWindows, inFlightEvents);
+    private final List<InFlightConnections<?>> inFlightInDeliveryOrder;
 
     /**
      * The gossip "component" for each node in the network.
@@ -162,21 +162,30 @@ public class SimulatedNetworkConnectivity {
      * Constructor using {@link SimulatedNetworkConnectivityConfig#DEFAULT}.
      *
      * @param random the random number generator to use for simulating network delays
+     * @param start  the instant the simulation starts at; arrival times are measured from it internally, so it only
+     *               needs to be within a few centuries of the times the network is ticked with
      */
-    public SimulatedNetworkConnectivity(@NonNull final Random random) {
-        this(random, SimulatedNetworkConnectivityConfig.DEFAULT);
+    public SimulatedNetworkConnectivity(@NonNull final Random random, @NonNull final Instant start) {
+        this(random, start, SimulatedNetworkConnectivityConfig.DEFAULT);
     }
 
     /**
      * Constructor.
      *
      * @param random the random number generator to use for simulating network delays
+     * @param start  the instant the simulation starts at; arrival times are measured from it internally, so it only
+     *               needs to be within a few centuries of the times the network is ticked with
      * @param config the tunable parameters of the simulation
      */
     public SimulatedNetworkConnectivity(
-            @NonNull final Random random, @NonNull final SimulatedNetworkConnectivityConfig config) {
+            @NonNull final Random random,
+            @NonNull final Instant start,
+            @NonNull final SimulatedNetworkConnectivityConfig config) {
         this.random = requireNonNull(random);
         this.config = requireNonNull(config);
+        inFlightEvents = new InFlightEvents(this::isConnected, nodeEventWindows::get, start);
+        inFlightEventWindows = new InFlightEventWindows(this::isConnected, start);
+        inFlightInDeliveryOrder = List.of(inFlightEventWindows, inFlightEvents);
         eventLog = new CursoredLog<>(
                 ConsensusConstants.ROUND_FIRST,
                 config.initialSequenceNumberCapacity(),

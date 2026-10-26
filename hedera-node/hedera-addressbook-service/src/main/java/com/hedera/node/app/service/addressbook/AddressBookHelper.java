@@ -11,7 +11,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.nio.file.Files;
@@ -19,11 +18,8 @@ import java.nio.file.Path;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.Objects;
-import org.bouncycastle.cert.X509CertificateHolder;
-import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
-import org.bouncycastle.openssl.PEMParser;
-import org.bouncycastle.util.io.pem.PemObject;
-import org.bouncycastle.util.io.pem.PemWriter;
+import org.hiero.base.crypto.PEMDecoder;
+import org.hiero.base.crypto.PEMEncoder;
 
 /**
  * Utility class that provides static methods and constants to facilitate the Address Book Services functions.
@@ -56,9 +52,8 @@ public class AddressBookHelper {
             throws IOException {
         requireNonNull(x509Encoding);
         requireNonNull(out);
-        try (final var writer = new OutputStreamWriter(out);
-                final PemWriter pemWriter = new PemWriter(writer)) {
-            pemWriter.writeObject(new PemObject("CERTIFICATE", x509Encoding));
+        try (final var writer = new OutputStreamWriter(out)) {
+            PEMEncoder.encode(writer, PEMEncoder.CERTIFICATE, x509Encoding);
         }
     }
 
@@ -71,31 +66,20 @@ public class AddressBookHelper {
      */
     public static X509Certificate readCertificatePemFile(@NonNull final Path pemFile)
             throws IOException, CertificateException {
-        return readCertificatePemFile(Files.newInputStream(pemFile));
+        try (final InputStream in = Files.newInputStream(pemFile)) {
+            return readCertificatePemStream(in);
+        }
     }
 
     /**
-     * Reads a PEM-encoded X509 certificate from the given input stream.
+     * Reads a PEM-encoded X509 certificate from the given input stream, w/o closing the stream.
      * @param in the input stream to read from
      * @return the X509Certificate
-     * @throws IOException if an I/O error occurs while reading the certificate
      * @throws CertificateException if the file does not contain a valid X509Certificate
      */
-    public static X509Certificate readCertificatePemFile(@NonNull final InputStream in)
-            throws IOException, CertificateException {
+    public static X509Certificate readCertificatePemStream(@NonNull final InputStream in) throws CertificateException {
         requireNonNull(in);
-        Object entry;
-        try (final var parser = new PEMParser(new InputStreamReader(in))) {
-            while ((entry = parser.readObject()) != null) {
-                if (entry instanceof X509CertificateHolder ch) {
-                    return new JcaX509CertificateConverter().getCertificate(ch);
-                } else {
-                    throw new CertificateException(
-                            "Not X509 Certificate, it is " + entry.getClass().getSimpleName());
-                }
-            }
-        }
-        throw new CertificateException("No X509 Certificate found in the PEM file");
+        return PEMDecoder.readCertificate(in);
     }
 
     /**

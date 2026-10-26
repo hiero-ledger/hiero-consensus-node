@@ -55,9 +55,9 @@ docstring describes the method.
 
 ### Iterations and samples
 
-- **Each iteration records enough calls for the highest reported percentile.** p99.99 is the time that only 0.01% of
-  the calls exceed. With about 10⁶ calls per iteration, it rests on the 100 slowest calls (the script's `--samples`).
-  If that makes the run too long, the benchmark does not report p99.99.
+- **Each iteration records enough calls for the highest reported percentile.** p99.99 needs at least 10⁶ calls per
+  iteration, so that it rests on the 100 slowest; `LatencyProfiler` reports it only from such iterations. Calibration
+  aims higher (the script's `--samples`), so that a slower night still reaches it.
 - **Make the iterations longer rather than combining the histograms of several iterations.** Longer iterations need no
   change to `LatencyProfiler`.
 - **More iterations help only if the iterations of a fork differ more than the forks do.** If the forks differ more,
@@ -69,9 +69,9 @@ docstring describes the method.
 
 - **If the forks differ more than their iterations, keep each fork short.** A fork costs its warmup, its iterations,
   and a few seconds to start the JVM. An iteration that does not lower the predicted noise is wasted time.
-- **More forks allow a tighter alert threshold but cost more testing time.** The tracked benchmarks run one after
-  another on one machine. The target is about 10 minutes per benchmark on average; calibration decides how long each
-  benchmark gets, and some take longer than others.
+- **Choose the cheapest configuration that gives good results.** Start from two iterations and the forks the predicted
+  noise needs; add forks, iterations, or seconds only where the predicted noise drops noticeably. About 10 minutes per
+  benchmark on average is an orientation, not a budget to fill.
 - **If whole runs differ a lot, use fewer forks and average over several nights instead.** More forks do not reduce the
   differences between runs.
 - **Check for fork modes before choosing the number of forks** ([below](#fork-modes)). With fork modes, a benchmark
@@ -96,7 +96,8 @@ outcome is a fork mode. A benchmark with fork modes gives results that jump betw
   nothing else causes that. `analyze_calibration.py` groups the forks into modes by `alloc.norm` and reports how much
   their latency differs.
 - **Find the code whose allocation differs.** Profile a few single-fork runs of each mode with async-profiler in
-  allocation mode with byte totals. [`alloc-sites.py`](../../../consensus-benchmark-tools/scripts/alloc-sites.py)
+  allocation mode with byte totals; [`fork-modes.sh`](../../../consensus-benchmark-tools/scripts/fork-modes.sh) records
+  them. [`alloc-sites.py`](../../../consensus-benchmark-tools/scripts/alloc-sites.py)
   shows, side by side and in bytes per call, which code allocates in each run.
 - **Find out why the compiled code differs with `-XX:+LogCompilation`, not `-XX:+PrintInlining`.** Several compiler
   threads write `PrintInlining` output at the same time, which mixes it up beyond use.
@@ -120,7 +121,8 @@ outcome is a fork mode. A benchmark with fork modes gives results that jump betw
 - **Do not remove modes with JVM flags that change what is measured.** `-Xbatch` makes all forks the same, but with
   compiled code that normal forks never get. `CompileCommand` inlining directives force a choice that production does
   not make. Both help to find the cause: a flag that makes the modes disappear proves it.
-- **Fix the modes in the code under test; this is often cheap, and worth it.**
+- **Fix the modes in the code under test when their latency effect matters** (the script's "mode effect"); this is
+  often cheap.
   - A recursive method that caches its results, with the cache check and the computation in one method, makes C2
     inline the computation into its own recursion. Splitting the check from the computation keeps what C2 inlines
     small. In the example,

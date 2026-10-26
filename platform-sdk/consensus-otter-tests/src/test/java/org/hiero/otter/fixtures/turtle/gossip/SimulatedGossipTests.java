@@ -17,6 +17,7 @@ import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -87,7 +88,7 @@ class SimulatedGossipTests {
                 .sorted()
                 .toList();
 
-        final SimulatedNetworkConnectivity network = new SimulatedNetworkConnectivity(randotron);
+        final SimulatedNetworkConnectivity network = new SimulatedNetworkConnectivity(randotron, time.now());
 
         // We can safely choose large numbers because time is simulated
         final Duration averageDelay = Duration.ofMillis(randotron.nextInt(1, 1_000_000));
@@ -179,7 +180,7 @@ class SimulatedGossipTests {
         final NodeId selfId = NodeId.of(0);
         final NodeId peerId = NodeId.of(1);
 
-        final SimulatedNetworkConnectivity network = new SimulatedNetworkConnectivity(randotron);
+        final SimulatedNetworkConnectivity network = new SimulatedNetworkConnectivity(randotron, time.now());
         final ConnectionState connectionState =
                 new ConnectionState(true, Duration.ofMillis(1), Percentage.withPercentage(0.0), UNLIMITED_BANDWIDTH);
         network.setConnections(Map.of(
@@ -222,7 +223,8 @@ class SimulatedGossipTests {
 
     @Test
     void peerWindowProducesSyncProgress() {
-        final SimulatedNetworkConnectivity network = new SimulatedNetworkConnectivity(Randotron.create());
+        final SimulatedNetworkConnectivity network =
+                new SimulatedNetworkConnectivity(Randotron.create(), Instant.EPOCH);
         final NodeId self = NodeId.of(0);
         final NodeId peer = NodeId.of(1);
         final List<SyncProgress> progress = new ArrayList<>();
@@ -237,7 +239,8 @@ class SimulatedGossipTests {
 
     @Test
     void ownWindowChangeProducesSyncProgressForEveryPeer() {
-        final SimulatedNetworkConnectivity network = new SimulatedNetworkConnectivity(Randotron.create());
+        final SimulatedNetworkConnectivity network =
+                new SimulatedNetworkConnectivity(Randotron.create(), Instant.EPOCH);
         final NodeId self = NodeId.of(0);
         final NodeId peerA = NodeId.of(1);
         final NodeId peerB = NodeId.of(2);
@@ -271,7 +274,8 @@ class SimulatedGossipTests {
         final NodeId selfId = NodeId.of(0);
         final NodeId peer1 = NodeId.of(1);
         final NodeId peer2 = NodeId.of(2);
-        final SimulatedNetworkConnectivity network = new SimulatedNetworkConnectivity(Randotron.create());
+        final SimulatedNetworkConnectivity network =
+                new SimulatedNetworkConnectivity(Randotron.create(), Instant.EPOCH);
         final TestNode node = addNode(network, selfId, PlatformStatus.ACTIVE, new ArrayList<>(), new ArrayList<>());
         final SimulatedGossip self = node.gossip();
 

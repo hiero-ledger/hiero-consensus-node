@@ -58,6 +58,9 @@ The measured region is the part of the benchmark method that is timed: the calls
     ([operations.md](operations.md#baseline-breaks)).
 - **Keep the setup's garbage out of the measured region.** If the per-invocation setup allocates, end it with
   `System.gc()`.
+- **Give the code under test its production collaborators,** such as the metrics provider and the intake counter, not
+  no-op or fake ones: a no-op hides a cost that a later change adds to the measured path. Turn off only output to the
+  outside, such as a Prometheus port or CSV files.
 
 ## Latency
 

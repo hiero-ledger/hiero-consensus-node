@@ -48,9 +48,19 @@ public class HintsSubmissions extends TssSubmissions {
      * @return a future that completes when the vote has been submitted
      */
     public CompletableFuture<Void> submitHintsKey(
-            final int partyId, final int numParties, @NonNull final Bytes hintsKey) {
+            final long constructionId,
+            final long crsId,
+            final int partyId,
+            final int numParties,
+            @NonNull final Bytes hintsKey) {
         requireNonNull(hintsKey);
-        final var op = new HintsKeyPublicationTransactionBody(partyId, numParties, hintsKey);
+        final var op = HintsKeyPublicationTransactionBody.newBuilder()
+                .partyId(partyId)
+                .numParties(numParties)
+                .hintsKey(hintsKey)
+                .constructionId(constructionId)
+                .crsId(crsId)
+                .build();
         return submitIfActive(b -> b.hintsKeyPublication(op), onFailure);
     }
 
@@ -61,11 +71,19 @@ public class HintsSubmissions extends TssSubmissions {
      * @param proof the proof of the update
      * @return a future that completes when the update has been submitted
      */
-    public CompletableFuture<Void> submitCrsUpdate(@NonNull final Bytes crs, @NonNull final Bytes proof) {
+    public CompletableFuture<Void> submitCrsUpdate(
+            final long ceremonyId,
+            final long attempt,
+            @NonNull final Bytes previousCrsHash,
+            @NonNull final Bytes crs,
+            @NonNull final Bytes proof) {
         requireNonNull(crs);
         final var op = CrsPublicationTransactionBody.newBuilder()
                 .newCrs(crs)
                 .proof(proof)
+                .ceremonyId(ceremonyId)
+                .attempt(attempt)
+                .previousCrsHash(previousCrsHash)
                 .build();
         return submitIfActive(b -> b.crsPublication(op), onFailure);
     }
