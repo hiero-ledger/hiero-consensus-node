@@ -36,6 +36,7 @@ import com.hedera.node.app.blocks.impl.streaming.BlockNodeStreamingConnection.Se
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeStreamingConnection.SendRequestStatus;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeStreamingConnection.StreamRequest;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
+import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeEndpoint;
 import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
@@ -89,6 +90,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
     private static final VarHandle streamingBlockNumberHandle;
     private static final VarHandle workerThreadRefHandle;
     private static final MethodHandle sendRequestHandle;
+    private static final MethodHandle updateAcknowledgementMetricsHandle;
 
     static {
         try {
@@ -105,6 +107,11 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
             final Method sendRequest = cls.getDeclaredMethod("sendRequest", StreamRequest.class);
             sendRequest.setAccessible(true);
             sendRequestHandle = lookup.unreflect(sendRequest);
+
+            final Method updateAcknowledgementMetrics =
+                    cls.getDeclaredMethod("updateAcknowledgementMetrics", long.class, long.class);
+            updateAcknowledgementMetrics.setAccessible(true);
+            updateAcknowledgementMetricsHandle = lookup.unreflect(updateAcknowledgementMetrics);
         } catch (final Exception e) {
             throw new RuntimeException(e);
         }
@@ -114,6 +121,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
     private ConfigProvider configProvider;
     private BlockNodeStats stats;
     private BlockNode blockNode;
+    private BlockNodeEndpoint blockNodeStreamingEndpoint;
     private BlockNodeConnectionManager connectionManager;
     private BlockBufferService bufferService;
     private BlockStreamPublishBytesClient grpcServiceClient;
@@ -133,8 +141,9 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         configProvider = createConfigProvider(createDefaultConfigProvider());
         stats = mock(BlockNodeStats.class);
         globalActiveStreamingConnectionCount = new AtomicInteger();
-        blockNode =
-                new BlockNode(configProvider, newBlockNodeConfig(8080, 1), globalActiveStreamingConnectionCount, stats);
+        final BlockNodeConfiguration config = newBlockNodeConfig(8080, 1);
+        blockNode = new BlockNode(configProvider, config, globalActiveStreamingConnectionCount, stats);
+        blockNodeStreamingEndpoint = config.streamingEndpoint();
         connectionManager = mock(BlockNodeConnectionManager.class);
         bufferService = mock(BlockBufferService.class);
         grpcServiceClient = mock(BlockStreamPublishBytesClient.class);
@@ -388,6 +397,16 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         final AtomicLong streamingBlockNumber = streamingBlockNumber();
         streamingBlockNumber.set(-1); // pretend we are currently not streaming any blocks
         final PublishStreamResponse response = createBlockAckResponse(10L);
+        final AtomicLong latestAckedBlock = new AtomicLong(0);
+        doAnswer(inv -> {
+                    final long block = inv.getArgument(0);
+                    latestAckedBlock.set(block);
+
+                    return block;
+                })
+                .when(bufferService)
+                .acknowledgeBlock(anyLong(), any(BlockNodeEndpoint.class));
+        doAnswer(_ -> latestAckedBlock.get()).when(bufferService).getHighestAckedBlockNumber();
         when(stats.recordAcknowledgementAndEvaluate(eq(10L), any(Instant.class), any(Duration.class), anyInt()))
                 .thenReturn(latencyResult);
         when(latencyResult.shouldSwitch()).thenReturn(false);
@@ -398,8 +417,8 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
 
         verify(stats).recordAcknowledgementAndEvaluate(eq(10L), any(Instant.class), any(Duration.class), anyInt());
         verify(bufferService, atLeastOnce()).getLastBlockNumberProduced();
-        verify(bufferService).setLatestAcknowledgedBlock(10);
-        verify(bufferService).getHighestAckedBlockNumber();
+        verify(bufferService).acknowledgeBlock(10L, blockNodeStreamingEndpoint);
+        verify(bufferService, times(2)).getHighestAckedBlockNumber();
         verify(bufferService).getEarliestAvailableBlockNumber();
         verify(metrics).recordResponseReceived(ResponseOneOfType.ACKNOWLEDGEMENT);
         verifyNoMoreInteractions(metrics);
@@ -413,6 +432,16 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
 
         final AtomicLong streamingBlockNumber = streamingBlockNumber();
         streamingBlockNumber.set(10); // pretend we are streaming block 10
+        final AtomicLong latestAckedBlock = new AtomicLong(0);
+        doAnswer(inv -> {
+                    final long block = inv.getArgument(0);
+                    latestAckedBlock.set(block);
+
+                    return block;
+                })
+                .when(bufferService)
+                .acknowledgeBlock(anyLong(), any(BlockNodeEndpoint.class));
+        doAnswer(_ -> latestAckedBlock.get()).when(bufferService).getHighestAckedBlockNumber();
         final PublishStreamResponse response = createBlockAckResponse(8L);
         when(bufferService.getLastBlockNumberProduced()).thenReturn(10L);
         when(stats.recordAcknowledgementAndEvaluate(eq(8L), any(Instant.class), any(Duration.class), anyInt()))
@@ -424,8 +453,8 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(streamingBlockNumber).hasValue(10L); // should not change
 
         verify(bufferService, atLeastOnce()).getLastBlockNumberProduced();
-        verify(bufferService).setLatestAcknowledgedBlock(8);
-        verify(bufferService).getHighestAckedBlockNumber();
+        verify(bufferService).acknowledgeBlock(8L, blockNodeStreamingEndpoint);
+        verify(bufferService, times(2)).getHighestAckedBlockNumber();
         verify(bufferService).getEarliestAvailableBlockNumber();
         verify(metrics).recordResponseReceived(ResponseOneOfType.ACKNOWLEDGEMENT);
         verify(bufferService, times(8)).getBlockState(anyLong());
@@ -442,6 +471,16 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         streamingBlockNumber.set(10); // pretend we are streaming block 10
         final PublishStreamResponse response = createBlockAckResponse(11L);
 
+        final AtomicLong latestAckedBlock = new AtomicLong(0);
+        doAnswer(inv -> {
+                    final long block = inv.getArgument(0);
+                    latestAckedBlock.set(block);
+
+                    return block;
+                })
+                .when(bufferService)
+                .acknowledgeBlock(anyLong(), any(BlockNodeEndpoint.class));
+        doAnswer(_ -> latestAckedBlock.get()).when(bufferService).getHighestAckedBlockNumber();
         when(bufferService.getLastBlockNumberProduced()).thenReturn(10L);
         when(stats.recordAcknowledgementAndEvaluate(eq(11L), any(Instant.class), any(Duration.class), anyInt()))
                 .thenReturn(latencyResult);
@@ -452,7 +491,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(streamingBlockNumber).hasValue(12); // should be 1 + acked block number
 
         verify(bufferService, atLeastOnce()).getLastBlockNumberProduced();
-        verify(bufferService).setLatestAcknowledgedBlock(11L);
+        verify(bufferService).acknowledgeBlock(11L, blockNodeStreamingEndpoint);
         verify(bufferService, atLeastOnce()).getHighestAckedBlockNumber();
         verify(bufferService, atLeastOnce()).getEarliestAvailableBlockNumber();
         verify(metrics).recordResponseReceived(ResponseOneOfType.ACKNOWLEDGEMENT);
@@ -470,6 +509,16 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         streamingBlockNumber.set(8); // pretend we are streaming block 8
         final PublishStreamResponse response = createBlockAckResponse(11L);
 
+        final AtomicLong latestAckedBlock = new AtomicLong(0);
+        doAnswer(inv -> {
+                    final long block = inv.getArgument(0);
+                    latestAckedBlock.set(block);
+
+                    return block;
+                })
+                .when(bufferService)
+                .acknowledgeBlock(anyLong(), any(BlockNodeEndpoint.class));
+        doAnswer(_ -> latestAckedBlock.get()).when(bufferService).getHighestAckedBlockNumber();
         when(bufferService.getLastBlockNumberProduced()).thenReturn(12L);
         when(stats.recordAcknowledgementAndEvaluate(eq(11L), any(Instant.class), any(Duration.class), anyInt()))
                 .thenReturn(latencyResult);
@@ -480,8 +529,8 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(streamingBlockNumber).hasValue(12); // should be 1 + acked block number
 
         verify(bufferService, atLeastOnce()).getLastBlockNumberProduced();
-        verify(bufferService).setLatestAcknowledgedBlock(11L);
-        verify(bufferService).getHighestAckedBlockNumber();
+        verify(bufferService).acknowledgeBlock(11L, blockNodeStreamingEndpoint);
+        verify(bufferService, times(2)).getHighestAckedBlockNumber();
         verify(bufferService).getEarliestAvailableBlockNumber();
         verify(metrics).recordResponseReceived(ResponseOneOfType.ACKNOWLEDGEMENT);
         verify(bufferService, times(11)).getBlockState(anyLong());
@@ -499,6 +548,17 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         streamingBlockNumber.set(10); // pretend we are streaming block 10
         final PublishStreamResponse response = createBlockAckResponse(10L);
 
+        final AtomicLong latestAckedBlock = new AtomicLong(0);
+        doAnswer(inv -> {
+                    final long block = inv.getArgument(0);
+                    latestAckedBlock.set(block);
+
+                    return block;
+                })
+                .when(bufferService)
+                .acknowledgeBlock(anyLong(), any(BlockNodeEndpoint.class));
+        doAnswer(_ -> latestAckedBlock.get()).when(bufferService).getHighestAckedBlockNumber();
+
         when(bufferService.getLastBlockNumberProduced()).thenReturn(10L);
         when(stats.recordAcknowledgementAndEvaluate(eq(10L), any(Instant.class), any(Duration.class), anyInt()))
                 .thenReturn(latencyResult);
@@ -510,7 +570,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(streamingBlockNumber).hasValue(10L);
 
         verify(bufferService, atLeastOnce()).getLastBlockNumberProduced();
-        verify(bufferService).setLatestAcknowledgedBlock(10L);
+        verify(bufferService).acknowledgeBlock(10L, blockNodeStreamingEndpoint);
         verify(bufferService, atLeastOnce()).getHighestAckedBlockNumber();
         verify(bufferService, atLeastOnce()).getEarliestAvailableBlockNumber();
         verify(metrics).recordResponseReceived(ResponseOneOfType.ACKNOWLEDGEMENT);
@@ -528,6 +588,16 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         streamingBlockNumber.set(10);
         final PublishStreamResponse response = createBlockAckResponse(10L);
 
+        final AtomicLong latestAckedBlock = new AtomicLong(0);
+        doAnswer(inv -> {
+                    final long block = inv.getArgument(0);
+                    latestAckedBlock.set(block);
+
+                    return block;
+                })
+                .when(bufferService)
+                .acknowledgeBlock(anyLong(), any(BlockNodeEndpoint.class));
+        doAnswer(_ -> latestAckedBlock.get()).when(bufferService).getHighestAckedBlockNumber();
         when(bufferService.getLastBlockNumberProduced()).thenReturn(10L);
         when(stats.recordAcknowledgementAndEvaluate(eq(10L), any(Instant.class), any(Duration.class), anyInt()))
                 .thenReturn(latencyResult);
@@ -543,9 +613,9 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
 
         verify(bufferService, atLeastOnce()).getLastBlockNumberProduced();
-        verify(bufferService, times(2)).getHighestAckedBlockNumber();
+        verify(bufferService, times(3)).getHighestAckedBlockNumber();
         verify(bufferService, times(2)).getEarliestAvailableBlockNumber();
-        verify(bufferService).setLatestAcknowledgedBlock(10L);
+        verify(bufferService).acknowledgeBlock(10L, blockNodeStreamingEndpoint);
         verify(bufferService, atLeastOnce()).getBlockState(anyLong());
         verify(metrics).recordResponseReceived(ResponseOneOfType.ACKNOWLEDGEMENT);
         verify(metrics).recordHighLatencyEvent();
@@ -2221,6 +2291,99 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
     }
 
+    @Test
+    void testUpdateAcknowledgementMetrics_ackWatermarkCeiling() throws Throwable {
+        invokeUpdateAcknowledgementMetrics(10, Long.MAX_VALUE);
+
+        verifyNoInteractions(bufferService);
+        verifyNoInteractions(metrics);
+    }
+
+    @Test
+    void testUpdateAcknowledgementMetrics_noChange() throws Throwable {
+        invokeUpdateAcknowledgementMetrics(10, 10);
+
+        verifyNoInteractions(bufferService);
+        verifyNoInteractions(metrics);
+    }
+
+    @Test
+    void testUpdateAcknowledgementMetrics() throws Throwable {
+        final long nowNanos = System.nanoTime();
+        // don't create block 1
+        final BlockState block2 = mock(BlockState.class);
+        when(block2.openedNanos()).thenReturn(nowNanos - 8100);
+        when(block2.headerSentNanos()).thenReturn(nowNanos - 8000);
+        when(block2.blockEndSentNanos()).thenReturn(nowNanos - 7000);
+        when(block2.closedNanos()).thenReturn(nowNanos);
+        final BlockState block3 = mock(BlockState.class);
+        when(block3.openedNanos()).thenReturn(nowNanos - 5100);
+        when(block3.headerSentNanos()).thenReturn(nowNanos - 5000);
+        when(block3.blockEndSentNanos()).thenReturn(nowNanos - 4000);
+        when(block3.closedNanos()).thenReturn(nowNanos);
+        final BlockState block4 = mock(BlockState.class);
+        when(block4.openedNanos()).thenReturn(nowNanos - 2100);
+        when(block4.headerSentNanos()).thenReturn(nowNanos - 2000);
+        when(block4.blockEndSentNanos()).thenReturn(nowNanos - 1000);
+        when(block4.closedNanos()).thenReturn(nowNanos);
+
+        when(bufferService.getLastBlockNumberProduced()).thenReturn(5L);
+        when(bufferService.getEarliestAvailableBlockNumber()).thenReturn(0L);
+        doAnswer(inv -> {
+                    final long blockNumber = inv.getArgument(0);
+                    if (blockNumber == 2) {
+                        return block2;
+                    } else if (blockNumber == 3) {
+                        return block3;
+                    } else if (blockNumber == 4) {
+                        return block4;
+                    }
+                    return null;
+                })
+                .when(bufferService)
+                .getBlockState(anyLong());
+
+        invokeUpdateAcknowledgementMetrics(0, 4);
+
+        verify(bufferService).getLastBlockNumberProduced();
+        verify(bufferService).getEarliestAvailableBlockNumber();
+        verify(bufferService).getBlockState(1L);
+        verify(bufferService).getBlockState(2L);
+        verify(bufferService).getBlockState(3L);
+        verify(bufferService).getBlockState(4L);
+
+        final ArgumentCaptor<Long> headerCreatedToAckLatencyVals = ArgumentCaptor.forClass(long.class);
+        verify(metrics, times(3)).recordHeaderProducedToAckLatency(headerCreatedToAckLatencyVals.capture());
+        assertThat(headerCreatedToAckLatencyVals.getAllValues()).hasSize(3);
+        for (final long headerCreatedToAckLatency : headerCreatedToAckLatencyVals.getAllValues()) {
+            assertThat(headerCreatedToAckLatency).isGreaterThan(0L);
+        }
+
+        final ArgumentCaptor<Long> closeToAckLatencyVals = ArgumentCaptor.forClass(long.class);
+        verify(metrics, times(3)).recordBlockClosedToAckLatency(closeToAckLatencyVals.capture());
+        assertThat(closeToAckLatencyVals.getAllValues()).hasSize(3);
+        for (final long closeToAckLatency : closeToAckLatencyVals.getAllValues()) {
+            assertThat(closeToAckLatency).isGreaterThan(0L);
+        }
+
+        final ArgumentCaptor<Long> headerSentToAckLatencyVals = ArgumentCaptor.forClass(long.class);
+        verify(metrics, times(3)).recordHeaderSentAckLatency(headerSentToAckLatencyVals.capture());
+        assertThat(headerSentToAckLatencyVals.getAllValues()).hasSize(3);
+        for (final long headerSentToAckLatency : headerSentToAckLatencyVals.getAllValues()) {
+            assertThat(headerSentToAckLatency).isGreaterThan(0L);
+        }
+
+        final ArgumentCaptor<Long> blockEndSentToAckLatencyVals = ArgumentCaptor.forClass(long.class);
+        verify(metrics, times(3)).recordBlockEndSentToAckLatency(blockEndSentToAckLatencyVals.capture());
+        assertThat(blockEndSentToAckLatencyVals.getAllValues()).hasSize(3);
+        for (final long blockEndSentToAckLatency : blockEndSentToAckLatencyVals.getAllValues()) {
+            assertThat(blockEndSentToAckLatency).isGreaterThan(0L);
+        }
+
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(bufferService);
+    }
+
     // Utilities
 
     private void activateConnection() {
@@ -2318,6 +2481,12 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         final Method doWorkMethod = worker.getClass().getDeclaredMethod("doWork");
         doWorkMethod.setAccessible(true);
         doWorkMethod.invoke(worker);
+    }
+
+    private void invokeUpdateAcknowledgementMetrics(
+            final long previousAcknowledgedBlockNumber, final long latestAcknowledgedBlockNumber) throws Throwable {
+        updateAcknowledgementMetricsHandle.invoke(
+                connection, previousAcknowledgedBlockNumber, latestAcknowledgedBlockNumber);
     }
 
     private SendRequestResult sendRequest(final StreamRequest request) {

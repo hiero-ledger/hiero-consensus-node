@@ -4,6 +4,7 @@ package org.hiero.otter.fixtures.falcon;
 import com.hedera.hapi.node.base.SemanticVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
+import java.security.KeyStoreException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -11,10 +12,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import org.hiero.base.crypto.SigningSchema;
+import org.hiero.consensus.fakes.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.otter.fixtures.InstrumentedNode;
+import org.hiero.otter.fixtures.MiniNode;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TransactionGenerator;
@@ -79,8 +84,20 @@ public class FalconNetwork extends SimulatedNetwork implements TimeTickReceiver 
 
     /**
      * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    protected MiniNode doCreateMiniNode(@NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
+        throw new UnsupportedOperationException("Mini nodes are not supported in FalconNetwork");
+    }
+
+    /**
+     * {@inheritDoc}
      *
      * <p>Serves the keys and certificates from {@link #KEYS_AND_CERTS_CACHE}, generating only the ones not cached yet.
+     * The keys are generated with {@link SigningSchema#ED25519}: a Falcon node never signs or verifies anything, and
+     * the roster only carries the signing certificate, so the much slower RSA scheme used by the other environments
+     * buys nothing here.
      */
     @Override
     @NonNull
@@ -89,8 +106,14 @@ public class FalconNetwork extends SimulatedNetwork implements TimeTickReceiver 
                 .filter(nodeId -> !KEYS_AND_CERTS_CACHE.containsKey(nodeId))
                 .toList();
         if (!missing.isEmpty()) {
-            // Generated in a single call, because the generator parallelizes across the requested nodes
-            KEYS_AND_CERTS_CACHE.putAll(super.createKeysAndCerts(missing));
+            try {
+                // Generated in a single call, because the generator parallelizes across the requested nodes
+                final Map<NodeId, KeysAndCerts> generated =
+                        KeysAndCertsGenerator.generateKeysAndCerts(missing, SigningSchema.ED25519);
+                KEYS_AND_CERTS_CACHE.putAll(generated);
+            } catch (final ExecutionException | InterruptedException | KeyStoreException e) {
+                throw new RuntimeException("Exception while generating KeysAndCerts", e);
+            }
         }
 
         final Map<NodeId, KeysAndCerts> result = new LinkedHashMap<>();

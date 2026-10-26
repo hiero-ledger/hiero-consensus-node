@@ -44,4 +44,8 @@ message HintsKeyPublicationTransactionBody {
    * The party's hinTS key.
    */
   bytes hints_key = 3;
+  /** The construction accepting this publication. */
+  uint64 construction_id = 4;
+  /** The completed CRS generation used to produce this key. */
+  uint64 crs_id = 5;
 }

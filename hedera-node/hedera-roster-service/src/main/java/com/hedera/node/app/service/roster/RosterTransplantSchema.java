@@ -54,7 +54,7 @@ public interface RosterTransplantSchema {
      * @param ctx the migration context
      * @param onAdopt a callback to invoke with an outgoing roster being replaced by a new roster hash
      * @param rosterStoreFactory the factory to use to create the writable roster store
-     * @param onOverrideNetwork a callback to invoke with the adopted override network
+     * @param onOverrideNetwork a callback to invoke with the override network before roster adoption
      */
     default boolean restart(
             @NonNull final HederaMigrationContext ctx,
@@ -86,10 +86,12 @@ public interface RosterTransplantSchema {
             final var roster = networkAdminConfig.preserveStateWeightsDuringOverride()
                     ? withExtantNodeWeights(overrideRoster, rosterStore.getActiveRoster())
                     : overrideRoster;
-            rosterStore.putActiveRoster(roster, activeRoundNumber);
-            rosterStore.updateTransplantInProgress(true);
+            // Adoption checks need the persisted outgoing and candidate rosters. putActiveRoster
+            // purges the candidate, so validate/import the override before changing roster state.
             onOverrideNetwork.accept(network);
             onAdopt.accept(outgoingRoster, roster);
+            rosterStore.putActiveRoster(roster, activeRoundNumber);
+            rosterStore.updateTransplantInProgress(true);
             startupNetworks.setOverrideRound(roundNumber);
         });
         return overrideNetwork.isPresent();

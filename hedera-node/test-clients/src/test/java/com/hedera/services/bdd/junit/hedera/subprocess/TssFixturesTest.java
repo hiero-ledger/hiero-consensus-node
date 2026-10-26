@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.addressbook.Node;
+import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
 import com.hedera.node.internal.network.NodeTssMetadata;
@@ -23,6 +24,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.zip.GZIPOutputStream;
+import org.hiero.base.crypto.DigestType;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -53,7 +55,10 @@ class TssFixturesTest {
 
         final var merged = TssFixtures.mergeNodeExports(Map.of(1L, node1Export, 0L, node0Export));
 
-        assertEquals(VERIFICATION_KEY_0, merged.tssMetadataOrThrow().historyProofVerificationKey(), "taken from node0");
+        assertEquals(
+                VERIFICATION_KEY_0,
+                merged.tssMetadataOrThrow().crsStateOrThrow().crs(),
+                "taken from node0");
         assertEquals(
                 List.of(entry(0, HINTS_KEY_0, PRIVATE_KEY_0), entry(1, HINTS_KEY_1, PRIVATE_KEY_1)),
                 merged.nodeTssMetadata());
@@ -95,13 +100,46 @@ class TssFixturesTest {
     @Test
     @DisplayName("Fixture file names map to their network, keyed off node0 for legacy per-node files")
     void fixtureNetworkNameParsesFileNames() {
-        assertEquals("ledgerA", TssFixtures.fixtureNetworkName("ledgerA-genesis-network.json.gz"));
-        assertEquals("ledgerA", TssFixtures.fixtureNetworkName("ledgerA-genesis-network.json"));
-        assertEquals("ledgerA_manifest", TssFixtures.fixtureNetworkName("ledgerA_manifest-genesis-network.json.gz"));
+        // Use the explicit-digest overload so the test is stable regardless of DEFAULT_DIGEST_TYPE.
+        // Bare names are SHA-384 fixtures; the SHA-256 variants are covered by fixtureNetworkNameIsDigestAware.
+        assertEquals("ledgerA", TssFixtures.fixtureNetworkName("ledgerA-genesis-network.json.gz", DigestType.SHA_384));
+        assertEquals("ledgerA", TssFixtures.fixtureNetworkName("ledgerA-genesis-network.json", DigestType.SHA_384));
         assertEquals(
-                "ledgerA_manifest", TssFixtures.fixtureNetworkName("ledgerA_manifest-node0-genesis-network.json.gz"));
-        assertNull(TssFixtures.fixtureNetworkName("ledgerA_manifest-node1-genesis-network.json.gz"));
-        assertNull(TssFixtures.fixtureNetworkName("README.md"));
+                "ledgerA_manifest",
+                TssFixtures.fixtureNetworkName("ledgerA_manifest-genesis-network.json.gz", DigestType.SHA_384));
+        assertEquals(
+                "ledgerA_manifest",
+                TssFixtures.fixtureNetworkName("ledgerA_manifest-node0-genesis-network.json.gz", DigestType.SHA_384));
+        assertNull(
+                TssFixtures.fixtureNetworkName("ledgerA_manifest-node1-genesis-network.json.gz", DigestType.SHA_384));
+        assertNull(TssFixtures.fixtureNetworkName("README.md", DigestType.SHA_384));
+    }
+
+    @Test
+    @DisplayName("Fixture file name carries the -sha256- tag only under the SHA-256 digest")
+    void fixtureFileNameTagsOnlySha256() {
+        assertEquals("ledgerA-genesis-network.json", TssFixtures.fixtureFileName("ledgerA", DigestType.SHA_384));
+        assertEquals("ledgerA-sha256-genesis-network.json", TssFixtures.fixtureFileName("ledgerA", DigestType.SHA_256));
+    }
+
+    @Test
+    @DisplayName("Under SHA-384 only bare fixtures match; under SHA-256 only -sha256- fixtures match")
+    void fixtureNetworkNameIsDigestAware() {
+        // SHA-384 (bare) view: accept bare, reject the tagged variant so it cannot shadow the reservation
+        assertEquals("ledgerA", TssFixtures.fixtureNetworkName("ledgerA-genesis-network.json.gz", DigestType.SHA_384));
+        assertEquals(
+                "ledgerA_manifest",
+                TssFixtures.fixtureNetworkName("ledgerA_manifest-node0-genesis-network.json.gz", DigestType.SHA_384));
+        assertNull(TssFixtures.fixtureNetworkName("ledgerA-sha256-genesis-network.json.gz", DigestType.SHA_384));
+
+        // SHA-256 view: accept the tagged variant (stripping the tag), reject bare
+        assertEquals(
+                "ledgerA",
+                TssFixtures.fixtureNetworkName("ledgerA-sha256-genesis-network.json.gz", DigestType.SHA_256));
+        assertEquals(
+                "ledgerA_manifest",
+                TssFixtures.fixtureNetworkName("ledgerA_manifest-sha256-genesis-network.json.gz", DigestType.SHA_256));
+        assertNull(TssFixtures.fixtureNetworkName("ledgerA-genesis-network.json.gz", DigestType.SHA_256));
     }
 
     @Test
@@ -111,7 +149,8 @@ class TssFixturesTest {
                 "ledgerA_manifest-genesis-network.json.gz",
                 Network.newBuilder()
                         .nodeMetadata(nodeWithGrpcPort(32102), nodeWithGrpcPort(32100))
-                        .tssMetadata(TssMetadata.newBuilder().historyProofVerificationKey(VERIFICATION_KEY_0))
+                        .tssMetadata(TssMetadata.newBuilder()
+                                .crsState(CRSState.newBuilder().crs(VERIFICATION_KEY_0)))
                         .build());
 
         assertArrayEquals(new int[] {32100, 2}, TssFixtures.fixtureBaseAndNodeCount(fixture));
@@ -123,7 +162,8 @@ class TssFixturesTest {
         final var fixture = writeGzippedJson(
                 "empty-genesis-network.json.gz",
                 Network.newBuilder()
-                        .tssMetadata(TssMetadata.newBuilder().historyProofVerificationKey(VERIFICATION_KEY_0))
+                        .tssMetadata(TssMetadata.newBuilder()
+                                .crsState(CRSState.newBuilder().crs(VERIFICATION_KEY_0)))
                         .build());
 
         assertNull(TssFixtures.fixtureBaseAndNodeCount(fixture));
@@ -150,7 +190,8 @@ class TssFixturesTest {
 
     private static Network export(final Bytes verificationKey, final NodeTssMetadata... entries) {
         return Network.newBuilder()
-                .tssMetadata(TssMetadata.newBuilder().historyProofVerificationKey(verificationKey))
+                .tssMetadata(
+                        TssMetadata.newBuilder().crsState(CRSState.newBuilder().crs(verificationKey)))
                 .nodeTssMetadata(entries)
                 .build();
     }

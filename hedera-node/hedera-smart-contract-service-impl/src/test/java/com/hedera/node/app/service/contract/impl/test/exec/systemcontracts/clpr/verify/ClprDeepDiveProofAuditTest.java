@@ -6,6 +6,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 
@@ -354,6 +355,46 @@ class ClprDeepDiveProofAuditTest {
         }
 
         @Test
+        @DisplayName("given a SHA-384 bundle but local digest SHA-256, then the verifier infers the proof's digest")
+        void capturedBundleVerifiesWhenLocalConfigDigestDiffersFromProof() throws IOException, ParseException {
+            // The captured bundle was built by a ledger whose genesis digest is SHA-384. A verifying node whose
+            // own blockStream.digestType is SHA-256 must still verify it: the proving ledger's digest is pinned at
+            // its genesis and is independent of our configuration, so the verifier infers it from the proof.
+            lenient()
+                    .when(frame.getContextVariable(FrameUtils.CONFIG_CONTEXT_VARIABLE))
+                    .thenReturn(HederaTestConfigBuilder.create()
+                            .withValue("blockStream.digestType", "SHA_256")
+                            .getOrCreateConfig());
+
+            final byte[] proofBytes = loadResource("stateProof.bin");
+            final byte[] trustAnchor = loadResource("trustAnchor.bin");
+            final var proof = StateProof.PROTOBUF.parse(Bytes.wrap(proofBytes).toReadableSequentialData());
+            ClprChannel channel = null;
+            for (final var path : proof.paths()) {
+                if (!path.hasStateItemLeaf()) {
+                    continue;
+                }
+                final var item =
+                        StateItem.PROTOBUF.parse(path.stateItemLeafOrThrow().toReadableSequentialData());
+                if (item.valueOrThrow().hasClprServiceIChannels()) {
+                    channel = item.valueOrThrow().clprServiceIChannelsOrThrow();
+                }
+            }
+            assertThat(channel).as("captured proof carries a channel leaf").isNotNull();
+
+            final var result = new VerifyBundleCall(
+                            mockEnhancement(),
+                            gasCalculator,
+                            proofBytes,
+                            trustAnchor,
+                            channel.channelId().toByteArray(),
+                            new NativeTssVerifier())
+                    .execute(frame);
+
+            assertThat(result.responseCode()).isEqualTo(SUCCESS);
+        }
+
+        @Test
         @DisplayName("given message leaves out of id order, then the messages are returned sorted by their proven ids")
         void givenMessageLeavesOutOfIdOrder_thenMessagesAreReturnedSortedByProvenId() throws ParseException {
             final var decoded = executeWithStubbedPathsForOutput(
@@ -483,12 +524,15 @@ class ClprDeepDiveProofAuditTest {
     /**
      * Stubs a mock {@link MessageFrame} so {@code FrameUtils.configOf(frame)} resolves: an empty frame stack
      * (so the frame is its own initial frame) carrying a default config whose
-     * {@code BlockStreamConfig.digestType()} is {@code SHA_384}, matching the checked-in fixtures.
+     * {@code BlockStreamConfig.digestType()} is {@code SHA_384}. Lenient because the verifier only reads the
+     * configured digest as a fallback — a proof carrying a usable hash-length signal is verified with the
+     * inferred digest and never touches the config, which strict stubbing would flag as unnecessary.
      */
     private static void stubFrameConfigOn(@NonNull final MessageFrame frame) {
-        given(frame.getMessageFrameStack()).willReturn(new ArrayDeque<>());
-        given(frame.getContextVariable(FrameUtils.CONFIG_CONTEXT_VARIABLE))
-                .willReturn(HederaTestConfigBuilder.create().getOrCreateConfig());
+        lenient().when(frame.getMessageFrameStack()).thenReturn(new ArrayDeque<>());
+        lenient()
+                .when(frame.getContextVariable(FrameUtils.CONFIG_CONTEXT_VARIABLE))
+                .thenReturn(HederaTestConfigBuilder.create().getOrCreateConfig());
     }
 
     private static TssVerifier acceptingTss() {

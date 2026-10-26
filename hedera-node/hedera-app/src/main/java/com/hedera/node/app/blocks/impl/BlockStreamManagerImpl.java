@@ -10,7 +10,6 @@ import static com.hedera.node.app.blocks.BlockHashSigner.Request.SUCCINCT_SIGNAT
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.GENESIS_WORK;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.NONE;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.POST_UPGRADE_WORK;
-import static com.hedera.node.app.blocks.impl.BlockImplUtils.appendHash;
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.blockDirFor;
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.cleanUpPendingBlock;
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.loadContiguousPendingBlocks;
@@ -196,6 +195,17 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private boolean maxBlockSizeThrottleEnabled;
     private long currentThrottleBlockSizeBytes;
     private boolean maxBlockSizeReached;
+
+    // Trailing-hash transition logging. We emit a decoded, human-readable dump of both trailing windows
+    // (trailingBlockHashes and trailingOutputHashes) at the two moments their layout changes: the block digest
+    // transition (e.g. SHA-384 -> SHA-256) and the block-stream cutover. Each moment is logged twice — a BEFORE
+    // snapshot (the window entering the transition block) and an AFTER snapshot (the window entering the next
+    // block, i.e. after the transition block committed) — so operators and tests can verify the exact values on
+    // both sides. The digest length of the previous block, seeded from state on the first block so a transition
+    // that coincides with a restart is still detected; -1 until seeded.
+    private int previousDigestLength = -1;
+    // When non-null, the next block start emits the AFTER snapshot for this transition label.
+    private String pendingTransitionLabel;
 
     // Block merkle subtrees and leaves
     private IncrementalStreamingHasher previousBlockHashes;
@@ -446,7 +456,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                             .map(Bytes::toByteArray)
                             .toList(),
                     blockStreamInfo.intermediateBlockRootsLeafCount());
-            effectiveLastBlockHash = reconstructLastBlockHash(blockStreamInfo, digestType());
+            // For the first post-cutover block the window holds the record hash, not the wrapped parent production
+            // used; provide the wrapped parent from BlockInfo so reconstruction links to the correct parent.
+            effectiveLastBlockHash = reconstructLastBlockHash(
+                    blockStreamInfo, digestType(), firstPostCutoverParentHash(state, blockStreamInfo));
         }
         this.lastBlockHash = effectiveLastBlockHash;
         if (!previousBlockHashesUpdated && !Objects.equals(effectiveLastBlockHash, hashOfZero())) {
@@ -456,21 +469,71 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     public static Bytes reconstructLastBlockHash(
             @NonNull final BlockStreamInfo blockStreamInfo, @NonNull final DigestType digestType) {
+        return reconstructLastBlockHash(blockStreamInfo, digestType, null);
+    }
+
+    /**
+     * Reconstructs the root hash of the last completed block from its persisted {@link BlockStreamInfo}.
+     *
+     * <p>The parent (block N-1) is normally recovered from the trailing-block-hash window. For the first post-cutover
+     * block the window holds the original 48-byte record hash (kept for the EVM BLOCKHASH history), but the block's
+     * actual parent was the <b>wrapped</b> record block root. Since the wrapped root cannot be derived from the record
+     * hash, callers that have it (reading {@code BlockInfo.previousWrappedRecordBlockRootHash}) pass it in via
+     * {@code providedParentHash}; it then overrides the window-derived parent. All other callers pass {@code null}.
+     *
+     * @param blockStreamInfo the persisted block stream info of the last completed block
+     * @param digestType the active digest type
+     * @param providedParentHash the parent (block N-1) root hash to use instead of the window, or {@code null} to
+     *                           derive the parent from the trailing-block-hash window as usual
+     */
+    public static Bytes reconstructLastBlockHash(
+            @NonNull final BlockStreamInfo blockStreamInfo,
+            @NonNull final DigestType digestType,
+            @Nullable final Bytes providedParentHash) {
         requireNonNull(blockStreamInfo);
         requireNonNull(digestType);
         if (blockStreamInfo.blockNumber() < 0L) {
             return BlockRootTreeHasher.emptySubtreeFor(digestType);
         }
-        final int hashSize = digestType.digestLength();
-        final var prevBlockHash = blockStreamInfo.blockNumber() == 0L
-                ? BlockRootTreeHasher.emptySubtreeFor(digestType)
-                : BlockImplUtils.blockHashByBlockNumber(
-                        blockStreamInfo.trailingBlockHashes(),
-                        blockStreamInfo.blockNumber() - 1,
-                        blockStreamInfo.blockNumber() - 1,
-                        hashSize);
+        // Block N's subtree roots were persisted with the digest N was built with, which may differ from the active
+        // digest after a SHA-384 -> SHA-256 switch (the switch happens at a restart, after which init() runs this).
+        // Recompute N's root hash with N's OWN digest, inferred from the persisted consensus-header-root length, so
+        // the reconstructed value equals the real hash of block N and the first block under the new digest links to
+        // the correct parent (rather than a hash recomputed under the wrong digest). When that length is not a
+        // recognized digest size (e.g. an empty/absent root), fall back to the passed digest.
+        final long consensusHeaderRootLen =
+                blockStreamInfo.consensusHeaderRootHash().length();
+        final DigestType blockDigest;
+        if (consensusHeaderRootLen == DigestType.SHA_256.digestLength()) {
+            blockDigest = DigestType.SHA_256;
+        } else if (consensusHeaderRootLen == DigestType.SHA_384.digestLength()) {
+            blockDigest = DigestType.SHA_384;
+        } else {
+            blockDigest = digestType;
+        }
+        final int hashSize = blockDigest.digestLength();
+        final Bytes prevBlockHash;
+        if (providedParentHash != null) {
+            // The caller supplied the real parent (block N-1) root hash. This is the first post-cutover block: its
+            // parent was the wrapped record block root, but the trailing window holds the original record hash (kept
+            // for the EVM BLOCKHASH history), which cannot be turned into the wrapped root. Use the provided value.
+            prevBlockHash = providedParentHash;
+        } else if (blockStreamInfo.blockNumber() == 0L) {
+            prevBlockHash = BlockRootTreeHasher.emptySubtreeFor(blockDigest);
+        } else {
+            // The trailing window may be in 48-byte padded mode (mixed era) or compacted 32-byte native mode; the
+            // persisted trailing_block_hashes_compacted flag gives the stride directly, so realBlockHashByBlockNumber
+            // strips any left-padding and recovers the true (unpadded) hash of block N-1, which feeds
+            // computeBlockRootHash.
+            prevBlockHash = BlockImplUtils.realBlockHashByBlockNumber(
+                    blockStreamInfo.trailingBlockHashes(),
+                    blockStreamInfo.blockNumber() - 1,
+                    blockStreamInfo.blockNumber() - 1,
+                    hashSize,
+                    blockStreamInfo.trailingBlockHashesCompacted());
+        }
         final var prevBlocksHasher = new IncrementalStreamingHasher(
-                digestType.buildDigest(),
+                blockDigest.buildDigest(),
                 blockStreamInfo.intermediatePreviousBlockRootHashes().stream()
                         .map(Bytes::toByteArray)
                         .toList(),
@@ -480,7 +543,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         // The final state-changes subtree root isn't persisted directly (only the penultimate roots are), so
         // reconstruct the final state-change block item that wrote this very singleton and complete the subtree.
         final var stateChangesHasher = new IncrementalStreamingHasher(
-                digestType.buildDigest(),
+                blockDigest.buildDigest(),
                 blockStreamInfo.rightmostPrecedingStateChangesTreeHashes().stream()
                         .map(Bytes::toByteArray)
                         .toList(),
@@ -501,7 +564,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         // Straight to BlockRootTree rather than through combine(), which also derives the sibling hashes
         // that only a pending proof needs
         return BlockRootTree.computeBlockRootHash(
-                digestType,
+                blockDigest,
                 blockStreamInfo.blockTimeOrThrow(),
                 prevBlockHash,
                 allPrevBlocksHash,
@@ -511,6 +574,62 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 blockStreamInfo.outputItemRootHash(),
                 lastBlockFinalStateChangesHash,
                 blockStreamInfo.traceDataRootHash());
+    }
+
+    /**
+     * Returns the wrapped record block root to use as the parent when reconstructing the given {@link BlockStreamInfo},
+     * or {@code null} when the normal trailing-window parent should be used.
+     *
+     * <p>Only the first post-cutover block needs this: its parent was the wrapped record block root, but the trailing
+     * window holds the original record hash (kept for the EVM BLOCKHASH history), which cannot be turned into the
+     * wrapped root. The wrapped root is already persisted in {@code BlockInfo.previousWrappedRecordBlockRootHash}; this
+     * reads it rather than storing a redundant copy in {@link BlockStreamInfo}. See
+     * {@link #firstPostCutoverParentHash(BlockInfo, BlockStreamInfo)} for how the first post-cutover block is identified.
+     *
+     * @param state the current state
+     * @param blockStreamInfo the block stream info being reconstructed
+     * @return the wrapped parent root hash, or {@code null} if the trailing window should be used
+     */
+    @Nullable
+    public static Bytes firstPostCutoverParentHash(
+            @NonNull final State state, @NonNull final BlockStreamInfo blockStreamInfo) {
+        final var blockRecordStates = state.getReadableStates(BlockRecordService.NAME);
+        if (blockRecordStates == null) {
+            return null;
+        }
+        final var blockInfo =
+                blockRecordStates.<BlockInfo>getSingleton(BLOCKS_STATE_ID).get();
+        return firstPostCutoverParentHash(blockInfo, blockStreamInfo);
+    }
+
+    /**
+     * Returns the wrapped record block root to use as the parent when reconstructing the given {@link BlockStreamInfo},
+     * or {@code null} when the normal trailing-window parent should be used. This is the pure predicate behind
+     * {@link #firstPostCutoverParentHash(State, BlockStreamInfo)}; it is also used by offline callers that already hold
+     * the {@link BlockInfo} (e.g. read from a block's own state-change updates) rather than a live {@link State}.
+     *
+     * <p>The first post-cutover block is identified by its previous-blocks tree: the cutover seeds that tree with the
+     * wrapped record history ({@code BlockInfo.wrappedIntermediateBlockRootsLeafCount} leaves) and adds the wrapped
+     * parent, so only the first post-cutover block persists one more leaf than the wrapped history. Block numbers
+     * can't be used: after cutover {@code BlockInfo.lastBlockNumber} stays at the last record block in BLOCKS mode,
+     * but keeps advancing with the record stream in BOTH mode, while the wrapped fields stay frozen in both.
+     *
+     * @param blockInfo the post-cutover block info, or {@code null} if none is available
+     * @param blockStreamInfo the block stream info being reconstructed
+     * @return the wrapped parent root hash, or {@code null} if the trailing window should be used
+     */
+    @Nullable
+    public static Bytes firstPostCutoverParentHash(
+            @Nullable final BlockInfo blockInfo, @NonNull final BlockStreamInfo blockStreamInfo) {
+        if (blockInfo == null || !blockInfo.previewStreamOverwritten()) {
+            return null;
+        }
+        if (blockStreamInfo.intermediateBlockRootsLeafCount()
+                != blockInfo.wrappedIntermediateBlockRootsLeafCount() + 1) {
+            return null;
+        }
+        final var wrappedParent = blockInfo.previousWrappedRecordBlockRootHash();
+        return wrappedParent.length() == 0 ? null : wrappedParent;
     }
 
     @Override
@@ -564,10 +683,16 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             lastIntervalProcessTime = asInstant(blockStreamInfo.lastIntervalProcessTimeOrElse(EPOCH));
             // During cutover, the trailing block hashes use the original record hash
             // (not the wrapped record root hash stored in lastBlockHash).
-            final var trailingHash = cutoverTrailingBlockHash != null ? cutoverTrailingBlockHash : lastBlockHash;
+            final boolean isCutoverBlock = cutoverTrailingBlockHash != null;
+            final var trailingHash = isCutoverBlock ? cutoverTrailingBlockHash : lastBlockHash;
             cutoverTrailingBlockHash = null;
-            blockHashManager.startBlock(blockStreamInfo, trailingHash);
-            runningHashManager.startBlock(blockStreamInfo);
+            final var blockInfo = state.getReadableStates(BlockRecordService.NAME)
+                    .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
+                    .get();
+            final boolean postCutover = blockInfo != null && blockInfo.previewStreamOverwritten();
+            logTrailingHashTransitions(blockStreamInfo);
+            blockHashManager.startBlock(blockStreamInfo, trailingHash, postCutover);
+            runningHashManager.startBlock(blockStreamInfo, isCutoverBlock);
 
             lifecycle.onOpenBlock(state);
 
@@ -856,7 +981,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     outputsHash,
                     traceDataHash,
                     previousBlockHashes.intermediateHashingState(),
-                    previousBlockHashes.leafCount());
+                    previousBlockHashes.leafCount(),
+                    blockHashManager.compacted());
             blockStreamInfoState.put(newBlockStreamInfo);
             ((CommittableWritableStates) writableState).commit();
 
@@ -1222,8 +1348,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private synchronized void finishProofWithSignature(
             @NonNull final Bytes blockHash,
             @NonNull final Bytes blockSignature,
-            @SuppressWarnings("unused") @Nullable final Bytes verificationKey,
-            @SuppressWarnings("unused") @Nullable final ChainOfTrustProof chainOfTrustProof) {
+            @Nullable final Bytes verificationKey,
+            @Nullable final ChainOfTrustProof chainOfTrustProof) {
         // Find the block whose hash is the signed message
         PendingBlock signedBlock = null;
         for (final var block : pendingBlocks) {
@@ -1240,22 +1366,13 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
         final Bytes effectiveSignature;
         if (verificationKey != null && chainOfTrustProof != null) {
-            if (chainOfTrustProof.hasWrapsProof()) {
-                if (wrapsProofMaterialized.compareAndSet(false, true)) {
-                    log.info(
-                            "[CLPR-SYNC-POINT] block #{} is the first to embed the WRAPS recursive proof — "
-                                    + "cross-network state-proof verification is now enabled",
-                            blockNumber);
-                }
-                effectiveSignature =
-                        verificationKey.append(blockSignature).append(chainOfTrustProof.wrapsProofOrThrow());
-            } else {
-                effectiveSignature = verificationKey
-                        .append(blockSignature)
-                        .append(chainOfTrustProof
-                                .aggregatedNodeSignaturesOrThrow()
-                                .aggregatedSignature());
+            if (wrapsProofMaterialized.compareAndSet(false, true)) {
+                log.info(
+                        "[CLPR-SYNC-POINT] block #{} is the first to embed the WRAPS recursive proof — "
+                                + "cross-network state-proof verification is now enabled",
+                        blockNumber);
             }
+            effectiveSignature = verificationKey.append(blockSignature).append(chainOfTrustProof.wrapsProofOrThrow());
         } else if (verificationKey != null) {
             effectiveSignature = verificationKey.append(blockSignature);
         } else {
@@ -1607,9 +1724,18 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             while (numMissing < all.length && all[numMissing] == null) {
                 numMissing++;
             }
-            final byte[] result = new byte[(all.length - numMissing) * hashSize];
+            // Emit each present slot at its NATIVE length. Normally every slot is in {@link #hashSize} units,
+            // but across a block-stream cutover the window transiently mixes full 48-byte SHA-384 seeds (not
+            // yet rolled off) with 32-byte SHA-256 hashes; truncating them to hashSize would corrupt the seeds.
+            int total = 0;
             for (int i = numMissing; i < all.length; i++) {
-                System.arraycopy(all[i], 0, result, (i - numMissing) * hashSize, hashSize);
+                total += all[i].length;
+            }
+            final byte[] result = new byte[total];
+            int offset = 0;
+            for (int i = numMissing; i < all.length; i++) {
+                System.arraycopy(all[i], 0, result, offset, all[i].length);
+                offset += all[i].length;
             }
             return Bytes.wrap(result);
         }
@@ -1617,15 +1743,58 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         /**
          * Starts managing running hashes for a new round, with the given trailing block hashes.
          *
+         * <p>Normally the stored {@code trailingOutputHashes} are already in the active digest's units
+         * ({@link #hashSize}). The one exception is the first block after a block-stream cutover: those seed
+         * hashes are the pre-cutover block-stream running hashes, which are always SHA-384 (48 bytes). We seed
+         * the chain from the full SHA-384 value so the running hash remains mathematically continuous across the
+         * SHA-384 &rarr; SHA-256 transition (the first post-cutover {@code nextResultHash} digests the full
+         * 48-byte seed; every subsequent hash is in {@link #hashSize} units).
+         *
+         * <p>For the blocks immediately following the cutover block, the stored window may still hold some of
+         * the full 48-byte SHA-384 seed hashes that have not yet rolled off. Those blocks are not themselves
+         * cutover blocks ({@code isCutoverBlock == false}), so we decode the per-entry sizes from the blob
+         * length: the output window is at most four entries, and since there are always at least four
+         * pre-cutover running hashes a mixed window is always exactly four entries. A length beyond
+         * {@code 4 * hashSize} therefore encodes a leading run of {@code a = (len - 4*hashSize) / (48 - hashSize)}
+         * SHA-384 (48-byte) entries followed by {@code 4 - a} {@link #hashSize}-byte entries; any shorter length
+         * is a uniform {@link #hashSize} window.
+         *
          * @param blockStreamInfo the trailing block hashes at the start of the round
+         * @param isCutoverBlock whether this is the first block after a block-stream cutover
          */
-        void startBlock(@NonNull final BlockStreamInfo blockStreamInfo) {
+        void startBlock(@NonNull final BlockStreamInfo blockStreamInfo, final boolean isCutoverBlock) {
             final var stored = blockStreamInfo.trailingOutputHashes();
-            final var n = (int) (stored.length() / hashSize);
-            nMinus3Hash = n < 4 ? null : stored.toByteArray(0, hashSize);
-            nMinus2Hash = n < 3 ? null : stored.toByteArray((n - 3) * hashSize, hashSize);
-            nMinus1Hash = n < 2 ? null : stored.toByteArray((n - 2) * hashSize, hashSize);
-            hash = n < 1 ? new byte[hashSize] : stored.toByteArray((n - 1) * hashSize, hashSize);
+            final long len = stored.length();
+            final int sha384 = DigestType.SHA_384.digestLength();
+            if (isCutoverBlock) {
+                // The cutover block's seed is the four pre-cutover block-stream running hashes, all SHA-384.
+                final var n = (int) (len / sha384);
+                nMinus3Hash = n < 4 ? null : stored.toByteArray(0, sha384);
+                nMinus2Hash = n < 3 ? null : stored.toByteArray((n - 3) * sha384, sha384);
+                nMinus1Hash = n < 2 ? null : stored.toByteArray((n - 2) * sha384, sha384);
+                hash = n < 1 ? new byte[hashSize] : stored.toByteArray((n - 1) * sha384, sha384);
+            } else if (len > 4L * hashSize) {
+                // Mixed post-cutover window: exactly four entries, the leading `a` still 48-byte SHA-384 seeds.
+                final int a = (int) ((len - 4L * hashSize) / (sha384 - hashSize));
+                final byte[][] slots = new byte[4][];
+                int offset = 0;
+                for (int i = 0; i < 4; i++) {
+                    final int size = i < a ? sha384 : hashSize;
+                    slots[i] = stored.toByteArray(offset, size);
+                    offset += size;
+                }
+                nMinus3Hash = slots[0];
+                nMinus2Hash = slots[1];
+                nMinus1Hash = slots[2];
+                hash = slots[3];
+            } else {
+                // Uniform window in the active digest's units.
+                final var n = (int) (len / hashSize);
+                nMinus3Hash = n < 4 ? null : stored.toByteArray(0, hashSize);
+                nMinus2Hash = n < 3 ? null : stored.toByteArray((n - 3) * hashSize, hashSize);
+                nMinus1Hash = n < 2 ? null : stored.toByteArray((n - 2) * hashSize, hashSize);
+                hash = n < 1 ? new byte[hashSize] : stored.toByteArray((n - 1) * hashSize, hashSize);
+            }
         }
 
         /**
@@ -1652,6 +1821,13 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
         private Bytes blockHashes;
 
+        /**
+         * Whether {@link #blockHashes} is stored at the active digest's native entry size (vs. 48-byte padded) — the
+         * window's {@code trailing_block_hashes_compacted} flag, carried forward from the previous block's
+         * {@link BlockStreamInfo} and flipped true once the window compacts.
+         */
+        private boolean compacted;
+
         BlockHashManager(@NonNull final Configuration config) {
             this.numTrailingBlocks =
                     config.getConfigData(BlockRecordStreamConfig.class).numOfBlockHashesInState();
@@ -1661,9 +1837,27 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
          * Starts managing running hashes for a new round, with the given trailing block hashes.
          *
          * @param blockStreamInfo the trailing block hashes at the start of the round
+         * @param prevBlockHash the hash of the previous block, to append to the trailing block hashes
+         * @param postCutover whether the preview stream has been overwritten (from {@code BlockInfo}); only then may
+         * the trailing window be compacted to the active digest length
          */
-        void startBlock(@NonNull final BlockStreamInfo blockStreamInfo, @NonNull Bytes prevBlockHash) {
-            blockHashes = appendHash(prevBlockHash, blockStreamInfo.trailingBlockHashes(), numTrailingBlocks);
+        void startBlock(
+                @NonNull final BlockStreamInfo blockStreamInfo,
+                @NonNull Bytes prevBlockHash,
+                final boolean postCutover) {
+            // Keep all entries a uniform size: pad to RECORD_HASH_SIZE while any genuine pre-cutover hash remains,
+            // then compact the window to the active digest length once none do and the stream has cut over (i.e.
+            // the state's previewStreamOverwritten flag is set); before cutover the window is never compacted.
+            final var appended = BlockImplUtils.appendTrailingBlockHash(
+                    prevBlockHash,
+                    blockStreamInfo.trailingBlockHashes(),
+                    numTrailingBlocks,
+                    RECORD_HASH_SIZE,
+                    digestOrThrow().getDigestLength(),
+                    postCutover,
+                    blockStreamInfo.trailingBlockHashesCompacted());
+            blockHashes = appended.window();
+            compacted = appended.compacted();
         }
 
         /**
@@ -1679,8 +1873,18 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
          */
         @Nullable
         Bytes hashOfBlock(final long blockNo) {
-            final int hashSize = digestOrThrow().getDigestLength();
-            return BlockImplUtils.blockHashByBlockNumber(blockHashes, blockNumber - 1, blockNo, hashSize);
+            // The window may be in 48-byte padded mode or compacted 32-byte native mode; the compacted flag gives the
+            // stride directly, and realBlockHashByBlockNumber strips any left-padding to recover the real hash.
+            return BlockImplUtils.realBlockHashByBlockNumber(
+                    blockHashes, blockNumber - 1, blockNo, digestOrThrow().getDigestLength(), compacted);
+        }
+
+        /**
+         * Returns whether the current trailing window is stored at the active digest's native entry size (its
+         * {@code trailing_block_hashes_compacted} flag), to persist into the block's {@link BlockStreamInfo}.
+         */
+        boolean compacted() {
+            return compacted;
         }
 
         /**
@@ -1896,6 +2100,56 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         stateChangesHasher = new IncrementalStreamingHasher(digestOrThrow(), List.of(), 0);
         // Branch 8
         traceDataHasher = new IncrementalStreamingHasher(digestOrThrow(), List.of(), 0);
+    }
+
+    /**
+     * Emits a decoded dump of the trailing-hash windows at the block digest transition (e.g. SHA-384 -> SHA-256).
+     * Logs a BEFORE snapshot (the window entering the transition block) now, and an AFTER snapshot (the window
+     * entering the following block) on the next call. The previous block's digest length is seeded from the
+     * incoming consensus header root on the first block so a transition that coincides with a restart is still
+     * detected.
+     *
+     * <p>The block-stream cutover is logged separately, by {@code V0740BlockStreamSchema.restart}, which can see
+     * the genuine pre-cutover window before it overwrites it (this restarted node cannot).
+     *
+     * @param blockStreamInfo the trailing hashes as of the end of the previous block (i.e. entering this block)
+     */
+    private void logTrailingHashTransitions(@NonNull final BlockStreamInfo blockStreamInfo) {
+        final int activeDigestLength = digestOrThrow().getDigestLength();
+        if (pendingTransitionLabel != null) {
+            log.info(
+                    "{}",
+                    BlockImplUtils.describeTrailingWindows(
+                            pendingTransitionLabel,
+                            blockStreamInfo.trailingBlockHashes(),
+                            blockStreamInfo.trailingOutputHashes(),
+                            blockStreamInfo.blockNumber(),
+                            activeDigestLength));
+            pendingTransitionLabel = null;
+        }
+        if (previousDigestLength == -1) {
+            // The stored consensus header root was hashed with the previous block's digest (empty at genesis); the
+            // output window can't tell, since a cutover seed holds 48-byte record hashes on any digest
+            final int storedLength =
+                    (int) blockStreamInfo.consensusHeaderRootHash().length();
+            previousDigestLength = storedLength == 0 ? activeDigestLength : storedLength;
+        }
+        if (previousDigestLength != activeDigestLength) {
+            final String t =
+                    "SHA-" + (previousDigestLength * 8) + " -> SHA-" + (activeDigestLength * 8) + " transition";
+            // Decode the BEFORE snapshot in the prior era's digest length so it reads truthfully (e.g. a native
+            // 48-byte SHA-384 window), rather than as a "pre-compaction" window of the new, shorter digest.
+            log.info(
+                    "{}",
+                    BlockImplUtils.describeTrailingWindows(
+                            "BEFORE " + t,
+                            blockStreamInfo.trailingBlockHashes(),
+                            blockStreamInfo.trailingOutputHashes(),
+                            blockStreamInfo.blockNumber(),
+                            previousDigestLength));
+            pendingTransitionLabel = "AFTER " + t;
+        }
+        previousDigestLength = activeDigestLength;
     }
 
     private DigestType digestType() {

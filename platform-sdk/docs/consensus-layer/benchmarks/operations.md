@@ -106,6 +106,10 @@ tracked benchmark on the benchmark machine and publishes the results.
 - **One shared machine, the runner label `hl-cn-benchmark-lin`.** It is not dedicated to the benchmarks: other
   workloads can run on it, and a job can wait in GitHub's queue for hours. `timeout-minutes` does not count the queue;
   GitHub fails a job that waits 24 hours for a runner.
+- **Calibration runs queue, and the nightly job competes with them.** The calibration workflow runs one calibration at
+  a time and keeps up to 100 waiting. The nightly job, which starts at 17:00 UTC, waits for the machine like any other
+  job, so the longer the calibration queue, the later the nightly job can start. GitHub does not document whether the
+  time a run waits for a running calibration counts toward the 24 hours.
 - **Kubernetes' "Guaranteed" class reserves CPU time, not cores.** A pod whose CPU requests equal its limits gets its
   share of CPU time without being slowed down, but it can still run on any CPU of the machine. Other pods then run on
   the second hardware thread (SMT) of its cores and share its L3 cache. `cpuset.cpus.effective` shows which CPUs a pod

@@ -134,12 +134,12 @@ public class V0780ClprSchema extends Schema<SemanticVersion> {
     /**
      * Initializes any missing CLPR singleton values without overwriting existing ledger state.
      *
-     * <p>This schema does not initialize the singletons during migration. For a new network,
+     * <p>This schema does not initialize the singletons during startup. For a new network,
      * {@link com.hedera.node.app.service.clpr.impl.ClprServiceImpl#doGenesisSetup} initializes them, so the
      * empty genesis hash is externalized before these writes. For a network upgrading from a version without
      * them, the handle workflow initializes them during post-upgrade setup. Both run at handle time, when
-     * network properties such as {@code clpr.chainId} are in effect; a migration only sees node-local
-     * configuration, and would not run at all when upgrading from a state at or after this schema's version.
+     * network properties such as {@code clpr.chainId} are in effect; schema startup only sees node-local
+     * configuration.
      *
      * <p>All three singletons are initialized even when {@code clpr.enabled} is false. CLPR handlers need
      * them as soon as the flag is set, and since the flag is a network property that a later file
