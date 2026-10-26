@@ -3,6 +3,7 @@ package org.hiero.otter.fixtures.network.simulation;
 
 import static java.util.Objects.requireNonNull;
 
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -15,6 +16,8 @@ import java.util.Map;
 import java.util.Random;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
+import org.hiero.consensus.gossip.config.BroadcastConfig;
+import org.hiero.consensus.gossip.config.SyncConfig;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -34,9 +37,45 @@ import org.hiero.otter.fixtures.util.CursoredLog.Cursor;
 public class SimulatedNetworkConnectivity {
 
     /**
-     * The tunable parameters of this simulation.
+     * The initial capacity of the sequence number space for the cursored log of events. This should match the number of
+     * non-expired rounds according to the default configuration of the nodes in the network, but it does not have to be
+     * exact because the log will expand as needed.
      */
-    private final SimulatedNetworkConnectivityConfig config;
+    private static final int INITIAL_SEQUENCE_NUMBER_CAPACITY = 1000;
+
+    /**
+     * The initial capacity of the event log. This should be large enough to hold all events that are not expired, but
+     * it does not have to be exact because the log will expand as needed. Must be a power of 2.
+     */
+    private static final int INITIAL_EVENT_LOG_CAPACITY = (int) Math.pow(2, 8);
+
+    /**
+     * How many round trips of a link pass between it coming up and anything being delivered over it. This stands in
+     * for the TCP and TLS handshakes, protocol negotiation and first sync.
+     */
+    private static final double RECONNECT_ROUND_TRIPS = 5.0;
+
+    /**
+     * The reconnect delay is randomly varied by up to this fraction in either direction, so that links which come up
+     * together do not all become usable at the same moment.
+     */
+    private static final double RECONNECT_JITTER = 0.2;
+
+    /**
+     * The production broadcast settings the delivery delays are derived from. Only the defaults are used.
+     */
+    private static final BroadcastConfig BROADCAST_CONFIG = new TestConfigBuilder()
+            .withConfigDataType(BroadcastConfig.class)
+            .getOrCreateConfig()
+            .getConfigData(BroadcastConfig.class);
+
+    /**
+     * The production sync settings the delivery delays are derived from. Only the defaults are used.
+     */
+    private static final SyncConfig SYNC_CONFIG = new TestConfigBuilder()
+            .withConfigDataType(SyncConfig.class)
+            .getOrCreateConfig()
+            .getConfigData(SyncConfig.class);
 
     /**
      * The random number generator to use for simulating network delays.
@@ -159,37 +198,20 @@ public class SimulatedNetworkConnectivity {
     private final ArrivalTimeClamp arrivalTimeClamp = new ArrivalTimeClamp();
 
     /**
-     * Constructor using {@link SimulatedNetworkConnectivityConfig#DEFAULT}.
-     *
-     * @param random the random number generator to use for simulating network delays
-     * @param start  the instant the simulation starts at; arrival times are measured from it internally, so it only
-     *               needs to be within a few centuries of the times the network is ticked with
-     */
-    public SimulatedNetworkConnectivity(@NonNull final Random random, @NonNull final Instant start) {
-        this(random, start, SimulatedNetworkConnectivityConfig.DEFAULT);
-    }
-
-    /**
      * Constructor.
      *
      * @param random the random number generator to use for simulating network delays
-     * @param start  the instant the simulation starts at; arrival times are measured from it internally, so it only
-     *               needs to be within a few centuries of the times the network is ticked with
-     * @param config the tunable parameters of the simulation
+     * @param start  the instant the simulation starts at
      */
-    public SimulatedNetworkConnectivity(
-            @NonNull final Random random,
-            @NonNull final Instant start,
-            @NonNull final SimulatedNetworkConnectivityConfig config) {
+    public SimulatedNetworkConnectivity(@NonNull final Random random, @NonNull final Instant start) {
         this.random = requireNonNull(random);
-        this.config = requireNonNull(config);
         inFlightEvents = new InFlightEvents(this::isConnected, nodeEventWindows::get, start);
         inFlightEventWindows = new InFlightEventWindows(this::isConnected, start);
         inFlightInDeliveryOrder = List.of(inFlightEventWindows, inFlightEvents);
         eventLog = new CursoredLog<>(
                 ConsensusConstants.ROUND_FIRST,
-                config.initialSequenceNumberCapacity(),
-                config.initialEventLogCapacity(),
+                INITIAL_SEQUENCE_NUMBER_CAPACITY,
+                INITIAL_EVENT_LOG_CAPACITY,
                 PlatformEvent::getBirthRound);
     }
 
@@ -267,12 +289,12 @@ public class SimulatedNetworkConnectivity {
         }
         for (final LinkKey link : links) {
             final boolean tooSlow =
-                    roundTrip(link.first(), link.second()).compareTo(config.disableBroadcastRoundTrip()) > 0;
+                    roundTrip(link.first(), link.second()).compareTo(BROADCAST_CONFIG.disablePingThreshold()) > 0;
             final Instant enabledAt = broadcastEnabledAt.get(link);
             if (tooSlow) {
                 broadcastEnabledAt.put(link, Instant.MAX);
             } else if (Instant.MAX.equals(enabledAt)) {
-                broadcastEnabledAt.put(link, currentTime.plus(config.broadcastPauseOnLag()));
+                broadcastEnabledAt.put(link, currentTime.plus(BROADCAST_CONFIG.pauseOnLag()));
             }
         }
     }
@@ -321,9 +343,8 @@ public class SimulatedNetworkConnectivity {
         final ConnectionState forward = connections.get(link.firstToSecond());
         final ConnectionState backward = connections.get(link.secondToFirst());
         final Duration roundTrip = forward.latency().plus(backward.latency());
-        final double jitter = config.reconnectJitter() * (2 * random.nextDouble() - 1);
-        final Duration delay =
-                Duration.ofNanos((long) (roundTrip.toNanos() * config.reconnectRoundTrips() * (1 + jitter)));
+        final double jitter = RECONNECT_JITTER * (2 * random.nextDouble() - 1);
+        final Duration delay = Duration.ofNanos((long) (roundTrip.toNanos() * RECONNECT_ROUND_TRIPS * (1 + jitter)));
         reconnectReadyAt.put(link, currentTime.plus(delay));
 
         resendEventWindow(link.first(), link.second());
@@ -654,8 +675,9 @@ public class SimulatedNetworkConnectivity {
     @NonNull
     private Duration syncDelay(@NonNull final NodeId sender, @NonNull final NodeId receiver) {
         final boolean broadcastMode = isBroadcastMode(sender, receiver);
-        final Duration holdBack = broadcastMode ? config.syncHoldBackInBroadcastMode() : Duration.ZERO;
-        final Duration pause = broadcastMode ? config.syncPauseInBroadcastMode() : config.syncPauseWithoutBroadcast();
+        final Duration holdBack = broadcastMode ? SYNC_CONFIG.ancestorFilterThreshold() : Duration.ZERO;
+        final Duration pause =
+                broadcastMode ? BROADCAST_CONFIG.rpcSleepAfterSyncWhileBroadcasting() : SYNC_CONFIG.rpcSleepAfterSync();
         return holdBack.plus(roundTrip(sender, receiver)).plus(pause.dividedBy(2));
     }
 

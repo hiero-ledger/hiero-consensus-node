@@ -18,6 +18,9 @@ import java.util.Arrays;
  * the nanoseconds since a start instant given to the constructor. Only the first {@link #size} slots of each array are
  * used.
  *
+ * <p>Internal counters are using nanoseconds since start of the simulation as a single long, so this class does not
+ * support simulated time spanning more than 200 years.
+ *
  * <p>This class is not safe to use from more than one thread.
  *
  * @param <T> what is held in flight
@@ -27,12 +30,6 @@ final class InFlightQueue<T extends InTransit> {
     private static final int INITIAL_CAPACITY = 8;
 
     private static final long NANOS_PER_SECOND = 1_000_000_000L;
-
-    /**
-     * The furthest an instant can be from the start, in seconds, and still have its distance in nanoseconds fit in a
-     * {@code long}. That is about 292 years, far longer than any simulation runs.
-     */
-    private static final long MAX_OFFSET_SECONDS = Long.MAX_VALUE / NANOS_PER_SECOND - 1;
 
     /** The instant arrival times are measured from, as seconds since the epoch. */
     private final long startSeconds;
@@ -91,12 +88,6 @@ final class InFlightQueue<T extends InTransit> {
 
     private static long nanosSince(final long startSeconds, final int startNanos, @NonNull final Instant time) {
         final long seconds = time.getEpochSecond() - startSeconds;
-        if (seconds > MAX_OFFSET_SECONDS) {
-            return Long.MAX_VALUE;
-        }
-        if (seconds < -MAX_OFFSET_SECONDS) {
-            return Long.MIN_VALUE;
-        }
         return seconds * NANOS_PER_SECOND + (time.getNano() - startNanos);
     }
 
