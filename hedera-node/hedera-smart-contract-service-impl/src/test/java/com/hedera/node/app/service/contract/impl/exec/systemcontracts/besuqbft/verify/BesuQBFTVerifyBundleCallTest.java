@@ -4,6 +4,7 @@ package com.hedera.node.app.service.contract.impl.exec.systemcontracts.besuqbft.
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.AdditionalMatchers.aryEq;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mockConstruction;
@@ -21,6 +22,7 @@ import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.commo
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.math.BigInteger;
 import java.util.List;
+import java.util.function.UnaryOperator;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedConstruction;
 
@@ -29,68 +31,32 @@ class BesuQBFTVerifyBundleCallTest extends CallTestBase {
     // A realistic multi-node trust anchor: RLP([encodedValidatorSet, serviceAddr20, codeHash32])
     // encodedValidatorSet = BesuQbftVerifier.encodeValidatorSet([addr20])
     private static final byte[] VALIDATOR_ADDR = new byte[20];
+    private static final byte[] NEW_VALIDATOR_ADDR = new byte[20];
     private static final byte[] SERVICE_ADDR = new byte[20];
     private static final byte[] CODE_HASH = new byte[32];
+    private static final byte[] CHANNEL_ID = new byte[32];
 
     static {
         VALIDATOR_ADDR[0] = 0x11;
+        NEW_VALIDATOR_ADDR[0] = 0x12;
         SERVICE_ADDR[0] = 0x22;
         CODE_HASH[0] = 0x33;
+        CHANNEL_ID[0] = 0x44;
     }
 
     private static byte[] buildTrustAnchorRlp() {
-        byte[] encodedValidatorSet = BesuQbftVerifier.encodeValidatorSet(List.of(VALIDATOR_ADDR));
+        return fullTrustAnchor(VALIDATOR_ADDR);
+    }
+
+    private static byte[] fullTrustAnchor(final byte[] validator) {
+        byte[] encodedValidatorSet = BesuQbftVerifier.encodeValidatorSet(List.of(validator));
         return Rlp.encodeList(List.of(
                 Rlp.encodeBytes(encodedValidatorSet), Rlp.encodeBytes(SERVICE_ADDR), Rlp.encodeBytes(CODE_HASH)));
     }
 
-    @Test
-    void augmentWithNewTrustAnchor_setsFieldsAndRoundTrips() throws Exception {
-        ClprBundleContent base = ClprBundleContent.newBuilder().build();
-        byte[] trustAnchorRlp = buildTrustAnchorRlp();
-        byte[] anchorId = new byte[] {0x01};
-
-        byte[] result = BesuQBFTVerifyBundleCall.augmentWithNewTrustAnchor(base, trustAnchorRlp, anchorId);
-
-        ClprBundleContent reparsed =
-                ClprBundleContent.PROTOBUF.parse(Bytes.wrap(result).toReadableSequentialData());
-        assertThat(reparsed.newTrustAnchor().toByteArray()).isEqualTo(trustAnchorRlp);
-        assertThat(reparsed.newTrustAnchorId().toByteArray()).isEqualTo(anchorId);
-    }
-
-    @Test
-    void augmentWithNewTrustAnchor_preservesExistingFields() throws Exception {
-        ClprBundleContent base =
-                ClprBundleContent.newBuilder().messages(List.of()).build();
-        byte[] trustAnchorRlp = buildTrustAnchorRlp();
-        byte[] anchorId = new byte[] {0x02};
-
-        byte[] result = BesuQBFTVerifyBundleCall.augmentWithNewTrustAnchor(base, trustAnchorRlp, anchorId);
-
-        ClprBundleContent reparsed =
-                ClprBundleContent.PROTOBUF.parse(Bytes.wrap(result).toReadableSequentialData());
-        assertThat(reparsed.newTrustAnchor().toByteArray()).isEqualTo(trustAnchorRlp);
-        assertThat(reparsed.newTrustAnchorId().toByteArray()).isEqualTo(anchorId);
-    }
-
-    @Test
-    void augmentWithNewTrustAnchor_multiValidatorTrustAnchor_roundTrips() throws Exception {
-        byte[] addr1 = new byte[20];
-        byte[] addr2 = new byte[20];
-        addr1[0] = 0x11;
-        addr2[0] = 0x22;
-        byte[] encodedValidatorSet = BesuQbftVerifier.encodeValidatorSet(List.of(addr1, addr2));
-        byte[] trustAnchorRlp = Rlp.encodeList(List.of(
-                Rlp.encodeBytes(encodedValidatorSet), Rlp.encodeBytes(SERVICE_ADDR), Rlp.encodeBytes(CODE_HASH)));
-        byte[] anchorId = new byte[] {0x03};
-
-        byte[] result = BesuQBFTVerifyBundleCall.augmentWithNewTrustAnchor(
-                ClprBundleContent.newBuilder().build(), trustAnchorRlp, anchorId);
-
-        ClprBundleContent reparsed =
-                ClprBundleContent.PROTOBUF.parse(Bytes.wrap(result).toReadableSequentialData());
-        assertThat(reparsed.newTrustAnchor().toByteArray()).isEqualTo(trustAnchorRlp);
-        assertThat(reparsed.newTrustAnchorId().toByteArray()).isEqualTo(anchorId);
+    /** {@code channelId(32) || serviceAddress(20)}, as returned by {@code verifyConfig}. */
+    private static byte[] channelContext(final byte[] channelId, final byte[] serviceAddress) {
+        return Bytes.wrap(channelId).append(Bytes.wrap(serviceAddress)).toByteArray();
     }
 
     @Test
@@ -98,43 +64,150 @@ class BesuQBFTVerifyBundleCallTest extends CallTestBase {
         // The relayed content claims an inflated endpoint-manifest version (999); the proven queue metadata says 7.
         // The returned metaTuple must carry the PROVEN value — a relay cannot inflate it to make the peer look
         // up-to-date and suppress our manifest re-pushes (spec §4.5, liveness).
-        final byte[] sentHash = filled(32, 0x02);
-        final byte[] recvHash = filled(32, 0x03);
-        final byte[] lastHash = filled(32, 0x04);
-        final var relayedContent = ClprBundleContent.newBuilder()
-                .metadata(ClprQueueMetadata.newBuilder()
-                        .nextMessageId(42)
-                        .sentRunningHash(Bytes.wrap(sentHash))
-                        .receivedMessageId(17)
-                        .receivedRunningHash(Bytes.wrap(recvHash))
-                        .status(ClprChannelStatus.ACTIVE)
-                        .endpointManifestVersion(999L)
-                        .build())
+        final var relayed = relayedMetadata(filled(32, 0x02))
+                .copyBuilder()
+                .endpointManifestVersion(999L)
                 .build();
-        final var proven = new BesuQbftVerifier.QueueMetadata(
-                42, sentHash, 17, recvHash, ClprChannelStatus.ACTIVE.protoOrdinal(), lastHash, 7L);
-        final var verified = new BesuQbftVerifier.VerifiedBundle(
-                filled(32, 0x01),
-                ClprBundleContent.PROTOBUF.toBytes(relayedContent).toByteArray(),
-                proven,
-                new byte[0],
-                new byte[0],
-                new byte[0]);
 
-        try (final MockedConstruction<BesuQbftVerifier> ignored =
-                mockConstruction(BesuQbftVerifier.class, (mock, ctx) -> given(mock.verifyBundle(any(), any()))
-                        .willReturn(verified))) {
-            final var call = new BesuQBFTVerifyBundleCall(
-                    mockEnhancement(), gasCalculator, new byte[] {1, 2, 3}, buildTrustAnchorRlp());
-            final var result = call.execute(frame);
+        final var result = executeWith(verifiedBundle(contentBytes(relayed), new byte[0]));
 
-            assertThat(result.responseCode()).isEqualTo(SUCCESS);
-            final Tuple metaTuple = ClprVerifierAbi.VERIFY_BUNDLE_RETURN
-                    .decode(result.fullResult().output().toArray())
-                    .get(0);
-            assertThat(((BigInteger) metaTuple.get(0)).longValueExact()).isEqualTo(42L); // from relayed content
-            assertThat(((BigInteger) metaTuple.get(5)).longValueExact()).isEqualTo(7L); // from PROVEN metadata
+        assertThat(result.responseCode()).isEqualTo(SUCCESS);
+        final Tuple metaTuple = ClprVerifierAbi.VERIFY_BUNDLE_RETURN
+                .decode(result.fullResult().output().toArray())
+                .get(0);
+        assertThat(((BigInteger) metaTuple.get(0)).longValueExact()).isEqualTo(42L);
+        assertThat(((BigInteger) metaTuple.get(5)).longValueExact()).isEqualTo(7L); // from PROVEN metadata
+    }
+
+    @Test
+    void acceptsRelayedMetadataThatMatchesTheProvenState() {
+        final var result = executeWith(verifiedBundle(contentBytes(relayedMetadata(filled(32, 0x02))), new byte[0]));
+
+        assertThat(result.responseCode()).isEqualTo(SUCCESS);
+        final Tuple metaTuple = ClprVerifierAbi.VERIFY_BUNDLE_RETURN
+                .decode(result.fullResult().output().toArray())
+                .get(0);
+        assertThat(((BigInteger) metaTuple.get(0)).longValueExact()).isEqualTo(42L);
+        assertThat(((BigInteger) metaTuple.get(2)).longValueExact()).isEqualTo(17L);
+    }
+
+    @Test
+    void rejectsRelayedMetadataThatDiffersFromTheProvenState() {
+        final ClprQueueMetadata honest = relayedMetadata(filled(32, 0x02));
+        final List<UnaryOperator<ClprQueueMetadata>> tamperings = List.of(
+                m -> m.copyBuilder().nextMessageId(43).build(),
+                m -> m.copyBuilder().receivedMessageId(18).build(),
+                m -> m.copyBuilder().status(ClprChannelStatus.CLOSING).build(),
+                m -> m.copyBuilder()
+                        .sentRunningHash(Bytes.wrap(filled(32, 0x09)))
+                        .build(),
+                m -> m.copyBuilder()
+                        .receivedRunningHash(Bytes.wrap(filled(32, 0x09)))
+                        .build());
+
+        for (final var tamper : tamperings) {
+            final var result = executeWith(verifiedBundle(contentBytes(tamper.apply(honest)), new byte[0]));
+            assertThat(result.responseCode()).isEqualTo(CLPR_BUNDLE_VERIFICATION_FAILED);
         }
+    }
+
+    @Test
+    void rejectsContentWithoutMetadata() {
+        // Non-empty content (it carries another field) without the metadata it must be checked against.
+        final byte[] content = contentBytes(ClprBundleContent.newBuilder()
+                .newTrustAnchorId(Bytes.wrap(new byte[] {1}))
+                .build());
+
+        final var result = executeWith(verifiedBundle(content, new byte[0]));
+
+        assertThat(result.responseCode()).isEqualTo(CLPR_BUNDLE_VERIFICATION_FAILED);
+    }
+
+    @Test
+    void rejectsRelayClaimedTrustAnchorWithoutProvenRotation() {
+        final var content = ClprBundleContent.newBuilder()
+                .metadata(relayedMetadata(filled(32, 0x02)))
+                .newTrustAnchor(Bytes.wrap(fullTrustAnchor(NEW_VALIDATOR_ADDR)))
+                .newTrustAnchorId(Bytes.wrap(new byte[] {9}))
+                .build();
+
+        final var result = executeWith(verifiedBundle(contentBytes(content), new byte[0]));
+
+        assertThat(result.responseCode()).isEqualTo(CLPR_BUNDLE_VERIFICATION_FAILED);
+    }
+
+    @Test
+    void rejectsRelayClaimedTrustAnchorIdWithoutProvenRotation() {
+        final var content = ClprBundleContent.newBuilder()
+                .metadata(relayedMetadata(filled(32, 0x02)))
+                .newTrustAnchorId(Bytes.wrap(new byte[] {9}))
+                .build();
+
+        final var result = executeWith(verifiedBundle(contentBytes(content), new byte[0]));
+
+        assertThat(result.responseCode()).isEqualTo(CLPR_BUNDLE_VERIFICATION_FAILED);
+    }
+
+    @Test
+    void returnsProvenTrustAnchorRotation() {
+        final byte[] provenSet = BesuQbftVerifier.encodeValidatorSet(List.of(NEW_VALIDATOR_ADDR));
+        final var verified =
+                verifiedBundle(contentBytes(relayedMetadata(filled(32, 0x02))), new byte[0], provenSet, new byte[] {1});
+
+        final var result = executeWith(verified);
+
+        assertThat(result.responseCode()).isEqualTo(SUCCESS);
+        final var decoded = ClprVerifierAbi.VERIFY_BUNDLE_RETURN.decode(
+                result.fullResult().output().toArray());
+        // The proven validator set, with the service address and code hash carried over from the current anchor.
+        assertThat((byte[]) decoded.get(2)).isEqualTo(fullTrustAnchor(NEW_VALIDATOR_ADDR));
+        assertThat((byte[]) decoded.get(3)).containsExactly(1);
+    }
+
+    @Test
+    void acceptsRelayClaimedTrustAnchorEqualToTheProvenRotation() {
+        final byte[] provenSet = BesuQbftVerifier.encodeValidatorSet(List.of(NEW_VALIDATOR_ADDR));
+        final var content = ClprBundleContent.newBuilder()
+                .metadata(relayedMetadata(filled(32, 0x02)))
+                .newTrustAnchor(Bytes.wrap(fullTrustAnchor(NEW_VALIDATOR_ADDR)))
+                .build();
+
+        final var result = executeWith(verifiedBundle(contentBytes(content), new byte[0], provenSet, new byte[] {1}));
+
+        assertThat(result.responseCode()).isEqualTo(SUCCESS);
+    }
+
+    @Test
+    void rejectsRelayClaimedTrustAnchorThatDiffersFromTheProvenRotation() {
+        final byte[] provenSet = BesuQbftVerifier.encodeValidatorSet(List.of(NEW_VALIDATOR_ADDR));
+        final var content = ClprBundleContent.newBuilder()
+                .metadata(relayedMetadata(filled(32, 0x02)))
+                .newTrustAnchor(Bytes.wrap(fullTrustAnchor(VALIDATOR_ADDR)))
+                .build();
+
+        final var result = executeWith(verifiedBundle(contentBytes(content), new byte[0], provenSet, new byte[] {1}));
+
+        assertThat(result.responseCode()).isEqualTo(CLPR_BUNDLE_VERIFICATION_FAILED);
+    }
+
+    @Test
+    void rejectsChannelContextOfWrongLength() {
+        final var verified = verifiedBundle(contentBytes(relayedMetadata(filled(32, 0x02))), new byte[0]);
+
+        for (final byte[] badContext : List.of(new byte[0], CHANNEL_ID, new byte[53])) {
+            assertThat(executeWith(verified, badContext).responseCode()).isEqualTo(CLPR_BUNDLE_VERIFICATION_FAILED);
+        }
+    }
+
+    @Test
+    void rejectsChannelContextForAnotherServiceAddress() {
+        final byte[] otherService = SERVICE_ADDR.clone();
+        otherService[19] = 0x01;
+        final var verified = verifiedBundle(contentBytes(relayedMetadata(filled(32, 0x02))), new byte[0]);
+
+        final var result = executeWith(verified, channelContext(CHANNEL_ID, otherService));
+
+        assertThat(result.responseCode()).isEqualTo(CLPR_BUNDLE_VERIFICATION_FAILED);
     }
 
     @Test
@@ -189,17 +262,37 @@ class BesuQBFTVerifyBundleCallTest extends CallTestBase {
     }
 
     private Call.PricedResult executeWith(final BesuQbftVerifier.VerifiedBundle verified) {
-        try (final MockedConstruction<BesuQbftVerifier> ignored =
-                mockConstruction(BesuQbftVerifier.class, (mock, ctx) -> given(mock.verifyBundle(any(), any()))
+        return executeWith(verified, channelContext(CHANNEL_ID, SERVICE_ADDR));
+    }
+
+    /**
+     * Runs the call with the verifier mocked to return {@code verified} only when it is asked to verify
+     * {@link #CHANNEL_ID}; any other channel id makes the mock return {@code null}, which fails the call.
+     */
+    private Call.PricedResult executeWith(final BesuQbftVerifier.VerifiedBundle verified, final byte[] channelContext) {
+        try (final MockedConstruction<BesuQbftVerifier> ignored = mockConstruction(
+                BesuQbftVerifier.class, (mock, ctx) -> given(mock.verifyBundle(any(), any(), aryEq(CHANNEL_ID)))
                         .willReturn(verified))) {
             return new BesuQBFTVerifyBundleCall(
-                            mockEnhancement(), gasCalculator, new byte[] {1, 2, 3}, buildTrustAnchorRlp())
+                            mockEnhancement(),
+                            gasCalculator,
+                            new byte[] {1, 2, 3},
+                            buildTrustAnchorRlp(),
+                            channelContext)
                     .execute(frame);
         }
     }
 
     private static BesuQbftVerifier.VerifiedBundle verifiedBundle(
             final byte[] contentBytes, final byte[] newEndpointManifestBytes) {
+        return verifiedBundle(contentBytes, newEndpointManifestBytes, new byte[0], new byte[0]);
+    }
+
+    private static BesuQbftVerifier.VerifiedBundle verifiedBundle(
+            final byte[] contentBytes,
+            final byte[] newEndpointManifestBytes,
+            final byte[] newTrustAnchor,
+            final byte[] newTrustAnchorId) {
         final var proven = new BesuQbftVerifier.QueueMetadata(
                 42,
                 filled(32, 0x02),
@@ -209,7 +302,7 @@ class BesuQBFTVerifyBundleCallTest extends CallTestBase {
                 filled(32, 0x04),
                 7L);
         return new BesuQbftVerifier.VerifiedBundle(
-                filled(32, 0x01), contentBytes, proven, new byte[0], new byte[0], newEndpointManifestBytes);
+                filled(32, 0x01), contentBytes, proven, newTrustAnchor, newTrustAnchorId, newEndpointManifestBytes);
     }
 
     private static ClprQueueMetadata relayedMetadata(final byte[] sentRunningHash) {
@@ -223,9 +316,11 @@ class BesuQBFTVerifyBundleCallTest extends CallTestBase {
     }
 
     private static byte[] contentBytes(final ClprQueueMetadata metadata) {
-        return ClprBundleContent.PROTOBUF
-                .toBytes(ClprBundleContent.newBuilder().metadata(metadata).build())
-                .toByteArray();
+        return contentBytes(ClprBundleContent.newBuilder().metadata(metadata).build());
+    }
+
+    private static byte[] contentBytes(final ClprBundleContent content) {
+        return ClprBundleContent.PROTOBUF.toBytes(content).toByteArray();
     }
 
     private static byte[] manifestBytes(final long version) {
