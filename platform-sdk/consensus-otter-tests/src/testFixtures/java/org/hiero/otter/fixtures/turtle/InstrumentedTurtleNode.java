@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.turtle;
 
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
+import static org.hiero.otter.fixtures.internal.AbstractMiniNode.LifeCycle.RUNNING;
 import static org.hiero.otter.fixtures.internal.InstrumentedModules.INSTRUMENTED_EVENT_CREATOR;
 import static org.hiero.otter.fixtures.internal.InstrumentedModules.PING_CHANNEL;
 
