@@ -71,5 +71,6 @@ release candidate tag (`build-XXXXX`) and the subsequent workflows that are trig
 
 1. `301: [FLOW] Deploy Prod Release` is triggered on tag applied to `main` or `release/major.minor` branch
    1. Tag format is required to match `vX.Y.Z*` (allows for alpha, release candidate tags, etc)
+   2. It can also be dispatched with an existing tag as its `tag` input, to re-run a release or to start one from automation
 2. `301: [FLOW] Deploy Prod Release` builds and publishes the release artifacts for the tag
-3. `301: [FLOW] Deploy Prod Release` copies the `services` protobufs into `hashgraph/hedera-protobufs` on a new branch and tags that commit with the release version
+3. Once the release build succeeds, `301: [FLOW] Deploy Prod Release` copies the `services` protobufs into `hashgraph/hedera-protobufs` on a new branch and tags that commit with the release version

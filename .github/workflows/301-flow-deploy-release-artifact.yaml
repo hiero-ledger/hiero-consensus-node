@@ -1,9 +1,19 @@
 # SPDX-License-Identifier: Apache-2.0
 name: "301: [FLOW] Deploy Prod Release"
+# The tag is in the run name so a dispatcher can find the run it started.
+run-name: "301: [FLOW] Deploy Prod Release (${{ inputs.tag || github.ref_name }})"
 on:
   push:
     tags:
       - "v[0-9]+.[0-9]+.[0-9]+-?*"
+  # Builds and publishes an existing release tag: a re-run, or a release
+  # dispatched by Chewie or hcn-release-automation rather than started by a tag push.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to build and publish (vX.Y.Z, optionally with a suffix). It must already exist."
+        required: true
+        type: string
 
 defaults:
   run:
@@ -18,16 +28,20 @@ jobs:
   extract-jdk-version:
     name: Extract Java Version
     uses: ./.github/workflows/854-call-extract-jdk-version.yaml
+    needs:
+      - prepare-tag-release
     with:
-      ref: ${{ github.ref }}
+      ref: ${{ needs.prepare-tag-release.outputs.ref }}
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
   prepare-tag-release:
     name: Prepare Release [Tag]
     runs-on: hl-cn-default-lin-sm
-    if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
     outputs:
+      tag: ${{ steps.resolve.outputs.tag }}
+      ref: ${{ steps.resolve.outputs.ref }}
+      commit: ${{ steps.resolve.outputs.commit }}
       version: ${{ steps.tag.outputs.version }}
       prerelease: ${{ steps.tag.outputs.prerelease }}
     steps:
@@ -36,11 +50,52 @@ jobs:
         with:
           setup-semver: "true"
 
+      # A tag push builds the pushed commit. A dispatch builds the named tag,
+      # which must already exist; its commit is read from the remote, peeling
+      # an annotated tag to the commit it points at.
+      - name: Resolve Release Tag
+        id: resolve
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+          PUSHED_TAG: ${{ github.ref_name }}
+          PUSHED_SHA: ${{ github.sha }}
+          REPO_URL: "https://github.com/${{ github.repository }}"
+        run: |
+          if [[ "${EVENT_NAME}" == "workflow_dispatch" ]]; then
+            TAG="${INPUT_TAG}"
+            REF="refs/tags/${TAG}"
+            # Mirrors the push trigger's "v[0-9]+.[0-9]+.[0-9]+-?*" filter.
+            if [[ ! "${TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+              echo "::error title=Invalid Release Tag::'${TAG}' is not a release tag (vX.Y.Z, optionally with a suffix)."
+              exit 1
+            fi
+            REF_INFO="$(git ls-remote --tags "${REPO_URL}" "${REF}" "${REF}^{}")"
+            if [[ -z "${REF_INFO}" ]]; then
+              echo "::error title=Release Tag Not Found::Tag '${TAG}' does not exist in ${REPO_URL}."
+              exit 1
+            fi
+            COMMIT="$(awk '$2 ~ /\^\{\}$/ {print $1}' <<<"${REF_INFO}")"
+            [[ -z "${COMMIT}" ]] && COMMIT="$(awk 'NR == 1 {print $1}' <<<"${REF_INFO}")"
+          else
+            TAG="${PUSHED_TAG}"
+            REF="${PUSHED_SHA}"
+            COMMIT="${PUSHED_SHA}"
+          fi
+
+          {
+            echo "tag=${TAG}"
+            echo "ref=${REF}"
+            echo "commit=${COMMIT}"
+          } >>"${GITHUB_OUTPUT}"
+
       - name: Extract Tag Version
         id: tag
+        env:
+          TAG: ${{ steps.resolve.outputs.tag }}
         run: |
-          RELEASE_VERSION="$(semver get release "${{ github.ref_name }}")"
-          PRERELEASE_VERSION="$(semver get prerel "${{ github.ref_name }}")"
+          RELEASE_VERSION="$(semver get release "${TAG}")"
+          PRERELEASE_VERSION="$(semver get prerel "${TAG}")"
 
           FINAL_VERSION="${RELEASE_VERSION}"
           PRERELEASE_FLAG="false"
@@ -61,8 +116,8 @@ jobs:
       new-version: ${{ needs.prepare-tag-release.outputs.version }}
       trigger-env-deploy: none
       release-profile: ${{ needs.prepare-tag-release.outputs.prerelease == 'true' && 'PrereleaseChannel' || 'MavenCentral' }}
-      ref: ${{ github.ref }}
-      ref-name: ${{ github.ref_name }}
+      ref: ${{ needs.prepare-tag-release.outputs.ref }}
+      ref-name: ${{ needs.prepare-tag-release.outputs.tag }}
       java-version: ${{ needs.extract-jdk-version.outputs.jdk-version }}
       java-distribution: "temurin"
     secrets:
@@ -84,6 +139,7 @@ jobs:
     runs-on: hl-cn-default-lin-sm
     needs:
       - prepare-tag-release
+      - release-tag
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
@@ -94,7 +150,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           token: ${{ secrets.GH_ACCESS_TOKEN }}
-          ref: ${{ github.sha }}
+          ref: ${{ needs.prepare-tag-release.outputs.ref }}
           fetch-depth: "0"
 
       - name: Checkout Hedera Protobufs Code
@@ -154,7 +210,7 @@ jobs:
         uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
-          checkout-ref: "${{ github.sha }}"
+          checkout-ref: "${{ needs.prepare-tag-release.outputs.ref || github.sha }}"
           checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
           checkout-fetch-depth: "0"
           setup-gomplate: "true"
@@ -187,7 +243,7 @@ jobs:
         id: fetch-commit-info
         continue-on-error: true
         env:
-          REF: ${{ github.sha }}
+          REF: ${{ needs.prepare-tag-release.outputs.commit || github.sha }}
         run: |
           echo "commit-hash=${REF}" >> "${GITHUB_OUTPUT}"
           echo "commit-author=$(git show -s --format='%an <%ae>' ${REF})" >> "${GITHUB_OUTPUT}"
@@ -206,9 +262,10 @@ jobs:
       - name: Build Rootly Summary
         id: rootly-summary
         env:
-          REF: ${{ github.sha }}
+          REF: ${{ needs.prepare-tag-release.outputs.commit || github.sha }}
+          TAG: ${{ needs.prepare-tag-release.outputs.tag || inputs.tag || github.ref_name }}
         run: |
-          title="Deploy Production Release job failed (${{ github.ref_name }} - ${REF})."
+          title="Deploy Production Release job failed (${TAG} - ${REF})."
           echo "title=${title}" >> "${GITHUB_OUTPUT}"
           {
             echo 'summary<<EOF'
@@ -260,7 +317,7 @@ jobs:
           COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ steps.fetch-commit-info.outputs.commit-hash }}
           COMMIT_AUTHOR: ${{ steps.fetch-commit-info.outputs.commit-author }}
           SLACK_USER_ID: ${{ steps.find-commit-author-slack.outputs.slack-user-id }}
-          REF_NAME: ${{ github.ref_name }}
+          REF_NAME: ${{ needs.prepare-tag-release.outputs.tag || inputs.tag || github.ref_name }}
           WORKFLOW_RUN_ID: ${{ github.run_id }}
           WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: gomplate -f .github/workflows/templates/slack-deploy-release-failure.json.tpl -o slack_payload.json
