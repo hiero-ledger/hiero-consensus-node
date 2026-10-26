@@ -4,15 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       cn-refs:
-        description: "Comma-separated branches, tags or SHAs of hiero-consensus-node to test (default: the selected branch). Each ref is tested with its own pinned Solo, Java, TCK, JS SDK and mirror node versions."
+        description: "Comma-separated branches, tags or SHAs of hiero-consensus-node to test. Each ref is tested with its own pinned Solo, Java, TCK, JS SDK and mirror node versions."
         type: string
-        required: false
-        default: ""
+        required: true
       bn-versions:
-        description: "Comma-separated Block Node versions to test (e.g. v0.44.0,v0.45.0-alpha1). Default: the Block Node version pinned in the first CN ref's .citr-env."
+        description: "Comma-separated Block Node versions to test (e.g. v0.44.0,v0.45.0-alpha1)."
         type: string
-        required: false
-        default: ""
+        required: true
 
 defaults:
   run:
@@ -50,17 +48,13 @@ jobs:
       - name: Resolve Versions
         id: resolve
         env:
-          CN_REFS: ${{ inputs.cn-refs || github.ref }}
+          CN_REFS: ${{ inputs.cn-refs }}
           BN_VERSIONS: ${{ inputs.bn-versions }}
         run: |
           # per-ref Solo/Java/TCK/JS SDK/mirror node versions; also enforces Solo >= 0.44.0 for every ref
           CONFIGS=$(bash .github/workflows/support/scripts/resolve-cn-configs.sh)
           echo "Consensus node configs: ${CONFIGS}"
 
-          # no explicit list: test the Block Node version pinned by the first CN ref
-          if [[ -z "${BN_VERSIONS}" ]]; then
-            BN_VERSIONS=$(echo "${CONFIGS}" | jq -r '.[0]."pinned-bn-version"')
-          fi
           # trimmed, de-duplicated; every entry must look like vX.Y.Z[-suffix] since it ends up in scripts and artifact names
           BN_LIST=$(echo "${BN_VERSIONS}" | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | awk 'NF && !seen[$0]++')
           if [[ -z "${BN_LIST}" ]]; then
