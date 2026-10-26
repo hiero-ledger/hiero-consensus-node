@@ -6,8 +6,11 @@ import static org.hiero.otter.fixtures.network.BandwidthLimit.UNLIMITED_BANDWIDT
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.test.fixtures.time.FakeTime;
@@ -33,8 +36,12 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
+import org.hiero.consensus.monitoring.FallenBehindMonitor;
+import org.hiero.consensus.monitoring.FallenBehindStatus;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.roster.test.fixtures.RosterFactory;
+import org.hiero.consensus.status.monitor.actions.FallenBehindAction;
+import org.hiero.consensus.status.monitor.actions.PlatformStatusAction;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.consensus.wiring.framework.model.TraceableWiringModel;
 import org.hiero.consensus.wiring.framework.model.WiringModel;
@@ -256,6 +263,60 @@ class SimulatedGossipTests {
         assertEquals(
                 Set.of(new SyncProgress(peerA, ownWindow, windowA2), new SyncProgress(peerB, ownWindow, windowB)),
                 Set.copyOf(progress));
+    }
+
+    /**
+     * A change of the node's own window must re-evaluate every peer using its last window, and the resulting status
+     * must gate events from that peer and send the node to BEHIND.
+     */
+    @Test
+    void ownWindowChangeReevaluatesAllPeers() {
+        final NodeId selfId = NodeId.of(0);
+        final NodeId peer1 = NodeId.of(1);
+        final NodeId peer2 = NodeId.of(2);
+        final SimulatedNetworkConnectivity network = new SimulatedNetworkConnectivity(Randotron.create());
+        final TestNode node = addNode(network, selfId, PlatformStatus.ACTIVE, new ArrayList<>(), new ArrayList<>());
+        final SimulatedGossip self = node.gossip();
+
+        final FallenBehindMonitor monitor = mock(FallenBehindMonitor.class);
+        final List<PlatformStatusAction> actions = new ArrayList<>();
+        self.provideFallenBehindMonitor(monitor);
+        self.provideStatusActionSubmitter(actions::add);
+
+        final EventWindow ownOld = new EventWindow(10, 11, 1, 1);
+        final EventWindow ownNew = new EventWindow(500, 501, 400, 300);
+        final EventWindow window1 = new EventWindow(100, 101, 50, 40);
+        final EventWindow window2 = new EventWindow(200, 201, 150, 140);
+
+        node.eventWindowSubmitter().accept(ownOld);
+        when(monitor.check(any(), any(), any())).thenReturn(FallenBehindStatus.NONE_FALLEN_BEHIND);
+        assertTrue(self.receiveEventWindow(peer1, window1));
+        assertTrue(self.receiveEventWindow(peer2, window2));
+        verify(monitor).check(ownOld, window1, peer1);
+        verify(monitor).check(ownOld, window2, peer2);
+
+        // only the own window moves: every peer is re-evaluated with its last window
+        when(monitor.check(ownNew, window1, peer1)).thenReturn(FallenBehindStatus.OTHER_FALLEN_BEHIND);
+        when(monitor.check(ownNew, window2, peer2)).thenReturn(FallenBehindStatus.SELF_FALLEN_BEHIND);
+        when(monitor.hasFallenBehind()).thenReturn(true);
+        node.eventWindowSubmitter().accept(ownNew);
+        verify(monitor).check(ownNew, window1, peer1);
+        verify(monitor).check(ownNew, window2, peer2);
+
+        // both peers are refused now, and the node goes to BEHIND exactly once
+        final PlatformEvent event1 =
+                new TestingEventBuilder(Randotron.create()).setCreatorId(peer1).build();
+        event1.setSenderId(peer1);
+        assertFalse(self.receiveEvent(event1));
+        assertEquals(1, actions.size());
+        assertTrue(actions.getFirst() instanceof FallenBehindAction);
+        node.eventWindowSubmitter().accept(ownNew);
+        assertEquals(1, actions.size());
+
+        // a peer that is no longer a problem is accepted again after its window is re-evaluated
+        when(monitor.check(ownNew, window1, peer1)).thenReturn(FallenBehindStatus.NONE_FALLEN_BEHIND);
+        assertTrue(self.receiveEventWindow(peer1, window1));
+        assertTrue(self.receiveEvent(event1));
     }
 
     /**
