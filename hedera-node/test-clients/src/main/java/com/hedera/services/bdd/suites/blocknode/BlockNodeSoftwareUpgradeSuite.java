@@ -49,8 +49,6 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                             "tss.hintsEnabled",
                             "true",
                             "tss.historyEnabled",
-                            "true",
-                            "tss.forceHandoffs",
                             "true",*/
                             "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk",
                             "false",
@@ -72,8 +70,6 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                             "tss.hintsEnabled",
                             "true",
                             "tss.historyEnabled",
-                            "true",
-                            "tss.forceHandoffs",
                             "true",*/
                             "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk",
                             "false",
@@ -95,8 +91,6 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                             "tss.hintsEnabled",
                             "true",
                             "tss.historyEnabled",
-                            "true",
-                            "tss.forceHandoffs",
                             "true",*/
                             "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk",
                             "false",
@@ -118,8 +112,6 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                             "tss.hintsEnabled",
                             "true",
                             "tss.historyEnabled",
-                            "true",
-                            "tss.forceHandoffs",
                             "true",*/
                             "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk",
                             "false",

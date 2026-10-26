@@ -58,7 +58,6 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.ValueReference;
 import org.hiero.base.concurrent.ExecutorFactory;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
@@ -1180,22 +1179,9 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      * @return copy of underlying datasource with cache copy flushed into it, and running compaction
      */
     VirtualDataSource detachAsDataSourceCopy() {
-        return pipeline.pausePipelineAndExecute("detach", () -> {
-            final Path snapshotPath = dataSourceBuilder.snapshot(null, dataSource);
-            try {
-                VirtualDataSource dataSourceCopy = dataSourceBuilder.build(getLabel(), snapshotPath, true, false);
-                flush(cache.snapshot(), dataSourceCopy);
-                return dataSourceCopy;
-            } finally {
-                try {
-                    // Delete the snapshot directory
-                    FileUtils.deleteDirectory(snapshotPath);
-                } catch (IOException e) {
-                    //noinspection ThrowFromFinallyBlock
-                    throw new UncheckedIOException("Unable to delete snapshot directory", e);
-                }
-            }
-        });
+        // This method is called on reconnect learners, where this map copy is mutable, so
+        // checkDataSourceCanBeCopied() isn't called here
+        return createDataSourceCopy(true, false);
     }
 
     /**
@@ -1205,32 +1191,134 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      * @return a reference to the detached state of virtual map at some moment
      */
     public RecordAccessor detach() {
-        return pipeline.pausePipelineAndExecute("detach", () -> {
-            final Path snapshotPath = dataSourceSnapshot();
+        checkDataSourceCanBeCopied();
+        final DataSourceAndCacheSnapshot snapshot = snapshotDataSourceAndCache();
+
+        // build() below is called outside pausePipelineAndExecute() to unpause the lifecycle thread
+        // as quickly as possible. If the lifecycle thread is paused for too long, unhandled copies
+        // pile up in the virtual pipeline, which triggers size backpressure mechanism
+        try {
+            // Restore a data source into memory from the snapshot. It will use its own directory
+            // to store data files
+            final VirtualDataSource dataSourceCopy =
+                    dataSourceBuilder.build(getLabel(), snapshot.dataSourcePath(), false, false);
             try {
-                final VirtualDataSource dataSourceCopy =
-                        dataSourceBuilder.build(getLabel(), snapshotPath, false, false);
-                final VirtualNodeCache cacheSnapshot = cache.snapshot();
                 final int hashChunkHeight = dataSource.getHashChunkHeight();
-                return new RecordAccessor(metadata.copy(), hashChunkHeight, cacheSnapshot, dataSourceCopy);
-            } finally {
-                try {
-                    // Delete the snapshot directory
-                    FileUtils.deleteDirectory(snapshotPath);
-                } catch (IOException e) {
-                    //noinspection ThrowFromFinallyBlock
-                    throw new UncheckedIOException("Unable to delete snapshot directory", e);
-                }
+                return new RecordAccessor(metadata.copy(), hashChunkHeight, snapshot.cache(), dataSourceCopy);
+            } catch (final RuntimeException | Error e) {
+                // Don't leak the data source copy, if the record accessor can't be created
+                closeDataSourceCopy(dataSourceCopy, e);
+                throw e;
             }
+        } finally {
+            deleteSnapshotDirectory(snapshot.dataSourcePath());
+        }
+    }
+
+    /**
+     * Creates a copy of this map's data source with this map's cache flushed into it. The virtual
+     * pipeline is paused only to take data source and cache snapshots. The copy is restored from
+     * the snapshots after the pipeline is unpaused.
+     *
+     * @param compactionEnabled whether background compaction should be enabled in the copy
+     * @param offlineUse whether the copy should use as little resources as possible
+     * @return the data source copy, the caller is responsible for closing it
+     */
+    private VirtualDataSource createDataSourceCopy(final boolean compactionEnabled, final boolean offlineUse) {
+        final DataSourceAndCacheSnapshot snapshot = snapshotDataSourceAndCache();
+
+        // build() and flush() below are called outside pausePipelineAndExecute() to unpause the
+        // lifecycle thread as quickly as possible. If the lifecycle thread is paused for too long,
+        // unhandled copies pile up in the virtual pipeline, which triggers size backpressure mechanism
+        try {
+            // Restore a data source into memory from the snapshot. It will use its own directory
+            // to store data files
+            final VirtualDataSource dataSourceCopy =
+                    dataSourceBuilder.build(getLabel(), snapshot.dataSourcePath(), compactionEnabled, offlineUse);
+            try {
+                // Then flush the cache snapshot to the data source copy
+                flush(snapshot.cache(), dataSourceCopy);
+                // flush() doesn't throw, if the thread is interrupted. The data source copy may be
+                // incomplete in this case, it must not be returned
+                if (Thread.currentThread().isInterrupted()) {
+                    throw new IllegalStateException(
+                            "Interrupted while flushing the cache snapshot to the data source copy");
+                }
+            } catch (final RuntimeException | Error e) {
+                // Don't leak the data source copy, if the flush failed
+                closeDataSourceCopy(dataSourceCopy, e);
+                throw e;
+            }
+            return dataSourceCopy;
+        } finally {
+            deleteSnapshotDirectory(snapshot.dataSourcePath());
+        }
+    }
+
+    /**
+     * Snapshots of this map's cache and data source, taken at the same moment.
+     *
+     * @param cache the cache snapshot
+     * @param dataSourcePath the base path to the data source snapshot. The snapshot is in the temp
+     *                       directory, it must be deleted, once a data source copy is restored from it
+     */
+    private record DataSourceAndCacheSnapshot(
+            @NonNull VirtualNodeCache cache, @NonNull Path dataSourcePath) {}
+
+    /**
+     * Takes snapshots of this map's cache and data source. The virtual pipeline is paused while the
+     * snapshots are taken to make sure no data is flushed to the data source and no caches are
+     * merged. The data source snapshot is not loaded here, though, it's up to the caller.
+     *
+     * @return the cache snapshot and the path to the data source snapshot
+     */
+    private DataSourceAndCacheSnapshot snapshotDataSourceAndCache() {
+        return pipeline.pausePipelineAndExecute("detach", () -> {
+            // Lifecycle thread is paused, no cache flushes/merges, it's safe to take cache snapshot
+            final VirtualNodeCache cacheSnapshot = cache.snapshot();
+            // And make a data source snapshot
+            final Path dataSourceSnapshotPath = dataSourceBuilder.snapshot(null, dataSource);
+            return new DataSourceAndCacheSnapshot(cacheSnapshot, dataSourceSnapshotPath);
         });
     }
 
     /**
-     * Creates a snapshot of this map's data source. This method must be called only when
-     * the lifecycle thread is paused to make sure no data is flushed to the data source
-     * while the copy is prepared. The base path to the snapshot is returned.
+     * Closes a data source copy, which can't be returned to the caller because of an error.
+     * Errors on close are added to the original error as suppressed.
+     *
+     * @param dataSourceCopy the data source copy to close
+     * @param cause the error that prevents the copy from being returned
      */
-    private Path dataSourceSnapshot() {
+    private static void closeDataSourceCopy(
+            @NonNull final VirtualDataSource dataSourceCopy, @NonNull final Throwable cause) {
+        try {
+            dataSourceCopy.close();
+        } catch (final IOException | RuntimeException e) {
+            cause.addSuppressed(e);
+        }
+    }
+
+    /**
+     * Deletes a temporary data source snapshot directory, once a data source copy is built from
+     * it. Failures are logged, but not thrown. The data source copy is still valid, and the
+     * snapshot directory is in the temp directory, which is cleaned up on node restart.
+     *
+     * @param snapshotPath the snapshot directory to delete
+     */
+    private static void deleteSnapshotDirectory(@NonNull final Path snapshotPath) {
+        try {
+            FileUtils.deleteDirectory(snapshotPath);
+        } catch (final IOException e) {
+            logger.error(EXCEPTION.getMarker(), "Unable to delete snapshot directory {}", snapshotPath, e);
+        }
+    }
+
+    /**
+     * Checks that this map copy is not destroyed, immutable, and hashed, so its data source can
+     * be copied. Immutable and hashed copies never become mutable or unhashed again, so the
+     * checks don't need the virtual pipeline to be paused.
+     */
+    private void checkDataSourceCanBeCopied() {
         if (isDestroyed()) {
             throw new IllegalStateException("Can't make data source copy: virtual map copy is already destroyed");
         }
@@ -1240,8 +1328,6 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         if (!isHashed()) {
             throw new IllegalStateException("Can't make data source copy: virtual map copy isn't hashed");
         }
-
-        return dataSourceBuilder.snapshot(null, dataSource);
     }
 
     /**
@@ -1374,35 +1460,16 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      * @throws IOException for IO errors
      */
     public void createSnapshot(@NonNull final Path outputDirectory) throws IOException {
-        final ValueReference<VirtualNodeCache> cacheSnapshot = new ValueReference<>();
-        final Path snapshotPath = pipeline.pausePipelineAndExecute("detach", () -> {
-            // Lifecycle thread is paused, no cache flushes/merges, it's safe to take cache snapshot
-            cacheSnapshot.setValue(cache.snapshot());
-            // And make a data source snapshot. The snapshot is not loaded here, though, it is
-            // done below
-            return dataSourceSnapshot();
-        });
-
-        // build(), flush() and snapshot() below are called outside pausePipelineAndExecute() to
-        // unpause the lifecycle thread as quickly as possible. If the lifecycle thread is paused
-        // for too long, unhandled copies pile up in the virtual pipeline, which triggers size
-        // backpressure mechanism
-        VirtualDataSource dataSourceCopy = null;
+        checkDataSourceCanBeCopied();
+        // The data source copy is only used to create the snapshot below, so it doesn't need
+        // compaction, and it should use as little resources as possible
+        final VirtualDataSource dataSourceCopy = createDataSourceCopy(false, true);
         try {
-            // Restore a data source into memory from the snapshot. It will use its own directory
-            // to store data files
-            dataSourceCopy = dataSourceBuilder.build(LABEL, snapshotPath, false, true);
-            // Then flush the cache snapshot to the data source copy
-            flush(cacheSnapshot.getValue(), dataSourceCopy);
-            // And finally snapshot the copy to the target dir
+            // Snapshot the copy to the target dir
             dataSourceBuilder.snapshot(outputDirectory, dataSourceCopy);
         } finally {
-            // Delete the snapshot directory
-            FileUtils.deleteDirectory(snapshotPath);
             // And delete the data source copy directory
-            if (dataSourceCopy != null) {
-                dataSourceCopy.close();
-            }
+            dataSourceCopy.close();
         }
     }
 

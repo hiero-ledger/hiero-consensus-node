@@ -10,6 +10,7 @@ import java.security.cert.X509Certificate;
 import java.util.List;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.CryptographyException;
+import org.hiero.base.crypto.SigningSchema;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -44,6 +45,10 @@ public class RosterEntryWrapper {
         } catch (final CryptographyException e) {
             certificate = null;
         }
+        // a certificate whose key cannot verify signatures is as unusable as a missing one
+        if (certificate != null && !SigningSchema.isSupported(certificate.getPublicKey())) {
+            certificate = null;
+        }
         this.gossipCaCertificate = certificate;
         gossipEndpoints = rosterEntry.gossipEndpoint().stream()
                 .map(ServiceEndpointWrapper::of)
@@ -72,7 +77,8 @@ public class RosterEntryWrapper {
     /**
      * Returns the gossip CA certificate associated with this roster entry.
      *
-     * @return the gossip CA certificate of this roster entry
+     * @return the gossip CA certificate of this roster entry, or {@code null} if it is missing, cannot be decoded, or
+     * its key does not belong to a supported {@link SigningSchema}
      */
     @Nullable
     public X509Certificate gossipCaCertificate() {

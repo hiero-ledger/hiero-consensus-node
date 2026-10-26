@@ -59,7 +59,8 @@ message Network {
   repeated NodeMetadata node_metadata = 1;
 
   /**
-  * If set, the hash of the first roster that adopted TSS.<br/>
+  * If set, the ledger id; that is, the hash of the first roster that adopted
+  * TSS, followed by the hash of that roster's hinTS verification key.<br/>
   * A public input to every hinTS verification key proof.
   */
   bytes ledger_id = 3;
@@ -98,12 +99,14 @@ message TssMetadata {
   com.hedera.hapi.node.state.history.HistoryProofConstruction active_proof_construction = 3;
 
   /**
-   * The WRAPS verification key used to validate recursive history proofs.
+   * No longer used, since the TSS library derives the key to verify
+   * recursive history proofs from public parameters it embeds.
    */
   bytes history_proof_verification_key = 4;
 
   /**
-   * The expected WRAPS proving key hash, if known.
+   * No longer used, since the TSS library embeds the public parameters
+   * it uses to construct recursive history proofs.
    */
   bytes wraps_proving_key_hash = 5;
 }

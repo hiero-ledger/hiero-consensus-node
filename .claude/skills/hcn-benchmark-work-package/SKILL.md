@@ -24,8 +24,8 @@ Before step 1, settle with the developer what the issue leaves open. Only the te
   parents and transactions per event. A signing or verification benchmark covers both Ed25519 and RSA.
 - **What one operation is:** one call, or one item through a pipeline.
 - **Fix or replace** the existing benchmark, if there is one.
-- **The nightly time it may take.** About 10 minutes per benchmark on average; calibration decides, and some take
-  longer than others.
+- **The nightly time it may take,** as an orientation: about 10 minutes per benchmark on average. Calibration picks
+  the cheapest configuration that gives good results; some benchmarks need longer, others less.
 
 Note the answers; they go into the description suggested in step 7.
 
