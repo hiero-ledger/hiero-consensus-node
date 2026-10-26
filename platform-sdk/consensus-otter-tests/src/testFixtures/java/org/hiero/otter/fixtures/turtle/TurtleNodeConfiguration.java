@@ -15,7 +15,7 @@ import org.hiero.consensus.pces.config.PcesFileWriterType;
 import org.hiero.consensus.reconnect.config.ReconnectConfig_;
 import org.hiero.consensus.state.config.StateConfig_;
 import org.hiero.otter.fixtures.NodeConfiguration;
-import org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle;
+import org.hiero.otter.fixtures.internal.AbstractMiniNode.LifeCycle;
 import org.hiero.otter.fixtures.internal.AbstractNodeConfiguration;
 import org.hiero.otter.fixtures.internal.OverrideProperties;
 import org.hiero.otter.fixtures.turtle.gossip.TurtleGossipModule;
