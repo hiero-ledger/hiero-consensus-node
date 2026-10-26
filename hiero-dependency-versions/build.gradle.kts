@@ -13,11 +13,7 @@ val bouncycastle = "1.85"
 val dagger = "2.59.2"
 val eclipseCollections = "13.0.0"
 val grpc = "1.81.0"
-
-val hederaCryptography = "3.15.0"
-// FUTURE WORK: Merge the two hederaCryptography versions when equal.
-val hederaCryptographySecurity = "3.20.0"
-
+val hederaCryptography = "3.23.0"
 val helidon = "4.5.4"
 val jackson = "2.22.2"
 val junit5 = "6.1.3"
@@ -144,7 +140,7 @@ dependencies.constraints {
     api("com.hedera.cryptography:libxkcp:$hederaCryptography") {
         because("com.hedera.cryptography.libxkcp")
     }
-    api("com.hedera.cryptography:security:$hederaCryptographySecurity") {
+    api("com.hedera.cryptography:security:$hederaCryptography") {
         because("com.hedera.cryptography.security")
     }
 

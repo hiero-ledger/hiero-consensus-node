@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.addressbook.Node;
+import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
 import com.hedera.node.internal.network.NodeTssMetadata;
@@ -54,7 +55,10 @@ class TssFixturesTest {
 
         final var merged = TssFixtures.mergeNodeExports(Map.of(1L, node1Export, 0L, node0Export));
 
-        assertEquals(VERIFICATION_KEY_0, merged.tssMetadataOrThrow().historyProofVerificationKey(), "taken from node0");
+        assertEquals(
+                VERIFICATION_KEY_0,
+                merged.tssMetadataOrThrow().crsStateOrThrow().crs(),
+                "taken from node0");
         assertEquals(
                 List.of(entry(0, HINTS_KEY_0, PRIVATE_KEY_0), entry(1, HINTS_KEY_1, PRIVATE_KEY_1)),
                 merged.nodeTssMetadata());
@@ -145,7 +149,8 @@ class TssFixturesTest {
                 "ledgerA_manifest-genesis-network.json.gz",
                 Network.newBuilder()
                         .nodeMetadata(nodeWithGrpcPort(32102), nodeWithGrpcPort(32100))
-                        .tssMetadata(TssMetadata.newBuilder().historyProofVerificationKey(VERIFICATION_KEY_0))
+                        .tssMetadata(TssMetadata.newBuilder()
+                                .crsState(CRSState.newBuilder().crs(VERIFICATION_KEY_0)))
                         .build());
 
         assertArrayEquals(new int[] {32100, 2}, TssFixtures.fixtureBaseAndNodeCount(fixture));
@@ -157,7 +162,8 @@ class TssFixturesTest {
         final var fixture = writeGzippedJson(
                 "empty-genesis-network.json.gz",
                 Network.newBuilder()
-                        .tssMetadata(TssMetadata.newBuilder().historyProofVerificationKey(VERIFICATION_KEY_0))
+                        .tssMetadata(TssMetadata.newBuilder()
+                                .crsState(CRSState.newBuilder().crs(VERIFICATION_KEY_0)))
                         .build());
 
         assertNull(TssFixtures.fixtureBaseAndNodeCount(fixture));
@@ -184,7 +190,8 @@ class TssFixturesTest {
 
     private static Network export(final Bytes verificationKey, final NodeTssMetadata... entries) {
         return Network.newBuilder()
-                .tssMetadata(TssMetadata.newBuilder().historyProofVerificationKey(verificationKey))
+                .tssMetadata(
+                        TssMetadata.newBuilder().crsState(CRSState.newBuilder().crs(verificationKey)))
                 .nodeTssMetadata(entries)
                 .build();
     }
