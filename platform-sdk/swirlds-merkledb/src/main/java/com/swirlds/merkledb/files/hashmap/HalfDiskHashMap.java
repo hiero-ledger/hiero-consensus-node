@@ -36,6 +36,7 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.eclipse.collections.api.tuple.primitive.IntObjectPair;
@@ -374,7 +375,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
 
     /** {@inheritDoc} */
     public void snapshot(final Path snapshotDirectory) throws IOException {
-        snapshot(snapshotDirectory, Runnable::run, 1);
+        snapshot(snapshotDirectory, Runnable::run, new AtomicReference<>());
     }
 
     /// Writes a snapshot, using the supplied executor for parallel bucket-index writes.
@@ -383,15 +384,16 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
     ///
     /// @param snapshotDirectory directory to write the snapshot to
     /// @param executor executor able to run writer tasks while this method waits
-    /// @param threadCount maximum number of bucket-index writer threads; one writes on the calling thread
+    /// @param snapshotFailure first failure of the enclosing snapshot; bucket-index writes skip once it is set
     /// @throws IOException if the snapshot cannot be written
-    public void snapshot(final Path snapshotDirectory, final Executor executor, final int threadCount)
+    public void snapshot(
+            final Path snapshotDirectory, final Executor executor, final AtomicReference<Throwable> snapshotFailure)
             throws IOException {
         // create snapshot directory if needed
         Files.createDirectories(snapshotDirectory);
         // write index to file
         bucketIndexToBucketLocation.writeToFile(
-                snapshotDirectory.resolve(storeName + BUCKET_INDEX_FILENAME_SUFFIX), executor, threadCount);
+                snapshotDirectory.resolve(storeName + BUCKET_INDEX_FILENAME_SUFFIX), executor, snapshotFailure);
         // snapshot files
         fileCollection.snapshot(snapshotDirectory);
         // write metadata

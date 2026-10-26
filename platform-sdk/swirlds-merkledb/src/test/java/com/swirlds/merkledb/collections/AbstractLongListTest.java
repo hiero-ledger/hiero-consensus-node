@@ -33,6 +33,7 @@ import java.util.Set;
 import java.util.Spliterator;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.LongConsumer;
 import java.util.function.Supplier;
@@ -613,7 +614,7 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> extends Abstr
             assertNull(longList.dataCopy().get(0));
 
             final Path snapshot = testDir.resolve("missingFirstChunk");
-            longList.writeToFile(snapshot, Runnable::run, 1);
+            longList.writeToFile(snapshot, Runnable::run, new AtomicReference<>());
 
             assertEquals(FILE_HEADER_SIZE_V3 + 4L * Long.BYTES, Files.size(snapshot));
             try (final LongList restored = createLongList(snapshot, 4, 100, 0)) {
@@ -637,7 +638,7 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> extends Abstr
             assertNull(longList.dataCopy().get(1));
 
             final Path snapshot = testDir.resolve("missingLastChunk");
-            longList.writeToFile(snapshot, Runnable::run, 1);
+            longList.writeToFile(snapshot, Runnable::run, new AtomicReference<>());
 
             assertEquals(FILE_HEADER_SIZE_V3 + 5L * Long.BYTES, Files.size(snapshot));
             try (final LongList restored = createLongList(snapshot, 4, 100, 0)) {

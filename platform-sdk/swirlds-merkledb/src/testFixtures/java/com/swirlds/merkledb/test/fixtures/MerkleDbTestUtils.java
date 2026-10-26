@@ -38,6 +38,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Cryptography;
@@ -78,7 +79,7 @@ public class MerkleDbTestUtils {
         Files.deleteIfExists(file);
         final int threadCount = DEFAULT_MERKLE_DB_CONFIG.longListWriteThreads();
         try (final ExecutorService pool = Executors.newFixedThreadPool(threadCount)) {
-            longList.writeToFile(file, pool, threadCount);
+            longList.writeToFile(file, pool, new AtomicReference<>());
         }
 
         assertTrue(

@@ -18,6 +18,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.file.FileUtils;
@@ -49,7 +50,7 @@ public class LongListSnapshotBenchmark {
     public String listImpl;
 
     @Param({"1", "4"})
-    public int threadsPerLongList;
+    public int longListWriteThreads;
 
     /// Number of leaves represented by the valid index range `[N - 1, 2N - 2]`.
     @Param({"10000000"})
@@ -97,9 +98,7 @@ public class LongListSnapshotBenchmark {
                 forceFile(file);
             }
         }
-        if (threadsPerLongList > 1) {
-            executor = Executors.newFixedThreadPool(threadsPerLongList);
-        }
+        executor = Executors.newFixedThreadPool(longListWriteThreads);
     }
 
     /// Measures a snapshot write with [LongList#writeToFile].
@@ -107,7 +106,7 @@ public class LongListSnapshotBenchmark {
     /// @throws IOException if the snapshot cannot be created or written
     @Benchmark
     public void writeToFile() throws IOException {
-        source.writeToFile(snapshotFile, executor, threadsPerLongList);
+        source.writeToFile(snapshotFile, executor, new AtomicReference<>());
     }
 
     /// Flushes and removes the snapshot after each measured write.

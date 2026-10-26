@@ -11,6 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.base.file.FileSystemManager;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.Fork;
@@ -57,7 +58,7 @@ public class LongListDiskBenchmark {
             if (Files.exists(srcFile)) {
                 Files.delete(srcFile);
             }
-            list.writeToFile(srcFile, pool, configuration.longListWriteThreads());
+            list.writeToFile(srcFile, pool, new AtomicReference<>());
         }
     }
 

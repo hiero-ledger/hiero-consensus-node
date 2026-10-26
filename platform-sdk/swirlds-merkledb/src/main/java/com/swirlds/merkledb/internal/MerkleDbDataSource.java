@@ -958,12 +958,10 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             final AtomicReference<Throwable> snapshotFailure = new AtomicReference<>();
             InterruptedException snapshotInterrupted = null;
             try {
-                final int threadsPerLongList = merkleDbConfig.longListWriteThreads();
                 // LongLists sharing the writer pool: pathToDiskLocationLeafNodes, idToDiskLocationHashChunks,
                 // and keyToPath's bucketIndexToBucketLocation.
-                final int longListCount = 3;
                 try (final ExecutorService longListSnapshotExecutor = Executors.newFixedThreadPool(
-                        threadsPerLongList * longListCount,
+                        merkleDbConfig.longListWriteThreads(),
                         new ThreadConfiguration(getStaticThreadManager())
                                 .setThreadGroup(threadGroup)
                                 .setThreadNameProvider(CompositeThreadNameProvider.createNumbered(
@@ -976,19 +974,19 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                         idToDiskLocationHashChunks.writeToFile(
                                 snapshotDbPaths.idToDiskLocationHashChunksFile,
                                 longListSnapshotExecutor,
-                                threadsPerLongList);
+                                snapshotFailure);
                         hashChunkStore.snapshot(snapshotDbPaths.hashChunkDirectory);
                     });
                     runWithSnapshotExecutor(countDownLatch, snapshotFailure, "leaves", () -> {
                         pathToDiskLocationLeafNodes.writeToFile(
                                 snapshotDbPaths.pathToDiskLocationLeafNodesFile,
                                 longListSnapshotExecutor,
-                                threadsPerLongList);
+                                snapshotFailure);
                         keyValueStore.snapshot(snapshotDbPaths.pathToKeyValueDirectory);
                     });
                     runWithSnapshotExecutor(countDownLatch, snapshotFailure, "keyToPath", () -> {
                         keyToPath.snapshot(
-                                snapshotDbPaths.keyToPathDirectory, longListSnapshotExecutor, threadsPerLongList);
+                                snapshotDbPaths.keyToPathDirectory, longListSnapshotExecutor, snapshotFailure);
                     });
                     runWithSnapshotExecutor(
                             countDownLatch, snapshotFailure, "metadata", () -> saveMetadata(snapshotDbPaths));
