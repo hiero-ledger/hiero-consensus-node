@@ -71,7 +71,6 @@ jobs:
       enable-integration-tests: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-hapi-tests: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-otter-tests: ${{ needs.detect-change-type.outputs.enable-tests }}
-      enable-snyk-scan: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-benchmark-smoke: ${{ needs.detect-change-type.outputs.enable-tests }}
       java-version: ${{ needs.extract-jdk-version.outputs.jdk-version }}
       java-distribution: "temurin"
@@ -82,7 +81,6 @@ jobs:
       codecov-token: ${{ secrets.CODECOV_TOKEN }}
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-      snyk-token: ${{ secrets.SNYK_TOKEN }}
 
   workflow-unit-tests:
     name: Workflow File Tests
@@ -153,7 +151,7 @@ jobs:
             echo "## PR Check Summary"
             echo ""
             if [[ "${{ needs.detect-change-type.outputs.docs-only }}" == "true" ]]; then
-              echo "> **Docs-only PR detected.** Unit, integration, HAPI, otter, determinism, dependency, and Snyk checks were skipped. Build and Spotless still ran."
+              echo "> **Docs-only PR detected.** Unit, integration, HAPI, otter, determinism, and dependency checks were skipped. Build and Spotless still ran."
               echo ""
             fi
             echo "------------------------------------"

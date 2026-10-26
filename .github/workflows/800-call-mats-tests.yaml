@@ -33,11 +33,6 @@ on:
         type: string
         required: false
         default: "false"
-      enable-snyk-scan:
-        description: "Snyk Scan Enabled"
-        type: string
-        required: false
-        default: "false"
       enable-benchmark-smoke:
         description: "Benchmark Smoke Run Enabled"
         type: string
@@ -83,8 +78,6 @@ on:
       gradle-cache-password:
         description: "Gradle Cache Password"
         required: true
-      snyk-token:
-        required: false
     outputs:
       failure-mode:
         description: "Failure Mode"
@@ -225,23 +218,6 @@ jobs:
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
-  mats-snyk-scan:
-    name: Snyk Scan
-    if: ${{ inputs.enable-snyk-scan == 'true' && !github.event.repository.fork }}
-    needs:
-      - commit-info
-      - compile-and-spotless
-    uses: ./.github/workflows/801-call-snyk-scan.yaml
-    with:
-      ref: ${{ needs.commit-info.outputs.sha || '' }}
-      java-version: "${{ inputs.java-version }}"
-      java-distribution: "${{ inputs.java-distribution }}"
-    secrets:
-      access-token: ${{ secrets.access-token }}
-      gradle-cache-username: ${{ secrets.gradle-cache-username }}
-      gradle-cache-password: ${{ secrets.gradle-cache-password }}
-      snyk-token: ${{ secrets.snyk-token }}
-
   mats-benchmark-smoke:
     name: Benchmark Smoke
     if: ${{ inputs.enable-benchmark-smoke == 'true' }}
@@ -304,7 +280,6 @@ jobs:
       - mats-integration-tests
       - mats-hapi-tests
       - mats-otter-tests
-      - mats-snyk-scan
       - mats-benchmark-smoke
       - mats-gradle-determinism
       - mats-docker-determinism
@@ -327,7 +302,6 @@ jobs:
             ${{ needs.mats-integration-tests.result }}
             ${{ needs.mats-hapi-tests.result }}
             ${{ needs.mats-otter-tests.result }}
-            ${{ needs.mats-snyk-scan.result }}
             ${{ needs.mats-benchmark-smoke.result }}
             ${{ needs.mats-gradle-determinism.result }}
             ${{ needs.mats-docker-determinism.result }}
@@ -339,7 +313,6 @@ jobs:
             ${{ needs.mats-integration-tests.outputs.failure-mode || 'none' }}
             ${{ needs.mats-hapi-tests.outputs.failure-mode || 'none' }}
             ${{ needs.mats-otter-tests.outputs.failure-mode || 'none' }}
-            ${{ needs.mats-snyk-scan.outputs.failure-mode || 'none' }}
             ${{ needs.mats-benchmark-smoke.outputs.failure-mode || 'none' }}
             ${{ needs.mats-gradle-determinism.outputs.failure-mode || 'none' }}
             ${{ needs.mats-docker-determinism.outputs.failure-mode || 'none' }}
@@ -351,7 +324,6 @@ jobs:
             mats-integration-tests
             mats-hapi-tests
             mats-otter-tests
-            mats-snyk-scan
             mats-benchmark-smoke
             mats-gradle-determinism
             mats-docker-determinism
