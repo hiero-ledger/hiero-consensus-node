@@ -5,11 +5,14 @@ import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_STORA
 import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
+import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_DISPATCH;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_SIGN;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REVERTED_SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.BATCH_INNER;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.CHILD;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.SCHEDULED;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
@@ -31,6 +34,8 @@ import com.hedera.hapi.node.state.contract.SlotKey;
 import com.hedera.hapi.node.state.contract.SlotValue;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.SignedTransaction;
+import com.hedera.hapi.streams.ContractAction;
+import com.hedera.hapi.streams.ContractActions;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.service.consensus.impl.records.ConsensusSubmitMessageStreamBuilder;
@@ -50,6 +55,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.EnumSource;
@@ -64,6 +70,200 @@ class ScheduledEvmTraceTest {
             .build();
     private static final Instant CONSENSUS_TIME = Instant.ofEpochSecond(1_792_765_252, 996_259_408);
     private static final SlotKey POINTER_ONLY = key(1037, 3);
+
+    @ParameterizedTest
+    @MethodSource("overlappingWriteModes")
+    void preservesEachOverlappingScopeIncludingDeletesAndReinsertions(
+            final StreamMode mode, final long nestedValue, final long finalValue) {
+        final var fixture = fixture(mode, CONTRACT_CALL);
+        storage(fixture.root()).put(POINTER_ONLY, new SlotValue(word(1), Bytes.EMPTY, Bytes.EMPTY));
+        final var scheduled = scheduledIn(fixture.root(), mode);
+        trace(scheduled, List.of(usage(1037, write(POINTER_ONLY.key(), 1, nestedValue))), Set.of(POINTER_ONLY));
+        if (nestedValue == 0) {
+            storage(scheduled).remove(POINTER_ONLY);
+        } else {
+            storage(scheduled).put(POINTER_ONLY, new SlotValue(word(nestedValue), Bytes.EMPTY, Bytes.EMPTY));
+        }
+        scheduled.commitFullStack();
+        // X resumes after Y and may overwrite or reinsert the same slot. Its captured write includes Y's effects.
+        if (finalValue == 0) {
+            storage(fixture.root()).remove(POINTER_ONLY);
+        } else {
+            storage(fixture.root()).put(POINTER_ONLY, new SlotValue(word(finalValue), Bytes.EMPTY, Bytes.EMPTY));
+        }
+        trace(fixture.root(), List.of(usage(1037, write(POINTER_ONLY.key(), 7, finalValue))), Set.of(POINTER_ONLY));
+        fixture.root().commitFullStack();
+
+        final var evmTraces = traces(items(fixture.root()));
+        assertThat(evmTraces).hasSize(2);
+        for (int i = 0; i < evmTraces.size(); i++) {
+            final var usage = evmTraces.get(i).contractSlotUsages().getFirst();
+            assertThat(usage.writtenSlotKeysOrThrow().keys()).containsExactly(minimal(3));
+            final var read = usage.slotReads().getFirst();
+            assertThat(read.indexOrThrow()).isZero();
+            assertThat(read.readValue()).isEqualTo(minimal(i == 0 ? 7 : 1));
+            assertThat(read.writtenValueOrThrow()).isEqualTo(minimal(i == 0 ? finalValue : nestedValue));
+        }
+    }
+
+    private static Stream<Arguments> overlappingWriteModes() {
+        return Stream.of(StreamMode.BLOCKS, StreamMode.BOTH).flatMap(mode -> Stream.of(0L, 2L)
+                .flatMap(nested -> Stream.of(0L, 3L, 7L).map(value -> Arguments.of(mode, nested, value))));
+    }
+
+    @Test
+    void explicitWrittenValueSizeIsEnforcedBeforeCommitAndSharedAcrossBothStreams() {
+        final var compactUsage = new ContractSlotUsage(
+                contract(1037),
+                new WrittenSlotKeys(List.of(minimal(3))),
+                List.of(SlotRead.newBuilder().index(0).readValue(minimal(7)).build()));
+        final var compactSize = EvmTraceData.PROTOBUF.measureRecord(EvmTraceData.newBuilder()
+                .contractSlotUsages(List.of(compactUsage))
+                .build());
+        final var fixture = fixture(StreamMode.BOTH, CONTRACT_CALL, compactSize);
+        final var scheduled = scheduledIn(fixture.root(), StreamMode.BOTH);
+        scheduled.commitFullStack();
+        final var caller = fixture.root().getBaseBuilder(ContractOperationStreamBuilder.class);
+        caller.addContractActions(new ContractActions(List.of(ContractAction.DEFAULT)), false);
+        caller.addContractSlotUsages(List.of(compactUsage
+                .copyBuilder()
+                .slotReads(compactUsage
+                        .slotReads()
+                        .getFirst()
+                        .copyBuilder()
+                        .writtenValue(Bytes.fromHex("ff".repeat(32)))
+                        .build())
+                .build()));
+        assertThat(caller.hasTraceDataSizeLimitExceeded()).isTrue();
+        // The handler can observe the limit before commit and fail the dispatch, reverting its nested changes.
+        fixture.root().rollbackFullStack();
+        fixture.root().getBaseBuilder(StreamBuilder.class).status(INSUFFICIENT_GAS);
+        fixture.root().commitFullStack();
+
+        final var output = fixture.root().buildHandleOutput(CONSENSUS_TIME, ExchangeRateSet.DEFAULT);
+        assertThat(caller.hasTraceDataSizeLimitExceeded()).isTrue();
+        assertThat(output.blockRecordSourceOrThrow().blockItems()).noneMatch(BlockItem::hasTraceData);
+        assertThat(output.singleTransactionRecords().getFirst().transactionSidecarRecords())
+                .isEmpty();
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = StreamMode.class,
+            names = {"BLOCKS", "BOTH"})
+    void readOnlyNestedScopeDoesNotAcquireItsCallersWrite(final StreamMode mode) {
+        final var fixture = fixture(mode, CONTRACT_CALL);
+        final var hashedKey = new SlotKey(contract(1037), Bytes.fromHex("ab".repeat(32)));
+        storage(fixture.root()).put(hashedKey, new SlotValue(word(1), Bytes.EMPTY, Bytes.EMPTY));
+        final var scheduled = scheduledIn(fixture.root(), mode);
+        trace(scheduled, List.of(usage(1037, read(hashedKey.key(), 1))), Set.of());
+        scheduled.commitFullStack();
+        storage(fixture.root()).put(hashedKey, new SlotValue(word(3), Bytes.EMPTY, Bytes.EMPTY));
+        trace(fixture.root(), List.of(usage(1037, write(hashedKey.key(), 0, 3))), Set.of(hashedKey));
+        fixture.root().commitFullStack();
+
+        final var evmTraces = traces(items(fixture.root()));
+        assertThat(evmTraces
+                        .getFirst()
+                        .contractSlotUsages()
+                        .getFirst()
+                        .slotReads()
+                        .getFirst()
+                        .writtenValueOrThrow())
+                .isEqualTo(minimal(3));
+        final var nestedUsage = evmTraces.getLast().contractSlotUsages().getFirst();
+        assertThat(nestedUsage.writtenSlotKeysOrThrow().keys()).isEmpty();
+        assertThat(nestedUsage.slotReads()).containsExactly(read(hashedKey.key(), 1));
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = StreamMode.class,
+            names = {"BLOCKS", "BOTH"})
+    void nestedHookScopesAlsoRetainCapturedValues(final StreamMode mode) {
+        final var fixture = fixture(mode, CONTRACT_CALL);
+        final var hook =
+                SavepointStackImpl.newChildStack(fixture.root(), REVERSIBLE, CHILD, NOOP_SIGNED_TX_CUSTOMIZER, mode);
+        initialize(hook.getBaseBuilder(StreamBuilder.class), HOOK_DISPATCH, TXN_ID);
+        hook.configureEvmTraceForNestedDispatch();
+        trace(hook, List.of(usage(1037, write(POINTER_ONLY.key(), 7, 2))), Set.of(POINTER_ONLY));
+        storage(hook).put(POINTER_ONLY, new SlotValue(word(2), Bytes.EMPTY, Bytes.EMPTY));
+        hook.commitFullStack();
+        storage(fixture.root()).put(POINTER_ONLY, new SlotValue(word(3), Bytes.EMPTY, Bytes.EMPTY));
+        trace(fixture.root(), List.of(usage(1037, write(POINTER_ONLY.key(), 7, 3))), Set.of(POINTER_ONLY));
+        fixture.root().commitFullStack();
+
+        assertThat(traces(items(fixture.root())))
+                .extracting(trace -> trace.contractSlotUsages()
+                        .getFirst()
+                        .slotReads()
+                        .getFirst()
+                        .writtenValueOrThrow())
+                .containsExactly(minimal(3), minimal(2));
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = StreamMode.class,
+            names = {"BLOCKS", "BOTH"})
+    void detectsEvmAncestryThroughScheduleSignInsideBatch(final StreamMode mode) {
+        final var fixture = fixture(mode, ATOMIC_BATCH);
+        final var outer = SavepointStackImpl.newChildStack(
+                fixture.root(), REVERSIBLE, BATCH_INNER, NOOP_SIGNED_TX_CUSTOMIZER, mode);
+        initialize(outer.getBaseBuilder(StreamBuilder.class), CONTRACT_CALL, TXN_ID);
+        outer.configureEvmTraceForNestedDispatch();
+        final var signing = SavepointStackImpl.newChildStack(outer, REVERSIBLE, CHILD, NOOP_SIGNED_TX_CUSTOMIZER, mode);
+        initialize(signing.getBaseBuilder(StreamBuilder.class), SCHEDULE_SIGN, TXN_ID);
+        signing.configureEvmTraceForNestedDispatch();
+        final var scheduled = scheduledIn(signing, mode);
+        trace(scheduled, List.of(usage(1037, write(POINTER_ONLY.key(), 7, 2))), Set.of(POINTER_ONLY));
+        storage(scheduled).put(POINTER_ONLY, new SlotValue(word(2), Bytes.EMPTY, Bytes.EMPTY));
+        scheduled.commitFullStack();
+        signing.commitFullStack();
+        storage(outer).put(POINTER_ONLY, new SlotValue(word(3), Bytes.EMPTY, Bytes.EMPTY));
+        trace(outer, List.of(usage(1037, write(POINTER_ONLY.key(), 7, 3))), Set.of(POINTER_ONLY));
+        outer.commitFullStack();
+        fixture.root().commitFullStack();
+
+        assertThat(traces(items(fixture.root())))
+                .extracting(trace -> trace.contractSlotUsages()
+                        .getFirst()
+                        .slotReads()
+                        .getFirst()
+                        .writtenValueOrThrow())
+                .containsExactly(minimal(3), minimal(2));
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = StreamMode.class,
+            names = {"BLOCKS", "BOTH"})
+    void serialBatchExecutionsKeepCompactExplicitWrites(final StreamMode mode) {
+        final var fixture = fixture(mode, ATOMIC_BATCH);
+        for (int i = 0; i < 2; i++) {
+            final var inner = SavepointStackImpl.newChildStack(
+                    fixture.root(), REVERSIBLE, BATCH_INNER, NOOP_SIGNED_TX_CUSTOMIZER, mode);
+            initialize(inner.getBaseBuilder(StreamBuilder.class), CONTRACT_CALL, TXN_ID);
+            inner.configureEvmTraceForNestedDispatch();
+            inner.getBaseBuilder(ContractOperationStreamBuilder.class)
+                    .addContractSlotUsages(List.of(new ContractSlotUsage(
+                            contract(1037),
+                            new WrittenSlotKeys(List.of(minimal(3))),
+                            List.of(SlotRead.newBuilder()
+                                    .index(0)
+                                    .readValue(minimal(i + 1))
+                                    .writtenValue(minimal(i + 2))
+                                    .build()))));
+            inner.commitFullStack();
+        }
+        fixture.root().commitFullStack();
+
+        assertThat(traces(items(fixture.root()))).hasSize(2).allSatisfy(trace -> {
+            final var usage = trace.contractSlotUsages().getFirst();
+            assertThat(usage.writtenSlotKeysOrThrow().keys()).containsExactly(minimal(3));
+            assertThat(usage.slotReads().getFirst().hasWrittenValue()).isFalse();
+        });
+    }
 
     @ParameterizedTest
     @MethodSource("schedulingModes")
@@ -147,7 +347,7 @@ class ScheduledEvmTraceTest {
 
         final var scheduled = scheduledIn(fixture.root(), mode);
         final var scheduledKey = key(1037, 1);
-        trace(scheduled, List.of(usage(1037, read(scheduledKey.key(), 0))), Set.of(scheduledKey));
+        trace(scheduled, List.of(usage(1037, write(scheduledKey.key(), 0, 2))), Set.of(scheduledKey));
         storage(scheduled).put(scheduledKey, new SlotValue(word(2), Bytes.EMPTY, Bytes.EMPTY));
         scheduled.commitFullStack();
         final var reverted = scheduledIn(fixture.root(), mode);
@@ -157,7 +357,7 @@ class ScheduledEvmTraceTest {
         // The outer updater captures its changed keys after nested dispatches have committed into its state.
         final var outerChangedKeys = Set.copyOf(storage(fixture.root()).modifiedKeys());
         assertThat(outerChangedKeys).containsExactlyInAnyOrder(outerKey, scheduledKey);
-        trace(fixture.root(), List.of(usage(1035, read(outerKey.key(), 0))), outerChangedKeys);
+        trace(fixture.root(), List.of(usage(1035, write(outerKey.key(), 0, 9))), outerChangedKeys);
         // Pointer maintenance follows this capture, and a reverted child must not make it a logical write.
         storage(fixture.root()).put(POINTER_ONLY, new SlotValue(word(7), word(1), Bytes.EMPTY));
         fixture.root().commitFullStack();
@@ -296,11 +496,11 @@ class ScheduledEvmTraceTest {
         final var fixture = fixture(mode, SCHEDULE_CREATE);
         final var writtenKey = key(1037, 1);
         final var successful = scheduledIn(fixture.root(), mode);
-        trace(successful, List.of(usage(1037, read(word(1), 0))), Set.of(writtenKey));
+        trace(successful, List.of(usage(1037, write(word(1), 0, 2))), Set.of(writtenKey));
         storage(successful).put(writtenKey, new SlotValue(word(2), Bytes.EMPTY, Bytes.EMPTY));
         successful.commitFullStack();
         final var reverted = scheduledIn(fixture.root(), mode);
-        trace(reverted, List.of(usage(1037, read(word(1), 2))), Set.of(writtenKey));
+        trace(reverted, List.of(usage(1037, write(word(1), 2, 3))), Set.of(writtenKey));
         storage(reverted).put(writtenKey, new SlotValue(word(3), Bytes.EMPTY, Bytes.EMPTY));
         reverted.rollbackFullStack();
         fixture.root().commitFullStack();
@@ -422,6 +622,11 @@ class ScheduledEvmTraceTest {
     private record Fixture(SavepointStackImpl root) {}
 
     private static Fixture fixture(final StreamMode mode, final HederaFunctionality function) {
+        return fixture(mode, function, TraceDataSizeLimiter.NO_LIMIT);
+    }
+
+    private static Fixture fixture(
+            final StreamMode mode, final HederaFunctionality function, final int maxTraceDataBytes) {
         final var listener = new ImmediateStateChangeListener();
         final var state = mock(State.class);
         final var kv = new MapWritableKVState<>(
@@ -443,7 +648,7 @@ class ScheduledEvmTraceTest {
         when(state.getWritableStates(SERVICE)).thenReturn(states);
         when(state.getReadableStates(SERVICE)).thenReturn(states);
         final var root = SavepointStackImpl.newRootStack(
-                state, 3, 50, mock(BoundaryStateChangeListener.class), listener, mode, TraceDataSizeLimiter.NO_LIMIT);
+                state, 3, 50, mock(BoundaryStateChangeListener.class), listener, mode, maxTraceDataBytes);
         initialize(root.getBaseBuilder(StreamBuilder.class), function, TXN_ID);
         return new Fixture(root);
     }
@@ -455,6 +660,7 @@ class ScheduledEvmTraceTest {
                 child.getBaseBuilder(StreamBuilder.class),
                 CONTRACT_CALL,
                 TXN_ID.copyBuilder().scheduled(true).build());
+        child.configureEvmTraceForNestedDispatch();
         return child;
     }
 
@@ -497,6 +703,13 @@ class ScheduledEvmTraceTest {
 
     private static SlotRead read(final Bytes key, final long value) {
         return SlotRead.newBuilder().key(key).readValue(minimal(value)).build();
+    }
+
+    private static SlotRead write(final Bytes key, final long readValue, final long writtenValue) {
+        return read(key, readValue)
+                .copyBuilder()
+                .writtenValue(minimal(writtenValue))
+                .build();
     }
 
     private static SlotKey key(final long contractNum, final long slot) {

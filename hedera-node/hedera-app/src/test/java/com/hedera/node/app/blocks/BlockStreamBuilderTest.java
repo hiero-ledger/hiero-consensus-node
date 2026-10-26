@@ -42,6 +42,7 @@ import com.hedera.hapi.node.base.TokenAssociation;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
+import com.hedera.hapi.node.contract.CreatedContractIds;
 import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.node.state.contract.SlotKey;
 import com.hedera.hapi.node.state.contract.SlotValue;
@@ -366,6 +367,195 @@ public class BlockStreamBuilderTest {
                                 .key(Bytes.fromHex("02"))
                                 .readValue(Bytes.fromHex("0c"))
                                 .build()));
+    }
+
+    @Test
+    void rollbackClearsCapturedCreationMetadataEvenBeforeStatusChanges() {
+        final var result = EvmTransactionResult.newBuilder()
+                .createdContractIds(new CreatedContractIds(
+                        List.of(ContractID.newBuilder().contractNum(1039).build())))
+                .build();
+        final var builder = evmOutputBuilder(false, false, result)
+                .tokenTransferLists(new java.util.ArrayList<>())
+                .paidStakingRewards(new java.util.ArrayList<>());
+        builder.retainEvmScopeDetails();
+        builder.nullOutSideEffectFields();
+
+        assertThat(emittedEvmResult(builder).hasCreatedContractIds()).isFalse();
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = ResponseCodeEnum.class,
+            names = {"REVERTED_SUCCESS", "CONTRACT_REVERT_EXECUTED", "INSUFFICIENT_GAS"})
+    void failedExecutionCannotEmitStaleCreatedContractIds(final ResponseCodeEnum failure) {
+        final var result = EvmTransactionResult.newBuilder()
+                .createdContractIds(new CreatedContractIds(
+                        List.of(ContractID.newBuilder().contractNum(1039).build())))
+                .build();
+        final var builder = evmOutputBuilder(false, false, result).status(failure);
+        builder.retainEvmScopeDetails();
+
+        assertThat(emittedEvmResult(builder).hasCreatedContractIds()).isFalse();
+    }
+
+    @ParameterizedTest(name = "ethereum={0}, create={1}, empty={2}")
+    @MethodSource("scopedCreatedIdCases")
+    void retainsScopedCreatedIdsOnlyForOverlappingExecutions(
+            final boolean ethereum, final boolean create, final boolean empty) throws Exception {
+        final var ids = empty
+                ? List.<ContractID>of()
+                : List.of(ContractID.newBuilder().contractNum(1039).build());
+        final var result = EvmTransactionResult.newBuilder()
+                .gasUsed(123)
+                .resultData(Bytes.fromHex("0123"))
+                .createdContractIds(new CreatedContractIds(ids))
+                .build();
+        final var ordinary = evmOutputBuilder(ethereum, create, result);
+        assertThat(emittedEvmResult(ordinary))
+                .isEqualTo(result.copyBuilder()
+                        .createdContractIds((CreatedContractIds) null)
+                        .build());
+
+        final var overlapping = evmOutputBuilder(ethereum, create, result);
+        overlapping.retainEvmScopeDetails();
+        final var emitted = emittedEvmResult(overlapping);
+        assertThat(emitted.createdContractIdsOrThrow().contractIds()).isEqualTo(ids);
+        final var roundTrip = EvmTransactionResult.PROTOBUF.parse(EvmTransactionResult.PROTOBUF.toBytes(emitted));
+        assertThat(roundTrip).isEqualTo(emitted);
+        assertThat(roundTrip.hasCreatedContractIds()).isTrue();
+    }
+
+    private static Stream<Arguments> scopedCreatedIdCases() {
+        return Stream.of(false, true).flatMap(ethereum -> Stream.of(false, true)
+                .flatMap(create -> Stream.of(false, true).map(empty -> Arguments.of(ethereum, create, empty))));
+    }
+
+    private BlockStreamBuilder evmOutputBuilder(
+            final boolean ethereum, final boolean create, final EvmTransactionResult result) {
+        final var builder = createBaseBuilder()
+                .status(SUCCESS)
+                .functionality(
+                        ethereum ? HederaFunctionality.ETHEREUM_TRANSACTION : create ? CONTRACT_CREATE : CONTRACT_CALL);
+        if (ethereum) {
+            builder.ethereumHash(Bytes.fromHex("01"));
+        }
+        if (create) {
+            builder.evmCreateTransactionResult(result);
+        } else {
+            builder.evmCallTransactionResult(result);
+        }
+        return builder;
+    }
+
+    private static EvmTransactionResult emittedEvmResult(final BlockStreamBuilder builder) {
+        final var output = builder.build(false, null).blockItems().stream()
+                .filter(BlockItem::hasTransactionOutput)
+                .findFirst()
+                .orElseThrow()
+                .transactionOutputOrThrow();
+        if (output.hasContractCall()) {
+            return output.contractCallOrThrow().evmTransactionResultOrThrow();
+        } else if (output.hasContractCreate()) {
+            return output.contractCreateOrThrow().evmTransactionResultOrThrow();
+        }
+        final var ethereum = output.ethereumCallOrThrow();
+        return ethereum.hasEvmCallTransactionResult()
+                ? ethereum.evmCallTransactionResultOrThrow()
+                : ethereum.evmCreateTransactionResultOrThrow();
+    }
+
+    @Test
+    void preservesCapturedWritesWithoutCommittedKeysAndKeepsReadOnlySlotsReadOnly() throws Exception {
+        final var builder = createBaseBuilder().status(SUCCESS).functionality(CONTRACT_CALL);
+        builder.testForIdenticalKeys(_ -> true);
+        builder.retainEvmScopeDetails();
+        builder.addContractSlotUsages(List.of(new ContractSlotUsage(
+                ContractID.DEFAULT,
+                null,
+                List.of(
+                        SlotRead.newBuilder()
+                                .key(Bytes.fromHex("00".repeat(32)))
+                                .readValue(Bytes.fromHex("07"))
+                                .writtenValue(Bytes.EMPTY)
+                                .build(),
+                        SlotRead.newBuilder()
+                                .key(Bytes.fromHex("00".repeat(31) + "01"))
+                                .writtenValue(Bytes.fromHex("02"))
+                                .build(),
+                        SlotRead.newBuilder().key(Bytes.fromHex("02")).build()))));
+
+        final var usage = storageTrace(builder).contractSlotUsages().getFirst();
+        assertThat(usage.writtenSlotKeysOrThrow().keys()).containsExactly(Bytes.EMPTY, Bytes.fromHex("01"));
+        assertThat(usage.slotReads().getFirst().indexOrThrow()).isZero();
+        assertThat(usage.slotReads().getFirst().writtenValueOrThrow()).isEqualTo(Bytes.EMPTY);
+        assertThat(usage.slotReads().get(1).writtenValueOrThrow()).isEqualTo(Bytes.fromHex("02"));
+        assertThat(usage.slotReads().getLast().hasKey()).isTrue();
+        assertThat(usage.slotReads().getLast().hasWrittenValue()).isFalse();
+        final var roundTrip = ContractSlotUsage.PROTOBUF.parse(ContractSlotUsage.PROTOBUF.toBytes(usage));
+        assertThat(roundTrip).isEqualTo(usage);
+        assertThat(roundTrip.slotReads().getFirst().hasWrittenValue()).isTrue();
+    }
+
+    @Test
+    void candidateWrittenValuesDoNotChangeOrdinaryWireOutputOrPrematurelyExhaustTraceLimit() {
+        final var compactUsage = new ContractSlotUsage(
+                ContractID.DEFAULT,
+                new WrittenSlotKeys(List.of(Bytes.EMPTY)),
+                List.of(SlotRead.newBuilder()
+                        .index(0)
+                        .readValue(Bytes.fromHex("01"))
+                        .build()));
+        final var compactSize = EvmTraceData.PROTOBUF.measureRecord(EvmTraceData.newBuilder()
+                .contractSlotUsages(List.of(compactUsage))
+                .build());
+        final var candidateUsage = compactUsage
+                .copyBuilder()
+                .slotReads(compactUsage
+                        .slotReads()
+                        .getFirst()
+                        .copyBuilder()
+                        .writtenValue(Bytes.fromHex("ff".repeat(32)))
+                        .build())
+                .build();
+        final var ordinary = createBaseBuilder(compactSize).status(SUCCESS).functionality(CONTRACT_CALL);
+        ordinary.addContractSlotUsages(List.of(candidateUsage));
+        assertThat(ordinary.hasTraceDataSizeLimitExceeded()).isFalse();
+        assertThat(storageTrace(ordinary).contractSlotUsages()).containsExactly(compactUsage);
+        assertThat(ordinary.hasTraceDataSizeLimitExceeded()).isFalse();
+
+        final var nested = createBaseBuilder(compactSize).status(SUCCESS).functionality(CONTRACT_CALL);
+        nested.retainEvmScopeDetails();
+        nested.addContractSlotUsages(List.of(candidateUsage));
+        assertThat(nested.hasTraceDataSizeLimitExceeded()).isTrue();
+        assertThat(nested.build(false, null).blockItems()).noneMatch(BlockItem::hasTraceData);
+    }
+
+    @Test
+    void revertedCapturedWritesLoseTheirValuesAndIndexes() {
+        final var builder = createBaseBuilder().status(REVERTED_SUCCESS).functionality(CONTRACT_CALL);
+        builder.retainEvmScopeDetails();
+        builder.addContractSlotUsages(List.of(new ContractSlotUsage(
+                ContractID.DEFAULT,
+                new WrittenSlotKeys(List.of(Bytes.EMPTY)),
+                List.of(SlotRead.newBuilder()
+                        .index(0)
+                        .writtenValue(Bytes.fromHex("02"))
+                        .build()))));
+
+        final var usage = storageTrace(builder).contractSlotUsages().getFirst();
+        assertThat(usage.hasWrittenSlotKeys()).isFalse();
+        assertThat(usage.slotReads())
+                .containsExactly(SlotRead.newBuilder().key(Bytes.EMPTY).build());
+    }
+
+    private static EvmTraceData storageTrace(final BlockStreamBuilder builder) {
+        return builder.build(false, null).blockItems().stream()
+                .filter(BlockItem::hasTraceData)
+                .findFirst()
+                .orElseThrow()
+                .traceDataOrThrow()
+                .evmTraceDataOrThrow();
     }
 
     @Test

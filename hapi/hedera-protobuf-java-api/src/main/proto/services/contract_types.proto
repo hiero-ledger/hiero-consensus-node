@@ -99,6 +99,33 @@ message EvmTransactionResult {
      * the transaction.<br/>
      */
     google.protobuf.Int64Value signer_nonce = 9;
+
+    /**
+     * The contracts created within this EVM execution's completed scope,
+     * including creations performed by nested executions.
+     * <p>
+     * This field SHALL be set for successful overlapping EVM execution scopes
+     * when the transactional unit's state changes cannot identify each scope's
+     * creations independently. A present message with an empty list means this
+     * scope created no contracts. An absent message leaves creation identifiers
+     * to be derived from the other block items using the existing rules.
+     * <p>
+     * When present, this list SHALL take precedence over creation identifiers
+     * inferred from the transactional unit's state changes or contract actions.
+     * This field SHALL NOT be set for an unsuccessful or reverted execution.
+     */
+    CreatedContractIds created_contract_ids = 10;
+}
+
+/**
+ * An authoritative list of contracts created within one EVM execution scope.
+ */
+message CreatedContractIds {
+    /**
+     * Created contract identifiers, in ascending contract-number order.
+     * This list MAY be empty when the execution created no contracts.
+     */
+    repeated ContractID contract_ids = 1;
 }
 
 /**

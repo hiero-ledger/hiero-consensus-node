@@ -63,12 +63,18 @@ public class ContractCallTranslator implements BlockTransactionPartsTranslator {
                                     if (hookCreations != null && !hookCreations.isEmpty()) {
                                         derivedBuilder.createdContractIDs(hookCreations.removeFirst());
                                     }
+                                    // Consume the inferred entry to keep later hook executions aligned, then prefer
+                                    // this execution's captured IDs, including an explicitly empty list.
+                                    baseTranslator.addCapturedCreatedIdsTo(derivedBuilder, parts);
                                 }
                                 baseTranslator.addChangedContractNonces(derivedBuilder, evmResult.contractNonces());
                             }
                             final var result = derivedBuilder.build();
                             recordBuilder.contractCallResult(result);
-                            if ((parts.transactionIdOrThrow().nonce() == 0 || isHook) && result.gasUsed() > 0L) {
+                            if ((parts.transactionIdOrThrow().nonce() == 0
+                                            || isHook
+                                            || parts.transactionResult().hasScheduleRef())
+                                    && result.gasUsed() > 0L) {
                                 receiptBuilder.contractID(result.contractID());
                             }
                         }),

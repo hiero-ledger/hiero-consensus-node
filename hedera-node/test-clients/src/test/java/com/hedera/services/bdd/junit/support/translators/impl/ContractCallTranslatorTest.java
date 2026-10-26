@@ -30,10 +30,13 @@ import com.hedera.hapi.block.stream.trace.TraceData;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
+import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
+import com.hedera.hapi.node.contract.CreatedContractIds;
 import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.node.scheduled.ScheduleCreateTransactionBody;
 import com.hedera.hapi.node.scheduled.ScheduleSignTransactionBody;
@@ -46,12 +49,17 @@ import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.support.translators.BaseTranslator;
 import com.hedera.services.bdd.junit.support.translators.RoleFreeBlockUnitSplit;
+import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionParts;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionalUnit;
+import com.hedera.services.bdd.junit.support.translators.inputs.HookMetadata;
+import com.hedera.services.bdd.junit.support.translators.inputs.TransactionParts;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class ContractCallTranslatorTest {
     private static final ContractID CONTRACT =
@@ -126,13 +134,96 @@ class ContractCallTranslatorTest {
         assertEquals(256, result.bloom().length());
     }
 
+    @ParameterizedTest
+    @ValueSource(ints = {1, 8})
+    void reconstructsReceiptContractIdForNonzeroNonceScheduledCall(final int nonce) {
+        final var items = new ArrayList<BlockItem>();
+        items.add(signedItem(TransactionBody.newBuilder()
+                .transactionID(TRANSACTION_ID)
+                .contractCall(ContractCallTransactionBody.newBuilder()
+                        .contractID(CONTRACT)
+                        .gas(100_000))
+                .build()));
+        items.add(BlockItem.newBuilder()
+                .transactionResult(
+                        TransactionResult.newBuilder().status(SUCCESS).consensusTimestamp(PARENT_TIME))
+                .build());
+        items.add(BlockItem.newBuilder().stateChanges(StateChanges.DEFAULT).build());
+        addScheduledCall(
+                items,
+                nonce,
+                SUCCESS,
+                List.of(),
+                ScheduleID.newBuilder()
+                        .shardNum(11)
+                        .realmNum(12)
+                        .scheduleNum(1038)
+                        .build());
+        final var units = new RoleFreeBlockUnitSplit().split(items);
+        assertEquals(1, units.size());
+        final var unit = units.getFirst();
+        assertTrue(unit.blockTransactionParts().get(1).hasEnrichedLegacyRecord());
+
+        final var translated = translate(unit, 1);
+
+        assertEquals(CONTRACT, translated.transactionRecord().receiptOrThrow().contractID());
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void capturedHookCreationsOverrideInferenceWithoutSkippingItsQueueEntry(final boolean empty) {
+        final var hookContract = CONTRACT.copyBuilder().contractNum(365).build();
+        final var hookId = HookId.DEFAULT;
+        final var capturedIds = empty ? List.<ContractID>of() : List.of(CREATED_CONTRACT);
+        final var nextCreations =
+                List.of(CONTRACT.copyBuilder().contractNum(1042).build());
+        final var inferredCreations = new ArrayList<>(List.of(List.of(CONTRACT), nextCreations));
+        final var hookMetadata = new HookMetadata(List.of(hookId), Map.of(hookId, inferredCreations));
+        final var body = TransactionBody.newBuilder()
+                .transactionID(TRANSACTION_ID.copyBuilder().nonce(1))
+                .contractCall(ContractCallTransactionBody.newBuilder()
+                        .contractID(hookContract)
+                        .gas(100_000))
+                .build();
+        final var parts = new BlockTransactionParts(
+                TransactionParts.from(signedItem(body).signedTransactionOrThrow()),
+                TransactionResult.newBuilder()
+                        .status(SUCCESS)
+                        .consensusTimestamp(PARENT_TIME.copyBuilder().nanos(1))
+                        .parentConsensusTimestamp(PARENT_TIME)
+                        .build(),
+                null,
+                List.of(TransactionOutput.newBuilder()
+                        .contractCall(CallContractOutput.newBuilder()
+                                .evmTransactionResult(EvmTransactionResult.newBuilder()
+                                        .contractId(hookContract)
+                                        .gasUsed(1_234)
+                                        .createdContractIds(new CreatedContractIds(capturedIds))))
+                        .build()),
+                false,
+                false,
+                false);
+
+        final var translated = new ContractCallTranslator()
+                .translate(parts, new BaseTranslator(11, 12), List.of(), null, List.of(), hookId, hookMetadata);
+
+        assertEquals(
+                capturedIds,
+                translated.transactionRecord().contractCallResultOrThrow().createdContractIDs());
+        assertEquals(
+                List.of(nextCreations), inferredCreations, "Later hook executions must retain their own queue entry");
+    }
+
     @Test
     void doesNotEnrichTheScheduledCallsSyntheticChild() {
         final var unit = scheduledUnit(SCHEDULE_CREATE, SUCCESS, List.of(LOG), true);
         assertFalse(unit.blockTransactionParts().get(2).hasEnrichedLegacyRecord());
 
-        final var result = translate(unit, 2).transactionRecord().contractCallResultOrThrow();
+        final var record = translate(unit, 2).transactionRecord();
+        final var result = record.contractCallResultOrThrow();
 
+        assertNull(
+                record.receiptOrThrow().contractID(), "A scheduled flag alone does not identify a scheduled execution");
         assertEquals(Bytes.EMPTY, result.bloom());
         assertTrue(result.logInfo().isEmpty());
         assertTrue(result.createdContractIDs().isEmpty());
@@ -196,6 +287,15 @@ class ContractCallTranslatorTest {
             final int nonce,
             final ResponseCodeEnum status,
             final List<EvmTransactionLog> logs) {
+        addScheduledCall(items, nonce, status, logs, null);
+    }
+
+    private static void addScheduledCall(
+            final List<BlockItem> items,
+            final int nonce,
+            final ResponseCodeEnum status,
+            final List<EvmTransactionLog> logs,
+            final ScheduleID scheduleRef) {
         items.add(signedItem(TransactionBody.newBuilder()
                 .transactionID(TRANSACTION_ID.copyBuilder().scheduled(true).nonce(nonce))
                 .contractCall(ContractCallTransactionBody.newBuilder()
@@ -206,6 +306,7 @@ class ContractCallTranslatorTest {
                 .transactionResult(TransactionResult.newBuilder()
                         .status(status)
                         .consensusTimestamp(PARENT_TIME.copyBuilder().nanos(nonce + 1))
+                        .scheduleRef(scheduleRef)
                         .parentConsensusTimestamp(PARENT_TIME))
                 .build());
         items.add(BlockItem.newBuilder()

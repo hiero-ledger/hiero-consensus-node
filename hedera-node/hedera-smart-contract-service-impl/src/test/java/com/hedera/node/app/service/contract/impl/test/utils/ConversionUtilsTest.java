@@ -468,8 +468,10 @@ class ConversionUtilsTest {
                         ConversionUtils.asPbjSlotUsages(List.of(accesses), traceExplicitWrites))
                 .getFirst();
 
-        assertThat(usage.slotReads())
-                .allSatisfy(read -> assertThat(read.hasKey()).isTrue());
+        assertThat(usage.slotReads()).allSatisfy(read -> {
+            assertThat(read.hasKey()).isTrue();
+            assertThat(read.hasWrittenValue()).isFalse();
+        });
         assertThat(usage.slotReads())
                 .extracting(SlotRead::keyOrThrow)
                 .containsExactly(
@@ -497,15 +499,46 @@ class ConversionUtilsTest {
                         com.hedera.pbj.runtime.io.buffer.Bytes.EMPTY,
                         com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("0100"));
         final var readValue = com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("01");
+        final var writtenValue = com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("02");
         assertThat(usage.slotReads())
                 .containsExactly(
-                        SlotRead.newBuilder().index(0).readValue(readValue).build(),
+                        SlotRead.newBuilder()
+                                .index(0)
+                                .readValue(readValue)
+                                .writtenValue(writtenValue)
+                                .build(),
                         SlotRead.newBuilder()
                                 .key(com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("07"))
                                 .readValue(readValue)
                                 .build(),
-                        SlotRead.newBuilder().index(1).readValue(readValue).build(),
-                        SlotRead.newBuilder().index(2).readValue(readValue).build());
+                        SlotRead.newBuilder()
+                                .index(1)
+                                .readValue(readValue)
+                                .writtenValue(writtenValue)
+                                .build(),
+                        SlotRead.newBuilder()
+                                .index(2)
+                                .readValue(readValue)
+                                .writtenValue(writtenValue)
+                                .build());
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void capturesZeroWrittenValuesWithoutConfusingThemWithReadOnlyAccesses(final boolean traceExplicitWrites) {
+        final var accesses = new StorageAccesses(
+                CALLED_CONTRACT_ID,
+                List.of(
+                        StorageAccess.newWrite(UInt256.ZERO, UInt256.ONE, UInt256.ZERO),
+                        StorageAccess.newRead(UInt256.ONE, UInt256.ZERO)));
+        final var usage = Objects.requireNonNull(
+                        ConversionUtils.asPbjSlotUsages(List.of(accesses), traceExplicitWrites))
+                .getFirst();
+
+        assertThat(usage.slotReads().getFirst().hasWrittenValue()).isTrue();
+        assertThat(usage.slotReads().getFirst().writtenValueOrThrow())
+                .isEqualTo(com.hedera.pbj.runtime.io.buffer.Bytes.EMPTY);
+        assertThat(usage.slotReads().getLast().hasWrittenValue()).isFalse();
     }
 
     @Test

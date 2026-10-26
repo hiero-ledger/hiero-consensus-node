@@ -620,6 +620,42 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         return stack.peek();
     }
 
+    private static boolean isEvmExecution(final StreamBuilder builder) {
+        return switch (builder.functionality()) {
+            case CONTRACT_CALL, CONTRACT_CREATE, ETHEREUM_TRANSACTION, HOOK_DISPATCH -> true;
+            case null, default -> false;
+        };
+    }
+
+    /**
+     * Selects explicit written values for this EVM dispatch and its enclosing EVM executions. Called after the
+     * child builder is initialized, before executing it, so trace limits include these values before any commit.
+     * Intermediate native dispatches (such as ScheduleSign or CryptoTransfer) do not break EVM ancestry.
+     */
+    public void configureEvmTraceForNestedDispatch() {
+        if (streamMode == RECORDS || !isEvmExecution(baseBuilder)) {
+            return;
+        }
+        boolean nested = false;
+        State ancestor = state;
+        while (ancestor instanceof SavepointStackImpl enclosing) {
+            if (isEvmExecution(enclosing.baseBuilder)) {
+                blockBuilderOf(enclosing.baseBuilder).retainEvmScopeDetails();
+                nested = true;
+            }
+            ancestor = enclosing.state;
+        }
+        if (nested) {
+            blockBuilderOf(baseBuilder).retainEvmScopeDetails();
+        }
+    }
+
+    private static BlockStreamBuilder blockBuilderOf(final StreamBuilder builder) {
+        return builder instanceof PairedStreamBuilder paired
+                ? paired.blockStreamBuilder()
+                : (BlockStreamBuilder) builder;
+    }
+
     /**
      * Builds the {@link BlockRecordSource} and/or {@link RecordSource} for this user transaction. This is only used in
      * {@link com.hedera.node.app.workflows.standalone.TransactionExecutor}

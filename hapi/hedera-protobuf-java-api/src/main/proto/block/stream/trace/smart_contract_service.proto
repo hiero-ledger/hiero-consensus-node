@@ -21,13 +21,13 @@ option java_multiple_files = true;
 
 import "services/basic_types.proto";
 import "streams/contract_action.proto";
+import "google/protobuf/wrappers.proto";
 
 /**
  * Usage of a contract's storage slots in an EVM transaction.<br/>
  * In the common case that a contract operation is the only EVM
- * transaction in its Hiero transactional unit, this message simply
- * sets `written_keys_are_non_identical_state_changes` to true;
- * meaning a stream consumer should extract the written keys from
+ * transaction in its Hiero transactional unit, this message leaves
+ * `written_slot_keys` unset; a stream consumer should extract the written keys from
  * the Hiero unit's SlotKey state changes that match this message's
  * `contract_id` (but ignoring any* MapUpdateChange with
  * `identical` set to true).
@@ -36,7 +36,9 @@ import "streams/contract_action.proto";
  * several in its Hiero transactional unit (e.g., because it is
  * one of several ContractCalls in an AtomicBatch); this message
  * explicitly traces the storage slots that were written during
- * its transaction's execution.
+ * its transaction's execution. Nested EVM executions also include explicit
+ * written values, because their execution scopes can overlap and cannot be
+ * reconstructed by treating their traces as a sequence of completed executions.
  */
 message ContractSlotUsage {
     /**
@@ -48,12 +50,19 @@ message ContractSlotUsage {
      * When this EVM transaction was one of several within its Hiero
      * transactional unit, the storage slots that it wrote.
      * <p>
-     * The written value can be unambiguously derived from the block items
-     * in this EVM transaction's Hiero transactional unit. In particular,
+     * If a SlotRead has `written_value` set, that value MUST be used for its
+     * corresponding write. Otherwise, for EVM executions whose scopes do not
+     * overlap, the written value can be derived from the block items in this
+     * EVM transaction's Hiero transactional unit. In particular,
      * 1. If a following EVM trace modifies the same slot, the value written
      * in this EVM transaction was whatever value the following trace read.
      * 2. If the slot was not modified in a following EVM trace, the value
      * is whatever value was committed to the Merkle state for the slot.
+     * <p>
+     * A nested EVM execution can finish before its enclosing execution resumes
+     * and overwrites the same slot. Such executions MUST include `written_value`
+     * for each write and MUST set this explicit list, even if a written slot is
+     * absent from the final state changes of the Hiero transactional unit.
      */
     WrittenSlotKeys written_slot_keys = 3;
 
@@ -109,6 +118,25 @@ message SlotRead {
     * to form a 32-byte EVM slot value.
     */
     bytes read_value = 3;
+
+    /**
+     * The final value written to this slot within this EVM execution's scope,
+     * including effects of any nested executions. This value takes precedence
+     * over inference from following traces or the committed Merkle state.
+     * <p>
+     * This field MUST be present for writes in overlapping EVM execution
+     * scopes, such as a contract call that immediately executes a scheduled
+     * contract call through the schedule system contract. It MUST NOT be set
+     * for a read-only slot or a reverted write. When this field is present,
+     * `identifier` MUST be `index` and the containing ContractSlotUsage MUST
+     * have `written_slot_keys` set.
+     * <p>
+     * The value is represented with minimal bytes (no leading zeros). A zero
+     * write is represented by a present wrapper with an empty byte sequence;
+     * an absent wrapper means the written value must be inferred using the
+     * existing rules, not that the written value is zero.
+     */
+    google.protobuf.BytesValue written_value = 4;
 }
 
 /**

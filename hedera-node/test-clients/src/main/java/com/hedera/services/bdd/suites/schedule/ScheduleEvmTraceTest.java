@@ -175,6 +175,8 @@ public class ScheduleEvmTraceTest {
                         final var expectedRead = expectedReads.get(i);
                         final var actualRead = usage.slotReads().get(i);
                         assertEquals(expectedRead.valueRead(), actualRead.readValue());
+                        assertFalse(
+                                actualRead.hasWrittenValue(), "A single EVM execution keeps compact value encoding");
                         if (expectedRead.hasValueWritten()) {
                             assertTrue(actualRead.hasIndex(), "Written slots must reference the unit's committed keys");
                             assertEquals(expectedRead.slot(), writes.get(actualRead.indexOrThrow()));

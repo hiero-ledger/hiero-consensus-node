@@ -3,11 +3,11 @@ package com.hedera.node.app.blocks.impl;
 
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_EVM_HOOK_STORAGE;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_STORAGE;
-import static com.hedera.hapi.block.stream.trace.SlotRead.IdentifierOneOfType.INDEX;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.IDENTICAL_SCHEDULE_ALREADY_CREATED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REVERTED_SUCCESS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.hapi.utils.contracts.HookUtils.minimalRepresentationOf;
 import static com.hedera.node.app.service.token.HookDispatchUtils.HTS_HOOKS_CONTRACT_NUM;
@@ -55,6 +55,7 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
 import com.hedera.hapi.node.contract.ContractNonceInfo;
+import com.hedera.hapi.node.contract.CreatedContractIds;
 import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.node.contract.InternalCallContext;
 import com.hedera.hapi.node.state.contract.SlotKey;
@@ -116,7 +117,6 @@ import com.hedera.node.app.spi.records.RecordSource;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.workflows.handle.record.TraceDataSizeLimiter;
-import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -378,6 +378,8 @@ public class BlockStreamBuilder
      */
     @Nullable
     private List<ContractSlotUsage> slotUsages;
+
+    private boolean retainsEvmScopeDetails;
 
     private int contractSlotUsagesTraceDataSize;
 
@@ -675,7 +677,7 @@ public class BlockStreamBuilder
                 && (slotUsages != null || contractActions != null || (initcode != null && !topLevel) || logs != null)) {
             final var builder = EvmTraceData.newBuilder();
             if (slotUsages != null) {
-                final boolean traceExplicitWrites = logicallyIdentical == null;
+                final boolean traceExplicitWrites = logicallyIdentical == null || retainsEvmScopeDetails;
                 if (traceExplicitWrites || status == REVERTED_SUCCESS) {
                     // Reverted executions have no committed writes. Restore explicit indexes to keys, and keep
                     // implicit placeholders from being indexed against a surviving sibling's writes to the same slot.
@@ -692,6 +694,7 @@ public class BlockStreamBuilder
                                                 : read.keyOrThrow();
                                         reads.add(read.copyBuilder()
                                                 .key(minimalRepresentationOf(key))
+                                                .writtenValue((Bytes) null)
                                                 .build());
                                     }
                                     return usage.copyBuilder()
@@ -776,7 +779,8 @@ public class BlockStreamBuilder
                                 }
                                 final var index = writeIndexes == null ? null : writeIndexes.get(key);
                                 if (index != null) {
-                                    indexedReads.add(new SlotRead(new OneOf<>(INDEX, index), read.readValue()));
+                                    indexedReads.add(
+                                            read.copyBuilder().index(index).build());
                                 } else {
                                     // Implicit write placeholders use full keys for lookup. If no committed write
                                     // remains, externalize the key with the same minimal encoding as read-only slots.
@@ -862,6 +866,51 @@ public class BlockStreamBuilder
                 && slotUsages.stream().anyMatch(usage -> !usage.writtenSlotKeysOrElse(WrittenSlotKeys.DEFAULT)
                         .keys()
                         .isEmpty());
+    }
+
+    /**
+     * Selects captured storage writes and created-contract IDs for overlapping EVM executions. This policy must be
+     * set before storage usages are added, so their full serialized size is checked while the handler can still fail
+     * and revert.
+     */
+    public void retainEvmScopeDetails() {
+        retainsEvmScopeDetails = true;
+    }
+
+    private static List<ContractSlotUsage> withExplicitWrittenValues(final List<ContractSlotUsage> usages) {
+        final List<ContractSlotUsage> preparedUsages = new ArrayList<>(usages.size());
+        for (final var usage : usages) {
+            final var originalKeys =
+                    usage.writtenSlotKeysOrElse(WrittenSlotKeys.DEFAULT).keys();
+            final List<Bytes> writtenKeys = new ArrayList<>();
+            final List<SlotRead> reads = new ArrayList<>(usage.slotReads().size());
+            for (final var read : usage.slotReads()) {
+                final var key = minimalRepresentationOf(
+                        read.hasIndex() ? originalKeys.get(read.indexOrThrow()) : read.keyOrThrow());
+                if (read.hasWrittenValue() || read.hasIndex()) {
+                    reads.add(read.copyBuilder().index(writtenKeys.size()).build());
+                    writtenKeys.add(key);
+                } else {
+                    reads.add(read.copyBuilder().key(key).build());
+                }
+            }
+            preparedUsages.add(new ContractSlotUsage(usage.contractId(), new WrittenSlotKeys(writtenKeys), reads));
+        }
+        return preparedUsages;
+    }
+
+    private static List<ContractSlotUsage> withoutWrittenValues(final List<ContractSlotUsage> usages) {
+        return usages.stream()
+                .map(usage -> usage.copyBuilder()
+                        .slotReads(usage.slotReads().stream()
+                                .map(read -> read.hasWrittenValue()
+                                        ? read.copyBuilder()
+                                                .writtenValue((Bytes) null)
+                                                .build()
+                                        : read)
+                                .toList())
+                        .build())
+                .toList();
     }
 
     @Override
@@ -1389,10 +1438,12 @@ public class BlockStreamBuilder
     @Override
     public BlockStreamBuilder addContractSlotUsages(@NonNull final List<ContractSlotUsage> slotUsages) {
         requireNonNull(slotUsages);
+        final var encodedUsages =
+                retainsEvmScopeDetails ? withExplicitWrittenValues(slotUsages) : withoutWrittenValues(slotUsages);
         final var newTraceDataSize = EvmTraceData.PROTOBUF.measureRecord(
-                EvmTraceData.newBuilder().contractSlotUsages(slotUsages).build());
+                EvmTraceData.newBuilder().contractSlotUsages(encodedUsages).build());
         if (traceDataSizeLimiter.tryReplace(contractSlotUsagesTraceDataSize, newTraceDataSize)) {
-            this.slotUsages = slotUsages;
+            this.slotUsages = encodedUsages;
             this.contractSlotUsagesTraceDataSize = newTraceDataSize;
         } else {
             clearContractTraceData();
@@ -1581,13 +1632,13 @@ public class BlockStreamBuilder
         if (evmTransactionResult != null) {
             logs = null;
             createdContractIds = null;
+            evmTransactionResult = evmTransactionResult
+                    .copyBuilder()
+                    .createdContractIds((CreatedContractIds) null)
+                    .build();
         }
         if (traceDataSizeLimiter.hasExceededTraceDataSizeLimit()) {
             clearContractTraceData();
-        }
-        if (evmTransactionResult != null) {
-            logs = null;
-            createdContractIds = null;
         }
     }
 
@@ -1623,11 +1674,11 @@ public class BlockStreamBuilder
             switch (requireNonNull(contractOpType)) {
                 case CREATE ->
                     builder.contractCreate(CreateContractOutput.newBuilder()
-                            .evmTransactionResult(evmTransactionResult)
+                            .evmTransactionResult(externalizedEvmTransactionResult())
                             .build());
                 case CALL ->
                     builder.contractCall(CallContractOutput.newBuilder()
-                            .evmTransactionResult(evmTransactionResult)
+                            .evmTransactionResult(externalizedEvmTransactionResult())
                             .build());
                 case ETH_CALL ->
                     builder.ethereumCall(EthereumOutput.newBuilder()
@@ -1671,15 +1722,25 @@ public class BlockStreamBuilder
      * @return the {@link EvmTransactionResult} appropriate for an {@link EthereumOutput} item
      */
     private @Nullable EvmTransactionResult ethEvmTransactionResult() {
-        if (evmTransactionResult == null) {
+        final var result = externalizedEvmTransactionResult();
+        if (result == null) {
             return null;
         }
-        if (!evmTransactionResult.hasInternalCallContext()) {
+        if (!result.hasInternalCallContext()) {
+            return result;
+        }
+        return result.copyBuilder()
+                .internalCallContext((InternalCallContext) null)
+                .build();
+    }
+
+    private @Nullable EvmTransactionResult externalizedEvmTransactionResult() {
+        if (evmTransactionResult == null || retainsEvmScopeDetails && status == SUCCESS) {
             return evmTransactionResult;
         }
         return evmTransactionResult
                 .copyBuilder()
-                .internalCallContext((InternalCallContext) null)
+                .createdContractIds((CreatedContractIds) null)
                 .build();
     }
 
