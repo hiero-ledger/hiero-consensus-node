@@ -6,13 +6,13 @@ WRAPS proving parameters are bundled in the TSS library, so no committed fixture
 
 The main classes:
 
-|                           Class                           |                                                                Role                                                                 |
-|-----------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------|
-| `MultiNetworkHapiTest` / `@Network`                       | Declares the networks a test needs (name, size, setup overrides, HAPI TLS, `tssPreload`).                                           |
-| `SharedMultiNetworkLauncherSessionListener`               | Collects the declared networks and their groups at test-plan start and reserves their ports; stops any still running at plan end.   |
-| `MultiNetworkGroupQueue` / `NetworkGroup`                 | Admits network groups under a node budget, so only as many groups run at once as the budget allows.                                 |
-| `ClprNetworkLocksProvider` / `@MultiNetworkLeakyHapiTest` | Locks each test's networks: `READ` by default (tests on a network run concurrently), `READ_WRITE` for leaky tests (run alone).      |
-| `MultiNetworkExtension`                                   | Boots a group's networks on its first test and tears them down after its last, then applies test overrides. |
+|                           Class                           |                                                               Role                                                                |
+|-----------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------|
+| `MultiNetworkHapiTest` / `@Network`                       | Declares the networks a test needs (name, size, setup overrides, HAPI TLS, `tssPreload`).                                         |
+| `SharedMultiNetworkLauncherSessionListener`               | Collects the declared networks and their groups at test-plan start and reserves their ports; stops any still running at plan end. |
+| `MultiNetworkGroupQueue` / `NetworkGroup`                 | Admits network groups under a node budget, so only as many groups run at once as the budget allows.                               |
+| `ClprNetworkLocksProvider` / `@MultiNetworkLeakyHapiTest` | Locks each test's networks: `READ` by default (tests on a network run concurrently), `READ_WRITE` for leaky tests (run alone).    |
+| `MultiNetworkExtension`                                   | Boots a group's networks on its first test and tears them down after its last, then applies test overrides.                       |
 
 ## Phase 0 — test-plan start
 
