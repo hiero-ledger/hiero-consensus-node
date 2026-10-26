@@ -169,6 +169,11 @@ public class BlockNodeSubscribeClient implements AutoCloseable {
             if (terminated) {
                 return;
             }
+            // The block node sends any live blocks it already queued past the requested end before its
+            // status; once the range is complete, ignore everything but that status
+            if (status == null && !response.hasStatus() && blocks.size() - 1L == endBlock - startBlock) {
+                return;
+            }
             if (status != null) {
                 onError(new IllegalStateException("Received data after terminal subscription status " + status));
             } else if (response.hasBlockItems()) {

@@ -60,6 +60,22 @@ class BlockNodeSubscribeClientTest {
     }
 
     @Test
+    void ignoresQueuedLiveBlocksPastTheRequestedEnd() throws InterruptedException {
+        final var collector = oneCompletedBlockOfTwo();
+        collector.onNext(items(header(45)));
+        collector.onNext(end(45));
+        collector.onNext(items(header(46)));
+        collector.onNext(end(46));
+        collector.onNext(items(header(47)));
+        collector.onNext(success());
+        collector.onComplete();
+        final var blocks = collector.await(Duration.ZERO);
+        assertEquals(2, blocks.size());
+        assertEquals(
+                45, blocks.getLast().items().getFirst().blockHeaderOrThrow().number());
+    }
+
+    @Test
     void propagatesParserFailureInsteadOfReturningCompletedPrefix() {
         final var collector = oneCompletedBlockOfTwo();
         final var cause = new ParseException("oversized block_items");
