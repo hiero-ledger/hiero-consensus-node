@@ -13,11 +13,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
+import com.hedera.hapi.block.stream.output.StateIdentifier;
+import com.hedera.hapi.node.base.BlockHashAlgorithm;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
-import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.BlockImplUtils;
+import com.hedera.node.app.blocks.impl.BlockRootTreeHasher;
+import com.hedera.node.app.blocks.impl.BlockStreamManagerImpl;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
 import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
@@ -26,10 +29,13 @@ import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.utilops.UtilOp;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.DigestType;
 
 /**
  * Verifies that the cutover correctly transferred record stream state into the block stream.
@@ -97,6 +103,19 @@ public class VerifyCutoverBlockStreamOp extends UtilOp {
                 blockStreamInfo.trailingBlockHashes(),
                 "BlockStreamInfo.trailingBlockHashes should equal BlockInfo.blockHashes" + " (original record hashes)");
 
+        // The digest in effect after cutover, as declared by the first post-cutover block (the startup
+        // properties may not reflect later upgrade overrides); the block-root Merkle tree and the
+        // post-cutover running-hash chain both use it.
+        final var digestType = firstPostCutover.items().stream()
+                                .filter(BlockItem::hasBlockHeader)
+                                .findFirst()
+                                .orElseThrow()
+                                .blockHeaderOrThrow()
+                                .hashAlgorithm()
+                        == BlockHashAlgorithm.SHA2_256
+                ? DigestType.SHA_256
+                : DigestType.SHA_384;
+
         // === Verify trailingOutputHashes by evolving captured RunningHashes ===
         // The BSI from endRound has trailingOutputHashes AFTER processing all
         // TRANSACTION_RESULT items in this block. So we seed from the captured
@@ -111,11 +130,14 @@ public class VerifyCutoverBlockStreamOp extends UtilOp {
         for (final var item : firstPostCutover.items()) {
             if (item.hasTransactionResult()) {
                 final var serialized = BlockItem.PROTOBUF.toBytes(item).toByteArray();
-                final var hashedLeaf = BlockImplUtils.hashLeaf(serialized);
+                // The captured seed hashes are the pre-cutover block-stream running hashes (SHA-384).
+                // Transaction results in this block are AFTER cutover, so they evolve the chain with
+                // the configured digest (SHA-256 when enabled), matching BlockStreamManagerImpl.
+                final var hashedLeaf = BlockImplUtils.hashLeaf(CommonUtils.digestOrThrow(digestType), serialized);
                 nMinus3 = nMinus2;
                 nMinus2 = nMinus1;
                 nMinus1 = current;
-                final var digest = CommonUtils.sha384DigestOrThrow();
+                final var digest = CommonUtils.digestOrThrow(digestType);
                 digest.update(current);
                 digest.update(hashedLeaf);
                 current = digest.digest();
@@ -123,7 +145,11 @@ public class VerifyCutoverBlockStreamOp extends UtilOp {
             }
         }
         log.info("Computed running hashes through {} TRANSACTION_RESULT items", resultCount);
-        assertTrue(resultCount > 0, "First post-cutover block should contain at least one transaction result");
+        // The expected-window construction below chains all four running-hash slots under the configured digest,
+        // which holds only if the first post-cutover block closed with at least four transaction results.
+        assertTrue(
+                resultCount >= 4,
+                "First post-cutover block should contain at least four transaction results, but had " + resultCount);
         Bytes expectedOutputHashes = BlockImplUtils.appendHash(Bytes.wrap(nMinus3), Bytes.EMPTY, 4);
         expectedOutputHashes = BlockImplUtils.appendHash(Bytes.wrap(nMinus2), expectedOutputHashes, 4);
         expectedOutputHashes = BlockImplUtils.appendHash(Bytes.wrap(nMinus1), expectedOutputHashes, 4);
@@ -147,7 +173,7 @@ public class VerifyCutoverBlockStreamOp extends UtilOp {
 
         // === Verify hash chain by computing block root hashes from items ===
         final var prevBlockHashesTree = new IncrementalStreamingHasher(
-                CommonUtils.sha384DigestOrThrow(),
+                CommonUtils.digestOrThrow(digestType),
                 capturedBlockInfo.get().wrappedIntermediatePreviousBlockRootHashes().stream()
                         .map(Bytes::toByteArray)
                         .toList(),
@@ -196,30 +222,117 @@ public class VerifyCutoverBlockStreamOp extends UtilOp {
 
             if (i == 0) {
                 assertNotEquals(
-                        Bytes.wrap(new byte[48]),
+                        Bytes.wrap(new byte[Cryptography.DEFAULT_DIGEST_TYPE.digestLength()]),
                         footer.startOfBlockStateRootHash(),
                         "Block #" + blockNum + " footer.startOfBlockStateRootHash" + " should not be the hash of zero");
             }
 
-            final var computedRootHash = computeBlockRootHash(block, prevBlockHash, prevBlockHashesTree);
+            final var computedRootHash = computeBlockRootHash(block, prevBlockHash, prevBlockHashesTree, digestType);
             log.info("Block #{}: computed root hash {}", blockNum, computedRootHash.toHex());
+
+            if (i == 0) {
+                // The first post-cutover block's parent was the wrapped record block root, not the trailing-window
+                // record hash. Reconstructing it via firstPostCutoverParentHash (reading the block's own BlockInfo
+                // delta) must therefore yield the block's true root, while the window-only reconstruction must not.
+                final var firstBlockInfo = BlockStreamAccess.computeSingletonValueFromUpdates(
+                        List.of(firstPostCutover),
+                        SingletonUpdateChange::blockInfoValue,
+                        StateIdentifier.STATE_ID_BLOCKS.protoOrdinal());
+                assertNotNull(firstBlockInfo, "First post-cutover block should contain a BlockInfo state change");
+
+                // Ground truth: block 0's true root is block 1's footer.previousBlockRootHash. Only enforce when a
+                // following block exists to supply it.
+                if (postCutoverBlocks.size() > 1) {
+                    final var trueRoot = postCutoverBlocks.get(1).items().stream()
+                            .filter(BlockItem::hasBlockFooter)
+                            .findFirst()
+                            .orElseThrow()
+                            .blockFooterOrThrow()
+                            .previousBlockRootHash();
+                    final var providedParent =
+                            BlockStreamManagerImpl.firstPostCutoverParentHash(firstBlockInfo, blockStreamInfo);
+                    final var reconstructWithWrappedParent = BlockStreamManagerImpl.reconstructLastBlockHash(
+                            blockStreamInfo, digestType, providedParent);
+                    final var reconstructWithWindow =
+                            BlockStreamManagerImpl.reconstructLastBlockHash(blockStreamInfo, digestType, null);
+                    assertEquals(
+                            trueRoot,
+                            reconstructWithWrappedParent,
+                            "First post-cutover block root reconstructed via firstPostCutoverParentHash should equal the"
+                                    + " true root (block 1's footer.previousBlockRootHash)");
+                    assertNotEquals(
+                            trueRoot,
+                            reconstructWithWindow,
+                            "Window-only reconstruction (null parent) must NOT match the true root for the first"
+                                    + " post-cutover block");
+                }
+            }
 
             prevBlockHash = computedRootHash;
             prevBlockHashesTree.addNodeByHash(computedRootHash.toByteArray());
         }
 
         log.info("Hash chain verified for {} post-cutover blocks", postCutoverBlocks.size());
+        verifyRestartReconstructions(postCutoverBlocks, digestType);
         return false;
     }
 
+    /**
+     * Checks that a restart right after any post-cutover block would rebuild that block's hash, i.e. the next block's
+     * footer {@code previousBlockRootHash}. Each block is reconstructed from its persisted {@code BlockStreamInfo} and
+     * the {@code BlockInfo} as it stood at the end of that block, the same inputs {@code init()} reads on restart.
+     */
+    private static void verifyRestartReconstructions(
+            @NonNull final List<Block> postCutoverBlocks, @NonNull final DigestType digestType) {
+        BlockInfo blockInfo = null;
+        final List<Long> mismatches = new ArrayList<>();
+        for (int i = 0; i < postCutoverBlocks.size() - 1; i++) {
+            final var block = postCutoverBlocks.get(i);
+            final var blockInfoUpdate = BlockStreamAccess.computeSingletonValueFromUpdates(
+                    List.of(block),
+                    SingletonUpdateChange::blockInfoValue,
+                    StateIdentifier.STATE_ID_BLOCKS.protoOrdinal());
+            if (blockInfoUpdate != null) {
+                blockInfo = blockInfoUpdate;
+            }
+            final var blockStreamInfo = BlockStreamAccess.computeSingletonValueFromUpdates(
+                    List.of(block), SingletonUpdateChange::blockStreamInfoValue, BLOCK_STREAM_INFO_STATE_ID);
+            if (blockStreamInfo == null) {
+                continue;
+            }
+            final var reconstructed = BlockStreamManagerImpl.reconstructLastBlockHash(
+                    blockStreamInfo,
+                    digestType,
+                    BlockStreamManagerImpl.firstPostCutoverParentHash(blockInfo, blockStreamInfo));
+            final var nextParent = postCutoverBlocks.get(i + 1).items().stream()
+                    .filter(BlockItem::hasBlockFooter)
+                    .findFirst()
+                    .orElseThrow()
+                    .blockFooterOrThrow()
+                    .previousBlockRootHash();
+            if (!nextParent.equals(reconstructed)) {
+                mismatches.add(blockStreamInfo.blockNumber());
+            }
+        }
+        assertTrue(
+                mismatches.isEmpty(),
+                "Reconstructing these post-cutover blocks on restart doesn't match the next block's parent hash: "
+                        + mismatches);
+    }
+
     private static Bytes computeBlockRootHash(
-            final Block block, final Bytes previousBlockHash, final IncrementalStreamingHasher prevBlockHashesTree) {
-        final var inputTreeHasher = new IncrementalStreamingHasher(CommonUtils.sha384DigestOrThrow(), List.of(), 0);
-        final var outputTreeHasher = new IncrementalStreamingHasher(CommonUtils.sha384DigestOrThrow(), List.of(), 0);
+            final Block block,
+            final Bytes previousBlockHash,
+            final IncrementalStreamingHasher prevBlockHashesTree,
+            final DigestType digestType) {
+        final var inputTreeHasher = new IncrementalStreamingHasher(CommonUtils.digestOrThrow(digestType), List.of(), 0);
+        final var outputTreeHasher =
+                new IncrementalStreamingHasher(CommonUtils.digestOrThrow(digestType), List.of(), 0);
         final var consensusHeaderHasher =
-                new IncrementalStreamingHasher(CommonUtils.sha384DigestOrThrow(), List.of(), 0);
-        final var stateChangesHasher = new IncrementalStreamingHasher(CommonUtils.sha384DigestOrThrow(), List.of(), 0);
-        final var traceDataHasher = new IncrementalStreamingHasher(CommonUtils.sha384DigestOrThrow(), List.of(), 0);
+                new IncrementalStreamingHasher(CommonUtils.digestOrThrow(digestType), List.of(), 0);
+        final var stateChangesHasher =
+                new IncrementalStreamingHasher(CommonUtils.digestOrThrow(digestType), List.of(), 0);
+        final var traceDataHasher = new IncrementalStreamingHasher(CommonUtils.digestOrThrow(digestType), List.of(), 0);
 
         Timestamp blockTimestamp = null;
         for (final var item : block.items()) {
@@ -255,28 +368,34 @@ public class VerifyCutoverBlockStreamOp extends UtilOp {
         // Built by hand, on purpose. This check must not share the block root tree implementation with block
         // production: if it did, any error in that implementation would be reproduced here and the check
         // would pass regardless. Branches 1-8 carry data, branches 9-16 are reserved and empty.
-        final var branches12 = BlockImplUtils.hashInternalNode(previousBlockHash, prevBlockRootsHash);
-        final var branches34 = BlockImplUtils.hashInternalNode(startOfBlockStateHash, consensusHeaderHash);
-        final var branches56 = BlockImplUtils.hashInternalNode(inputsHash, outputsHash);
-        final var branches78 = BlockImplUtils.hashInternalNode(stateChangesHash, traceDataHash);
-        final var branches1234 = BlockImplUtils.hashInternalNode(branches12, branches34);
-        final var branches5678 = BlockImplUtils.hashInternalNode(branches56, branches78);
-        final var assignedHalf = BlockImplUtils.hashInternalNode(branches1234, branches5678);
+        final var branches12 = BlockImplUtils.hashInternalNode(
+                CommonUtils.digestOrThrow(digestType), previousBlockHash, prevBlockRootsHash);
+        final var branches34 = BlockImplUtils.hashInternalNode(
+                CommonUtils.digestOrThrow(digestType), startOfBlockStateHash, consensusHeaderHash);
+        final var branches56 =
+                BlockImplUtils.hashInternalNode(CommonUtils.digestOrThrow(digestType), inputsHash, outputsHash);
+        final var branches78 =
+                BlockImplUtils.hashInternalNode(CommonUtils.digestOrThrow(digestType), stateChangesHash, traceDataHash);
+        final var branches1234 =
+                BlockImplUtils.hashInternalNode(CommonUtils.digestOrThrow(digestType), branches12, branches34);
+        final var branches5678 =
+                BlockImplUtils.hashInternalNode(CommonUtils.digestOrThrow(digestType), branches56, branches78);
+        final var assignedHalf =
+                BlockImplUtils.hashInternalNode(CommonUtils.digestOrThrow(digestType), branches1234, branches5678);
 
-        final var subtreesRoot = BlockImplUtils.hashInternalNode(assignedHalf, emptyReservedHalf());
-        final var timestampLeaf = BlockImplUtils.hashLeaf(Timestamp.PROTOBUF.toBytes(blockTimestamp));
-        return BlockImplUtils.hashInternalNode(timestampLeaf, subtreesRoot);
+        final var subtreesRoot = BlockImplUtils.hashInternalNode(
+                CommonUtils.digestOrThrow(digestType), assignedHalf, emptyReservedHalf(digestType));
+        final var timestampLeaf = BlockImplUtils.hashLeaf(
+                CommonUtils.digestOrThrow(digestType), Timestamp.PROTOBUF.toBytes(blockTimestamp));
+        return BlockImplUtils.hashInternalNode(CommonUtils.digestOrThrow(digestType), timestampLeaf, subtreesRoot);
     }
 
-    /**
-     * The root of the eight empty reserved branches 9-16, derived here rather than read from production.
-     * Expected value: {@code cf7e7647f57807006f4f5870d2210b5b4038d000b2bfa711bceeb7f4a327346b50c61fda4e5c68110b03ce708fb91cf8}.
-     */
-    private static Bytes emptyReservedHalf() {
-        final var pairOfEmpties =
-                BlockImplUtils.hashInternalNode(BlockStreamManager.HASH_OF_ZERO, BlockStreamManager.HASH_OF_ZERO);
-        final var fourEmpties = BlockImplUtils.hashInternalNode(pairOfEmpties, pairOfEmpties);
-        return BlockImplUtils.hashInternalNode(fourEmpties, fourEmpties);
+    private static Bytes emptyReservedHalf(final DigestType digestType) {
+        final var empty = BlockRootTreeHasher.emptySubtreeFor(CommonUtils.digestOrThrow(digestType));
+        final var pairOfEmpties = BlockImplUtils.hashInternalNode(CommonUtils.digestOrThrow(digestType), empty, empty);
+        final var fourEmpties =
+                BlockImplUtils.hashInternalNode(CommonUtils.digestOrThrow(digestType), pairOfEmpties, pairOfEmpties);
+        return BlockImplUtils.hashInternalNode(CommonUtils.digestOrThrow(digestType), fourEmpties, fourEmpties);
     }
 
     @Override

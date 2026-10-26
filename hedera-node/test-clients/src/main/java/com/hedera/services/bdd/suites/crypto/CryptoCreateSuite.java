@@ -58,7 +58,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ALIAS_
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_MAX_AUTO_ASSOCIATIONS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_STAKING_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ZERO_BYTE_IN_STRING;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.KEY_REQUIRED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -92,7 +91,6 @@ public class CryptoCreateSuite {
     public static final String ACCOUNT = "account";
     public static final String ANOTHER_ACCOUNT = "anotherAccount";
     public static final String ED_25519_KEY = "ed25519Alias";
-    public static final long ACCOUNT_ID = 10;
     public static final long STAKED_ACCOUNT_ID = 3;
     public static final String CIVILIAN = "civilian";
     public static final String NO_KEYS = "noKeys";
@@ -192,58 +190,6 @@ public class CryptoCreateSuite {
     }
 
     @HapiTest
-    final Stream<DynamicTest> createAnAccountWithStakingFields() {
-        return hapiTest(
-                cryptoCreate("civilianWORewardStakingNode")
-                        .balance(ONE_HUNDRED_HBARS)
-                        .declinedReward(true)
-                        .stakedNodeId(0),
-                getAccountInfo("civilianWORewardStakingNode")
-                        .has(accountWith()
-                                .isDeclinedReward(true)
-                                .noStakedAccountId()
-                                .stakedNodeId(0)),
-                cryptoCreate("civilianWORewardStakingAcc")
-                        .balance(ONE_HUNDRED_HBARS)
-                        .declinedReward(true)
-                        .stakedAccountId(ACCOUNT_ID),
-                getAccountInfo("civilianWORewardStakingAcc")
-                        .has(accountWith()
-                                .isDeclinedReward(true)
-                                .noStakingNodeId()
-                                .stakedAccountId(ACCOUNT_ID)),
-                cryptoCreate("civilianWRewardStakingNode")
-                        .balance(ONE_HUNDRED_HBARS)
-                        .declinedReward(false)
-                        .stakedNodeId(0),
-                getAccountInfo("civilianWRewardStakingNode")
-                        .has(accountWith()
-                                .isDeclinedReward(false)
-                                .noStakedAccountId()
-                                .stakedNodeId(0)),
-                cryptoCreate("civilianWRewardStakingAcc")
-                        .balance(ONE_HUNDRED_HBARS)
-                        .declinedReward(false)
-                        .stakedAccountId(ACCOUNT_ID),
-                getAccountInfo("civilianWRewardStakingAcc")
-                        .has(accountWith()
-                                .isDeclinedReward(false)
-                                .noStakingNodeId()
-                                .stakedAccountId(ACCOUNT_ID)),
-                /* --- sentinel values throw */
-                cryptoCreate("invalidStakedAccount")
-                        .balance(ONE_HUNDRED_HBARS)
-                        .declinedReward(false)
-                        .stakedAccountId("0")
-                        .hasPrecheck(INVALID_STAKING_ID),
-                cryptoCreate("invalidStakedNode")
-                        .balance(ONE_HUNDRED_HBARS)
-                        .declinedReward(false)
-                        .stakedNodeId(-1L)
-                        .hasPrecheck(INVALID_STAKING_ID));
-    }
-
-    @HapiTest
     final Stream<DynamicTest> cannotCreateAnAccountWithLongZeroKeyButCanUseEvmAddress() {
         final AtomicReference<ByteString> secp256k1Key = new AtomicReference<>();
         final AtomicReference<ByteString> evmAddress = new AtomicReference<>();
@@ -293,8 +239,8 @@ public class CryptoCreateSuite {
     @HapiTest
     final Stream<DynamicTest> syntaxChecksAreAsExpected() {
         return hapiTest(
-                cryptoCreate("broken").autoRenewSecs(1L).hasPrecheck(AUTORENEW_DURATION_NOT_IN_RANGE),
-                cryptoCreate("alsoBroken").entityMemo(ZERO_BYTE_MEMO).hasPrecheck(INVALID_ZERO_BYTE_IN_STRING));
+                cryptoCreate("broken").autoRenewSecs(1L).hasKnownStatus(AUTORENEW_DURATION_NOT_IN_RANGE),
+                cryptoCreate("alsoBroken").entityMemo(ZERO_BYTE_MEMO).hasKnownStatus(INVALID_ZERO_BYTE_IN_STRING));
     }
 
     @HapiTest
@@ -314,16 +260,11 @@ public class CryptoCreateSuite {
         KeyShape shape = listOf(0);
         long initialBalance = 10_000L;
 
-        return hapiTest(
-                cryptoCreate(NO_KEYS)
-                        .keyShape(shape)
-                        .balance(initialBalance)
-                        .logged()
-                        .hasPrecheck(KEY_REQUIRED)
-                // In modular code this error is thrown in handle, but it is fixed using dynamic property
-                // spec.streamlinedIngestChecks
-                // to accommodate error codes moved from Ingest to handle
-                );
+        return hapiTest(cryptoCreate(NO_KEYS)
+                .keyShape(shape)
+                .balance(initialBalance)
+                .logged()
+                .hasPrecheck(KEY_REQUIRED));
     }
 
     @HapiTest
@@ -351,7 +292,7 @@ public class CryptoCreateSuite {
                 .keyShape(shape)
                 .balance(initialBalance)
                 .logged()
-                .hasPrecheck(INVALID_ADMIN_KEY));
+                .hasKnownStatus(INVALID_ADMIN_KEY));
     }
 
     // One of element in nested key list is not valid
@@ -365,7 +306,7 @@ public class CryptoCreateSuite {
                 .keyShape(shape)
                 .balance(initialBalance)
                 .logged()
-                .hasPrecheck(INVALID_ADMIN_KEY));
+                .hasKnownStatus(INVALID_ADMIN_KEY));
     }
 
     // One of element in threshold key is not valid
@@ -408,19 +349,19 @@ public class CryptoCreateSuite {
                         .keyShape(thresholdShape)
                         .balance(initialBalance)
                         .logged()
-                        .hasPrecheck(INVALID_ADMIN_KEY),
+                        .hasKnownStatus(INVALID_ADMIN_KEY),
                 cryptoCreate("badThresholdKeyAccount2")
                         .key("regKey1")
                         .balance(initialBalance)
                         .logged()
                         .signedBy(GENESIS)
-                        .hasPrecheck(INVALID_ADMIN_KEY),
+                        .hasKnownStatus(INVALID_ADMIN_KEY),
                 cryptoCreate("badThresholdKeyAccount3")
                         .key("regKey2")
                         .balance(initialBalance)
                         .logged()
                         .signedBy(GENESIS)
-                        .hasPrecheck(INVALID_ADMIN_KEY));
+                        .hasKnownStatus(INVALID_ADMIN_KEY));
     }
 
     @HapiTest
@@ -441,12 +382,12 @@ public class CryptoCreateSuite {
                         .keyShape(shape0)
                         .balance(initialBalance)
                         .logged()
-                        .hasPrecheck(INVALID_ADMIN_KEY),
+                        .hasKnownStatus(INVALID_ADMIN_KEY),
                 cryptoCreate(NO_KEYS)
                         .keyShape(shape4)
                         .balance(initialBalance)
                         .logged()
-                        .hasPrecheck(INVALID_ADMIN_KEY));
+                        .hasKnownStatus(INVALID_ADMIN_KEY));
     }
 
     @HapiTest
@@ -461,12 +402,12 @@ public class CryptoCreateSuite {
                         .keyShape(thresholdShape0)
                         .balance(initialBalance)
                         .logged()
-                        .hasPrecheck(INVALID_ADMIN_KEY),
+                        .hasKnownStatus(INVALID_ADMIN_KEY),
                 cryptoCreate("badThresholdKeyAccount2")
                         .keyShape(thresholdShape4)
                         .balance(initialBalance)
                         .logged()
-                        .hasPrecheck(INVALID_ADMIN_KEY));
+                        .hasKnownStatus(INVALID_ADMIN_KEY));
     }
 
     @HapiTest
@@ -485,17 +426,13 @@ public class CryptoCreateSuite {
                         .balance(initialBalance)
                         .signedBy(GENESIS)
                         .logged()
-                        .hasPrecheck(INVALID_ADMIN_KEY),
+                        .hasKnownStatus(INVALID_ADMIN_KEY),
                 cryptoCreate(EMPTY_KEY_STRING)
                         .key(EMPTY_KEY_STRING)
                         .balance(initialBalance)
                         .signedBy(GENESIS)
                         .logged()
-                        .hasPrecheck(BAD_ENCODING)
-                // In modular code this error is thrown in handle, but it is fixed using dynamic property
-                // spec.streamlinedIngestChecks
-                // to accommodate error codes moved from Ingest to handle
-                );
+                        .hasPrecheck(BAD_ENCODING));
     }
 
     @HapiTest
@@ -581,7 +518,7 @@ public class CryptoCreateSuite {
                     .key(ED_25519_KEY)
                     .alias(ed25519Key.toByteString())
                     .balance(1000 * ONE_HBAR)
-                    .hasPrecheck(INVALID_ALIAS_KEY);
+                    .hasKnownStatus(INVALID_ALIAS_KEY);
 
             allRunFor(spec, op);
         }));
@@ -600,7 +537,7 @@ public class CryptoCreateSuite {
                     .key(SECP_256K1_SOURCE_KEY)
                     .alias(ecdsaKey.toByteString())
                     .balance(100 * ONE_HBAR)
-                    .hasPrecheck(INVALID_ALIAS_KEY);
+                    .hasKnownStatus(INVALID_ALIAS_KEY);
             final var op2 =
                     cryptoCreate(ANOTHER_ACCOUNT).key(SECP_256K1_SOURCE_KEY).balance(100 * ONE_HBAR);
             final var op3 = cryptoCreate(ACCOUNT)
@@ -632,7 +569,7 @@ public class CryptoCreateSuite {
                                     .key(ED_KEY)
                                     .alias(ecdsaKey.toByteString())
                                     .balance(100 * ONE_HBAR)
-                                    .hasPrecheck(INVALID_ALIAS_KEY);
+                                    .hasKnownStatus(INVALID_ALIAS_KEY);
                     allRunFor(spec, op);
                 }));
     }
@@ -662,14 +599,14 @@ public class CryptoCreateSuite {
                             .balance(100 * ONE_HBAR)
                             .signedBy(GENESIS, SECP_256K1_SOURCE_KEY)
                             .sigMapPrefixes(uniqueWithFullPrefixesFor(SECP_256K1_SOURCE_KEY))
-                            .hasPrecheck(ALIAS_ALREADY_ASSIGNED);
+                            .hasKnownStatus(ALIAS_ALREADY_ASSIGNED);
                     final var op3 = cryptoCreate(ACCOUNT)
                             .key(edKey)
                             .alias(evmAddressBytes)
                             .balance(100 * ONE_HBAR)
                             .signedBy(GENESIS, SECP_256K1_SOURCE_KEY)
                             .sigMapPrefixes(uniqueWithFullPrefixesFor(SECP_256K1_SOURCE_KEY))
-                            .hasPrecheck(ALIAS_ALREADY_ASSIGNED);
+                            .hasKnownStatus(ALIAS_ALREADY_ASSIGNED);
                     allRunFor(spec, op, op2, op3);
                     var hapiGetAccountInfo = getAccountInfo(ACCOUNT)
                             .has(accountWith()
@@ -733,7 +670,7 @@ public class CryptoCreateSuite {
                                     .key(SECP_256K1_SOURCE_KEY)
                                     .alias(edKey.toByteString())
                                     .balance(100 * ONE_HBAR)
-                                    .hasPrecheck(INVALID_ALIAS_KEY);
+                                    .hasKnownStatus(INVALID_ALIAS_KEY);
                     allRunFor(spec, op);
                 }));
     }
@@ -984,7 +921,7 @@ public class CryptoCreateSuite {
                     .key(SECP_256K1_SOURCE_KEY)
                     .alias(evmAddressBytes)
                     .balance(100 * ONE_HBAR)
-                    .hasPrecheck(ALIAS_ALREADY_ASSIGNED);
+                    .hasKnownStatus(ALIAS_ALREADY_ASSIGNED);
 
             allRunFor(spec, op, op2, op3, op4, op5, op6);
             var hapiGetAccountInfo = getAliasedAccountInfo(evmAddressBytes)

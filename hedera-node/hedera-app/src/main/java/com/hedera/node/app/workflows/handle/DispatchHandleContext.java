@@ -261,6 +261,14 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
         return HandleContext.super.ledgerId();
     }
 
+    @NonNull
+    @Override
+    public Bytes historyLedgerId() {
+        final var historyStore = storeFactory.readableStore(ReadableHistoryStore.class);
+        final var ledgerId = historyStore.getLedgerId();
+        return ledgerId == null ? Bytes.EMPTY : ledgerId;
+    }
+
     @Nullable
     @Override
     public Authorizer authorizer() {

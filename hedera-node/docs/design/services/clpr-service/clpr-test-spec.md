@@ -200,8 +200,9 @@ require multi-network infrastructure.
 
 ### 3.1.2 `getLedgerConfiguration`
 
-- Returns the current configuration including immutable fields (`protocol_version`, `chain_id`) and
-  mutable fields (`throttles`, `service_address`, `endpoints`, `timestamp`).
+- Returns the current configuration including immutable fields (`protocol_version`, `chain_id`), the
+  fixed `service_address` (the CLPR system contract address), and mutable fields (`throttles`, `endpoints`,
+  `timestamp`).
 - Configuration is always present (created at genesis); never returns an empty/absent response.
 
 ## 3.2 Channel Lifecycle
@@ -534,7 +535,7 @@ require multi-network infrastructure.
 
 ### 3.14.1 Seed Endpoints in Configuration
 
-- The ledger configuration includes seed endpoints (up to 10) used for initial peer discovery.
+- The ledger configuration includes seed endpoints (up to 10) used for initial peer connectivity.
 - Seed endpoints are propagated to peers via ConfigUpdate Control Messages alongside other configuration
   changes.
 
@@ -1092,10 +1093,10 @@ With varying endpoint counts, verify that the per-endpoint submission limit
 aggregate submission rate stays within the global limit. Verify the quota adjusts when endpoints are added
 or removed.
 
-### 7.5.3 Peer Discovery Convergence
+### 7.5.3 Peer Selection Convergence
 
-With a large number of endpoints, measure how long it takes for a new endpoint to discover enough peers
-via gossip to achieve full throughput. Verify that reciprocity-based peer selection converges to efficient
+With a large number of endpoints, measure how long it takes for a new endpoint, once listed in the peer's
+endpoint manifest, to achieve full throughput. Verify that reciprocity-based peer selection converges to efficient
 pairings.
 
 ---

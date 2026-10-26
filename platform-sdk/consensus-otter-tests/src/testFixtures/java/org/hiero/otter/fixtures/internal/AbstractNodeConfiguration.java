@@ -8,7 +8,9 @@ import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 import org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerConfiguration;
 import org.hiero.otter.fixtures.NodeConfiguration;
@@ -19,8 +21,13 @@ import org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle;
  */
 public abstract class AbstractNodeConfiguration implements NodeConfiguration {
 
+    /** Defaults of the node type. Values set by the user take precedence. */
+    protected final OverrideProperties defaultProperties = new OverrideProperties();
+
+    /** Values set by the user, either for the whole network or for this node. */
     protected final OverrideProperties overrideProperties = new OverrideProperties();
 
+    /** A supplier that provides the current lifecycle state of the node, used to determine if modifying the configuration is allowed. */
     private final Supplier<LifeCycle> lifecycleSupplier;
 
     /**
@@ -164,11 +171,24 @@ public abstract class AbstractNodeConfiguration implements NodeConfiguration {
     }
 
     /**
+     * Returns the properties the node is configured with: the defaults of the node type, overridden by the values set
+     * by the user.
+     *
+     * @return a new map with the effective properties
+     */
+    @NonNull
+    protected Map<String, String> effectiveProperties() {
+        final Map<String, String> properties = new HashMap<>(defaultProperties.properties());
+        properties.putAll(overrideProperties.properties());
+        return properties;
+    }
+
+    /**
      * {@inheritDoc}
      */
     @NonNull
     @Override
     public Configuration current() {
-        return createConfiguration(overrideProperties.properties());
+        return createConfiguration(effectiveProperties());
     }
 }

@@ -148,22 +148,22 @@ public class TokenManagementSpecs {
                                 .hasPrecheck(INVALID_ACCOUNT_ID),
                         tokenDissociateWithAlias(partyAlias, PRIMARY)
                                 .signedBy(partyAlias, DEFAULT_PAYER)
-                                .hasPrecheck(INVALID_ACCOUNT_ID),
+                                .hasKnownStatus(INVALID_ACCOUNT_ID),
                         // associate again for next steps
                         tokenAssociateWithAlias(partyAlias, PRIMARY)
                                 .signedBy(partyAlias, DEFAULT_PAYER)
                                 .hasPrecheck(INVALID_ACCOUNT_ID),
                         // grant and revoke kyc
-                        grantTokenKycWithAlias(PRIMARY, partyAlias).hasPrecheck(INVALID_ACCOUNT_ID),
+                        grantTokenKycWithAlias(PRIMARY, partyAlias).hasKnownStatus(INVALID_ACCOUNT_ID),
                         // revoke kyc
-                        revokeTokenKycWithAlias(PRIMARY, partyAlias).hasPrecheck(INVALID_ACCOUNT_ID),
+                        revokeTokenKycWithAlias(PRIMARY, partyAlias).hasKnownStatus(INVALID_ACCOUNT_ID),
                         // freeze, unfreeze
-                        tokenFreezeWithAlias(PRIMARY, partyAlias).hasPrecheck(INVALID_ACCOUNT_ID),
-                        tokenUnfreezeWithAlias(PRIMARY, partyAlias).hasPrecheck(INVALID_ACCOUNT_ID),
+                        tokenFreezeWithAlias(PRIMARY, partyAlias).hasKnownStatus(INVALID_ACCOUNT_ID),
+                        tokenUnfreezeWithAlias(PRIMARY, partyAlias).hasKnownStatus(INVALID_ACCOUNT_ID),
 
                         // wipe won't happen if the kyc key exists and kyc not granted
                         grantTokenKycWithAlias(PRIMARY, partyAlias)
-                                .hasPrecheck(INVALID_ACCOUNT_ID)
+                                .hasKnownStatus(INVALID_ACCOUNT_ID)
                                 .logged(),
                         tokenAssociate(partyAlias, PRIMARY),
                         grantTokenKyc(PRIMARY, partyAlias),

@@ -64,7 +64,6 @@ module com.swirlds.platform.core {
     requires transitive org.hiero.consensus.metrics;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.pces;
-    requires transitive org.hiero.consensus.roster;
     requires transitive org.hiero.consensus.state;
     requires transitive org.hiero.consensus.status.monitor;
     requires transitive org.hiero.consensus.transaction.handling;
@@ -76,6 +75,7 @@ module com.swirlds.platform.core {
     requires org.hiero.consensus.pces.impl;
     requires org.hiero.consensus.platformstate;
     requires org.hiero.consensus.reconnect;
+    requires org.hiero.consensus.roster;
     requires java.scripting;
     requires jdk.management;
     requires org.apache.logging.log4j;

@@ -89,6 +89,22 @@ public class RosterWrapper {
     }
 
     /**
+     * Returns the {@link RosterEntryWrapper} for the given {@link NodeId}.
+     *
+     * @param nodeId the {@link NodeId} to look up
+     * @return the corresponding {@link RosterEntryWrapper}
+     * @throws IllegalArgumentException if the {@link NodeId} is not present in this roster
+     */
+    @NonNull
+    public RosterEntryWrapper rosterEntry(@NonNull final NodeId nodeId) {
+        final int index = index(nodeId);
+        if (index == -1) {
+            throw new IllegalArgumentException("NodeId " + nodeId + " is not in the roster");
+        }
+        return rosterEntries.get(index);
+    }
+
+    /**
      * Returns the {@link RosterEntryWrapper} at the given index.
      *
      * @param index the index of the entry
@@ -96,7 +112,7 @@ public class RosterWrapper {
      * @throws ArrayIndexOutOfBoundsException if the index is out of bounds
      */
     @NonNull
-    public RosterEntryWrapper rosterEntry(final int index) {
+    public RosterEntryWrapper rosterEntryAtIndex(final int index) {
         return rosterEntries.get(index);
     }
 
@@ -119,12 +135,23 @@ public class RosterWrapper {
     }
 
     /**
+     * Returns the {@link NodeId} at the given index.
+     *
+     * @param index the index of the entry
+     * @return the {@link NodeId} at the given index
+     * @throws ArrayIndexOutOfBoundsException if the index is out of bounds
+     */
+    public NodeId nodeIdAtIndex(final int index) {
+        return nodeIds.get(index);
+    }
+
+    /**
      * Returns the index of the given {@link NodeId} in this roster, or -1 if the node is not present.
      *
      * @param nodeId the {@link NodeId} to look up
      * @return the index of the given {@link NodeId}, or {@code -1} if not present
      */
-    public int getIndex(@NonNull final NodeId nodeId) {
+    public int index(@NonNull final NodeId nodeId) {
         final long id = nodeId.id();
         for (int i = 0, n = idLookupTable.length; i < n; i++) {
             if (idLookupTable[i] == id) {
@@ -136,7 +163,7 @@ public class RosterWrapper {
 
     /**
      * Checks whether the entry at the given index was created by the given {@link NodeId}. Unlike
-     * {@link #getIndex(NodeId)}, this is a constant-time probe, so it is preferable whenever the
+     * {@link #index(NodeId)}, this is a constant-time probe, so it is preferable whenever the
      * index is already known.
      *
      * @param nodeId the {@link NodeId} to check
@@ -149,13 +176,24 @@ public class RosterWrapper {
     }
 
     /**
+     * Returns the weight of the entry corresponding to the given {@link NodeId}.
+     *
+     * @param nodeId the {@link NodeId} to look up
+     * @return the weight of the entry corresponding to the given {@link NodeId}
+     * @throws IllegalArgumentException if the {@link NodeId} is not present in this roster
+     */
+    public long weight(@NonNull final NodeId nodeId) {
+        return rosterEntry(nodeId).weight();
+    }
+
+    /**
      * Returns the weight of the entry at the given index.
      *
      * @param index the index of the entry
      * @return the weight of the entry at the given index
      * @throws ArrayIndexOutOfBoundsException if the index is out of bounds
      */
-    public long getWeight(final int index) {
+    public long weightAtIndex(final int index) {
         return weightLookupTable[index];
     }
 
@@ -178,29 +216,13 @@ public class RosterWrapper {
     }
 
     /**
-     * Returns the {@link RosterEntryWrapper} for the given {@link NodeId}.
-     *
-     * @param nodeId the {@link NodeId} to look up
-     * @return the corresponding {@link RosterEntryWrapper}
-     * @throws IllegalArgumentException if the {@link NodeId} is not present in this roster
-     */
-    @NonNull
-    public RosterEntryWrapper getRosterEntry(@NonNull final NodeId nodeId) {
-        final int index = getIndex(nodeId);
-        if (index == -1) {
-            throw new IllegalArgumentException("NodeId " + nodeId + " is not in the roster");
-        }
-        return rosterEntries.get(index);
-    }
-
-    /**
      * Checks if the given {@link NodeId} is present in this roster.
      *
      * @param nodeId the {@link NodeId} to check
      * @return {@code true} if the {@link NodeId} is present, {@code false} otherwise
      */
     public boolean contains(@NonNull final NodeId nodeId) {
-        return getIndex(nodeId) != -1;
+        return index(nodeId) != -1;
     }
 
     /**

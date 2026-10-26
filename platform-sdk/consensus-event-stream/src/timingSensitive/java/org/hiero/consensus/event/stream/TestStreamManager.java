@@ -35,7 +35,7 @@ public class TestStreamManager {
      */
     private final HashCalculatorForStream<ObjectForTestStream> hashCalculator;
     /** initial running Hash of records */
-    private Hash initialHash = new Hash(new byte[DigestType.SHA_384.digestLength()]);
+    private Hash initialHash = new Hash(new byte[DigestType.SHA_384.digestLength()], DigestType.SHA_384);
 
     public TestStreamManager(final CountDownLatch countDownLatch, final int expectedCount) {
         CountDownLatchStream<ObjectForTestStream> countDownLatchStream =

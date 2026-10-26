@@ -43,6 +43,11 @@ public class NetworkMetrics {
             .withFormat(FloatFormats.FORMAT_10_0)
             .withHalfLife(0.0);
 
+    private static final CountPerSecond.Config TOTAL_DISCONNECTS_CONFIG = new CountPerSecond.Config(
+                    Metrics.PLATFORM_CATEGORY, "disconnects_per_sec_total")
+            .withDescription("Total number of disconnects per second")
+            .withFormat(FloatFormats.FORMAT_10_0);
+
     /**
      * this node's id
      */
@@ -83,6 +88,8 @@ public class NetworkMetrics {
      */
     private final ConcurrentHashMap<NodeId, CountPerSecond> disconnectFrequency = new ConcurrentHashMap<>();
 
+    private final CountPerSecond totalDisconnectFrequency;
+
     private final Metrics metrics;
 
     /**
@@ -100,6 +107,7 @@ public class NetworkMetrics {
         avgPing = metrics.getOrCreate(AVG_PING_CONFIG);
         bytesPerSecondSent = metrics.getOrCreate(BYTES_PER_SECOND_SENT_CONFIG);
         avgConnsCreated = metrics.getOrCreate(AVG_CONNS_CREATED_CONFIG);
+        totalDisconnectFrequency = new CountPerSecond(metrics, TOTAL_DISCONNECTS_CONFIG);
 
         precreateDynamicMetrics(peers, selfId);
     }
@@ -228,6 +236,7 @@ public class NetworkMetrics {
                 .getOtherId();
 
         getDisconnectMetric(otherId).count();
+        totalDisconnectFrequency.count();
     }
 
     private CountPerSecond getDisconnectMetric(final NodeId otherId) {

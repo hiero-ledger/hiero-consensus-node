@@ -26,8 +26,7 @@ public class InertProofController implements ProofController {
     }
 
     @Override
-    public boolean isStillInProgress(@NonNull final TssConfig tssConfig) {
-        requireNonNull(tssConfig);
+    public boolean isStillInProgress() {
         return false;
     }
 

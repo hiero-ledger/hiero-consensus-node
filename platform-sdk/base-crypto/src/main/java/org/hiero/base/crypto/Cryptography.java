@@ -16,29 +16,31 @@ public interface Cryptography {
     /**
      * Computes a cryptographic hash (message digest) for the given message.
      *
-     * @param message the message contents to be hashed
+     * @param message    the message contents to be hashed
+     * @param digestType the type of the digest to compute
      * @return the cryptographic hash for the given message contents
      * @throws CryptographyException if an unrecoverable error occurs while computing the digest
      */
     @NonNull
-    Hash digestSync(@NonNull final byte[] message);
+    Hash digestSync(@NonNull final byte[] message, @NonNull final DigestType digestType);
 
     /**
      * Computes a cryptographic hash for the {@link SelfSerializable} instance by serializing it and hashing the bytes.
      * The hash is then returned by this method
      *
      * @param serializable the object to be hashed
+     * @param digestType   the type of the digest to compute
      * @return the cryptographic hash for the {@link SelfSerializable} object
      * @throws CryptographyException if an unrecoverable error occurs while computing the digest
      */
-    default Hash digestSync(@NonNull final SelfSerializable serializable) {
-        return new Hash(digestBytesSync(serializable), DEFAULT_DIGEST_TYPE);
+    default Hash digestSync(@NonNull final SelfSerializable serializable, @NonNull final DigestType digestType) {
+        return new Hash(digestBytesSync(serializable, digestType), digestType);
     }
 
     /**
-     * Same as {@link #digestSync(SelfSerializable)} with raw bytes returned instead of a Hash object
+     * Same as {@link #digestSync(SelfSerializable, DigestType)} with raw bytes returned instead of a Hash object
      */
-    byte[] digestBytesSync(@NonNull final SelfSerializable serializable);
+    byte[] digestBytesSync(@NonNull final SelfSerializable serializable, @NonNull final DigestType digestType);
 
     /**
      * Computes a cryptographic hash for the {@link SerializableHashable} instance by serializing it and hashing the
@@ -47,24 +49,30 @@ public interface Cryptography {
      * @param serializableHashable the object to be hashed
      * @param setHash              should be set to true if the calculated should be assigned to the
      *                             serializableHashable object
+     * @param digestType           the type of the digest to compute
      * @return the cryptographic hash for the {@link SelfSerializable} object
      * @throws CryptographyException if an unrecoverable error occurs while computing the digest
      */
-    Hash digestSync(@NonNull final SerializableHashable serializableHashable, boolean setHash);
+    Hash digestSync(
+            @NonNull final SerializableHashable serializableHashable,
+            boolean setHash,
+            @NonNull final DigestType digestType);
 
-    default Hash digestSync(@NonNull final SerializableHashable serializableHashable) {
-        return digestSync(serializableHashable, DEFAULT_SET_HASH);
+    default Hash digestSync(
+            @NonNull final SerializableHashable serializableHashable, @NonNull final DigestType digestType) {
+        return digestSync(serializableHashable, DEFAULT_SET_HASH, digestType);
     }
 
     /**
      * Computes a cryptographic hash (message digest) for the given message.
      *
-     * @param message the message contents to be hashed
+     * @param message    the message contents to be hashed
+     * @param digestType the type of the digest to compute
      * @return the cryptographic hash for the given message contents
      * @throws CryptographyException if an unrecoverable error occurs while computing the digest
      */
     @NonNull
-    byte[] digestBytesSync(@NonNull final byte[] message);
+    byte[] digestBytesSync(@NonNull final byte[] message, @NonNull final DigestType digestType);
 
     /**
      * Verifies the given digital signature for authenticity. The result of the verification will be returned by the
@@ -131,8 +139,10 @@ public interface Cryptography {
      *
      * @param runningHash  the calculated running {@code Hash}
      * @param newHashToAdd a Hash for updating the runningHash
+     * @param digestType   the type of the digest to compute
      * @return calculated running Hash
      */
     @NonNull
-    Hash calcRunningHash(@NonNull final Hash runningHash, @NonNull final Hash newHashToAdd);
+    Hash calcRunningHash(
+            @NonNull final Hash runningHash, @NonNull final Hash newHashToAdd, @NonNull final DigestType digestType);
 }

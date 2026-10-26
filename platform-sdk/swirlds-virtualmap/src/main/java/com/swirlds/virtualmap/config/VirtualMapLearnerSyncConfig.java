@@ -3,6 +3,7 @@ package com.swirlds.virtualmap.config;
 
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
+import com.swirlds.config.api.validation.annotation.Min;
 import com.swirlds.config.api.validation.annotation.Positive;
 import java.time.Duration;
 
@@ -17,6 +18,10 @@ import java.time.Duration;
  * @param asyncStreamBufferSize                  The size of the buffers for async input and output streams.
  * @param asyncOutputStreamFlush                 In order to ensure that data is not languishing in the
  *                                               asyncOutputStream buffer a periodic flush is performed.
+ * @param flushInterval                          During reconnect, hashes and leaves are periodically flushed to disk
+ *                                               after they are processed. This interval indicates the number of items
+ *                                               to collect before they are flushed. If zero, all data is flushed in the
+ *                                               end of reconnect hashing only.
  */
 // spotless:off
 @ConfigData("reconnect.learner")
@@ -26,5 +31,6 @@ public record VirtualMapLearnerSyncConfig(
         @ConfigProperty(defaultValue = "256000000") @Positive int maxMessageSizeBytes,
         @ConfigProperty(defaultValue = "60s") Duration asyncStreamIdleTimeout,
         @ConfigProperty(defaultValue = "10000") @Positive int asyncStreamBufferSize,
-        @ConfigProperty(defaultValue = "8ms") Duration asyncOutputStreamFlush) {}
+        @ConfigProperty(defaultValue = "8ms") Duration asyncOutputStreamFlush,
+        @Min(0) @ConfigProperty(defaultValue = "500000") int flushInterval) {}
 // spotless:on

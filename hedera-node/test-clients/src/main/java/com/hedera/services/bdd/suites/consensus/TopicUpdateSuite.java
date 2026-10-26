@@ -58,7 +58,7 @@ public class TopicUpdateSuite {
 
     @HapiTest
     final Stream<DynamicTest> pureCheckFails() {
-        return hapiTest(updateTopic("0.0.1").hasPrecheck(INVALID_TOPIC_ID));
+        return hapiTest(updateTopic("0.0.1").hasKnownStatus(INVALID_TOPIC_ID));
     }
 
     @HapiTest

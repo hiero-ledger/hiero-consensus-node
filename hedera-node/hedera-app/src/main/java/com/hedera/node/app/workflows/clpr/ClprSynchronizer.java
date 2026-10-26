@@ -14,12 +14,10 @@ public interface ClprSynchronizer {
      * Initiate an outbound sync against a peer for the given Channel.
      *
      * @param channel the Channel metadata.
-     * @param providedEndpoints dial targets chosen by the caller. Under
-     *     {@code clpr.endpointManifestEnabled=true} the caller reads these from
+     * @param providedEndpoints dial targets chosen by the caller, read from
      *     {@link ClprChannel#endpointManifest()} (spec §4.7 — the authoritative cached
-     *     peer manifest); under flag-off legacy the caller seeds them from
-     *     {@code ClprLedgerConfiguration.endpoints}. The synchronizer treats the list
-     *     opaquely — an empty list means "nothing to dial" and the tick is skipped.
+     *     peer manifest). The synchronizer treats the list opaquely — an empty list means
+     *     "nothing to dial" and the tick is skipped.
      * @param localEndpointManifestVersion the current local {@code ClprEndpointManifest.version()}.
      * @param peerObservedManifestVersion the peer's most recently reported cache of <em>this</em>
      *     ledger's manifest version (node-local, in-memory; absent ⇒ 0). Compared against

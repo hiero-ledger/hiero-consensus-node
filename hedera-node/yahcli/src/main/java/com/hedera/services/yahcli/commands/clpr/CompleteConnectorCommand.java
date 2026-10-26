@@ -64,7 +64,7 @@ public class CompleteConnectorCommand implements Callable<Integer> {
     @Option(
             names = {"--signature"},
             paramLabel = "<hex>",
-            description = "Hex-encoded signature over the canonical reveal payload. "
+            description = "Hex-encoded signature over keccak256(connector_id || service_address). "
                     + "Required unless supplied via --identity.")
     String signatureHex;
 

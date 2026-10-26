@@ -7,17 +7,26 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_NFT_SERIA
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NEGATIVE_ALLOWANCE_AMOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SENDER_DOES_NOT_OWN_NFT_SERIAL_NO;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.APPROVED_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NFT_SERIAL_NO;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_FUNGIBLE_TOKEN;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_FUNGIBLE_TOKEN_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_ACCOUNT_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OPERATOR_ACCOUNT_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_BESU_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.REVOKE_APPROVAL_SPENDER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.UNAUTHORIZED_SPENDER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.asBytesResult;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ordinalRevertOutputFor;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 
 import com.esaulpaugh.headlong.abi.Tuple;
@@ -36,13 +45,29 @@ import com.hedera.node.app.service.contract.impl.test.AssertMessages;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import java.util.Set;
+import org.apache.tuweni.bytes.Bytes;
+import org.apache.tuweni.bytes.Bytes32;
+import org.hyperledger.besu.datatypes.Address;
+import org.hyperledger.besu.datatypes.Log;
+import org.hyperledger.besu.datatypes.LogTopic;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.frame.MessageFrame.State;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.BDDMockito.BDDMyOngoingStubbing;
 import org.mockito.Mock;
 
 class ERCGrantApprovalCallTest extends CallTestBase {
+    private static final Account NFT_OWNER =
+            Account.newBuilder().accountId(OWNER_ID).alias(OWNER_ADDRESS).build();
+    private static final Account NFT_SPENDER =
+            Account.newBuilder().accountId(APPROVED_ID).build();
+    private static final Account OPERATOR =
+            Account.newBuilder().accountId(OPERATOR_ACCOUNT_ID).build();
+    private static final Account TREASURY =
+            Account.newBuilder().accountId(NON_SYSTEM_ACCOUNT_ID).build();
+    private static final Nft OWNED_NFT = Nft.newBuilder().ownerId(OWNER_ID).build();
+
     private ERCGrantApprovalCall subject;
 
     @Mock
@@ -228,5 +253,116 @@ class ERCGrantApprovalCallTest extends CallTestBase {
                         .encode(Tuple.EMPTY)),
                 result.output(),
                 AssertMessages.OUTPUT);
+    }
+
+    private void prepareErc721approveBy(final AccountID senderId, final AccountID spenderId, final Nft nft) {
+        subject = new ERCGrantApprovalCall(
+                mockEnhancement(),
+                systemContractGasCalculator,
+                verificationStrategy,
+                senderId,
+                NON_FUNGIBLE_TOKEN_ID,
+                spenderId,
+                NFT_SERIAL_NO,
+                TokenType.NON_FUNGIBLE_UNIQUE);
+        given(nativeOperations.getNft(NON_FUNGIBLE_TOKEN_ID, NFT_SERIAL_NO)).willReturn(nft);
+        given(systemContractOperations.dispatch(
+                        any(TransactionBody.class),
+                        eq(verificationStrategy),
+                        eq(senderId),
+                        eq(ContractCallStreamBuilder.class)))
+                .willReturn(recordBuilder);
+        given(recordBuilder.status()).willReturn(SUCCESS);
+        given(nativeOperations.readableAccountStore()).willReturn(accountStore);
+        // Lenient, as the sender account is not read when the sender is not the NFT owner
+        lenient().when(accountStore.getAccountById(OPERATOR_ACCOUNT_ID)).thenReturn(OPERATOR);
+    }
+
+    @Test
+    void erc721approveByOwnerLogsOwner() {
+        // given
+        prepareErc721approveBy(OWNER_ID, APPROVED_ID, OWNED_NFT);
+        given(accountStore.getAccountById(OWNER_ID)).willReturn(NFT_OWNER);
+        given(accountStore.getAccountById(APPROVED_ID)).willReturn(NFT_SPENDER);
+        // when
+        final var result = subject.execute(frame).fullResult().result();
+        // then
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state(), AssertMessages.STATUS);
+        assertDispatchedOwner(OWNER_ID, OWNER_ID);
+        assertLoggedApproval(OWNER_BESU_ADDRESS, asLongZeroAddress(APPROVED_ID.accountNumOrThrow()));
+    }
+
+    @Test
+    void erc721approveByOperatorLogsNftOwner() {
+        // given
+        prepareErc721approveBy(OPERATOR_ACCOUNT_ID, APPROVED_ID, OWNED_NFT);
+        given(accountStore.getAccountById(OWNER_ID)).willReturn(NFT_OWNER);
+        given(accountStore.getAccountById(APPROVED_ID)).willReturn(NFT_SPENDER);
+        // when
+        final var result = subject.execute(frame).fullResult().result();
+        // then
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state(), AssertMessages.STATUS);
+        assertDispatchedOwner(OPERATOR_ACCOUNT_ID, OWNER_ID);
+        assertLoggedApproval(OWNER_BESU_ADDRESS, asLongZeroAddress(APPROVED_ID.accountNumOrThrow()));
+    }
+
+    @Test
+    void erc721approveByOperatorOfTreasuryHeldNftLogsTreasury() {
+        // given
+        prepareErc721approveBy(OPERATOR_ACCOUNT_ID, APPROVED_ID, Nft.DEFAULT);
+        given(nativeOperations.getToken(NON_FUNGIBLE_TOKEN_ID)).willReturn(NON_FUNGIBLE_TOKEN);
+        given(accountStore.getAccountById(NON_SYSTEM_ACCOUNT_ID)).willReturn(TREASURY);
+        given(accountStore.getAccountById(APPROVED_ID)).willReturn(NFT_SPENDER);
+        // when
+        final var result = subject.execute(frame).fullResult().result();
+        // then
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state(), AssertMessages.STATUS);
+        assertDispatchedOwner(OPERATOR_ACCOUNT_ID, NON_SYSTEM_ACCOUNT_ID);
+        assertLoggedApproval(
+                asLongZeroAddress(NON_SYSTEM_ACCOUNT_ID.accountNumOrThrow()),
+                asLongZeroAddress(APPROVED_ID.accountNumOrThrow()));
+    }
+
+    @Test
+    void erc721revokeByOperatorLogsNftOwner() {
+        // given
+        prepareErc721approveBy(OPERATOR_ACCOUNT_ID, REVOKE_APPROVAL_SPENDER_ID, OWNED_NFT);
+        given(accountStore.getAccountById(OWNER_ID)).willReturn(NFT_OWNER);
+        given(accountStore.getAccountById(REVOKE_APPROVAL_SPENDER_ID)).willReturn(null);
+        // when
+        final var result = subject.execute(frame).fullResult().result();
+        // then
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state(), AssertMessages.STATUS);
+        assertDispatchedOwner(OPERATOR_ACCOUNT_ID, OWNER_ID);
+        assertLoggedApproval(OWNER_BESU_ADDRESS, Address.ZERO);
+    }
+
+    private void assertDispatchedOwner(final AccountID senderId, final AccountID ownerId) {
+        final var captor = ArgumentCaptor.forClass(TransactionBody.class);
+        verify(systemContractOperations)
+                .dispatch(
+                        captor.capture(), eq(verificationStrategy), eq(senderId), eq(ContractCallStreamBuilder.class));
+        final var body = captor.getValue();
+        assertEquals(
+                ownerId,
+                body.hasCryptoDeleteAllowance()
+                        ? body.cryptoDeleteAllowanceOrThrow()
+                                .nftAllowances()
+                                .getFirst()
+                                .owner()
+                        : body.cryptoApproveAllowanceOrThrow()
+                                .nftAllowances()
+                                .getFirst()
+                                .owner());
+    }
+
+    private void assertLoggedApproval(final Address owner, final Address spender) {
+        final var captor = ArgumentCaptor.forClass(Log.class);
+        verify(frame).addLog(captor.capture());
+        final var topics = captor.getValue().getTopics();
+        assertEquals(4, topics.size());
+        assertEquals(LogTopic.wrap(Bytes32.leftPad(owner.getBytes())), topics.get(1));
+        assertEquals(LogTopic.wrap(Bytes32.leftPad(spender.getBytes())), topics.get(2));
+        assertEquals(LogTopic.wrap(Bytes32.leftPad(Bytes.ofUnsignedLong(NFT_SERIAL_NO))), topics.get(3));
     }
 }

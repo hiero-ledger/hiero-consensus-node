@@ -1,0 +1,16 @@
+{
+  "cn-nodes": {
+    "quantity": 4,
+    "resources": {
+      "cpu": 8,
+      "memory": 16384
+    }
+  },
+  "aux-nodes": {
+    "quantity": 1,
+    "resources": {
+      "cpu": 8,
+      "memory": 16384
+    }
+  }
+}

@@ -17,7 +17,7 @@ public class EventDescriptorWrapper {
 
     private EventDescriptorWrapper(@NonNull final EventDescriptor eventDescriptor) {
         this.eventDescriptor = eventDescriptor;
-        this.hash = new Hash(eventDescriptor.hash());
+        this.hash = EventHashFactory.hash(eventDescriptor.hash(), eventDescriptor.birthRound());
         this.creator = NodeId.of(eventDescriptor.creatorNodeId());
     }
 

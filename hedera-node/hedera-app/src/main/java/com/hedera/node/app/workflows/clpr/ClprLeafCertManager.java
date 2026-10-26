@@ -3,17 +3,16 @@ package com.hedera.node.app.workflows.clpr;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.node.app.workflows.clpr.mtls.ClprMtlsContexts;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.SecureRandom;
+import java.security.spec.NamedParameterSpec;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.hiero.base.crypto.CertificateUtils;
 
 /**
@@ -45,7 +44,6 @@ public class ClprLeafCertManager {
         }
 
         try {
-            ClprMtlsContexts.ensureProvidersRegistered();
             final var leafKeyPair = generateEd25519KeyPair();
             final var caCert = caManager.caCert();
             final var leafCert = CertificateUtils.generateCertificate(
@@ -75,8 +73,8 @@ public class ClprLeafCertManager {
     }
 
     private static KeyPair generateEd25519KeyPair() throws Exception {
-        // BC provider so the key is a BC EdDSA key (BCJSSE's TLS crypto rejects a SunEC Ed25519 key).
-        return KeyPairGenerator.getInstance("Ed25519", BouncyCastleProvider.PROVIDER_NAME)
-                .generateKeyPair();
+        final var gen = KeyPairGenerator.getInstance("EdDSA");
+        gen.initialize(new NamedParameterSpec("Ed25519"));
+        return gen.generateKeyPair();
     }
 }

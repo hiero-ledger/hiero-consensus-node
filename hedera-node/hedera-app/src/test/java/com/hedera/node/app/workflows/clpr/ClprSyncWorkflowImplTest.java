@@ -45,7 +45,7 @@ class ClprSyncWorkflowImplTest {
     private ClprBundleSubmitter bundleSubmitter;
 
     @Mock
-    private ClprChannelManager connectionManager;
+    private ClprChannelManager channelManager;
 
     @Mock
     private ClprStateProofManager stateProofManager;
@@ -105,6 +105,6 @@ class ClprSyncWorkflowImplTest {
 
     private ClprSyncWorkflowImpl newWorkflow() {
         return new ClprSyncWorkflowImpl(
-                configProvider, stateAccessor, bundleSubmitter, connectionManager, stateProofManager);
+                configProvider, stateAccessor, bundleSubmitter, channelManager, stateProofManager);
     }
 }

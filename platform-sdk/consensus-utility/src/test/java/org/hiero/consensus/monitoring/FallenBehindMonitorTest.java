@@ -7,8 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTimeout;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterEntry;
 import java.time.Duration;
 import java.util.List;
 import java.util.Random;
@@ -17,7 +15,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.roster.test.fixtures.RosterFactory;
+import org.hiero.consensus.model.roster.RosterWrapper;
+import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -26,17 +25,15 @@ import org.junit.jupiter.api.Test;
 
 class FallenBehindMonitorTest {
     private FallenBehindMonitor monitor;
-    private Roster roster;
+    private RosterWrapper roster;
     private NodeId[] nodeIds;
 
     @BeforeEach
     void setUp() {
 
         final int numNodes = 11;
-        this.roster = RosterFactory.randomRoster(getRandomPrintSeed(), numNodes, WeightGenerators.BALANCED);
-        this.nodeIds = roster.rosterEntries().stream()
-                .map(entry -> NodeId.of(entry.nodeId()))
-                .toArray(NodeId[]::new);
+        this.roster = RosterWrapperFactory.randomRoster(getRandomPrintSeed(), numNodes, WeightGenerators.BALANCED);
+        this.nodeIds = roster.nodeIds().toArray(NodeId[]::new);
         monitor = new FallenBehindMonitor(roster, nodeIds[0], 0.5);
     }
 
@@ -157,15 +154,15 @@ class FallenBehindMonitorTest {
      * A helper class that contains dummy data to feed into SyncManager lambdas.
      */
     private static class FallenBehindMonitorTestData {
-        public Roster roster;
+        public RosterWrapper roster;
         public NodeId selfId;
         public FallenBehindMonitor fallenBehindMonitor;
 
         public FallenBehindMonitorTestData() {
             final Random random = getRandomPrintSeed();
 
-            this.roster = RosterFactory.randomRoster(random, 41, WeightGenerators.BALANCED);
-            this.selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
+            this.roster = RosterWrapperFactory.randomRoster(random, 41, WeightGenerators.BALANCED);
+            this.selfId = roster.nodeIdAtIndex(0);
             this.fallenBehindMonitor = new FallenBehindMonitor(roster, selfId, 0.25);
         }
     }
@@ -178,10 +175,7 @@ class FallenBehindMonitorTest {
     void basicTest() {
         final FallenBehindMonitorTestData test = new FallenBehindMonitorTestData();
 
-        final List<NodeId> peers = test.roster.rosterEntries().stream()
-                .map(RosterEntry::nodeId)
-                .map(NodeId::of)
-                .toList();
+        final List<NodeId> peers = test.roster.nodeIds();
 
         // we should not think we have fallen behind initially
         assertFalse(test.fallenBehindMonitor.hasFallenBehind());
@@ -222,12 +216,12 @@ class FallenBehindMonitorTest {
         final AtomicBoolean awaitReturned = new AtomicBoolean(false);
 
         // Start a thread that waits for fallen behind
-        Thread waitingThread = new Thread(() -> {
+        final Thread waitingThread = new Thread(() -> {
             try {
                 threadStarted.countDown();
                 monitor.awaitFallenBehind();
                 awaitReturned.set(true);
-            } catch (InterruptedException e) {
+            } catch (final InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
         });
@@ -266,9 +260,7 @@ class FallenBehindMonitorTest {
         // This should return immediately without blocking
         assertTimeout(
                 Duration.ofMillis(100),
-                () -> {
-                    monitor.awaitFallenBehind();
-                },
+                () -> monitor.awaitFallenBehind(),
                 "awaitFallenBehind should return immediately when already fallen behind");
     }
 
@@ -277,10 +269,10 @@ class FallenBehindMonitorTest {
     void testAwaitFallenBehindInterruption() throws InterruptedException {
         final AtomicBoolean wasInterrupted = new AtomicBoolean(false);
 
-        Thread waitingThread = new Thread(() -> {
+        final Thread waitingThread = new Thread(() -> {
             try {
                 monitor.awaitFallenBehind();
-            } catch (InterruptedException e) {
+            } catch (final InterruptedException e) {
                 wasInterrupted.set(true);
                 Thread.currentThread().interrupt();
             }
@@ -452,7 +444,7 @@ class FallenBehindMonitorTest {
                             monitor.hasFallenBehind();
                             monitor.reportedSize();
                             monitor.isBehindPeer(nodeIds[nodeId]);
-                        } catch (Exception e) {
+                        } catch (final Exception e) {
                             failed.set(true);
                         } finally {
                             doneLatch.countDown();
@@ -484,7 +476,7 @@ class FallenBehindMonitorTest {
                             allStarted.countDown();
                             monitor.awaitFallenBehind();
                             allCompleted.countDown();
-                        } catch (InterruptedException e) {
+                        } catch (final InterruptedException e) {
                             Thread.currentThread().interrupt();
                         }
                     })
@@ -548,7 +540,7 @@ class FallenBehindMonitorTest {
                         allStarted.countDown();
                         monitor.awaitGossipPaused();
                         allCompleted.countDown();
-                    } catch (InterruptedException e) {
+                    } catch (final InterruptedException e) {
                         Thread.currentThread().interrupt();
                     }
                 })
@@ -569,7 +561,7 @@ class FallenBehindMonitorTest {
                     try {
                         monitor.awaitGossipPaused();
                         allCompleted.countDown();
-                    } catch (InterruptedException e) {
+                    } catch (final InterruptedException e) {
                         Thread.currentThread().interrupt();
                     }
                 })
@@ -581,22 +573,20 @@ class FallenBehindMonitorTest {
     @Test
     void testUnevenWeights() {
         final int numNodes = 11;
-        final Roster roster =
-                RosterFactory.randomRoster(getRandomPrintSeed(), numNodes, WeightGenerators.SINGLE_NODE_SUPERMAJORITY);
-        final NodeId[] nodeIds = roster.rosterEntries().stream()
-                .map(entry -> NodeId.of(entry.nodeId()))
-                .toArray(NodeId[]::new);
-        final FallenBehindMonitor monitor = new FallenBehindMonitor(roster, nodeIds[5], 0.5);
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(
+                getRandomPrintSeed(), numNodes, WeightGenerators.SINGLE_NODE_SUPERMAJORITY);
+        final List<NodeId> nodeIds = roster.nodeIds();
+        final FallenBehindMonitor monitor = new FallenBehindMonitor(roster, nodeIds.get(5), 0.5);
 
         assertFalse(monitor.hasFallenBehind());
-        monitor.report(nodeIds[0]); // this node alone has supermajority
+        monitor.report(nodeIds.getFirst()); // this node alone has supermajority
         assertTrue(monitor.hasFallenBehind());
         assertEquals(1.0, monitor.reportedWeight(), 0.01);
-        monitor.clear(nodeIds[0]); // this node alone has supermajority
+        monitor.clear(nodeIds.getFirst()); // this node alone has supermajority
         assertFalse(monitor.hasFallenBehind());
         assertEquals(0.0, monitor.reportedWeight());
         for (int i = 1; i < numNodes; i++) {
-            monitor.report(nodeIds[i]);
+            monitor.report(nodeIds.get(i));
         }
         assertEquals(0.0011, monitor.reportedWeight(), 0.001);
 
@@ -608,21 +598,19 @@ class FallenBehindMonitorTest {
     @Test
     void testIgnoreZeroWeights() {
         final int numNodes = 30;
-        final Roster roster =
-                RosterFactory.randomRoster(getRandomPrintSeed(), numNodes, WeightGenerators.ONE_THIRD_ZERO_WEIGHT);
-        final NodeId[] nodeIds = roster.rosterEntries().stream()
-                .map(entry -> NodeId.of(entry.nodeId()))
-                .toArray(NodeId[]::new);
-        final FallenBehindMonitor monitor = new FallenBehindMonitor(roster, nodeIds[0], 0.0);
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(
+                getRandomPrintSeed(), numNodes, WeightGenerators.ONE_THIRD_ZERO_WEIGHT);
+        final List<NodeId> nodeIds = roster.nodeIds();
+        final FallenBehindMonitor monitor = new FallenBehindMonitor(roster, nodeIds.getFirst(), 0.0);
 
         assertFalse(monitor.hasFallenBehind());
         for (int i = 1; i < 8; i++) {
             // all these have zero weights
-            monitor.report(nodeIds[i]);
+            monitor.report(nodeIds.get(i));
         }
         assertFalse(monitor.hasFallenBehind());
 
-        monitor.report(nodeIds[15]);
+        monitor.report(nodeIds.get(15));
         assertTrue(monitor.hasFallenBehind());
     }
 }

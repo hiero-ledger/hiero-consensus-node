@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state;
 
+import static org.hiero.base.crypto.Cryptography.DEFAULT_DIGEST_TYPE;
+
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -43,7 +45,7 @@ public class NoOpStateLifecycleManager<S, D> implements StateLifecycleManager<S,
 
     @Override
     public @NonNull Hash loadSnapshot(@NonNull final Path targetPath) throws IOException {
-        return new Hash();
+        return new Hash(DEFAULT_DIGEST_TYPE);
     }
 
     @Override

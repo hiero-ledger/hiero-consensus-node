@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.hashgraph.impl.metrics;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
 
 /**
  * Collection of metrics related to consensus
@@ -43,6 +45,13 @@ public interface ConsensusMetrics {
      * 		an event
      */
     void consensusReached(EventImpl event);
+
+    /**
+     * Update a statistics accumulator when the consensus engine emits a round that reached consensus.
+     *
+     * @param round the emitted round
+     */
+    void consensusRoundEmitted(@NonNull ConsensusRound round);
 
     /**
      * Update a statistics accumulator with dot product time. This is used

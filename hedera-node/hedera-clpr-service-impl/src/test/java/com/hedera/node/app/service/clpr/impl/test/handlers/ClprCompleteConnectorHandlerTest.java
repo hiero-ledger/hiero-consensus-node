@@ -9,9 +9,9 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INVALID_CONNECTOR_
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NOT_ENABLED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
-import static com.hedera.node.app.service.clpr.impl.schemas.V0770ClprSchema.CHANNELS_STATE_ID;
-import static com.hedera.node.app.service.clpr.impl.schemas.V0770ClprSchema.CONNECTORS_STATE_ID;
-import static com.hedera.node.app.service.clpr.impl.schemas.V0770ClprSchema.PENDING_CONNECTOR_COMMITMENTS_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CONNECTORS_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.PENDING_CONNECTOR_COMMITMENTS_STATE_ID;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -392,7 +392,7 @@ class ClprCompleteConnectorHandlerTest {
     }
 
     @Test
-    @DisplayName("should register connector, transfer stake, remove commitment on success")
+    @DisplayName("should register connector, transfer stake, and keep commitment registered on success")
     void registersConnectorSuccessfully() {
         commitmentStore.put(ecdsaCommitment);
         setupSmartContractMock();
@@ -408,7 +408,7 @@ class ClprCompleteConnectorHandlerTest {
         assertThat(connector.connectorContract()).isEqualTo(CONTRACT_ID);
         assertThat(connector.lockedStake()).isEqualTo(VALID_STAKE);
         assertThat(connector.slashCount()).isZero();
-        assertThat(commitmentStore.contains(ecdsaCommitment)).isFalse();
+        assertThat(commitmentStore.contains(ecdsaCommitment)).isTrue();
         verify(tokenServiceApi).transferFromTo(PAYER_ID, STAKING_ACCOUNT_ID, VALID_STAKE);
     }
 
@@ -438,7 +438,7 @@ class ClprCompleteConnectorHandlerTest {
         assertThat(connector).isNotNull();
         assertThat(connector.connectorId()).isEqualTo(ed25519ConnectorId);
         assertThat(connector.lockedStake()).isEqualTo(VALID_STAKE);
-        assertThat(commitmentStore.contains(ed25519Commitment)).isFalse();
+        assertThat(commitmentStore.contains(ed25519Commitment)).isTrue();
         verify(tokenServiceApi).transferFromTo(PAYER_ID, STAKING_ACCOUNT_ID, VALID_STAKE);
     }
 

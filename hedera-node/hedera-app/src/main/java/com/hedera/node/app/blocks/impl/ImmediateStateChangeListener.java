@@ -1,8 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
+import static com.hedera.node.app.blocks.impl.BoundaryStateChangeListener.singletonUpdateChangeValueFor;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.LEDGER_CONFIGURATION_STATE_ID;
 import static com.swirlds.state.StateChangeListener.StateType.MAP;
 import static com.swirlds.state.StateChangeListener.StateType.QUEUE;
+import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.output.MapChangeKey;
@@ -11,6 +16,7 @@ import com.hedera.hapi.block.stream.output.MapDeleteChange;
 import com.hedera.hapi.block.stream.output.MapUpdateChange;
 import com.hedera.hapi.block.stream.output.QueuePopChange;
 import com.hedera.hapi.block.stream.output.QueuePushChange;
+import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.AccountTokenAssociation;
@@ -88,7 +94,9 @@ import java.util.function.Predicate;
  * repeats changes to the same key multiple times in a block boundary.
  */
 public class ImmediateStateChangeListener implements StateChangeListener {
-    private static final Set<StateType> TARGET_DATA_TYPES = EnumSet.of(MAP, QUEUE);
+    private static final Set<StateType> TARGET_DATA_TYPES = EnumSet.of(MAP, QUEUE, SINGLETON);
+
+    private final List<StateChange> singletonStateChanges = new ArrayList<>();
 
     private final List<StateChange> kvStateChanges = new ArrayList<>();
 
@@ -96,6 +104,34 @@ public class ImmediateStateChangeListener implements StateChangeListener {
 
     @Nullable
     private Predicate<Object> logicallyIdenticalMapping;
+
+    /** Whether this singleton's changes belong to a transaction instead of the block boundary. */
+    public static boolean isImmediateSingleton(final int stateId) {
+        return stateId == LEDGER_CONFIGURATION_STATE_ID
+                || stateId == ENDPOINT_MANIFEST_STATE_ID
+                || stateId == ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID;
+    }
+
+    @Override
+    public <V> void singletonUpdateChange(final int stateId, @NonNull final V value) {
+        requireNonNull(value);
+        if (isImmediateSingleton(stateId)) {
+            singletonStateChanges.add(StateChange.newBuilder()
+                    .stateId(stateId)
+                    .singletonUpdate(new SingletonUpdateChange(singletonUpdateChangeValueFor(value)))
+                    .build());
+        }
+    }
+
+    /** Resets transaction-associated singleton changes without discarding queue changes. */
+    public void resetSingletonStateChanges() {
+        singletonStateChanges.clear();
+    }
+
+    /** Returns transaction-associated singleton changes. */
+    public List<StateChange> getSingletonStateChanges() {
+        return singletonStateChanges;
+    }
 
     /**
      * Resets keyValue state changes.
@@ -119,6 +155,7 @@ public class ImmediateStateChangeListener implements StateChangeListener {
         this.logicallyIdenticalMapping = logicallyIdenticalMapping;
         kvStateChanges.clear();
         queueStateChanges.clear();
+        singletonStateChanges.clear();
     }
 
     @Override
@@ -190,6 +227,7 @@ public class ImmediateStateChangeListener implements StateChangeListener {
         final var allStateChanges = new LinkedList<StateChange>();
         allStateChanges.addAll(kvStateChanges);
         allStateChanges.addAll(queueStateChanges);
+        allStateChanges.addAll(singletonStateChanges);
         return allStateChanges;
     }
 

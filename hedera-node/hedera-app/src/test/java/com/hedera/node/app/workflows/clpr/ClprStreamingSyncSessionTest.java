@@ -13,6 +13,7 @@ import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.state.clpr.ClprBundleRequest;
 import com.hedera.hapi.node.state.clpr.ClprBundleResponse;
@@ -74,10 +75,14 @@ class ClprStreamingSyncSessionTest {
 
     private ClprStreamingSyncSession session;
 
+    /** What the channel manager last recorded as the peer's view of our manifest version. */
+    private long peerObservedManifestVersion;
+
     @BeforeEach
     void setUp() {
         lenient().when(stateAccessor.get()).thenReturn(new AutoCloseableWrapper<>(state, () -> {}));
-        this.session = new ClprStreamingSyncSession(stateAccessor, bundleSubmitter, stateProofManager);
+        this.session = new ClprStreamingSyncSession(
+                stateAccessor, bundleSubmitter, stateProofManager, channelId -> peerObservedManifestVersion);
     }
 
     @Nested
@@ -113,6 +118,18 @@ class ClprStreamingSyncSessionTest {
                     .isInstanceOf(StatusRuntimeException.class)
                     .extracting(e -> ((StatusRuntimeException) e).getStatus().getCode())
                     .isEqualTo(Status.Code.INVALID_ARGUMENT);
+        }
+
+        @Test
+        void rejectsUnknownFieldsBeforeAccessingState() {
+            final var request = bytes(payload(CHANNEL_ID, request(0L), null)).append(Bytes.fromHex("c03e01"));
+
+            assertThatThrownBy(() -> session.onMessage(request))
+                    .isInstanceOf(StatusRuntimeException.class)
+                    .hasMessageContaining("Invalid ClprStreamingSyncPayload")
+                    .extracting(e -> ((StatusRuntimeException) e).getStatus().getCode())
+                    .isEqualTo(Status.Code.INVALID_ARGUMENT);
+            verifyNoInteractions(stateAccessor, bundleSubmitter, stateProofManager);
         }
 
         @Test
@@ -256,6 +273,36 @@ class ClprStreamingSyncSessionTest {
                                 .currentEndpointManifestVersion(LOCAL_MANIFEST_VERSION - 1)
                                 .build(),
                         null))));
+
+        verify(stateProofManager).buildBundleProof(eq(CHANNEL_ID), anyLong(), any(), eq(true), eq(true));
+    }
+
+    @Test
+    @DisplayName(
+            "without a peer request, staleness uses the peer's recorded view of our manifest, not our cache of theirs")
+    void absentRequestUsesRecordedPeerObservedManifestVersion() {
+        // The channel caches the peer's manifest at v4 (< local v7); that must not make us resend ours when the peer
+        // has already reported seeing our current version.
+        final var channel = channel(ClprChannelStatus.ACTIVE, 6L, 3L, 0L);
+        peerObservedManifestVersion = LOCAL_MANIFEST_VERSION;
+        givenBundle(BUNDLE);
+
+        mockState(channel, () -> session.onMessage(bytes(payload(CHANNEL_ID, null, BUNDLE))));
+
+        verify(stateProofManager).buildBundleProof(eq(CHANNEL_ID), anyLong(), any(), eq(true), eq(false));
+    }
+
+    @Test
+    @DisplayName("without a peer request, a peer whose recorded view of our manifest is behind gets it embedded")
+    void absentRequestEmbedsManifestWhenRecordedViewIsStale() {
+        final var channel = channel(ClprChannelStatus.ACTIVE, 6L, 3L, 0L)
+                .copyBuilder()
+                .endpointManifestVersion(LOCAL_MANIFEST_VERSION + 5)
+                .build();
+        peerObservedManifestVersion = LOCAL_MANIFEST_VERSION - 1;
+        givenBundle(BUNDLE);
+
+        mockState(channel, () -> session.onMessage(bytes(payload(CHANNEL_ID, null, BUNDLE))));
 
         verify(stateProofManager).buildBundleProof(eq(CHANNEL_ID), anyLong(), any(), eq(true), eq(true));
     }

@@ -17,7 +17,7 @@ public record ClprConfig(
         @ConfigProperty(defaultValue = "false") @NetworkProperty
         boolean enabled,
 
-        @ConfigProperty(defaultValue = "hiero:localnet") @NetworkProperty
+        @ConfigProperty(defaultValue = "hiero:mainnet") @NetworkProperty
         String chainId,
 
         @ConfigProperty(defaultValue = "1") @NetworkProperty int protocolVersion,
@@ -57,15 +57,14 @@ public record ClprConfig(
         // When false, CLPR does not reject inbound requests or remove outbound candidates
         // due to local shunning or open circuit-breaker state.
         @ConfigProperty(defaultValue = "false") boolean syncPeerExclusionEnabled,
-        // --- Peer endpoint discovery (CLPR-7.2) ---
-        // Period (seconds) between outbound discoverEndpoints calls. Set to 0 to disable.
-        @ConfigProperty(defaultValue = "300") int discoveryIntervalSeconds,
         // --- Queue monopolization protection (CLPR-3.5) ---
         @ConfigProperty(defaultValue = "50") @NetworkProperty
         int connectorQueueQuotaPct,
 
         // --- Verifier contract dispatch (CLPR-5.3) ---
-        @ConfigProperty(defaultValue = "300000") @NetworkProperty
+        // The dispatched call's gas must cover the EIP-7623 calldata floor (~40 gas per proof byte); a Hiero
+        // state proof carrying a WRAPS proof is ~15 KB, so even a single-message bundle needs ~640K gas
+        @ConfigProperty(defaultValue = "2000000") @NetworkProperty
         long verifierGasLimit,
 
         // --- Node-submitted ClprSubmitBundle fee cap (tinybars) ---
@@ -101,17 +100,6 @@ public record ClprConfig(
         // when mTLS is enabled (caCrtPath/caKeyPath set).
         @ConfigProperty(defaultValue = "50214") @NodeProperty @Min(0) @Max(65535)
         int mtlsPort,
-
-        // --- Endpoint manifest master feature flag ---
-        // Gates the node-driven endpoint-manifest lifecycle: the reconciler that opens
-        // constructions, the ClprEndpointPublicationHandler that routes publications into the
-        // active construction, and downstream consumers (peer verifier dual-ABI dispatch, bundle
-        // Step 1b apply, sync-orchestrator staleness signalling). Default off — turned on by
-        // network governance once every peer verifier contract has migrated to the manifest-aware
-        // ABI. When off, the reconciler is a no-op, publications are dropped with an info log,
-        // and no construction singleton is ever written to state.
-        @ConfigProperty(defaultValue = "false") @NetworkProperty
-        boolean endpointManifestEnabled,
 
         // --- Endpoint manifest construction lifecycle (design doc §8.1) ---
         // Grace period, extension size, and extension budget for the manifest construction that

@@ -8,15 +8,19 @@ import com.swirlds.config.api.ConfigProperty;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import com.swirlds.merkledb.config.MerkleDbConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
+import org.hiero.consensus.event.stream.config.EventConfig_;
 import org.hiero.consensus.gossip.config.NetworkEndpoint;
 import org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle;
+import org.hiero.otter.fixtures.internal.OverrideProperties;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -40,6 +44,17 @@ class ContainerNodeConfigurationTest {
         final Configuration config = subject.current();
         final TestConfigData configData = config.getConfigData(TestConfigData.class);
         assertThat(configData.myEndpointList()).isEqualTo(endpoints);
+    }
+
+    @Test
+    void testPropertiesSentToContainerContainDefaultsOverriddenByUserValues() {
+        final OverrideProperties networkProperties =
+                new OverrideProperties().withConfigValue(MerkleDbConfig_.INITIAL_CAPACITY, 42L);
+        final ContainerNodeConfiguration configuration =
+                new ContainerNodeConfiguration(() -> lifeCycle, networkProperties);
+        assertThat(configuration.overrideProperties())
+                .containsEntry(MerkleDbConfig_.INITIAL_CAPACITY, "42")
+                .containsKey(EventConfig_.EVENTS_LOG_DIR);
     }
 
     private static Stream<Arguments> networkEndpointListProvider() throws UnknownHostException {

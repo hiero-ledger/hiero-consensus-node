@@ -3,6 +3,7 @@ package org.hiero.consensus.transaction.handling.internal;
 
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.assertAllDatabasesClosed;
 import static org.hiero.consensus.model.PbjConverters.toPbjTimestamp;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.eventCutoverMinBirthRoundOf;
 import static org.hiero.consensus.state.test.fixtures.RandomSignedStateGenerator.releaseAllBuiltSignedStates;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -191,6 +192,29 @@ class DefaultTransactionHandlerTests {
                             .getFutureHash()
                             .getAndRethrow(),
                     "the running hash should from the freeze round");
+        }
+    }
+
+    @DisplayName("Event cutover is recorded with the first round only at genesis with the cutover enabled")
+    @ParameterizedTest(name = "cutover enabled {0}, start from genesis {1} -> recorded cutover {2}")
+    @CsvSource({"true, true, 1", "true, false, 0", "false, true, 0", "false, false, 0"})
+    void genesisEventCutover(
+            final boolean eventCutoverEnabled, final boolean startFromGenesis, final long expectedCutover) {
+        try (final TransactionHandlerTester tester =
+                new TransactionHandlerTester(eventCutoverEnabled, startFromGenesis)) {
+            assertEquals(
+                    0,
+                    eventCutoverMinBirthRoundOf(
+                            tester.getStateLifecycleManager().getMutableState()),
+                    "no cutover should be recorded before the first round");
+
+            tester.getTransactionHandler().handleConsensusRound(newConsensusRound(false));
+
+            assertEquals(
+                    expectedCutover,
+                    eventCutoverMinBirthRoundOf(
+                            tester.getStateLifecycleManager().getMutableState()),
+                    "unexpected cutover recorded with the first round");
         }
     }
 

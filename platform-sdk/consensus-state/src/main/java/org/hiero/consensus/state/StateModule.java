@@ -70,13 +70,26 @@ public class StateModule {
     private final ComponentWiring<StateSignatureCollector, List<ReservedSignedState>> stateSignatureCollectorWiring;
 
     private final ComponentWiring<StateSnapshotManager, StateSavingResult> stateSnapshotManagerWiring;
-    private final ComponentWiring<SavedStateController, StateWithHashComplexity> savedStateControllerWiring;
-
-    private final ComponentWiring<LatestCompleteStateNexus, Void> latestCompleteStateNexusWiring;
-
-    private final ComponentWiring<StateGarbageCollector, Void> stateGarbageCollectorWiring;
 
     private final OutputWire<ReservedSignedState> hashedStateOutputWire;
+
+    private final InputWire<StateWithHashComplexity> unhashedStatesInputWire;
+
+    private final InputWire<ReservedSignedState> garbageCollectorRegistrationInputWire;
+
+    private final InputWire<Queue<ScopedSystemTransaction<StateSignatureTransaction>>>
+            preconsensusSystemTransactionsInputWire;
+
+    private final InputWire<Queue<ScopedSystemTransaction<StateSignatureTransaction>>>
+            postconsensusSystemTranscationsInputWire;
+
+    private final InputWire<PlatformStatus> platformStatusInputWire;
+
+    private final InputWire<EventWindow> initialEventWindowInputWire;
+
+    private final OutputWire<Long> oldestMinimumBirthRoundOnDiskOutputWire;
+
+    private final InputWire<NoInput> clearInputWire;
 
     /**
      * Constructor for {@code TransactionHandlingModule}
@@ -127,14 +140,31 @@ public class StateModule {
                 new ComponentWiring<>(model, StateSignatureCollector.class, wiringConfig.stateSignatureCollector());
         this.stateSnapshotManagerWiring =
                 new ComponentWiring<>(model, StateSnapshotManager.class, wiringConfig.stateSnapshotManager());
-        this.savedStateControllerWiring =
+        final ComponentWiring<SavedStateController, StateWithHashComplexity> savedStateControllerWiring =
                 new ComponentWiring<>(model, SavedStateController.class, DIRECT_THREADSAFE_CONFIGURATION);
-        this.latestCompleteStateNexusWiring =
+        final ComponentWiring<LatestCompleteStateNexus, Void> latestCompleteStateNexusWiring =
                 new ComponentWiring<>(model, LatestCompleteStateNexus.class, DIRECT_THREADSAFE_CONFIGURATION);
-        this.stateGarbageCollectorWiring =
+        final ComponentWiring<StateGarbageCollector, Void> stateGarbageCollectorWiring =
                 new ComponentWiring<>(model, StateGarbageCollector.class, wiringConfig.stateGarbageCollector());
         final ComponentWiring<SignedStateSentinel, Void> signedStateSentinelWiring =
                 new ComponentWiring<>(model, SignedStateSentinel.class, wiringConfig.signedStateSentinel());
+
+        // Set up input wires
+        unhashedStatesInputWire = savedStateControllerWiring.getInputWire(SavedStateController::markSavedState);
+        garbageCollectorRegistrationInputWire =
+                stateGarbageCollectorWiring.getInputWire(StateGarbageCollector::registerState);
+        preconsensusSystemTransactionsInputWire =
+                stateSignatureCollectorWiring.getInputWire(StateSignatureCollector::handlePreconsensusSignatures);
+        postconsensusSystemTranscationsInputWire =
+                stateSignatureCollectorWiring.getInputWire(StateSignatureCollector::handlePostconsensusSignatures);
+        platformStatusInputWire =
+                latestCompleteStateNexusWiring.getInputWire(LatestCompleteStateNexus::updatePlatformStatus);
+        initialEventWindowInputWire =
+                latestCompleteStateNexusWiring.getInputWire(LatestCompleteStateNexus::updateEventWindow);
+        clearInputWire = stateSignatureCollectorWiring.getInputWire(StateSignatureCollector::clear);
+
+        oldestMinimumBirthRoundOnDiskOutputWire = stateSnapshotManagerWiring.getTransformedOutput(
+                StateSnapshotManager::extractOldestMinimumBirthRoundOnDisk);
 
         // Wire components
         eventWindowExtractor
@@ -198,10 +228,6 @@ public class StateModule {
         model.buildHeartbeatWire(wiringConfig.signedStateSentinelHeartbeatPeriod())
                 .solderTo(signedStateSentinelWiring.getInputWire(SignedStateSentinel::checkSignedStates), OFFER);
 
-        // Force not soldered wires to be built
-        stateSignatureCollectorWiring.getInputWire(StateSignatureCollector::clear);
-        stateSnapshotManagerWiring.getInputWire(StateSnapshotManager::dumpStateTask);
-
         // Create and bind components
         final StateHasher stateHasher = new DefaultStateHasher(metrics);
         stateHasherWiring.bind(stateHasher);
@@ -241,7 +267,7 @@ public class StateModule {
     @InputWireLabel("state to hash")
     @NonNull
     public InputWire<StateWithHashComplexity> unhashedStatesInputWire() {
-        return savedStateControllerWiring.getInputWire(SavedStateController::markSavedState);
+        return unhashedStatesInputWire;
     }
 
     /**
@@ -252,7 +278,7 @@ public class StateModule {
     @InputWireLabel("hashed states")
     @NonNull
     public InputWire<ReservedSignedState> garbageCollectorRegistrationInputWire() {
-        return stateGarbageCollectorWiring.getInputWire(StateGarbageCollector::registerState);
+        return garbageCollectorRegistrationInputWire;
     }
 
     /**
@@ -264,7 +290,7 @@ public class StateModule {
     @NonNull
     public InputWire<Queue<ScopedSystemTransaction<StateSignatureTransaction>>>
             preconsensusSystemTransactionsInputWire() {
-        return stateSignatureCollectorWiring.getInputWire(StateSignatureCollector::handlePreconsensusSignatures);
+        return preconsensusSystemTransactionsInputWire;
     }
 
     /**
@@ -276,7 +302,7 @@ public class StateModule {
     @NonNull
     public InputWire<Queue<ScopedSystemTransaction<StateSignatureTransaction>>>
             postconsensusSystemTranscationsInputWire() {
-        return stateSignatureCollectorWiring.getInputWire(StateSignatureCollector::handlePostconsensusSignatures);
+        return postconsensusSystemTranscationsInputWire;
     }
 
     /**
@@ -286,7 +312,7 @@ public class StateModule {
      */
     @NonNull
     public InputWire<PlatformStatus> platformStatusInputWire() {
-        return latestCompleteStateNexusWiring.getInputWire(LatestCompleteStateNexus::updatePlatformStatus);
+        return platformStatusInputWire;
     }
 
     /**
@@ -308,7 +334,7 @@ public class StateModule {
     @InputWireLabel("initial event window")
     @NonNull
     public InputWire<EventWindow> initialEventWindowInputWire() {
-        return latestCompleteStateNexusWiring.getInputWire(LatestCompleteStateNexus::updateEventWindow);
+        return initialEventWindowInputWire;
     }
 
     /**
@@ -338,8 +364,7 @@ public class StateModule {
      */
     @NonNull
     public OutputWire<Long> oldestMinimumBirthRoundOnDiskOutputWire() {
-        return stateSnapshotManagerWiring.getTransformedOutput(
-                StateSnapshotManager::extractOldestMinimumBirthRoundOnDisk);
+        return oldestMinimumBirthRoundOnDiskOutputWire;
     }
 
     /**
@@ -358,7 +383,7 @@ public class StateModule {
      * @return the input wire for clearing the state module.
      */
     public InputWire<NoInput> clearInputWire() {
-        return stateSignatureCollectorWiring.getInputWire(StateSignatureCollector::clear);
+        return clearInputWire;
     }
 
     /**

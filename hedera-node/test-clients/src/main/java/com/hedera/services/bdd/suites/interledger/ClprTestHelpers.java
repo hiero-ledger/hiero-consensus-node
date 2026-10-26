@@ -6,6 +6,7 @@ import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.block.stream.TssSignedBlockProof;
 import com.hedera.hapi.node.state.clpr.ClprChannel;
 import com.hedera.hapi.node.state.clpr.ClprChannelStatus;
+import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.clpr.ClprMessageKey;
 import com.hedera.hapi.node.state.clpr.ClprMessagePayload;
@@ -66,7 +67,7 @@ public final class ClprTestHelpers {
     });
 
     /** Hardcoded 20-byte address of the CLPR system contract (0x16e). Mirrors the value embedded in
-     * {@code ClprCompleteConnectorHandler.CLPR_SERVICE_ADDRESS} for connector signature messages. */
+     * {@code ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES} for connector signature messages. */
     public static final byte[] CLPR_SERVICE_ADDRESS_20 = {
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01, (byte) 0x6e
     };
@@ -90,6 +91,25 @@ public final class ClprTestHelpers {
                 .build();
         final var stateValue =
                 StateValue.newBuilder().clprServiceILedgerConfiguration(config).build();
+        final var leafBytes = StateItem.PROTOBUF.toBytes(new StateItem(stateKey, stateValue));
+        return StateProof.PROTOBUF.toBytes(buildSingleLeafStateProof(leafBytes));
+    }
+
+    /**
+     * Builds a synthetic endpoint-manifest {@link StateProof} with the same single-leaf shape as
+     * {@link #buildSyntheticConfigProof}, for use as {@code endpoint_manifest_proof_bytes} with a
+     * verifier that parses the proof without cryptographic checks (e.g. {@code ClprPassThroughVerifier}).
+     *
+     * <p>The proof contains a single {@link StateItem} leaf whose key is the
+     * {@code CLPRSERVICE_I_ENDPOINT_MANIFEST} singleton and whose value carries the supplied
+     * {@link ClprEndpointManifest}. Returns the protobuf-serialized {@link StateProof} bytes.
+     */
+    public static Bytes buildSyntheticManifestProof(final ClprEndpointManifest manifest) {
+        final var stateKey = StateKey.newBuilder()
+                .singleton(SingletonType.CLPRSERVICE_I_ENDPOINT_MANIFEST)
+                .build();
+        final var stateValue =
+                StateValue.newBuilder().clprServiceIEndpointManifest(manifest).build();
         final var leafBytes = StateItem.PROTOBUF.toBytes(new StateItem(stateKey, stateValue));
         return StateProof.PROTOBUF.toBytes(buildSingleLeafStateProof(leafBytes));
     }

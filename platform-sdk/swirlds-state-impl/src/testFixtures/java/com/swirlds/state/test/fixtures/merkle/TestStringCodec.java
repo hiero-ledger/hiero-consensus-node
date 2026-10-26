@@ -19,7 +19,7 @@ import java.util.Objects;
  */
 @Deprecated
 @SuppressWarnings("Singleton")
-public class TestStringCodec implements Codec<String> {
+public class TestStringCodec extends Codec<String> {
 
     private static final String DEFAULT_VALUE = "";
 
@@ -32,7 +32,7 @@ public class TestStringCodec implements Codec<String> {
 
     @NonNull
     @Override
-    public String parse(
+    protected String parseImpl(
             @NonNull ReadableSequentialData input,
             boolean strictMode,
             boolean parseUnknownFields,
@@ -44,34 +44,13 @@ public class TestStringCodec implements Codec<String> {
         return len == 0 ? "" : input.readBytes(len).asUtf8String();
     }
 
-    @NonNull
     @Override
-    public String parse(final @NonNull ReadableSequentialData input, final boolean strictMode, final int maxDepth) {
-        Objects.requireNonNull(input);
-        final var len = input.readInt();
-        return len == 0 ? "" : input.readBytes(len).asUtf8String();
-    }
-
-    @Override
-    public void write(final @NonNull String value, final @NonNull WritableSequentialData output) {
+    protected void writeImpl(final @NonNull String value, final @NonNull WritableSequentialData output) {
         Objects.requireNonNull(value);
         Objects.requireNonNull(output);
         final byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
         output.writeInt(bytes.length);
         output.writeBytes(bytes);
-    }
-
-    @Override
-    public int measure(final @NonNull ReadableSequentialData input) {
-        return input.readInt() + Integer.BYTES;
-    }
-
-    @Override
-    public boolean fastEquals(final @NonNull String value, final @NonNull ReadableSequentialData input)
-            throws ParseException {
-        Objects.requireNonNull(value);
-        Objects.requireNonNull(input);
-        return value.equals(parse(input));
     }
 
     @Override

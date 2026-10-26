@@ -64,11 +64,11 @@ class RosterWrapperFactoryTests {
         // Verify that each address has unique keys
         for (int i = 0; i < size; i++) {
             for (int j = i + 1; j < size; j++) {
-                final RosterEntryWrapper entryI = rosterA.rosterEntry(i);
+                final RosterEntryWrapper entryI = rosterA.rosterEntryAtIndex(i);
                 final PublicKey signaturePublicKeyI =
                         entryI.gossipCaCertificate().getPublicKey();
 
-                final RosterEntryWrapper entryJ = rosterA.rosterEntry(j);
+                final RosterEntryWrapper entryJ = rosterA.rosterEntryAtIndex(j);
                 final PublicKey signaturePublicKeyJ =
                         entryJ.gossipCaCertificate().getPublicKey();
 
@@ -78,7 +78,7 @@ class RosterWrapperFactoryTests {
 
         // Verify that the private key can produce valid signatures that can be verified by the public key
         for (int i = 0; i < size; i++) {
-            final RosterEntryWrapper entry = rosterA.rosterEntry(i);
+            final RosterEntryWrapper entry = rosterA.rosterEntryAtIndex(i);
             final PublicKey signaturePublicKey = entry.gossipCaCertificate().getPublicKey();
             final KeysAndCerts privateKeys = rosterWithKeysA.privateKey(entry.nodeId());
 
@@ -89,7 +89,7 @@ class RosterWrapperFactoryTests {
             assertTrue(CryptoUtils.verifySignature(dataBytes, signature.getBytes(), signaturePublicKey));
 
             // Sanity check: validating using the wrong public key should fail
-            final RosterEntryWrapper wrongEntry = rosterA.rosterEntry((i + 1) % size);
+            final RosterEntryWrapper wrongEntry = rosterA.rosterEntryAtIndex((i + 1) % size);
             final PublicKey wrongPublicKey = wrongEntry.gossipCaCertificate().getPublicKey();
             assertFalse(CryptoUtils.verifySignature(dataBytes, signature.getBytes(), wrongPublicKey));
 

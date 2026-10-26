@@ -9,6 +9,7 @@ description = "Consensus Status Monitor API"
 mainModuleInfo { annotationProcessor("com.swirlds.config.processor") }
 
 testModuleInfo {
+    requires("com.hedera.node.hapi")
     requires("com.swirlds.base.test.fixtures")
     requires("com.swirlds.config.extensions.test.fixtures")
     requires("org.hiero.base.utility.test.fixtures")

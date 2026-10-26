@@ -10,6 +10,7 @@ import com.hedera.hapi.platform.state.PlatformState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 
@@ -57,7 +58,7 @@ public class SnapshotPlatformStateAccessor implements PlatformStateAccessor {
     @Nullable
     public Hash getLegacyRunningEventHash() {
         final var hash = stateOrThrow().legacyRunningEventHash();
-        return hash.length() == 0 ? null : new Hash(hash);
+        return hash.length() == 0 ? null : new Hash(hash, DigestType.SHA_384);
     }
 
     /**
@@ -132,6 +133,11 @@ public class SnapshotPlatformStateAccessor implements PlatformStateAccessor {
     @Override
     public long getLatestFreezeRound() {
         return stateOrThrow().latestFreezeRound();
+    }
+
+    @Override
+    public long getEventCutoverMinBirthRound() {
+        return stateOrThrow().eventCutoverMinBirthRound();
     }
 
     private @NonNull PlatformState stateOrThrow() {

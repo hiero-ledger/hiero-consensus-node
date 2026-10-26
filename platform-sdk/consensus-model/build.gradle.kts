@@ -16,6 +16,7 @@ testModuleInfo {
     requires("org.hiero.consensus.utility.test.fixtures")
     requires("org.assertj.core")
     requires("org.junit.jupiter.api")
+    requires("org.junit.jupiter.params")
     requires("org.mockito")
 }
 

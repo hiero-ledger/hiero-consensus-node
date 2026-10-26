@@ -19,8 +19,18 @@ import edu.umd.cs.findbugs.annotations.Nullable;
  * other consumer can share it.
  */
 final class ClprProofExtraction {
+    /** StateItem field 2 (key) wire tag for length-delimited. */
+    static final int SI_KEY_TAG = 0x12;
+
     /** StateItem field 3 (value) wire tag for length-delimited. */
     static final int SI_VALUE_TAG = 0x1A;
+
+    /**
+     * StateKey field 62 (clpr message queue key, a {@code ClprMessageKey}) length-delimited tag. Numerically equal
+     * to {@link #SV_MESSAGE_TAG}, since both sides of the message queue use field number 62, but it belongs to
+     * {@code StateKey}, not {@code StateValue}.
+     */
+    static final int SK_MESSAGE_KEY_TAG = 498;
 
     /** StateValue field 60 (clpr channel) length-delimited tag. */
     static final int SV_CHANNEL_TAG = 482;
@@ -48,14 +58,31 @@ final class ClprProofExtraction {
     }
 
     /**
+     * Parses a StateItem protobuf and returns the key-field bytes (a serialized {@code StateKey}), or null on failure.
+     */
+    @Nullable
+    static Bytes extractStateItemKey(@NonNull final Bytes stateItemBytes) {
+        return extractStateItemField(stateItemBytes, SI_KEY_TAG);
+    }
+
+    /**
      * Parses a StateItem protobuf and returns the value-field bytes, or null on failure.
      */
     @Nullable
     static Bytes extractStateItemValue(@NonNull final Bytes stateItemBytes) {
+        return extractStateItemField(stateItemBytes, SI_VALUE_TAG);
+    }
+
+    /**
+     * Parses a StateItem protobuf and returns the bytes of the length-delimited field with the given wire tag, or
+     * null when it is absent or the bytes are malformed.
+     */
+    @Nullable
+    private static Bytes extractStateItemField(@NonNull final Bytes stateItemBytes, final int fieldTag) {
         try {
             final byte[] raw = stateItemBytes.toByteArray();
             int pos = 0;
-            Bytes valueBytes = null;
+            Bytes fieldBytes = null;
             while (pos < raw.length) {
                 final int[] tagResult = readVarint(raw, pos);
                 if (tagResult == null) break;
@@ -66,12 +93,12 @@ final class ClprProofExtraction {
                 final int len = lenResult[0];
                 pos = lenResult[1];
                 if (pos + len > raw.length) break;
-                if (tag == SI_VALUE_TAG) {
-                    valueBytes = Bytes.wrap(raw, pos, len);
+                if (tag == fieldTag) {
+                    fieldBytes = Bytes.wrap(raw, pos, len);
                 }
                 pos += len;
             }
-            return valueBytes;
+            return fieldBytes;
         } catch (final Exception e) {
             return null;
         }
@@ -90,7 +117,7 @@ final class ClprProofExtraction {
     }
 
     /**
-     * Given the bytes of a StateValue whose first field wraps a single domain value
+     * Given the bytes of a StateValue (or StateKey) whose first field wraps a single domain value
      * (tag-length-bytes), skips the tag, reads the length, returns the value bytes.
      */
     @Nullable

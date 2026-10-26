@@ -7,7 +7,7 @@ import static java.util.Objects.requireNonNull;
 import static org.hiero.base.file.FileUtils.executeAndRename;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.ancientThresholdOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.getInfoString;
-import static org.hiero.consensus.state.SignedStateFileConstants.CURRENT_ROSTER_FILE_NAME;
+import static org.hiero.consensus.state.SignedStateFileConstants.ACTIVE_ROSTER_FILE_NAME;
 import static org.hiero.consensus.state.SignedStateFileConstants.HASH_INFO_FILE_NAME;
 import static org.hiero.consensus.state.SignedStateFileConstants.SIGNATURE_SET_FILE_NAME;
 
@@ -211,45 +211,45 @@ public final class SignedStateFileWriter {
             logger.error(
                     EXCEPTION.getMarker(),
                     "Timed out waiting for async snapshot for round {} to {} after {} seconds",
-                    signedState.getRound(),
+                    round,
                     directory,
                     stateConfig.asyncSnapshotTimeout(),
                     e);
             if (snapshotFuture != null) {
                 snapshotFuture.cancel(true);
             }
-            throw new IOException("Async snapshot timed out for round " + signedState.getRound(), e);
+            throw new IOException("Async snapshot timed out for round " + round, e);
         } catch (final ExecutionException e) {
             logger.error(
                     EXCEPTION.getMarker(),
                     "Async snapshot failed for round {} to {}: {}",
-                    signedState.getRound(),
+                    round,
                     directory,
                     e.getCause());
-            throw new IOException("Async snapshot failed for round " + signedState.getRound(), e);
+            throw new IOException("Async snapshot failed for round " + round, e);
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
             logger.error(
                     EXCEPTION.getMarker(),
                     "Interrupted while waiting for async snapshot for round {} to {}",
-                    signedState.getRound(),
+                    round,
                     directory,
                     e);
             if (snapshotFuture != null) {
                 snapshotFuture.cancel(true);
             }
-            throw new IOException("Async snapshot interrupted for round " + signedState.getRound(), e);
+            throw new IOException("Async snapshot interrupted for round " + round, e);
         } catch (final Throwable e) {
             logger.error(
                     EXCEPTION.getMarker(),
                     "Unexpected error when writing a snapshot for round {} to {}",
-                    signedState.getRound(),
+                    round,
                     directory,
                     e);
             if (snapshotFuture != null) {
                 snapshotFuture.cancel(true);
             }
-            throw new IOException("Snapshot creation failed for round " + signedState.getRound(), e);
+            throw new IOException("Snapshot creation failed for round " + round, e);
         } finally {
             // Ensures cleanup if an error occurs during snapshot creation. The isClosed() check
             // prevents double-close since ReservedSignedState can only be closed once.
@@ -277,8 +277,8 @@ public final class SignedStateFileWriter {
         writeHashInfoFile(directory, signedState.getState());
         writeMetadataFile(selfId, directory, signedState);
         writeConsensusSnapshotFile(directory, signedState);
-        final Roster currentRoster = signedState.getRoster();
-        writeRosterFile(directory, currentRoster);
+        final Roster activeRoster = signedState.getRoster();
+        writeRosterFile(directory, activeRoster);
         writeSettingsUsed(directory, configuration);
     }
 
@@ -347,7 +347,7 @@ public final class SignedStateFileWriter {
      */
     private static void writeRosterFile(@NonNull final Path directory, @NonNull final Roster roster)
             throws IOException {
-        final Path rosterFile = directory.resolve(CURRENT_ROSTER_FILE_NAME);
+        final Path rosterFile = directory.resolve(ACTIVE_ROSTER_FILE_NAME);
 
         try (final BufferedWriter writer = new BufferedWriter(new FileWriter(rosterFile.toFile()))) {
             writer.write(Roster.JSON.toJSON(roster));
@@ -431,12 +431,15 @@ public final class SignedStateFileWriter {
         requireNonNull(stateLifecycleManager);
 
         final SignedState signedState = reservedSignedState.get();
+        // Read the round before writing: an async snapshot releases the reservation, and the state's data
+        // source may be closed by the time the write returns
+        final long round = signedState.getRound();
 
         try {
             logger.info(
                     STATE_TO_DISK.getMarker(),
                     "Started writing round {} state to disk. Reason: {}, directory: {}",
-                    signedState.getRound(),
+                    round,
                     stateToDiskReason == null ? "UNKNOWN" : stateToDiskReason,
                     savedStateDirectory);
 
@@ -452,17 +455,14 @@ public final class SignedStateFileWriter {
                             stateLifecycleManager));
 
             logger.info(STATE_TO_DISK.getMarker(), () -> new StateSavedToDiskPayload(
-                            signedState.getRound(),
+                            round,
                             signedState.isFreezeState(),
                             stateToDiskReason == null ? "UNKNOWN" : stateToDiskReason.toString(),
                             savedStateDirectory)
                     .toString());
         } catch (final Throwable e) {
             logger.error(
-                    EXCEPTION.getMarker(),
-                    "Exception when writing the signed state for round {} to disk:",
-                    signedState.getRound(),
-                    e);
+                    EXCEPTION.getMarker(), "Exception when writing the signed state for round {} to disk:", round, e);
             throw e;
         }
     }

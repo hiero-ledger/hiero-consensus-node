@@ -58,7 +58,7 @@ public class FileDeleteSuite {
         // A file number inside the system-reserved range that is not a system file cannot be deleted;
         // the attempt is rejected at ingest.
         return hapiTest(
-                fileDelete("0.0.3").signedBy(GENESIS).hasPrecheckFrom(ResponseCodeEnum.ENTITY_NOT_ALLOWED_TO_DELETE));
+                fileDelete("0.0.3").signedBy(GENESIS).hasPrecheck(ResponseCodeEnum.ENTITY_NOT_ALLOWED_TO_DELETE));
     }
 
     @HapiTest

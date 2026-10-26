@@ -16,7 +16,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 
 /**
- * Translates {@code verifyConfig} calls with seed endpoints or an endpoint manifest.
+ * Translates {@code verifyConfig} calls with an endpoint manifest.
  *
  * <p>Implements the spec-defined verifier ABI for Hiero TSS at channel registration time.
  * The precompile reads the peer's trust anchor (for Hiero TSS the peer ledger_id) from the
@@ -29,21 +29,9 @@ import javax.inject.Singleton;
 @Singleton
 public class VerifyConfigTranslator extends AbstractCallTranslator<ClprCallAttempt> {
 
-    /** ABI indexes for the decoded call arguments. */
-    static final int STATE_PROOF_INDEX = 0;
-
-    static final int CHANNEL_ID_INDEX = 1;
-    static final int MANIFEST_PROOF_INDEX = 2;
-
-    // Seed endpoints with channel context: verifyConfig(bytes,bytes32) → config fields + Endpoint[] seedEndpoints.
-    public static final SystemContractMethod VERIFY_CONFIG_WITH_SEED_ENDPOINTS = SystemContractMethod.declare(
-                    "verifyConfig(bytes,bytes32)",
-                    "(bytes,string,bytes,uint96,(uint64,uint64,uint64,uint64,uint64),bytes,bytes,(string,uint32,bytes,bytes)[])")
-            .withCategories(Category.CLPR);
-
     // Endpoint manifest with channel context: verifyConfig(bytes,bytes32,bytes) → config fields + ClprEndpointManifest.
-    public static final SystemContractMethod VERIFY_CONFIG_WITH_MANIFEST = SystemContractMethod.declare(
-                    "verifyConfig(bytes,bytes32,bytes)", ClprVerifierAbi.VERIFY_CONFIG_WITH_MANIFEST_OUTPUTS)
+    public static final SystemContractMethod VERIFY_CONFIG = SystemContractMethod.declare(
+                    "verifyConfig(bytes,bytes32,bytes)", ClprVerifierAbi.VERIFY_CONFIG_OUTPUTS)
             .withCategories(Category.CLPR);
 
     private final TssVerifier tssVerifier;
@@ -55,34 +43,24 @@ public class VerifyConfigTranslator extends AbstractCallTranslator<ClprCallAttem
             @NonNull final TssVerifier tssVerifier) {
         super(SystemContractMethod.SystemContract.CLPR, systemContractMethodRegistry, contractMetrics);
         this.tssVerifier = tssVerifier;
-        registerMethods(VERIFY_CONFIG_WITH_SEED_ENDPOINTS, VERIFY_CONFIG_WITH_MANIFEST);
+        registerMethods(VERIFY_CONFIG);
     }
 
     @Override
     @NonNull
     public Optional<SystemContractMethod> identifyMethod(@NonNull final ClprCallAttempt attempt) {
-        return attempt.isMethod(VERIFY_CONFIG_WITH_MANIFEST)
-                .or(() -> attempt.isMethod(VERIFY_CONFIG_WITH_SEED_ENDPOINTS));
+        return attempt.isMethod(VERIFY_CONFIG);
     }
 
     @Override
     public Call callFrom(@NonNull final ClprCallAttempt attempt) {
-        if (attempt.isMethod(VERIFY_CONFIG_WITH_MANIFEST).isPresent()) {
-            final var call = VERIFY_CONFIG_WITH_MANIFEST.decodeCall(attempt.inputBytes());
-            return new VerifyConfigCall(
-                    attempt.enhancement(),
-                    attempt.systemContractGasCalculator(),
-                    call.get(STATE_PROOF_INDEX),
-                    call.get(CHANNEL_ID_INDEX),
-                    call.get(MANIFEST_PROOF_INDEX),
-                    tssVerifier);
-        }
-        final var call = VERIFY_CONFIG_WITH_SEED_ENDPOINTS.decodeCall(attempt.inputBytes());
+        final var call = VERIFY_CONFIG.decodeCall(attempt.inputBytes());
         return new VerifyConfigCall(
                 attempt.enhancement(),
                 attempt.systemContractGasCalculator(),
-                call.get(STATE_PROOF_INDEX),
-                call.get(CHANNEL_ID_INDEX),
+                call.get(0),
+                call.get(1),
+                call.get(2),
                 tssVerifier);
     }
 }

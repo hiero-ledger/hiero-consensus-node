@@ -1,0 +1,154 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "905: [CRON] Nightly Benchmarks"
+on:
+  schedule:
+    - cron: "0 17 * * *"
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "The branch, tag or SHA to benchmark (default: the selected branch)."
+        type: string
+        required: false
+        default: ""
+      publish:
+        description: "Publish the results to Grafana, labeled run_type=manual."
+        type: boolean
+        required: false
+        default: false
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-benchmarks-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  GRADLE_CACHE_USERNAME: ${{ secrets.GRADLE_CACHE_USERNAME }}
+  GRADLE_CACHE_PASSWORD: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+
+jobs:
+  extract-jdk-version:
+    name: Extract Java Version
+    uses: ./.github/workflows/854-call-extract-jdk-version.yaml
+    if: ${{ github.event.repository.visibility == 'public' }}
+    with:
+      ref: ${{ inputs.ref || github.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  # Runs the tracked benchmarks of every module that applies org.hiero.gradle.feature.benchmark-tracking, one after
+  # another on the benchmark runner, a node shared with other workloads. The driver waits for a quiet minute before
+  # every measurement and repeats a parameter set that was measured under load, until its deadline 3 hours after its
+  # start; then every open parameter set runs once without waiting. If no attempt of a set is quiet, only its
+  # allocation and the load are published, no latency. The timeout covers the deadline, a measuring budget of about
+  # 2 hours, and the build.
+  jmh:
+    name: JMH Benchmarks
+    strategy:
+      # a single entry: the runner label is then defined once, for runs-on and for the results' runner label
+      matrix:
+        runner: ["hl-cn-benchmark-lin"]
+    runs-on: ${{ matrix.runner }}
+    if: ${{ github.event.repository.visibility == 'public' }}
+    timeout-minutes: 360
+    needs:
+      - extract-jdk-version
+    env:
+      RESULTS_DIR: build/benchmark-results
+      RUNNER_LABEL: ${{ matrix.runner }}
+    steps:
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+        with:
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref || github.ref }}"
+          checkout-fetch-depth: "1"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+          setup-java: "true"
+          java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
+          java-distribution: "temurin"
+          setup-gradle: "true"
+          gradle-cache-read-only: "true"
+
+      # The runner image's Python: on the hl-cn runners, setup-python can pick a cached build that needs a newer glibc
+      - name: Install Python
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends python3
+
+      # jmhTracked builds the benchmark jar of every module that tracks benchmarks and writes its manifest. Stops the
+      # daemon afterwards, so that no Gradle process is alive while the benchmarks measure.
+      - name: Build Benchmark Jars
+        run: |
+          ./gradlew jmhTracked
+          ./gradlew --stop
+
+      - name: Record Environment Before
+        env:
+          BENCHMARK_REF: ${{ inputs.ref || github.ref }}
+        run: |
+          mkdir -p "${RESULTS_DIR}"
+          {
+            echo "commit=$(git rev-parse HEAD)"
+            echo "ref=${BENCHMARK_REF}"
+            echo "run_id=${GITHUB_RUN_ID}"
+            echo "run_attempt=${GITHUB_RUN_ATTEMPT}"
+            echo "run_url=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            echo "runner_name=${RUNNER_NAME}"
+            echo "runner_label=${RUNNER_LABEL}"
+            echo "started=$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          } > "${RESULTS_DIR}/run-info.properties"
+          .github/workflows/support/scripts/record-benchmark-environment.sh > "${RESULTS_DIR}/environment-before.txt"
+          cat "${RESULTS_DIR}/run-info.properties"
+          sed -n '/^== summary/,/^== end summary/p' "${RESULTS_DIR}/environment-before.txt"
+
+      # The jars rather than Gradle's jmh tasks: the task's -foe does not work (melix/jmh-gradle-plugin#255), and a
+      # loaded parameter set is repeated alone. The run configuration comes from the benchmarks' annotations; the
+      # driver pins the processor count. Without "nice", which other workflows use and which would lower the
+      # benchmarks' priority on a shared node.
+      - name: Run Benchmarks
+        id: jmh
+        run: |
+          shopt -s nullglob
+          manifests=(platform-sdk/*/build/jmh/tracked.properties)
+          if [[ ${#manifests[@]} -eq 0 ]]; then
+            echo "::error::no module tracks benchmarks (no build/jmh/tracked.properties written by jmhTracked)"
+            exit 1
+          fi
+          python3 .github/workflows/support/scripts/benchmarks/run_benchmarks.py \
+            --manifest "${manifests[@]}" --out "${RESULTS_DIR}"
+
+      - name: Record Environment After
+        if: ${{ always() && steps.jmh.outcome != 'skipped' }}
+        run: |
+          echo "finished=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "${RESULTS_DIR}/run-info.properties"
+          .github/workflows/support/scripts/record-benchmark-environment.sh > "${RESULTS_DIR}/environment-after.txt"
+          sed -n '/^== summary/,/^== end summary/p' "${RESULTS_DIR}/environment-after.txt"
+
+      # Scheduled runs publish as run_type=nightly, which dashboards and alerts use; manual runs only on request
+      - name: Publish Results
+        if: ${{ github.event_name == 'schedule' || inputs.publish }}
+        env:
+          RUN_TYPE: ${{ github.event_name == 'schedule' && 'nightly' || 'manual' }}
+          METRICS_URL: ${{ vars.MICROBENCHMARKS_METRICS_MIMIR_URL }}
+          LOKI_URL: ${{ vars.MICROBENCHMARKS_METRICS_LOKI_URL }}
+          BENCHMARK_METRICS_USER: ${{ vars.MICROBENCHMARK_METRICS_USER_NAME }}
+          BENCHMARK_METRICS_PASSWORD: ${{ secrets.MICROBENCHMARK_METRICS_PASSWORD }}
+        run: |
+          python3 .github/workflows/support/scripts/benchmarks/publish_results.py \
+            --results "${RESULTS_DIR}" --run-type "${RUN_TYPE}" --url "${METRICS_URL}" --loki-url "${LOKI_URL}"
+
+      - name: Upload Results
+        if: ${{ always() && steps.jmh.outcome != 'skipped' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: jmh-results
+          path: ${{ env.RESULTS_DIR }}
+          if-no-files-found: error
+          retention-days: 90

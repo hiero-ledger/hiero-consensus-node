@@ -333,3 +333,30 @@ result to detect `APPLICATION_ERROR`; extending it to read `gasUsed` is straight
 
 See also D-8 in [DRIFT-REVIEW-2026-05.md](DRIFT-REVIEW-2026-05.md) and the
 "Success-path economics" subsection in [`config-and-slashing.md`](config-and-slashing.md).
+
+---
+
+## E-11. CLPR singleton maintenance in the block stream
+
+Some CLPR singleton changes happen outside of any transaction handler: genesis and
+post-upgrade setup initialize missing `LEDGER_CONFIGURATION`, `ENDPOINT_MANIFEST`, and
+`ENDPOINT_MANIFEST_CONSTRUCTION` singletons; post-upgrade setup reconciles the endpoint
+manifest with a changed roster; and every round (including rounds with no user
+transactions) the endpoint manifest reconciler may advance or close a construction.
+
+Each such change is externalized as a system-initiated `ClprMaintenanceTransactionBody`
+(`HederaFunctionality.ClprMaintenance`), whose only field is the `ClprMaintenanceReason`.
+The transaction:
+
+- is emitted only when at least one singleton value changes;
+- uses a reserved consensus time before the following event or user transaction, and a
+  non-zero transaction id nonce like other system dispatches;
+- is paid by the system admin account, with status `SUCCESS`, and charges no fees;
+- carries the changed singleton values only in its state changes, which are authoritative;
+- appears in the block stream, but not the record stream.
+
+A client MUST NOT submit this transaction; like other internal-only transactions, its API
+permission defaults to `0-0`.
+Block stream consumers that replay state MUST apply its state changes and MUST NOT run any
+handler for it; in particular, it is unrelated to the user-facing
+`ClprUpdateLedgerConfiguration` and `ClprEndpointPublication` transactions.

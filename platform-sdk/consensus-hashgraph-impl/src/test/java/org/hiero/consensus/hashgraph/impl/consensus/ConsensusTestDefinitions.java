@@ -346,7 +346,7 @@ public final class ConsensusTestDefinitions {
                 OrchestratorBuilder.builder().setTestInput(input).build();
         orchestrator.configGenerators(g -> {
             // Setup: pick one node to use stale other-parents
-            final NodeId staleNodeProvider = g.getRoster().rosterEntry(0).nodeId();
+            final NodeId staleNodeProvider = g.getRoster().nodeIdAtIndex(0);
             g.getSource(staleNodeProvider)
                     .setRecentEventRetentionSize(5000)
                     .setRequestedOtherParentAgeDistribution(integerPowerDistribution(0.002, 300));
@@ -562,7 +562,7 @@ public final class ConsensusTestDefinitions {
         orchestrator.generateEvents(0.5);
         orchestrator.validate(consensusOutputValidatorWithConsensusRatio05);
 
-        orchestrator.removeNode(orchestrator.getRoster().rosterEntry(0).nodeId());
+        orchestrator.removeNode(orchestrator.getRoster().nodeIdAtIndex(0));
 
         orchestrator.generateEvents(0.5);
         final ConsensusOutputValidator consensusOutputValidatorWithEventRatio = new ConsensusOutputValidator(Set.of(

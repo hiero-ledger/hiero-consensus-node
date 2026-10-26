@@ -978,8 +978,8 @@ class AtomicTokenCreateSpecs {
     final Stream<DynamicTest> creationValidatesName() {
         return hapiTest(
                 cryptoCreate(TOKEN_TREASURY).balance(0L),
-                tokenCreate(PRIMARY).name("").logged().hasPrecheck(MISSING_TOKEN_NAME),
-                tokenCreate(PRIMARY).name("T\u0000ken").logged().hasPrecheck(INVALID_ZERO_BYTE_IN_STRING),
+                tokenCreate(PRIMARY).name("").logged().hasKnownStatus(MISSING_TOKEN_NAME),
+                tokenCreate(PRIMARY).name("T\u0000ken").logged().hasKnownStatus(INVALID_ZERO_BYTE_IN_STRING),
                 doSeveralWithStartupConfig("tokens.maxTokenNameUtf8Bytes", value -> {
                     final var maxLen = parseInt(value);
                     return specOps(
@@ -1002,8 +1002,8 @@ class AtomicTokenCreateSpecs {
     final Stream<DynamicTest> creationValidatesSymbol() {
         return hapiTest(
                 cryptoCreate(TOKEN_TREASURY).balance(0L),
-                tokenCreate("missingSymbol").symbol("").hasPrecheck(MISSING_TOKEN_SYMBOL),
-                tokenCreate(PRIMARY).name("T\u0000ken").logged().hasPrecheck(INVALID_ZERO_BYTE_IN_STRING),
+                tokenCreate("missingSymbol").symbol("").hasKnownStatus(MISSING_TOKEN_SYMBOL),
+                tokenCreate(PRIMARY).name("T\u0000ken").logged().hasKnownStatus(INVALID_ZERO_BYTE_IN_STRING),
                 doSeveralWithStartupConfig("tokens.maxSymbolUtf8Bytes", value -> {
                     final var maxLen = parseInt(value);
                     return specOps(

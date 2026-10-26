@@ -73,6 +73,7 @@ import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractUpdateSuite.ADMIN_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_BYTECODE_EMPTY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_EXECUTION_EXCEPTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_SIZE_LIMIT_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ERROR_DECODING_BYTESTRING;
@@ -223,13 +224,13 @@ public class ContractCreateSuite {
                         .adminKey(THRESHOLD)
                         .declinedReward(false)
                         .stakedAccountId("0.0.0")
-                        .hasPrecheck(INVALID_STAKING_ID)
+                        .hasKnownStatus(INVALID_STAKING_ID)
                         .refusingEthConversion(),
                 contractCreate(contract)
                         .adminKey(THRESHOLD)
                         .declinedReward(false)
                         .stakedNodeId(-1L)
-                        .hasPrecheck(INVALID_STAKING_ID)
+                        .hasKnownStatus(INVALID_STAKING_ID)
                         .refusingEthConversion());
     }
 
@@ -299,7 +300,7 @@ public class ContractCreateSuite {
                                     placeholderEthTx(), getEcdsaPrivateKeyFromSpec(spec, SECP_256K1_SOURCE_KEY));
                             b.setCallData(systemFileId).setEthereumData(ByteString.copyFrom(signedEthTx.encodeTx()));
                         })
-                        .hasPrecheck(INVALID_FILE_ID));
+                        .hasKnownStatus(INVALID_FILE_ID));
     }
 
     @HapiTest
@@ -571,10 +572,10 @@ public class ContractCreateSuite {
                 uploadInitCode(EMPTY_CONSTRUCTOR_CONTRACT),
                 contractCreate(EMPTY_CONSTRUCTOR_CONTRACT)
                         .entityMemo(TxnUtils.nAscii(101))
-                        .hasPrecheck(MEMO_TOO_LONG),
+                        .hasKnownStatus(MEMO_TOO_LONG),
                 contractCreate(EMPTY_CONSTRUCTOR_CONTRACT)
                         .entityMemo(ZERO_BYTE_MEMO)
-                        .hasPrecheck(INVALID_ZERO_BYTE_IN_STRING));
+                        .hasKnownStatus(INVALID_ZERO_BYTE_IN_STRING));
     }
 
     @HapiTest
@@ -684,7 +685,7 @@ public class ContractCreateSuite {
                 contractCreate("contract")
                         .bytecode("bytecode")
                         .payingWith(ACCOUNT)
-                        .hasKnownStatus(INSUFFICIENT_GAS)
+                        .hasKnownStatus(CONTRACT_EXECUTION_EXCEPTION)
                         // refuse eth conversion because we can't set invalid bytecode to callData in ethereum
                         // transaction
                         .refusingEthConversion());

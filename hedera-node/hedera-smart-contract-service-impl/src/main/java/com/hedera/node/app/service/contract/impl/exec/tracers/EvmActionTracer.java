@@ -119,9 +119,9 @@ public class EvmActionTracer implements ActionSidecarContentTracer {
     @Override
     public void tracePerOpcode(MessageFrame frame, long gas, ExceptionalHaltReason halt, Operation op) {}
 
-    // Called as a hot call from the Bonneville EVM.
-    // Caller already checked that side-car data is enabled, and that the
-    // parent is in State CODE_SUSPENDED.
+    // Called as a hot call from the Bonneville EVM, and when a system contract suspends
+    // to run a child frame. Caller already checked that side-car data is enabled, and
+    // that the parent is in State CODE_SUSPENDED.
     @Override
     public void traceSuspended(MessageFrame parent, MessageFrame child, CallOperationType opCall) {
         actionStack.pushActionOfIntermediate(parent, child, opCall);

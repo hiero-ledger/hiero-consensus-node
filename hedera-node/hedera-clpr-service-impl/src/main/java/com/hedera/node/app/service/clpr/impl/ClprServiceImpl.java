@@ -7,7 +7,7 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.clpr.ClprService;
 import com.hedera.node.app.service.clpr.impl.calculator.ClprFeeCalculator;
-import com.hedera.node.app.service.clpr.impl.schemas.V0770ClprSchema;
+import com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.SchemaRegistry;
@@ -22,7 +22,7 @@ public final class ClprServiceImpl implements ClprService {
 
     @Override
     public void registerSchemas(@NonNull final SchemaRegistry registry) {
-        registry.register(new V0770ClprSchema());
+        registry.register(new V0780ClprSchema());
     }
 
     @Override
@@ -30,7 +30,7 @@ public final class ClprServiceImpl implements ClprService {
             @NonNull final WritableStates writableStates, @NonNull final Configuration configuration) {
         requireNonNull(writableStates);
         requireNonNull(configuration);
-        return V0770ClprSchema.initializeSingletons(writableStates, configuration);
+        return V0780ClprSchema.initializeSingletons(writableStates, configuration);
     }
 
     @Override
@@ -56,8 +56,6 @@ public final class ClprServiceImpl implements ClprService {
                         TransactionBody.DataOneOfType.CLPR_DEREGISTER_CONNECTOR),
                 new ClprFeeCalculator(
                         HederaFunctionality.CLPR_SUBMIT_BUNDLE, TransactionBody.DataOneOfType.CLPR_SUBMIT_BUNDLE),
-                new ClprFeeCalculator(
-                        HederaFunctionality.CLPR_REDACT_MESSAGE, TransactionBody.DataOneOfType.CLPR_REDACT_MESSAGE),
                 new ClprFeeCalculator(
                         HederaFunctionality.CLPR_ENDPOINT_PUBLICATION,
                         TransactionBody.DataOneOfType.CLPR_ENDPOINT_PUBLICATION));

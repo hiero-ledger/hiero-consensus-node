@@ -54,6 +54,7 @@ import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.CryptographyProvider;
+import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.RunningHashable;
 import org.hiero.base.crypto.Signature;
@@ -280,8 +281,8 @@ class StreamUtilitiesTest {
                 // endRunningHash should be the last one in the iterator
                 assertFalse(iterator.hasNext());
             } else {
-                Hash objectHash = CRYPTOGRAPHY.digestSync(object);
-                runningHash = CRYPTOGRAPHY.calcRunningHash(runningHash, objectHash);
+                Hash objectHash = CRYPTOGRAPHY.digestSync(object, DigestType.SHA_384);
+                runningHash = CRYPTOGRAPHY.calcRunningHash(runningHash, objectHash, DigestType.SHA_384);
             }
             objectsCount++;
             logger.info(LOGM_OBJECT_STREAM, "parsed object: {}", object);

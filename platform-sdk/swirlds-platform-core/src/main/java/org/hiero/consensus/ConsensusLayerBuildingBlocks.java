@@ -16,6 +16,7 @@ import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.iss.detection.IssDetectionModule;
 import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.roster.RosterWrapperHistory;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.state.SavedStateController;
@@ -29,6 +30,7 @@ import org.hiero.consensus.wiring.framework.transformers.WireTransformer;
 public record ConsensusLayerBuildingBlocks(
         @NonNull WiringModel wiringModel,
         @NonNull Configuration configuration,
+        @NonNull RosterWrapperHistory rosterHistory,
         @NonNull EventCreatorModule eventCreatorModule,
         @NonNull EventIntakeModule eventIntakeModule,
         @NonNull PcesModule pcesModule,

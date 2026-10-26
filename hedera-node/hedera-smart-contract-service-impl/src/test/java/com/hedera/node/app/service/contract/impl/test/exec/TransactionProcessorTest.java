@@ -48,6 +48,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.state.token.Account;
@@ -56,6 +57,7 @@ import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.FrameRunner;
 import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging;
+import com.hedera.node.app.service.contract.impl.exec.gas.GasCharges;
 import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.gas.TinybarValues;
@@ -832,6 +834,41 @@ class TransactionProcessorTest {
     }
 
     @Test
+    void clprDispatchWithoutSenderAccountUsesTransactionSenderAndPrepaidGas() {
+        final var context = wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator);
+        final var transaction = clprDispatchCall(null);
+        givenClprDispatchRunsToCompletion(transaction, context);
+
+        final var result =
+                subject.processTransaction(transaction, worldUpdater, context, tracer, config, opsDurationCounter);
+
+        assertEquals(SUCCESS_RESULT.withTxStorageUsage(new TxStorageUsage(List.of(), null)), result);
+        verify(gasCharging, never()).chargeForGas(any(), any(), any(), any(), any());
+        verify(gasCharging, never()).maybeRefundGiven(anyLong(), anyLong(), any(), any(), any(), any());
+    }
+
+    @Test
+    void clprDispatchStillRequiresSenderAccountForEthereumTransactions() {
+        assertAbortsWith(clprDispatchCall(RELAYER_ID), INVALID_ACCOUNT_ID);
+    }
+
+    @Test
+    void clprDispatchResourceExhaustionWithoutSenderAccountReportsTransactionSender() {
+        final var context = wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator);
+        final var transaction = clprDispatchCall(null);
+        givenClprDispatchRunsToCompletion(transaction, context);
+        willThrow(new ResourceExhaustedException(INSUFFICIENT_BALANCES_FOR_RENEWAL_FEES))
+                .given(worldUpdater)
+                .commit();
+
+        final var result =
+                subject.processTransaction(transaction, worldUpdater, context, tracer, config, opsDurationCounter);
+
+        assertResourceExhaustion(INSUFFICIENT_BALANCES_FOR_RENEWAL_FEES, result);
+        assertEquals(SENDER_ID, result.senderId());
+    }
+
+    @Test
     void senderNonceIncrementedExactlyOnceWithNormalFees() {
         givenSenderAccount();
         given(senderAccount.getNonce()).willReturn(NONCE);
@@ -986,5 +1023,58 @@ class TransactionProcessorTest {
         given(initialFrame.getMessageFrameStack()).willReturn(stack);
         stack.push(initialFrame);
         given(initialFrame.getContextVariable(TRACKER_CONTEXT_VARIABLE)).willReturn(tracker);
+    }
+
+    private void givenClprDispatchRunsToCompletion(
+            @NonNull final HederaEvmTransaction transaction, @NonNull final HederaEvmContext context) {
+        // A native CLPR dispatch has no sender account
+        given(worldUpdater.getHederaAccount(SENDER_ID)).willReturn(null);
+        givenReceiverAccount();
+        givenAccessTracker(mock(StorageAccessTracker.class));
+        given(receiverAccount.getAddress()).willReturn(NON_SYSTEM_LONG_ZERO_ADDRESS);
+        given(frameBuilder.buildInitialFrameWith(
+                        transaction,
+                        worldUpdater,
+                        context,
+                        config,
+                        opsDurationCounter,
+                        featureFlags,
+                        EIP_1014_ADDRESS,
+                        NON_SYSTEM_LONG_ZERO_ADDRESS,
+                        transaction.gasLimit(),
+                        GAS_CALCULATOR,
+                        List.of()))
+                .willReturn(initialFrame);
+        given(frameRunner.runToCompletion(
+                        transaction.gasLimit(),
+                        SENDER_ID,
+                        initialFrame,
+                        tracer,
+                        messageCallProcessor,
+                        contractCreationProcessor,
+                        GasCharges.NONE,
+                        null))
+                .willReturn(SUCCESS_RESULT);
+    }
+
+    private static HederaEvmTransaction clprDispatchCall(@Nullable final AccountID relayer) {
+        return new HederaEvmTransaction(
+                SENDER_ID,
+                relayer,
+                CALLED_CONTRACT_ID,
+                NONCE,
+                CALL_DATA,
+                MAINNET_CHAIN_ID,
+                0L,
+                GAS_LIMIT,
+                USER_OFFERED_GAS_PRICE,
+                MAX_GAS_ALLOWANCE,
+                null,
+                null,
+                null,
+                null,
+                null,
+                EIP_1014_ADDRESS,
+                true);
     }
 }

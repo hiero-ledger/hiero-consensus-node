@@ -247,10 +247,10 @@ public interface FacilityInitModule {
                         schema.genesisExchangeRatesBytes(bootstrapConfig),
                         schema.genesisMidnightRates(bootstrapConfig));
                 final var simpleFeesUpdateStatus =
-                        feeManager.updateSimpleFees(schema.genesisSimpleFeesSchedules(bootstrapConfig));
+                        feeManager.updateSimpleFees(schema.genesisSimpleFeesSchedules(bootstrapConfig), true);
                 if (simpleFeesUpdateStatus != SUCCESS) {
                     throw new IllegalStateException(
-                            "Genesis simple fee schedules did not parse: " + simpleFeesUpdateStatus);
+                            "Genesis simple fee schedules were rejected: " + simpleFeesUpdateStatus);
                 }
                 throttleServiceManager.init(state, schema.genesisThrottleDefinitions(bootstrapConfig), true);
             }

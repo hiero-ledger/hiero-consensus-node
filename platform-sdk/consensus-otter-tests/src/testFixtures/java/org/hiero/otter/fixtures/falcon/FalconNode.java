@@ -16,14 +16,16 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Random;
-import org.hiero.consensus.hashgraph.impl.ConsensusEngineOutput;
+import java.util.function.Consumer;
+import org.hiero.consensus.gossip.impl.gossip.sync.protocol.SyncStatusChecker;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.status.monitor.actions.DoneReplayingEventsAction;
+import org.hiero.consensus.status.monitor.actions.StartedReplayingEventsAction;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.ProfilerEvent;
@@ -58,6 +60,9 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver, 
 
     @Nullable
     private FalconWiring wiring;
+
+    @NonNull
+    private EventWindow latestEventWindow = EventWindow.getGenesisEventWindow();
 
     /**
      * Constructor for {@code FalconNode}.
@@ -101,7 +106,8 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver, 
      */
     @Override
     public boolean receiveEvent(@NonNull final PlatformEvent event) {
-        if (wiring != null) {
+        if (receiveAllowed()) {
+            assert wiring != null;
             wiring.receivedGossipEventsInputWire().put(event);
             return true;
         }
@@ -116,7 +122,12 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver, 
      */
     @Override
     public boolean receiveEventWindow(@NonNull final NodeId sender, @NonNull final EventWindow eventWindow) {
-        return wiring != null;
+        return receiveAllowed();
+    }
+
+    private boolean receiveAllowed() {
+        final PlatformStatus status = platformStatus;
+        return wiring != null && status != null && SyncStatusChecker.doesStatusPermitSync(status);
     }
 
     /**
@@ -150,25 +161,36 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver, 
         final SecureRandom secureRandom = new SecureRandomBuilder(random.nextLong()).get();
 
         wiring = new FalconWiring(currentConfiguration, time, selfId, roster(), secureRandom);
-        wiring.sentGossipEventsOutputWire().solderTo("EventSubmitter_" + selfId, "event", event -> {
-            // Self-created events have no sender until now; the network identifies the source by this field
+        final Consumer<PlatformEvent> eventSubmitter = event -> {
             event.setSenderId(selfId);
             networkConnectivity.submitEvent(event);
-        });
-        wiring.eventWindowOutputWire()
-                .solderTo(
-                        "EventWindowSubmitter_" + selfId,
-                        "event window",
-                        eventWindow -> networkConnectivity.updateEventWindow(selfId, eventWindow));
-        wiring.consensusOutputWire()
-                .buildTransformer(
-                        "ConsensusResultCollector", "consensus result", ConsensusEngineOutput::consensusRounds)
-                .<ConsensusRound>buildSplitter("ConsensusResultSplitter", "consensus rounds")
+        };
+        wiring.sentGossipEventsOutputWire().solderTo("EventSubmitter_" + selfId, "event", eventSubmitter);
+        final Consumer<EventWindow> eventWindowSubmitter = eventWindow -> {
+            latestEventWindow = eventWindow;
+            networkConnectivity.updateEventWindow(selfId, eventWindow);
+        };
+        wiring.eventWindowOutputWire().solderTo("EventWindowSubmitter_" + selfId, "event window", eventWindowSubmitter);
+        wiring.consensusRoundOutputWire()
                 .solderTo("ResultsCollector", "consensus round", resultsCollector::addConsensusRound);
+        wiring.platformStatusOutputWire()
+                .solderTo("PlatformStatusCollector", "platform status", this::handlePlatformStatusChange);
+
+        platformStatus = PlatformStatus.STARTING_UP;
+
         wiring.start();
 
-        platformStatus = PlatformStatus.ACTIVE;
+        // Without PCES there is nothing to replay, but the status monitor only leaves STARTING_UP through
+        // REPLAYING_EVENTS. Submit the actions PcesCoordinator would send until in-memory PCES replaces this (#26824).
+        wiring.platformStatusActionInputWire().put(new StartedReplayingEventsAction());
+        wiring.platformStatusActionInputWire().put(new DoneReplayingEventsAction(time.now()));
+
         lifeCycle = RUNNING;
+    }
+
+    private void handlePlatformStatusChange(@NonNull final PlatformStatus platformStatus) {
+        this.platformStatus = requireNonNull(platformStatus);
+        resultsCollector.addPlatformStatus(platformStatus);
     }
 
     /**
@@ -276,7 +298,7 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver, 
     @Override
     @NonNull
     public SingleNodePlatformStatusResult newPlatformStatusResult() {
-        throw new UnsupportedOperationException("Platform status is not supported in FalconNode.");
+        return resultsCollector.newStatusProgression();
     }
 
     /**
@@ -312,6 +334,15 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver, 
     @Override
     public boolean isAlive() {
         return lifeCycle == RUNNING;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public EventWindow latestEventWindow() {
+        return latestEventWindow;
     }
 
     /**

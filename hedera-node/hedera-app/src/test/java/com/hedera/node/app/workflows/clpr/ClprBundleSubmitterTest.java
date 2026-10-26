@@ -16,6 +16,8 @@ import com.hedera.node.config.data.ClprConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
+import java.time.Instant;
+import java.time.InstantSource;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -42,6 +44,9 @@ class ClprBundleSubmitterTest {
     private AppContext.Gossip gossip;
 
     @Mock
+    private InstantSource instantSource;
+
+    @Mock
     private NodeInfo selfNodeInfo;
 
     @Mock
@@ -64,6 +69,8 @@ class ClprBundleSubmitterTest {
     @BeforeEach
     void setUp() {
         lenient().when(appContext.gossip()).thenReturn(gossip);
+        lenient().when(appContext.instantSource()).thenReturn(instantSource);
+        lenient().when(instantSource.instant()).thenAnswer(_ -> Instant.now());
         lenient().when(gossip.isAvailable()).thenReturn(true);
         final Supplier<NodeInfo> selfNodeSupplier = () -> selfNodeInfo;
         lenient().when(appContext.selfNodeInfoSupplier()).thenReturn(selfNodeSupplier);
@@ -141,6 +148,37 @@ class ClprBundleSubmitterTest {
 
         assertThat(result).isFalse();
         verify(gossip, never()).submit(any());
+    }
+
+    @Test
+    void successiveSubmissionsWithSameClockInstantHaveStrictlyIncreasingValidStart() {
+        // Two bundles submitted when the wall clock does not advance (fast hardware or mocked clock)
+        // would produce identical transactionValidStart values, colliding in Hedera's deduplication
+        // window and causing the second bundle to be silently dropped. The submitter must guarantee
+        // strictly monotonic valid-start timestamps even when the underlying clock is frozen.
+        final var fixedInstant = Instant.parse("2026-01-01T00:00:00Z");
+        when(instantSource.instant()).thenReturn(fixedInstant);
+
+        final var payload1 = ClprSyncPayload.newBuilder()
+                .channelId(CHANNEL_ID)
+                .bundlePayload(BUNDLE_PAYLOAD)
+                .build();
+        final var payload2 = ClprSyncPayload.newBuilder()
+                .channelId(CHANNEL_ID)
+                .bundlePayload(Bytes.wrap(new byte[] {5, 6, 7, 8}))
+                .build();
+
+        subject.submitBundle(payload1);
+        subject.submitBundle(payload2);
+
+        final var txBodyCaptor = ArgumentCaptor.forClass(TransactionBody.class);
+        verify(gossip, times(2)).submit(txBodyCaptor.capture());
+        final var bodies = txBodyCaptor.getAllValues();
+        final var ts1 = bodies.get(0).transactionIDOrThrow().transactionValidStart();
+        final var ts2 = bodies.get(1).transactionIDOrThrow().transactionValidStart();
+        final long epochNanos1 = ts1.seconds() * 1_000_000_000L + ts1.nanos();
+        final long epochNanos2 = ts2.seconds() * 1_000_000_000L + ts2.nanos();
+        assertThat(epochNanos2).isGreaterThan(epochNanos1);
     }
 
     @Test

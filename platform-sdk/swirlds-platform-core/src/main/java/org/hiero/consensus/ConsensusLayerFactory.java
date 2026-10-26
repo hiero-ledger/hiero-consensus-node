@@ -18,7 +18,6 @@ import com.swirlds.platform.builder.ExecutionLayer;
 import com.swirlds.platform.builder.ModulesConfig;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.DefaultAppNotifier;
-import com.swirlds.platform.metrics.PlatformMetricsConfig;
 import com.swirlds.platform.reconnect.ReconnectModule;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.Platform;
@@ -169,8 +168,7 @@ public class ConsensusLayerFactory {
         modulesConfig = configuration.getConfigData(ModulesConfig.class);
         metrics = inputs.metrics();
         time = inputs.time();
-        rosterHistory = RosterWrapperHistory.of(
-                inputs.rosterHistory().history(), inputs.rosterHistory().rosters());
+        rosterHistory = RosterWrapperHistory.of(inputs.rosterInputs());
         keysAndCerts = inputs.keysAndCerts();
         selfId = inputs.selfId();
         recycleBin = inputs.recycleBin();
@@ -250,6 +248,7 @@ public class ConsensusLayerFactory {
         return new ConsensusLayerBuildingBlocks(
                 wiringModel,
                 configuration,
+                rosterHistory,
                 eventCreatorModule,
                 eventIntakeModule,
                 pcesModule,
@@ -275,7 +274,7 @@ public class ConsensusLayerFactory {
     private FallenBehindMonitor createFallenBehindMonitor() {
         final double fallenBehindThreshold =
                 configuration.getConfigData(FallenBehindConfig.class).fallenBehindThreshold();
-        return new FallenBehindMonitor(rosterHistory.activeRoster().toPbj(), selfId, fallenBehindThreshold);
+        return new FallenBehindMonitor(rosterHistory.activeRoster(), selfId, fallenBehindThreshold);
     }
 
     @NonNull
@@ -403,7 +402,7 @@ public class ConsensusLayerFactory {
                 metrics,
                 time,
                 keysAndCerts,
-                rosterHistory.activeRoster().toPbj(),
+                rosterHistory.activeRoster(),
                 selfId,
                 version,
                 intakeEventCounter,
@@ -456,10 +455,7 @@ public class ConsensusLayerFactory {
 
     @Nullable
     private EventPipelineTracker createEventPipelineTracker(@NonNull final EventCreatorModule eventCreatorModule) {
-        final boolean eventPipelineMetricsEnabled =
-                configuration.getConfigData(PlatformMetricsConfig.class).eventPipelineMetricsEnabled();
-        final EventPipelineTracker eventPipelineTracker =
-                eventPipelineMetricsEnabled ? new EventPipelineTracker(metrics) : null;
+        final EventPipelineTracker eventPipelineTracker = EventPipelineTracker.create(metrics, configuration, time);
 
         // Register the event creation stage (self-only, step 1) and wire monitoring
         // before intake initialization so step numbers are sequentially.
@@ -475,7 +471,7 @@ public class ConsensusLayerFactory {
     @NonNull
     private IntakeEventCounter createIntakeEventCounter() {
         if (configuration.getConfigData(SyncConfig.class).waitForEventsInIntake()) {
-            return new DefaultIntakeEventCounter(rosterHistory.activeRoster().toPbj());
+            return new DefaultIntakeEventCounter(rosterHistory.activeRoster());
         } else {
             return new NoOpIntakeEventCounter();
         }

@@ -4,7 +4,6 @@ package com.hedera.node.app.service.contract.impl.exec.systemcontracts.sei.verif
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mockStatic;
 
 import com.esaulpaugh.headlong.abi.Tuple;
@@ -16,13 +15,9 @@ import com.hedera.hapi.node.state.clpr.ClprQueueMetadata;
 import com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierAbi;
 import com.hedera.node.app.service.clpr.impl.verifier.ProofException;
 import com.hedera.node.app.service.clpr.impl.verifier.sei.SeiCometBftProofVerifier;
-import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
-import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.config.api.Configuration;
 import java.math.BigInteger;
-import java.util.ArrayDeque;
 import java.util.List;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.junit.jupiter.api.Test;
@@ -34,6 +29,7 @@ class SeiVerifyBundleCallTest extends CallTestBase {
     private static final byte[] SENT_HASH = filled(32, 0x02);
     private static final byte[] RECEIVED_HASH = filled(32, 0x03);
     private static final byte[] LAST_HASH = filled(32, 0x04);
+    private static final long PROVEN_MANIFEST_VERSION = 5L;
 
     @Test
     void allowsStaticFrame() {
@@ -42,7 +38,6 @@ class SeiVerifyBundleCallTest extends CallTestBase {
 
     @Test
     void returnsVerifiedBundleContentWithoutRotation() {
-        stubManifestFlag(false);
         final var content = content(metadata(), Bytes.EMPTY, Bytes.EMPTY);
         final var verified = verified(content, null, null);
 
@@ -61,7 +56,9 @@ class SeiVerifyBundleCallTest extends CallTestBase {
                             SENT_HASH,
                             BigInteger.valueOf(17),
                             RECEIVED_HASH,
-                            ClprChannelStatus.ACTIVE.protoOrdinal()));
+                            ClprChannelStatus.ACTIVE.protoOrdinal(),
+                            // endpointManifestVersion comes from the PROVEN queue metadata, not relayed content
+                            BigInteger.valueOf(PROVEN_MANIFEST_VERSION)));
             assertThat((byte[][]) out.get(1)).isEmpty();
             assertThat((byte[]) out.get(2)).isEmpty();
             assertThat((byte[]) out.get(3)).isEmpty();
@@ -69,8 +66,28 @@ class SeiVerifyBundleCallTest extends CallTestBase {
     }
 
     @Test
+    void returnsProvenManifestVersionIgnoringRelayedContent() {
+        // The relayed content claims an inflated endpoint-manifest version; the proven queue metadata says
+        // PROVEN_MANIFEST_VERSION. The returned metaTuple must carry the PROVEN value — a relay cannot inflate
+        // it to make the peer look up-to-date and suppress our manifest re-pushes (spec §4.5).
+        final var inflatedMetadata =
+                metadata().copyBuilder().endpointManifestVersion(999L).build();
+        final var content = content(inflatedMetadata, Bytes.EMPTY, Bytes.EMPTY);
+        final var verified = verified(content, null, null);
+
+        try (final var verifier = mockStatic(SeiCometBftProofVerifier.class)) {
+            verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR))
+                    .thenReturn(verified);
+
+            final var out =
+                    decodedTuple(subject().execute(frame).fullResult().output().toArray());
+            final Tuple metaTuple = out.get(0);
+            assertThat(((BigInteger) metaTuple.get(5)).longValue()).isEqualTo(PROVEN_MANIFEST_VERSION);
+        }
+    }
+
+    @Test
     void acceptsFourProofBundleWhenContentHasNoMessages() {
-        stubManifestFlag(false);
         final var content = content(metadata(), Bytes.EMPTY, Bytes.EMPTY);
         final var verified = verifiedBundle()
                 .blockHash(BLOCK_HASH)
@@ -108,7 +125,6 @@ class SeiVerifyBundleCallTest extends CallTestBase {
 
     @Test
     void injectsVerifiedRotationWhenContentOmitsIt() {
-        stubManifestFlag(false);
         final byte[] newAnchor = {9, 9, 9};
         final byte[] newAnchorId = {8, 8, 8};
         final var content = content(metadata(), Bytes.EMPTY, Bytes.EMPTY);
@@ -128,7 +144,6 @@ class SeiVerifyBundleCallTest extends CallTestBase {
 
     @Test
     void acceptsMatchingClaimedRotationAndRewritesId() {
-        stubManifestFlag(false);
         final byte[] newAnchor = {9, 9, 9};
         final byte[] newAnchorId = {8, 8, 8};
         final var content = content(metadata(), Bytes.wrap(newAnchor), Bytes.wrap(new byte[] {7}));
@@ -147,14 +162,14 @@ class SeiVerifyBundleCallTest extends CallTestBase {
     }
 
     @Test
-    void trustUpdateOnlyReturnsTupleWithAbsentMetadataSentinelWhenFlagOff() {
-        // A trust-anchor rotation returns the same 4-member tuple shape as a normal bundle.
-        // Absent queue metadata is the zero-nextMessageId sentinel.
+    void trustUpdateOnlyReturnsTupleWithAbsentManifest() {
+        // A trust-anchor rotation via the shared bundle selector: the 5-member manifest-aware
+        // shape, absent metadata sentinel, and a version-0 (absent) manifest member — identical to a
+        // normal bundle.
         final byte[] newAnchor = {9, 9, 9};
         final byte[] newAnchorId = {8, 8, 8};
         final var verified =
                 verifiedBundle().trustAnchor(newAnchor, newAnchorId).build();
-        stubManifestFlag(false);
 
         try (final var verifier = mockStatic(SeiCometBftProofVerifier.class)) {
             verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR))
@@ -163,37 +178,7 @@ class SeiVerifyBundleCallTest extends CallTestBase {
             final var result = subject().execute(frame);
 
             assertThat(result.responseCode()).isEqualTo(SUCCESS);
-            final var decoded = SeiVerifyBundleTranslator.VERIFY_BUNDLE
-                    .getOutputs()
-                    .decode(result.fullResult().output().toArray());
-            assertThat(decoded.size()).isEqualTo(4);
-            final Tuple metaTuple = decoded.get(0);
-            assertThat(((java.math.BigInteger) metaTuple.get(0)).longValue()).isZero();
-            assertThat((Object[]) decoded.get(1)).isEmpty();
-            assertThat((byte[]) decoded.get(2)).isEqualTo(newAnchor);
-            assertThat((byte[]) decoded.get(3)).isEqualTo(newAnchorId);
-        }
-    }
-
-    @Test
-    void trustUpdateOnlyReturnsTupleWithAbsentManifestWhenFlagOn() {
-        // Same trust-anchor rotation via the shared bundle selector with the flag on: the 5-member manifest-aware
-        // shape, absent
-        // metadata sentinel, and a version-0 (absent) manifest member — again identical to a normal bundle.
-        final byte[] newAnchor = {9, 9, 9};
-        final byte[] newAnchorId = {8, 8, 8};
-        final var verified =
-                verifiedBundle().trustAnchor(newAnchor, newAnchorId).build();
-        stubManifestFlag(true);
-
-        try (final var verifier = mockStatic(SeiCometBftProofVerifier.class)) {
-            verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR))
-                    .thenReturn(verified);
-
-            final var result = subject().execute(frame);
-
-            assertThat(result.responseCode()).isEqualTo(SUCCESS);
-            final var decoded = ClprVerifierAbi.VERIFY_BUNDLE_WITH_MANIFEST_RETURN.decode(
+            final var decoded = ClprVerifierAbi.VERIFY_BUNDLE_RETURN.decode(
                     result.fullResult().output().toArray());
             assertThat(decoded.size()).isEqualTo(5);
             final Tuple metaTuple = decoded.get(0);
@@ -308,7 +293,6 @@ class SeiVerifyBundleCallTest extends CallTestBase {
         final byte[] channelContext = {7, 8, 9};
         final var content = content(metadata(), Bytes.EMPTY, Bytes.EMPTY);
         final var verified = verified(content, null, null);
-        stubManifestFlag(false);
 
         try (final var verifier = mockStatic(SeiCometBftProofVerifier.class)) {
             verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR))
@@ -318,15 +302,14 @@ class SeiVerifyBundleCallTest extends CallTestBase {
                     .execute(frame);
 
             assertThat(result.responseCode()).isEqualTo(SUCCESS);
-            final var decoded = SeiVerifyBundleTranslator.VERIFY_BUNDLE
-                    .getOutputs()
-                    .decode(result.fullResult().output().toArray());
-            assertThat(decoded.size()).isEqualTo(4);
+            final var decoded = ClprVerifierAbi.VERIFY_BUNDLE_RETURN.decode(
+                    result.fullResult().output().toArray());
+            assertThat(decoded.size()).isEqualTo(5);
         }
     }
 
     @Test
-    void returnsTupleWithManifestWhenFlagOn() {
+    void returnsTupleWithManifest() {
         final byte[] channelContext = {7, 8, 9};
         final var content = content(metadata(), Bytes.EMPTY, Bytes.EMPTY);
         // The verifier proved a manifest advance (version 3); with the feature flag on the bundle return
@@ -343,7 +326,6 @@ class SeiVerifyBundleCallTest extends CallTestBase {
                 .metadata(proven())
                 .manifestBytes(manifestBytes)
                 .build();
-        stubManifestFlag(true);
 
         try (final var verifier = mockStatic(SeiCometBftProofVerifier.class)) {
             verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR))
@@ -353,7 +335,7 @@ class SeiVerifyBundleCallTest extends CallTestBase {
                     .execute(frame);
 
             assertThat(result.responseCode()).isEqualTo(SUCCESS);
-            final var decoded = ClprVerifierAbi.VERIFY_BUNDLE_WITH_MANIFEST_RETURN.decode(
+            final var decoded = ClprVerifierAbi.VERIFY_BUNDLE_RETURN.decode(
                     result.fullResult().output().toArray());
             assertThat(decoded.size()).isEqualTo(5);
             final Tuple manifestStruct = decoded.get(4);
@@ -365,42 +347,7 @@ class SeiVerifyBundleCallTest extends CallTestBase {
     }
 
     @Test
-    void returnsFourMembersWhenFlagOff() {
-        final byte[] channelContext = {7, 8, 9};
-        final var content = content(metadata(), Bytes.EMPTY, Bytes.EMPTY);
-        // Even though the verifier proved a manifest, with the flag off the return stays the 4-member
-        // manifest-disabled.
-        final var manifest = ClprEndpointManifest.newBuilder()
-                .version(3L)
-                .serviceAddress(Bytes.wrap(new byte[20]))
-                .build();
-        final byte[] manifestBytes =
-                ClprEndpointManifest.PROTOBUF.toBytes(manifest).toByteArray();
-        final var verified = verifiedBundle()
-                .blockHash(BLOCK_HASH)
-                .content(content)
-                .metadata(proven())
-                .manifestBytes(manifestBytes)
-                .build();
-        stubManifestFlag(false);
-
-        try (final var verifier = mockStatic(SeiCometBftProofVerifier.class)) {
-            verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR))
-                    .thenReturn(verified);
-
-            final var result = new SeiVerifyBundleCall(mockEnhancement(), gasCalculator, BUNDLE_PAYLOAD, TRUST_ANCHOR)
-                    .execute(frame);
-
-            assertThat(result.responseCode()).isEqualTo(SUCCESS);
-            final var decoded = SeiVerifyBundleTranslator.VERIFY_BUNDLE
-                    .getOutputs()
-                    .decode(result.fullResult().output().toArray());
-            assertThat(decoded.size()).isEqualTo(4);
-        }
-    }
-
-    @Test
-    void manifestOnlyBundleSucceedsWhenFlagOn() {
+    void manifestOnlyBundleSucceeds() {
         // Manifest-only recovery bundle (spec §8.1.4): the verifier surfaced null content and null queue
         // metadata but a proven manifest. Via the shared bundle selector (channel context present) with the feature
         // flag on the Call emits the 5-member manifest-aware return whose metaTuple carries the zero nextMessageId
@@ -415,7 +362,6 @@ class SeiVerifyBundleCallTest extends CallTestBase {
                 .blockHash(BLOCK_HASH)
                 .manifestBytes(manifestBytes)
                 .build();
-        stubManifestFlag(true);
 
         try (final var verifier = mockStatic(SeiCometBftProofVerifier.class)) {
             verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR))
@@ -424,7 +370,7 @@ class SeiVerifyBundleCallTest extends CallTestBase {
             final var result = subject().execute(frame);
 
             assertThat(result.responseCode()).isEqualTo(SUCCESS);
-            final var decoded = ClprVerifierAbi.VERIFY_BUNDLE_WITH_MANIFEST_RETURN.decode(
+            final var decoded = ClprVerifierAbi.VERIFY_BUNDLE_RETURN.decode(
                     result.fullResult().output().toArray());
             assertThat(decoded.size()).isEqualTo(5);
             final Tuple metaTuple = decoded.get(0);
@@ -442,18 +388,21 @@ class SeiVerifyBundleCallTest extends CallTestBase {
     }
 
     @Test
-    void manifestOnlyBundleRejectedWhenFlagOff() {
-        final var manifest = ClprEndpointManifest.newBuilder()
-                .version(9L)
-                .serviceAddress(Bytes.wrap(new byte[20]))
-                .build();
-        final byte[] manifestBytes =
-                ClprEndpointManifest.PROTOBUF.toBytes(manifest).toByteArray();
+    void rejectsMalformedProvenManifestBytes() {
+        final var content = content(metadata(), Bytes.EMPTY, Bytes.EMPTY);
+        final byte[] malformedManifest = ClprEndpointManifest.PROTOBUF
+                .toBytes(ClprEndpointManifest.newBuilder()
+                        .version(3L)
+                        .serviceAddress(Bytes.wrap(new byte[20]))
+                        .build())
+                .append(Bytes.fromHex("c03e01"))
+                .toByteArray();
         final var verified = verifiedBundle()
                 .blockHash(BLOCK_HASH)
-                .manifestBytes(manifestBytes)
+                .content(content)
+                .metadata(proven())
+                .manifestBytes(malformedManifest)
                 .build();
-        stubManifestFlag(false);
 
         try (final var verifier = mockStatic(SeiCometBftProofVerifier.class)) {
             verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR))
@@ -463,13 +412,24 @@ class SeiVerifyBundleCallTest extends CallTestBase {
         }
     }
 
-    /** Stubs {@code configOf(frame)} to a config with the given endpoint-manifest flag value. */
-    private void stubManifestFlag(final boolean enabled) {
-        final Configuration config = HederaTestConfigBuilder.create()
-                .withValue("clpr.endpointManifestEnabled", enabled)
-                .getOrCreateConfig();
-        given(frame.getMessageFrameStack()).willReturn(new ArrayDeque<>());
-        given(frame.getContextVariable(FrameUtils.CONFIG_CONTEXT_VARIABLE)).willReturn(config);
+    @Test
+    void rejectsProvenManifestVersionThatIsNotAbiEncodable() {
+        // PBJ reads a uint64 >= 2^63 as a negative long; it cannot be ABI-encoded as uint64, so the call must fail.
+        final var content = content(metadata(), Bytes.EMPTY, Bytes.EMPTY);
+        final var provenWithNegativeVersion = new SeiCometBftProofVerifier.QueueMetadata(
+                42, SENT_HASH, 17, RECEIVED_HASH, ClprChannelStatus.ACTIVE.protoOrdinal(), LAST_HASH, -1L);
+        final var verified = verifiedBundle()
+                .blockHash(BLOCK_HASH)
+                .content(content)
+                .metadata(provenWithNegativeVersion)
+                .build();
+
+        try (final var verifier = mockStatic(SeiCometBftProofVerifier.class)) {
+            verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR))
+                    .thenReturn(verified);
+
+            assertFailed(subject().execute(frame));
+        }
     }
 
     private SeiVerifyBundleCall subject() {
@@ -539,12 +499,25 @@ class SeiVerifyBundleCallTest extends CallTestBase {
 
     private static SeiCometBftProofVerifier.QueueMetadata proven() {
         return new SeiCometBftProofVerifier.QueueMetadata(
-                42, SENT_HASH, 17, RECEIVED_HASH, ClprChannelStatus.ACTIVE.protoOrdinal(), LAST_HASH);
+                42,
+                SENT_HASH,
+                17,
+                RECEIVED_HASH,
+                ClprChannelStatus.ACTIVE.protoOrdinal(),
+                LAST_HASH,
+                PROVEN_MANIFEST_VERSION);
     }
 
     private static SeiCometBftProofVerifier.QueueMetadata provenWithoutLastMessage() {
         return new SeiCometBftProofVerifier.QueueMetadata(
-                42, SENT_HASH, 17, RECEIVED_HASH, ClprChannelStatus.ACTIVE.protoOrdinal(), LAST_HASH, false);
+                42,
+                SENT_HASH,
+                17,
+                RECEIVED_HASH,
+                ClprChannelStatus.ACTIVE.protoOrdinal(),
+                LAST_HASH,
+                PROVEN_MANIFEST_VERSION,
+                false);
     }
 
     private static ClprQueueMetadata metadata() {
@@ -568,7 +541,7 @@ class SeiVerifyBundleCallTest extends CallTestBase {
     }
 
     private static Tuple decodedTuple(final byte[] output) {
-        return SeiVerifyBundleTranslator.VERIFY_BUNDLE.getOutputs().decode(output);
+        return ClprVerifierAbi.VERIFY_BUNDLE_RETURN.decode(output);
     }
 
     private static void assertFailed(

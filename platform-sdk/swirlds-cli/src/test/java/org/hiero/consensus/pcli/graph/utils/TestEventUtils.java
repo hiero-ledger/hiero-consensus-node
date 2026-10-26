@@ -81,7 +81,9 @@ public class TestEventUtils {
                                 event.getTransactions().stream()
                                         .map(t -> t.getApplicationTransaction())
                                         .toList(),
-                                event.getEventCore().coin()),
+                                event.getEventCore().coin(),
+                                event.getTimeCreated(),
+                                List.of()),
                         signature.getBytes(),
                         EventOrigin.GOSSIP);
             });

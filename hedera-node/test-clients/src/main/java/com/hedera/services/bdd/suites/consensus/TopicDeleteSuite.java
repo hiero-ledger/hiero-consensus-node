@@ -37,8 +37,8 @@ public class TopicDeleteSuite {
         return hapiTest(
                 cryptoCreate("nonTopicId"),
                 deleteTopic(spec -> asTopicId(spec.registry().getAccountID("nonTopicId")))
-                        .hasPrecheck(INVALID_TOPIC_ID),
-                deleteTopic((String) null).hasPrecheck(INVALID_TOPIC_ID));
+                        .hasKnownStatus(INVALID_TOPIC_ID),
+                deleteTopic((String) null).hasKnownStatus(INVALID_TOPIC_ID));
     }
 
     @HapiTest

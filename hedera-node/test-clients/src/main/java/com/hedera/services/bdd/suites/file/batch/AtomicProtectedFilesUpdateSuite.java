@@ -299,7 +299,7 @@ class AtomicProtectedFilesUpdateSuite {
                                 .payingWith("unauthorizedAccount")
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
-                        .hasPrecheckFrom(AUTHORIZATION_FAILED));
+                        .hasPrecheck(AUTHORIZATION_FAILED));
     }
 
     private byte[] extendedBioAddressBook(byte[] contents, String targetMemo, String replaceMemo) {

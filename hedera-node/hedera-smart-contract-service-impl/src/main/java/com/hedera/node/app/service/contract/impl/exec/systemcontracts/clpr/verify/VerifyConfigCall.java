@@ -7,30 +7,34 @@ import static com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierAbi.man
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.ordinalRevertResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.successResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasOnly;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.configOf;
 import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
-import com.hedera.hapi.node.state.clpr.ClprServiceEndpoint;
 import com.hedera.hapi.node.state.clpr.ClprThrottles;
+import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.hapi.utils.blocks.StateProofVerifier;
 import com.hedera.node.app.hapi.utils.blocks.TssVerifier;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCall;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
+import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.math.BigInteger;
+import java.security.MessageDigest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.DigestType;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 
 /**
- * Implements {@code verifyConfig} with seed endpoints or an endpoint manifest.
+ * Implements {@code verifyConfig} with an endpoint manifest.
  *
  * <p>The trust anchor used to authenticate the proof is the {@code initial_trust_anchor}
  * carried inside the proven {@link ClprLedgerConfiguration} — for Hiero TSS the source ledger's
@@ -53,22 +57,8 @@ public class VerifyConfigCall extends AbstractCall {
     @NonNull
     private final byte[] channelId32;
 
-    /** Non-null only on the manifest-aware path; selects manifestSuccess over seedEndpointsSuccess. */
-    @Nullable
+    @NonNull
     private final byte[] manifestProofBytes;
-
-    public VerifyConfigCall(
-            @NonNull final HederaWorldUpdater.Enhancement enhancement,
-            @NonNull final SystemContractGasCalculator gasCalculator,
-            @NonNull final byte[] stateProofBytes,
-            @NonNull final byte[] channelId32,
-            @NonNull final TssVerifier tssVerifier) {
-        super(gasCalculator, enhancement, true);
-        this.stateProofBytes = requireNonNull(stateProofBytes);
-        this.channelId32 = requireNonNull(channelId32);
-        this.tssVerifier = requireNonNull(tssVerifier);
-        this.manifestProofBytes = null;
-    }
 
     public VerifyConfigCall(
             @NonNull final HederaWorldUpdater.Enhancement enhancement,
@@ -102,16 +92,18 @@ public class VerifyConfigCall extends AbstractCall {
         // layer otherwise reports such an escape only as an opaque INVALID_TRANSACTION_BODY, with no
         // indication of where in verifyConfig it died).
         try {
-            return doExecute();
+            final var configuredDigestType =
+                    configOf(frame).getConfigData(BlockStreamConfig.class).digestType();
+            return doExecute(configuredDigestType);
         } catch (final RuntimeException e) {
             return failAsError("unexpected exception during verifyConfig: " + e, e);
         }
     }
 
-    private @NonNull PricedResult doExecute() {
+    private @NonNull PricedResult doExecute(@NonNull final DigestType configuredDigestType) {
         final StateProof proof;
         try {
-            proof = StateProof.PROTOBUF.parse(Bytes.wrap(stateProofBytes).toReadableSequentialData());
+            proof = StateProof.PROTOBUF.parseStrict(Bytes.wrap(stateProofBytes).toReadableSequentialData());
         } catch (final Exception e) {
             return fail("failed to parse StateProof", e);
         }
@@ -119,6 +111,12 @@ public class VerifyConfigCall extends AbstractCall {
                 "verifyConfig PROOF parsed: paths={} signedBlockProof={}",
                 proof.paths().size(),
                 proof.hasSignedBlockProof());
+
+        // The proving ledger built this proof with its own genesis-pinned digest, independent of this node's
+        // configured blockStream.digestType; infer it from the proof's hash lengths so a proof verifies under
+        // whichever digest produced it, falling back to configuration when the proof carries no length signal.
+        final DigestType inferred = StateProofVerifier.inferDigestType(proof);
+        final MessageDigest digest = CommonUtils.digestOrThrow(inferred != null ? inferred : configuredDigestType);
 
         // 1. Extract the single state-item leaf and parse the inner ClprLedgerConfiguration —
         //    we need its initial_trust_anchor to know which TSS authority should have signed
@@ -137,7 +135,7 @@ public class VerifyConfigCall extends AbstractCall {
         }
         final ClprLedgerConfiguration parsed;
         try {
-            parsed = ClprLedgerConfiguration.PROTOBUF.parse(configBytes.toReadableSequentialData());
+            parsed = ClprLedgerConfiguration.PROTOBUF.parseStrict(configBytes.toReadableSequentialData());
             requireNonNull(parsed);
         } catch (final Exception e) {
             return fail(
@@ -150,7 +148,7 @@ public class VerifyConfigCall extends AbstractCall {
         final var trustAnchorBytes = parsed.initialTrustAnchor();
         log.debug(
                 "verifyConfig CONFIG extracted: leafBytes={} valueBytes={} configBytes={} configHash={} chainId={} "
-                        + "serviceAddress={} endpoints={} throttlesPresent={} initialTrustAnchorBytes={} "
+                        + "serviceAddress={} throttlesPresent={} initialTrustAnchorBytes={} "
                         + "initialTrustAnchorHash={} initialTrustAnchorId={}",
                 leafBytes.length(),
                 valueBytes.length(),
@@ -158,7 +156,6 @@ public class VerifyConfigCall extends AbstractCall {
                 shortHex(MiscCryptoUtils.keccak256DigestOf(configBytes)),
                 parsed.chainId(),
                 shortHex(parsed.serviceAddress()),
-                parsed.endpoints().size(),
                 parsed.throttles() != null,
                 trustAnchorBytes.length(),
                 shortHex(MiscCryptoUtils.keccak256DigestOf(trustAnchorBytes)),
@@ -168,8 +165,6 @@ public class VerifyConfigCall extends AbstractCall {
                     + parsed.chainId()
                     + " serviceAddress="
                     + shortHex(parsed.serviceAddress())
-                    + " endpoints="
-                    + parsed.endpoints().size()
                     + " throttlesPresent="
                     + (parsed.throttles() != null));
         }
@@ -177,7 +172,7 @@ public class VerifyConfigCall extends AbstractCall {
         // 2. Structural Merkle validation + compute block root hash.
         final byte[] rootHash;
         try {
-            rootHash = StateProofVerifier.computeBlockRootHash(proof);
+            rootHash = StateProofVerifier.computeBlockRootHash(proof, digest);
         } catch (final Exception e) {
             return fail("structurally invalid proof; trustAnchor=" + shortHex(trustAnchorBytes), e);
         }
@@ -220,64 +215,13 @@ public class VerifyConfigCall extends AbstractCall {
                 "verifyConfig EXIT: SUCCESS trustAnchor={} rootHash={}",
                 shortHex(trustAnchorBytes),
                 shortHex(Bytes.wrap(rootHash)));
-        return manifestProofBytes == null ? seedEndpointsSuccess(parsed) : manifestSuccess(parsed);
+        return manifestSuccess(parsed, digest);
     }
 
     @NonNull
-    private PricedResult seedEndpointsSuccess(@NonNull final ClprLedgerConfiguration parsed) {
-        final byte[] id32 = requireNonNull(channelId32);
-        final byte[] serviceAddressBytes = parsed.serviceAddress().toByteArray();
-        final byte[] channelContextBytes = new byte[32 + serviceAddressBytes.length];
-        System.arraycopy(id32, 0, channelContextBytes, 0, 32);
-        System.arraycopy(serviceAddressBytes, 0, channelContextBytes, 32, serviceAddressBytes.length);
-
-        final ClprThrottles t = parsed.throttlesOrElse(ClprThrottles.DEFAULT);
-        final Tuple throttlesTuple = Tuple.of(
-                BigInteger.valueOf(t.maxMessagesPerBundle()),
-                BigInteger.valueOf(t.maxMessagePayloadBytes()),
-                BigInteger.valueOf(t.maxGasPerMessage()),
-                BigInteger.valueOf(t.maxQueueDepth()),
-                BigInteger.valueOf(t.maxSyncBytes()));
-
-        final Tuple[] endpointTuples = parsed.endpoints().stream()
-                .map(ep -> {
-                    final ClprServiceEndpoint se = ep.serviceEndpointOrElse(ClprServiceEndpoint.DEFAULT);
-                    return Tuple.of(
-                            se.ipAddress(),
-                            (long) se.port(),
-                            ep.tlsCertificate().toByteArray(),
-                            ep.accountId().toByteArray());
-                })
-                .toArray(Tuple[]::new);
-
-        final var ts = parsed.timestamp();
-        final long peerConfigNanos = ts != null ? ts.seconds() * 1_000_000_000L + ts.nanos() : 0L;
-
-        log.debug(
-                "verifyConfigWithSeedEndpoints EXIT: SUCCESS chainId={} endpoints={}",
-                parsed.chainId(),
-                endpointTuples.length);
-        return gasOnly(
-                successResult(
-                        VerifyConfigTranslator.VERIFY_CONFIG_WITH_SEED_ENDPOINTS
-                                .getOutputs()
-                                .encode(Tuple.from(
-                                        channelContextBytes,
-                                        parsed.chainId(),
-                                        serviceAddressBytes,
-                                        BigInteger.valueOf(peerConfigNanos),
-                                        throttlesTuple,
-                                        parsed.initialTrustAnchor().toByteArray(),
-                                        parsed.initialTrustAnchorId().toByteArray(),
-                                        endpointTuples)),
-                        GAS_REQUIREMENT),
-                SUCCESS,
-                true);
-    }
-
-    @NonNull
-    private PricedResult manifestSuccess(@NonNull final ClprLedgerConfiguration parsed) {
-        final ClprEndpointManifest manifest = verifyManifest(parsed);
+    private PricedResult manifestSuccess(
+            @NonNull final ClprLedgerConfiguration parsed, @NonNull final MessageDigest digest) {
+        final ClprEndpointManifest manifest = verifyManifest(parsed, digest);
         if (manifest == null) {
             return failureResult();
         }
@@ -309,7 +253,7 @@ public class VerifyConfigCall extends AbstractCall {
                 manifest.endpoints().size());
         return gasOnly(
                 successResult(
-                        VerifyConfigTranslator.VERIFY_CONFIG_WITH_MANIFEST
+                        VerifyConfigTranslator.VERIFY_CONFIG
                                 .getOutputs()
                                 .encode(Tuple.from(
                                         channelContextBytes,
@@ -331,7 +275,8 @@ public class VerifyConfigCall extends AbstractCall {
      * requires a non-empty proof. Returns {@code null} on any failure (already logged via fail()).
      */
     @Nullable
-    private ClprEndpointManifest verifyManifest(@NonNull final ClprLedgerConfiguration parsedConfig) {
+    private ClprEndpointManifest verifyManifest(
+            @NonNull final ClprLedgerConfiguration parsedConfig, @NonNull final MessageDigest digest) {
         final byte[] proofBytes = requireNonNull(manifestProofBytes);
         if (proofBytes.length == 0) {
             fail("manifest-aware verifyConfig requires a non-empty endpoint_manifest_proof_bytes");
@@ -339,14 +284,14 @@ public class VerifyConfigCall extends AbstractCall {
         }
         final StateProof proof;
         try {
-            proof = StateProof.PROTOBUF.parse(Bytes.wrap(proofBytes).toReadableSequentialData());
+            proof = StateProof.PROTOBUF.parseStrict(Bytes.wrap(proofBytes).toReadableSequentialData());
         } catch (final Exception e) {
             fail("failed to parse manifest StateProof", e);
             return null;
         }
         final byte[] blockRootHash;
         try {
-            blockRootHash = StateProofVerifier.computeBlockRootHash(proof);
+            blockRootHash = StateProofVerifier.computeBlockRootHash(proof, digest);
         } catch (final Exception e) {
             fail("structurally invalid manifest proof", e);
             return null;

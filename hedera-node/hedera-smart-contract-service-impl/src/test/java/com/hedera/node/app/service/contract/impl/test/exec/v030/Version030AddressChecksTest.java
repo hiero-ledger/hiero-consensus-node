@@ -70,6 +70,18 @@ class Version030AddressChecksTest {
     }
 
     @Test
+    void disabledPrecompilesAreOnlyPresentAsAccounts() {
+        given(frame.getWorldUpdater()).willReturn(worldUpdater);
+        given(mockPrngPrecompile.isDisabled(frame)).willReturn(true);
+        final var prngAddress = Address.fromHexString("0x169");
+
+        assertTrue(subject.isHederaPrecompile(prngAddress));
+        assertFalse(subject.isPresent(prngAddress, frame));
+        given(worldUpdater.get(prngAddress)).willReturn(account);
+        assertTrue(subject.isPresent(prngAddress, frame));
+    }
+
+    @Test
     void nonNullAccountIsPresent() {
         given(frame.getWorldUpdater()).willReturn(worldUpdater);
         given(worldUpdater.get(EIP_1014_ADDRESS)).willReturn(account);

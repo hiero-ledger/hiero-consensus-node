@@ -104,6 +104,7 @@ public final class BlockStreamUtils {
             case STATE_ID_PROOF_VOTES -> "HistoryService.PROOF_VOTES";
             case STATE_ID_WRAPS_MESSAGE_HISTORIES -> "HistoryService.WRAPS_MESSAGE_HISTORIES";
             case STATE_ID_CRS_STATE -> "HintsService.CRS_STATE";
+            case STATE_ID_NEXT_CRS_STATE -> "HintsService.NEXT_CRS_STATE";
             case STATE_ID_CRS_PUBLICATIONS -> "HintsService.CRS_PUBLICATIONS";
             case STATE_ID_NODE_REWARDS -> "TokenService.NODE_REWARDS";
             case STATE_ID_NODE_PAYMENTS -> "TokenService.NODE_PAYMENTS";
@@ -113,7 +114,6 @@ public final class BlockStreamUtils {
             case STATE_ID_CLPR_MESSAGE_QUEUE -> "ClprService.MESSAGE_QUEUE";
             case STATE_ID_CLPR_CONNECTORS -> "ClprService.CONNECTORS";
             case STATE_ID_CLPR_PENDING_CONNECTOR_COMMITMENTS -> "ClprService.PENDING_CONNECTOR_COMMITMENTS";
-            case STATE_ID_CLPR_SUBMISSION_THROTTLES -> "ClprService.SUBMISSION_THROTTLES";
             case STATE_ID_CLPR_ENDPOINT_MANIFEST -> "ClprService.ENDPOINT_MANIFEST";
             case STATE_ID_CLPR_ENDPOINT_MANIFEST_CONSTRUCTION -> "ClprService.ENDPOINT_MANIFEST_CONSTRUCTION";
         };

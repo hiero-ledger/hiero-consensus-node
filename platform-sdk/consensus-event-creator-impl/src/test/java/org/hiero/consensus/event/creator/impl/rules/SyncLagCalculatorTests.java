@@ -117,12 +117,11 @@ public class SyncLagCalculatorTests {
     public void singleNodeNetworkUselessNode(final int zeroWeightNodeCount) {
 
         final RosterWrapper roster = randomRoster(random, zeroWeightNodeCount + 1, SINGLE_NODE_HAS_ALL);
-        final NodeId selfNodeId =
-                roster.rosterEntry(1 + random.nextInt(zeroWeightNodeCount)).nodeId();
+        final NodeId selfNodeId = roster.nodeIdAtIndex(1 + random.nextInt(zeroWeightNodeCount));
         final SyncLagCalculator slc = new SyncLagCalculator(selfNodeId, roster);
 
         for (int i = 0; i <= zeroWeightNodeCount; i++) {
-            final NodeId nodeId = roster.rosterEntry(i).nodeId();
+            final NodeId nodeId = roster.nodeIdAtIndex(i);
             if (!nodeId.equals(selfNodeId)) {
                 slc.reportSyncLag(nodeId, random.nextLong(10000000));
             }

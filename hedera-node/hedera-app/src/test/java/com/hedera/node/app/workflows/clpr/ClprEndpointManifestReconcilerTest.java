@@ -73,8 +73,27 @@ class ClprEndpointManifestReconcilerTest {
     @BeforeEach
     void setUp() {
         // mTLS off by default (isMtlsEnabled() == false): self endpoints use the HAPI port + empty cert.
-        subject = new ClprEndpointManifestReconciler(submissions, caCertManager);
+        subject = new ClprEndpointManifestReconciler(() -> submissions, () -> caCertManager);
         config = ClprConfigBuilder.newBuilder().build();
+    }
+
+    @Test
+    void rosterChangeDoesNotInitializeLocalPublicationResources() {
+        subject = new ClprEndpointManifestReconciler(
+                () -> {
+                    throw new IllegalStateException("local submissions unavailable");
+                },
+                () -> {
+                    throw new IllegalStateException("local CA unavailable");
+                });
+        stubNode(1L, "host-1", 50211);
+        given(manifestStore.get()).willReturn(manifest(1L, List.of()));
+
+        subject.openConstructionOnRosterChange(NOW, rosterOf(1L), manifestStore, constructionStore, nodeStore, config);
+
+        final var captor = ArgumentCaptor.forClass(ClprEndpointManifestConstruction.class);
+        verify(constructionStore).put(captor.capture());
+        assertThat(captor.getValue().targetNodeIds()).containsExactly(1L);
     }
 
     @Nested

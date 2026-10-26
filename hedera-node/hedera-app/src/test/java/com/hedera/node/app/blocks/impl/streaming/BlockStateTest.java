@@ -12,6 +12,8 @@ import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockItem.ItemOneOfType;
 import com.hedera.node.app.blocks.impl.streaming.BlockState.BufferedItem;
 import com.hedera.node.app.spi.fixtures.util.LogCaptor;
+import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.UnknownFieldException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
@@ -63,6 +65,19 @@ class BlockStateTest {
         assertThat(block.itemCount()).isZero();
         assertThat(block.blockItem(0)).isNull();
         assertThat(block.blockPeriodMillis()).isEqualTo(2_000L);
+    }
+
+    @Test
+    void blockItemRejectsUnknownFields() {
+        final var header = newBlockHeaderItem();
+        // Valid protobuf field 1000, varint 1, which is not part of BlockItem.
+        final var bytes = BlockItem.PROTOBUF.toBytes(header).append(Bytes.fromHex("c03e01"));
+        block.addSerializedItem(bytes, ItemOneOfType.BLOCK_HEADER);
+
+        assertThatThrownBy(() -> block.blockItem(0))
+                .isInstanceOf(RuntimeException.class)
+                .hasCauseInstanceOf(ParseException.class)
+                .hasRootCauseInstanceOf(UnknownFieldException.class);
     }
 
     @Test

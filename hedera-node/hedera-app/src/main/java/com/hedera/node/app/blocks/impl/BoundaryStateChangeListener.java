@@ -133,6 +133,9 @@ public class BoundaryStateChangeListener implements StateChangeListener {
     @Override
     public <V> void singletonUpdateChange(final int stateId, @NonNull final V value) {
         requireNonNull(value, "value must not be null");
+        if (ImmediateStateChangeListener.isImmediateSingleton(stateId)) {
+            return;
+        }
         final var stateChange = StateChange.newBuilder()
                 .stateId(stateId)
                 .singletonUpdate(new SingletonUpdateChange(singletonUpdateChangeValueFor(value)))

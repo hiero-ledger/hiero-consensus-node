@@ -95,14 +95,6 @@ These delays drive the status state machine; see [architecture/topics/platform-s
 | TUN-020 | `platformStatus.activeStatusDelay`                 | Duration | `10s`   | Wall-clock time required to transition out of `ACTIVE` (no self event reached, or quiescence change). |       | —         |
 | TUN-021 | `platformStatus.statusStateMachineHeartbeatPeriod` | Duration | `100ms` | Wall-clock interval between heartbeats sent to the status state machine.                              |       | —         |
 
-## `platform.metrics.*` — PlatformMetricsConfig
-
-Module: `swirlds-platform-core`. Source: [PlatformMetricsConfig.java](../../swirlds-platform-core/src/main/java/com/swirlds/platform/metrics/PlatformMetricsConfig.java).
-
-|   ID    |                      Key                       |  Type   | Default |                                    Effect                                    | Range | Fragility |
-|---------|------------------------------------------------|---------|---------|------------------------------------------------------------------------------|-------|-----------|
-| TUN-022 | `platform.metrics.eventPipelineMetricsEnabled` | boolean | `true`  | If true, the platform collects and reports metrics about the event pipeline. |       | —         |
-
 ## `status.monitor.*` — StatusMonitorWiringConfig
 
 Module: `consensus-status-monitor`. Source: [StatusMonitorWiringConfig.java](../../consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/config/StatusMonitorWiringConfig.java).
@@ -293,6 +285,16 @@ Extracted from the retired `PlatformSchedulersConfig` `consensusEventStream` key
 |---------|--------------------------------------------|----------------------------|---------------------|---------------------------------------------------------|-------|-----------|
 | TUN-208 | `event.stream.wiring.consensusEventStream` | TaskSchedulerConfiguration | `DIRECT_THREADSAFE` | Scheduler configuration for the consensus event stream. |       | —         |
 
+## `transactionHandling.*` — TransactionHandlingConfig
+
+Module: `consensus-transaction-handling`. Source: [TransactionHandlingConfig.java](../../consensus-transaction-handling/src/main/java/org/hiero/consensus/transaction/handling/config/TransactionHandlingConfig.java).
+
+Read by [TransactionHandlerDataCounter.create](../../consensus-transaction-handling/src/main/java/org/hiero/consensus/transaction/handling/internal/TransactionHandlerDataCounter.java#create), which weighs each round queued for the transaction handler.
+
+|   ID    |                   Key                    |  Type  | Default |                                                                                      Effect                                                                                      | Range | Fragility |
+|---------|------------------------------------------|--------|---------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------|-----------|
+| TUN-224 | `transactionHandling.lowTpsTargetRounds` | double | `25`    | Each consensus round counts as at least the handler's unhandled-task capacity (TUN-210) ÷ this value, so at low TPS backpressure engages once about this many rounds are queued. |       | —         |
+
 ## `transaction.handling.wiring.*` — TransactionHandlingWiringConfig
 
 Module: `consensus-transaction-handling`. Source: [TransactionHandlingWiringConfig.java](../../consensus-transaction-handling/src/main/java/org/hiero/consensus/transaction/handling/config/TransactionHandlingWiringConfig.java).
@@ -323,6 +325,21 @@ Module: `consensus-hashgraph`. Source: [HashgraphWiringConfig.java](../../consen
 |   ID    |                Key                 |            Type            |                                              Default                                               |                           Effect                            | Range | Fragility |
 |---------|------------------------------------|----------------------------|----------------------------------------------------------------------------------------------------|-------------------------------------------------------------|-------|-----------|
 | TUN-103 | `hashgraph.wiring.consensusEngine` | TaskSchedulerConfiguration | `SEQUENTIAL_THREAD CAPACITY(500) FLUSHABLE SQUELCHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC` | Scheduler configuration for the hashgraph consensus engine. |       | —         |
+
+## `event.pipeline.metrics.*` — ConsensusLayerMetricsConfig
+
+Module: `consensus-metrics`. Source: [ConsensusLayerMetricsConfig.java](../../consensus-metrics/src/main/java/org/hiero/consensus/metrics/config/ConsensusLayerMetricsConfig.java).
+
+|   ID    |                          Key                           |        Type        |     Default     |                                                                  Effect                                                                   | Range | Fragility |
+|---------|--------------------------------------------------------|--------------------|-----------------|-------------------------------------------------------------------------------------------------------------------------------------------|-------|-----------|
+| TUN-022 | `event.pipeline.metrics.averageAndMaxEnabled`          | boolean            | `true`          | If true, the platform reports the average and maximum delay of events at each stage of the event pipeline.                                |       | —         |
+| TUN-225 | `event.pipeline.metrics.latencyEnabled`                | boolean            | `true`          | If true, the platform reports sliding-window percentiles and the maximum of stage delays, `eventLatency_R2C`, and `transactionLatency_*`. |       | —         |
+| TUN-226 | `event.pipeline.metrics.selfEventsLatencyWindow`       | Duration           | `10m`           | Length of the sliding window of stages that only self events pass, for the percentiles of TUN-230.                                        |       | —         |
+| TUN-227 | `event.pipeline.metrics.latencyWindow`                 | Duration           | `5m`            | Length of the sliding window of stages that gossiped events pass and of `eventLatency_R2C`, for the percentiles of TUN-229.               |       | —         |
+| TUN-228 | `event.pipeline.metrics.transactionLatencyWindow`      | Duration           | `5m`            | Length of the sliding window of `transactionLatency_total` and `transactionLatency_poolWait`, for the percentiles of TUN-231.             |       | —         |
+| TUN-229 | `event.pipeline.metrics.latencyPercentiles`            | List&lt;Double&gt; | `50,90,99,99.9` | Percentiles reported over the window of TUN-227, each above 0 and below 100; each is a gauge of its own.                                  |       | —         |
+| TUN-230 | `event.pipeline.metrics.selfEventsLatencyPercentiles`  | List&lt;Double&gt; | `50,90,99`      | Percentiles reported over the window of TUN-226, each above 0 and below 100; each is a gauge of its own.                                  |       | —         |
+| TUN-231 | `event.pipeline.metrics.transactionLatencyPercentiles` | List&lt;Double&gt; | `50,90`         | Percentiles reported over the window of TUN-228, each above 0 and below 100; each is a gauge of its own.                                  |       | —         |
 
 ## `metrics.*` — MetricsConfig
 
@@ -515,5 +532,24 @@ Module: `consensus-gossip`. Source: [SyncConfig.java](../../consensus-gossip/src
 | TUN-189 | `sync.fairMinimalRoundRobinSize`          | double   | `0.3`   | Minimum past-syncs-against-different-peers before re-syncing the same peer (`(0,1]` fraction of network; `>1` absolute count).                   |       | —         |
 | TUN-190 | `sync.keepSendingEventsWhenUnhealthy`     | boolean  | `true`  | When unhealthy, stop receiving remote events but keep sending our own (instead of fully throttling syncs).                                       |       | —         |
 | TUN-191 | `sync.pingPeriod`                         | Duration | `1s`    | Period at which ping messages are sent to peers during syncs.                                                                                    |       | —         |
+| TUN-223 | `sync.rpcInputQueueCapacity`              | int      | `10000` | maximum number of parsed messages which can be waiting for the rpc dispatch thread before TPC brackpressure is applied                           |       | —         |
 
 **Retired.** `sync.syncKeepalivePeriod` (TUN-178) was removed from the record as unread — nothing read it. No successor key. The only keepalive is the negotiator's, sent by [InitialState.transition](../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/network/communication/states/InitialState.java#transition) whenever no protocol wants to initiate — on each negotiation round, not on a timer. ID retired, not reused.
+
+## `trafficShaping.*` — TrafficShapingConfig
+
+Module: `consensus-gossip`. Source: [TrafficShapingConfig.java](../../consensus-gossip/src/main/java/org/hiero/consensus/gossip/config/TrafficShapingConfig.java).
+
+Per-peer inbound traffic shaping for the rpc gossip protocol.
+
+|   ID    |                 Key                 |   Type   |   Default   |                                                                                          Effect                                                                                           | Range | Fragility |
+|---------|-------------------------------------|----------|-------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------|-----------|
+| TUN-214 | `trafficShaping.enabled`            | boolean  | `true`      | Compute and report the per-peer byte budget; when false the shaper is entirely inert.                                                                                                     |       | —         |
+| TUN-215 | `trafficShaping.enforce`            | boolean  | `false`     | Additionally pause reading from a peer that is over budget; when false the shaper runs in shadow mode (everything measured and reported, nothing slowed down).                            |       | —         |
+| TUN-216 | `trafficShaping.peerBytesPerSecond` | long     | `20000000`  | Sustained inbound rate permitted per peer, in bytes per second; uniform across all peers, not weighted by stake or role.                                                                  |       | —         |
+| TUN-217 | `trafficShaping.peerBurstBytes`     | long     | `200000000` | Inbound bytes a peer may consume instantaneously before the sustained rate applies; also the connection grace period, since a fresh shaper starts with the full burst available.          |       | —         |
+| TUN-218 | `trafficShaping.maxReadDelay`       | Duration | `200ms`     | Maximum time reading from a peer may be paused in one step; a liveness bound that must stay well below `broadcast.disablePingThreshold` (TUN-153) or the peer will treat us as unhealthy. |       | —         |
+| TUN-219 | `trafficShaping.maxMessageBytes`    | int      | `45000000`  | Maximum permitted encoded size of a single gossip message, in bytes.                                                                                                                      |       | —         |
+| TUN-220 | `trafficShaping.lowWatermark`       | double   | `0.6`       | Fraction of the burst budget above which a rate-limited warning is logged.                                                                                                                |       | —         |
+| TUN-221 | `trafficShaping.highWatermark`      | double   | `0.9`       | Fraction of the burst budget above which a serious error is reported (and in future, peer disconnected).                                                                                  |       | —         |
+| TUN-222 | `trafficShaping.reportInterval`     | Duration | `1m`        | Minimum interval between repeated warnings for the same peer.                                                                                                                             |       | —         |

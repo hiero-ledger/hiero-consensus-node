@@ -13,7 +13,7 @@ public final class SignedStateFileConstants {
     /**
      * The name of the file that contains the human-readable address book in the saved state
      */
-    public static final String CURRENT_ROSTER_FILE_NAME = "currentRoster.json";
+    public static final String ACTIVE_ROSTER_FILE_NAME = "activeRoster.json";
 
     /**
      * The name of the file that contains the human-readable consensus snapshot in the saved state

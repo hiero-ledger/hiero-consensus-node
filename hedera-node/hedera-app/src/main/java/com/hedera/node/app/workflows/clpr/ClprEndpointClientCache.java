@@ -63,7 +63,7 @@ public class ClprEndpointClientCache {
             @Nullable final ClprLeafCredentials clientCredentials) {
         requireNonNull(host);
         // In plaintext mode the cert is unused, so normalize it out of the cache discriminator; otherwise a
-        // plaintext sync (cert present) and a plaintext discovery (cert null) to the same peer would thrash.
+        // change to that unused cert would needlessly rebuild the client.
         final Bytes pinnedCert = clientCredentials != null ? peerTlsCertificate : null;
         final var key = host + ":" + port;
         final var cached = clients.compute(key, (k, existing) -> {

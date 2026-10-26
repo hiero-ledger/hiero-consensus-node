@@ -7,6 +7,7 @@ import com.swirlds.base.time.Time;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
@@ -53,7 +54,7 @@ public class TipsetTracker {
      *
      * @param time        provides wall clock time
      * @param selfId      the id of this node
-     * @param roster      the current roster
+     * @param roster      the active roster
      */
     public TipsetTracker(@NonNull final Time time, @NonNull final NodeId selfId, @NonNull final RosterWrapper roster) {
         this.roster = Objects.requireNonNull(roster);
@@ -159,7 +160,14 @@ public class TipsetTracker {
 
     @NonNull
     private List<Tipset> getParentTipsets(@NonNull final List<EventDescriptorWrapper> parents) {
-        return parents.stream().map(tipsets::get).filter(Objects::nonNull).toList();
+        final ArrayList<Tipset> parentTipsets = new ArrayList<>(parents.size());
+        for (final EventDescriptorWrapper parent : parents) {
+            final Tipset tipset = tipsets.get(parent);
+            if (tipset != null) {
+                parentTipsets.add(tipset);
+            }
+        }
+        return parentTipsets;
     }
 
     private void logIfAncient(@NonNull final EventDescriptorWrapper eventDescriptorWrapper) {

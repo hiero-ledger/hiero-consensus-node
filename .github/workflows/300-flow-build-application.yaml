@@ -28,6 +28,22 @@ jobs:
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
+  # Required: a failed report fails the run. Starts together with MATS: same needs, so it reports running
+  # when MATS kicks off. Neither waits on the other.
+  report-mats-running:
+    name: Report MATS Running to Chewie
+    needs:
+      - extract-jdk-version
+    uses: ./.github/workflows/864-call-report-suite-result.yaml
+    with:
+      suite-type: mats
+      commit: ${{ github.sha }}
+      branch: ${{ github.ref_name }}
+      disposition: running
+    secrets:
+      chewie-key: ${{ secrets.CHEWIE_REPO_IDENTITY_KEY }}
+      chewie-host: ${{ secrets.CHEWIE_HOST }}
+
   mats-tests:
     name: MATS Tests
     uses: ./.github/workflows/800-call-mats-tests.yaml
@@ -41,6 +57,7 @@ jobs:
       enable-hapi-tests: "true"
       enable-otter-tests: "true"
       enable-snyk-scan: "true"
+      enable-benchmark-smoke: "true"
       enable-gradle-determinism: "true"
       enable-docker-determinism: "true"
       java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
@@ -53,6 +70,26 @@ jobs:
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
       snyk-token: ${{ secrets.SNYK_TOKEN }}
+
+  # Reported as soon as MATS finishes; nothing later in this workflow changes the MATS verdict.
+  report-mats-result:
+    name: Report MATS Result to Chewie
+    needs:
+      - report-mats-running # keeps the terminal report after the running one, so it is the latest
+      - mats-tests
+    if: ${{ always() }}
+    uses: ./.github/workflows/864-call-report-suite-result.yaml
+    with:
+      suite-type: mats
+      commit: ${{ github.sha }}
+      branch: ${{ github.ref_name }}
+      disposition: ${{ needs.mats-tests.result == 'success' && 'passed'
+        || needs.mats-tests.result == 'cancelled' && 'cancelled'
+        || needs.mats-tests.result == 'skipped' && 'not_run'
+        || 'failed' }}
+    secrets:
+      chewie-key: ${{ secrets.CHEWIE_REPO_IDENTITY_KEY }}
+      chewie-host: ${{ secrets.CHEWIE_HOST }}
 
   deploy-ci-trigger:
     name: Trigger CI Flows
@@ -84,7 +121,7 @@ jobs:
           echo "workflow-ref=${RESOLVED_REF}" >> "${GITHUB_OUTPUT}"
 
       - name: "Trigger 301: [FLOW] Deploy Prod Release"
-        uses: step-security/workflow-dispatch@b4c1dc0afa074d0b4f0e653d3b80d4b2798599aa # v1.2.7
+        uses: step-security/workflow-dispatch@024752877e2bfa07299ee4204cc5f7e7c14ff930 # v1.3.21
         with:
           workflow: .github/workflows/301-flow-deploy-release-artifact.yaml
           repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org

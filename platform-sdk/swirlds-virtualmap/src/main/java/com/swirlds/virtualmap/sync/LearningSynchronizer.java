@@ -31,6 +31,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.manager.ThreadManager;
 import org.hiero.base.concurrent.pool.StandardWorkGroup;
+import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 
 /**
@@ -73,7 +74,7 @@ public class LearningSynchronizer {
                 originalVirtualMap.getMetadata().getLastLeafPath());
 
         final VirtualMapConfig virtualMapConfig = originalVirtualMap.getVirtualMapConfig();
-        final VirtualMapLearner vmapLearner = new VirtualMapLearner(originalVirtualMap);
+        final VirtualMapLearner vmapLearner = new VirtualMapLearner(originalVirtualMap, syncConfig.flushInterval());
 
         return switch (virtualMapConfig.reconnectMode()) {
             case VirtualMapReconnectMode.PULL_TOP_TO_BOTTOM ->
@@ -185,6 +186,10 @@ public class LearningSynchronizer {
             VirtualMap syncedVirtualMap = exchanger.onSuccessfulComplete();
             logger.info(RECONNECT.getMarker(), "learner is done synchronizing");
             logger.info(RECONNECT.getMarker(), syncMetrics::toString);
+            final String traversalStatistics = exchanger.getTraversalStatistics();
+            if (!traversalStatistics.isEmpty()) {
+                logger.info(RECONNECT.getMarker(), "Traversal statistics: {}", traversalStatistics);
+            }
             return syncedVirtualMap;
         } catch (final Throwable t) {
             logger.info(RECONNECT.getMarker(), "Caught exception while completing synchronization", t);
@@ -233,7 +238,8 @@ public class LearningSynchronizer {
     private void exchangeRootNode(
             LearnerTreeExchanger exchanger, final AsyncInputStream in, final AsyncOutputStream out) {
         logger.info(RECONNECT.getMarker(), "Learner sending root node request to teacher");
-        final PullVirtualTreeRequest rootRequest = new PullVirtualTreeRequest(MerklePathUtils.ROOT_PATH, new Hash());
+        final PullVirtualTreeRequest rootRequest =
+                new PullVirtualTreeRequest(MerklePathUtils.ROOT_PATH, new Hash(Cryptography.DEFAULT_DIGEST_TYPE));
         final byte[] rootRequestBytes = new byte[rootRequest.getSizeInBytes()];
         rootRequest.writeTo(BufferedData.wrap(rootRequestBytes));
         try {

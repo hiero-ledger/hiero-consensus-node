@@ -32,8 +32,8 @@ public abstract class RecordFinalizerBase {
             AccountID.newBuilder().accountNum(0).build();
 
     /**
-     * Whether system entities are being created (which in particular requires non-zero sum
-     * hbar balance changes).
+     * Whether genesis system entity creation has finished. Until it has, net hbar changes may be
+     * non-zero (genesis mints the initial supply); afterward they must sum to zero.
      */
     protected abstract boolean systemEntitiesCreated();
 

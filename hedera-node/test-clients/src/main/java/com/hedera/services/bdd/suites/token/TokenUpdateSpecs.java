@@ -499,7 +499,7 @@ public class TokenUpdateSpecs {
                 .then(tokenUpdate("tbu")
                         .name(tooLongName)
                         .signedByPayerAnd("adminKey")
-                        .hasPrecheck(TOKEN_NAME_TOO_LONG));
+                        .hasKnownStatus(TOKEN_NAME_TOO_LONG));
     }
 
     @HapiTest
@@ -512,7 +512,7 @@ public class TokenUpdateSpecs {
                 .then(tokenUpdate("tbu")
                         .symbol(tooLongSymbol)
                         .signedByPayerAnd("adminKey")
-                        .hasPrecheck(TOKEN_SYMBOL_TOO_LONG));
+                        .hasKnownStatus(TOKEN_SYMBOL_TOO_LONG));
     }
 
     @HapiTest
@@ -626,7 +626,7 @@ public class TokenUpdateSpecs {
                         tokenUpdate("primary")
                                 .entityMemo(ZERO_BYTE_MEMO)
                                 .signedByPayerAnd("adminKey")
-                                .hasPrecheck(INVALID_ZERO_BYTE_IN_STRING),
+                                .hasKnownStatus(INVALID_ZERO_BYTE_IN_STRING),
                         tokenUpdate("primary")
                                 .name(newSaltedName)
                                 .entityMemo(updatedMemo)

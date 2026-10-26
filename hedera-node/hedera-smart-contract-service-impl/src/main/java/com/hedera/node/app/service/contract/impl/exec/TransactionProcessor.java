@@ -83,7 +83,10 @@ public class TransactionProcessor {
     /**
      * Records the two or three parties involved in a transaction.
      *
-     * @param sender the externally-operated account that signed the transaction (AKA the "origin")
+     * @param sender the externally-operated account that signed the transaction (AKA the "origin"); null
+     *     only for a native CLPR dispatch, which has no sender account
+     * @param senderId the id of the sender, taken from the transaction for a native CLPR dispatch
+     * @param senderAddress the EVM address of the sender, taken from the transaction for a native CLPR dispatch
      * @param relayer if non-null, the account relayed an Ethereum transaction on behalf of the sender
      * @param receiverAddress the address of the account receiving the top-level call
      */
@@ -298,6 +301,9 @@ public class TransactionProcessor {
             @NonNull final Configuration config) {
         final var sender = updater.getHederaAccount(transaction.senderId());
         final var isNativeClprDispatch = transaction.isClprDispatch();
+        // Only a native CLPR dispatch may run without a sender account. It carries its own sender id and
+        // address and its gas is prepaid, so this processor never dereferences the missing account;
+        // Ethereum transactions still require it (checked below).
         validateTrue(sender != null || isNativeClprDispatch, INVALID_ACCOUNT_ID);
         final var senderId = isNativeClprDispatch
                 ? transaction.senderId()

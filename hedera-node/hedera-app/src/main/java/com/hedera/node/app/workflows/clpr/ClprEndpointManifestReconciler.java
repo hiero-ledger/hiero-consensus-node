@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import javax.inject.Inject;
+import javax.inject.Provider;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -78,8 +79,10 @@ public class ClprEndpointManifestReconciler {
     private static final Comparator<ClprEndpoint> BY_IDENTITY_ASC =
             Comparator.comparing(ClprEndpointBuilder::identityOf, Bytes.SORT_BY_UNSIGNED_VALUE);
 
-    private final ClprSubmissions submissions;
-    private final ClprCaCertManager caCertManager;
+    // Resolve node-local resources only when publishing, so their initialization cannot prevent
+    // consensus-state reconciliation or roster-change maintenance.
+    private final Provider<ClprSubmissions> submissions;
+    private final Provider<ClprCaCertManager> caCertManager;
 
     /**
      * Node-local retry backoff for {@link #contributeSelfToConstruction}. Because
@@ -123,7 +126,8 @@ public class ClprEndpointManifestReconciler {
 
     @Inject
     public ClprEndpointManifestReconciler(
-            @NonNull final ClprSubmissions submissions, @NonNull final ClprCaCertManager caCertManager) {
+            @NonNull final Provider<ClprSubmissions> submissions,
+            @NonNull final Provider<ClprCaCertManager> caCertManager) {
         this.submissions = requireNonNull(submissions);
         this.caCertManager = requireNonNull(caCertManager);
     }
@@ -199,8 +203,7 @@ public class ClprEndpointManifestReconciler {
         requireNonNull(nodeStore);
         requireNonNull(config);
         requireNonNull(now);
-        final var selfEndpoint = ClprEndpointBuilder.buildFor(
-                selfNodeId, nodeStore, caCertManager.isMtlsEnabled(), config.mtlsPort(), selfCaCertDer());
+        final var selfEndpoint = selfEndpoint(selfNodeId, nodeStore, config);
         if (selfEndpoint == null) {
             return SelfPublishOutcome.PENDING; // no address-book service endpoint yet — retry next round
         }
@@ -216,7 +219,7 @@ public class ClprEndpointManifestReconciler {
                     "[Clpr] node{} endpoint absent from manifest (v{}) — submitting opening self-publication",
                     selfNodeId,
                     manifest.version());
-            submissions.submitEndpointPublication(selfEndpoint);
+            submissions.get().submitEndpointPublication(selfEndpoint);
             nextOpeningPublicationAttempt = now.plus(config.manifestSubmissionRetryDelay());
         }
         return SelfPublishOutcome.PENDING;
@@ -287,8 +290,7 @@ public class ClprEndpointManifestReconciler {
         if (now.isBefore(nextContributingPublicationAttempt)) {
             return; // submitted recently; wait out the retry backoff before re-attempting
         }
-        final var selfEndpoint = ClprEndpointBuilder.buildFor(
-                selfNodeId, nodeStore, caCertManager.isMtlsEnabled(), config.mtlsPort(), selfCaCertDer());
+        final var selfEndpoint = selfEndpoint(selfNodeId, nodeStore, config);
         if (selfEndpoint == null) {
             return; // no derivable service endpoint yet — retry next round (no attempt recorded)
         }
@@ -296,7 +298,7 @@ public class ClprEndpointManifestReconciler {
                 "[Clpr] node{} publishing its endpoint into construction #{}",
                 selfNodeId,
                 construction.constructionId());
-        submissions.submitEndpointPublication(selfEndpoint);
+        submissions.get().submitEndpointPublication(selfEndpoint);
         nextContributingPublicationAttempt = now.plus(config.manifestSubmissionRetryDelay());
     }
 
@@ -397,12 +399,20 @@ public class ClprEndpointManifestReconciler {
         return !manifestIpCounts.equals(rosterIpCounts);
     }
 
+    @Nullable
+    private ClprEndpoint selfEndpoint(
+            final long selfNodeId, @NonNull final ReadableNodeStore nodeStore, @NonNull final ClprConfig config) {
+        final var credentials = caCertManager.get();
+        return ClprEndpointBuilder.buildFor(
+                selfNodeId, nodeStore, credentials.isMtlsEnabled(), config.mtlsPort(), selfCaCertDer(credentials));
+    }
+
     /**
      * DER-encoding of this node's ECDSA CA certificate for publication, or {@link Bytes#EMPTY}
      * when mTLS is not configured (the plaintext fallback). Throws {@link IllegalStateException}
      * when mTLS is enabled but the configured certificate cannot be DER-encoded.
      */
-    private Bytes selfCaCertDer() {
+    private static Bytes selfCaCertDer(@NonNull final ClprCaCertManager caCertManager) {
         if (!caCertManager.isMtlsEnabled()) {
             return Bytes.EMPTY;
         }

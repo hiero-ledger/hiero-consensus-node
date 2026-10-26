@@ -17,6 +17,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.KEY_REQUIRED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MEMO_TOO_LONG;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED;
+import static com.hedera.node.app.service.token.AliasUtils.asKeyFromAlias;
+import static com.hedera.node.app.service.token.AliasUtils.extractEvmAddress;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_ID;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
@@ -830,6 +832,30 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
 
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
         assertEquals(ALIAS_ALREADY_ASSIGNED, msg.getStatus());
+    }
+
+    @Test
+    void validateEcdsaKeyAliasWithDerivedEvmAddressAlreadyAssigned() {
+        final var keyAlias = ecdsaAlias.aliasOrThrow();
+        final var derivedEvmAddress = extractEvmAddress(asKeyFromAlias(keyAlias));
+        txn = new CryptoCreateBuilder()
+                .withStakedAccountId(3)
+                .withAlias(keyAlias)
+                .build();
+        given(handleContext.body()).willReturn(txn);
+        setupConfig();
+        setupExpiryValidator();
+        // Only the derived EVM address is mapped, so the raw key alias lookup must fall back to it
+        final var writableAliases = emptyWritableAliasStateBuilder()
+                .value(new ProtoBytes(derivedEvmAddress), idFactory.newAccountId(accountNum))
+                .build();
+        given(writableStates.<ProtoBytes, AccountID>get(ALIASES_STATE_ID)).willReturn(writableAliases);
+        writableStore = new WritableAccountStore(writableStates, entityCounters);
+        when(storeFactory.writableStore(WritableAccountStore.class)).thenReturn(writableStore);
+
+        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertEquals(ALIAS_ALREADY_ASSIGNED, msg.getStatus());
+        assertEquals(idFactory.newAccountId(accountNum), writableAliases.get(new ProtoBytes(derivedEvmAddress)));
     }
 
     @Test

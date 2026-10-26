@@ -21,6 +21,8 @@ import com.hedera.hapi.node.transaction.ThrottleDefinitions;
 import com.hedera.hapi.node.transaction.ThrottleGroup;
 import com.hedera.node.app.hapi.utils.sysfiles.validation.ExpectedCustomThrottles;
 import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.ClprConfig;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -38,13 +40,20 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class ThrottleParser {
-    public static final Set<HederaFunctionality> EXPECTED_OPS = ExpectedCustomThrottles.ACTIVE_OPS.stream()
-            .map(protoOp -> HederaFunctionality.fromProtobufOrdinal(protoOp.getNumber()))
+    public static final Set<HederaFunctionality> EXPECTED_OPS = toPbjOps(ExpectedCustomThrottles.ACTIVE_OPS);
+    private static final Set<HederaFunctionality> CLPR_OPS = toPbjOps(ExpectedCustomThrottles.CLPR_OPS);
+    /**
+     * The expected operations while CLPR is disabled; CLPR operations are only expected once CLPR is enabled.
+     */
+    public static final Set<HederaFunctionality> EXPECTED_OPS_WITHOUT_CLPR = EXPECTED_OPS.stream()
+            .filter(op -> !CLPR_OPS.contains(op))
             .collect(Collectors.toCollection(() -> EnumSet.noneOf(HederaFunctionality.class)));
 
+    private final ConfigProvider configProvider;
+
     @Inject
-    public ThrottleParser() {
-        // Dagger2
+    public ThrottleParser(@NonNull final ConfigProvider configProvider) {
+        this.configProvider = requireNonNull(configProvider);
     }
 
     public record ValidatedThrottles(
@@ -109,7 +118,18 @@ public class ThrottleParser {
                 customizedOps.addAll(group.operations());
             }
         }
-        return customizedOps.containsAll(EXPECTED_OPS);
+        final boolean clprEnabled = configProvider
+                .getConfiguration()
+                .getConfigData(ClprConfig.class)
+                .enabled();
+        return customizedOps.containsAll(clprEnabled ? EXPECTED_OPS : EXPECTED_OPS_WITHOUT_CLPR);
+    }
+
+    private static Set<HederaFunctionality> toPbjOps(
+            @NonNull final Set<com.hederahashgraph.api.proto.java.HederaFunctionality> protoOps) {
+        return protoOps.stream()
+                .map(protoOp -> HederaFunctionality.fromProtobufOrdinal(protoOp.getNumber()))
+                .collect(Collectors.toCollection(() -> EnumSet.noneOf(HederaFunctionality.class)));
     }
 
     /**

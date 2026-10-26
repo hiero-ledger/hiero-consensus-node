@@ -3,10 +3,6 @@ package com.hedera.node.app.workflows.clpr;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.node.state.clpr.ClprDiscoverEndpointsRequest;
-import com.hedera.hapi.node.state.clpr.ClprDiscoverEndpointsResponse;
-import com.hedera.hapi.node.state.clpr.ClprEndpoint;
-import com.hedera.hapi.node.state.clpr.ClprSyncPayload;
 import com.hedera.node.app.service.clpr.ClprEndpointServiceDefinition;
 import com.hedera.node.app.workflows.clpr.mtls.ClprMtlsContexts;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -24,7 +20,6 @@ import java.io.InputStream;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 import javax.net.ssl.SSLException;
 import org.apache.logging.log4j.LogManager;
@@ -32,7 +27,7 @@ import org.apache.logging.log4j.Logger;
 
 /**
  * gRPC-backed {@link ClprEndpointClient}. Uses Netty for HTTP/2 transport and grpc-java
- * {@link ClientCalls} for both the unary calls and the bidirectional-streaming {@code streamingSync}.
+ * {@link ClientCalls} for the bidirectional-streaming {@code sync}.
  *
  * <p>Each instance targets a single peer endpoint address and owns the {@link ManagedChannel} it
  * builds for the lifetime of the instance.
@@ -45,12 +40,6 @@ class ClprEndpointClientImpl implements ClprEndpointClient {
 
     /** The gRPC service name. */
     private static final String SERVICE_NAME = ClprEndpointServiceDefinition.SERVICE_NAME;
-
-    /** The sync method name within the service. */
-    private static final String SYNC_METHOD = "sync";
-
-    /** The discoverEndpoints method name within the service. */
-    private static final String DISCOVER_METHOD = "discoverEndpoints";
 
     /** A simple byte-array marshaller for protobuf-encoded messages. */
     private static final MethodDescriptor.Marshaller<byte[]> BYTE_MARSHALLER = new MethodDescriptor.Marshaller<>() {
@@ -69,29 +58,11 @@ class ClprEndpointClientImpl implements ClprEndpointClient {
         }
     };
 
-    /** The grpc-java method descriptor for the sync RPC. */
+    /** The grpc-java method descriptor for the bidirectional-streaming {@code sync} RPC. */
     private static final MethodDescriptor<byte[], byte[]> SYNC_METHOD_DESCRIPTOR =
             MethodDescriptor.<byte[], byte[]>newBuilder()
-                    .setType(MethodDescriptor.MethodType.UNARY)
-                    .setFullMethodName(MethodDescriptor.generateFullMethodName(SERVICE_NAME, SYNC_METHOD))
-                    .setRequestMarshaller(BYTE_MARSHALLER)
-                    .setResponseMarshaller(BYTE_MARSHALLER)
-                    .build();
-
-    /** The grpc-java method descriptor for the discoverEndpoints RPC. */
-    private static final MethodDescriptor<byte[], byte[]> DISCOVER_METHOD_DESCRIPTOR =
-            MethodDescriptor.<byte[], byte[]>newBuilder()
-                    .setType(MethodDescriptor.MethodType.UNARY)
-                    .setFullMethodName(MethodDescriptor.generateFullMethodName(SERVICE_NAME, DISCOVER_METHOD))
-                    .setRequestMarshaller(BYTE_MARSHALLER)
-                    .setResponseMarshaller(BYTE_MARSHALLER)
-                    .build();
-
-    /** The grpc-java method descriptor for the streamingSync RPC. */
-    private static final MethodDescriptor<byte[], byte[]> STREAMING_SYNC_METHOD_DESCRIPTOR =
-            MethodDescriptor.<byte[], byte[]>newBuilder()
                     .setType(MethodDescriptor.MethodType.BIDI_STREAMING)
-                    .setFullMethodName(ClprEndpointServiceDefinition.STREAMING_SYNC_FULL_METHOD_NAME)
+                    .setFullMethodName(ClprEndpointServiceDefinition.SYNC_FULL_METHOD_NAME)
                     .setRequestMarshaller(BYTE_MARSHALLER)
                     .setResponseMarshaller(BYTE_MARSHALLER)
                     .build();
@@ -197,61 +168,15 @@ class ClprEndpointClientImpl implements ClprEndpointClient {
         } catch (final Exception e) {
             throw new SSLException("Failed to parse peer TLS certificate", e);
         }
-        // Built on BouncyCastle JSSE: the CLPR leaf is Ed25519, unusable as a local TLS identity on
-        // SunJSSE and rejected by netty-tcnative/BoringSSL. See ClprMtlsContexts.
         return ClprMtlsContexts.clientContext(clientCredentials, peerCaCert);
     }
 
     @Override
     @NonNull
-    public ClprSyncPayload sync(@NonNull final ClprSyncPayload request, @NonNull final Duration timeout)
-            throws ClprSyncException {
-        requireNonNull(request);
-        requireNonNull(timeout);
-        try {
-            final var requestBytes = ClprSyncPayload.PROTOBUF.toBytes(request);
-
-            final var callOptions = CallOptions.DEFAULT.withDeadlineAfter(timeout.toMillis(), TimeUnit.MILLISECONDS);
-
-            final var responseBytes = ClientCalls.blockingUnaryCall(
-                    channel, SYNC_METHOD_DESCRIPTOR, callOptions, requestBytes.toByteArray());
-
-            return ClprSyncPayload.PROTOBUF.parse(Bytes.wrap(responseBytes));
-        } catch (final Exception e) {
-            throw new ClprSyncException("Sync call failed: " + e.getMessage(), e);
-        }
-    }
-
-    @Override
-    @NonNull
-    public List<ClprEndpoint> discoverEndpoints(@NonNull final Bytes channelId, @NonNull final Duration timeout)
-            throws ClprDiscoveryException {
-        requireNonNull(channelId);
-        requireNonNull(timeout);
-        try {
-            final var request = ClprDiscoverEndpointsRequest.newBuilder()
-                    .channelId(channelId)
-                    .build();
-            final var requestBytes = ClprDiscoverEndpointsRequest.PROTOBUF.toBytes(request);
-
-            final var callOptions = CallOptions.DEFAULT.withDeadlineAfter(timeout.toMillis(), TimeUnit.MILLISECONDS);
-
-            final var responseBytes = ClientCalls.blockingUnaryCall(
-                    channel, DISCOVER_METHOD_DESCRIPTOR, callOptions, requestBytes.toByteArray());
-
-            final var response = ClprDiscoverEndpointsResponse.PROTOBUF.parse(Bytes.wrap(responseBytes));
-            return response.endpoints();
-        } catch (final Exception e) {
-            throw new ClprDiscoveryException("discoverEndpoints call failed: " + e.getMessage(), e);
-        }
-    }
-
-    @Override
-    @NonNull
-    public ClprStreamingSyncCall streamingSync(@NonNull final Duration timeout) {
+    public ClprStreamingSyncCall sync(@NonNull final Duration timeout) {
         requireNonNull(timeout);
         final var callOptions = CallOptions.DEFAULT.withDeadlineAfter(timeout.toMillis(), TimeUnit.MILLISECONDS);
-        final var call = ClientCalls.blockingBidiStreamingCall(channel, STREAMING_SYNC_METHOD_DESCRIPTOR, callOptions);
+        final var call = ClientCalls.blockingBidiStreamingCall(channel, SYNC_METHOD_DESCRIPTOR, callOptions);
         logger.debug("Streaming sync initiated with peer {}", channel.authority());
         return new ClprStreamingSyncCall(call, channel.authority());
     }

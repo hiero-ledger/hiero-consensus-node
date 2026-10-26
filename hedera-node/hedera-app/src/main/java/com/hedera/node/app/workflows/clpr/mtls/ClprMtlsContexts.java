@@ -14,7 +14,6 @@ import io.netty.handler.ssl.JdkSslContext;
 import io.netty.handler.ssl.SslContext;
 import java.security.KeyStore;
 import java.security.SecureRandom;
-import java.security.Security;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.util.List;
@@ -26,8 +25,6 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.TrustManager;
 import javax.security.auth.x500.X500Principal;
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
-import org.bouncycastle.jsse.provider.BouncyCastleJsseProvider;
 
 /**
  * Builds the Netty {@link SslContext}s for the CLPR mTLS sync listener (server) and outbound client.
@@ -35,21 +32,9 @@ import org.bouncycastle.jsse.provider.BouncyCastleJsseProvider;
  * <p>Lives in this non-exported package because it returns Netty SSL types across CLPR call sites
  * within the module (the {@code clpr} package is exported, which would flag a Netty type in its API).
  *
- * <p>The CLPR leaf identity is an <b>Ed25519</b> certificate. SunJSSE cannot use an
- * Ed25519 certificate as a local TLS authentication identity, and {@code netty-tcnative}/BoringSSL
- * rejects Ed25519 private-key material — so both the server and outbound client run their TLS on the
- * <b>BouncyCastle JSSE provider</b> ({@code BCJSSE}), which does support Ed25519 leaf authentication.
+ * <p>The CLPR leaf identity is an <b>Ed25519</b> certificate.
  *
- * <p>Two BouncyCastle requirements are baked in here:
- * <ul>
- *   <li>The {@code BouncyCastleProvider} and {@code BouncyCastleJsseProvider} must be
- *       <em>registered</em> in {@link Security} (appended, so the JVM default TLS is unaffected):
- *       Netty's ALPN bridge resolves the provider by name ({@code SSLContext.getInstance("TLS","BCJSSE")}).</li>
- *   <li>The leaf key is fed to BC via a {@code BC} {@code PKCS12} keystore so it stays a BC key —
- *       a SunEC {@code EdDSAPrivateKeyImpl} is rejected by BC's TLS crypto.</li>
- * </ul>
- *
- * <p>The context is a JDK-provider {@link JdkSslContext} wrapping the BCJSSE {@link SSLContext}, with
+ * <p>The context is a JDK-provider {@link JdkSslContext} wrapping the JDK {@link SSLContext}, with
  * gRPC's mandatory ALPN ({@code h2}) configured explicitly.
  */
 public final class ClprMtlsContexts {
@@ -65,8 +50,6 @@ public final class ClprMtlsContexts {
             ApplicationProtocolConfig.SelectedListenerFailureBehavior.ACCEPT,
             ApplicationProtocolNames.HTTP_2);
 
-    private static final String BCJSSE = "BCJSSE";
-
     /**
      * Cache of the leaf {@link KeyManager}s, keyed by the {@link ClprLeafCredentials} instance they were
      * built from. The key-manager chain (PKCS12 keystore + {@link KeyManagerFactory}) depends only on the
@@ -80,20 +63,6 @@ public final class ClprMtlsContexts {
     private static volatile KeyManager[] cachedKeyManagers;
 
     private ClprMtlsContexts() {}
-
-    /**
-     * Registers the BouncyCastle crypto and JSSE providers if absent. Idempotent and safe to call
-     * repeatedly. Providers are <em>appended</em> (lowest precedence), so ordinary JVM TLS keeps using
-     * the platform default; only explicit {@code BCJSSE}/{@code BC} lookups reach BouncyCastle.
-     */
-    public static synchronized void ensureProvidersRegistered() {
-        if (Security.getProvider(BouncyCastleProvider.PROVIDER_NAME) == null) {
-            Security.addProvider(new BouncyCastleProvider());
-        }
-        if (Security.getProvider(BCJSSE) == null) {
-            Security.addProvider(new BouncyCastleJsseProvider());
-        }
-    }
 
     /**
      * Server context for the dedicated mTLS sync listener: presents this node's Ed25519 leaf, requires
@@ -128,9 +97,8 @@ public final class ClprMtlsContexts {
             final boolean forClient,
             final ClientAuth clientAuth)
             throws SSLException {
-        ensureProvidersRegistered();
         try {
-            final var sslContext = SSLContext.getInstance("TLS", BCJSSE);
+            final var sslContext = SSLContext.getInstance("TLS");
             sslContext.init(keyManagersFor(leaf), new TrustManager[] {trustManager}, new SecureRandom());
 
             return new JdkSslContext(
@@ -156,12 +124,12 @@ public final class ClprMtlsContexts {
         return cachedKeyManagers;
     }
 
-    /** Builds the BCJSSE key managers presenting {@code leaf} — a BC {@code PKCS12} keystore + PKIX KMF. */
+    /** Builds key managers presenting {@code leaf} — a BC {@code PKCS12} keystore + PKIX KMF. */
     private static KeyManager[] buildKeyManagers(final ClprLeafCredentials leaf) throws Exception {
-        final var keyStore = KeyStore.getInstance("PKCS12", BouncyCastleProvider.PROVIDER_NAME);
+        final var keyStore = KeyStore.getInstance("PKCS12");
         keyStore.load(null, null);
         keyStore.setKeyEntry("clpr-leaf", leaf.privateKey(), new char[0], new Certificate[] {leaf.certificate()});
-        final var kmf = KeyManagerFactory.getInstance("PKIX", BCJSSE);
+        final var kmf = KeyManagerFactory.getInstance("PKIX");
         kmf.init(keyStore, new char[0]);
         return kmf.getKeyManagers();
     }

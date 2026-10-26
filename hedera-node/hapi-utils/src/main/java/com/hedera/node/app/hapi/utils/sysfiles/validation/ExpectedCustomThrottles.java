@@ -5,7 +5,6 @@ import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprCloseCh
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprCompleteChannel;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprDeregisterConnector;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprGetLedgerConfiguration;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprRedactMessage;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprRegisterChannel;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprRegisterConnector;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprSubmitBundle;
@@ -27,7 +26,6 @@ import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoAppro
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoCreate;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoDelete;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoDeleteAllowance;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoGetAccountBalance;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoGetAccountRecords;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoGetInfo;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoTransfer;
@@ -116,7 +114,6 @@ public final class ExpectedCustomThrottles {
             ContractGetInfo,
             ContractGetBytecode,
             ContractGetRecords,
-            CryptoGetAccountBalance,
             CryptoGetAccountRecords,
             CryptoGetInfo,
             FileGetContents,
@@ -136,7 +133,20 @@ public final class ExpectedCustomThrottles {
             ClprCloseChannel,
             ClprGetLedgerConfiguration,
             ClprSubmitBundle,
-            ClprRedactMessage,
+            ClprRegisterConnector,
+            ClprDeregisterConnector));
+
+    /**
+     * The CLPR operations in {@link #ACTIVE_OPS}, which throttle definitions are only expected to customize
+     * while CLPR is enabled.
+     */
+    public static final Set<HederaFunctionality> CLPR_OPS = Collections.unmodifiableSet(EnumSet.of(
+            ClprUpdateLedgerConfiguration,
+            ClprRegisterChannel,
+            ClprCompleteChannel,
+            ClprCloseChannel,
+            ClprGetLedgerConfiguration,
+            ClprSubmitBundle,
             ClprRegisterConnector,
             ClprDeregisterConnector));
 

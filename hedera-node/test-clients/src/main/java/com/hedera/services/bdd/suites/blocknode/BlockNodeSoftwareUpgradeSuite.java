@@ -49,21 +49,13 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                             "tss.hintsEnabled",
                             "true",
                             "tss.historyEnabled",
-                            "true",
-                            "tss.forceHandoffs",
                             "true",*/
                             "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk",
                             "false",
                             "blockStream.buffer.isBufferPersistenceEnabled",
                             "true",
                             "blockNode.blockNodeStatusTimeout",
-                            "10s",
-                            "blockStream.enableCutover",
-                            "false",
-                            "blockStream.streamWrappedRecordBlocks",
-                            "true",
-                            "tss.forceMockSignatures",
-                            "true"
+                            "10s"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 1,
@@ -78,21 +70,13 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                             "tss.hintsEnabled",
                             "true",
                             "tss.historyEnabled",
-                            "true",
-                            "tss.forceHandoffs",
                             "true",*/
                             "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk",
                             "false",
                             "blockStream.buffer.isBufferPersistenceEnabled",
                             "true",
                             "blockNode.blockNodeStatusTimeout",
-                            "10s",
-                            "blockStream.enableCutover",
-                            "false",
-                            "blockStream.streamWrappedRecordBlocks",
-                            "true",
-                            "tss.forceMockSignatures",
-                            "true"
+                            "10s"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 2,
@@ -107,21 +91,13 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                             "tss.hintsEnabled",
                             "true",
                             "tss.historyEnabled",
-                            "true",
-                            "tss.forceHandoffs",
                             "true",*/
                             "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk",
                             "false",
                             "blockStream.buffer.isBufferPersistenceEnabled",
                             "true",
                             "blockNode.blockNodeStatusTimeout",
-                            "10s",
-                            "blockStream.enableCutover",
-                            "false",
-                            "blockStream.streamWrappedRecordBlocks",
-                            "true",
-                            "tss.forceMockSignatures",
-                            "true"
+                            "10s"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 3,
@@ -136,21 +112,13 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                             "tss.hintsEnabled",
                             "true",
                             "tss.historyEnabled",
-                            "true",
-                            "tss.forceHandoffs",
                             "true",*/
                             "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk",
                             "false",
                             "blockStream.buffer.isBufferPersistenceEnabled",
                             "true",
                             "blockNode.blockNodeStatusTimeout",
-                            "10s",
-                            "blockStream.enableCutover",
-                            "false",
-                            "blockStream.streamWrappedRecordBlocks",
-                            "true",
-                            "tss.forceMockSignatures",
-                            "true"
+                            "10s"
                         }),
             })
     @Order(0)

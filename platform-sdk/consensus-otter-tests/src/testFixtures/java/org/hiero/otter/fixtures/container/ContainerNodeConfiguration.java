@@ -51,7 +51,7 @@ public class ContainerNodeConfiguration extends AbstractNodeConfiguration {
             @NonNull final Supplier<LifeCycle> lifecycleSupplier,
             @NonNull final OverrideProperties overrideProperties) {
         super(lifecycleSupplier, overrideProperties);
-        this.overrideProperties
+        this.defaultProperties
                 .withConfigValue(
                         EventConfig_.EVENTS_LOG_DIR, Path.of(CONTAINER_APP_WORKING_DIR, EVENT_STREAM_DIRECTORY))
                 // The default MerkleDb capacity (1e9 keys) sizes each data source's off-heap structures for a
@@ -91,13 +91,13 @@ public class ContainerNodeConfiguration extends AbstractNodeConfiguration {
     /**
      * Returns the overridden properties for this node configuration.
      *
-     * <p>The returned map is unmodifiable and contains all properties that have been set on this
-     * configuration instance using the various {@code set()} methods.
+     * <p>The returned map is unmodifiable and contains the defaults of a container node, overridden by all properties
+     * that have been set on this configuration instance using the various {@code set()} methods.
      *
      * @return an unmodifiable map of overridden properties
      */
     @NonNull
     Map<String, String> overrideProperties() {
-        return Collections.unmodifiableMap(overrideProperties.properties());
+        return Collections.unmodifiableMap(effectiveProperties());
     }
 }

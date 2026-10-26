@@ -4,7 +4,7 @@ package com.hedera.node.app.service.clpr.impl;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
-import com.hedera.node.app.service.clpr.impl.schemas.V0770ClprSchema;
+import com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
@@ -34,7 +34,7 @@ public class WritableLedgerConfigurationStore extends ReadableLedgerConfiguratio
     public void put(@NonNull final ClprLedgerConfiguration configuration) {
         requireNonNull(configuration);
         final var singleton =
-                states.<ClprLedgerConfiguration>getSingleton(V0770ClprSchema.LEDGER_CONFIGURATION_STATE_ID);
+                states.<ClprLedgerConfiguration>getSingleton(V0780ClprSchema.LEDGER_CONFIGURATION_STATE_ID);
         singleton.put(configuration);
     }
 }

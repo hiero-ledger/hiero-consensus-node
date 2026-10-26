@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.clpr;
 
-import static com.hedera.node.app.service.clpr.impl.schemas.V0770ClprSchema.CHANNELS_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.CLPR;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -17,6 +17,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
+import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.CLPR_SERVICE_ADDRESS_20;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_VERIFIER_CONFIG_FAILED;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -31,11 +32,9 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.SpecOperation;
-import com.hederahashgraph.api.proto.java.ClprEndpoint;
 import com.hederahashgraph.api.proto.java.ClprLedgerConfiguration;
 import com.hederahashgraph.api.proto.java.ClprMessage;
 import com.hederahashgraph.api.proto.java.ClprMessagePayload;
-import com.hederahashgraph.api.proto.java.ClprServiceEndpoint;
 import com.hederahashgraph.api.proto.java.ClprSignatureScheme;
 import com.hederahashgraph.api.proto.java.ClprThrottles;
 import com.hederahashgraph.api.proto.java.ContractID;
@@ -187,14 +186,14 @@ public class ClprEthSyncCommitteeVerifierSuite {
     }
 
     /**
-     * completeChannel under {@code clpr.endpointManifestEnabled=true}, with the peer endpoint manifest supplied as
+     * completeChannel with the peer endpoint manifest supplied as
      * the config path's {@code endpoint_manifest_proof_bytes} (raw {@code ClprEndpointManifest} bytes, spec §4.8).
      * Exercises 0, 1, and N (3) manifest endpoints — each on a fresh channel — and asserts the resulting
      * Channel's {@code endpoint_manifest_version >= 1} and that its stored endpoints match the supplied manifest.
      */
     @LeakyEmbeddedHapiTest(
             reason = NEEDS_STATE_ACCESS,
-            overrides = {"clpr.verifierGasLimit", "clpr.endpointManifestEnabled"})
+            overrides = {"clpr.verifierGasLimit"})
     @DisplayName("Eth verifier: completeChannel installs the config endpoint manifest (0, 1, N endpoints)")
     final Stream<DynamicTest> completeChannelInstallsConfigManifest() {
         final int[] endpointCounts = {0, 1, 3};
@@ -202,7 +201,6 @@ public class ClprEthSyncCommitteeVerifierSuite {
         // A full 512-key committee makes the verifier calldata ~25KB+, so the dispatch needs more than
         // the 300k default verifier gas.
         ops.add(overriding("clpr.verifierGasLimit", "5000000"));
-        ops.add(overriding("clpr.endpointManifestEnabled", "true"));
         ops.add(clprUpdateLedgerConfiguration()
                 .configuration(localLedgerConfig())
                 .payingWith(GENESIS));
@@ -233,13 +231,13 @@ public class ClprEthSyncCommitteeVerifierSuite {
 
     /**
      * A bundle carrying a higher-version endpoint manifest (spec §4.9) advances the Channel's cached manifest via
-     * Step-1b. The channel opens at version 1 (the config-synthesized manifest); the bundle proves a version-2
+     * Step-1b. The channel opens at version 0 (the uninitialized manifest); the bundle proves a version-2
      * manifest at the commitment slot (18) and, when applied, updates {@code endpoint_manifest} / {@code
      * endpoint_manifest_version} while also delivering message #1.
      */
     @LeakyEmbeddedHapiTest(
             reason = NEEDS_STATE_ACCESS,
-            overrides = {"clpr.verifierGasLimit", "clpr.endpointManifestEnabled"})
+            overrides = {"clpr.verifierGasLimit"})
     @DisplayName("Eth verifier: bundle carrying a higher-version manifest updates the Channel via Step-1b")
     final Stream<DynamicTest> bundleAdvancesEndpointManifest() {
         final var crypto = new ClprChannelCrypto();
@@ -247,13 +245,13 @@ public class ClprEthSyncCommitteeVerifierSuite {
         final byte[] advanceManifest = EthSyncCommitteeProofs.manifestBytes(2L, 2);
 
         return hapiTest(flattened(
-                overriding("clpr.endpointManifestEnabled", "true"),
-                // completeChannel with an empty endpoint_manifest_proof_bytes synthesizes a version-1 manifest
-                // from the config endpoints, so the channel opens at manifest version 1.
+                // completeChannel with an empty endpoint_manifest_proof_bytes returns the uninitialized manifest
+                // (version 0, no endpoints), so the channel opens at manifest version 0.
                 setupChannelWithEthereumVerifier(crypto, EthSyncCommitteeProofs.configPayload()),
                 withOpContext((spec, opLog) -> {
                     final var conn = readChannelFromState(spec, crypto);
-                    assertEquals(1L, conn.endpointManifestVersion(), "channel opens at synthesized manifest v1");
+                    assertEquals(0L, conn.endpointManifestVersion(), "channel opens at uninitialized manifest v0");
+                    assertManifestEndpoints(conn, 0);
                 }),
                 clprSubmitBundle()
                         .channelId(crypto.channelId())
@@ -275,13 +273,12 @@ public class ClprEthSyncCommitteeVerifierSuite {
      */
     @LeakyEmbeddedHapiTest(
             reason = NEEDS_STATE_ACCESS,
-            overrides = {"clpr.verifierGasLimit", "clpr.endpointManifestEnabled"})
+            overrides = {"clpr.verifierGasLimit"})
     @DisplayName("Eth verifier: manifest service_address mismatch → CLPR_VERIFIER_CONFIG_FAILED")
     final Stream<DynamicTest> rejectsManifestWithMismatchedServiceAddress() {
         final var crypto = new ClprChannelCrypto();
         return hapiTest(
                 overriding("clpr.verifierGasLimit", "5000000"),
-                overriding("clpr.endpointManifestEnabled", "true"),
                 clprUpdateLedgerConfiguration()
                         .configuration(localLedgerConfig())
                         .payingWith(GENESIS),
@@ -390,26 +387,19 @@ public class ClprEthSyncCommitteeVerifierSuite {
 
     /**
      * The local ledger's own configuration (unrelated to the peer config carried in the proof). The
-     * Ethereum verifier reads the peer's service address from the config payload, so this local
-     * service address need not be 20 bytes.
+     * Ethereum verifier reads the peer's service address from the config payload; this local one
+     * must be the CLPR system contract address, since ClprUpdateLedgerConfiguration rejects others.
      */
     private static ClprLedgerConfiguration localLedgerConfig() {
         return ClprLedgerConfiguration.newBuilder()
                 .setChainId("hiero:testing")
-                .setServiceAddress(ByteString.copyFrom(new byte[] {0, 0, 1}))
+                .setServiceAddress(ByteString.copyFrom(CLPR_SERVICE_ADDRESS_20))
                 .setThrottles(ClprThrottles.newBuilder()
                         .setMaxMessagesPerBundle(100)
                         .setMaxMessagePayloadBytes(65536)
                         .setMaxGasPerMessage(1_000_000L)
                         .setMaxQueueDepth(1000)
                         .setMaxSyncBytes(1_048_576L)
-                        .build())
-                .addEndpoints(ClprEndpoint.newBuilder()
-                        .setServiceEndpoint(ClprServiceEndpoint.newBuilder()
-                                .setIpAddress("127.0.0.1")
-                                .setPort(50211)
-                                .build())
-                        .setTlsCertificate(ByteString.copyFrom(new byte[] {0x01}))
                         .build())
                 .build();
     }

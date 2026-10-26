@@ -6,7 +6,6 @@ import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiSpec.networkHapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.clprGetEndpointManifest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.clprGetLedgerConfiguration;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterChannel;
@@ -14,7 +13,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterCon
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprSubmitBundle;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprUpdateLedgerConfiguration;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCallWithFunctionAbi;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -23,16 +21,16 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doAdhoc;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeOnly;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeUpgrade;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.runBackgroundTrafficUntilFreezeComplete;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForFrozenNetwork;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.upgrade.BuildUpgradeZipOp.FAKE_UPGRADE_ZIP_LOC;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
-import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.VERIFY_CONFIG_WITH_SEED_ENDPOINTS;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.DEFAULT_UPGRADE_FILE_ID;
@@ -41,9 +39,10 @@ import static com.hedera.services.bdd.suites.regression.system.LifecycleTest.con
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.esaulpaugh.headlong.abi.Tuple;
 import com.google.protobuf.ByteString;
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.services.bdd.junit.extensions.MultiNetworkExtension;
+import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.SpecOperation;
@@ -52,10 +51,8 @@ import com.hedera.services.bdd.spec.transactions.contract.HapiContractCall;
 import com.hedera.services.bdd.spec.utilops.FakeNmt;
 import com.hedera.services.bdd.spec.utilops.grouping.ParallelSpecOps;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
-import com.hederahashgraph.api.proto.java.ClprEndpoint;
 import com.hederahashgraph.api.proto.java.ClprEndpointManifest;
 import com.hederahashgraph.api.proto.java.ClprLedgerConfiguration;
-import com.hederahashgraph.api.proto.java.ClprServiceEndpoint;
 import com.hederahashgraph.api.proto.java.ClprSignatureScheme;
 import com.hederahashgraph.api.proto.java.ClprThrottles;
 import com.hederahashgraph.api.proto.java.ContractID;
@@ -63,12 +60,17 @@ import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.math.BigInteger;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
@@ -76,7 +78,6 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.bouncycastle.jcajce.provider.digest.Keccak;
 import org.bouncycastle.math.ec.rfc8032.Ed25519;
 import org.junit.jupiter.api.DynamicTest;
 
@@ -99,7 +100,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
      * The lowest manifest version that counts as "finalized": genesis seeds version 1, so a
      * version {@literal >=} 2 proves the reconciler has rebuilt the manifest at least once.
      */
-    static final long FINALIZED_MANIFEST_MIN_VERSION = 2L;
+    public static final long FINALIZED_MANIFEST_MIN_VERSION = 2L;
 
     private static final Logger log = LogManager.getLogger(HieroToHieroBase.class);
 
@@ -126,10 +127,10 @@ public abstract class HieroToHieroBase implements LifecycleTest {
 
     /**
      * How long {@link #awaitWrapsExtensible} waits for the first WRAPS-extensible recursive proof.
-     * Empirically a single-node subprocess network finishes the first extensible construction
-     * roughly 12–18 minutes after startup; 25 minutes leaves slack.
+     * Since the WRAPS library computes a proof in seconds, a single-node subprocess network should
+     * finish the first extensible construction within a few minutes of startup; 10 minutes leaves slack.
      */
-    static final Duration WRAPS_EXTENSIBLE_TIMEOUT = Duration.ofMinutes(25);
+    static final Duration WRAPS_EXTENSIBLE_TIMEOUT = Duration.ofMinutes(10);
 
     static final Pattern WRAPS_EXTENSIBLE_PATTERN =
             Pattern.compile("History proof constructed \\(#\\d+, WRAPS-extensible\\? true\\)");
@@ -159,6 +160,21 @@ public abstract class HieroToHieroBase implements LifecycleTest {
     static final Duration WRAPS_SYNC_POINT_TIMEOUT = Duration.ofMinutes(3);
     /** Small settle after the sync-point so a few WRAPS-carrying blocks accumulate before capture. */
     public static final Duration POST_SYNC_POINT_SETTLE = Duration.ofSeconds(5);
+
+    /**
+     * Upper bound on how long one ledger's setup chain waits at the deploy barrier for the other's captures: the
+     * peer's WRAPS readiness and sync-point waits plus its config- and manifest-proof polls, with headroom. A peer
+     * whose capture throws still releases the barrier, so this only bounds a peer that is itself stuck.
+     */
+    static final Duration BOTH_PROOFS_READY_TIMEOUT = WRAPS_EXTENSIBLE_TIMEOUT
+            .plus(WRAPS_SYNC_POINT_TIMEOUT.multipliedBy(2))
+            .plus(MANIFEST_APPEAR_TIMEOUT.multipliedBy(2))
+            .plus(Duration.ofMinutes(5));
+
+    /** Poll interval for {@link #awaitPortsFree}. */
+    private static final Duration PORT_FREE_POLL = Duration.ofSeconds(5);
+    /** Cap for {@link #awaitPortsFree} before giving up (a killed node should release ports in seconds). */
+    private static final Duration PORT_FREE_TIMEOUT = Duration.ofSeconds(180);
 
     // ── Shared setup helper ───────────────────────────────────────────────────
 
@@ -190,7 +206,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
      *
      * <p>Returns which readiness path was taken; the caller decides whether to settle.
      *
-     * <p>Cold-path latency: ~12-18 min (waits for runtime WRAPS construction).
+     * <p>Cold-path latency: a few minutes (waits for runtime WRAPS construction).
      * Warm-path latency: ~few seconds (preload log fires immediately, then waits for the
      * first WRAPS-carrying block — usually within 1-5 sec of network ACTIVE).
      */
@@ -452,8 +468,8 @@ public abstract class HieroToHieroBase implements LifecycleTest {
      * Polls {@code clprGetEndpointManifest} until {@code predicate} holds or
      * {@link #MANIFEST_APPEAR_TIMEOUT} elapses (then fails). Returns the satisfying manifest.
      */
-    static ClprEndpointManifest pollManifest(final HapiSpec spec, final Predicate<ClprEndpointManifest> predicate)
-            throws InterruptedException {
+    public static ClprEndpointManifest pollManifest(
+            final HapiSpec spec, final Predicate<ClprEndpointManifest> predicate) throws InterruptedException {
         final var deadline = Instant.now().plus(MANIFEST_APPEAR_TIMEOUT);
         final AtomicReference<ClprEndpointManifest> last = new AtomicReference<>();
         final AtomicReference<Exception> lastError = new AtomicReference<>();
@@ -500,7 +516,8 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                                         .withUpdateFile(DEFAULT_UPGRADE_FILE_ID)
                                         .havingHash(upgradeFileHashAt(FAKE_UPGRADE_ZIP_LOC))),
                                 confirmFreezeAndShutdown(),
-                                FakeNmt.restartWithConfigVersion(allNodes(), CURRENT_CONFIG_VERSION.incrementAndGet()),
+                                sourcing(() -> FakeNmt.restartWithConfigVersion(
+                                        allNodes(), CURRENT_CONFIG_VERSION.incrementAndGet())),
                                 waitForActive(allNodes(), RESTART_TO_ACTIVE_TIMEOUT),
                                 blockingOrder(doAdhoc(() -> {
                                     awaitWrapsExtensible(network);
@@ -547,8 +564,11 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                                 FakeNmt.shutdownWithin(byNodeId(nodeId), SHUTDOWN_TIMEOUT),
                                 // Rewrite its per-node mtlsPort while it is stopped.
                                 doAdhoc(() -> setNodeMtlsPort(network, nodeId, newMtlsPort)),
-                                // Let the killed node's gossip port fully unbind before it rebinds on restart.
-                                sleepFor(PORT_UNBINDING_WAIT_PERIOD.toMillis()),
+                                // Wait until this node's reused ports (gossip/gRPC/prometheus) are actually
+                                // releasable before it rebinds on restart, instead of a blind fixed sleep.
+                                awaitPortsFree(network.nodes().stream()
+                                        .filter(n -> n.getNodeId() == nodeId)
+                                        .toList()),
                                 // Restart just this node (ReassignPorts.NO, cfgVer 0) — it reconnects via gossip.
                                 FakeNmt.restartNode(byNodeId(nodeId)),
                                 waitForActive(byNodeId(nodeId), RESTART_TO_ACTIVE_TIMEOUT)))
@@ -572,13 +592,21 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                         "Rotate ALL " + network.name() + " node mTLS ports simultaneously (base " + basePort + ")",
                         network,
                         blockingOrder(
+                                // Freeze first so every node writes a signed state at a clean round boundary and
+                                // flushes its preconsensus event stream. Without this, killing all nodes mid-stream
+                                // leaves unsettled PCES events that replay non-deterministically on restart and can
+                                // trip an ISS (self hash != consensus hash) → CATASTROPHIC_FAILURE. Mirrors the
+                                // freeze-before-restart the restart suite uses.
+                                runBackgroundTrafficUntilFreezeComplete(),
+                                freezeOnly().startingIn(2).seconds(),
+                                waitForFrozenNetwork(FREEZE_TIMEOUT),
                                 // Kill every node at once — the whole endpoint set turns over simultaneously.
                                 FakeNmt.shutdownWithin(allNodes(), SHUTDOWN_TIMEOUT),
                                 // Rewrite each stopped node's mtlsPort (basePort offset by node id).
                                 doAdhoc(() -> network.nodes()
                                         .forEach(n -> setNodeMtlsPort(
                                                 network, n.getNodeId(), basePort + (int) n.getNodeId()))),
-                                sleepFor(PORT_UNBINDING_WAIT_PERIOD.toMillis()),
+                                awaitPortsFree(network.nodes()),
                                 // Restart all nodes together (single restart), then await consensus + WRAPS.
                                 FakeNmt.restartNode(allNodes()),
                                 waitForActive(allNodes(), RESTART_TO_ACTIVE_TIMEOUT),
@@ -589,6 +617,59 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                                 })))
                 .findFirst()
                 .orElseThrow();
+    }
+
+    /**
+     * Returns an operation that blocks until every TCP port the given nodes rebind on a
+     * {@code ReassignPorts.NO} restart (gRPC, node-operator gRPC, internal/external gossip, prometheus) is
+     * actually releasable, so the restarted process can bind without a {@link java.net.BindException}.
+     *
+     * <p>Replaces a blind fixed unbinding sleep: it probes each port by attempting a throwaway bind and
+     * returns as soon as all are free (typically seconds, since a killed process releases its listening
+     * sockets almost immediately), or throws after {@link #PORT_FREE_TIMEOUT} if a port is still held.
+     */
+    static SpecOperation awaitPortsFree(final List<HederaNode> nodes) {
+        return doAdhoc(() -> {
+            final var ports = nodes.stream()
+                    .flatMap(n -> Stream.of(
+                            n.metadata().grpcPort(),
+                            n.metadata().grpcNodeOperatorPort(),
+                            n.metadata().internalGossipPort(),
+                            n.metadata().externalGossipPort(),
+                            n.metadata().prometheusPort()))
+                    .distinct()
+                    .toList();
+            final var deadline = Instant.now().plus(PORT_FREE_TIMEOUT);
+            for (final int port : ports) {
+                while (!isPortFree(port)) {
+                    if (Instant.now().isAfter(deadline)) {
+                        throw new IllegalStateException("Port " + port + " still bound after " + PORT_FREE_TIMEOUT
+                                + "; the killed node did not release it");
+                    }
+                    try {
+                        Thread.sleep(PORT_FREE_POLL.toMillis());
+                    } catch (final InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new IllegalStateException("Interrupted while waiting for port " + port + " to free", e);
+                    }
+                }
+            }
+        });
+    }
+
+    /**
+     * Returns true if {@code port} is bindable on loopback right now. Uses {@code SO_REUSEADDR=false} so it
+     * detects the same conflicts the node's own (non-reusing) bind would hit — it never reports a
+     * still-held port as free.
+     */
+    private static boolean isPortFree(final int port) {
+        try (var socket = new ServerSocket()) {
+            socket.setReuseAddress(false);
+            socket.bind(new InetSocketAddress(InetAddress.getLoopbackAddress(), port));
+            return true;
+        } catch (final IOException e) {
+            return false;
+        }
     }
 
     /**
@@ -665,12 +746,9 @@ public abstract class HieroToHieroBase implements LifecycleTest {
      * <ol>
      *   <li>{@link #installLedgerConfig install} the local LedgerConfiguration on each network;</li>
      *   <li>{@link #captureConfigProof await} the first WRAPS-extensible recursive proof, then
-     *       capture each network's config StateProof via {@code clprGetLedgerConfiguration};</li>
-     *   <li>{@link #verifyProofOnPeer cross-verify} each captured proof on the PEER network — i.e.
-     *       the same network that will run the real {@code clprCompleteChannel} verify path. Uses
-     *       a consensus call to {@code 0x16e.verifyConfig}, so a failure here is the failure the
-     *       peer would surface — catches stale or cross-network-incompatible proofs before they hit
-     *       {@code deployAndConnect};</li>
+     *       capture each network's config StateProof via {@code clprGetLedgerConfiguration}, gating on an
+     *       in-process freshness check ({@code initial_trust_anchor} populated + throttles current) so a
+     *       stale or pre-install proof never reaches {@code deployAndConnect};</li>
      *   <li>{@link #deployAndConnect deploy} the {@link #VERIFIER} contract (pinned to the peer's
      *       WRAPS ledger id), the connector + system-contract caller, and run the channel +
      *       connector commit-reveal using the peer's captured config StateProof.</li>
@@ -685,13 +763,6 @@ public abstract class HieroToHieroBase implements LifecycleTest {
         return setupBothNetworks(
                 ledgerA, ledgerB, portA, portB, crypto, DEFAULT_MAX_MESSAGES_PER_BUNDLE, DEFAULT_MAX_QUEUE_DEPTH);
     }
-
-    /**
-     * Unique-suffix source for the {@code .via(...)} name given to each {@code verifyConfig}
-     * freshness probe, so concurrently-running probes on the two ledgers don't collide on the
-     * spec's transaction registry.
-     */
-    private static final AtomicLong PROBE_COUNTER = new AtomicLong();
 
     /**
      * Throttle-overrideable variant of {@link #setupBothNetworks(SubProcessNetwork,
@@ -732,37 +803,12 @@ public abstract class HieroToHieroBase implements LifecycleTest {
             final ClprCrypto crypto,
             final int maxMessagesPerBundle,
             final int maxQueueDepth) {
-        return setupBothNetworks(
-                ledgerA,
-                ledgerB,
-                portA,
-                portB,
-                crypto,
-                maxMessagesPerBundle,
-                maxQueueDepth,
-                DUMMY_TLS_CERT,
-                DUMMY_TLS_CERT);
-    }
-
-    /**
-     * As {@link #setupBothNetworks(SubProcessNetwork, SubProcessNetwork, int, int, ClprCrypto, int, int)}
-     * but advertises {@code tlsCertA}/{@code tlsCertB} (the DER of each network's CLPR CA) as the
-     * endpoint {@code tls_certificate} and, for mTLS, expects {@code portA}/{@code portB} to be each
-     * network's {@code clpr.mtlsPort} so the channel is completed over — and syncs across — the
-     * dedicated mutual-TLS listener rather than the plaintext path.
-     */
-    static Stream<DynamicTest> setupBothNetworks(
-            final SubProcessNetwork ledgerA,
-            final SubProcessNetwork ledgerB,
-            final int portA,
-            final int portB,
-            final ClprCrypto crypto,
-            final int maxMessagesPerBundle,
-            final int maxQueueDepth,
-            final byte[] tlsCertA,
-            final byte[] tlsCertB) {
         final AtomicReference<ByteString> proofA = new AtomicReference<>();
         final AtomicReference<ByteString> proofB = new AtomicReference<>();
+        // Manifest-only mode: completeChannel and the verifyConfig probes both require each
+        // ledger's endpoint-manifest StateProof, so capture and thread them like the mTLS overload.
+        final AtomicReference<ByteString> manifestProofA = new AtomicReference<>();
+        final AtomicReference<ByteString> manifestProofB = new AtomicReference<>();
         // Fold install → capture → cross-verify → deployAndConnect per ledger into
         // ONE sequential chain, then run BOTH chains in parallel via ParallelSpecOps.
         // Cross-chain dependency at the deploy step: A's deployAndConnect uses proofB (produced
@@ -776,29 +822,25 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                 ledgerA,
                 ledgerB,
                 "hiero:298",
-                portA,
                 proofA,
                 proofB,
-                null, // no manifest proof on the mTLS (non-manifest) setup path
-                null,
+                manifestProofA,
+                manifestProofB,
                 crypto,
                 maxMessagesPerBundle,
                 maxQueueDepth,
-                tlsCertA,
                 bothProofsReady);
         final var chainB = chainSetupAndConnect(
                 ledgerB,
                 ledgerA,
                 "hiero:299",
-                portB,
                 proofB,
                 proofA,
-                null,
-                null,
+                manifestProofB,
+                manifestProofA,
                 crypto,
                 maxMessagesPerBundle,
                 maxQueueDepth,
-                tlsCertB,
                 bothProofsReady);
         return Stream.of(networkHapiTest(
                         "Install + capture + verify + deploy on both ledgers (parallel)",
@@ -809,28 +851,28 @@ public abstract class HieroToHieroBase implements LifecycleTest {
     }
 
     /**
-     * As {@link #setupBothNetworks(SubProcessNetwork, SubProcessNetwork, int, int, ClprCrypto, int, int)}
-     * but additionally (a) captures each ledger's manifest {@code StateProof} via the
+     * As {@link #setupBothNetworks(SubProcessNetwork, SubProcessNetwork, int, int, ClprCrypto,
+     * int, int)} but additionally captures each ledger's manifest {@code StateProof} via the
      * {@code clprGetEndpointManifest} HAPI query and threads it into the peer's
-     * {@code ClprCompleteChannel} as {@code endpoint_manifest_proof_bytes} (required under
-     * {@code clpr.endpointManifestEnabled=true}, whose manifest-aware verifier ABI rejects an empty manifest proof),
-     * and (b) advertises each network's real ECDSA CLPR CA cert ({@code caDerA}/{@code caDerB}) as the
-     * endpoint {@code tls_certificate}, with {@code portA}/{@code portB} expected to be each network's
-     * {@code clpr.mtlsPort}. The channel therefore completes over, and syncs across, the dedicated
-     * mutual-TLS listener.
+     * {@code ClprCompleteChannel} as {@code endpoint_manifest_proof_bytes} (required, since the
+     * manifest-aware verifier ABI rejects an empty manifest proof). Dial targets, including each
+     * network's mTLS port and CA cert, come from the captured manifests.
      *
-     * <p>Callers must guarantee the reconciler has finalized a manifest on both networks before this
-     * runs (e.g. by preceding it with a manifest-await step); the capture inside this method is a single
-     * query, not a poll.
+     * <p>Also advertises each network's real ECDSA CLPR CA cert ({@code caDerA}/{@code caDerB}) as the
+     * endpoint {@code tls_certificate}, and expects {@code portA}/{@code portB} to be each network's
+     * {@code clpr.mtlsPort}. This is the combined <b>mTLS + manifest-proof</b> path: the channel completes
+     * over — and syncs across — the dedicated mutual-TLS listener.
+     *
+     * <p>Callers must guarantee the reconciler has finalized a manifest on both networks
+     * before this runs (e.g. by preceding it with a manifest-await step); the capture inside
+     * this method is a single query, not a poll.
      */
     static Stream<DynamicTest> setupBothNetworksWithManifestProof(
             final SubProcessNetwork ledgerA,
             final SubProcessNetwork ledgerB,
             final int portA,
             final int portB,
-            final ClprCrypto crypto,
-            final byte[] caDerA,
-            final byte[] caDerB) {
+            final ClprCrypto crypto) {
         final AtomicReference<ByteString> proofA = new AtomicReference<>();
         final AtomicReference<ByteString> proofB = new AtomicReference<>();
         final AtomicReference<ByteString> manifestProofA = new AtomicReference<>();
@@ -840,7 +882,6 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                 ledgerA,
                 ledgerB,
                 "hiero:298",
-                portA,
                 proofA,
                 proofB,
                 manifestProofA,
@@ -848,13 +889,11 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                 crypto,
                 DEFAULT_MAX_MESSAGES_PER_BUNDLE,
                 DEFAULT_MAX_QUEUE_DEPTH,
-                caDerA, // advertise A's real CA cert; portA is A's clpr.mtlsPort
                 bothProofsReady);
         final var chainB = chainSetupAndConnect(
                 ledgerB,
                 ledgerA,
                 "hiero:299",
-                portB,
                 proofB,
                 proofA,
                 manifestProofB,
@@ -862,7 +901,6 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                 crypto,
                 DEFAULT_MAX_MESSAGES_PER_BUNDLE,
                 DEFAULT_MAX_QUEUE_DEPTH,
-                caDerB,
                 bothProofsReady);
         return Stream.of(networkHapiTest(
                         "Install + capture (config + manifest) + verify + deploy on both ledgers (mTLS, parallel)",
@@ -873,16 +911,24 @@ public abstract class HieroToHieroBase implements LifecycleTest {
     }
 
     /**
-     * Overload that also captures the local manifest state proof (into {@code selfManifestProof})
-     * after the config proof capture, and passes {@code peerManifestProof} into
-     * {@link #deployAndConnect} as {@code endpoint_manifest_proof_bytes}. When both manifest
-     * refs are null, this behaves identically to the plain overload.
+     * One ledger's full setup chain: install its own LedgerConfiguration, capture the resulting
+     * StateProof into {@code selfProof}, have the peer verify it, then deploy the local verifier
+     * contract and open the channel using the peer's proof.
+     *
+     * <p>Steps within this chain are strictly sequential — each depends on the prior's on-chain
+     * effect or captured bytes. Two such chains run in parallel via {@link ParallelSpecOps}. The
+     * {@code bothProofsReady} latch synchronizes the two chains at the deploy step: both must
+     * finish capturing before either can call {@link #deployAndConnect} with the peer's proof.
+     *
+     * <p>When {@code selfManifestProof} and {@code peerManifestProof} are non-null, it also captures the
+     * local manifest state proof into {@code selfManifestProof} after the config proof capture, and
+     * passes {@code peerManifestProof} into {@link #deployAndConnect} as
+     * {@code endpoint_manifest_proof_bytes}.
      */
     private static SpecOperation chainSetupAndConnect(
             final SubProcessNetwork self,
             final SubProcessNetwork peer,
             final String selfChainId,
-            final int selfPort,
             final AtomicReference<ByteString> selfProof,
             final AtomicReference<ByteString> peerProof,
             final AtomicReference<ByteString> selfManifestProof,
@@ -890,27 +936,44 @@ public abstract class HieroToHieroBase implements LifecycleTest {
             final ClprCrypto crypto,
             final int maxMessagesPerBundle,
             final int maxQueueDepth,
-            final byte[] selfTlsCert,
             final CountDownLatch bothProofsReady) {
         return withOpContext((ignoredSpec, ignoredLog) -> {
-            installLedgerConfig(self, selfChainId, selfPort, maxMessagesPerBundle, maxQueueDepth, selfTlsCert)
-                    .getExecutable()
-                    .execute();
-            captureConfigProof(self, selfProof, maxMessagesPerBundle, maxQueueDepth)
-                    .getExecutable()
-                    .execute();
-            if (selfManifestProof != null) {
-                captureManifestProof(self, selfManifestProof).getExecutable().execute();
+            try {
+                installLedgerConfig(self, selfChainId, maxMessagesPerBundle, maxQueueDepth)
+                        .getExecutable()
+                        .execute();
+                captureConfigProof(self, selfProof, maxMessagesPerBundle, maxQueueDepth)
+                        .getExecutable()
+                        .execute();
+                if (selfManifestProof != null) {
+                    captureManifestProof(self, selfManifestProof)
+                            .getExecutable()
+                            .execute();
+                }
+            } finally {
+                // Signal our capture is done — even when it threw, so the peer chain fails on our missing
+                // proof below instead of blocking forever in await().
+                bothProofsReady.countDown();
             }
-            verifyProofOnPeer(peer, selfProof).getExecutable().execute();
-            // Signal our capture is done, then wait for the peer chain to reach the same point
-            // before dispatching deployAndConnect (which uses the peer's proof).
-            bothProofsReady.countDown();
-            bothProofsReady.await();
+            // Wait for the peer chain to reach the same point before dispatching deployAndConnect
+            // (which uses the peer's proof).
+            if (!bothProofsReady.await(BOTH_PROOFS_READY_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)) {
+                throw new IllegalStateException("Peer '" + peer.name() + "' did not finish capturing its proofs within "
+                        + BOTH_PROOFS_READY_TIMEOUT);
+            }
+            if (isNullOrEmpty(peerProof) || (peerManifestProof != null && isNullOrEmpty(peerManifestProof))) {
+                throw new IllegalStateException(
+                        "Peer '" + peer.name() + "' failed to capture its config or endpoint-manifest proof");
+            }
             deployAndConnect(self, peer, crypto, peerProof, peerManifestProof)
                     .getExecutable()
                     .execute();
         });
+    }
+
+    private static boolean isNullOrEmpty(final AtomicReference<ByteString> proof) {
+        final var captured = proof.get();
+        return captured == null || captured.isEmpty();
     }
 
     /**
@@ -927,24 +990,19 @@ public abstract class HieroToHieroBase implements LifecycleTest {
 
     /**
      * Phase 1: install the LedgerConfiguration in state. Funds the node operator account so it can
-     * pay gas for the verifier-contract dispatch when handling inbound bundles. The {@code
-     * ownPort} parameter is this network's gRPC port — peers read it from the StateProof-attested
-     * config to know where to reach this network.
+     * pay gas for the verifier-contract dispatch when handling inbound bundles.
      */
     private static DynamicTest installLedgerConfig(
             final SubProcessNetwork network,
             final String ownChainId,
-            final int ownPort,
             final int maxMessagesPerBundle,
-            final int maxQueueDepth,
-            final byte[] tlsCertificate) {
+            final int maxQueueDepth) {
         return networkHapiTest(
                         "Install ledger config (" + ownChainId + ")",
                         network,
-                        // Block until the latest BlockProvenSnapshot's ledger_id is populated, so
-                        // ClprUpdateLedgerConfigurationHandler can read a non-empty
-                        // stateProofManager.latestLedgerId() and set initial_trust_anchor on the
-                        // config. Sequence:
+                        // Wait for the consensus history ledger id and signed snapshots to be ready.
+                        // The handler reads the trust anchor from consensus history; subsequent
+                        // captureConfigProof calls also need a snapshot carrying that identity. Sequence:
                         //   1. WRAPS-extensible — proving state is loaded.
                         //   2. [CLPR-SYNC-POINT] — the FIRST block proof embeds the WRAPS recursive
                         //      proof. On warm-cache this is block #0; the snapshot for that block is
@@ -953,8 +1011,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                         //   3. POST_SYNC_POINT_SETTLE — give the system time to sign at least one
                         //      MORE block, whose snapshot is captured strictly after the WRAPS-
                         //      embed, so latestSnapshot().ledgerId() is guaranteed non-empty.
-                        // Without this, captureConfigProof produces a StateProof with empty
-                        // initial_trust_anchor and VerifyConfigCall rejects it on the peer.
+                        // Without this, the peer's proof verification may run before TSS is ready.
                         withOpContext((spec, ignored) -> {
                             awaitWrapsExtensible(network);
                             awaitWrapsSyncPoint(network);
@@ -962,8 +1019,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                         }),
                         cryptoTransfer(tinyBarsFromTo(GENESIS, "3", 100_000_000_000L)),
                         clprUpdateLedgerConfiguration()
-                                .configuration(buildLedgerConfig(
-                                        ownChainId, ownPort, maxMessagesPerBundle, maxQueueDepth, tlsCertificate))
+                                .configuration(buildLedgerConfig(ownChainId, maxMessagesPerBundle, maxQueueDepth))
                                 .payingWith(GENESIS))
                 .findFirst()
                 .orElseThrow();
@@ -1000,39 +1056,25 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                         awaitWrapsSyncPoint(network);
                         Thread.sleep(POST_SYNC_POINT_SETTLE.toMillis());
                     }
-                    // Pre-register the CLPR system contract so the local probe-verify
-                    // (freshness gate) can target it by name via contractCall.
-                    spec.registry()
-                            .saveContractId(
-                                    VERIFIER + "_PROBE",
-                                    ContractID.newBuilder()
-                                            .setShardNum(spec.shard())
-                                            .setRealmNum(spec.realm())
-                                            .setContractNum(CLPR_SYSTEM_CONTRACT_NUM)
-                                            .build());
-                    final var deadline = Instant.now().plus(Duration.ofMinutes(2));
+                    final var deadline = Instant.now().plus(MANIFEST_APPEAR_TIMEOUT);
                     while (Instant.now().isBefore(deadline)) {
                         sink.set(ByteString.EMPTY);
                         allRunFor(
                                 spec,
                                 clprGetLedgerConfiguration().payingWith(GENESIS).exposingProofTo(sink::set));
                         final var captured = sink.get();
-                        // Freshness gate: re-runs verifyConfig(bytes,bytes32) on the captured proof and
-                        // checks the throttles ENCODED IN THE PROOF — not the live query response.
-                        // clprGetLedgerConfiguration's StateProof references a SIGNED block which
-                        // can lag the latest committed state by several seconds. Without this
-                        // check, the gate would accept a proof from BEFORE the just-issued install
-                        // committed (initialTrustAnchor was already non-empty from any prior
-                        // install on the shared network). That stale proof would later be
-                        // verified at clprCompleteChannel and the channel's peerThrottles
-                        // would carry the PRIOR install's values, mispacing the orchestrator.
+                        // In-process freshness gate: decode the ClprLedgerConfiguration carried by the
+                        // captured StateProof and require (a) a populated initial_trust_anchor and (b) the
+                        // just-installed throttles. clprGetLedgerConfiguration proves against a SIGNED block
+                        // that lags committed state, so an early capture can carry an empty trust anchor (the
+                        // ledger_id isn't in the proven config yet) or a PRIOR install's throttles — either of
+                        // which would make the peer's clprCompleteChannel verifyConfig revert. Decoding in
+                        // process (rather than calling the verifier precompile) gives the same guarantee
+                        // without the 6 KB call-size limit the config+manifest proofs would exceed.
                         if (captured != null
                                 && !captured.isEmpty()
-                                && proofMatchesExpectedThrottles(
-                                        spec,
-                                        captured.toByteArray(),
-                                        expectedMaxMessagesPerBundle,
-                                        expectedMaxQueueDepth)) {
+                                && configProofIsFresh(
+                                        captured.toByteArray(), expectedMaxMessagesPerBundle, expectedMaxQueueDepth)) {
                             return;
                         }
                         Thread.sleep(POLL_INTERVAL.toMillis());
@@ -1052,7 +1094,8 @@ public abstract class HieroToHieroBase implements LifecycleTest {
      * manifest is finalized (version &gt;= 2, endpoints &gt;= 1) — proving the reconciler-driven
      * self-publication has landed and closed a construction.
      */
-    static DynamicTest captureManifestProof(final SubProcessNetwork network, final AtomicReference<ByteString> sink) {
+    public static DynamicTest captureManifestProof(
+            final SubProcessNetwork network, final AtomicReference<ByteString> sink) {
         return networkHapiTest("Capture endpoint-manifest StateProof", network, withOpContext((spec, ignored) -> {
                     final var deadline = Instant.now().plus(MANIFEST_APPEAR_TIMEOUT);
                     final long[] observedVersion = {0L};
@@ -1071,7 +1114,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                         final var captured = sink.get();
                         if (captured != null
                                 && !captured.isEmpty()
-                                && observedVersion[0] >= FINALIZED_MANIFEST_MIN_VERSION
+                                && observedVersion[0] >= 2L
                                 && observedEndpoints[0] >= 1) {
                             return;
                         }
@@ -1128,123 +1171,28 @@ public abstract class HieroToHieroBase implements LifecycleTest {
     }
 
     /**
-     * Phase 3: cross-network probe. Runs {@code verifyConfig(bytes,bytes32)} on the PEER network — the
-     * same {@code EvmClprVerifier} code path {@code clprCompleteChannel} will exercise — so
-     * a SUCCESS here means the peer will accept the source's proof. Required because a proof
-     * that self-verifies on the source ledger may still be rejected on a peer that doesn't yet
-     * share the source's TSS key material (notably on cold path, where the WRAPS recursive
-     * proof needs settle time to embed the keys the peer needs).
+     * True when the config {@link com.hedera.hapi.block.stream.StateProof} decodes to a
+     * {@code ClprLedgerConfiguration} that carries a populated {@code initial_trust_anchor} and the
+     * just-installed throttles — i.e. the proof is committed and current, so the peer's
+     * {@code clprCompleteChannel} verifyConfig will accept it.
      *
-     * <p>Retries on non-SUCCESS replies until either acceptance or timeout; warm path typically
-     * succeeds on the first attempt. {@code .hasKnownStatus(SUCCESS)} throws on non-SUCCESS,
-     * which we catch and convert to "peer hasn't accepted yet — retry."
+     * <p>{@code clprGetLedgerConfiguration} proves against a SIGNED block that lags committed state, so an
+     * early capture can carry an empty trust anchor (the ledger_id isn't in the proven config yet) or a
+     * PRIOR install's throttles on a shared network. Both would make the peer's completeChannel verifyConfig
+     * revert. This is decoded in-process (see {@link ClprTestProofs#decodeLedgerConfig}) rather than via a
+     * verifier-precompile call, so it is not subject to the 6 KB contract-call size limit that the
+     * config+manifest proofs together would exceed.
      */
-    private static DynamicTest verifyProofOnPeer(
-            final SubProcessNetwork peer, final AtomicReference<ByteString> sourceProofSink) {
-        return networkHapiTest("Verify peer accepts our config StateProof", peer, withOpContext((peerSpec, ignored) -> {
-                    peerSpec.registry()
-                            .saveContractId(
-                                    VERIFIER + "_PROBE",
-                                    ContractID.newBuilder()
-                                            .setShardNum(peerSpec.shard())
-                                            .setRealmNum(peerSpec.realm())
-                                            .setContractNum(CLPR_SYSTEM_CONTRACT_NUM)
-                                            .build());
-                    final var deadline = Instant.now().plus(Duration.ofMinutes(3));
-                    while (Instant.now().isBefore(deadline)) {
-                        final var captured = sourceProofSink.get();
-                        if (captured != null
-                                && !captured.isEmpty()
-                                && probeProofVerifies(peerSpec, captured.toByteArray())) {
-                            return;
-                        }
-                        Thread.sleep(POLL_INTERVAL.toMillis());
-                    }
-                    throw new IllegalStateException("Peer '" + peer.name() + "' never accepted the source's captured "
-                            + "config state proof within probe deadline");
-                }))
-                .findFirst()
-                .orElseThrow();
-    }
-
-    /**
-     * Probes whether the given network's CLPR system contract precompile will accept the
-     * captured StateProof via {@code verifyConfig(bytes,bytes32)}. Issues a CONSENSUS contract call
-     * (not a local static call) — same code path {@code clprCompleteChannel}'s
-     * {@code EvmClprVerifier} dispatch runs, so by construction it returns the same
-     * accept/reject decision the peer would.
-     */
-    private static boolean probeProofVerifies(final HapiSpec spec, final byte[] capturedProof) {
-        // Accept SUCCESS or CONTRACT_REVERT_EXECUTED as permissible outcomes so the polling loop
-        // doesn't throw (and log ERROR) on every attempt while the proof is still stale. The
-        // caller distinguishes accept vs retry by inspecting the actual status below.
-        // The probe only inspects config fields; its channel context uses a zero channel ID.
-        final var op = contractCallWithFunctionAbi(
-                        VERIFIER + "_PROBE",
-                        VERIFY_CONFIG_WITH_SEED_ENDPOINTS.toJson(false),
-                        capturedProof,
-                        new byte[32])
-                .payingWith(GENESIS)
-                .gas(GAS)
-                .hasKnownStatusFrom(ResponseCodeEnum.SUCCESS, ResponseCodeEnum.CONTRACT_REVERT_EXECUTED)
-                .noLogging();
-        allRunFor(spec, op);
-        return op.getActualStatus() == ResponseCodeEnum.SUCCESS;
-    }
-
-    /**
-     * Stronger freshness gate: runs {@code verifyConfig(bytes,bytes32)} on the proof and inspects the
-     * configuration fields the precompile recovers from inside the proof.
-     * If the decoded throttles don't match what we just installed, the proof references a block
-     * signed BEFORE our install committed — caller re-polls. {@link #probeProofVerifies}'s
-     * SUCCESS check alone catches the "no install ever ran" case (empty initialTrustAnchor) but
-     * passes any proof whose initialTrustAnchor was set by a PRIOR install, masking stale-proof
-     * leakage across tests on a shared network.
-     */
-    private static boolean proofMatchesExpectedThrottles(
-            final HapiSpec spec,
-            final byte[] capturedProof,
-            final int expectedMaxMessagesPerBundle,
-            final int expectedMaxQueueDepth) {
-        // Accept SUCCESS or CONTRACT_REVERT_EXECUTED as permissible outcomes so the polling loop
-        // doesn't throw (and log ERROR) on every attempt while the proof is still stale. Don't
-        // wire exposingResultTo — that would make the framework auto-decode the return value
-        // even on REVERT (via HapiContractCall.updateStateOf → doObservedLookup), and the
-        // reverted call's empty return bytes trip a BufferUnderflowException inside headlong's
-        // Function.decodeReturn. Instead: name the txn via .via(...), then when we see SUCCESS,
-        // fetch the record and decode ourselves in a controlled try-block.
-        final var probeTxn = "clprProofFreshnessProbe_" + PROBE_COUNTER.incrementAndGet();
-        // The probe only inspects config fields; its channel context uses a zero channel ID.
-        final var op = contractCallWithFunctionAbi(
-                        VERIFIER + "_PROBE",
-                        VERIFY_CONFIG_WITH_SEED_ENDPOINTS.toJson(false),
-                        capturedProof,
-                        new byte[32])
-                .payingWith(GENESIS)
-                .gas(GAS)
-                .via(probeTxn)
-                .hasKnownStatusFrom(ResponseCodeEnum.SUCCESS, ResponseCodeEnum.CONTRACT_REVERT_EXECUTED)
-                .noLogging();
-        allRunFor(spec, op);
-        if (op.getActualStatus() != ResponseCodeEnum.SUCCESS) {
+    private static boolean configProofIsFresh(
+            final byte[] configProofBytes, final int expectedMaxMessagesPerBundle, final int expectedMaxQueueDepth) {
+        final var config = ClprTestProofs.decodeLedgerConfig(configProofBytes);
+        if (config == null || config.initialTrustAnchor().length() == 0) {
             return false;
         }
-        final var decoded = new AtomicReference<Tuple>();
-        allRunFor(spec, getTxnRecord(probeTxn).assertingNothing().noLogging().exposingTo(record -> {
-            try {
-                final var callResult =
-                        record.getContractCallResult().getContractCallResult().toByteArray();
-                decoded.set(VERIFY_CONFIG_WITH_SEED_ENDPOINTS
-                        .decodeReturn(callResult)
-                        .get(4));
-            } catch (final Exception e) {
-                log.warn("[HieroToHieroBase] proofMatchesExpectedThrottles: verifyConfig result decode failed", e);
-            }
-        }));
-        final var throttles = decoded.get();
+        final var throttles = config.throttles();
         return throttles != null
-                && BigInteger.valueOf(expectedMaxMessagesPerBundle).equals(throttles.get(0))
-                && BigInteger.valueOf(expectedMaxQueueDepth).equals(throttles.get(3));
+                && throttles.maxMessagesPerBundle() == expectedMaxMessagesPerBundle
+                && throttles.maxQueueDepth() == expectedMaxQueueDepth;
     }
 
     /**
@@ -1301,10 +1249,9 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                                     // Fail loudly if the captured StateProof was stale — would otherwise
                                     // pass silently and downstream knownChannels would stay at 0.
                                     .hasKnownStatus(ResponseCodeEnum.SUCCESS);
-                            // Manifest proof is REQUIRED under clpr.endpointManifestEnabled=true
-                            // (spec §4.8). Callers who enable the flag must supply a captured
-                            // proof; flag-off callers pass null here and rely on the V1 verifier
-                            // path which ignores the field.
+                            // Manifest proof is REQUIRED (spec §4.8): the manifest-aware verifier
+                            // ABI rejects an empty manifest proof, so callers must supply a captured
+                            // proof when one is available.
                             if (peerManifestProof != null) {
                                 op = op.endpointManifestProofBytes(
                                         peerManifestProof.get().toByteArray());
@@ -1330,6 +1277,24 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                 .orElseThrow();
     }
     // ── Polling helpers ───────────────────────────────────────────────────────
+
+    /**
+     * Collapses a multi-network test's ordered steps into a <b>single</b> {@link DynamicTest} that runs
+     * them sequentially in one executable. Each {@code @MultiNetworkHapiTest} method wraps its returned
+     * stream in this so that, under {@code parallel.mode.default=concurrent}, the factory's steps do NOT
+     * get parallelized (which would run e.g. an await before its send); instead the whole test is one
+     * node, and only <em>different</em> test methods run concurrently (serialized per network by
+     * {@code ClprNetworkLocksProvider}). The trade-off is coarser reporting: one reported test per method
+     * rather than one per step (a failing step still surfaces via its spec name in the exception).
+     */
+    public static Stream<DynamicTest> multiNetworkHapiTest(final String name, final Stream<DynamicTest> steps) {
+        final var ordered = steps.toList();
+        return Stream.of(DynamicTest.dynamicTest(name, () -> {
+            for (final var step : ordered) {
+                step.getExecutable().execute();
+            }
+        }));
+    }
 
     static DynamicTest awaitReceivedMessage(
             final SubProcessNetwork network, final byte[] channelId, final long minCount) {
@@ -1540,18 +1505,9 @@ public abstract class HieroToHieroBase implements LifecycleTest {
     // ── Config helpers ────────────────────────────────────────────────────────
 
     /**
-     * Placeholder {@code tls_certificate} advertised by the plaintext (non-mTLS) suites. It cannot be
-     * empty: {@code ClprUpdateLedgerConfigurationHandler.validateEndpoint} rejects an endpoint whose
-     * {@code tls_certificate} equals {@code Bytes.EMPTY} with {@code CLPR_INVALID_SEED_ENDPOINT}. These
-     * bytes are never parsed on the plaintext path (only the mTLS server/synchronizer read the cert),
-     * so a single inert byte is enough.
-     */
-    static final byte[] DUMMY_TLS_CERT = {0x01};
-
-    /**
      * 20-byte EVM address of the Hiero CLPR system contract precompile
      * ({@code 0x000000000000000000000000000000000000016e}) — same value the reconciler
-     * pre-populates into the endpoint manifest at genesis (see {@code V0770ClprSchema}).
+     * pre-populates into the endpoint manifest at genesis (see {@code V0780ClprSchema}).
      * Using it here keeps {@code config.service_address == manifest.service_address}, an
      * invariant the manifest-aware verifier enforces (spec §4.8). {@link ClprCrypto} also
      * incorporates it into the connector signature.
@@ -1559,32 +1515,10 @@ public abstract class HieroToHieroBase implements LifecycleTest {
     static final byte[] CLPR_SERVICE_ADDRESS = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, (byte) 0x6e};
 
     static ClprLedgerConfiguration buildLedgerConfig(
-            final String chainId, final int peerPort, final int maxMessagesPerBundle, final int maxQueueDepth) {
-        return buildLedgerConfig(chainId, peerPort, maxMessagesPerBundle, maxQueueDepth, DUMMY_TLS_CERT);
-    }
-
-    /**
-     * As {@link #buildLedgerConfig(String, int, int, int)} but advertises {@code tlsCertificate} as
-     * the endpoint's {@code tls_certificate} (the DER of this network's CLPR CA). For mTLS suites,
-     * {@code peerPort} must be this network's {@code clpr.mtlsPort} — the port the dedicated mTLS
-     * sync listener binds — since with mTLS on, the CLPR {@code sync} method is served only there.
-     */
-    static ClprLedgerConfiguration buildLedgerConfig(
-            final String chainId,
-            final int peerPort,
-            final int maxMessagesPerBundle,
-            final int maxQueueDepth,
-            final byte[] tlsCertificate) {
+            final String chainId, final int maxMessagesPerBundle, final int maxQueueDepth) {
         return ClprLedgerConfiguration.newBuilder()
                 .setChainId(chainId)
                 .setServiceAddress(ByteString.copyFrom(CLPR_SERVICE_ADDRESS))
-                .addEndpoints(ClprEndpoint.newBuilder()
-                        .setServiceEndpoint(ClprServiceEndpoint.newBuilder()
-                                .setIpAddress("127.0.0.1")
-                                .setPort(peerPort)
-                                .build())
-                        .setTlsCertificate(ByteString.copyFrom(tlsCertificate))
-                        .build())
                 .setThrottles(ClprThrottles.newBuilder()
                         .setMaxMessagesPerBundle(maxMessagesPerBundle)
                         .setMaxMessagePayloadBytes(65536)
@@ -1627,28 +1561,24 @@ public abstract class HieroToHieroBase implements LifecycleTest {
             Ed25519.generatePublicKey(TEST_PRIVATE_KEY, 0, publicKey, 0);
 
             final var seed = "hiero-e2e-test-conn-v1-" + INSTANCE_COUNTER.incrementAndGet();
-            channelId = keccak256(seed.getBytes(StandardCharsets.UTF_8));
+            channelId = MiscCryptoUtils.keccak256DigestOf(seed.getBytes(StandardCharsets.UTF_8));
 
             // Channel commitment: keccak256(channelId || pubKey)
-            channelCommitment = keccak256(concat(channelId, publicKey));
+            channelCommitment = MiscCryptoUtils.keccak256DigestOf(concat(channelId, publicKey));
 
             // Channel signature: Ed25519 over keccak256(channelId)
-            final var connSigMsg = keccak256(channelId);
+            final var connSigMsg = MiscCryptoUtils.keccak256DigestOf(channelId);
             Ed25519.sign(TEST_PRIVATE_KEY, 0, connSigMsg, 0, connSigMsg.length, channelSignature, 0);
 
             // connectorId = keccak256(channelId || pubKey || connectorSalt)
-            connectorId = keccak256(concat(channelId, concat(publicKey, connectorSalt)));
+            connectorId = MiscCryptoUtils.keccak256DigestOf(concat(channelId, concat(publicKey, connectorSalt)));
 
             // Connector commitment: keccak256(connectorId || pubKey)
-            connectorCommitment = keccak256(concat(connectorId, publicKey));
+            connectorCommitment = MiscCryptoUtils.keccak256DigestOf(concat(connectorId, publicKey));
 
             // Connector signature: Ed25519 over keccak256(connectorId || CLPR_SERVICE_ADDRESS)
-            final var connectorSigMsg = keccak256(concat(connectorId, CLPR_SERVICE_ADDRESS));
+            final var connectorSigMsg = MiscCryptoUtils.keccak256DigestOf(concat(connectorId, CLPR_SERVICE_ADDRESS));
             Ed25519.sign(TEST_PRIVATE_KEY, 0, connectorSigMsg, 0, connectorSigMsg.length, connectorSignature, 0);
-        }
-
-        private static byte[] keccak256(final byte[] input) {
-            return new Keccak.Digest256().digest(input);
         }
 
         private static byte[] concat(final byte[] a, final byte[] b) {

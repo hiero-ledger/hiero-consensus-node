@@ -81,6 +81,7 @@ public interface TranslationContext {
                     .sigMap(signedTx.sigMap())
                     .build();
             final var bytes = Transaction.PROTOBUF.toBytes(tx);
+            // Even with the switch to hash blocks with SHA-256, the transaction hashes are still hashed with SHA-384
             return Bytes.wrap(noThrowSha384HashOf(bytes.toByteArray()));
         } else {
             // Normal path, dealing with a SignedTransaction constructed from a HAPI Transaction
@@ -89,6 +90,7 @@ public interface TranslationContext {
             if (bytes == null) {
                 bytes = SignedTransaction.PROTOBUF.toBytes(signedTx);
             }
+            // Even with the switch to hash blocks with SHA-256, the transaction hashes are still hashed with SHA-384
             return Bytes.wrap(noThrowSha384HashOf(bytes.toByteArray()));
         }
     }

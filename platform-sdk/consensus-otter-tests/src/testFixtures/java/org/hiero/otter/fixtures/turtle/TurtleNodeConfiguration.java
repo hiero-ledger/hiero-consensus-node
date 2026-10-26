@@ -37,19 +37,19 @@ public class TurtleNodeConfiguration extends AbstractNodeConfiguration {
             @NonNull final Path outputDirectory) {
         super(lifeCycleSupplier, overrideProperties);
 
-        this.overrideProperties.withConfigValue(MetricsConfig_.DISABLE_METRICS_OUTPUT, true);
-        this.overrideProperties.withConfigValue(BasicConfig_.JVM_PAUSE_DETECTOR_SLEEP_MS, 0);
-        this.overrideProperties.withConfigValue(MerkleDbConfig_.INITIAL_CAPACITY, 10_000L);
-        this.overrideProperties.withConfigValue(MerkleDbConfig_.MAX_NUM_OF_KEYS, 100_000L);
-        this.overrideProperties.withConfigValue(PcesConfig_.LIMIT_REPLAY_FREQUENCY, false);
-        this.overrideProperties.withConfigValue(PcesConfig_.PCES_FILE_WRITER_TYPE, PcesFileWriterType.OUTPUT_STREAM);
-        this.overrideProperties.withConfigValue(EventConfig_.EVENTS_LOG_DIR, outputDirectory.resolve("hgcapp"));
-        this.overrideProperties.withConfigValue(PathsConfig_.SAVED_STATE_DIR, outputDirectory.resolve("data/saved"));
-        this.overrideProperties.withConfigValue(PathsConfig_.SETTINGS_USED_DIR, outputDirectory);
-        this.overrideProperties.withConfigValue(PathsConfig_.KEYS_DIR_PATH, outputDirectory.resolve("data/keys"));
-        this.overrideProperties.withConfigValue(StateConfig_.SAVE_STATE_ASYNC, false);
-        this.overrideProperties.withConfigValue(ReconnectConfig_.ACTIVE, false);
-        this.overrideProperties.withConfigValue(
+        this.defaultProperties.withConfigValue(MetricsConfig_.DISABLE_METRICS_OUTPUT, true);
+        this.defaultProperties.withConfigValue(BasicConfig_.JVM_PAUSE_DETECTOR_SLEEP_MS, 0);
+        this.defaultProperties.withConfigValue(MerkleDbConfig_.INITIAL_CAPACITY, 10_000L);
+        this.defaultProperties.withConfigValue(MerkleDbConfig_.MAX_NUM_OF_KEYS, 100_000L);
+        this.defaultProperties.withConfigValue(PcesConfig_.LIMIT_REPLAY_FREQUENCY, false);
+        this.defaultProperties.withConfigValue(PcesConfig_.PCES_FILE_WRITER_TYPE, PcesFileWriterType.OUTPUT_STREAM);
+        this.defaultProperties.withConfigValue(EventConfig_.EVENTS_LOG_DIR, outputDirectory.resolve("hgcapp"));
+        this.defaultProperties.withConfigValue(PathsConfig_.SAVED_STATE_DIR, outputDirectory.resolve("data/saved"));
+        this.defaultProperties.withConfigValue(PathsConfig_.SETTINGS_USED_DIR, outputDirectory);
+        this.defaultProperties.withConfigValue(PathsConfig_.KEYS_DIR_PATH, outputDirectory.resolve("data/keys"));
+        this.defaultProperties.withConfigValue(StateConfig_.SAVE_STATE_ASYNC, false);
+        this.defaultProperties.withConfigValue(ReconnectConfig_.ACTIVE, false);
+        this.defaultProperties.withConfigValue(
                 ModulesConfig_.GOSSIP, TurtleGossipModule.class.getModule().getName());
     }
 }

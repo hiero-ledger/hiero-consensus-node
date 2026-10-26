@@ -13,7 +13,6 @@ import com.hedera.hapi.node.state.clpr.ClprStreamingSyncPayload;
 import com.hedera.node.app.service.clpr.ClprEndpointServiceDefinition;
 import com.hedera.node.app.workflows.clpr.ClprStreamingSyncSession;
 import com.hedera.node.app.workflows.clpr.ClprSyncWorkflow;
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -79,7 +78,7 @@ class ClprStreamingSyncServerTest {
 
     private static final MethodDescriptor<byte[], byte[]> STREAMING_SYNC = MethodDescriptor.<byte[], byte[]>newBuilder()
             .setType(MethodDescriptor.MethodType.BIDI_STREAMING)
-            .setFullMethodName(ClprEndpointServiceDefinition.STREAMING_SYNC_FULL_METHOD_NAME)
+            .setFullMethodName(ClprEndpointServiceDefinition.SYNC_FULL_METHOD_NAME)
             .setRequestMarshaller(BYTE_MARSHALLER)
             .setResponseMarshaller(BYTE_MARSHALLER)
             .build();
@@ -100,28 +99,28 @@ class ClprStreamingSyncServerTest {
     }
 
     @Test
-    @DisplayName("streamingSync is registered alongside the unary sync method, as BIDI_STREAMING")
+    @DisplayName("the streaming sync is registered as BIDI_STREAMING alongside the service's other unary methods")
     void registersStreamingMethodOnTheSyncListener() {
-        // The pre-existing unary method has to survive the merge: a gRPC server keys its registry by service name, so
-        // returning a second definition under that name rather than merging into this one would displace it.
-        final var unarySync = MethodDescriptor.<byte[], byte[]>newBuilder()
+        // The service's other methods have to survive the merge: a gRPC server keys its registry by service name, so
+        // returning a second definition under that name rather than merging into this one would displace them.
+        final var otherUnary = MethodDescriptor.<byte[], byte[]>newBuilder()
                 .setType(MethodDescriptor.MethodType.UNARY)
-                .setFullMethodName(ClprEndpointServiceDefinition.SERVICE_NAME + "/sync")
+                .setFullMethodName(ClprEndpointServiceDefinition.SERVICE_NAME + "/otherUnary")
                 .setRequestMarshaller(BYTE_MARSHALLER)
                 .setResponseMarshaller(BYTE_MARSHALLER)
                 .build();
         final var base = ServerServiceDefinition.builder(ClprEndpointServiceDefinition.SERVICE_NAME)
-                .addMethod(unarySync, ServerCalls.asyncUnaryCall((ignoredRequest, ignoredObserver) -> {}))
+                .addMethod(otherUnary, ServerCalls.asyncUnaryCall((ignoredRequest, ignoredObserver) -> {}))
                 .build();
 
         final var withStreaming =
                 NettyGrpcServerManager.addClprStreamingSync(base, noopWorkflow(), new DataBufferMarshaller(256, 128));
 
-        final var method = withStreaming.getMethod(ClprEndpointServiceDefinition.STREAMING_SYNC_FULL_METHOD_NAME);
+        final var method = withStreaming.getMethod(ClprEndpointServiceDefinition.SYNC_FULL_METHOD_NAME);
         assertThat(method).isNotNull();
         assertThat(method.getMethodDescriptor().getType()).isEqualTo(MethodDescriptor.MethodType.BIDI_STREAMING);
 
-        final var survivor = withStreaming.getMethod(unarySync.getFullMethodName());
+        final var survivor = withStreaming.getMethod(otherUnary.getFullMethodName());
         assertThat(survivor).isNotNull();
         assertThat(survivor.getMethodDescriptor().getType()).isEqualTo(MethodDescriptor.MethodType.UNARY);
     }
@@ -272,15 +271,6 @@ class ClprStreamingSyncServerTest {
 
     private static ClprSyncWorkflow workflowReturning(final ClprStreamingSyncSession session) {
         return new ClprSyncWorkflow() {
-            @Override
-            public void handleSync(@NonNull final Bytes requestBytes, @NonNull final BufferedData responseBuffer) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public void handleDiscovery(@NonNull final Bytes requestBytes, @NonNull final BufferedData responseBuffer) {
-                throw new UnsupportedOperationException();
-            }
 
             @NonNull
             @Override
@@ -293,15 +283,6 @@ class ClprStreamingSyncServerTest {
     /** A workflow that rejects every attempt to open a session. */
     private static ClprSyncWorkflow workflowRefusingWith(final RuntimeException rejection) {
         return new ClprSyncWorkflow() {
-            @Override
-            public void handleSync(@NonNull final Bytes requestBytes, @NonNull final BufferedData responseBuffer) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public void handleDiscovery(@NonNull final Bytes requestBytes, @NonNull final BufferedData responseBuffer) {
-                throw new UnsupportedOperationException();
-            }
 
             @NonNull
             @Override

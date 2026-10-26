@@ -48,20 +48,22 @@ release candidate tag (`build-XXXXX`) and the subsequent workflows that are trig
 
 ## XTS PATH
 
-1. `900: [CRON] CITR Ext Test Suite` schedules itself every 3 hours
+1. `900: [CRON] CITR Ext Test Suite` schedules itself every 3 hours (to be deprecated when Chewie owns workflow dispatching)
 2. `900: [CRON] CITR Ext Test Suite` sees a tag xts-candidate
-3. `900: [CRON] CITR Ext Test Suite` runs XTS (required an optional)
-4. XTS Required jobs complete
-5. XTS tags the commit that was pushed to main in (`MATS-main PATH 1`) with `xts-pass-<epochtime>`
+3. `900: [CRON] CITR Ext Test Suite` TRIGGERS `226: [DISP] CITR XTS Controller` with the tagged commit
+4. `226: [DISP] CITR XTS Controller` runs XTS (required and optional)
+5. XTS Required jobs complete, and `226` reports the result to Chewie
+6. `226` tags the commit that was pushed to main in (`MATS-main PATH 1`) with `xts-pass-<epochtime>`
 
 ## `901: [CRON] CITR Promote Build` PATH
 
-1. `901: [CRON] CITR Promote Build` is scheduled once per day (roughly 8pm US Central)
+1. `901: [CRON] CITR Promote Build` is scheduled once per day (roughly 8pm US Central) (to be deprecated when Chewie owns workflow dispatching)
 2. `901: [CRON] CITR Promote Build` sees all commits tagged as `xts-pass-<epochtime>`
 3. `901: [CRON] CITR Promote Build` tags the most recent `xts-pass-<epochtime>` tag as `build-XXXXX` (in this scenario `MATS-main PATH 1`)
-4. `901: [CRON] CITR Promote Build` TRIGGERS a new workflow, `221: [DISP] CITR SDPT Controller`
-5. `901: [CRON] CITR Promote Build` TRIGGERS a new workflow, `222: [DISP] CITR SDLT Controller`
-6. `901: [CRON] CITR Promote Build` TRIGGERS a new workflow, `223: [DISP] CITR SDCT Controller`
+4. `901: [CRON] CITR Promote Build` TRIGGERS a new workflow, `227: [DISP] CITR Daily Controllers`, with the build tag
+5. `227: [DISP] CITR Daily Controllers` TRIGGERS `221: [DISP] CITR SDPT Controller` and
+   `222: [DISP] CITR SDLT Controller`, which report their results to Chewie
+6. `227: [DISP] CITR Daily Controllers` TRIGGERS `223: [DISP] CITR SDCT Controller`
 
 ## Release Tag Push PATH
 

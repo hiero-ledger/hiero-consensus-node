@@ -7,9 +7,9 @@ module org.hiero.consensus.fakes {
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.consensus.metrics;
     requires transitive org.hiero.consensus.model;
-    requires transitive org.hiero.consensus.roster;
     requires transitive org.hiero.consensus.utility;
     requires com.hedera.node.hapi;
+    requires com.hedera.pbj.runtime;
     requires org.hiero.base.concurrent;
     requires static transitive com.github.spotbugs.annotations;
 }
