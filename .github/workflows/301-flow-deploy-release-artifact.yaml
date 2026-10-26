@@ -11,9 +11,14 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag to build and publish (vX.Y.Z, optionally with a suffix). It must already exist."
+        description: "Release tag to build and publish (vX.Y.Z, optionally with a suffix). It must already exist. Re-run only a release that failed before publishing: Maven Central refuses a version it already has."
         required: true
         type: string
+
+# A dispatch and the tag push for the same tag must not build it at the same time.
+concurrency:
+  group: 301-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
 
 defaults:
   run:
@@ -30,7 +35,6 @@ jobs:
     runs-on: hl-cn-default-lin-sm
     outputs:
       tag: ${{ steps.resolve.outputs.tag }}
-      ref: ${{ steps.resolve.outputs.ref }}
       commit: ${{ steps.resolve.outputs.commit }}
       version: ${{ steps.tag.outputs.version }}
       prerelease: ${{ steps.tag.outputs.prerelease }}
@@ -40,9 +44,12 @@ jobs:
         with:
           setup-semver: "true"
 
-      # A tag push builds the pushed commit. A dispatch builds the named tag,
-      # which must already exist; its commit is read from the remote, peeling
-      # an annotated tag to the commit it points at.
+      # Both triggers build a commit, never a tag ref: 850 resolves a tag ref
+      # with git ls-remote, which returns the tag object's SHA for an annotated
+      # tag, so building the ref would give a dispatch a different commit-id,
+      # artifact names and version from a push. A tag push builds the pushed
+      # commit. A dispatch builds the commit of the named tag, which must
+      # already exist, read from the remote and peeled through an annotated tag.
       - name: Resolve Release Tag
         id: resolve
         env:
@@ -54,13 +61,13 @@ jobs:
         run: |
           if [[ "${EVENT_NAME}" == "workflow_dispatch" ]]; then
             TAG="${INPUT_TAG}"
-            REF="refs/tags/${TAG}"
-            # Mirrors the push trigger's "v[0-9]+.[0-9]+.[0-9]+-?*" filter.
-            if [[ ! "${TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+            # Anchored at both ends: git ls-remote treats its patterns as globs,
+            # so a tag such as "v0.66.0*" would match several tags.
+            if [[ ! "${TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
               echo "::error title=Invalid Release Tag::'${TAG}' is not a release tag (vX.Y.Z, optionally with a suffix)."
               exit 1
             fi
-            REF_INFO="$(git ls-remote --tags "${REPO_URL}" "${REF}" "${REF}^{}")"
+            REF_INFO="$(git ls-remote --tags "${REPO_URL}" "refs/tags/${TAG}" "refs/tags/${TAG}^{}")"
             if [[ -z "${REF_INFO}" ]]; then
               echo "::error title=Release Tag Not Found::Tag '${TAG}' does not exist in ${REPO_URL}."
               exit 1
@@ -69,13 +76,11 @@ jobs:
             [[ -z "${COMMIT}" ]] && COMMIT="$(awk 'NR == 1 {print $1}' <<<"${REF_INFO}")"
           else
             TAG="${PUSHED_TAG}"
-            REF="${PUSHED_SHA}"
             COMMIT="${PUSHED_SHA}"
           fi
 
           {
             echo "tag=${TAG}"
-            echo "ref=${REF}"
             echo "commit=${COMMIT}"
           } >>"${GITHUB_OUTPUT}"
 
@@ -101,7 +106,7 @@ jobs:
     needs:
       - prepare-tag-release
     with:
-      ref: ${{ needs.prepare-tag-release.outputs.ref }}
+      ref: ${{ needs.prepare-tag-release.outputs.commit }}
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -116,7 +121,7 @@ jobs:
       new-version: ${{ needs.prepare-tag-release.outputs.version }}
       trigger-env-deploy: none
       release-profile: ${{ needs.prepare-tag-release.outputs.prerelease == 'true' && 'PrereleaseChannel' || 'MavenCentral' }}
-      ref: ${{ needs.prepare-tag-release.outputs.ref }}
+      ref: ${{ needs.prepare-tag-release.outputs.commit }}
       ref-name: ${{ needs.prepare-tag-release.outputs.tag }}
       java-version: ${{ needs.extract-jdk-version.outputs.jdk-version }}
       java-distribution: "temurin"
@@ -150,7 +155,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           token: ${{ secrets.GH_ACCESS_TOKEN }}
-          ref: ${{ needs.prepare-tag-release.outputs.ref }}
+          ref: ${{ needs.prepare-tag-release.outputs.commit }}
           fetch-depth: "0"
 
       - name: Checkout Hedera Protobufs Code
@@ -203,14 +208,18 @@ jobs:
       - prepare-tag-release
       - release-tag
       - update-hedera-protobufs
-    if: ${{ !cancelled() && contains(needs.*.result, 'failure') }}
+    # A dispatch whose tag did not resolve is bad input, not a failed release:
+    # the run already shows the error to whoever dispatched it, and with no
+    # resolved commit the report would name an unrelated commit's author.
+    if: ${{ !cancelled() && contains(needs.*.result, 'failure') &&
+      !(github.event_name == 'workflow_dispatch' && needs.prepare-tag-release.result == 'failure') }}
     steps:
       - name: Prepare Runner
         id: prepare-runner
         uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
-          checkout-ref: "${{ needs.prepare-tag-release.outputs.ref || github.sha }}"
+          checkout-ref: "${{ needs.prepare-tag-release.outputs.commit || github.sha }}"
           checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
           checkout-fetch-depth: "0"
           setup-gomplate: "true"
