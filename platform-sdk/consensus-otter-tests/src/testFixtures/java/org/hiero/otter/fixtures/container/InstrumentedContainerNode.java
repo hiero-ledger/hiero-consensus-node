@@ -1,8 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.container;
 
+import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
+import static org.hiero.otter.fixtures.internal.InstrumentedModules.INSTRUMENTED_EVENT_CREATOR;
+
+import com.swirlds.platform.builder.ModulesConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -10,6 +15,7 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.TimeManager;
+import org.hiero.otter.fixtures.container.proto.InstrumentationPingRequest;
 import org.hiero.otter.fixtures.internal.NetworkConfiguration;
 import org.hiero.otter.fixtures.internal.result.ConsensusRoundPool;
 import org.testcontainers.containers.Network;
@@ -20,7 +26,9 @@ import org.testcontainers.images.builder.ImageFromDockerfile;
  */
 public class InstrumentedContainerNode extends ContainerNode implements InstrumentedNode {
 
-    private final Logger log = LogManager.getLogger();
+    private static final Logger log = LogManager.getLogger();
+
+    private static final Duration PING_TIMEOUT = Duration.ofMinutes(1);
 
     /**
      * Constructor for the {@link InstrumentedContainerNode} class.
@@ -58,6 +66,7 @@ public class InstrumentedContainerNode extends ContainerNode implements Instrume
                 consensusRoundPool,
                 gcLoggingEnabled,
                 jvmArgs);
+        configuration().withConfigValue(ModulesConfig_.EVENT_CREATOR, INSTRUMENTED_EVENT_CREATOR);
     }
 
     /**
@@ -65,6 +74,12 @@ public class InstrumentedContainerNode extends ContainerNode implements Instrume
      */
     @Override
     public void ping(@NonNull final String message) {
-        log.warn("Pinging is not implemented yet.");
+        throwIsNotInLifecycle(RUNNING, "Cannot ping a node that is not running");
+        log.info("Sending instrumentation ping '{}' to node {}", message, selfId);
+        nodeCommBlockingStub
+                .withDeadlineAfter(PING_TIMEOUT)
+                .instrumentationPing(InstrumentationPingRequest.newBuilder()
+                        .setMessage(message)
+                        .build());
     }
 }

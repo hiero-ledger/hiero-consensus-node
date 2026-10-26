@@ -557,7 +557,7 @@ public class TurtleNode extends AbstractNode implements Node, SimulatorTimeManag
     }
 
     @NonNull
-    private NodeLoggingContext.LoggingContextScope installNodeContext() {
+    protected final NodeLoggingContext.LoggingContextScope installNodeContext() {
         return NodeLoggingContext.install(Long.toString(selfId().id()));
     }
 
