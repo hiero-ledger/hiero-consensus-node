@@ -140,7 +140,7 @@ public final class EventStreamGenerator {
                     parents(creator, nodeIds, shape.otherParents().sample(random), random),
                     BIRTH_ROUND,
                     timeCreated,
-                    transactions(shape, random),
+                    shape.sampleTransactions(random),
                     // the creator's range; nextInt, not nextLong(origin, bound), whose algorithm a JDK may change
                     random.nextInt(nodeIds.size() + 1),
                     timeCreated,
@@ -188,25 +188,5 @@ public final class EventStreamGenerator {
         final byte[] hash = new byte[digestType.digestLength()];
         random.nextBytes(hash);
         return new EventDescriptorWrapper(new Hash(hash, digestType), creator, birthRound);
-    }
-
-    /** Draws the transactions of an event: random bytes of the drawn sizes. */
-    @NonNull
-    private static List<Bytes> transactions(@NonNull final EventShape shape, @NonNull final Random random) {
-        final long count = shape.transactionsPerEvent().sample(random);
-        if (count < 0) {
-            throw new IllegalArgumentException("The shape drew " + count + " transactions");
-        }
-        final List<Bytes> transactions = new ArrayList<>();
-        for (long i = 0; i < count; i++) {
-            final long size = shape.transactionSize().sample(random);
-            if (size < 1) {
-                throw new IllegalArgumentException("The shape drew a transaction of " + size + " bytes");
-            }
-            final byte[] transaction = new byte[Math.toIntExact(size)];
-            random.nextBytes(transaction);
-            transactions.add(Bytes.wrap(transaction));
-        }
-        return transactions;
     }
 }

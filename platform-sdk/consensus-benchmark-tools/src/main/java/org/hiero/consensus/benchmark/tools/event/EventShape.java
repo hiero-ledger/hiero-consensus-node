@@ -3,7 +3,11 @@ package org.hiero.consensus.benchmark.tools.event;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
 
 /**
  * What an event looks like, apart from its place in the graph. A fixed shape uses
@@ -79,6 +83,28 @@ public record EventShape(
         requireNonNull(otherParents);
         requireNonNull(transactionsPerEvent);
         requireNonNull(transactionSize);
+    }
+
+    /**
+     * Draws the transactions of one event: their number from {@link #transactionsPerEvent()}, then for each a size from
+     * {@link #transactionSize()}, filled with random bytes. The event stream generator and Falcon's transaction
+     * supplier both draw an event's transactions with this method.
+     *
+     * @param random the source of all random choices
+     * @return the transactions
+     * @throws IllegalArgumentException if the shape draws a negative number of transactions or an empty transaction
+     */
+    @NonNull
+    public List<Bytes> sampleTransactions(@NonNull final Random random) {
+        final int count = Math.toIntExact(transactionsPerEvent.sample(random));
+        final List<Bytes> transactions = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            final int size = Math.toIntExact(transactionSize.sample(random));
+            final byte[] transaction = new byte[size];
+            random.nextBytes(transaction);
+            transactions.add(Bytes.wrap(transaction));
+        }
+        return transactions;
     }
 
     /**
