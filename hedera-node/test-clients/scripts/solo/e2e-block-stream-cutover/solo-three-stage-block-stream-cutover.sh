@@ -30,10 +30,9 @@ DEPLOY_RELEASE_TAG="${DEPLOY_RELEASE_TAG:-}"
 DEPLOY_VERSION_LABEL="${DEPLOY_VERSION_LABEL:-v$(cat "${REPO_ROOT}/version.txt")}"
 LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH:-${REPO_ROOT}/hedera-node/data}"
 
-WRAPS_REQUIRED_FILE_COUNT="${WRAPS_REQUIRED_FILE_COUNT:-4}"
 # Cap the WRAPS (Nova/rayon) prover's thread pool to limit its off-heap memory during the genesis
-# ceremony. Injected as TSS_LIB_NUM_OF_CORES in lockstep with the WRAPS artifacts path (before the
-# upgrade) so all nodes init WRAPS identically. Without it the prover grabs every host CPU, and with
+# ceremony. Injected as TSS_LIB_NUM_OF_CORES before startup so all nodes initialize WRAPS
+# with the same core limit. Without it the prover grabs every host CPU, and with
 # multiple nodes proving concurrently the off-heap peak dominates RAM. Capping trades genesis-proof
 # speed for much lower peak memory. Default 1 matches the HAPI subprocess tests and prevents four
 # concurrent provers from starving consensus on shared CI runners. Set empty (or 0) to use all cores.
@@ -44,11 +43,6 @@ APP_PROPS_STAGE2_FILE="${APP_PROPS_STAGE2_FILE:-${SCRIPT_DIR}/resources/0.79.1/a
 APP_PROPS_STAGE3_FILE="${APP_PROPS_STAGE3_FILE:-${SCRIPT_DIR}/resources/0.80.0/application.properties}"
 LOG4J2_XML_PATH="${LOG4J2_XML_PATH:-${REPO_ROOT}/hedera-node/configuration/dev/log4j2.xml}"
 HAPI_PATH="/opt/hgcapp/services-hedera/HapiApp2.0"
-WRAPS_ARTIFACTS_CONTAINER_DIR_DEFAULT="${HAPI_PATH}/data/keys/wraps"
-# Back the native WRAPS prover's large allocations with a sparse, memory-mapped file instead of
-# anonymous RAM. HAPI_PATH is PVC-backed, and every consensus StatefulSet owns a distinct PVC, so
-# this identical in-container path resolves to a unique real-disk file for each node.
-WRAPS_SWAP_FILE_CONTAINER_PATH="${WRAPS_SWAP_FILE_CONTAINER_PATH:-${HAPI_PATH}/wraps-alloc-swap.bin}"
 
 SOLO_UPGRADE_TIMEOUT_SECS="${SOLO_UPGRADE_TIMEOUT_SECS:-1800}"
 
@@ -265,10 +259,6 @@ wait_for_haproxy_ready() {
   done
 }
 
-configured_wraps_artifacts_container_dir() {
-  printf '%s\n' "${WRAPS_ARTIFACTS_CONTAINER_DIR_DEFAULT}"
-}
-
 # Solo creates the per-node `network-<alias>-data-config-cm` ConfigMaps straight through the
 # Kubernetes API during `block node add` (Helpers.copyBlockNodesJsonToConsensusNodes), passing an
 # empty label map, so they carry no Helm ownership metadata. The solo-deployment chart templates the
@@ -350,7 +340,7 @@ reapply_application_property_overrides() {
   done
 }
 
-# Pre-inject the WRAPS artifacts, swap-file, and core-limit variables into every consensus StatefulSet's
+# Pre-inject the WRAPS core limit into every consensus StatefulSet's
 # container spec BEFORE Solo's stage 1 deploy. Solo's --application-env drops the
 # env file onto disk but the container entrypoint never sources it, so the JVM
 # never sees it. `kubectl set env statefulset/...` is the only path that
@@ -359,19 +349,17 @@ reapply_application_property_overrides() {
 # initialize WRAPS in lockstep during the freeze-restart; injecting AFTER
 # triggers independent rolling restarts that produce SELF_ISS failures.
 inject_wraps_env_into_statefulsets() {
-  local node sts log_file wraps_dir
+  local node sts log_file
   local nodes=()
-  wraps_dir="$(configured_wraps_artifacts_container_dir)"
   log_file="${WORK_DIR}/inject-wraps-env.log"
   : > "${log_file}"
 
   IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
-  local -a wraps_env_args=(
-    "TSS_LIB_WRAPS_ARTIFACTS_PATH=${wraps_dir}"
-    "TSS_LIB_WRAPS_SWAP_FILE=${WRAPS_SWAP_FILE_CONTAINER_PATH}"
-  )
+  # Proving parameters ship in the library; no external artifacts or swap file are used.
+  # Removing the variable selects the library default (all cores).
+  local -a wraps_env_args=("TSS_LIB_NUM_OF_CORES-")
   if [[ "${WRAPS_NUM_CORES}" =~ ^[1-9][0-9]*$ ]]; then
-    wraps_env_args+=("TSS_LIB_NUM_OF_CORES=${WRAPS_NUM_CORES}")
+    wraps_env_args=("TSS_LIB_NUM_OF_CORES=${WRAPS_NUM_CORES}")
   fi
   log "Injecting ${wraps_env_args[*]} into ${#nodes[@]} consensus StatefulSets (log: ${log_file})"
 
@@ -481,26 +469,10 @@ verify_runtime_config_on_consensus_nodes() {
   done
 }
 
-consensus_pod_wraps_env() {
-  local pod="$1"
-  kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
-    "pid=\$(pgrep -f 'com.hedera.node.app.ServicesMain' | head -n 1);
-     if [ -n \"\${pid}\" ] && [ -r \"/proc/\${pid}/environ\" ]; then
-       tr '\\000' '\\n' < \"/proc/\${pid}/environ\" | sed -n 's/^TSS_LIB_WRAPS_ARTIFACTS_PATH=//p' | head -n 1
-     fi" 2>/dev/null
-}
-
-consensus_pod_wraps_file_count() {
-  local pod="$1"
-  local wraps_dir="$2"
-  kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
-    "find ${wraps_dir} -maxdepth 1 -type f 2>/dev/null | wc -l" 2>/dev/null | tr -d ' '
-}
-
 wraps_proof_present_in_log() {
   local pod="$1"
   kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
-    "grep -Eq 'Constructing (genesis|incremental) WRAPS proof with:' ${HAPI_PATH}/output/hgcaa.log" >/dev/null 2>&1
+    "grep -Eq 'History proof constructed \(#.*WRAPS-extensible\? true\)' ${HAPI_PATH}/output/hgcaa.log" >/dev/null 2>&1
 }
 
 # Detect a GENUINE WRAPS failure to bail early. We deliberately do NOT match a
@@ -659,47 +631,18 @@ EOF
 }
 
 verify_wraps_on_consensus_nodes() {
-  local wraps_dir="" expected_wraps=""
   local timeout_secs="${1:-600}"
   local deadline=0
-  local node pod found_env found_wraps ready_for_proof
+  local node pod
   local nodes=()
 
-  wraps_dir="$(configured_wraps_artifacts_container_dir)"
-  expected_wraps="${WRAPS_REQUIRED_FILE_COUNT}"
-
-  log "Verifying WRAPS runtime on each consensus node (expecting >=${expected_wraps} self-downloaded artifact files at ${wraps_dir} + proof construction, up to ${timeout_secs}s/node; the in-JVM env var is logged as a best-effort diagnostic only)"
+  log "Verifying completed WRAPS history proofs on each consensus node (up to ${timeout_secs}s/node)"
   IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
   for node in "${nodes[@]}"; do
     pod="network-${node}-0"
     deadline=$((SECONDS + timeout_secs))
 
-    ready_for_proof=false
-    found_env=""
-    found_wraps=""
-    while (( SECONDS < deadline )); do
-      if wraps_failure_present_in_log "${pod}"; then
-        echo "  ${pod}: WRAPS reported a runtime failure (check ${HAPI_PATH}/output/hgcaa.log)" >&2
-        return 1
-      fi
-      # found_env is a best-effort diagnostic: the /proc/<pid>/environ probe false-negatives on
-      # nodes that provably have the env set and are building proofs, so gate on the artifacts and
-      # let the authoritative proof-in-log check below decide.
-      found_env="$(consensus_pod_wraps_env "${pod}" || true)"
-      found_wraps="$(consensus_pod_wraps_file_count "${pod}" "${wraps_dir}" || true)"
-      if [[ "${found_wraps:-0}" -ge "${expected_wraps}" ]]; then
-        ready_for_proof=true
-        break
-      fi
-      sleep 5
-    done
-
-    if ! ${ready_for_proof}; then
-      echo "  ${pod}: timed out waiting for >=${expected_wraps} WRAPS artifacts in ${wraps_dir} (artifacts=${found_wraps:-0}/${expected_wraps}; env='${found_env:-unset}' [best-effort diagnostic])" >&2
-      return 1
-    fi
-
-    echo "  ${pod}: ${found_wraps} WRAPS artifacts present (env='${found_env:-unset}' [best-effort diagnostic]); waiting for 'Constructing (genesis|incremental) WRAPS proof with:' in hgcaa.log"
+    echo "  ${pod}: waiting for a completed, WRAPS-extensible history proof in hgcaa.log"
     local progress_tick=0
     while (( SECONDS < deadline )); do
       if wraps_failure_present_in_log "${pod}"; then
@@ -707,7 +650,7 @@ verify_wraps_on_consensus_nodes() {
         return 1
       fi
       if wraps_proof_present_in_log "${pod}"; then
-        echo "  ${pod}: WRAPS proof construction detected"
+        echo "  ${pod}: Completed WRAPS history proof detected"
         break
       fi
       if (( progress_tick > 0 && progress_tick % 6 == 0 )); then
@@ -718,47 +661,12 @@ verify_wraps_on_consensus_nodes() {
     done
 
     if ! wraps_proof_present_in_log "${pod}"; then
-      echo "  ${pod}: timed out after ${timeout_secs}s waiting for WRAPS proof construction" >&2
+      echo "  ${pod}: timed out after ${timeout_secs}s waiting for a completed WRAPS history proof" >&2
       return 1
     fi
   done
 
-  echo "All consensus nodes confirmed: WRAPS env wired, artifacts present, proof construction observed"
-}
-
-# Report, per consensus node, how long the CN itself spent downloading + extracting + verifying
-# the WRAPS proving-key archive from tss.wrapsProvingKeyDownloadUrl. Parsed from hgcaa.log:
-#   start: "WrapsProvingKeyVerification - ... Initiating download"
-#   end:   "WrapsProvingKeyVerification - Successfully downloaded and verified WRAPS proving key"
-# Duration is computed in pure awk (ms-of-day delta) so it works on both GNU and BSD date hosts.
-report_wraps_download_times() {
-  local node pod start_line end_line dur
-  local nodes=()
-  local hgcaa="${HAPI_PATH}/output/hgcaa.log"
-
-  log "WRAPS proving-key self-download times (per consensus node, from hgcaa.log):"
-  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
-  for node in "${nodes[@]}"; do
-    pod="network-${node}-0"
-    start_line="$(kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
-      "grep -aE 'WrapsProvingKeyVerification - .*Initiating download' '${hgcaa}' | head -n 1" 2>/dev/null || true)"
-    end_line="$(kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
-      "grep -aE 'WrapsProvingKeyVerification - Successfully downloaded and verified WRAPS proving key' '${hgcaa}' | head -n 1" 2>/dev/null || true)"
-    if [[ -z "${start_line}" ]]; then
-      echo "  ${pod}: no self-download observed (proving key already present, or not started)"
-      continue
-    fi
-    if [[ -z "${end_line}" ]]; then
-      echo "  ${pod}: download started but completion not yet logged"
-      continue
-    fi
-    # Each hgcaa.log line begins with 'YYYY-MM-DD HH:MM:SS.mmm'; split on space/colon/dot and
-    # take the wall-clock-of-day delta in milliseconds (guarding a midnight rollover).
-    dur="$(awk -v a="${start_line}" -v b="${end_line}" '
-      function ms(t,   x){ split(t, x, /[ :.]/); return ((x[2]*3600)+(x[3]*60)+x[4])*1000 + x[5] }
-      BEGIN { d = ms(b) - ms(a); if (d < 0) d += 86400000; printf "%.3f", d/1000 }')"
-    echo "  ${pod}: ${dur}s"
-  done
+  echo "All consensus nodes confirmed: completed WRAPS history proof observed"
 }
 
 # Delete a CN pod after the cutover to force a fresh JVM start + event replay,
@@ -1139,7 +1047,7 @@ verify_block_node_has_blocks() {
 # Dependency-free Python extractor: walks the protobuf wire format of a block-stream file
 # and converts the LedgerIdPublicationTransactionBody (Block.items[1] ->
 # BlockItem.signed_transaction[4] -> SignedTransaction.bodyBytes[1] ->
-# TransactionBody.ledger_id_publication[77]) into the canonical TssData JSON that the v0.39
+# TransactionBody.ledger_id_publication[77]) into the TssData JSON that the
 # block-verification plugin reads from app.state.tssBootstrapFilePath.
 write_ledger_id_extractor() {
   mkdir -p "${LEDGER_ID_EXTRACTOR_DIR}"
@@ -1214,7 +1122,6 @@ def extract_from_block(data):
 
 def tss_data_json(pub, block_number):
     ledger_id = find_field(pub, 1)
-    wraps_key = find_field(pub, 2)
     contributions = []
     for fnum, wtype, val in iter_fields(pub):
         if fnum != 3 or wtype != 2:
@@ -1234,11 +1141,10 @@ def tss_data_json(pub, block_number):
             "weight": str(weight),
             "schnorrPublicKey": base64.b64encode(history_key).decode("ascii"),
         })
-    if not ledger_id or not wraps_key or not contributions:
-        raise ValueError("LedgerIdPublication is missing ledger id, WRAPS key, or node contributions")
+    if not ledger_id or not contributions:
+        raise ValueError("LedgerIdPublication is missing ledger id or node contributions")
     return {
         "ledgerId": base64.b64encode(ledger_id).decode("ascii"),
-        "wrapsVerificationKey": base64.b64encode(wraps_key).decode("ascii"),
         "currentRoster": {"rosterEntries": contributions},
         "validFromBlock": str(block_number),
     }
@@ -1275,7 +1181,7 @@ EOF
 # Bootstrap the BN with the network's TSS ledger id so it can verify real-TSS-signed
 # blocks after the stage 3 upgrade. The BN only self-learns the ledger id from block 0; this
 # mid-chain BN never sees it, so we extract the LedgerIdPublication (published during stage 2)
-# from a MinIO .blk.gz, convert it to the v0.39 application-state TssData JSON, and roll the BN.
+# from a MinIO .blk.gz, convert it to application-state TssData JSON, and roll the BN.
 seed_block_node_tss_parameters() {
   require_cmd python3
   local minio_pod creds_tmp u p in_pod_dir bn_pod
@@ -1634,7 +1540,7 @@ deploy_stage1_hash_writing() {
     "blockStream.streamMode=BOTH" "blockStream.writerMode=FILE_AND_GRPC" \
     "blockStream.streamWrappedRecordBlocks=true" \
     "blockStream.enableCutover=false" "blockStream.jumpstart.blockNum=-1" \
-    "tss.hintsEnabled=false" "tss.historyEnabled=false" "tss.wrapsEnabled=false" \
+    "tss.hintsEnabled=false" "tss.historyEnabled=false" \
     "tss.forceMockSignatures=true"
 }
 
@@ -1740,7 +1646,7 @@ upgrade_stage2_jumpstart_and_tss() {
     "hedera.recordStream.liveWritePrevWrappedRecordHashes=true" \
     "blockStream.streamMode=BOTH" "blockStream.writerMode=FILE_AND_GRPC" \
     "blockStream.streamWrappedRecordBlocks=true" "blockStream.enableCutover=false" \
-    "tss.hintsEnabled=true" "tss.historyEnabled=true" "tss.wrapsEnabled=true" "tss.forceMockSignatures=true" \
+    "tss.hintsEnabled=true" "tss.historyEnabled=true" "tss.forceMockSignatures=true" \
     "blockStream.jumpstart.blockNum=${JUMPSTART_BLOCK_NUMBER}" \
     "blockStream.jumpstart.previousWrappedRecordBlockHash=${JUMPSTART_PREV_WRAPPED_RECORD_BLOCK_HASH}" \
     "blockStream.jumpstart.currentBlockConsensusTimestampHash=${JUMPSTART_CONSENSUS_TIMESTAMP_HASH}" \
@@ -2022,9 +1928,7 @@ upgrade_stage3_cutover() {
     "blockStream.buffer.isBufferPersistenceEnabled=true" \
     "tss.hintsEnabled=true" \
     "tss.historyEnabled=true" \
-    "tss.wrapsEnabled=true" \
-    "tss.forceMockSignatures=false" \
-    "tss.wrapsProvingKeyPath=${HAPI_PATH}/data/keys/wraps-archive"
+    "tss.forceMockSignatures=false"
 
   log "--- stage 3 check 2/4: nudge consensus with cryptoCreate txns ---"
   nudge_consensus_with_transactions
@@ -2147,7 +2051,6 @@ reapply_application_property_overrides "${TMP_STAGE2_APP_PROPS}"
 verify_block_node_has_blocks 180
 nudge_consensus_with_transactions
 verify_wraps_on_consensus_nodes 600
-report_wraps_download_times
 verify_stage2_migration_votes
 seed_block_node_tss_parameters
 wait_for_block_node_caught_up 180

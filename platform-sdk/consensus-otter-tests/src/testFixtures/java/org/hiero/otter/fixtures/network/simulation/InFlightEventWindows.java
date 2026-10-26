@@ -28,9 +28,11 @@ public class InFlightEventWindows extends InFlightConnections<EventWindowInTrans
      * Constructor.
      *
      * @param connected reports whether the connection from a sender to a receiver is currently up
+     * @param start     the instant arrival times are measured from, which should be close to the start of the
+     *                  simulation
      */
-    public InFlightEventWindows(@NonNull final BiPredicate<NodeId, NodeId> connected) {
-        super(connected);
+    public InFlightEventWindows(@NonNull final BiPredicate<NodeId, NodeId> connected, @NonNull final Instant start) {
+        super(connected, start);
     }
 
     /**

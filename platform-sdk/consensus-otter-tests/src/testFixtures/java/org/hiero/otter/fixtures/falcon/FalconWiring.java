@@ -201,18 +201,6 @@ public class FalconWiring implements TimeTickReceiver {
     }
 
     /**
-     * Get the output wire that provides the results of the consensus engine.
-     *
-     * <p>Not used yet; kept for validating the full consensus engine output (#26795).
-     *
-     * @return the output wire for consensus engine outputs
-     */
-    @NonNull
-    public OutputWire<ConsensusEngineOutput> consensusOutputWire() {
-        return consensusEngineWiring.getOutputWire();
-    }
-
-    /**
      * Get the output wire that provides each consensus round.
      *
      * @return the output wire for consensus rounds

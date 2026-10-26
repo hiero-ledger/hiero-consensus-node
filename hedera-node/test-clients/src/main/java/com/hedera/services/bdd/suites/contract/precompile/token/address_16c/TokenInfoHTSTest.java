@@ -149,6 +149,7 @@ public class TokenInfoHTSTest {
                                 OptionalLong.of(MAXIMUM_TO_COLLECT),
                                 TOKEN_TREASURY))
                         .via(CREATE_TXN),
+                exposeTargetLedgerIdTo(targetLedgerId::set),
                 withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCall(
@@ -158,7 +159,6 @@ public class TokenInfoHTSTest {
                                                 asAddress(spec.registry().getTokenID(FUNGIBLE_TOKEN_NAME))))
                                 .via("FUNGIBLE_TOKEN_INFO_TXN_16C")
                                 .gas(1_000_000L))),
-                exposeTargetLedgerIdTo(targetLedgerId::set),
                 withOpContext((spec, opLog) -> {
                     final var getTokenInfoQuery = getTokenInfo(FUNGIBLE_TOKEN_NAME);
                     allRunFor(spec, getTokenInfoQuery);
@@ -257,6 +257,7 @@ public class TokenInfoHTSTest {
                         .logged()
                         .signedBy(DEFAULT_PAYER, NFT_OWNER)
                         .fee(ONE_HBAR),
+                exposeTargetLedgerIdTo(targetLedgerId::set),
                 withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCall(
@@ -267,7 +268,6 @@ public class TokenInfoHTSTest {
                                         1L)
                                 .via("NON_FUNGIBLE_TOKEN_INFO_TXN_16C")
                                 .gas(1_000_000L))),
-                exposeTargetLedgerIdTo(targetLedgerId::set),
                 withOpContext((spec, opLog) -> {
                     final var getTokenInfoQuery = getTokenInfo(NON_FUNGIBLE_TOKEN_NAME);
                     allRunFor(spec, getTokenInfoQuery);

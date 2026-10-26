@@ -1058,7 +1058,7 @@ public class CryptoApproveAllowanceSuite {
                 cryptoApproveAllowance()
                         .payingWith(OWNER)
                         .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, ANOTHER_SPENDER, false, List.of(4L, 2L, 3L))
-                        .fee(ONE_HBAR),
+                        .fee(2 * ONE_HBAR),
                 getAccountDetails(OWNER)
                         .payingWith(GENESIS)
                         .logged()

@@ -1,7 +1,7 @@
 # Multi-network tests
 
 How a `@MultiNetworkHapiTest` run brings up its subprocess networks, from test-plan start through a
-cold or warm network start to teardown. For the fixture files themselves (layout, WRAPS artifacts,
+cold or warm network start to teardown. For the fixture files themselves (layout and
 regeneration) see [`../tss-startup-assets/README.md`](../tss-startup-assets/README.md).
 
 The main classes:
@@ -14,7 +14,6 @@ The main classes:
 | `ClprNetworkLocksProvider` / `@MultiNetworkLeakyHapiTest` | Locks each test's networks: `READ` by default (tests on a network run concurrently), `READ_WRITE` for leaky tests (run alone).      |
 | `MultiNetworkExtension`                                   | Boots a group's networks on its first test and tears them down after its last, runs the cold/warm TSS path, applies test overrides. |
 | `TssFixtures`                                             | Resolves, merges, writes and installs the per-network genesis TSS fixtures.                                                         |
-| `ClprWrapsProvingKeyInstaller`                            | Extracts the WRAPS proving-key archive for cold starts.                                                                             |
 
 ## Phase 0 — test-plan start
 
@@ -31,8 +30,8 @@ A group's networks start on its first test (see Phase 2), in parallel, through `
 network, `startNetworks`:
 
 1. **Allocates ports.** `ensureFixturePortReservations` first reserves the port range of every committed
-   fixture (its lowest gRPC port and node count), so a network with a fixture gets back the exact ports it
-   was captured with. A network without a fixture gets a free slot that avoids all of them.
+   fixture (its lowest gRPC port and node count), when they do not overlap another fixture. Networks without a usable reservation get a free slot
+   that avoids the reserved ranges.
 2. **Seeds node config.** Infra defaults, the test's `setupOverrides` and the typed mTLS settings go into
    each node's `application.properties`.
 3. **Chooses cold or warm.** Warm if `TssFixtures.fixturePresent(name)`; otherwise cold.
@@ -42,7 +41,8 @@ Then all networks start in parallel and wait for `ACTIVE`.
 ### Warm start (fixture present)
 
 1. Before the node JVM starts, `TssFixtures.installFixture` gunzips the network's fixture into each node's
-   `data/config/genesis-network.json`. Ports are not patched — they already match (step 1 above).
+   `data/config/genesis-network.json`. If reserved ports overlap another fixture, the loader patches
+   transport endpoints and construction roster references while preserving keys, weights and proofs.
 2. At genesis, `TssStartupNetworks` preloads the hinTS and history (WRAPS) state from the file and writes
    only the self node's private key to its local key files.
 3. The harness waits for the preload log line, then for `[CLPR-SYNC-POINT]` (the first block proof that
@@ -53,9 +53,8 @@ Typical cost: well under a minute per network.
 ### Cold start (no fixture)
 
 1. The export overrides `networkAdmin.diskNetworkExport=ONLY_FREEZE_BLOCK` and
-   `networkAdmin.diskNetworkExportTss=true` are added, and `ClprWrapsProvingKeyInstaller` makes sure the
-   WRAPS artifacts are extracted.
-2. The nodes bootstrap TSS and WRAPS from scratch (~15 minutes on a 1-node network).
+   `networkAdmin.diskNetworkExportTss=true` are added. WRAPS parameters are bundled in the library.
+2. The nodes bootstrap TSS and WRAPS from scratch; this can take a few minutes depending on hardware.
 3. After `WRAPS-extensible? true` and `[CLPR-SYNC-POINT]`, the harness settles briefly, then freezes the
    network (with background traffic so the freeze block's proof gets signed). Each node writes a
    TSS-enriched `output/network.json` carrying only its own private key.

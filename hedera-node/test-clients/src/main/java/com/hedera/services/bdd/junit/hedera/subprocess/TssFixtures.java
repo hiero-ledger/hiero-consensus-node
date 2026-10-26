@@ -70,7 +70,7 @@ public final class TssFixtures {
      */
     private static final String SHA256_TAG = "sha256";
 
-    /** Name of the directory holding the committed fixtures and the WRAPS artifacts. */
+    /** Name of the directory holding the committed fixtures. */
     private static final String TSS_STARTUP_ASSETS_DIR = "tss-startup-assets";
 
     /** {@code tss-startup-assets/} as seen from a {@code hedera-node/test-clients/} working dir (Gradle). */
@@ -81,8 +81,7 @@ public final class TssFixtures {
 
     /**
      * Where {@code tssPreload}-opted networks read cached fixtures from / write fresh ones to (absolute; see
-     * {@link #resolveTssFixtureCacheDir}). The dir is gitignored; co-locates with the
-     * extracted WRAPS artifacts ({@code wraps-vX.Y.Z/}, which {@code TSS_LIB_WRAPS_ARTIFACTS_PATH} points at).
+     * {@link #resolveTssFixtureCacheDir}). Compressed fixtures are committed; uncompressed local copies are gitignored.
      */
     public static final Path CACHE_DIR = resolveTssFixtureCacheDir();
 

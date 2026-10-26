@@ -34,7 +34,8 @@ import com.swirlds.config.api.ConfigProperty;
  */
 @ConfigData("nodes")
 public record NodesConfig(
-        @ConfigProperty(defaultValue = "100") @NetworkProperty
+        // The 64-slot hinTS domain reserves its final slot; our allocation also leaves slot zero unused.
+        @ConfigProperty(defaultValue = "62") @NetworkProperty
         long maxNumber,
 
         @ConfigProperty(defaultValue = "100") @NetworkProperty

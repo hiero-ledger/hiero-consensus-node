@@ -131,8 +131,7 @@ BN init containers use `docker.io/library/busybox:1.36.1` with `IfNotPresent` so
 Kind's cached image. Override it with `BLOCK_NODE_INIT_IMAGE` if needed. Before adding BN,
 the script checks every Kind node's `/var` filesystem for at least 1024 MiB free (configurable
 with `BLOCK_NODE_MIN_FREE_DISK_MIB`). This is a minimum deployment guard, not an estimate of
-the storage needed for the entire run. Allow room for four copies of the WRAPS artifacts,
-consensus state, MinIO, and container images in Docker Desktop's virtual disk. Exhausting that
+the storage needed for the entire run. Allow room for consensus state, MinIO, and container images in Docker Desktop's virtual disk. Exhausting that
 disk can cause both `ImagePullBackOff` and Kubernetes API-server failures even when the Mac
 has free disk space. Failure artifacts include the BN pod description and image-pull events.
 
@@ -184,7 +183,8 @@ Replace the configuration-only local-build baselines with published CN versions:
 v0.79.0 with the stage 1 properties and upgrade to v0.79.1 with the generated stage 2 jumpstart
 properties. Retain the checkout's local build for the final 0.80.0 cutover. Expose and document
 the two release tags in the reusable XTS and ad hoc workflows. Preserve the freeze/reapply/start
-workaround for Solo's property rewrites and the WRAPS environment injected before genesis.
+workaround for Solo's property rewrites and the WRAPS core limit injected before genesis. WRAPS proving parameters are bundled in the
+cryptography library; no external artifact download or artifact-path environment variable is needed.
 
 Acceptance: XTS and ad hoc runs pass with the published first two stages and the local final
 stage; binary version assertions identify the selected releases; all disk growth, jumpstart,
