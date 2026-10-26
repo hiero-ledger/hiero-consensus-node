@@ -5,18 +5,15 @@ import static java.util.Objects.requireNonNull;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.function.BiPredicate;
-import org.hiero.consensus.model.node.NodeId;
 
 /**
  * What the simulated network has transmitted but not yet delivered, held in a separate queue for every directed
  * connection. This is the storage that {@link InFlightEvents} and {@link InFlightEventWindows} share; how the queues are
  * drained into a receiver is up to each of them.
+ *
+ * <p>Nodes are identified by their rank, which is their position in node id order. Delivery walks
+ * the senders in rank order, so that what arrives at the same instant is always handled in the same order and the
+ * simulation stays reproducible.
  *
  * <p>Each connection's queue is an {@link InFlightQueue}, which hands out what it holds in arrival
  * order. Subclasses rely on that when they deliver.
@@ -28,27 +25,31 @@ import org.hiero.consensus.model.node.NodeId;
 abstract class InFlightConnections<T extends InTransit> {
 
     /**
-     * Whether a connection is currently up, given the sender and then the receiver. Supplied by the owner of the
-     * network topology, so that this class is concerned only with holding what is in flight and ordering it.
+     * Reports whether a connection is currently up, given the ranks of its sender and receiver.
      */
-    private final BiPredicate<NodeId, NodeId> connected;
+    @FunctionalInterface
+    interface ConnectionCheck {
+
+        /**
+         * @param senderRank   the rank of the node at the sending end of the connection
+         * @param receiverRank the rank of the node at the receiving end of the connection
+         * @return {@code true} if things can travel from the sender to the receiver
+         */
+        boolean isUp(int senderRank, int receiverRank);
+    }
 
     /**
-     * What is in flight, keyed by the node that will receive it and then by the node that sent it. A node does not send
-     * to itself, so a node's map holds no queue for itself.
+     * Whether a connection is currently up. Supplied by the owner of the network topology, so that this class is
+     * concerned only with holding what is in flight and ordering it.
      */
-    private final Map<NodeId, Map<NodeId, InFlightQueue<T>>> connectionsByReceiver = new HashMap<>();
+    private final ConnectionCheck connected;
 
     /**
-     * Every node, in node id order. Delivery walks the senders in this order so that what arrives at the same instant
-     * is always handled in the same order and the simulation stays reproducible.
+     * What is in flight, indexed by the rank of the node that will receive it and then by the rank of the node that sent
+     * it. A node does not send to itself, so the slot of a node's own rank is {@code null}. Empty until
+     * {@link #setUp(int)} is called.
      */
-    private final List<NodeId> sortedNodeIds = new ArrayList<>();
-
-    /**
-     * A read-only view of {@link #sortedNodeIds}, handed to subclasses without being copied on every call.
-     */
-    private final List<NodeId> sortedNodeIdsView = Collections.unmodifiableList(sortedNodeIds);
+    private InFlightQueue<T>[][] connectionsByReceiver = newQueueArray(0);
 
     /**
      * The instant every queue measures arrival times from. All the queues share it, so that the heads of different
@@ -63,81 +64,82 @@ abstract class InFlightConnections<T extends InTransit> {
      * @param start     the instant arrival times are measured from, which should be close to the start of the
      *                  simulation
      */
-    InFlightConnections(@NonNull final BiPredicate<NodeId, NodeId> connected, @NonNull final Instant start) {
+    InFlightConnections(@NonNull final ConnectionCheck connected, @NonNull final Instant start) {
         this.connected = requireNonNull(connected);
         this.start = requireNonNull(start);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T extends InTransit> InFlightQueue<T>[][] newQueueArray(final int nodeCount) {
+        return new InFlightQueue[nodeCount][nodeCount];
     }
 
     /**
      * Sets up the whole network at once, giving every node a queue for each of the other nodes. Can only be called
      * once.
      *
-     * @param nodeIds the ids of all nodes in the network, in node id order
+     * @param nodeCount the number of nodes in the network; their ranks are {@code 0} to {@code nodeCount - 1}
      * @throws IllegalStateException if the network has already been set up
      */
-    public void setUp(@NonNull final List<NodeId> nodeIds) {
-        if (!sortedNodeIds.isEmpty()) {
+    public void setUp(final int nodeCount) {
+        if (connectionsByReceiver.length != 0) {
             throw new IllegalStateException("The network has already been set up");
         }
-        for (final NodeId receiver : nodeIds) {
-            final Map<NodeId, InFlightQueue<T>> incomingConnections = new HashMap<>();
-            for (final NodeId sender : nodeIds) {
-                if (!sender.equals(receiver)) {
-                    incomingConnections.put(sender, new InFlightQueue<>(start));
+        final InFlightQueue<T>[][] queues = newQueueArray(nodeCount);
+        for (int receiverRank = 0; receiverRank < nodeCount; receiverRank++) {
+            for (int senderRank = 0; senderRank < nodeCount; senderRank++) {
+                if (senderRank != receiverRank) {
+                    queues[receiverRank][senderRank] = new InFlightQueue<>(start);
                 }
             }
-            connectionsByReceiver.put(receiver, incomingConnections);
         }
-        sortedNodeIds.addAll(nodeIds);
+        connectionsByReceiver = queues;
     }
 
     /**
      * Adds something that should be delivered to a receiver in the future.
      *
-     * @param receiver the node the item is traveling to
-     * @param item     the item, carrying the node that sent it and the time it arrives
+     * @param senderRank   the rank of the node that sent the item
+     * @param receiverRank the rank of the node the item is traveling to
+     * @param item         the item, carrying the node that sent it and the time it arrives
      */
-    public void add(@NonNull final NodeId receiver, @NonNull final T item) {
-        connectionsByReceiver.get(receiver).get(item.sender()).add(item);
+    public void add(final int senderRank, final int receiverRank, @NonNull final T item) {
+        connectionsByReceiver[receiverRank][senderRank].add(item);
     }
 
     /**
      * Discards everything in flight towards a node. Used when the node restarts and is about to be sent everything it
      * needs again.
      *
-     * @param receiverId the node whose incoming items should be discarded
+     * @param receiverRank the rank of the node whose incoming items should be discarded
      */
-    public void clearIncoming(@NonNull final NodeId receiverId) {
-        connectionsByReceiver.get(receiverId).values().forEach(InFlightQueue::clear);
+    public void clearIncoming(final int receiverRank) {
+        for (final InFlightQueue<T> connection : connectionsByReceiver[receiverRank]) {
+            if (connection != null) {
+                connection.clear();
+            }
+        }
     }
 
     /**
      * Delivers what has arrived at the receiving node and can be delivered right now.
      *
-     * @param now      the current time
-     * @param receiver accepts what is delivered on behalf of the receiving node
+     * @param now          the current time
+     * @param receiverRank the rank of the receiving node
+     * @param receiver     accepts what is delivered on behalf of the receiving node
      */
-    abstract void deliverArrived(@NonNull Instant now, @NonNull EventReceiver receiver);
+    abstract void deliverArrived(@NonNull Instant now, int receiverRank, @NonNull EventReceiver receiver);
 
     /**
-     * Gets what is in flight towards a node, keyed by the node that sent it. There is no entry for the receiver itself.
+     * Gets what is in flight towards a node, indexed by the rank of the node that sent it. The slot of the receiver's
+     * own rank is {@code null}.
      *
-     * @param receiverId the node the items are traveling to
-     * @return the queue of each incoming connection, which the caller may drain
+     * @param receiverRank the rank of the node the items are traveling to
+     * @return the queue of each incoming connection, which the caller may drain but must not modify
      */
     @NonNull
-    final Map<NodeId, InFlightQueue<T>> incomingConnections(@NonNull final NodeId receiverId) {
-        return connectionsByReceiver.get(receiverId);
-    }
-
-    /**
-     * Gets every node in node id order, which is the order delivery walks the senders in.
-     *
-     * @return a read-only view of the node ids
-     */
-    @NonNull
-    final List<NodeId> sortedNodeIds() {
-        return sortedNodeIdsView;
+    final InFlightQueue<T>[] incomingConnections(final int receiverRank) {
+        return connectionsByReceiver[receiverRank];
     }
 
     /**
@@ -152,14 +154,14 @@ abstract class InFlightConnections<T extends InTransit> {
 
     /**
      * Reports whether a connection is currently up. This is deliberately not folded into
-     * {@link #incomingConnections(NodeId)}, because asking is not free and a subclass may know it can put the question
-     * off until it matters.
+     * {@link #incomingConnections(int)}, because asking is not free and a subclass may know it can put the question off
+     * until it matters.
      *
-     * @param sender   the node at the sending end of the connection
-     * @param receiver the node at the receiving end of the connection
+     * @param senderRank   the rank of the node at the sending end of the connection
+     * @param receiverRank the rank of the node at the receiving end of the connection
      * @return {@code true} if things can travel from the sender to the receiver
      */
-    final boolean isUp(@NonNull final NodeId sender, @NonNull final NodeId receiver) {
-        return connected.test(sender, receiver);
+    final boolean isUp(final int senderRank, final int receiverRank) {
+        return connected.isUp(senderRank, receiverRank);
     }
 }
