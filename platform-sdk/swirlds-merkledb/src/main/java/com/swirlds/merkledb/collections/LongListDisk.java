@@ -2,6 +2,7 @@
 package com.swirlds.merkledb.collections;
 
 import static java.lang.Math.toIntExact;
+import static java.nio.ByteBuffer.allocateDirect;
 import static java.nio.file.Files.exists;
 
 import com.swirlds.merkledb.config.MerkleDbConfig;
@@ -23,6 +24,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import org.hiero.base.file.FileSystemManager;
+import org.hiero.base.utility.MemoryUtils;
 
 /**
  *  A direct on disk implementation of LongList. This implementation creates a temporary file to store the data.
@@ -60,6 +62,9 @@ public class LongListDisk extends AbstractLongList<Long> {
 
     /** A temp byte buffer for transferring data between file channels */
     private static final ThreadLocal<ByteBuffer> TRANSFER_BUFFER_THREAD_LOCAL;
+
+    /// The current writer range's buffer, reused by its chunk writes and released when the range finishes.
+    private static final ThreadLocal<ByteBuffer> WRITE_BUFFER_THREAD_LOCAL = new ThreadLocal<>();
 
     /**
      * Offsets of the chunks that are free to be used. The offsets are relative to the start of the file.
@@ -400,6 +405,25 @@ public class LongListDisk extends AbstractLongList<Long> {
 
     /// {@inheritDoc}
     @Override
+    protected void writeLongsData(
+            final FileChannel fc,
+            final ByteBuffer zeroBuffer,
+            final long startIndex,
+            final long endIndex,
+            final long fileOffset)
+            throws IOException {
+        final ByteBuffer transferBuffer = allocateDirect(memoryChunkSize);
+        try {
+            WRITE_BUFFER_THREAD_LOCAL.set(transferBuffer);
+            super.writeLongsData(fc, zeroBuffer, startIndex, endIndex, fileOffset);
+        } finally {
+            WRITE_BUFFER_THREAD_LOCAL.remove();
+            MemoryUtils.closeDirectByteBuffer(transferBuffer);
+        }
+    }
+
+    /// {@inheritDoc}
+    @Override
     protected void writeChunkData(
             @NonNull final FileChannel fc,
             @NonNull final Long chunk,
@@ -407,7 +431,8 @@ public class LongListDisk extends AbstractLongList<Long> {
             final int endIndexInChunk,
             final long fileOffset)
             throws IOException {
-        final ByteBuffer transferBuffer = initOrGetTransferBuffer();
+        final ByteBuffer transferBuffer = WRITE_BUFFER_THREAD_LOCAL.get();
+        transferBuffer.clear();
         final int bytesToWrite = (endIndexInChunk - startIndexInChunk) * Long.BYTES;
         transferBuffer.limit(bytesToWrite);
         final long chunkOffset = chunk + (long) startIndexInChunk * Long.BYTES;
