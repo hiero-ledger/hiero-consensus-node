@@ -3,12 +3,8 @@ package org.hiero.consensus.hashgraph.impl.test.fixtures.consensus;
 
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Collection;
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Collectors;
-import org.hiero.base.crypto.DigestType;
-import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 
 /**
@@ -45,35 +41,6 @@ public final class ConsensusSnapshots {
                 .map(ConsensusRound::getSnapshot)
                 .orElseThrow(() -> new IllegalArgumentException("Round %d did not reach consensus. Rounds available: %s"
                         .formatted(round, roundNumbers(rounds))));
-    }
-
-    /**
-     * Check that every judge named in a snapshot is among the events the test is going to supply.
-     * <p>
-     * Call this before replaying the continuation. Consensus correctly blocks until all init judges arrive — in
-     * production they come by gossip — so a fixture that omits one simply produces no consensus rounds and then fails
-     * much later on an assertion that says nothing about the real cause. There is nothing for {@code ConsensusImpl} to
-     * do differently; the check belongs here, on the test side.
-     *
-     * @param snapshot             the snapshot about to be loaded
-     * @param suppliedEventHashes  the content hashes of every event the continuation will supply
-     * @throws IllegalArgumentException naming the judges that are missing
-     */
-    public static void requireJudgesPresent(
-            @NonNull final ConsensusSnapshot snapshot, @NonNull final Collection<Hash> suppliedEventHashes) {
-
-        final Set<Hash> supplied = Set.copyOf(suppliedEventHashes);
-        final List<Hash> missing = snapshot.judgeIds().stream()
-                .map(judgeId -> new Hash(judgeId.judgeHash(), DigestType.SHA_384))
-                .filter(judgeHash -> !supplied.contains(judgeHash))
-                .toList();
-
-        if (!missing.isEmpty()) {
-            throw new IllegalArgumentException(("The snapshot for round %d names %d judge(s) that the graph does not "
-                            + "supply: %s. Consensus blocks until every init judge arrives, so this fixture would "
-                            + "produce no rounds at all. Include these events in the replay.")
-                    .formatted(snapshot.round(), missing.size(), missing));
-        }
     }
 
     @NonNull

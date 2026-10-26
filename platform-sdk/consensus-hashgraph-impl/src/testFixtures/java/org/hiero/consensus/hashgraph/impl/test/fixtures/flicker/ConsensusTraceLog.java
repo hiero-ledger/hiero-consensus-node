@@ -27,6 +27,7 @@ import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 public class ConsensusTraceLog implements ChangeSink {
 
     private final List<Change> changes = new ArrayList<>();
+    private final List<AddMark> adds = new ArrayList<>();
 
     /**
      * {@inheritDoc}
@@ -34,6 +35,47 @@ public class ConsensusTraceLog implements ChangeSink {
     @Override
     public void accept(@NonNull final ChangeFactory factory) {
         changes.add(factory.create(changes.size()));
+    }
+
+    /**
+     * Mark the start of the work one {@code add} triggers. Called by {@link FlickerIntake} before it hands the event
+     * to the algorithm, which is what makes {@link #during} able to say where a pass began.
+     *
+     * @param name the name of the event being added
+     */
+    void beginAdd(@NonNull final String name) {
+        adds.add(new AddMark(name, changes.size()));
+    }
+
+    /**
+     * The changes the algorithm made while processing one {@code add}.
+     * <p>
+     * A whole-run filter stops working at the size real fixtures reach: a four-node ladder produces 76 records, 44 of
+     * them from a single {@code recalculateAndVote} pass, and SCN-001 produces several hundred. Worse, it answers a
+     * different question. "Somewhere in this run, {@code c3} was cleared" is weaker than "the pass triggered by
+     * adding {@code d7} cleared {@code c3}", and the weaker claim passes on runs the stronger one catches.
+     *
+     * @param name the name given to the {@code add} to scope to
+     * @return the changes recorded during that add
+     * @throws IllegalArgumentException if no add was made under that name, or more than one was
+     */
+    @NonNull
+    public Scope during(@NonNull final String name) {
+        final List<AddMark> matching =
+                adds.stream().filter(mark -> mark.name().equals(name)).toList();
+        if (matching.size() != 1) {
+            throw new IllegalArgumentException(
+                    matching.isEmpty()
+                            ? "no event named '%s' was added to this harness; it added %s"
+                                    .formatted(
+                                            name,
+                                            adds.stream().map(AddMark::name).toList())
+                            : "'%s' was added %d times, so 'during' is ambiguous".formatted(name, matching.size()));
+        }
+        final AddMark mark = matching.getFirst();
+        final int index = adds.indexOf(mark);
+        final int end = index + 1 < adds.size() ? adds.get(index + 1).start() : changes.size();
+        return new Scope(name, List.copyOf(changes.subList(mark.start(), end)));
     }
 
     /**
@@ -85,6 +127,41 @@ public class ConsensusTraceLog implements ChangeSink {
                 .map(ConsensusTraceLog::renderOne)
                 .collect(Collectors.joining("\n"));
     }
+
+    /**
+     * The changes from one {@code add}, offering the same reads as the whole log so that an assertion narrows by
+     * adding a scope rather than by being rewritten.
+     *
+     * @param addName the event whose add this covers
+     * @param changes the changes recorded during it
+     */
+    public record Scope(@NonNull String addName, @NonNull List<Change> changes) {
+
+        /**
+         * @param type the change type to select
+         * @param <T>  the change type
+         * @return every change of that type in this scope, in order
+         */
+        @NonNull
+        public <T extends Change> Stream<T> changes(@NonNull final Class<T> type) {
+            return changes.stream().filter(type::isInstance).map(type::cast);
+        }
+
+        /**
+         * @param type the change type to render, or null for all of them
+         * @return one line per change in this scope
+         */
+        @NonNull
+        public String render(@Nullable final Class<? extends Change> type) {
+            return changes.stream()
+                    .filter(change -> type == null || type.isInstance(change))
+                    .map(ConsensusTraceLog::renderOne)
+                    .collect(Collectors.joining("\n"));
+        }
+    }
+
+    /** Where in the log the work triggered by one {@code add} began. */
+    private record AddMark(@NonNull String name, int start) {}
 
     @NonNull
     private static String renderOne(@NonNull final Change change) {

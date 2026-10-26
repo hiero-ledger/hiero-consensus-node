@@ -2,16 +2,13 @@
 package org.hiero.consensus.hashgraph.impl.consensus.flicker;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.ConsensusSnapshots.requireJudgesPresent;
 import static org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.ConsensusSnapshots.snapshotAtRound;
+import static org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.FlickerAssertions.assertJudges;
 
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.util.List;
-import java.util.Objects;
-import org.hiero.base.crypto.DigestType;
-import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.Change.MetadataCleared;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.ConsensusTraceLog;
@@ -52,14 +49,10 @@ class Scn001Test {
 
         // The premise the scenario rests on: round 2's judges include both ends of the chain. Asserted rather than
         // assumed, because a graph edit that quietly dropped one would leave the test passing while testing nothing.
-        assertThat(judgeNames(snapshot, graph))
-                .as("round %d judges", Scn001Graph.ANCHOR_ROUND)
-                .contains(Scn001Graph.J1, Scn001Graph.J2);
-        assertThat(judgeNames(snapshot, graph))
+        assertJudges(snapshot, graph)
+                .contains(Scn001Graph.J1, Scn001Graph.J2)
                 .as("the event between the two judges must not itself be one")
                 .doesNotContain(Scn001Graph.MID);
-
-        requireJudgesPresent(snapshot, allHashes(graph));
 
         // phase 2 - restart under the new roster and replay the same DAG
         final ConsensusTraceLog trace = new ConsensusTraceLog();
@@ -101,28 +94,14 @@ class Scn001Test {
         // judge of the just-decided round was exempt from clearing, so j2 emitted no MetadataCleared at all and kept
         // a stale round while its ancestor moved. That absence is the defect; the inequality above is only what the
         // absence causes.
-        assertThat(trace.changes(MetadataCleared.class).map(MetadataCleared::name))
+        final ConsensusTraceLog.Scope recalculation = trace.during(Scn001Graph.J2);
+        assertThat(recalculation.changes(MetadataCleared.class).map(MetadataCleared::name))
                 .withFailMessage(
                         "Expected %s to be cleared and recalculated like any other non-terminal event. The "
                                 + "mitigation exempts a last-decided judge only when all of its parents are at "
-                                + "ROUND_NEGATIVE_INFINITY, which %s - a descendant of %s - is not.%nTrace:%n%s",
-                        Scn001Graph.J2, Scn001Graph.J2, Scn001Graph.J1, trace.render(null))
+                                + "ROUND_NEGATIVE_INFINITY, which %s - a descendant of %s - is not.%nThe pass "
+                                + "triggered by adding %s:%n%s",
+                        Scn001Graph.J2, Scn001Graph.J2, Scn001Graph.J1, Scn001Graph.J2, recalculation.render(null))
                 .contains(Scn001Graph.J2);
-    }
-
-    private static List<Hash> allHashes(final List<NamedEvent> graph) {
-        return graph.stream().map(named -> named.event().getHash()).toList();
-    }
-
-    /** The snapshot's judges, resolved back to the graph's names. */
-    private static List<String> judgeNames(final ConsensusSnapshot snapshot, final List<NamedEvent> graph) {
-        return snapshot.judgeIds().stream()
-                .map(judgeId -> new Hash(judgeId.judgeHash(), DigestType.SHA_384))
-                .map(hash -> graph.stream()
-                        .filter(named -> Objects.equals(named.event().getHash(), hash))
-                        .map(NamedEvent::name)
-                        .findFirst()
-                        .orElse("?"))
-                .toList();
     }
 }

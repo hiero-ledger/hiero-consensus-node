@@ -151,6 +151,9 @@ public class FlickerIntake {
     public List<ConsensusRound> add(@NonNull final String name, @NonNull final PlatformEvent event) {
         hasher.hashEvent(event);
         eventNameByHash.put(event.getHash(), name);
+        if (traceLog != null) {
+            traceLog.beginAdd(name);
+        }
 
         // Ancient first: the orphan buffer also drops ancient events, so without this check an ancient event would be
         // reported below as a topological ordering problem, which it is not.
