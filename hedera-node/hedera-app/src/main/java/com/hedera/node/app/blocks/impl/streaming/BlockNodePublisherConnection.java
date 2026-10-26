@@ -7,6 +7,7 @@ import static org.hiero.block.api.PublishStreamRequest.EndStream.Code.RESET;
 import static org.hiero.block.api.PublishStreamRequest.EndStream.Code.TIMEOUT;
 import static org.hiero.block.api.PublishStreamRequest.EndStream.Code.TOO_FAR_BEHIND;
 
+import com.hedera.hapi.block.internal.AcknowledgeOnlyBytes;
 import com.hedera.hapi.block.internal.BlockItemSetBytes;
 import com.hedera.hapi.block.internal.EndStreamBytes;
 import com.hedera.hapi.block.internal.PublishStreamRequestBytes;
@@ -44,7 +45,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.block.api.BlockEnd;
-import org.hiero.block.api.PublishStreamRequest.AcknowledgeOnly;
 import org.hiero.block.api.PublishStreamRequest.EndStream;
 import org.hiero.block.api.PublishStreamResponse;
 import org.hiero.block.api.PublishStreamResponse.BehindPublisher;
@@ -1491,7 +1491,7 @@ public class BlockNodePublisherConnection extends AbstractBlockNodeConnection
             }
 
             final PublishStreamRequestBytes request = PublishStreamRequestBytes.newBuilder()
-                    .acknowledgeOnly(AcknowledgeOnly.newBuilder()
+                    .acknowledgeOnly(AcknowledgeOnlyBytes.newBuilder()
                             .blockNumber(latestBlockNumber)
                             .build())
                     .build();
