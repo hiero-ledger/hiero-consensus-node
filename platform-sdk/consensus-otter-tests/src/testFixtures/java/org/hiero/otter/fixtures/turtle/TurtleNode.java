@@ -58,8 +58,10 @@ import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.roster.WritableRosterStore;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.status.monitor.actions.PlatformStatusAction;
 import org.hiero.consensus.wiring.framework.model.DeterministicWiringModel;
 import org.hiero.consensus.wiring.framework.model.WiringModelBuilder;
+import org.hiero.consensus.wiring.framework.wires.input.InputWire;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.ProfilerEvent;
@@ -294,6 +296,10 @@ public class TurtleNode extends AbstractNode implements Node, SimulatorTimeManag
             platform = builder.build();
 
             buildingBlocks = builder.buildingBlocks();
+            final InputWire<PlatformStatusAction> platformStatusInputWire =
+                    buildingBlocks.statusMonitorModule().platformStatusActionInputWire();
+
+            gossip.provideStatusActionSubmitter(platformStatusInputWire::put);
 
             buildingBlocks
                     .hashgraphModule()
