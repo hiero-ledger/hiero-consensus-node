@@ -15,7 +15,7 @@ public record AtomicBatchConfig(
         // The only types allowed as inner transactions; a new type stays out of batches until it is added here
         @ConfigProperty(defaultValue =
             "CryptoTransfer,CryptoUpdate,CryptoDelete,ContractCall,ContractCreate,ContractUpdate,FileCreate,"
-                + "FileAppend,FileUpdate,FileDelete,CryptoCreate,SystemDelete,SystemUndelete,ContractDelete,"
+                + "FileAppend,FileUpdate,FileDelete,CryptoCreate,ContractDelete,"
                 + "ConsensusCreateTopic,ConsensusUpdateTopic,ConsensusDeleteTopic,ConsensusSubmitMessage,"
                 + "TokenCreate,TokenFreezeAccount,TokenUnfreezeAccount,TokenGrantKycToAccount,"
                 + "TokenRevokeKycFromAccount,TokenDelete,TokenUpdate,TokenMint,TokenBurn,TokenAccountWipe,"

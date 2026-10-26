@@ -125,6 +125,9 @@ class AtomicBatchHandlerTest {
             HederaFunctionality.ATOMIC_BATCH,
             HederaFunctionality.SCHEDULE_CREATE,
             HederaFunctionality.SCHEDULE_SIGN,
+            // Privileged system admin operations
+            HederaFunctionality.SYSTEM_DELETE,
+            HederaFunctionality.SYSTEM_UNDELETE,
             // Unsupported
             HederaFunctionality.CRYPTO_ADD_LIVE_HASH,
             HederaFunctionality.CRYPTO_DELETE_LIVE_HASH,
