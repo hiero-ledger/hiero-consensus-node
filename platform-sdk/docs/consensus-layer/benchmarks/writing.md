@@ -58,6 +58,9 @@ The measured region is the part of the benchmark method that is timed: the calls
     ([operations.md](operations.md#baseline-breaks)).
 - **Keep the setup's garbage out of the measured region.** If the per-invocation setup allocates, end it with
   `System.gc()`.
+- **Give the code under test its production collaborators,** such as the metrics provider and the intake counter, not
+  no-op or fake ones: a no-op hides a cost that a later change adds to the measured path. Turn off only output to the
+  outside, such as a Prometheus port or CSV files.
 
 ## Latency
 
@@ -109,6 +112,8 @@ turns the recorded times into JMH results. Its Javadoc lists them and how JMH co
   - p99.99 needs about 10⁶ recorded calls per iteration, because `LatencyProfiler` computes the percentiles of each
     iteration separately. Calibration sets the iteration length for it
     ([calibration.md](calibration.md#iterations-and-samples)).
+  - `LatencyProfiler` skips a percentile in an iteration with fewer than 100 calls above it, and `latency.skipped`
+    names the percentile and the calls it needs.
 - **Track `latency.mean`, not the primary score.** The primary score also includes the passes discarded because a
   garbage collection ran in them (see below).
   - The median (p50) does not replace the mean: when most calls are fast and a few are slow, the median shows only the

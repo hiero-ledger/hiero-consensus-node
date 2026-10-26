@@ -11,8 +11,11 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -23,7 +26,10 @@ import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.HintsKeySet;
 import com.hedera.hapi.node.state.hints.HintsPartyId;
 import com.hedera.hapi.node.state.hints.HintsScheme;
+import com.hedera.hapi.node.state.hints.NodePartyId;
+import com.hedera.hapi.node.state.hints.PreprocessedKeys;
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.WritableHintsStore;
@@ -31,7 +37,9 @@ import com.hedera.node.app.hints.handlers.HintsHandlers;
 import com.hedera.node.app.hints.schemas.V059HintsSchema;
 import com.hedera.node.app.hints.schemas.V060HintsSchema;
 import com.hedera.node.app.hints.schemas.V073HintsSchema;
+import com.hedera.node.app.hints.schemas.V079HintsSchema;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
+import com.hedera.node.app.service.roster.impl.RosterTransitionWeights;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.config.data.TssConfig;
@@ -46,15 +54,20 @@ import com.swirlds.state.lifecycle.SchemaRegistry;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
-import java.util.Optional;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
@@ -122,6 +135,12 @@ class HintsServiceImplTest {
     private WritableSingletonState<CRSState> crsState;
 
     @Mock
+    private WritableSingletonState<CRSState> nextCrsState;
+
+    @Mock
+    private RosterTransitionWeights transitionWeights;
+
+    @Mock
     private WritableKVState<HintsPartyId, HintsKeySet> hintsKeys;
 
     @Mock
@@ -132,6 +151,11 @@ class HintsServiceImplTest {
     @BeforeEach
     void setUp() {
         subject = new HintsServiceImpl(component, library);
+        lenient().when(hintsStore.getCrsState()).thenReturn(CRSState.DEFAULT);
+        lenient().when(activeRosters.targetRoster()).thenReturn(Roster.DEFAULT);
+        lenient()
+                .when(writableStates.<CRSState>getSingleton(V079HintsSchema.NEXT_CRS_STATE_ID))
+                .thenReturn(nextCrsState);
     }
 
     @Test
@@ -152,10 +176,12 @@ class HintsServiceImplTest {
     @Test
     void handoffIsNoop() {
         given(activeRosters.phase()).willReturn(ActiveRosters.Phase.HANDOFF);
+        given(component.controllers()).willReturn(controllers);
 
         subject.reconcile(activeRosters, hintsStore, CONSENSUS_NOW, tssConfig, true);
 
-        verifyNoInteractions(hintsStore);
+        verify(controllers).stop();
+        verify(hintsStore).abandonNextConstruction();
     }
 
     @Test
@@ -255,6 +281,7 @@ class HintsServiceImplTest {
 
     @Test
     void doesNothingAtBootstrapIfTheConstructionIsComplete() {
+        given(component.controllers()).willReturn(controllers);
         given(activeRosters.phase()).willReturn(ActiveRosters.Phase.BOOTSTRAP);
         final var construction =
                 HintsConstruction.newBuilder().hintsScheme(HintsScheme.DEFAULT).build();
@@ -263,18 +290,24 @@ class HintsServiceImplTest {
 
         subject.reconcile(activeRosters, hintsStore, CONSENSUS_NOW, tssConfig, true);
 
-        verifyNoInteractions(component);
+        verify(controllers).stop();
     }
 
     @Test
     void usesControllerIfTheConstructionIsIncompleteDuringTransition() {
+        given(activeRosters.targetRoster()).willReturn(Roster.DEFAULT);
         given(activeRosters.phase()).willReturn(ActiveRosters.Phase.TRANSITION);
-        final var construction = HintsConstruction.DEFAULT;
+        final var construction = HintsConstruction.newBuilder()
+                .crsId(1)
+                .numParties(8)
+                .gracePeriodEndTime(asTimestamp(CONSENSUS_NOW.plusSeconds(1)))
+                .build();
+        given(hintsStore.getCrsStateFor(construction))
+                .willReturn(CRSState.newBuilder().stage(COMPLETED).build());
         given(hintsStore.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, tssConfig))
                 .willReturn(construction);
         given(component.controllers()).willReturn(controllers);
-        given(component.signingContext()).willReturn(context);
-        given(context.activeConstruction()).willReturn(HintsConstruction.DEFAULT);
+        given(hintsStore.getActiveConstruction()).willReturn(HintsConstruction.DEFAULT);
         given(controllers.getOrCreateFor(activeRosters, construction, hintsStore, HintsConstruction.DEFAULT))
                 .willReturn(controller);
 
@@ -285,12 +318,11 @@ class HintsServiceImplTest {
 
     @Test
     void handoffDoesNothingWhenStoreReportsNoChange() {
-        given(hintsStore.handoff(Roster.DEFAULT, Roster.DEFAULT, Bytes.EMPTY, false))
-                .willReturn(false);
+        given(hintsStore.handoff(Roster.DEFAULT, Roster.DEFAULT, Bytes.EMPTY)).willReturn(false);
 
-        assertFalse(subject.handoff(hintsStore, Roster.DEFAULT, Roster.DEFAULT, Bytes.EMPTY, false));
+        assertFalse(subject.handoff(hintsStore, Roster.DEFAULT, Roster.DEFAULT, Bytes.EMPTY));
 
-        verify(hintsStore).handoff(Roster.DEFAULT, Roster.DEFAULT, Bytes.EMPTY, false);
+        verify(hintsStore).handoff(Roster.DEFAULT, Roster.DEFAULT, Bytes.EMPTY);
         verify(component, never()).signingContext();
     }
 
@@ -298,61 +330,17 @@ class HintsServiceImplTest {
     void handoffUpdatesSigningContextWhenStoreChanges() {
         final var construction = HintsConstruction.newBuilder()
                 .constructionId(123L)
+                .crsId(1)
+                .numParties(8)
                 .hintsScheme(HintsScheme.DEFAULT)
                 .build();
-        given(hintsStore.handoff(Roster.DEFAULT, Roster.DEFAULT, Bytes.EMPTY, true))
-                .willReturn(true);
+        given(hintsStore.handoff(Roster.DEFAULT, Roster.DEFAULT, Bytes.EMPTY)).willReturn(true);
         given(hintsStore.getActiveConstruction()).willReturn(construction);
         given(component.signingContext()).willReturn(context);
 
-        assertTrue(subject.handoff(hintsStore, Roster.DEFAULT, Roster.DEFAULT, Bytes.EMPTY, true));
+        assertTrue(subject.handoff(hintsStore, Roster.DEFAULT, Roster.DEFAULT, Bytes.EMPTY));
 
-        verify(context).setConstruction(construction);
-    }
-
-    @Test
-    void executeCrsWorkDoesNothingWithoutController() {
-        given(component.controllers()).willReturn(controllers);
-        given(controllers.getAnyInProgress()).willReturn(Optional.empty());
-
-        subject.executeCrsWork(hintsStore, CONSENSUS_NOW, true, networkInfo);
-
-        verifyNoInteractions(hintsStore, controller);
-    }
-
-    @Test
-    void executeCrsWorkInitializesDefaultStateAndAdvancesWork() {
-        final var newCrs = Bytes.wrap(new byte[] {1, 2, 3});
-        given(component.controllers()).willReturn(controllers);
-        given(controllers.getAnyInProgress()).willReturn(Optional.of(controller));
-        given(hintsStore.getCrsState()).willReturn(CRSState.DEFAULT);
-        given(networkInfo.addressBook()).willReturn(List.of(nodeInfo, nodeInfo, nodeInfo, nodeInfo, nodeInfo));
-        given(library.newCrs((short) partySizeForRosterNodeCount(5))).willReturn(newCrs);
-
-        subject.executeCrsWork(hintsStore, CONSENSUS_NOW, false, networkInfo);
-
-        verify(hintsStore)
-                .setCrsState(CRSState.newBuilder()
-                        .stage(com.hedera.hapi.node.state.hints.CRSStage.GATHERING_CONTRIBUTIONS)
-                        .nextContributingNodeId(0L)
-                        .crs(newCrs)
-                        .build());
-        verify(controller).advanceCrsWork(CONSENSUS_NOW, hintsStore, false);
-    }
-
-    @Test
-    void executeCrsWorkSkipsAdvanceWhenStateAlreadyCompleted() {
-        final var completedState = CRSState.newBuilder()
-                .stage(com.hedera.hapi.node.state.hints.CRSStage.COMPLETED)
-                .build();
-        given(component.controllers()).willReturn(controllers);
-        given(controllers.getAnyInProgress()).willReturn(Optional.of(controller));
-        given(hintsStore.getCrsState()).willReturn(completedState);
-
-        subject.executeCrsWork(hintsStore, CONSENSUS_NOW, true, networkInfo);
-
-        verify(controller, never()).advanceCrsWork(any(), any(), any(Boolean.class));
-        verify(hintsStore, never()).setCrsState(any());
+        verify(context).setConstruction(construction, null);
     }
 
     @Test
@@ -377,6 +365,8 @@ class HintsServiceImplTest {
                         .stage(com.hedera.hapi.node.state.hints.CRSStage.GATHERING_CONTRIBUTIONS)
                         .nextContributingNodeId(0L)
                         .crs(newCrs)
+                        .initialCrs(newCrs)
+                        .numParties(partySizeForRosterNodeCount(7))
                         .build());
     }
 
@@ -407,9 +397,16 @@ class HintsServiceImplTest {
                 .getOrCreateConfig();
         final var activeConstruction = HintsConstruction.newBuilder()
                 .constructionId(123L)
+                .crsId(1)
+                .numParties(8)
                 .hintsScheme(HintsScheme.DEFAULT)
                 .build();
-        final var startupCrsState = CRSState.newBuilder().stage(COMPLETED).build();
+        final var startupCrsState = CRSState.newBuilder()
+                .stage(COMPLETED)
+                .ceremonyId(1)
+                .numParties(8)
+                .crs(Bytes.wrap(new byte[304 + 8 * 288]))
+                .build();
         final var hintsKey = Bytes.wrap("startup-hints-key");
         final var network = Network.newBuilder()
                 .tssMetadata(TssMetadata.newBuilder()
@@ -431,11 +428,13 @@ class HintsServiceImplTest {
             given(writableStates.<HintsPartyId, HintsKeySet>get(V059HintsSchema.HINTS_KEY_SETS_STATE_ID))
                     .willReturn(hintsKeys);
             given(component.signingContext()).willReturn(context);
+            given(crsState.get()).willReturn(startupCrsState);
         }
 
         assertTrue(subject.doGenesisSetup(writableStates, config, 7));
 
         verify(nextConstructionState).put(HintsConstruction.DEFAULT);
+        verify(nextCrsState).put(CRSState.DEFAULT);
         if (profile.equals("PROD")) {
             verify(activeConstructionState).put(HintsConstruction.DEFAULT);
             verify(crsState)
@@ -443,16 +442,18 @@ class HintsServiceImplTest {
                             .stage(com.hedera.hapi.node.state.hints.CRSStage.GATHERING_CONTRIBUTIONS)
                             .nextContributingNodeId(0L)
                             .crs(newCrs)
+                            .initialCrs(newCrs)
+                            .numParties(partySizeForRosterNodeCount(7))
                             .build());
             verify(writableStates, never()).get(V059HintsSchema.HINTS_KEY_SETS_STATE_ID);
             verifyNoInteractions(hintsKeys, component, context);
         } else {
             verify(activeConstructionState).put(activeConstruction);
             verify(crsState).put(startupCrsState);
-            verify(context).setConstruction(activeConstruction);
+            verify(context).setConstruction(activeConstruction, startupCrsState);
             verify(hintsKeys)
                     .put(
-                            new HintsPartyId(0, partySizeForRosterNodeCount(1)),
+                            new HintsPartyId(0, 8, 1),
                             HintsKeySet.newBuilder()
                                     .nodeId(0L)
                                     .adoptionTime(asTimestamp(Instant.EPOCH))
@@ -469,11 +470,206 @@ class HintsServiceImplTest {
         subject.registerSchemas(schemaRegistry);
 
         final var captor = ArgumentCaptor.forClass(Schema.class);
-        verify(schemaRegistry, times(3)).register(captor.capture());
+        verify(schemaRegistry, times(4)).register(captor.capture());
         final var schemas = captor.getAllValues();
         assertThat(schemas.getFirst()).isInstanceOf(V059HintsSchema.class);
         assertThat(schemas.get(1)).isInstanceOf(V060HintsSchema.class);
-        assertThat(schemas.getLast()).isInstanceOf(V073HintsSchema.class);
+        assertThat(schemas.get(2)).isInstanceOf(V073HintsSchema.class);
+        assertThat(schemas.getLast()).isInstanceOf(V079HintsSchema.class);
+    }
+
+    @Test
+    void growingFromSixToSevenNodesStartsNextCeremonyBeforeHints() {
+        final var selected = prepareTransition(7, 8);
+        final var seed = Bytes.wrap("fresh seed");
+        given(library.newCrs((short) 16)).willReturn(seed);
+        given(hintsStore.allocateCrsId()).willReturn(2L);
+        given(activeRosters.transitionWeights(any())).willReturn(transitionWeights);
+        given(transitionWeights.sourceNodeWeights()).willReturn(new TreeMap<>(Map.of(42L, 2L, 99L, 1L)));
+        subject.reconcile(activeRosters, hintsStore, CONSENSUS_NOW, tssConfig, true);
+        assertEquals(16, selected.get().numParties());
+        assertEquals(2, selected.get().ceremonyId());
+        assertEquals(seed, selected.get().initialCrs());
+        assertEquals(42, selected.get().nextContributingNodeIdOrThrow());
+        verify(hintsStore, never()).setCrsState(any());
+        verify(hintsStore, never()).startHintsKeyGracePeriod(anyLong(), any(), any());
+        verify(controller, never()).advanceConstruction(any(), any(), any(Boolean.class));
+    }
+
+    @Test
+    void growingFromThirtyToThirtyOneNodesStartsTheMaximumSupportedCeremony() {
+        final var selected = prepareTransition(31, 32);
+        final var seed = Bytes.wrap("fresh maximum-capacity seed");
+        given(library.newCrs((short) 64)).willReturn(seed);
+        given(hintsStore.allocateCrsId()).willReturn(2L);
+        given(activeRosters.transitionWeights(any())).willReturn(transitionWeights);
+        given(transitionWeights.sourceNodeWeights()).willReturn(new TreeMap<>(Map.of(42L, 2L, 99L, 1L)));
+
+        subject.reconcile(activeRosters, hintsStore, CONSENSUS_NOW, tssConfig, true);
+
+        assertEquals(64, selected.get().numParties());
+        assertEquals(2, selected.get().ceremonyId());
+        assertEquals(seed, selected.get().initialCrs());
+        verify(hintsStore, never()).setCrsState(any());
+        verify(hintsStore, never()).startHintsKeyGracePeriod(anyLong(), any(), any());
+        verify(controller, never()).advanceConstruction(any(), any(), any(Boolean.class));
+    }
+
+    @Test
+    void sixtyTwoNodesReuseTheMaximumSupportedCrs() {
+        prepareTransition(62, 64);
+
+        subject.reconcile(activeRosters, hintsStore, CONSENSUS_NOW, tssConfig, true);
+
+        verify(hintsStore).bindConstructionToCrs(2, 1, 64);
+        verifyNoInteractions(library);
+        verify(controller).advanceConstruction(CONSENSUS_NOW, hintsStore, true);
+    }
+
+    @Test
+    void shrinkingFromSevenToSixNodesKeepsSixteenParties() {
+        prepareTransition(6, 16);
+        subject.reconcile(activeRosters, hintsStore, CONSENSUS_NOW, tssConfig, true);
+        verify(hintsStore).bindConstructionToCrs(2, 1, 16);
+        verifyNoInteractions(library);
+        verify(hintsStore).startHintsKeyGracePeriod(2, CONSENSUS_NOW, CONSENSUS_NOW.plusSeconds(300));
+        verify(controller).advanceConstruction(CONSENSUS_NOW, hintsStore, true);
+    }
+
+    @Test
+    void sameCapacityReusesCompletedCrs() {
+        prepareTransition(5, 8);
+        subject.reconcile(activeRosters, hintsStore, CONSENSUS_NOW, tssConfig, false);
+        verify(hintsStore).bindConstructionToCrs(2, 1, 8);
+        verifyNoInteractions(library);
+        verify(controller).advanceConstruction(CONSENSUS_NOW, hintsStore, false);
+    }
+
+    @Test
+    void unsupportedCapacityLeavesActiveSigningAndCrsUntouched() {
+        given(activeRosters.phase()).willReturn(ActiveRosters.Phase.TRANSITION);
+        given(activeRosters.targetRoster())
+                .willReturn(new Roster(IntStream.range(0, 63)
+                        .mapToObj(i ->
+                                RosterEntry.newBuilder().nodeId(i).weight(1).build())
+                        .toList()));
+        given(hintsStore.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, tssConfig))
+                .willReturn(HintsConstruction.newBuilder().constructionId(99).build());
+        given(component.controllers()).willReturn(controllers);
+        subject.reconcile(activeRosters, hintsStore, CONSENSUS_NOW, tssConfig, true);
+        verify(controllers).stop();
+        verify(controllers, never()).getOrCreateFor(any(), any(), any(), any());
+        verify(hintsStore, never()).allocateCrsId();
+        verify(hintsStore, never()).setCrsState(any());
+        verify(hintsStore, never()).setNextCrsState(any());
+        verifyNoInteractions(context, library);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"128,64", "64,128"})
+    void refusesUnsupportedPersistedActiveOrBoundCapacityWithoutChangingSigning(
+            final int activeCapacity, final int boundCapacity) {
+        given(activeRosters.phase()).willReturn(ActiveRosters.Phase.TRANSITION);
+        given(hintsStore.getCrsState())
+                .willReturn(CRSState.newBuilder()
+                        .ceremonyId(1)
+                        .numParties(activeCapacity)
+                        .stage(COMPLETED)
+                        .crs(Bytes.wrap("persisted-active-crs"))
+                        .build());
+        given(hintsStore.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, tssConfig))
+                .willReturn(HintsConstruction.newBuilder()
+                        .constructionId(99)
+                        .crsId(2)
+                        .numParties(boundCapacity)
+                        .build());
+        given(component.controllers()).willReturn(controllers);
+
+        subject.reconcile(activeRosters, hintsStore, CONSENSUS_NOW, tssConfig, true);
+
+        verify(controllers).stop();
+        verify(controllers, never()).getOrCreateFor(any(), any(), any(), any());
+        verify(hintsStore, never()).allocateCrsId();
+        verify(hintsStore, never()).setCrsState(any());
+        verify(hintsStore, never()).setNextCrsState(any());
+        verifyNoInteractions(context, library);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void ceremonyWeightsAndControllerUsePersistedConstructionEvenWithStaleSigningContext(final boolean stale) {
+        final var selected = prepareTransition(7, 8);
+        final var persisted = HintsConstruction.newBuilder()
+                .constructionId(1)
+                .crsId(1)
+                .numParties(8)
+                .hintsScheme(new HintsScheme(PreprocessedKeys.DEFAULT, List.of(new NodePartyId(42, 1, 7))))
+                .build();
+        given(hintsStore.getActiveConstruction()).willReturn(persisted);
+        lenient().when(component.signingContext()).thenReturn(context);
+        lenient().when(context.activeConstruction()).thenReturn(stale ? HintsConstruction.DEFAULT : null);
+        given(library.newCrs((short) 16)).willReturn(Bytes.wrap("seed"));
+        given(hintsStore.allocateCrsId()).willReturn(2L);
+        given(activeRosters.transitionWeights(new TreeMap<>(Map.of(42L, 7L)))).willReturn(transitionWeights);
+        given(transitionWeights.sourceNodeWeights()).willReturn(new TreeMap<>(Map.of(42L, 7L)));
+        subject.reconcile(activeRosters, hintsStore, CONSENSUS_NOW, tssConfig, true);
+        assertEquals(
+                List.of(new com.hedera.hapi.node.state.hints.CrsContributor(42, 7)),
+                selected.get().contributors());
+        verify(controllers).getOrCreateFor(eq(activeRosters), any(), eq(hintsStore), eq(persisted));
+        verifyNoInteractions(context);
+    }
+
+    private AtomicReference<CRSState> prepareTransition(int targetNodes, int activeParties) {
+        final var old = HintsConstruction.newBuilder()
+                .constructionId(1)
+                .crsId(1)
+                .numParties(activeParties)
+                .hintsScheme(HintsScheme.DEFAULT)
+                .build();
+        final var upcoming = HintsConstruction.newBuilder().constructionId(2).build();
+        final var activeCrs = CRSState.newBuilder()
+                .ceremonyId(1)
+                .numParties(activeParties)
+                .stage(COMPLETED)
+                .crs(Bytes.wrap("active"))
+                .build();
+        final var selected = new AtomicReference<>(activeCrs);
+        given(activeRosters.phase()).willReturn(ActiveRosters.Phase.TRANSITION);
+        given(activeRosters.targetRoster())
+                .willReturn(new Roster(IntStream.range(0, targetNodes)
+                        .mapToObj(i ->
+                                RosterEntry.newBuilder().nodeId(i).weight(1).build())
+                        .toList()));
+        given(hintsStore.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, tssConfig))
+                .willReturn(upcoming);
+        given(hintsStore.getCrsState()).willReturn(activeCrs);
+        lenient().when(hintsStore.getActiveConstruction()).thenReturn(old);
+        given(hintsStore.bindConstructionToCrs(eq(2L), anyLong(), anyInt())).willAnswer(inv -> upcoming.copyBuilder()
+                .crsId((long) inv.getArgument(1))
+                .numParties((int) inv.getArgument(2))
+                .build());
+        given(hintsStore.getCrsStateFor(any())).willAnswer(inv -> selected.get());
+        lenient()
+                .when(hintsStore.startHintsKeyGracePeriod(eq(2L), any(), any()))
+                .thenAnswer(inv -> upcoming.copyBuilder()
+                        .crsId(selected.get().ceremonyId())
+                        .numParties(selected.get().numParties())
+                        .gracePeriodEndTime(asTimestamp((Instant) inv.getArgument(2)))
+                        .build());
+        lenient()
+                .doAnswer(inv -> {
+                    final CRSState value = inv.getArgument(0);
+                    if (!value.equals(CRSState.DEFAULT)) selected.set(value);
+                    return null;
+                })
+                .when(hintsStore)
+                .setNextCrsState(any());
+        given(component.controllers()).willReturn(controllers);
+        given(controllers.getOrCreateFor(any(), any(), any(), any())).willReturn(controller);
+        lenient().when(tssConfig.crsUpdateContributionTime()).thenReturn(Duration.ofSeconds(10));
+        lenient().when(tssConfig.transitionHintsKeyGracePeriod()).thenReturn(Duration.ofSeconds(300));
+        return selected;
     }
 
     @Test

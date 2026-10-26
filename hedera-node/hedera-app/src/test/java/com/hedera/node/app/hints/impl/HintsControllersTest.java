@@ -32,8 +32,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class HintsControllersTest {
-    private static final HintsConstruction ONE_CONSTRUCTION =
-            HintsConstruction.newBuilder().constructionId(1L).build();
+    private static final HintsConstruction ONE_CONSTRUCTION = HintsConstruction.newBuilder()
+            .constructionId(1L)
+            .crsId(1L)
+            .numParties(8)
+            .build();
     private static final Roster CURRENT_ROSTER = new Roster(List.of(
             RosterEntry.newBuilder().nodeId(1L).build(),
             RosterEntry.newBuilder().nodeId(2L).build()));
@@ -114,7 +117,7 @@ class HintsControllersTest {
         given(weights.sourceNodesHaveTargetThreshold()).willReturn(true);
         given(keyAccessor.getOrCreateBlsPrivateKey(1L)).willReturn(Bytes.EMPTY);
         given(selfNodeInfoSupplier.get()).willReturn(selfNodeInfo);
-        given(hintsStore.getCrsState()).willReturn(CRSState.DEFAULT);
+        given(hintsStore.getCrsStateFor(ONE_CONSTRUCTION)).willReturn(CRSState.DEFAULT);
         given(weights.sourceNodeIds()).willReturn(new TreeSet<>(Set.of(1L)));
         given(activeRosters.currentRoster()).willReturn(CURRENT_ROSTER);
         given(hintsStore.getVotes(1L, Set.of(1L, 2L))).willReturn(Map.of());
