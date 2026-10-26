@@ -3,8 +3,7 @@
 #
 # Prints, as a compact JSON array, the test configuration of every consensus node ref to regression-test.
 # Each element holds the ref plus the versions that ref pins for itself (read with `git show`, no checkout):
-#   {"cn-ref","cn-slug","solo-version","java-version","bn-mirror-node-version","tck-version","js-sdk-version",
-#    "pinned-bn-version"}
+#   {"cn-ref","cn-slug","solo-version","java-version","bn-mirror-node-version","tck-version","js-sdk-version"}
 #
 # Run from inside a git clone with an `origin` remote.
 # env:
@@ -59,14 +58,12 @@ while IFS= read -r ref; do
   mn=$(echo "${citr}" | get bn-mirror-node-version "${CITR_ENV}")
   tck=$(echo "${citr}" | get tck-version "${CITR_ENV}")
   sdk=$(echo "${citr}" | get js-sdk-version "${CITR_ENV}")
-  bn=$(echo "${citr}" | get block-node-version "${CITR_ENV}")
 
   configs=$(echo "${configs}" | jq -c \
     --arg ref "${ref}" --arg slug "${ref//[^A-Za-z0-9._-]/-}" --arg solo "${solo}" --arg java "${java}" \
-    --arg mn "${mn}" --arg tck "${tck}" --arg sdk "${sdk}" --arg bn "${bn}" \
+    --arg mn "${mn}" --arg tck "${tck}" --arg sdk "${sdk}" \
     '. + [{"cn-ref": $ref, "cn-slug": $slug, "solo-version": $solo, "java-version": $java,
-           "bn-mirror-node-version": $mn, "tck-version": $tck, "js-sdk-version": $sdk,
-           "pinned-bn-version": $bn}]')
+           "bn-mirror-node-version": $mn, "tck-version": $tck, "js-sdk-version": $sdk}]')
 done <<< "${refs}"
 
 echo "${configs}"

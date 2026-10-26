@@ -66,8 +66,6 @@ check "duplicates dropped, order kept" '["main","release/0.72"]' "$(echo "${out}
 check "slug replaces slashes" 'release-0.72' "$(echo "${out}" | jq -r '.[1]."cn-slug"')"
 check "each ref gets its own versions" 'v0.91.0/25.0.2|v0.60.0/21.0.1' \
   "$(echo "${out}" | jq -r '[.[] | ."solo-version" + "/" + ."java-version"] | join("|")')"
-check "pinned BN version is per ref" 'v0.44.1|v0.43.0' \
-  "$(echo "${out}" | jq -r '[.[]."pinned-bn-version"] | join("|")')"
 check "other pinned versions are read" 'v0.165.0 v0.14.0 v0.91.0 v2.90.1' \
   "$(echo "${out}" | jq -r '.[0] | [."bn-mirror-node-version", ."tck-version", ."solo-version", ."js-sdk-version"] | join(" ")')"
 

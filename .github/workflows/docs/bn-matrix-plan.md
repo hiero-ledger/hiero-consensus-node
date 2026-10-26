@@ -7,9 +7,11 @@ not only the single version pinned in `.citr-env`.
 
 - New workflow `906-cron-block-node-matrix.yaml`, `workflow_dispatch` only for now (a nightly `schedule` trigger can
   be added later, but would need automatic BN version discovery).
-- The caller supplies the versions: `cn-refs` (comma-separated consensus node branches/tags/SHAs, default: the
-  selected branch) and `bn-versions` (comma-separated Block Node versions, default: the BN version pinned in the
-  first CN ref's `.citr-env`).
+- The caller must supply both inputs (no defaults): `cn-refs` (comma-separated consensus node branches/tags/SHAs)
+  and `bn-versions` (comma-separated Block Node versions).
+- Only the Block Node container version varies. The BN protobuf sources CN compiles against stay pinned
+  (`blockNodeProtobufSources` in `hiero-dependency-versions/build.gradle.kts`), so each leg tests the current CN
+  protobufs against that BN version.
 - `resolve-versions` builds the full cross product CN ref x BN version; a matrix job calls the reusable
   `821-call-block-node-regression.yaml` once per pair (`fail-fast: false`, `max-parallel: 3`).
 - Each CN ref is tested with its own Solo, Java, mirror node, TCK and JS SDK versions, read from that ref's
