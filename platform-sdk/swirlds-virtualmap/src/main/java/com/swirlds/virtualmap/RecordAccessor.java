@@ -4,6 +4,7 @@ package com.swirlds.virtualmap;
 import static com.swirlds.virtualmap.MerklePathUtils.INVALID_PATH;
 import static com.swirlds.virtualmap.MerklePathUtils.ROOT_PATH;
 
+import com.hedera.pbj.runtime.hashing.WritableMessageDigest;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
@@ -14,6 +15,9 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Objects;
+import org.hiero.base.concurrent.ThreadLocalStorage;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 
 /**
@@ -85,9 +89,12 @@ public final class RecordAccessor {
                 throw new UncheckedIOException("Failed to read root hash chunk from data source", e);
             }
         }
+        final DigestType digestType = Cryptography.DEFAULT_DIGEST_TYPE;
+        final WritableMessageDigest messageDigest =
+                ThreadLocalStorage.getWritableMessageDigest(digestType.algorithmName());
         assert rootChunk != null;
         return rootChunk.chunkRootHash(
-                MerkleHasher.threadSafeDefault(), metadata.getFirstLeafPath(), metadata.getLastLeafPath());
+                metadata.getFirstLeafPath(), metadata.getLastLeafPath(), messageDigest, digestType);
     }
 
     /**
@@ -113,18 +120,18 @@ public final class RecordAccessor {
         }
         final long chunkId = VirtualHashChunk.pathToChunkId(path, hashChunkHeight);
         VirtualHashChunk hashChunk = cache.lookupHashChunkById(chunkId);
+        final DigestType digestType = Cryptography.DEFAULT_DIGEST_TYPE;
+        final WritableMessageDigest messageDigest =
+                ThreadLocalStorage.getWritableMessageDigest(digestType.algorithmName());
         if (hashChunk != null) {
             return hashChunk.calcHash(
-                    MerkleHasher.threadSafeDefault(), path, metadata.getFirstLeafPath(), metadata.getLastLeafPath());
+                    path, metadata.getFirstLeafPath(), metadata.getLastLeafPath(), messageDigest, digestType);
         }
         try {
             hashChunk = dataSource.loadHashChunk(chunkId);
             if (hashChunk != null) {
                 return hashChunk.calcHash(
-                        MerkleHasher.threadSafeDefault(),
-                        path,
-                        dataSource.getFirstLeafPath(),
-                        dataSource.getLastLeafPath());
+                        path, dataSource.getFirstLeafPath(), dataSource.getLastLeafPath(), messageDigest, digestType);
             }
         } catch (final IOException e) {
             throw new UncheckedIOException("Failed to read node hash from data source by path", e);

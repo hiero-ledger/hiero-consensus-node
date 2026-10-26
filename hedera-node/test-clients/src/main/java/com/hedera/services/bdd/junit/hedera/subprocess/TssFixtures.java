@@ -30,6 +30,8 @@ import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.DigestType;
 
 /**
  * Harvests, merges, caches, installs and reads the per-network genesis TSS fixtures that
@@ -59,7 +61,16 @@ public final class TssFixtures {
     /** Splits a multi-node fixture stem {@code <network>-node<id>} into its network name and node id. */
     private static final Pattern NODE_FIXTURE_STEM = Pattern.compile("^(.*)-node(\\d+)$");
 
-    /** Name of the directory holding the committed fixtures and the WRAPS artifacts. */
+    /**
+     * Filename infix distinguishing the SHA-256 fixture set from the (bare) SHA-384 set, so both can coexist
+     * in {@link #CACHE_DIR}. The active digest ({@link Cryptography#DEFAULT_DIGEST_TYPE}) selects which set is
+     * loaded and generated; see {@link #fixtureFileName(String, DigestType)}. A SHA-256 fixture for network
+     * {@code ledgerA} is {@code ledgerA-sha256-genesis-network.json.gz}; the SHA-384 fixture stays
+     * {@code ledgerA-genesis-network.json.gz} so the committed files never move.
+     */
+    private static final String SHA256_TAG = "sha256";
+
+    /** Name of the directory holding the committed fixtures. */
     private static final String TSS_STARTUP_ASSETS_DIR = "tss-startup-assets";
 
     /** {@code tss-startup-assets/} as seen from a {@code hedera-node/test-clients/} working dir (Gradle). */
@@ -70,8 +81,7 @@ public final class TssFixtures {
 
     /**
      * Where {@code tssPreload}-opted networks read cached fixtures from / write fresh ones to (absolute; see
-     * {@link #resolveTssFixtureCacheDir}). The dir is gitignored; co-locates with the
-     * extracted WRAPS artifacts ({@code wraps-vX.Y.Z/}, which {@code TSS_LIB_WRAPS_ARTIFACTS_PATH} points at).
+     * {@link #resolveTssFixtureCacheDir}). Compressed fixtures are committed; uncompressed local copies are gitignored.
      */
     public static final Path CACHE_DIR = resolveTssFixtureCacheDir();
 
@@ -196,7 +206,18 @@ public final class TssFixtures {
      * node-local key files, and the public material that enters hashed state is identical for every node.
      */
     private static String fixtureFileName(@NonNull final String networkName) {
-        return networkName + "-" + GENESIS_NETWORK_JSON;
+        return fixtureFileName(networkName, Cryptography.DEFAULT_DIGEST_TYPE);
+    }
+
+    /**
+     * Fixture filename for {@code networkName} under an explicit {@code digestType}. The SHA-256 set carries the
+     * {@value #SHA256_TAG} infix; every other digest keeps the bare (historically SHA-384) name so the committed
+     * files never move. Package-private and digest-parameterized so the selection logic is unit-testable without
+     * depending on the compile-time {@link Cryptography#DEFAULT_DIGEST_TYPE}.
+     */
+    static String fixtureFileName(@NonNull final String networkName, @NonNull final DigestType digestType) {
+        final String tag = digestType == DigestType.SHA_256 ? SHA256_TAG + "-" : "";
+        return networkName + "-" + tag + GENESIS_NETWORK_JSON;
     }
 
     /**
@@ -240,12 +261,33 @@ public final class TssFixtures {
      */
     @Nullable
     public static String fixtureNetworkName(@NonNull final String fileName) {
+        return fixtureNetworkName(fileName, Cryptography.DEFAULT_DIGEST_TYPE);
+    }
+
+    /**
+     * Network name a committed fixture belongs to <i>for the given {@code digestType}</i>, or null if
+     * {@code fileName} is not a fixture this digest should seed from. The scan is digest-aware so the two sets
+     * can coexist in {@link #CACHE_DIR}: under {@link DigestType#SHA_256} only {@value #SHA256_TAG}-tagged
+     * fixtures match (and the tag is stripped to recover the network), while under any other digest the tagged
+     * fixtures are ignored so a SHA-256 file can never shadow the active network's port reservation.
+     */
+    @Nullable
+    static String fixtureNetworkName(@NonNull final String fileName, @NonNull final DigestType digestType) {
         final String base = fileName.endsWith(".gz") ? fileName.substring(0, fileName.length() - 3) : fileName;
         final String suffix = "-" + GENESIS_NETWORK_JSON;
         if (!base.endsWith(suffix)) {
             return null;
         }
-        final String stem = base.substring(0, base.length() - suffix.length());
+        String stem = base.substring(0, base.length() - suffix.length());
+        // Gate on the digest tag: only this digest's fixtures are eligible, so the other set stays invisible.
+        final String tagStem = "-" + SHA256_TAG;
+        final boolean fileIsSha256 = stem.endsWith(tagStem);
+        if (fileIsSha256 != (digestType == DigestType.SHA_256)) {
+            return null;
+        }
+        if (fileIsSha256) {
+            stem = stem.substring(0, stem.length() - tagStem.length());
+        }
         final var matcher = NODE_FIXTURE_STEM.matcher(stem);
         if (matcher.matches()) {
             return "0".equals(matcher.group(2)) ? matcher.group(1) : null;

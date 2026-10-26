@@ -49,7 +49,7 @@ class InFlightEventsTest {
 
         final BiPredicate<NodeId, NodeId> connected =
                 (sender, receiver) -> !downConnections.contains(Map.entry(sender, receiver));
-        inFlightEvents = new InFlightEvents(connected, nodeId -> eventWindow);
+        inFlightEvents = new InFlightEvents(connected, nodeId -> eventWindow, START);
 
         inFlightEvents.addNode(NODE_0);
         inFlightEvents.addNode(NODE_1);
@@ -180,6 +180,19 @@ class InFlightEventsTest {
     }
 
     @Test
+    @DisplayName("a tie with a connection's next event is still broken by node id")
+    void tiesWithALaterEventOnAConnectionAreBrokenByNodeId() {
+        // Node 2's second event only becomes its head after its first is delivered, and then ties with node 1's.
+        final PlatformEvent fromTwoEarly = addEvent(NODE_2, 10);
+        final PlatformEvent fromTwoLate = addEvent(NODE_2, 20);
+        final PlatformEvent fromOne = addEvent(NODE_1, 20);
+
+        inFlightEvents.deliverArrived(at(30), node0);
+
+        assertThat(node0.receivedEvents).containsExactly(fromTwoEarly, fromOne, fromTwoLate);
+    }
+
+    @Test
     @DisplayName("clearing a node's incoming events leaves other nodes untouched")
     void clearingIncomingAffectsOneNodeOnly() {
         addEvent(NODE_0, NODE_1, 10);
@@ -261,6 +274,28 @@ class InFlightEventsTest {
         inFlightEvents.deliverArrived(at(40), node0);
 
         assertThat(node0.receivedEvents).containsExactly(fromTwoEarly, fromTwoLate);
+    }
+
+    @Test
+    @DisplayName("the senders that are not refused keep their arrival order, interleaved across connections")
+    void refusalKeepsTheArrivalOrderOfTheOthers() {
+        final NodeId nodeThree = NodeId.of(3);
+        inFlightEvents.addNode(nodeThree);
+        final PlatformEvent fromOneEarly = addEvent(NODE_1, 10);
+        final PlatformEvent fromTwoEarly = addEvent(NODE_2, 20);
+        final PlatformEvent fromOneLate = addEvent(NODE_1, 25);
+        final PlatformEvent fromThree = addEvent(nodeThree, 30);
+        final PlatformEvent fromTwoLate = addEvent(NODE_2, 40);
+        node0.refusedSenders.add(NODE_1);
+
+        inFlightEvents.deliverArrived(at(50), node0);
+        assertThat(node0.receivedEvents).containsExactly(fromTwoEarly, fromThree, fromTwoLate);
+        assertThat(node0.receiveEventCalls).isEqualTo(4);
+
+        node0.refusedSenders.clear();
+        inFlightEvents.deliverArrived(at(50), node0);
+        assertThat(node0.receivedEvents)
+                .containsExactly(fromTwoEarly, fromThree, fromTwoLate, fromOneEarly, fromOneLate);
     }
 
     @Test

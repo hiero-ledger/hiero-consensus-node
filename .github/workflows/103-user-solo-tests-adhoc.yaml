@@ -21,12 +21,11 @@ on:
         options:
           - "jumpstart"
           - "wrb-streaming"
-          - "e2e-block-stream-cutover"
           - "075-to-076-tss"
-          - "078-to-079-cutover"
+          - "three-stage-block-stream-cutover"
           - "e2e-backpressure"
       cluster-target:
-        description: "Where to run. kind = ephemeral cluster on the runner; remote = Chewie-allocated namespace on the perf cluster via Teleport (jumpstart, wrb-streaming, e2e-block-stream-cutover only)."
+        description: "Where to run. kind = ephemeral cluster on the runner; remote = Chewie-allocated namespace on the perf cluster via Teleport (jumpstart and wrb-streaming only)."
         required: true
         type: choice
         default: "kind"
@@ -43,13 +42,8 @@ on:
         required: false
         type: string
         default: ""
-      cutover-upgrade-075-version:
-        description: "[Cutover] Consensus-node release tag for the 0.75 upgrade step. Blank → v0.75.0-rc.6."
-        required: false
-        type: string
-        default: ""
       cutover-enable-tck:
-        description: "[Cutover] Run the SDK TCK regression suite before post-cutover validation."
+        description: "[three-stage-block-stream-cutover] Run SDK TCK before the final continuity checks."
         required: true
         type: boolean
         default: true
@@ -63,8 +57,8 @@ on:
         required: false
         type: string
         default: ""
-      cutover-078-to-079-starting-tag:
-        description: "[078-to-079-cutover] Consensus-node release tag for the initial 0.78 network deploy. The 0.79 cutover always upgrades to the local build from the checked-out ref. Leave blank to default to v0.78.0-rc.5."
+      three-stage-block-stream-cutover-starting-tag:
+        description: "[three-stage-block-stream-cutover] Optional published CN tag for stage 1. Leave blank to use the checkout local build for all three stages."
         required: false
         type: string
         default: ""
@@ -101,7 +95,7 @@ jobs:
   extract-citr-vars:
     name: Extract CITR Vars
     # Runs for every scenario. Non-cutover jobs read adhoc-solo-version from it as the default
-    # Solo version when the solo-version input is left blank; the 078-to-079 cutover job reads
+    # Solo version when the solo-version input is left blank; the three-stage-block-stream cutover job reads
     # cutover-solo-version. It must stay unconditional: a gated job would be "skipped", and a
     # skipped need skips its dependents, so gating it would skip every non-cutover scenario.
     uses: ./.github/workflows/855-call-extract-citr-vars.yaml
@@ -130,7 +124,7 @@ jobs:
   # Allocation size comes from support/chewie/solo-adhoc-config.json.
   get-chewie-jwt:
     name: Get Chewie JWT
-    if: ${{ inputs.cluster-target == 'remote' && contains(fromJSON('["jumpstart","e2e-block-stream-cutover","wrb-streaming"]'), inputs.scenario) }}
+    if: ${{ inputs.cluster-target == 'remote' && contains(fromJSON('["jumpstart","wrb-streaming"]'), inputs.scenario) }}
     uses: ./.github/workflows/858-call-get-chewie-jwt.yaml
     secrets:
       chewie-key: ${{ secrets.CHEWIE_REPO_IDENTITY_KEY }}
@@ -181,7 +175,7 @@ jobs:
       instances-aux-qty: ${{ fromJSON(needs.get-solo-adhoc-config.outputs.aux-qty) }}
       instances-aux-cpu: ${{ fromJSON(needs.get-solo-adhoc-config.outputs.aux-cpu-request) }}
       instances-aux-memory-mb: ${{ fromJSON(needs.get-solo-adhoc-config.outputs.aux-mem-request-mb) }}
-      # Covers the longest scenario job timeout (210m); the allocation is released as soon as the run ends.
+      # Covers the remote scenarios; the allocation is released as soon as the run ends.
       duration-minutes: 240
       request-timeout: ${{ fromJSON(needs.extract-chewie-props.outputs.request-timeout) }}
     secrets:
@@ -424,255 +418,6 @@ jobs:
         run: |
           kind delete cluster -n "wrb-jumpstart"
 
-  solo-e2e-block-stream-cutover:
-    name: "Solo E2E Block Stream Cutover"
-    needs:
-      - extract-jdk-version
-      - extract-citr-vars
-      - acquire-kubernetes-resources
-    # acquire-kubernetes-resources is skipped on Kind runs, so status must be checked explicitly.
-    if: ${{ !cancelled() && inputs.scenario == 'e2e-block-stream-cutover'
-      && needs.extract-jdk-version.result == 'success'
-      && needs.extract-citr-vars.result == 'success'
-      && (inputs.cluster-target == 'kind' || needs.acquire-kubernetes-resources.result == 'success') }}
-    runs-on: ${{ inputs.cluster-target == 'remote' && 'hl-cn-sdlt-lin-lg' || 'hl-cn-rpc-relay-lin-lg' }}
-    # 12-step cutover fits in ~150m; the added TCK Step 13 (repo clones, sdk-server, full suite)
-    # needs extra headroom, so both the step and job budgets are widened below.
-    timeout-minutes: 210
-    env:
-      SOLO_CLUSTER_NAME: "cutover-e2e-testing"
-      SOLO_NAMESPACE: ${{ inputs.cluster-target == 'remote' && needs.acquire-kubernetes-resources.outputs.namespace || 'solo' }}
-      # The allocation's scheduling constraints, for the remote values files and toleration patcher;
-      # empty on Kind runs.
-      CN_LABELS: ${{ needs.acquire-kubernetes-resources.outputs.cn-labels }}
-      CN_TOLERATIONS: ${{ needs.acquire-kubernetes-resources.outputs.cn-tolerations }}
-      AUX_LABELS: ${{ needs.acquire-kubernetes-resources.outputs.aux-labels }}
-      AUX_TOLERATIONS: ${{ needs.acquire-kubernetes-resources.outputs.aux-tolerations }}
-    steps:
-      - name: Prepare Runner
-        id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
-        with:
-          checkout: "true"
-          checkout-ref: "${{ inputs.ref }}"
-          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
-          checkout-fetch-depth: "0"
-          setup-java: "true"
-          java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
-          java-distribution: "temurin"
-          setup-gradle: "true"
-          gradle-cache-read-only: "false"
-          setup-node: "true"
-          node-version: "24"
-          setup-go: "true"
-          go-version: "1.26.4"
-
-      - name: Checkout Block Node (main)
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          repository: hiero-ledger/hiero-block-node
-          ref: main
-          path: hiero-block-node
-          fetch-depth: 0
-          token: ${{ github.token }}
-
-      - name: Install Solo
-        env:
-          SOLO_VERSION: ${{ inputs.solo-version || needs.extract-citr-vars.outputs.adhoc-solo-version }}
-        run: |
-          set -eo pipefail
-          if [[ -z "${SOLO_VERSION}" ]]; then
-            echo "::error::No Solo version resolved: 'solo-version' input is blank and adhoc-solo-version is missing from .citr-env."
-            exit 1
-          fi
-          npm install -g "@hiero-ledger/solo@${SOLO_VERSION}"
-          solo --version
-
-      - name: Setup Kind
-        if: ${{ inputs.cluster-target == 'kind' }}
-        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
-        with:
-          install_only: true
-          node_image: kindest/node:v1.32.0
-          version: v0.29.0
-          kubectl_version: v1.32.2
-          verbosity: 3
-          wait: 120s
-
-      # Remote-only: Kind normally provides kubectl, so install it explicitly here.
-      - name: Install KubeCtl
-        if: ${{ inputs.cluster-target == 'remote' }}
-        uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
-        with:
-          version: v1.32.5
-
-      - name: Install Teleport Client
-        if: ${{ inputs.cluster-target == 'remote' }}
-        uses: teleport-actions/setup@176c25dfcd19cd31a252f275d579822b243e7b9c # v1.0.6
-        with:
-          version: 18.4.0
-
-      - name: Authorize Teleport SSH Access
-        if: ${{ inputs.cluster-target == 'remote' }}
-        id: auth-ssh
-        uses: teleport-actions/auth@3b365df2b4f64891358392a444ff34929ba0d0b1 # v2.1.2
-        with:
-          proxy: hashgraph.teleport.sh:443
-          token: gh-citr-performance-svcs-bot
-          certificate-ttl: 24h
-
-      - name: Authorize Teleport K8S Access
-        if: ${{ inputs.cluster-target == 'remote' }}
-        id: auth-k8s
-        uses: teleport-actions/auth-k8s@0f46164469ae4fcd4d359d40e06bab17d4be17c9 # v2.0.6
-        with:
-          proxy: hashgraph.teleport.sh:443
-          token: gh-citr-performance-svcs-bot
-          kubernetes-cluster: ${{ needs.acquire-kubernetes-resources.outputs.fqdn }}
-          certificate-ttl: 24h
-
-      # Remote-only: render the allocation's scheduling constraints into copies of the scenario's
-      # remote values files, and point the scripts at the copies (each path is env-overridable).
-      - name: Render Chewie Scheduling
-        if: ${{ inputs.cluster-target == 'remote' }}
-        run: |
-          set -eo pipefail
-          SOLO_SCRIPTS="hedera-node/test-clients/scripts/solo"
-          RENDERED="${RUNNER_TEMP}/chewie-scheduling"
-          mkdir -p "${RENDERED}"
-          cp "${SOLO_SCRIPTS}/remote-cluster-network-values.yaml" "${RENDERED}/cluster-network-values.yaml"
-          cp "${SOLO_SCRIPTS}/wrapped-record-block-jumpstart/resources/remote/network-values.yaml" "${RENDERED}/jumpstart-network-values.yaml"
-          cp "${SOLO_SCRIPTS}/wrapped-record-block-jumpstart/resources/remote/mirror-values.yaml" "${RENDERED}/jumpstart-mirror-values.yaml"
-          .github/workflows/support/chewie/apply-allocation-scheduling.sh "${RENDERED}"/*.yaml
-          {
-            echo "REMOTE_CLUSTER_NETWORK_VALUES=${RENDERED}/cluster-network-values.yaml"
-            echo "REMOTE_NETWORK_VALUES_TEMPLATE=${RENDERED}/jumpstart-network-values.yaml"
-            echo "REMOTE_MIRROR_VALUES_TEMPLATE=${RENDERED}/jumpstart-mirror-values.yaml"
-          } >> "${GITHUB_ENV}"
-
-      - name: Install Helm v3.14.2
-        run: |
-          set -eo pipefail
-          HELM_VERSION="v3.14.2"
-          ARCHIVE="helm-${HELM_VERSION}-linux-amd64.tar.gz"
-          curl -fsSL "https://get.helm.sh/${ARCHIVE}" -o "${RUNNER_TEMP}/${ARCHIVE}"
-          tar -xzf "${RUNNER_TEMP}/${ARCHIVE}" -C "${RUNNER_TEMP}"
-          cp -f "${RUNNER_TEMP}/linux-amd64/helm" "${RUNNER_TEMP}/helm"
-          chmod +x "${RUNNER_TEMP}/helm"
-          export PATH="${RUNNER_TEMP}:${PATH}"
-          echo "${RUNNER_TEMP}" >> "${GITHUB_PATH}"
-          "${RUNNER_TEMP}/helm" version --short
-
-      - name: Verify Solo Dependency Versions
-        run: |
-          set -eo pipefail
-          helm version --short
-          if command -v kind >/dev/null 2>&1; then kind --version; fi
-          kubectl version --client=true
-
-      - name: Install zstd
-        run: |
-          set -eo pipefail
-          # zstd decompresses the .blk.zstd block files the cutover scenario pulls from the
-          # Block Node (Step 11 TSS-parameter seeding). There's no pre-installed substitute on
-          # the runner (no system zstd; the BN's zstd-jni isn't in the gradle cache), so install
-          # the small zstd package. (xxd was dropped — the script uses `od` for DER->hex.)
-          if ! command -v zstd >/dev/null 2>&1; then
-            sudo apt-get update -y
-            sudo apt-get install -y zstd
-          fi
-          zstd --version
-
-      - name: Install grpcurl
-        run: |
-          go install github.com/fullstorydev/grpcurl/cmd/grpcurl@v1.8.7
-
-      - name: Build Consensus Node Local Artifacts
-        run: ${GRADLE_EXEC} assemble
-
-      - name: Run E2E Block Stream Cutover Scenario
-        env:
-          CLUSTER_TARGET: ${{ inputs.cluster-target }}
-          KUBE_CONTEXT: ${{ inputs.cluster-target == 'remote' && format('hashgraph.teleport.sh-{0}', needs.acquire-kubernetes-resources.outputs.fqdn) || '' }}
-          UPGRADE_075_VERSION: ${{ inputs.cutover-upgrade-075-version || 'v0.75.0-rc.6' }}
-        run: |
-          set -eo pipefail
-          SCRIPT_PATH="hedera-node/test-clients/scripts/solo/e2e-block-stream-cutover/solo-e2e-block-stream-cutover.sh"
-          chmod +x "${SCRIPT_PATH}"
-          timeout --signal=SIGINT --kill-after=5m 175m \
-            env \
-              BLOCK_NODE_REPO_PATH="${GITHUB_WORKSPACE}/hiero-block-node" \
-              UPGRADE_075_VERSION="${UPGRADE_075_VERSION}" \
-              CLUSTER_TARGET="${CLUSTER_TARGET}" \
-              KUBE_CONTEXT="${KUBE_CONTEXT}" \
-              SOLO_NAMESPACE="${SOLO_NAMESPACE}" \
-              KEEP_NETWORK="false" \
-              ENABLE_TCK_TESTS="${{ inputs.cutover-enable-tck }}" \
-            "${SCRIPT_PATH}" --nodes 4 2>&1 | tee "${RUNNER_TEMP}/cutover-script.log"
-
-      - name: Collect Diagnostics On Failure
-        if: ${{ !cancelled() && failure() }}
-        run: |
-          set +e
-          OUT_DIR="${RUNNER_TEMP}/cutover-diagnostics"
-          mkdir -p "${OUT_DIR}"
-
-          kubectl get pods -A -o wide > "${OUT_DIR}/kubectl-pods.txt" 2>&1
-          kubectl get svc -A > "${OUT_DIR}/kubectl-services.txt" 2>&1
-          kubectl get events -A --sort-by=.lastTimestamp > "${OUT_DIR}/kubectl-events.txt" 2>&1
-          kubectl -n "${SOLO_NAMESPACE}" logs "pod/block-node-1-0" --all-containers --tail=-1 \
-            > "${OUT_DIR}/block-node-1-0.log" 2>&1
-
-          for node in node1 node2 node3 node4; do
-            pod="network-${node}-0"
-            kubectl -n "${SOLO_NAMESPACE}" logs "${pod}" -c root-container --tail=-1 > "${OUT_DIR}/${pod}-root-container.log" 2>&1
-            kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
-              "cat /opt/hgcapp/services-hedera/HapiApp2.0/output/hgcaa.log" \
-              > "${OUT_DIR}/${pod}-hgcaa.log" 2>&1
-            # Staged-build layout: shows exactly which jars solo left in data/apps + data/lib,
-            # to diagnose local-build staging failures (e.g. NoClassDefFoundError at startup).
-            kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
-              "ls -la /opt/hgcapp/services-hedera/HapiApp2.0/data/apps /opt/hgcapp/services-hedera/HapiApp2.0/data/lib" \
-              > "${OUT_DIR}/${pod}-staged-build-listing.txt" 2>&1
-          done
-
-          # Mirror-node logs (importer above all) — needed to trace BN-fed ingestion gaps
-          # such as token-supply updates or the address book not surfacing in mirror REST.
-          for mn_dep in mirror-1-importer mirror-1-rest mirror-1-restjava mirror-1-grpc; do
-            kubectl -n "${SOLO_NAMESPACE}" logs "deployment/${mn_dep}" --all-containers --tail=-1 \
-              > "${OUT_DIR}/${mn_dep}.log" 2>&1
-          done
-
-          if [[ -d "${HOME}/.solo/logs" ]]; then
-            mkdir -p "${OUT_DIR}/solo-logs"
-            cp -R "${HOME}/.solo/logs/." "${OUT_DIR}/solo-logs/" || true
-            # Strip ONLY the multi-GB WRAPS proving key (data/keys/wraps*) from the copied
-            # per-node log-config bundles. Everything else — swirlds.log, hgcaa.log,
-            # swirlds-hashstream, block-node-comms, configs — is retained for debugging;
-            # the proving key is a reproducible ~4 GB download, not a log.
-            find "${OUT_DIR}/solo-logs" -type f -name '*-log-config.zip' | while IFS= read -r z; do
-              zip -d "${z}" 'data/keys/wraps*' 'data/keys/wraps-archive/*' >/dev/null 2>&1 || true
-            done
-          fi
-
-      - name: Upload Cutover Failure Artifacts
-        if: ${{ !cancelled() && failure() }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: E2E Block Stream Cutover Failure Artifacts
-          path: |
-            ${{ runner.temp }}/cutover-script.log
-            ${{ runner.temp }}/cutover-diagnostics/**
-            hedera-node/test-clients/scripts/solo/e2e-block-stream-cutover/generated/**
-          if-no-files-found: warn
-          retention-days: 7
-
-      - name: Always Destroy Kind Cluster
-        if: ${{ always() && inputs.cluster-target == 'kind' }}
-        continue-on-error: true
-        run: |
-          kind delete cluster -n "${SOLO_CLUSTER_NAME}"
-
   solo-075-to-076-tss:
     name: "Solo 0.75 -> 0.76 TSS Upgrade"
     needs:
@@ -826,16 +571,17 @@ jobs:
         run: |
           kind delete cluster -n "${SOLO_CLUSTER_NAME}"
 
-  solo-078-to-079-cutover:
-    name: "Solo 0.78 -> 0.79 BLOCKS Cutover"
+  solo-three-stage-block-stream-cutover:
+    name: "Solo Three-Stage Block Stream Cutover"
     needs:
       - extract-jdk-version
       - extract-citr-vars
-    if: ${{ inputs.scenario == '078-to-079-cutover' }}
+    if: ${{ inputs.scenario == 'three-stage-block-stream-cutover' }}
     runs-on: hl-cn-rpc-relay-lin-lg
-    timeout-minutes: 120
+    # Includes dependency installation and the final SDK TCK suite (up to one hour).
+    timeout-minutes: 210
     env:
-      SOLO_CLUSTER_NAME: "cutover-078-to-079"
+      SOLO_CLUSTER_NAME: "three-stage-block-stream-cutover"
     steps:
       - name: Prepare Runner
         id: prepare-runner
@@ -855,11 +601,11 @@ jobs:
           setup-go: "true"
           go-version: "1.26.4"
 
-      - name: Checkout Block Node (main)
+      - name: Checkout Block Node (v0.45.0-sha256.1)
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           repository: hiero-ledger/hiero-block-node
-          ref: main
+          ref: v0.45.0-sha256.1
           path: hiero-block-node
           fetch-depth: 0
           token: ${{ github.token }}
@@ -906,25 +652,27 @@ jobs:
           grpcurl --version
 
       - name: Build Consensus Node Local Artifacts
-        # The 0.79 cutover always upgrades to the local build, so a build is always required.
+        # All three configuration stages use this local build by default.
         run: ${GRADLE_EXEC} assemble
 
-      - name: Run 0.78 -> 0.79 BLOCKS Cutover Scenario
+      - name: Run Three-Stage Block Stream Cutover Scenario
+        env:
+          ENABLE_TCK_TESTS: ${{ inputs.cutover-enable-tck }}
         run: |
           set -eo pipefail
-          SCRIPT_PATH="hedera-node/test-clients/scripts/solo/e2e-block-stream-cutover/solo-078-to-079-cutover.sh"
+          SCRIPT_PATH="hedera-node/test-clients/scripts/solo/e2e-block-stream-cutover/solo-three-stage-block-stream-cutover.sh"
           chmod +x "${SCRIPT_PATH}"
-          timeout --signal=SIGINT --kill-after=5m 100m \
+          timeout --signal=SIGINT --kill-after=5m 175m \
             env \
               BLOCK_NODE_REPO_PATH="${GITHUB_WORKSPACE}/hiero-block-node" \
-              DEPLOY_RELEASE_TAG="${{ inputs.cutover-078-to-079-starting-tag || 'v0.78.0-rc.5' }}" \
-            "${SCRIPT_PATH}" | tee "${RUNNER_TEMP}/078-to-079-cutover-script.log"
+              DEPLOY_RELEASE_TAG="${{ inputs.three-stage-block-stream-cutover-starting-tag || '' }}" \
+            "${SCRIPT_PATH}" 2>&1 | tee "${RUNNER_TEMP}/three-stage-block-stream-cutover-script.log"
 
       - name: Collect Diagnostics On Failure
         if: ${{ !cancelled() && failure() }}
         run: |
           set +e
-          OUT_DIR="${RUNNER_TEMP}/078-to-079-cutover-diagnostics"
+          OUT_DIR="${RUNNER_TEMP}/three-stage-block-stream-cutover-diagnostics"
           mkdir -p "${OUT_DIR}"
 
           kubectl get pods -A -o wide > "${OUT_DIR}/kubectl-pods.txt" 2>&1
@@ -956,16 +704,25 @@ jobs:
             done
           fi
 
-      - name: Upload 078-to-079 Cutover Failure Artifacts
+      - name: Upload Three-Stage Block Stream Cutover Failure Artifacts
         if: ${{ !cancelled() && failure() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: 078-to-079-Cutover-Failure-Artifacts
+          name: Three-Stage-Block-Stream-Cutover-Failure-Artifacts
           path: |
-            ${{ runner.temp }}/078-to-079-cutover-script.log
-            ${{ runner.temp }}/078-to-079-cutover-diagnostics/**
+            ${{ runner.temp }}/three-stage-block-stream-cutover-script.log
+            ${{ runner.temp }}/three-stage-block-stream-cutover-diagnostics/**
             hedera-node/test-clients/scripts/solo/e2e-block-stream-cutover/generated/**
           if-no-files-found: warn
+          retention-days: 7
+
+      - name: Upload Post-Cutover SDK TCK Reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: Three-Stage-Block-Stream-Cutover-TCK-Reports
+          path: hedera-node/test-clients/scripts/solo/e2e-block-stream-cutover/generated/three-stage-cutover/tck-report/**
+          if-no-files-found: ignore
           retention-days: 7
 
       - name: Always Destroy Kind Cluster
@@ -1305,7 +1062,6 @@ jobs:
     needs:
       - acquire-kubernetes-resources
       - solo-jumpstart-wrb
-      - solo-e2e-block-stream-cutover
       - solo-wrb-block-node-streaming
     # Release regardless of the scenario result: KEEP_NETWORK=false has already torn the network down.
     if: ${{ always() && needs.acquire-kubernetes-resources.outputs.allocation-id != '' }}

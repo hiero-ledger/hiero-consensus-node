@@ -9,7 +9,6 @@ import static com.hedera.node.app.history.schemas.V0730HistorySchema.WRAPS_PROVI
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
@@ -17,7 +16,6 @@ import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.config.data.TssConfig;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.spi.WritableSingletonState;
@@ -30,8 +28,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class V0730HistorySchemaTest {
 
-    private static final String HASH_HEX = "aa".repeat(48);
-
     @Mock
     private MigrationContext ctx;
 
@@ -43,9 +39,6 @@ class V0730HistorySchemaTest {
 
     @Mock
     private WritableStates writableStates;
-
-    @Mock
-    private WritableSingletonState<ProtoBytes> singletonState;
 
     @Mock
     private WritableSingletonState<ProtoBytes> ledgerIdState;
@@ -78,57 +71,20 @@ class V0730HistorySchemaTest {
     }
 
     @Test
-    void migrateInitializesDefaultAndPersistsConfiguredHash() {
-        givenNonGenesisMigrate(null, HASH_HEX);
+    void restartDoesNothingWhenHistoryIsDisabled() {
+        givenNonGenesisRestart();
+        given(tssConfig.historyEnabled()).willReturn(false);
 
         subject.restart(ctx);
 
-        verify(singletonState).put(ProtoBytes.DEFAULT);
-        verify(singletonState)
-                .put(ProtoBytes.newBuilder().value(Bytes.fromHex(HASH_HEX)).build());
-    }
-
-    @Test
-    void migrateSkipsWriteWhenConfiguredHashIsBlank() {
-        givenNonGenesisMigrate(null, "");
-
-        subject.restart(ctx);
-
-        verify(singletonState).put(ProtoBytes.DEFAULT);
-        verify(singletonState, never())
-                .put(ProtoBytes.newBuilder().value(Bytes.fromHex(HASH_HEX)).build());
-    }
-
-    @Test
-    void migrateOverwritesWhenHashDiffers() {
-        final var existingHash = "bb".repeat(48);
-        givenNonGenesisMigrate(new ProtoBytes(Bytes.fromHex(existingHash)), HASH_HEX);
-
-        subject.restart(ctx);
-
-        verify(singletonState, never()).put(ProtoBytes.DEFAULT);
-        verify(singletonState)
-                .put(ProtoBytes.newBuilder().value(Bytes.fromHex(HASH_HEX)).build());
-    }
-
-    @Test
-    void migrateSkipsWriteWhenHashUnchanged() {
-        // Hash already in state equals the configured hash: the guard must NOT re-put it. A no-op
-        // put of the same value is captured by the boundary state-change listener as a spurious
-        // change, which diverges numPrecedingStateChangesItems on replay (SELF_ISS).
-        givenNonGenesisMigrate(new ProtoBytes(Bytes.fromHex(HASH_HEX)), HASH_HEX);
-
-        subject.restart(ctx);
-
-        verify(singletonState, never()).put(ProtoBytes.DEFAULT);
-        verify(singletonState, never())
-                .put(ProtoBytes.newBuilder().value(Bytes.fromHex(HASH_HEX)).build());
+        verifyNoInteractions(writableStates, historyService);
     }
 
     @Test
     void migrateInitializesHistorySingletonsOnEnabledNonGenesisRestart() {
-        givenNonGenesisMigrate(null, "");
+        givenNonGenesisRestart();
         given(tssConfig.historyEnabled()).willReturn(true);
+        given(ctx.newStates()).willReturn(writableStates);
         given(writableStates.<ProtoBytes>getSingleton(LEDGER_ID_STATE_ID)).willReturn(ledgerIdState);
         given(ledgerIdState.get()).willReturn(null);
         given(writableStates.<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID))
@@ -148,8 +104,9 @@ class V0730HistorySchemaTest {
 
     @Test
     void migrateInitializesLatestHistoryProofFromActiveConstruction() {
-        givenNonGenesisMigrate(null, "");
+        givenNonGenesisRestart();
         given(tssConfig.historyEnabled()).willReturn(true);
+        given(ctx.newStates()).willReturn(writableStates);
         final var targetProof =
                 com.hedera.hapi.node.state.history.HistoryProof.newBuilder().build();
         final var activeConstruction =
@@ -174,17 +131,12 @@ class V0730HistorySchemaTest {
 
         subject.restart(ctx);
 
-        verifyNoInteractions(writableStates, singletonState);
+        verifyNoInteractions(writableStates);
     }
 
-    private void givenNonGenesisMigrate(final ProtoBytes existingValue, final String configuredHash) {
+    private void givenNonGenesisRestart() {
         given(ctx.isGenesis()).willReturn(false);
-        given(ctx.newStates()).willReturn(writableStates);
-        given(writableStates.<ProtoBytes>getSingleton(WRAPS_PROVING_KEY_HASH_STATE_ID))
-                .willReturn(singletonState);
-        given(singletonState.get()).willReturn(existingValue);
         given(ctx.appConfig()).willReturn(configuration);
         given(configuration.getConfigData(TssConfig.class)).willReturn(tssConfig);
-        given(tssConfig.wrapsProvingKeyHash()).willReturn(configuredHash);
     }
 }
