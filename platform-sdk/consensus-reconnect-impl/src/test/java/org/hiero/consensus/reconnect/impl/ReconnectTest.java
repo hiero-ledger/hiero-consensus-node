@@ -70,6 +70,12 @@ final class ReconnectTest {
     private final Configuration configuration =
             new TestConfigBuilder().withValue("socket.gzipCompression", false).getOrCreateConfig();
 
+    /** Same as {@link #configuration}, with the learner copying its state while it waits for the signatures. */
+    private final Configuration earlyCopyConfiguration = new TestConfigBuilder()
+            .withValue("socket.gzipCompression", false)
+            .withValue("reconnect.copyLearnerStateEarly", true)
+            .getOrCreateConfig();
+
     @BeforeAll
     static void setUp() throws ConstructableRegistryException {
         ConstructableRegistration.registerSyncConstructables();
@@ -105,7 +111,7 @@ final class ReconnectTest {
         final FileSystemManager fileSystemManager = new FileSystemManager(tempDir);
         // The teacher sends nothing until the learner's copy exists. If the learner copied its data source
         // only after receiving the signatures, the teacher would give up and the reconnect would fail
-        executeReconnect(fileSystemManager, mock(ReconnectMetrics.class), dataSourcesBefore -> {
+        executeReconnect(fileSystemManager, mock(ReconnectMetrics.class), earlyCopyConfiguration, dataSourcesBefore -> {
             final long deadline = System.currentTimeMillis() + COPY_TIMEOUT.toMillis();
             while (countDataSources(fileSystemManager) <= dataSourcesBefore) {
                 if (System.currentTimeMillis() > deadline) {
@@ -129,6 +135,7 @@ final class ReconnectTest {
             buildSignedState(stateLifecycleManager);
             final VirtualMapState stateCopy = stateLifecycleManager.copyMutableState();
             final ReconnectStateLearner receiver = buildReceiver(
+                    earlyCopyConfiguration,
                     stateCopy,
                     new DummyConnection(
                             configuration, pairedStreams.getLearnerInput(), pairedStreams.getLearnerOutput()),
@@ -151,7 +158,7 @@ final class ReconnectTest {
 
     private void executeReconnect(final FileSystemManager fileSystemManager, final ReconnectMetrics reconnectMetrics)
             throws InterruptedException, IOException {
-        executeReconnect(fileSystemManager, reconnectMetrics, dataSourcesBefore -> {});
+        executeReconnect(fileSystemManager, reconnectMetrics, configuration, dataSourcesBefore -> {});
     }
 
     /**
@@ -159,12 +166,14 @@ final class ReconnectTest {
      *
      * @param fileSystemManager the file system manager for the states
      * @param reconnectMetrics the reconnect metrics
+     * @param receiverConfiguration the learner's configuration
      * @param beforeTeacherSends called on the teacher's thread before the teacher sends anything, with the number of
      *     data sources before the learner started
      */
     private void executeReconnect(
             final FileSystemManager fileSystemManager,
             final ReconnectMetrics reconnectMetrics,
+            final Configuration receiverConfiguration,
             final BeforeTeacherSends beforeTeacherSends)
             throws InterruptedException, IOException {
         final VirtualMapState stateCopy;
@@ -179,6 +188,7 @@ final class ReconnectTest {
             signedState.getState().getRoot().getHash();
 
             final ReconnectStateLearner receiver = buildReceiver(
+                    receiverConfiguration,
                     stateCopy,
                     new DummyConnection(
                             configuration, pairedStreams.getLearnerInput(), pairedStreams.getLearnerOutput()),
@@ -286,13 +296,14 @@ final class ReconnectTest {
     }
 
     private ReconnectStateLearner buildReceiver(
+            final Configuration receiverConfiguration,
             final VirtualMapState state,
             final Connection connection,
             final ReconnectMetrics reconnectMetrics,
             final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager) {
 
         return new ReconnectStateLearner(
-                configuration,
+                receiverConfiguration,
                 new NoOpMetrics(),
                 getStaticThreadManager(),
                 connection,

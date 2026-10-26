@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -26,6 +27,7 @@ import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.VirtualMapLearner;
 import com.swirlds.virtualmap.sync.LearningSynchronizer;
+import com.swirlds.virtualmap.sync.MerkleSynchronizationException;
 import com.swirlds.virtualmap.test.fixtures.sync.PairedStreams;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -62,6 +64,7 @@ class ReconnectStateLearnerTest {
     private VirtualMapState currentState;
     private LearningSynchronizer synchronizer;
     private VirtualMapLearner learner;
+    /** Learner with {@code reconnect.copyLearnerStateEarly} enabled. */
     private ReconnectStateLearner reconnectLearner;
 
     @BeforeEach
@@ -76,11 +79,24 @@ class ReconnectStateLearnerTest {
 
         currentState = mock(VirtualMapState.class);
         when(currentState.getRoot()).thenReturn(mock(VirtualMap.class));
+        reconnectLearner = createReconnectLearner(true);
+    }
+
+    /**
+     * Creates the learner under test.
+     *
+     * @param copyStateEarly the value of {@code reconnect.copyLearnerStateEarly}
+     * @return the learner
+     */
+    private ReconnectStateLearner createReconnectLearner(final boolean copyStateEarly) {
         @SuppressWarnings("unchecked")
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
                 mock(StateLifecycleManager.class);
-        reconnectLearner = new ReconnectStateLearner(
-                configuration,
+        return new ReconnectStateLearner(
+                new TestConfigBuilder()
+                        .withValue("socket.gzipCompression", false)
+                        .withValue("reconnect.copyLearnerStateEarly", copyStateEarly)
+                        .getOrCreateConfig(),
                 getStaticThreadManager(),
                 learnerConnection,
                 currentState,
@@ -88,6 +104,41 @@ class ReconnectStateLearnerTest {
                 mock(ReconnectMetrics.class),
                 stateLifecycleManager,
                 synchronizer);
+    }
+
+    @Test
+    @DisplayName("By default, the learner isn't created if the signatures fail")
+    void learnerNotCreatedIfSignaturesFailByDefault() {
+        final ReconnectStateLearner defaultLearner = createReconnectLearner(false);
+        // The teacher disconnects instead of sending the signatures
+        pairedStreams.disconnectTeacher();
+
+        assertThrows(RuntimeException.class, defaultLearner::execute);
+
+        verify(synchronizer, never()).createLearner(any());
+    }
+
+    @Test
+    @DisplayName("By default, the learner is created after the signatures, on the reconnect thread")
+    void learnerCreatedAfterSignaturesByDefault() throws Exception {
+        final ReconnectStateLearner defaultLearner = createReconnectLearner(false);
+        final AtomicReference<Thread> creatingThread = new AtomicReference<>();
+        when(synchronizer.createLearner(any())).thenAnswer(invocation -> {
+            creatingThread.set(Thread.currentThread());
+            return learner;
+        });
+        when(synchronizer.synchronize(
+                        any(VirtualMapLearner.class), any(DataInputStream.class), any(DataOutputStream.class), any()))
+                .thenThrow(new MerkleSynchronizationException("test failure"));
+        sendSignatures();
+
+        assertThrows(ReconnectStateException.class, defaultLearner::execute);
+
+        assertSame(Thread.currentThread(), creatingThread.get(), "the learner should be created on this thread");
+        final InOrder inOrder = inOrder(synchronizer);
+        inOrder.verify(synchronizer).createLearner(any());
+        inOrder.verify(synchronizer)
+                .synchronize(same(learner), any(DataInputStream.class), any(DataOutputStream.class), any());
     }
 
     @AfterEach

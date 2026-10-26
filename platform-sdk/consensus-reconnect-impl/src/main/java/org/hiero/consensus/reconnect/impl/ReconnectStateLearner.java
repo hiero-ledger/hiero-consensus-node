@@ -33,6 +33,7 @@ import org.hiero.base.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.base.concurrent.manager.ThreadManager;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.consensus.gossip.impl.network.Connection;
+import org.hiero.consensus.reconnect.config.ReconnectConfig;
 import org.hiero.consensus.state.SignedStateFileReader;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SigSet;
@@ -60,6 +61,9 @@ public class ReconnectStateLearner {
     private final Configuration configuration;
     private final ThreadManager threadManager;
     private final LearningSynchronizer synchronizer;
+
+    /** Whether to copy the state's data source while waiting for the signatures, see {@link ReconnectConfig}. */
+    private final boolean copyStateEarly;
 
     private SigSet sigSet;
 
@@ -123,6 +127,7 @@ public class ReconnectStateLearner {
         this.reconnectSocketTimeout = requireNonNull(reconnectSocketTimeout);
         this.statistics = requireNonNull(statistics);
         this.synchronizer = requireNonNull(synchronizer);
+        this.copyStateEarly = configuration.getConfigData(ReconnectConfig.class).copyLearnerStateEarly();
     }
 
     /**
@@ -191,13 +196,15 @@ public class ReconnectStateLearner {
         ReservedSignedState reservedSignedState = null;
         try {
             // Copying the learner's data source takes long for large states, and it depends only on the learner's
-            // own state, which doesn't change during the reconnect. Start it now, so that it runs while the teacher
-            // prepares its state and sends the signatures
-            learnerFuture = createLearnerAsync();
+            // own state, which doesn't change during the reconnect. If enabled, start it now, so that it runs while
+            // the teacher prepares its state and sends the signatures
+            if (copyStateEarly) {
+                learnerFuture = createLearnerAsync();
+            }
             receiveSignatures();
             statistics.incrementReceiverStartTimes();
             connection.getDis().byteCounter().getAndReset();
-            final VirtualMapLearner learner = awaitLearner(learnerFuture);
+            final VirtualMapLearner learner = (learnerFuture != null) ? awaitLearner(learnerFuture) : createLearner();
             // From here, the synchronizer owns the learner and aborts it if the synchronization fails. Nothing
             // that can fail runs between this line and the synchronizer taking the learner over
             learnerHandedOver = true;
@@ -253,6 +260,21 @@ public class ReconnectStateLearner {
     }
 
     /**
+     * Creates the learner for the current state on the current thread.
+     *
+     * @return the learner
+     * @throws ReconnectStateException if the learner couldn't be created
+     */
+    @NonNull
+    private VirtualMapLearner createLearner() {
+        try {
+            return synchronizer.createLearner(currentState.getRoot());
+        } catch (final RuntimeException e) {
+            throw new ReconnectStateException("Failed to create the learner", e);
+        }
+    }
+
+    /**
      * Waits for the learner created by {@link #createLearnerAsync()}.
      *
      * @param learnerFuture the future learner
@@ -294,7 +316,7 @@ public class ReconnectStateLearner {
     /**
      * Receive and reconstruct the state from the teacher.
      *
-     * @param learner the learner for the current state, created by {@link #createLearnerAsync()}. This method
+     * @param learner the learner for the current state. This method
      *     passes it to the synchronizer before anything else can fail, so the synchronizer owns it
      * @return the signed state received from the teacher
      * @throws InterruptedException if the current thread is interrupted
