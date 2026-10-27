@@ -48,6 +48,7 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.throttle.ThrottleAdviser.ConsensusThrottleRejectionCapture;
 import com.hedera.node.app.spi.workflows.ClprDispatchMetadata;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata;
@@ -83,6 +84,11 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
     private static final Logger log = LogManager.getLogger(ClprSubmitBundleHandler.class);
 
     private static final Bytes ZERO_HASH = Bytes.wrap(new byte[32]);
+
+    /**
+     * Marks that no slot of the bundle hit a temporarily busy consensus throttle.
+     */
+    private static final int NO_THROTTLED_MESSAGE = -1;
 
     /**
      * Function selector for onClprMessage(bytes32,bytes,bytes) = 0x2ab00809
@@ -605,19 +611,6 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
 
         // --- Pass 2: Mutations begin ---
 
-        // Delete acked one-way outbound messages (control, reply). Data slots are deleted later when their inbound
-        // reply is processed in Step 10.
-        for (long id = oldAckedMessageId + 1; id <= newAckedMessageId; id++) {
-            final var msg = messageQueueStore.getMessage(channelId, id);
-            if (msg == null) {
-                continue;
-            }
-            final var payload = msg.payload();
-            if (payload != null && (payload.hasControl() || payload.hasMessageReply())) {
-                messageQueueStore.remove(channelId, id);
-            }
-        }
-
         // Lazy config propagation. Determine if the config has changed since the last time we sync'd. If so,
         // enqueue a new config via a control message.
         final var configTimestamp = ledgerConfig.timestamp();
@@ -667,6 +660,13 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         var peerThrottles = channel.peerThrottles();
         var receivedMessageId = channel.receivedMessageId();
         boolean bundleDecodeFailure = false;
+        // Messages must be handled in order, and a message's outcome must not depend on the transient load on the
+        // network (aBFT fairness). So when a slot's dispatch hits a temporarily busy consensus throttle, the slot is
+        // undone, and
+        // the bundle stops before it; a later bundle resumes from that slot once the throttle clears.
+        final var throttleAdviser = context.throttleAdviser();
+        final var savepointStack = context.savepointStack();
+        int throttledSlot = NO_THROTTLED_MESSAGE;
         // Iterate the new tail only — replayed slots were dispatched in a prior bundle, so we
         // must not re-dispatch onClprMessage / re-enqueue a Reply for them.
         for (int i = 0; i < newMessages.size(); i++) {
@@ -680,7 +680,8 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                     payloadKind(payload),
                     payloadSummary(payload));
 
-            try {
+            savepointStack.createSavepoint();
+            try (final var throttleRejections = throttleAdviser.captureConsensusThrottleRejections()) {
                 if (payload.hasControl()) {
                     // Control message — validate the enclosed ClprLedgerConfiguration (spec §1.1 / §1.3),
                     // then update peerConfigTimestamp and peerThrottles. No response is generated.
@@ -949,6 +950,10 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                     e.getMessage());
                             replyStatus = ClprMessageReplyStatus.APPLICATION_ERROR;
                         }
+                        if (mustStopAtThrottledSlot(throttleRejections, channelId, receivedMessageId)) {
+                            throttledSlot = i;
+                            break;
+                        }
 
                         // OutboundQueue reads/writes channel state directly from the
                         // store on each enqueue, so any precompile-side bumps from the
@@ -1062,6 +1067,10 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                     replyTargetId,
                                     e.getMessage());
                         }
+                        if (mustStopAtThrottledSlot(throttleRejections, channelId, receivedMessageId)) {
+                            throttledSlot = i;
+                            break;
+                        }
                         // OutboundQueue reads/writes channel state directly from the store,
                         // so any precompile-side bumps from the dispatched onClprResponse
                         // (e.g. PingPong's bounce) are observed automatically on the next enqueue.
@@ -1164,6 +1173,12 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                     currentStatus = ClprChannelStatus.PAUSED;
                 }
                 break;
+            } finally {
+                if (throttledSlot == i) {
+                    savepointStack.rollback();
+                } else {
+                    savepointStack.commit();
+                }
             }
         }
 
@@ -1199,6 +1214,35 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
             throw new HandleException(CLPR_BUNDLE_DECODE_FAILED);
         }
 
+        var ackedMessageId = newAckedMessageId;
+        if (throttledSlot != NO_THROTTLED_MESSAGE) {
+            // Record progress only through the last processed slot; the throttled slot and the rest of the bundle
+            // are left for a later bundle, which the endpoint builds from our receivedMessageId.
+            receivedMessageId = expectedFirstId + throttledSlot - 1;
+            computedHash = computeRunningHash(channel.receivedRunningHash(), newMessages.subList(0, throttledSlot));
+            ackedMessageId = findLastAckedMessageId(
+                    messageQueueStore,
+                    channelId,
+                    newMessages.subList(throttledSlot, newMessages.size()),
+                    newAckedMessageId);
+            log.info(
+                    "[ClprSubmitBundle] bundle interrupted due to a temporarily busy throttle channel={} "
+                            + "throttledMsgId={} receivedMsgId={} ackedMsgId={}",
+                    channelId,
+                    receivedMessageId + 1,
+                    receivedMessageId,
+                    ackedMessageId);
+        }
+
+        // Remove the newly acknowledged one-way messages (control, reply); acknowledged Data messages stay queued until
+        // Step 10 processes their reply. Runs after Step 10 because a bundle that stops early acknowledges less than
+        // the reply scan in Step 8 found, and the messages it no longer acknowledges must stay queued.
+        messageQueueStore.removeMessagesInRange(
+                channelId,
+                oldAckedMessageId + 1,
+                ackedMessageId,
+                payload -> payload.hasControl() || payload.hasMessageReply());
+
         // --- Step 11: Update Channel state ---
         // CLOSING → DRAINED: fires when all outbound Data Messages have been acknowledged.
         // Response Messages generated during CLOSING (for the peer's remaining Data Messages) are NOT
@@ -1206,7 +1250,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         // through the DRAINED state.
         boolean dataMessagesDrained = true;
         if (outbound.nextMessageId() > 0) {
-            for (long id = newAckedMessageId + 1; id < outbound.nextMessageId(); id++) {
+            for (long id = ackedMessageId + 1; id < outbound.nextMessageId(); id++) {
                 final var msg = messageQueueStore.getMessage(channelId, id);
                 if (msg == null) {
                     continue;
@@ -1221,7 +1265,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
 
         // True when ALL outbound messages (Data + Response) have been acknowledged.
         // Used for the DRAINED → CLOSED transition, which requires the full queue to be empty.
-        final var outboundDrained = outbound.nextMessageId() == 0 || newAckedMessageId >= outbound.nextMessageId() - 1;
+        final var outboundDrained = outbound.nextMessageId() == 0 || ackedMessageId >= outbound.nextMessageId() - 1;
 
         log.debug(
                 "[ClprSubmitBundle] step11 drain check conn={} currentStatus={} peerStatus={} "
@@ -1230,7 +1274,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                 currentStatus,
                 peerStatus,
                 outbound.nextMessageId(),
-                newAckedMessageId,
+                ackedMessageId,
                 dataMessagesDrained,
                 outboundDrained);
 
@@ -1241,10 +1285,12 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
 
         // If we have drained, and they have drained, then it means there are no more messages to ever exchange
         // between the two of us. So we are now CLOSED. The ack check ensures we don't transition to CLOSED if
-        // Response Messages generated during CLOSING are still unacknowledged.
+        // Response Messages generated during CLOSING are still unacknowledged. A bundle that stopped before a throttled
+        // slot leaves peer messages unprocessed, and a CLOSED channel would reject the bundle that delivers them.
         if (currentStatus == ClprChannelStatus.DRAINED
                 && (peerStatus == ClprChannelStatus.DRAINED || peerStatus == ClprChannelStatus.CLOSED)
-                && outboundDrained) {
+                && outboundDrained
+                && throttledSlot == NO_THROTTLED_MESSAGE) {
             currentStatus = ClprChannelStatus.CLOSED;
         }
 
@@ -1259,7 +1305,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                 .peerConfigTimestamp(peerConfigTimestamp)
                 .peerThrottles(peerThrottles)
                 .status(currentStatus)
-                .ackedMessageId(newAckedMessageId)
+                .ackedMessageId(ackedMessageId)
                 .receivedMessageId(receivedMessageId)
                 .receivedRunningHash(computedHash)
                 .lastConfigTimestamp(lastConfigTimestamp);
@@ -1361,6 +1407,90 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
             }
         }
         return null;
+    }
+
+    /**
+     * Checks the consensus throttle rejections recorded while dispatching a slot, including by nested dispatches whose
+     * failure the application may have swallowed. A rejection for lack of free capacity makes the slot's outcome depend
+     * on the transient load on the network, so the bundle must stop before the slot. A rejection only beyond a
+     * throttle's capacity repeats under any load, so the dispatch outcome is the same everywhere and stands; it is
+     * logged because such a message can never get through the throttle.
+     *
+     * @return whether the bundle must stop before the slot
+     */
+    private static boolean mustStopAtThrottledSlot(
+            @NonNull final ConsensusThrottleRejectionCapture throttleRejections,
+            @NonNull final Bytes channelId,
+            final long receivedMessageId) {
+        return switch (throttleRejections.rejection()) {
+            case NONE -> false;
+            case BEYOND_CAPACITY -> {
+                log.warn(
+                        "[ClprSubmitBundle] message dispatch exceeds a consensus throttle's capacity conn={} "
+                                + "receivedMsgId={}; delivering its outcome, as it can never get through the throttle",
+                        channelId,
+                        receivedMessageId);
+                yield false;
+            }
+            case TEMPORARILY_BUSY -> true;
+        };
+    }
+
+    /**
+     * Returns the received running hash after folding in the given processed slots, as Step 6 folds the whole bundle.
+     * Only needed when a bundle stops early, so the processed slots are folded again rather than keeping every
+     * intermediate hash of Step 6.
+     *
+     * @param receivedRunningHashBeforeBundle the channel's received running hash before this bundle
+     * @param processedMessages               the bundle's new slots that were processed
+     * @return the running hash through the last processed slot, or the hash before the bundle if none was processed
+     */
+    private static Bytes computeRunningHash(
+            @NonNull final Bytes receivedRunningHashBeforeBundle,
+            @NonNull final List<ClprMessagePayload> processedMessages) {
+        if (processedMessages.isEmpty()) {
+            return receivedRunningHashBeforeBundle;
+        }
+        var runningHash = receivedRunningHashBeforeBundle.length() == 0 ? ZERO_HASH : receivedRunningHashBeforeBundle;
+        for (final var payload : processedMessages) {
+            runningHash = ClprHashUtils.computeRunningHash(runningHash, payload);
+        }
+        return runningHash;
+    }
+
+    /**
+     * Finds the last of our outbound messages that a bundle which stopped early acknowledges.
+     * <p>
+     * When a bundle stops early, the reply scan in Step 8 acknowledges each of our Data messages whose reply the bundle
+     * carries, including the replies after the message where the bundle stopped. Those replies are not processed now;
+     * the peer resends them in a later bundle. The data messages they answer must stay unacknowledged until then,
+     * because the reply scan of that later bundle starts after the last acknowledged message and would reject the
+     * resent replies as out of order.
+     *
+     * @param messageQueueStore        our outbound message queue
+     * @param channelId                the channel the bundle belongs to
+     * @param unprocessedMessages      the bundle's messages from the one where it stopped
+     * @param bundleLastAckedMessageId the last outbound message the reply scan in Step 8 acknowledged
+     * @return the last acknowledged outbound message, at most {@code scannedAckedMessageId}
+     */
+    private static long findLastAckedMessageId(
+            @NonNull final WritableMessageQueueStore messageQueueStore,
+            @NonNull final Bytes channelId,
+            @NonNull final List<ClprMessagePayload> unprocessedMessages,
+            final long bundleLastAckedMessageId) {
+        for (final var payload : unprocessedMessages) {
+            if (!payload.hasMessageReply()) {
+                continue;
+            }
+            final var replyTargetId = payload.messageReplyOrThrow().messageId();
+            final var target = messageQueueStore.getMessage(channelId, replyTargetId);
+            final boolean namesAckedDataMessage = replyTargetId <= bundleLastAckedMessageId
+                    && target != null
+                    && target.hasPayload()
+                    && target.payloadOrThrow().hasMessage();
+            return namesAckedDataMessage ? replyTargetId - 1 : bundleLastAckedMessageId;
+        }
+        return bundleLastAckedMessageId;
     }
 
     /**

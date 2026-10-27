@@ -30,6 +30,7 @@ import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.AC
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_LABEL;
+import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.BACKEND_THROTTLE;
 import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.FRONTEND_THROTTLE;
 import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.NOOP_THROTTLE;
 import static com.hedera.pbj.runtime.ProtoTestTools.getThreadLocalDataBuffer;
@@ -66,6 +67,7 @@ import com.hedera.hapi.node.scheduled.ScheduleSignTransactionBody;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.schedule.Schedule;
+import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshot;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoGetAccountBalanceQuery;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
@@ -123,6 +125,7 @@ import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -136,6 +139,8 @@ import org.mockito.junit.jupiter.MockitoSettings;
 public class ThrottleAccumulatorTest {
 
     private static final int CAPACITY_SPLIT = 2;
+    private static final long GAS_CAPACITY = 150L;
+    private static final long BYTES_CAPACITY = 1_000L;
     private static final Instant TIME_INSTANT = Instant.ofEpochSecond(1_234_567L, 123);
     private static final AccountID PAYER_ID =
             AccountID.newBuilder().accountNum(1234L).build();
@@ -2034,6 +2039,142 @@ public class ThrottleAccumulatorTest {
         subject.leakCapacityForNOfUnscaled(2, TOKEN_MINT, false);
         final var fortyTwoUsed = subject.activeThrottlesFor(TOKEN_MINT).get(0).used();
         assertEquals(42 * oneUsed, fortyTwoUsed);
+    }
+
+    @Test
+    @DisplayName("given a function no throttle covers, then it would be throttled with empty buckets")
+    void givenFunctionNoThrottleCovers_thenWouldThrottleWithEmptyBuckets() throws IOException, ParseException {
+        givenBackendSubjectWithGasCapacity(GAS_CAPACITY);
+
+        assertTrue(subject.shouldThrottleNOfUnscaled(2, TOKEN_BURN, TIME_INSTANT));
+
+        assertTrue(subject.wouldThrottleNOfUnscaledWithEmptyBuckets(2, TOKEN_BURN, TIME_INSTANT));
+    }
+
+    @Test
+    @DisplayName("given more than a bucket can ever hold, then it would be throttled with empty buckets")
+    void givenMoreThanBucketCanHold_thenWouldThrottleWithEmptyBuckets() throws IOException, ParseException {
+        givenBackendSubjectWithGasCapacity(GAS_CAPACITY);
+
+        assertTrue(subject.shouldThrottleNOfUnscaled(1_000_000, TOKEN_MINT, TIME_INSTANT));
+
+        assertTrue(subject.wouldThrottleNOfUnscaledWithEmptyBuckets(1_000_000, TOKEN_MINT, TIME_INSTANT));
+    }
+
+    @Test
+    @DisplayName("given a bucket filled by earlier checks, then it would not be throttled with empty buckets")
+    void givenBucketFilledByEarlierChecks_thenWouldNotThrottleWithEmptyBuckets() throws IOException, ParseException {
+        givenBackendSubjectWithGasCapacity(GAS_CAPACITY);
+        fillTokenMintBucket();
+
+        assertTrue(subject.shouldThrottleNOfUnscaled(1, TOKEN_MINT, TIME_INSTANT));
+
+        assertFalse(subject.wouldThrottleNOfUnscaledWithEmptyBuckets(1, TOKEN_MINT, TIME_INSTANT));
+    }
+
+    @Test
+    @DisplayName("given a full bucket, when replayed with empty buckets, then every throttle keeps its usage")
+    void givenFullBucket_whenReplayedWithEmptyBuckets_thenEveryThrottleKeepsItsUsage()
+            throws IOException, ParseException {
+        givenBackendSubjectWithGasCapacity(GAS_CAPACITY);
+        fillTokenMintBucket();
+        subject.gasLimitThrottle().allow(TIME_INSTANT, GAS_CAPACITY / 2);
+        subject.bytesLimitThrottle().allow(TIME_INSTANT, BYTES_CAPACITY / 2);
+        final var throttleSnapshots = usageSnapshotsOf(subject.allActiveThrottlesIncludingHighVolume());
+        final var gasSnapshot = subject.gasLimitThrottle().usageSnapshot();
+        final var bytesSnapshot = subject.bytesLimitThrottle().usageSnapshot();
+
+        subject.wouldThrottleNOfUnscaledWithEmptyBuckets(1, TOKEN_MINT, TIME_INSTANT);
+
+        assertThat(usageSnapshotsOf(subject.allActiveThrottlesIncludingHighVolume()))
+                .isEqualTo(throttleSnapshots);
+        assertThat(subject.gasLimitThrottle().usageSnapshot()).isEqualTo(gasSnapshot);
+        assertThat(subject.bytesLimitThrottle().usageSnapshot()).isEqualTo(bytesSnapshot);
+        assertTrue(subject.shouldThrottleNOfUnscaled(1, TOKEN_MINT, TIME_INSTANT));
+    }
+
+    @Test
+    @DisplayName("given a gas limit above the gas bucket's capacity, then it would be throttled with empty buckets")
+    void givenGasLimitAboveGasCapacity_thenWouldThrottleWithEmptyBuckets() throws IOException, ParseException {
+        givenBackendSubjectWithGasCapacity(GAS_CAPACITY);
+        givenContractCallWithGas(GAS_CAPACITY + 1);
+
+        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null, false));
+
+        assertTrue(subject.wouldThrottleWithEmptyBuckets(transactionInfo, TIME_INSTANT, state, false));
+        assertTrue(subject.wasLastTxnGasThrottled());
+    }
+
+    @Test
+    @DisplayName("given a gas bucket filled by an earlier call, then it would not be throttled with empty buckets")
+    void givenGasBucketFilledByEarlierCall_thenWouldNotThrottleWithEmptyBuckets() throws IOException, ParseException {
+        givenBackendSubjectWithGasCapacity(GAS_CAPACITY);
+        givenContractCallWithGas(GAS_CAPACITY);
+        assertFalse(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null, false));
+        final var gasSnapshot = subject.gasLimitThrottle().usageSnapshot();
+
+        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null, false));
+
+        assertFalse(subject.wouldThrottleWithEmptyBuckets(transactionInfo, TIME_INSTANT, state, false));
+        assertTrue(subject.wasLastTxnGasThrottled());
+        assertThat(subject.gasLimitThrottle().usageSnapshot()).isEqualTo(gasSnapshot);
+    }
+
+    @Test
+    @DisplayName("given a backend throttle without a bytes throttle, then the replay runs and keeps every usage")
+    void givenBackendThrottleWithoutBytesThrottle_thenReplayRunsAndKeepsEveryUsage()
+            throws IOException, ParseException {
+        given(configProvider.getConfiguration())
+                .willReturn(new VersionedConfigImpl(HederaTestConfigBuilder.createConfig(), 1));
+        subject = new ThrottleAccumulator(
+                () -> CAPACITY_SPLIT, configProvider::getConfiguration, BACKEND_THROTTLE, throttleMetrics, Verbose.NO);
+        subject.applyGasConfig();
+        subject.rebuildFor(getThrottleDefs("bootstrap/throttles.json"));
+        fillTokenMintBucket();
+        final var throttleSnapshots = usageSnapshotsOf(subject.allActiveThrottlesIncludingHighVolume());
+
+        assertFalse(subject.wouldThrottleNOfUnscaledWithEmptyBuckets(1, TOKEN_MINT, TIME_INSTANT));
+
+        assertThat(usageSnapshotsOf(subject.allActiveThrottlesIncludingHighVolume()))
+                .isEqualTo(throttleSnapshots);
+    }
+
+    private void givenBackendSubjectWithGasCapacity(final long gasCapacity) throws IOException, ParseException {
+        subject = new ThrottleAccumulator(
+                () -> CAPACITY_SPLIT,
+                configProvider::getConfiguration,
+                BACKEND_THROTTLE,
+                throttleMetrics,
+                new LeakyBucketDeterministicThrottle(gasCapacity, "Gas", 1),
+                new LeakyBucketDeterministicThrottle(BYTES_CAPACITY, "Bytes", 1),
+                opsDurationThrottle);
+        subject.rebuildFor(getThrottleDefs("bootstrap/throttles.json"));
+    }
+
+    private void fillTokenMintBucket() {
+        while (!subject.shouldThrottleNOfUnscaled(1, TOKEN_MINT, TIME_INSTANT)) {
+            // claim capacity until a single mint no longer fits
+        }
+    }
+
+    private void givenContractCallWithGas(final long gas) {
+        given(configProvider.getConfiguration()).willReturn(configuration);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
+        given(accountsConfig.lastThrottleExempt()).willReturn(100L);
+        given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
+        given(contractsConfig.throttleThrottleByGas()).willReturn(true);
+        given(transactionInfo.payerID())
+                .willReturn(AccountID.newBuilder().accountNum(1234L).build());
+        given(transactionInfo.functionality()).willReturn(CONTRACT_CALL);
+        given(transactionInfo.txBody())
+                .willReturn(TransactionBody.newBuilder()
+                        .contractCall(ContractCallTransactionBody.newBuilder().gas(gas))
+                        .build());
+    }
+
+    private static List<ThrottleUsageSnapshot> usageSnapshotsOf(@NonNull final List<DeterministicThrottle> throttles) {
+        return throttles.stream().map(DeterministicThrottle::usageSnapshot).toList();
     }
 
     @ParameterizedTest

@@ -9,11 +9,15 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NOT_ENABLED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NO_PROGRESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_PAYLOAD_TOO_LARGE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_RUNNING_HASH_MISMATCH;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CONSENSUS_GAS_EXHAUSTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CONNECTORS_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.MESSAGE_QUEUE_STATE_ID;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
+import static com.hedera.node.app.spi.throttle.ThrottleAdviser.ConsensusThrottleRejection.BEYOND_CAPACITY;
+import static com.hedera.node.app.spi.throttle.ThrottleAdviser.ConsensusThrottleRejection.NONE;
+import static com.hedera.node.app.spi.throttle.ThrottleAdviser.ConsensusThrottleRejection.TEMPORARILY_BUSY;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.*;
@@ -23,6 +27,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.notNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -75,6 +80,8 @@ import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.store.StoreFactory;
+import com.hedera.node.app.spi.throttle.ThrottleAdviser;
+import com.hedera.node.app.spi.throttle.ThrottleAdviser.ConsensusThrottleRejectionCapture;
 import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -174,6 +181,15 @@ class ClprSubmitBundleHandlerTest {
 
     @Mock
     private FeeCharging.Context feeChargingContext;
+
+    @Mock
+    private ThrottleAdviser throttleAdviser;
+
+    @Mock
+    private ConsensusThrottleRejectionCapture throttleRejections;
+
+    @Mock
+    private HandleContext.SavepointStack savepointStack;
 
     private static final AccountID STAKING_ACCOUNT =
             AccountID.newBuilder().accountNum(803).build();
@@ -2740,6 +2756,185 @@ class ClprSubmitBundleHandlerTest {
         }
     }
 
+    @Nested
+    @DisplayName("consensus throttle while delivering messages")
+    class ConsensusThrottleWhileDelivering {
+
+        @Test
+        @DisplayName(
+                "given the second of three messages hits a temporarily busy throttle, then the bundle stops before it")
+        void givenSecondMessageHitsTemporarilyBusyThrottle_thenBundleStopsBeforeIt() {
+            putChannel(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH);
+            putConnector();
+            final var bundle = buildBundle(
+                    ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH, List.of(dataPayload(), dataPayload(), dataPayload()));
+            setupHandleContext(bundle, true);
+            given(throttleRejections.rejection()).willReturn(NONE, TEMPORARILY_BUSY);
+
+            subject.handle(handleContext);
+
+            final var updated = channelStore.getChannel(CHANNEL_ID);
+            assertNotNull(updated);
+            assertThat(updated.receivedMessageId()).isEqualTo(1L);
+            assertThat(updated.receivedRunningHash())
+                    .isEqualTo(ClprHashUtils.computeRunningHash(ZERO_HASH, dataPayload()));
+            // Only the first message was answered; the throttled one and the one after it were not
+            assertThat(updated.nextMessageId()).isEqualTo(1L);
+            assertThat(messageQueueStore
+                            .getMessage(CHANNEL_ID, 0)
+                            .payload()
+                            .messageReplyOrThrow()
+                            .messageId())
+                    .isEqualTo(1L);
+            verify(handleContext, times(2)).dispatch(any(DispatchOptions.class));
+            verify(savepointStack).commit();
+            verify(savepointStack).rollback();
+            verify(throttleRejections, times(2)).close();
+        }
+
+        @Test
+        @DisplayName(
+                "given the first message hits a temporarily busy throttle, then the bundle succeeds without progress")
+        void givenFirstMessageHitsTemporarilyBusyThrottle_thenBundleSucceedsWithoutProgress() {
+            putChannel(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH);
+            putConnector();
+            setupHandleContext(validSingleDataBundle(), true);
+            given(throttleRejections.rejection()).willReturn(TEMPORARILY_BUSY);
+
+            subject.handle(handleContext);
+
+            final var updated = channelStore.getChannel(CHANNEL_ID);
+            assertNotNull(updated);
+            assertThat(updated.receivedMessageId()).isZero();
+            assertThat(updated.receivedRunningHash()).isEqualTo(ZERO_HASH);
+            assertThat(updated.nextMessageId()).isZero();
+            assertThat(messageQueueStore.getMessage(CHANNEL_ID, 0)).isNull();
+            verify(savepointStack).rollback();
+            verify(savepointStack, never()).commit();
+        }
+
+        @Test
+        @DisplayName("given a channel's first bundle stops at its first message, then the hash stays empty")
+        void givenFirstBundleStopsAtFirstMessage_thenHashStaysEmpty() {
+            putChannel(ClprChannelStatus.ACTIVE, 0, 0, Bytes.EMPTY);
+            putConnector();
+            setupHandleContext(validSingleDataBundle(), true);
+            given(throttleRejections.rejection()).willReturn(TEMPORARILY_BUSY);
+
+            subject.handle(handleContext);
+
+            final var updated = channelStore.getChannel(CHANNEL_ID);
+            assertNotNull(updated);
+            assertThat(updated.receivedMessageId()).isZero();
+            assertThat(updated.receivedRunningHash()).isEqualTo(Bytes.EMPTY);
+        }
+
+        @Test
+        @DisplayName("given throttle's capacity is exceeded, then its failure is delivered and the bundle continues")
+        void givenMessageExceedsThrottleCapacity_thenFailureIsDeliveredAndBundleContinues() {
+            putChannel(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH);
+            putConnector();
+            final var bundle =
+                    buildBundle(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH, List.of(dataPayload(), dataPayload()));
+            setupHandleContext(bundle, true);
+            given(throttleRejections.rejection()).willReturn(BEYOND_CAPACITY, NONE);
+            final var throttledResult = mock(HookDispatchStreamBuilder.class);
+            given(throttledResult.status()).willReturn(CONSENSUS_GAS_EXHAUSTED);
+            given(handleContext.dispatch(any(DispatchOptions.class))).willReturn(throttledResult, dispatchResult);
+
+            subject.handle(handleContext);
+
+            final var updated = channelStore.getChannel(CHANNEL_ID);
+            assertNotNull(updated);
+            assertThat(updated.receivedMessageId()).isEqualTo(2L);
+            assertThat(messageQueueStore
+                            .getMessage(CHANNEL_ID, 0)
+                            .payload()
+                            .messageReplyOrThrow()
+                            .status())
+                    .isEqualTo(ClprMessageReplyStatus.APPLICATION_ERROR);
+            assertThat(messageQueueStore
+                            .getMessage(CHANNEL_ID, 1)
+                            .payload()
+                            .messageReplyOrThrow()
+                            .status())
+                    .isEqualTo(ClprMessageReplyStatus.SUCCESS);
+            verify(savepointStack, times(2)).commit();
+            verify(savepointStack, never()).rollback();
+        }
+
+        @Test
+        @DisplayName("given a temporarily busy throttle before a reply to our message, then the reply does not "
+                + "acknowledge it")
+        void givenTemporarilyBusyThrottleBeforeReply_thenReplyDoesNotAcknowledgeOurMessage() {
+            putOutboundDataMessage(1);
+            putChannel(ClprChannelStatus.ACTIVE, 2, 0, ZERO_HASH);
+            putConnector();
+            final var bundle =
+                    buildBundle(ClprChannelStatus.ACTIVE, 0, 1, ZERO_HASH, List.of(dataPayload(), replyPayload(1)));
+            setupHandleContext(bundle, true);
+            given(throttleRejections.rejection()).willReturn(TEMPORARILY_BUSY);
+
+            subject.handle(handleContext);
+
+            final var updated = channelStore.getChannel(CHANNEL_ID);
+            assertNotNull(updated);
+            assertThat(updated.receivedMessageId()).isZero();
+            assertThat(updated.ackedMessageId()).isZero();
+            assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1)).isNotNull();
+        }
+
+        @Test
+        @DisplayName(
+                "given a bundle stopped by a temporarily busy throttle, when it is submitted again, then it resumes "
+                        + "from the throttled message")
+        void givenBundleStoppedByTemporarilyBusyThrottle_whenSubmittedAgain_thenResumesFromThrottledMessage() {
+            putOutboundDataMessage(1);
+            putChannel(ClprChannelStatus.ACTIVE, 2, 0, ZERO_HASH);
+            putConnector();
+            final var bundle =
+                    buildBundle(ClprChannelStatus.ACTIVE, 0, 1, ZERO_HASH, List.of(dataPayload(), replyPayload(1)));
+            setupHandleContext(bundle, true);
+            given(throttleRejections.rejection()).willReturn(TEMPORARILY_BUSY);
+            subject.handle(handleContext);
+            given(throttleRejections.rejection()).willReturn(NONE);
+
+            subject.handle(handleContext);
+
+            final var updated = channelStore.getChannel(CHANNEL_ID);
+            assertNotNull(updated);
+            assertThat(updated.receivedMessageId()).isEqualTo(2L);
+            assertThat(updated.receivedRunningHash())
+                    .isEqualTo(runningHashOver(ZERO_HASH, List.of(dataPayload(), replyPayload(1))));
+            assertThat(updated.ackedMessageId()).isEqualTo(1L);
+            assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1)).isNull();
+        }
+
+        @Test
+        @DisplayName(
+                "given both sides drained but a temporarily busy throttle stops the bundle, then the channel stays "
+                        + "DRAINED")
+        void givenBothSidesDrainedButTemporarilyBusyThrottleStopsBundle_thenChannelStaysDrained() {
+            putOutboundSlot(
+                    1,
+                    ClprMessagePayload.newBuilder()
+                            .control(buildControlMessage(CONFIG_TIMESTAMP))
+                            .build());
+            putChannel(ClprChannelStatus.DRAINED, 2, 0, ZERO_HASH);
+            putConnector();
+            setupHandleContext(buildBundle(ClprChannelStatus.DRAINED, 0, 1, ZERO_HASH, List.of(dataPayload())), true);
+            given(throttleRejections.rejection()).willReturn(TEMPORARILY_BUSY);
+
+            subject.handle(handleContext);
+
+            final var updated = channelStore.getChannel(CHANNEL_ID);
+            assertNotNull(updated);
+            assertThat(updated.status()).isEqualTo(ClprChannelStatus.DRAINED);
+            assertThat(updated.receivedMessageId()).isZero();
+            verify(channelLifecycle, never()).onChannelClosed(CHANNEL_ID);
+        }
+    }
+
     // ========== Helper methods ==========
 
     private void putOutboundDataMessage(final long messageId) {
@@ -3066,6 +3261,11 @@ class ClprSubmitBundleHandlerTest {
         lenient().when(handleContext.configuration()).thenReturn(config);
         lenient().when(handleContext.storeFactory()).thenReturn(storeFactory);
         lenient().when(handleContext.creatorInfo()).thenReturn(creatorInfo);
+        // Each bundle slot runs in its own savepoint; by default no consensus throttle rejects its dispatch
+        lenient().when(handleContext.savepointStack()).thenReturn(savepointStack);
+        lenient().when(handleContext.throttleAdviser()).thenReturn(throttleAdviser);
+        lenient().when(throttleAdviser.captureConsensusThrottleRejections()).thenReturn(throttleRejections);
+        lenient().when(throttleRejections.rejection()).thenReturn(NONE);
         // Default to self-submitted (creatorNodeId == endpointNodeId): the handler skips
         // endpoint-signature verification for self-submitted bundles. Tests that need to
         // exercise the peer-submitted signature path override this after setupHandleContext.

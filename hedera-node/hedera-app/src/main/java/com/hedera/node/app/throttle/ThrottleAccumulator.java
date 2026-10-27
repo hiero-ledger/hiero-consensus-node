@@ -88,6 +88,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 import org.apache.commons.lang3.tuple.Pair;
@@ -221,6 +222,29 @@ public class ThrottleAccumulator {
     }
 
     /**
+     * Returns whether {@link #checkAndEnforceThrottle(TransactionInfo, Instant, State, List, boolean)} would throttle
+     * the given transaction even if no capacity were in use, so it is throttled at any time regardless of the load on
+     * the network (e.g. it needs more capacity than a throttle can ever hold, or no throttle covers its function).
+     * Leaves every throttle as it was.
+     *
+     * @param txnInfo                  the transaction to check
+     * @param now                      the consensus time of the check
+     * @param state                    the current state of the node
+     * @param gasThrottleAlwaysEnabled the same flag given to the throttle check
+     * @return whether the transaction would be throttled with empty buckets
+     */
+    public boolean wouldThrottleWithEmptyBuckets(
+            @NonNull final TransactionInfo txnInfo,
+            @NonNull final Instant now,
+            @NonNull final State state,
+            final boolean gasThrottleAlwaysEnabled) {
+        if (throttleType == NOOP_THROTTLE) {
+            return false;
+        }
+        return replayWithEmptyBuckets(() -> shouldThrottleTxn(txnInfo, now, state, null, gasThrottleAlwaysEnabled));
+    }
+
+    /**
      * Returns the available ops duration capacity for the execution at a given time.
      * Takes into account the amount leaked from the bucket up to the provided time.
      * Returns Long.MAX_VALUE is the configured throttle type is NOOP_THROTTLE.
@@ -349,6 +373,27 @@ public class ThrottleAccumulator {
         }
 
         return false;
+    }
+
+    /**
+     * Returns whether {@link #shouldThrottleNOfUnscaled(int, HederaFunctionality, Instant)} would throttle the given
+     * transactions even if no capacity were in use, so they are throttled at any time regardless of the load on the
+     * network. Leaves every throttle as it was.
+     *
+     * @param n             the number of transactions to consider
+     * @param function      the functionality type of the transactions
+     * @param consensusTime the consensus time of the transaction
+     * @return whether the transactions would be throttled with empty buckets
+     */
+    public boolean wouldThrottleNOfUnscaledWithEmptyBuckets(
+            final int n, @NonNull final HederaFunctionality function, @NonNull final Instant consensusTime) {
+        if (throttleType == NOOP_THROTTLE) {
+            return false;
+        }
+        return replayWithEmptyBuckets(() -> {
+            final var manager = functionReqs.get(function);
+            return manager == null || !manager.allReqsMetAt(consensusTime, n, ONE_TO_ONE, null);
+        });
     }
 
     /**
@@ -802,6 +847,44 @@ public class ThrottleAccumulator {
         activeThrottles.forEach(DeterministicThrottle::resetLastAllowedUse);
         highVolumeActiveThrottles.forEach(DeterministicThrottle::resetLastAllowedUse);
         gasThrottle.resetLastAllowedUse();
+    }
+
+    /**
+     * Runs the given throttle check with every bucket it can use emptied, then puts every bucket back as it was. This
+     * can be used to verify if a given transaction fits the buckets in the best case scenario (empty buckets).
+     */
+    private boolean replayWithEmptyBuckets(@NonNull final BooleanSupplier throttleCheck) {
+        final var throttles = allActiveThrottlesIncludingHighVolume();
+        final var snapshots =
+                throttles.stream().map(DeterministicThrottle::usageSnapshot).toList();
+        final var gasSnapshot = gasThrottle.usageSnapshot();
+        // Only the ingest throttle is given a bytes throttle; the backend one has none
+        final var bytesSnapshot = bytesThrottle != null ? bytesThrottle.usageSnapshot() : null;
+        final boolean wasLastTxnGasThrottled = lastTxnWasGasThrottled;
+        try {
+            for (int i = 0; i < throttles.size(); i++) {
+                throttles.get(i).resetUsageTo(emptied(snapshots.get(i)));
+            }
+            gasThrottle.resetUsageTo(emptied(gasSnapshot));
+            if (bytesSnapshot != null) {
+                bytesThrottle.resetUsageTo(emptied(bytesSnapshot));
+            }
+            return throttleCheck.getAsBoolean();
+        } finally {
+            for (int i = 0; i < throttles.size(); i++) {
+                throttles.get(i).resetUsageTo(snapshots.get(i));
+            }
+            gasThrottle.resetUsageTo(gasSnapshot);
+            if (bytesSnapshot != null) {
+                bytesThrottle.resetUsageTo(bytesSnapshot);
+            }
+            resetLastAllowedUse();
+            lastTxnWasGasThrottled = wasLastTxnGasThrottled;
+        }
+    }
+
+    private static ThrottleUsageSnapshot emptied(@NonNull final ThrottleUsageSnapshot snapshot) {
+        return snapshot.copyBuilder().used(0L).build();
     }
 
     /**

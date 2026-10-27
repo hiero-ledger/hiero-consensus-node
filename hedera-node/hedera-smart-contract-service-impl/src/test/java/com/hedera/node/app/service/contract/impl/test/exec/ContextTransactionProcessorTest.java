@@ -629,6 +629,7 @@ class ContextTransactionProcessorTest {
         final var outcome = subject.call();
 
         verify(opsDurationMetrics).recordTransactionThrottledByOpsDuration();
+        verify(throttleAdviser).recordConsensusThrottleRejection(false);
         verify(customGasCharging).chargeGasForAbortedTransaction(any(), any(), any(), any());
         verify(rootProxyWorldUpdater).commit();
         assertEquals(CONSENSUS_GAS_EXHAUSTED, outcome.status());

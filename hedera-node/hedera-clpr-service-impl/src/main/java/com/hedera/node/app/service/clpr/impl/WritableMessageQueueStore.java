@@ -11,6 +11,7 @@ import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.function.Predicate;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -74,6 +75,30 @@ public class WritableMessageQueueStore extends ReadableMessageQueueStoreImpl {
                 .build();
         messageQueueState().remove(key);
         log.debug("[CLPR-QUEUE-WRITE] remove conn={} messageId={}", channelId, messageId);
+    }
+
+    /**
+     * Removes the messages with ids between {@code firstMessageId} and {@code lastMessageId}, both inclusive, whose
+     * payload matches the given filter. Ids with no message, or a message without payload, are skipped.
+     *
+     * @param channelId      the 32-byte channel identifier
+     * @param firstMessageId the first message sequence number of the range
+     * @param lastMessageId  the last message sequence number of the range (inclusive)
+     * @param filter         selects the payloads whose messages are removed
+     */
+    public void removeMessagesInRange(
+            @NonNull final Bytes channelId,
+            final long firstMessageId,
+            final long lastMessageId,
+            @NonNull final Predicate<ClprMessagePayload> filter) {
+        requireNonNull(channelId);
+        requireNonNull(filter);
+        for (long messageId = firstMessageId; messageId <= lastMessageId; messageId++) {
+            final var message = getMessage(channelId, messageId);
+            if (message != null && message.hasPayload() && filter.test(message.payloadOrThrow())) {
+                remove(channelId, messageId);
+            }
+        }
     }
 
     private static String payloadKind(@Nullable final ClprMessagePayload payload) {

@@ -46,6 +46,12 @@ public class NetworkUtilizationManagerImpl implements NetworkUtilizationManager 
     }
 
     @Override
+    public boolean wouldThrottleWithEmptyBuckets(
+            @NonNull final TransactionInfo txnInfo, @NonNull final Instant consensusTime, @NonNull final State state) {
+        return backendThrottle.wouldThrottleWithEmptyBuckets(txnInfo, consensusTime, state, false);
+    }
+
+    @Override
     public void trackFeePayments(@NonNull final Instant consensusNow, @NonNull final State state) {
         // Used to update network utilization after charging fees for an invalid transaction
         final var chargingFeesCryptoTransfer = new TransactionInfo(
@@ -85,6 +91,12 @@ public class NetworkUtilizationManagerImpl implements NetworkUtilizationManager 
     public boolean shouldThrottleNOfUnscaled(
             final int n, @NonNull final HederaFunctionality function, @NonNull final Instant consensusTime) {
         return backendThrottle.shouldThrottleNOfUnscaled(n, function, consensusTime);
+    }
+
+    @Override
+    public boolean wouldThrottleNOfUnscaledWithEmptyBuckets(
+            final int n, @NonNull final HederaFunctionality function, @NonNull final Instant consensusTime) {
+        return backendThrottle.wouldThrottleNOfUnscaledWithEmptyBuckets(n, function, consensusTime);
     }
 
     @Override

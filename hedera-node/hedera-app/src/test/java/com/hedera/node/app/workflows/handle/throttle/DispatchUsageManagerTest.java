@@ -39,6 +39,7 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
+import com.hedera.node.app.spi.throttle.ThrottleAdviser;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.throttle.CongestionThrottleService;
 import com.hedera.node.app.throttle.NetworkUtilizationManager;
@@ -55,6 +56,7 @@ import com.swirlds.state.spi.ReadableStates;
 import java.time.Instant;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -156,6 +158,12 @@ class DispatchUsageManagerTest {
     @Mock
     private Dispatch dispatch;
 
+    @Mock
+    private HandleContext handleContext;
+
+    @Mock
+    private ThrottleAdviser throttleAdviser;
+
     private DispatchUsageManager subject;
 
     @BeforeEach
@@ -197,6 +205,8 @@ class DispatchUsageManagerTest {
         given(dispatch.throttleStrategy()).willReturn(ON);
         given(networkUtilizationManager.trackTxn(CRYPTO_TRANSFER_TXN_INFO, CONSENSUS_NOW, stack))
                 .willReturn(true);
+        given(dispatch.handleContext()).willReturn(handleContext);
+        given(handleContext.throttleAdviser()).willReturn(throttleAdviser);
 
         Assertions.assertThatThrownBy(() -> subject.screenForCapacity(dispatch))
                 .isInstanceOf(ThrottleException.class)
@@ -204,6 +214,27 @@ class DispatchUsageManagerTest {
                 .isEqualTo(THROTTLED_AT_CONSENSUS);
 
         verify(throttleServiceManager, never()).saveThrottleSnapshotsAndCongestionLevelStartsTo(any());
+        verify(throttleAdviser).recordConsensusThrottleRejection(false);
+    }
+
+    @Test
+    @DisplayName(
+            "given a dispatch throttled even with empty buckets, then the rejection is recorded as beyond capacity")
+    void givenDispatchThrottledWithEmptyBuckets_thenRejectionIsRecordedAsBeyondCapacity() {
+        given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
+        given(dispatch.consensusNow()).willReturn(CONSENSUS_NOW);
+        given(dispatch.stack()).willReturn(stack);
+        given(dispatch.throttleStrategy()).willReturn(ON);
+        given(networkUtilizationManager.trackTxn(CRYPTO_TRANSFER_TXN_INFO, CONSENSUS_NOW, stack))
+                .willReturn(true);
+        given(networkUtilizationManager.wouldThrottleWithEmptyBuckets(CRYPTO_TRANSFER_TXN_INFO, CONSENSUS_NOW, stack))
+                .willReturn(true);
+        given(dispatch.handleContext()).willReturn(handleContext);
+        given(handleContext.throttleAdviser()).willReturn(throttleAdviser);
+
+        Assertions.assertThatThrownBy(() -> subject.screenForCapacity(dispatch)).isInstanceOf(ThrottleException.class);
+
+        verify(throttleAdviser).recordConsensusThrottleRejection(true);
     }
 
     @Test

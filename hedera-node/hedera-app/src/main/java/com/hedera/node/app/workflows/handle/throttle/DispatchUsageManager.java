@@ -78,6 +78,13 @@ public class DispatchUsageManager {
             throttleServiceManager.resetThrottlesUnconditionally(readableStates);
             final var isThrottled =
                     networkUtilizationManager.trackTxn(dispatch.txnInfo(), dispatch.consensusNow(), dispatch.stack());
+            if (isThrottled) {
+                // Replay the buckets considering its full capacity.
+                // In case, even in this best case scenario, the throttle happens, this is beyond the bucket capacity.
+                final var beyondCapacity = networkUtilizationManager.wouldThrottleWithEmptyBuckets(
+                        dispatch.txnInfo(), dispatch.consensusNow(), dispatch.stack());
+                dispatch.handleContext().throttleAdviser().recordConsensusThrottleRejection(beyondCapacity);
+            }
             if (networkUtilizationManager.wasLastTxnGasThrottled()) {
                 throw ThrottleException.newGasThrottleException();
             } else if (isThrottled) {

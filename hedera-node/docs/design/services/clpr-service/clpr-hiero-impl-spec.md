@@ -768,6 +768,9 @@ the target application is a smart contract.
 4. **Return handling:**
    - If the call succeeds, a `SUCCESS` Response Message is generated with the returned `responseData`.
    - If the call reverts, an `APPLICATION_ERROR` Response Message is generated with empty response data.
+   - If a consensus throttle rejects any part of the call for lack of free capacity, including a nested
+     dispatch whose failure the application handles itself, no Response Message is generated. The message
+     is not delivered; see **Throttle interaction** in §7.3.
 5. **State isolation:** The application call runs in a child transaction context. If the application reverts,
    all its state changes are rolled back, but the CLPR service's state changes (Connector charge, response
    generation) are retained.
@@ -787,10 +790,24 @@ On Hiero, the "gas" budget for application callbacks maps to the EVM gas limit f
 `max_gas_per_message` from the ledger configuration is the hard cap. The CLPR service sets this as the gas limit
 on the `ContractCallTransactionBody`.
 
-**Throttle interaction:** CLPR bundle processing must respect Hiero's existing operations-per-second throttles.
-The `max_messages_per_bundle` configuration must be calibrated so that a full bundle's worth of application
-dispatches does not exceed the per-transaction ops limit. This is a configuration tuning concern, not a code
-change.
+**Throttle interaction:** CLPR bundle processing must respect Hiero's existing consensus throttles. Messages
+are delivered in order, and a message's outcome must not depend on the transient load on the network (aBFT
+fairness). Each message is therefore handled in its own savepoint, and the throttle rejections recorded while
+dispatching it decide what happens:
+
+- **Temporarily busy** — a throttle rejected work for lack of free capacity, which could pass at another time. The
+  message's savepoint is rolled back (Connector charge, application effects, generated Response Message) and
+  the bundle stops before it. The bundle still succeeds: `received_message_id` and `received_running_hash`
+  record progress through the last processed message, and the acknowledgement covers only the replies
+  processed. The next bundle, built from `received_message_id`, resumes from the throttled message once the
+  throttle clears. A temporarily busy throttle is not endpoint misbehavior and is never penalized.
+- **Beyond capacity** — the work needs more capacity than a throttle can ever hold (or no throttle covers it),
+  so it is rejected under any load. The dispatch outcome is the same everywhere, so it stands (typically an
+  `APPLICATION_ERROR` Response Message) and the bundle continues; the node logs a warning. This keeps a message
+  that can never get through from halting the channel.
+
+A channel does not transition to `CLOSED` while a bundle stopped before a throttled message, since the peer's
+remaining messages are still to be delivered.
 
 ---
 

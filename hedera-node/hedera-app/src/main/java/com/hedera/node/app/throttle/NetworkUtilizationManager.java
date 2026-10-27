@@ -25,6 +25,18 @@ public interface NetworkUtilizationManager {
             @NonNull final TransactionInfo txnInfo, @NonNull final Instant consensusTime, @NonNull final State state);
 
     /**
+     * Returns whether {@link #trackTxn} would throttle the given transaction even if no throttle capacity were in use,
+     * so it is throttled at any time regardless of the load on the network. Leaves the throttles as they were.
+     *
+     * @param txnInfo       - the transaction to check.
+     * @param consensusTime - the consensus time of the transaction.
+     * @param state         - the state of the node.
+     * @return true if the transaction would be throttled with empty buckets; false otherwise.
+     */
+    boolean wouldThrottleWithEmptyBuckets(
+            @NonNull TransactionInfo txnInfo, @NonNull Instant consensusTime, @NonNull State state);
+
+    /**
      * Updates the throttle usage and congestion pricing for cases where the transaction is not valid, but we want to track the fee payments related to it.
      *
      * @param consensusNow - the consensus time of the transaction.
@@ -72,6 +84,19 @@ public interface NetworkUtilizationManager {
      * at the instant for which throttling should be calculated
      */
     boolean shouldThrottleNOfUnscaled(int n, @NonNull HederaFunctionality function, @NonNull Instant consensusTime);
+
+    /**
+     * Returns whether {@link #shouldThrottleNOfUnscaled} would throttle the given number of the given function even if
+     * no throttle capacity were in use, so they are throttled at any time regardless of the load on the network.
+     * Leaves the throttles as they were.
+     *
+     * @param n the number of the given function
+     * @param function the function
+     * @param consensusTime the consensus time of the check
+     * @return true if they would be throttled with empty buckets; false otherwise
+     */
+    boolean wouldThrottleNOfUnscaledWithEmptyBuckets(
+            int n, @NonNull HederaFunctionality function, @NonNull Instant consensusTime);
 
     /**
      * Returns the current utilization percentage of the high-volume throttle for the given functionality.

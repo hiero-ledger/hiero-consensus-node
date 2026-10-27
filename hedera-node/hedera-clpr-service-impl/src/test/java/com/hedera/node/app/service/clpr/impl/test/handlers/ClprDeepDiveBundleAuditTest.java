@@ -14,6 +14,7 @@ import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHAN
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CONNECTORS_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.MESSAGE_QUEUE_STATE_ID;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
+import static com.hedera.node.app.spi.throttle.ThrottleAdviser.ConsensusThrottleRejection.NONE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.*;
@@ -75,6 +76,8 @@ import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.store.StoreFactory;
+import com.hedera.node.app.spi.throttle.ThrottleAdviser;
+import com.hedera.node.app.spi.throttle.ThrottleAdviser.ConsensusThrottleRejectionCapture;
 import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -175,6 +178,15 @@ class ClprDeepDiveBundleAuditTest {
 
     @Mock
     private FeeCharging.Context feeChargingContext;
+
+    @Mock
+    private ThrottleAdviser throttleAdviser;
+
+    @Mock
+    private ConsensusThrottleRejectionCapture throttleRejections;
+
+    @Mock
+    private HandleContext.SavepointStack savepointStack;
 
     private static final AccountID STAKING_ACCOUNT =
             AccountID.newBuilder().accountNum(803).build();
@@ -3000,6 +3012,11 @@ class ClprDeepDiveBundleAuditTest {
         lenient().when(handleContext.configuration()).thenReturn(config);
         lenient().when(handleContext.storeFactory()).thenReturn(storeFactory);
         lenient().when(handleContext.creatorInfo()).thenReturn(creatorInfo);
+        // Each bundle slot runs in its own savepoint; by default no consensus throttle rejects its dispatch
+        lenient().when(handleContext.savepointStack()).thenReturn(savepointStack);
+        lenient().when(handleContext.throttleAdviser()).thenReturn(throttleAdviser);
+        lenient().when(throttleAdviser.captureConsensusThrottleRejections()).thenReturn(throttleRejections);
+        lenient().when(throttleRejections.rejection()).thenReturn(NONE);
         // Default to self-submitted (creatorNodeId == endpointNodeId): the handler skips
         // endpoint-signature verification for self-submitted bundles. Tests that need to
         // exercise the peer-submitted signature path override this after setupHandleContext.

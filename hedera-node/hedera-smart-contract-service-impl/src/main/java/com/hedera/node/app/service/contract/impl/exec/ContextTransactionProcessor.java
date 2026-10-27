@@ -161,6 +161,8 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
         if (shouldApplyOpsDurationThrottle) {
             final boolean hasAnyCapacityLeft = throttleAdviser.availableOpsDurationCapacity() > 0;
             if (!hasAnyCapacityLeft) {
+                // Any capacity left lets a transaction run, so this rejection always clears as the bucket leaks
+                throttleAdviser.recordConsensusThrottleRejection(false);
                 contractMetrics.opsDurationMetrics().recordTransactionThrottledByOpsDuration();
                 final var outcome = maybeChargeFeesAndReturnOutcome(
                         hevmTransaction.withException(new ResourceExhaustedException(CONSENSUS_GAS_EXHAUSTED)),
