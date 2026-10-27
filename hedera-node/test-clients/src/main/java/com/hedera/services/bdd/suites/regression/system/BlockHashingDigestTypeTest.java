@@ -42,7 +42,8 @@ import org.junit.jupiter.api.Tag;
  * the block root tree stay SHA-384 whatever that setting is.
  *
  * <p>Every assertion follows the configured digest type, so the class runs both in {@code hapiTestBlockHashingSha256}
- * (with {@code SHA_256}) and with the default {@code SHA_384}. In both, the end-of-task stream validators then
+ * (with {@code SHA_256}) and with an explicit {@code SHA_384} override. Without an override it uses SHA-256.
+ * In both, the end-of-task stream validators then
  * re-derive every block's root hash, proof and state changes with the same digest type.
  */
 @Tag(BLOCK_HASHING)
@@ -101,7 +102,7 @@ public class BlockHashingDigestTypeTest {
 
     private static DigestType configuredDigestType(@NonNull final HapiSpec spec) {
         final var name = spec.startupProperties().get(DIGEST_TYPE_PROPERTY);
-        return name == null ? DigestType.SHA_384 : DigestType.valueOf(name);
+        return name == null ? DigestType.SHA_256 : DigestType.valueOf(name);
     }
 
     private static StreamMode targetStreamMode() {

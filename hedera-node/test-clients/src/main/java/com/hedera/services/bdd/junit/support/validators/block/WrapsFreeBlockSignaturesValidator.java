@@ -221,7 +221,7 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
             System.out.printf(
                     "Loaded epoch %d with %d block(s) from %s%n", i + 1, blocks.size(), blockStreamDirs.get(i));
         }
-        final var digestType = DigestType.valueOf(System.getProperty("blockStream.digestType", "SHA_384"));
+        final var digestType = DigestType.valueOf(System.getProperty("blockStream.digestType", "SHA_256"));
         final var validator = new WrapsFreeBlockSignaturesValidator(hintsThresholdDenominator, digestType);
         validator.validateBlockEpochs(blockEpochs);
 
@@ -1356,7 +1356,7 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
 
     /**
      * The root of the eight empty reserved branches 9-16, derived here rather than read from production.
-     * Under the SHA-384 default the expected value is
+     * Under {@code digestType=SHA_384} the expected value is
      * {@code cf7e7647f57807006f4f5870d2210b5b4038d000b2bfa711bceeb7f4a327346b50c61fda4e5c68110b03ce708fb91cf8};
      * under {@code digestType=SHA_256} it is the SHA-256 analogue computed from {@code hashOfZero(DigestType.SHA_256)}.
      */

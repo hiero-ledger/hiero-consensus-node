@@ -656,7 +656,7 @@ public class HapiGetTxnRecord extends HapiQueryOp<HapiGetTxnRecord> {
         }
         final var digestType = properties.get("blockStream.digestType");
         return digestType == null
-                ? MAX_PSEUDORANDOM_BYTES_LENGTH
+                ? DigestType.SHA_256.digestLength()
                 : DigestType.valueOf(digestType).digestLength();
     }
 

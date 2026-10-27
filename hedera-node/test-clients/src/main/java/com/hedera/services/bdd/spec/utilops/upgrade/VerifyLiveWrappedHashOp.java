@@ -38,7 +38,7 @@ public class VerifyLiveWrappedHashOp extends UtilOp {
 
         // Replay .rcd files from genesis through the live-hash block
         final var digestTypeName = spec.startupProperties().get("blockStream.digestType");
-        final var digestType = digestTypeName != null ? DigestType.valueOf(digestTypeName) : DigestType.SHA_384;
+        final var digestType = digestTypeName != null ? DigestType.valueOf(digestTypeName) : DigestType.SHA_256;
         final var hasher = new IncrementalStreamingHasher(CommonUtils.digestOrThrow(digestType), List.of(), 0L);
         final var result = RcdFileBlockHashReplay.replay(
                 spec, -1, endBlock, BlockStreamManager.hashOfZero(digestType), hasher, digestType);

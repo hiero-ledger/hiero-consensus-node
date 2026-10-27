@@ -124,6 +124,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.function.Executable;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.NullSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -250,6 +253,7 @@ class BlockStreamManagerImplTest {
 
     private boolean clprEnabled = false;
 
+    @Nullable
     private DigestType digestType = DigestType.SHA_384;
 
     @BeforeEach
@@ -503,10 +507,12 @@ class BlockStreamManagerImplTest {
         assertNull(BlockStreamManagerImpl.firstPostCutoverParentHash(blockInfo, bsi));
     }
 
-    @Test
+    @ParameterizedTest
+    @NullSource
+    @EnumSource(value = DigestType.class, names = "SHA_256")
     @SuppressWarnings("unchecked")
-    void blockRootHashIsThirtyTwoBytesWithSha256() {
-        digestType = DigestType.SHA_256;
+    void blockRootHashIsThirtyTwoBytesWithSha256(@Nullable final DigestType configuredDigestType) {
+        digestType = configuredDigestType;
         givenSubjectWith(
                 1,
                 0,
@@ -3297,17 +3303,18 @@ class BlockStreamManagerImplTest {
             final long maxBlockSizeBytes,
             final boolean cutoverEnabled,
             final long version) {
-        final var config = HederaTestConfigBuilder.create()
+        final var configBuilder = HederaTestConfigBuilder.create()
                 .withConfigDataType(BlockStreamConfig.class)
                 .withValue("blockStream.roundsPerBlock", roundsPerBlock)
                 .withValue("blockStream.blockPeriod", Duration.of(blockPeriod, ChronoUnit.SECONDS))
                 .withValue("blockStream.streamMode", streamMode.name())
                 .withValue("blockStream.maxBlockSizeBytes", maxBlockSizeBytes)
-                .withValue("blockStream.digestType", digestType.name())
                 .withValue("clpr.enabled", clprEnabled)
-                .withValue("blockStream.enableCutover", cutoverEnabled)
-                .getOrCreateConfig();
-        return new VersionedConfigImpl(config, version);
+                .withValue("blockStream.enableCutover", cutoverEnabled);
+        if (digestType != null) {
+            configBuilder.withValue("blockStream.digestType", digestType.name());
+        }
+        return new VersionedConfigImpl(configBuilder.getOrCreateConfig(), version);
     }
 
     private void givenEndOfRoundSetup() {
@@ -3934,10 +3941,12 @@ class BlockStreamManagerImplTest {
         assertEquals(BlockHashAlgorithm.SHA2_384, headerRef.get().hashAlgorithm());
     }
 
-    @Test
+    @ParameterizedTest
+    @NullSource
+    @EnumSource(value = DigestType.class, names = "SHA_256")
     @SuppressWarnings("unchecked")
-    void blockHeaderHashAlgorithmIsSha256() {
-        digestType = DigestType.SHA_256;
+    void blockHeaderHashAlgorithmIsSha256(@Nullable final DigestType configuredDigestType) {
+        digestType = configuredDigestType;
         final var headerRef = new AtomicReference<BlockHeader>();
         givenSubjectWith(
                 1, 0, blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION), platformStateWithFreezeTime(null), aWriter);
@@ -3950,11 +3959,12 @@ class BlockStreamManagerImplTest {
                 .willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
         given(mockSigningFuture.thenAcceptAsync(any())).willReturn(postAcceptFuture);
 
-        // digestType=SHA_256 → SHA2_256 in the block header
+        // Both the default digest and an explicit SHA_256 setting must advertise SHA2_256.
         subject.init(state, FAKE_RESTART_BLOCK_HASH);
         subject.startRound(round, state);
         subject.endRound(state, ROUND_NO);
         assertEquals(BlockHashAlgorithm.SHA2_256, headerRef.get().hashAlgorithm());
+        assertEquals(0, headerRef.get().hashAlgorithm().protoOrdinal());
     }
 
     private BlockItem transactionResultItemFrom(Instant consensusTimestamp) {

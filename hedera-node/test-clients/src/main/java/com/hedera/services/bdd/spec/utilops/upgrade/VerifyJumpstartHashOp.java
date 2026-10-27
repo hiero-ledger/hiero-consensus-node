@@ -49,7 +49,7 @@ public class VerifyJumpstartHashOp extends UtilOp {
         final long jumpstartBlockNum = jumpstartConfig.blockNum();
         final Bytes prevHash = jumpstartConfig.previousWrappedRecordBlockHash();
         final var digestTypeName = spec.startupProperties().get("blockStream.digestType");
-        final var digestType = digestTypeName != null ? DigestType.valueOf(digestTypeName) : DigestType.SHA_384;
+        final var digestType = digestTypeName != null ? DigestType.valueOf(digestTypeName) : DigestType.SHA_256;
         final var hasher = createHasherFromConfig(jumpstartConfig, digestType);
 
         log.info(

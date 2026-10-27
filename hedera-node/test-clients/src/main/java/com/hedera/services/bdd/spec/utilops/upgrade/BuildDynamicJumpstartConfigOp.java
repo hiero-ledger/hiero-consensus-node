@@ -90,7 +90,7 @@ public class BuildDynamicJumpstartConfigOp extends UtilOp {
         // chained hash. Unlike the disk hashes file (which may start at a block > 0),
         // the .rcd files must exist for ALL blocks from genesis and produce a correct chain.
         final var digestTypeName = spec.startupProperties().get("blockStream.digestType");
-        final var digestType = digestTypeName != null ? DigestType.valueOf(digestTypeName) : DigestType.SHA_384;
+        final var digestType = digestTypeName != null ? DigestType.valueOf(digestTypeName) : DigestType.SHA_256;
         final var hasher = new IncrementalStreamingHasher(CommonUtils.digestOrThrow(digestType), List.of(), 0L);
         final var replayResult = RcdFileBlockHashReplay.replay(
                 spec, -1, jumpstartBlockNum, BlockStreamManager.hashOfZero(digestType), hasher, digestType);

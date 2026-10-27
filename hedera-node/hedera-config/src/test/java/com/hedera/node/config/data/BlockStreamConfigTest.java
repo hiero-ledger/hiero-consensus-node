@@ -3,6 +3,7 @@ package com.hedera.node.config.data;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.config.types.BlockStreamWriterMode;
 import com.hedera.node.config.types.StreamMode;
 import java.time.Duration;
@@ -36,9 +37,20 @@ class BlockStreamConfigTest {
     }
 
     @Test
-    void digestTypeDefaultsToSha384() {
-        assertThat(configWith(BlockStreamWriterMode.FILE_AND_GRPC, false).digestType())
-                .isEqualTo(DigestType.SHA_384);
+    void digestTypeDefaultsToSha256() {
+        final var config = HederaTestConfigBuilder.createConfig().getConfigData(BlockStreamConfig.class);
+
+        assertThat(config.digestType()).isEqualTo(DigestType.SHA_256);
+    }
+
+    @Test
+    void digestTypeCanBeOverriddenToSha384() {
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("blockStream.digestType", DigestType.SHA_384.name())
+                .getOrCreateConfig()
+                .getConfigData(BlockStreamConfig.class);
+
+        assertThat(config.digestType()).isEqualTo(DigestType.SHA_384);
     }
 
     @Test

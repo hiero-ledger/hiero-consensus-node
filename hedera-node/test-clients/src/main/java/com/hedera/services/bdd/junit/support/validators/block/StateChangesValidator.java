@@ -241,7 +241,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                 realm,
                 CutoverEnabled.NO,
                 null,
-                DigestType.valueOf(System.getProperty("blockStream.digestType", "SHA_384")));
+                DigestType.valueOf(System.getProperty("blockStream.digestType", "SHA_256")));
         final var blocks = BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(
                 node0Dir.resolve("data/blockStreams/block-%d.%d.3".formatted(shard, realm)));
         validator.validateBlocks(blocks);
@@ -322,7 +322,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                 isCutoverEnabled ? CutoverEnabled.YES : CutoverEnabled.NO,
                 preservedPreviewBlocksDir,
                 DigestType.valueOf(Optional.ofNullable(nodeStartupProperties.get("blockStream.digestType"))
-                        .orElse("SHA_384")));
+                        .orElse("SHA_256")));
     }
 
     public StateChangesValidator(
