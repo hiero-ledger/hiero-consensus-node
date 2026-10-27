@@ -31,7 +31,7 @@ import org.junit.jupiter.params.provider.MethodSource;
  */
 public class OrderInvarianceTest {
 
-    public static final int MAX_REGULAR_NODES = 3;
+    private static final int MAX_REGULAR_NODES = 3;
 
     /**
      * The small network shapes of {@code ConsensusTestArgs.orderInvarianceTests} in consensus-hashgraph-impl.
