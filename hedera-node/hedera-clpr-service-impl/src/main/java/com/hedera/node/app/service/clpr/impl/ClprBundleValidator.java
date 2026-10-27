@@ -30,19 +30,50 @@ import javax.inject.Singleton;
 /**
  * Validates node-level bundle invariants without dispatching messages, modifying state, or charging fees.
  *
- * <p>Call {@link #validatePayloadSize} before proof verification, then {@link #validate} with the
- * verifier's attested content and the channel snapshot against which the proof was verified.
- * These checks can also be used before submitting a transaction once its proof has been verified
- * locally. Consensus handling remains responsible for applying a penalty on validation failure.
+ * <p>The same checks run in two places:
+ * <ul>
+ *   <li>at consensus, in {@link com.hedera.node.app.service.clpr.impl.handlers.ClprSubmitBundleHandler}, against the
+ *       handling state. The handler converts each failure into a {@code HandleException} and decides whether the
+ *       submitting endpoint is penalized.</li>
+ *   <li>before submission, in {@code ClprBundlePrevalidator}, against the node's current state. A bundle that would
+ *       fail at consensus is dropped there, so the node does not pay for a {@code ClprSubmitBundle} transaction
+ *       that consensus would reject.</li>
+ * </ul>
+ *
+ * <p>Call the methods in this order:
+ * <ol>
+ *   <li>{@link #validatePayloadSize} on the raw wire payload, before invoking the verifier;</li>
+ *   <li>{@link #validateTrustAnchor} on the verifier's attested content;</li>
+ *   <li>{@link #validate} with the attested content and the channel snapshot the proof was verified against;</li>
+ *   <li>{@link #validateReplies} with the result of {@link #validate} and the outbound message queue.</li>
+ * </ol>
+ *
+ * <p>Each failure is reported as a {@link PreCheckException} with the response code consensus handling reports for
+ * it. Passing before submission does not guarantee acceptance, because the channel can advance before the
+ * transaction is handled.
+ *
+ * <p>This class is stateless and thread-safe.
  */
 @Singleton
 public class ClprBundleValidator {
+    /** Seed for the received running hash before the first message has been received. */
     private static final Bytes ZERO_HASH = Bytes.wrap(new byte[32]);
 
+    /**
+     * Exists for Dagger injection; the validator holds no state.
+     */
     @Inject
     public ClprBundleValidator() {}
 
-    /** Rejects an oversized wire payload before invoking an expensive cryptographic verifier. */
+    /**
+     * Rejects an oversized wire payload before invoking a potentially expensive cryptographic verifier. The limit
+     * applies to the raw bundle payload received from the peer; {@link #validate} applies the per-message limit.
+     *
+     * @param payload the raw bundle payload from the peer
+     * @param throttles this ledger's CLPR throttles
+     * @throws PreCheckException with {@code CLPR_PAYLOAD_TOO_LARGE} if the payload is longer than
+     *     {@link ClprThrottles#maxSyncBytes()}
+     */
     public void validatePayloadSize(@NonNull final Bytes payload, @NonNull final ClprThrottles throttles)
             throws PreCheckException {
         requireNonNull(payload);
@@ -51,8 +82,16 @@ public class ClprBundleValidator {
     }
 
     /**
-     * Checks that a successor trust anchor and its identifier are either both present or both absent.
-     * Exposed separately so a caller can check this invariant before recording peer metadata.
+     * Checks the spec invariant that {@code new_trust_anchor_id} is non-empty if and only if {@code new_trust_anchor}
+     * is non-empty.
+     *
+     * <p>{@link #validate} repeats this check. It is exposed separately so a caller can apply it before recording the
+     * peer's observed endpoint-manifest version from the bundle metadata, which must happen even when
+     * {@link #validate} later rejects the bundle with {@code CLPR_NO_PROGRESS}.
+     *
+     * @param content the verifier's attested bundle content
+     * @throws PreCheckException with {@code CLPR_BUNDLE_VERIFICATION_FAILED} if only one of the successor trust anchor
+     *     and its identifier is present
      */
     public void validateTrustAnchor(@NonNull final ClprBundleContent content) throws PreCheckException {
         requireNonNull(content);
@@ -64,13 +103,46 @@ public class ClprBundleValidator {
     }
 
     /**
-     * Checks attested bundle content against the pre-bundle channel and local ledger configuration.
-     * The replayed prefix is skipped after structural checks. Only the new tail contributes to the
-     * running hash and control updates. All new control updates are checked before any application
-     * message can be dispatched.
+     * Checks the verifier's attested bundle content against the pre-bundle channel and this ledger's configuration.
      *
-     * @return the validated content and values needed to process its new message tail
-     * @throws PreCheckException if a node-level invariant fails
+     * <p>The trust-anchor invariant of {@link #validateTrustAnchor} is checked first. A bundle without queue metadata
+     * must then carry no messages, and must carry either a successor trust anchor or an endpoint manifest that
+     * advances the channel's cached version. A bundle with queue metadata must pass these checks, in order:
+     * <ol>
+     *   <li><b>Progress</b> (spec §4.2 Step 1a, §2.1.2): the bundle meets at least one of the five Bundle Progress
+     *       Criteria. It carries messages; installs a successor trust anchor whose id differs from the channel's
+     *       current one; claims to acknowledge outbound messages past {@link ClprChannel#ackedMessageId()}; reports a
+     *       peer status that advances this channel's shutdown, or this channel is {@code CLOSING} and may finish
+     *       draining; or advances the endpoint manifest. A claimed acknowledgement is only matched against the
+     *       outbound queue later, by {@link #validateReplies}, because the peer may legitimately defer a reply.</li>
+     *   <li><b>Size limits</b> (spec §3.5.4): at most {@link ClprThrottles#maxMessagesPerBundle()} messages, and, when
+     *       {@link ClprThrottles#maxMessagePayloadBytes()} is positive, no data message larger than that.</li>
+     *   <li><b>Replay defense</b>: the bundle covers the peer's outbound ids that end at
+     *       {@code metadata.next_message_id - 1}. Its first id must be at least 1 and at most
+     *       {@code channel.received_message_id + 1}, so it skips nothing we have not received, and its last id must be
+     *       at least {@code channel.received_message_id}. A bundle may repeat messages we already received, because the
+     *       sender's view of our acknowledgement can lag. That prefix is dropped, which makes re-delivery idempotent;
+     *       requiring an exact start would deadlock two peers whose bundles keep overlapping.</li>
+     *   <li><b>Running hash</b> (spec §4.2 Step 4, §4.4): folding only the new messages into
+     *       {@link ClprChannel#receivedRunningHash()} must give the peer's attested {@code sent_running_hash}. The
+     *       replayed prefix is already folded into the stored hash. An empty stored hash is only valid before the
+     *       first message has been received, and then starts from 32 zero bytes.</li>
+     *   <li><b>Acknowledgement bounds</b>: the peer's {@code received_message_id} must not be below
+     *       {@link ClprChannel#ackedMessageId()}, and, unless equal to it, must be below
+     *       {@link ClprChannel#nextMessageId()}, the next id this ledger would assign.</li>
+     *   <li><b>Control messages</b> (spec §1.1, §1.3): each new control message must be a known variant, and each
+     *       enclosed configuration must match this ledger's protocol version and carry a valid timestamp later than
+     *       the previous one. All of them are checked here, so a bad configuration rejects the bundle before any
+     *       application message is dispatched.</li>
+     * </ol>
+     *
+     * @param channel the channel before this bundle is applied; it must be the snapshot the proof was verified against
+     * @param content the verifier's attested bundle content
+     * @param ledgerConfig this ledger's configuration, which supplies the throttles and the protocol version
+     * @return the validated content with its new (non-replayed) messages, the running hash after them, and the
+     *     progress facts needed to apply it
+     * @throws PreCheckException with {@code CLPR_NO_PROGRESS}, {@code CLPR_PAYLOAD_TOO_LARGE},
+     *     {@code CLPR_RUNNING_HASH_MISMATCH}, or {@code CLPR_BUNDLE_VERIFICATION_FAILED} if a check fails
      */
     @NonNull
     public ValidatedBundle validate(
@@ -155,13 +227,33 @@ public class ClprBundleValidator {
     }
 
     /**
-     * Matches replies in the new bundle tail against the outbound queue without modifying either.
-     * One-way messages need no reply; a missing DATA reply defers acknowledgement of that slot.
+     * Matches the replies among the bundle's new messages against this ledger's outbound queue, without modifying
+     * either.
      *
-     * <p>Ordering violations are returned so consensus handling can retain its pause-and-penalize
-     * behavior, while sync admission can reject the bundle before submitting a fee-bearing transaction.
-     * No-progress and local state-corruption failures are thrown separately because they do not
-     * receive the endpoint misbehavior penalty.
+     * <p>The peer has received our outbound messages {@code channel.acked_message_id + 1} through
+     * {@code metadata.received_message_id}. Walking them in order, one-way slots (control messages and our own
+     * replies) need no reply, and each data slot takes the bundle's next reply, which must name that slot (spec
+     * §4.5). Running out of replies is not a violation: the acknowledgement stops just before the first unanswered
+     * data slot, whose reply may arrive in a later bundle (spec §5).
+     *
+     * <p>A reply left over after that walk must target a one-way slot that is still queued, or a slot in the range this
+     * bundle acknowledges that is no longer queued. Any other leftover reply, such as one naming an unacknowledged
+     * data slot or a slot outside that range that is not queued, is also an ordering violation.
+     *
+     * <p>A bundle without queue metadata acknowledges nothing new.
+     *
+     * <p>Ordering violations are returned rather than thrown: consensus handling pauses the channel and penalizes the
+     * submitting endpoint while still committing that outcome, and sync admission drops the bundle instead of
+     * submitting a fee-bearing transaction.
+     *
+     * @param channel the channel before this bundle is applied
+     * @param bundle the result of {@link #validate} for the same channel and bundle
+     * @param messageQueueStore this ledger's outbound message queue
+     * @return the highest outbound message id the bundle acknowledges, or the first ordering violation
+     * @throws PreCheckException with {@code CLPR_INTERNAL_STATE_CORRUPTION} if an outbound slot the peer has received
+     *     is missing from the queue, or with {@code CLPR_NO_PROGRESS} if the bundle's only progress was a claimed
+     *     acknowledgement that its replies cannot advance; consensus handling does not penalize the endpoint for
+     *     either
      */
     @NonNull
     public ReplyValidation validateReplies(
@@ -224,6 +316,12 @@ public class ClprBundleValidator {
         return new ReplyValidation.AckedThrough(newAckedMessageId);
     }
 
+    /**
+     * Advances {@code messages} past the next reply and returns it, skipping messages of other kinds.
+     *
+     * @param messages the bundle's remaining new messages
+     * @return the next reply, or {@code null} once no reply is left
+     */
     @Nullable
     private static ClprMessageReply nextReply(@NonNull final Iterator<ClprMessagePayload> messages) {
         while (messages.hasNext()) {
@@ -235,15 +333,50 @@ public class ClprBundleValidator {
         return null;
     }
 
-    /** Result of matching a bundle's new replies against the outbound queue. */
+    /**
+     * Outcome of {@link #validateReplies}: either the bundle acknowledges our outbound messages through some id, or
+     * one of its replies breaks the ordering, in which case it acknowledges nothing.
+     */
     public sealed interface ReplyValidation {
-        /** Highest outbound message id acknowledged by the available replies. */
+        /**
+         * The replies are in order.
+         *
+         * @param lastAckedMessageId the highest outbound message id the bundle acknowledges; it stops just before the
+         *     first data message the bundle carries no reply for
+         */
         record AckedThrough(long lastAckedMessageId) implements ReplyValidation {}
 
-        /** An inbound reply does not name the outbound slot it was expected to acknowledge. */
+        /**
+         * A reply does not name the outbound message it had to acknowledge (spec §4.5).
+         *
+         * @param expectedMessageId the oldest unanswered data message, which the reply had to name; for a reply left
+         *     over after the acknowledged range, the first id past that range
+         * @param repliedMessageId the outbound message id the reply named instead
+         */
         record OrderingViolated(long expectedMessageId, long repliedMessageId) implements ReplyValidation {}
     }
 
+    /**
+     * Validates every control message among the bundle's new messages, before any of them is applied:
+     * <ul>
+     *   <li>Spec §1.3: a control message with no known variant set comes from a newer protocol version. Skipping it
+     *       would let state diverge, so the entire bundle is rejected.</li>
+     *   <li>Spec §1.1: an enclosed configuration's {@code protocol_version} must equal this ledger's.</li>
+     *   <li>Spec §1.1: its {@code timestamp} must be present, with non-negative seconds and nanos in
+     *       {@code [0, 999_999_999]}.</li>
+     *   <li>Spec §1.3: its timestamp must be strictly later than the previous configuration's. The comparison starts
+     *       from the channel's stored {@code peer_config_timestamp} and advances with each update, so several updates
+     *       in one bundle must also be strictly ordered.</li>
+     * </ul>
+     *
+     * <p>A {@code ConfigUpdate} without an enclosed configuration is accepted, and handling ignores it.
+     *
+     * @param messages the bundle's new (non-replayed) messages
+     * @param ledgerConfig this ledger's configuration
+     * @param initialPeerConfigTimestamp the channel's stored {@code peer_config_timestamp}, or {@code null} if none is
+     *     stored
+     * @throws PreCheckException with {@code CLPR_BUNDLE_VERIFICATION_FAILED} if a control message is invalid
+     */
     private static void validateControlMessages(
             @NonNull final List<ClprMessagePayload> messages,
             @NonNull final ClprLedgerConfiguration ledgerConfig,
@@ -273,6 +406,14 @@ public class ClprBundleValidator {
         }
     }
 
+    /**
+     * Returns whether timestamp {@code a} is strictly before timestamp {@code b}. A {@code null} {@code a} means there
+     * is no earlier timestamp, so it is before any non-null {@code b}; nothing is before a {@code null} {@code b}.
+     *
+     * @param a the earlier timestamp, or {@code null} if there is none
+     * @param b the later timestamp, or {@code null}
+     * @return {@code true} if {@code a} is strictly before {@code b}
+     */
     private static boolean isTimestampBefore(@Nullable final Timestamp a, @Nullable final Timestamp b) {
         if (a == null || b == null) {
             return a == null && b != null;
@@ -283,6 +424,16 @@ public class ClprBundleValidator {
         return a.nanos() < b.nanos();
     }
 
+    /**
+     * Returns whether the peer's reported status, relative to this channel's status, is a state transition that counts
+     * as bundle progress: the peer is shutting down while this channel is still {@code ACTIVE} or {@code PAUSED}; the
+     * peer has drained or closed while this channel is {@code DRAINED}; or this channel is {@code CLOSING}, and the
+     * bundle may complete its drain.
+     *
+     * @param peerStatus the peer's status from the bundle metadata
+     * @param localStatus this channel's stored status
+     * @return {@code true} if the transition counts as progress
+     */
     private static boolean isStateTransitionProgress(
             @NonNull final ClprChannelStatus peerStatus, @NonNull final ClprChannelStatus localStatus) {
         if ((peerStatus == ClprChannelStatus.CLOSING
@@ -298,7 +449,19 @@ public class ClprBundleValidator {
         return localStatus == ClprChannelStatus.CLOSING;
     }
 
-    /** Values computed during validation, before any state changes or application dispatch. */
+    /**
+     * Values computed by {@link #validate}, before any state change or application dispatch.
+     *
+     * @param content the verifier's attested bundle content
+     * @param newMessages the bundle's messages after the replayed prefix, in order; empty for a bundle without queue
+     *     metadata
+     * @param receivedRunningHash the running hash after folding {@code newMessages} into the channel's received running
+     *     hash; for a bundle without queue metadata, the channel's unchanged received running hash
+     * @param hasProgressOtherThanAck whether the bundle meets a progress criterion other than a claimed
+     *     acknowledgement; if it does not, {@link #validateReplies} requires its replies to advance the acknowledgement
+     * @param shouldUpdateManifest whether the bundle's endpoint manifest advances the channel's cached version and
+     *     should be stored
+     */
     public record ValidatedBundle(
             @NonNull ClprBundleContent content,
             @NonNull List<ClprMessagePayload> newMessages,

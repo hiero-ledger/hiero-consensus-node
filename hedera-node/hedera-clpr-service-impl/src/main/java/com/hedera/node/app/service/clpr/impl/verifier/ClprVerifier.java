@@ -87,6 +87,11 @@ public interface ClprVerifier {
      * Verifies a received bundle before consensus submission, using a local contract call.
      * Implementations that do not support local verification reject the bundle.
      *
+     * <p>Unlike {@link #verifyBundle}, this runs outside transaction handling, so
+     * {@code contractCall} must execute without committing state changes or charging fees. The
+     * result must be the same content that {@link #verifyBundle} attests at consensus for the same
+     * inputs and state.
+     *
      * @param bundlePayload opaque proof bytes from the peer
      * @param trustAnchor the Channel's current signing-authority material
      * @param channelContext opaque channel identity

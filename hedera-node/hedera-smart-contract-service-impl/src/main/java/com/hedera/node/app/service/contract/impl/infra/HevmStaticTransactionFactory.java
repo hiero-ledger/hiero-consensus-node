@@ -51,8 +51,14 @@ public class HevmStaticTransactionFactory {
     /**
      * Given a {@link Query}, creates the implied {@link HederaEvmTransaction}.
      *
+     * <p>If the query context carries {@link QueryContext#clprDispatchMetadata()}, the transaction is a native CLPR
+     * dispatch, as for the CLPR verifier dispatch at consensus: the CLPR sender replaces the query's sender and payer,
+     * and the offered gas price and gas allowance do not apply because CLPR gas is prepaid.
+     *
      * @param query the {@link ContractCallLocalQuery} to convert
      * @return the implied {@link HederaEvmTransaction}
+     * @throws HandleException with {@code INSUFFICIENT_GAS} or {@code MAX_GAS_LIMIT_EXCEEDED} if the gas is out of
+     *     bounds
      */
     @NonNull
     public HederaEvmTransaction fromHapiQuery(@NonNull final Query query) {
@@ -87,7 +93,8 @@ public class HevmStaticTransactionFactory {
 
     /**
      * Given a {@link Query} and an {@link Exception},
-     * create and return a {@link HederaEvmTransaction} containing the exception and gas limit
+     * create and return a {@link HederaEvmTransaction} containing the exception and gas limit.
+     * The sender is chosen as in {@link #fromHapiQuery}, including the CLPR sender for a native CLPR dispatch.
      *
      * @param query     the {@link ContractCallLocalQuery} to convert
      * @param exception the {@link Exception} to wrap
@@ -124,6 +131,16 @@ public class HevmStaticTransactionFactory {
                 isClprDispatch);
     }
 
+    /**
+     * Checks the call's gas. A public query must cover the base intrinsic gas and stay within the contract service's
+     * maximum gas limit. A native CLPR call must instead cover the intrinsic gas of its call data, as the
+     * {@code ContractCall} pure checks require at consensus, and has no such maximum, because its budget is configured
+     * separately.
+     *
+     * @param body the query to check
+     * @throws HandleException with {@code INSUFFICIENT_GAS} or {@code MAX_GAS_LIMIT_EXCEEDED} if the gas is out of
+     *     bounds
+     */
     private void assertValidCall(@NonNull final ContractCallLocalQuery body) {
         if (context.clprDispatchMetadata() != null) {
             // Match native CLPR child-dispatch pure checks. Its gas is prepaid and its verifier gas budget is

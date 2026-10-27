@@ -416,7 +416,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                     final var peerConfig =
                             payload.controlOrThrow().configUpdateOrThrow().configuration();
                     log.debug(
-                            "[ClprSubmitBundle]bCONTROL configUpdate conn={} receivedMsgId={} peerTimestamp={}",
+                            "[ClprSubmitBundle] step10 CONTROL configUpdate conn={} receivedMsgId={} peerTimestamp={}",
                             channelId,
                             receivedMessageId,
                             peerConfig == null ? null : peerConfig.timestamp());
@@ -1179,8 +1179,25 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
     }
 
     /**
-     * Verifies a bundle and applies the reusable node checks. Only validation failures receive the
-     * endpoint penalty; verifier failures retain their own handling semantics.
+     * Verifies the bundle's proof and applies the node-level checks of {@link ClprBundleValidator},
+     * before any state is modified or any message is dispatched.
+     *
+     * <p>A failed node-level check (payload size, the trust-anchor invariant, or
+     * {@link ClprBundleValidator#validate}) fails the transaction and, after the framework rolls back
+     * its state changes, charges the submitting node {@code penaltyAmount} on a best-effort basis, so
+     * the penalty persists independently of the failed transaction. A failure to resolve or run the
+     * verifier fails the transaction without that penalty.
+     *
+     * <p>Once the proof and the trust-anchor invariant pass, the peer's proven view of this ledger's
+     * endpoint-manifest version (spec §4.5) is recorded, even if a later check rejects the bundle.
+     *
+     * @param context the handle context
+     * @param channel the channel before this bundle is applied
+     * @param ledgerConfig this ledger's configuration
+     * @param nodeAccountId the submitting node's account, which pays the penalty
+     * @param penaltyAmount the endpoint misbehavior penalty in tinybars; zero disables it
+     * @return the validated bundle
+     * @throws HandleException if the proof cannot be verified or a node-level check fails
      */
     private ValidatedBundle verifyAndValidateBundle(
             @NonNull final HandleContext context,

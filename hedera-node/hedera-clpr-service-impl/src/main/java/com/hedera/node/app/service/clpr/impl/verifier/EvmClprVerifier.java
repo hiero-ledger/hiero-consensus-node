@@ -161,6 +161,12 @@ public class EvmClprVerifier implements ClprVerifier {
                 callData -> dispatchRaw(callData.toByteArray(), CLPR_BUNDLE_VERIFICATION_FAILED, context));
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The call data and return decoding are identical to {@link #verifyBundle}; only the execution
+     * of the call differs.
+     */
     @Override
     @NonNull
     public ClprBundleContent verifyBundleLocally(
@@ -172,6 +178,19 @@ public class EvmClprVerifier implements ClprVerifier {
         return verifyBundleUsing(bundlePayload, trustAnchor, channelContext, contractCall);
     }
 
+    /**
+     * Encodes a {@code verifyBundle(bytes,bytes,bytes)} call, executes it with {@code contractCall},
+     * and decodes the verifier's return. Consensus dispatch and local verification share this path,
+     * so both encode and decode identically.
+     *
+     * @param bundlePayload opaque proof bytes from the peer
+     * @param trustAnchor the Channel's current signing-authority material
+     * @param channelContext opaque channel identity
+     * @param contractCall executes ABI call data against the verifier and returns raw EVM result bytes
+     * @return the verified bundle content
+     * @throws HandleException with {@code CLPR_BUNDLE_VERIFICATION_FAILED} if the call returns no bytes
+     *     or its result cannot be decoded, or with the code {@code contractCall} throws
+     */
     @NonNull
     private ClprBundleContent verifyBundleUsing(
             @NonNull final Bytes bundlePayload,

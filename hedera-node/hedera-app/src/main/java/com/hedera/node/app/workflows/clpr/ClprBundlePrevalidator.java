@@ -47,11 +47,26 @@ import javax.inject.Provider;
 import javax.inject.Singleton;
 
 /**
- * Verifies inbound sync bundles locally before the node pays to submit them for consensus.
- * All proof execution and validation use the same read-only state view and cannot charge fees.
+ * Verifies inbound sync bundles locally before the node pays to submit them for consensus. A bundle that consensus
+ * would reject is dropped here, so the node pays neither a {@code ClprSubmitBundle} transaction fee nor the endpoint
+ * misbehavior penalty for it.
+ *
+ * <p>{@link #validate} applies the admission checks of {@code ClprSubmitBundleHandler}, verifies the proof, and runs
+ * the shared {@link ClprBundleValidator} checks. The proof is verified by calling the channel's verifier contract
+ * through the {@code ContractCallLocal} handler directly, bypassing the paid query workflow, with the native CLPR
+ * sender and limits used by the verifier dispatch at consensus.
+ *
+ * <p>Every read, including the EVM call, uses the node's current working state, and nothing is written to it or
+ * charged. Consensus repeats every check against the handling state, which may have advanced since, so passing here
+ * does not guarantee acceptance.
+ *
+ * <p>The verifier runs in a static EVM frame here, but as a non-static child dispatch at consensus. A verifier whose
+ * {@code verifyBundle} changes state, for example by writing storage or emitting events, therefore always fails here,
+ * even when consensus would accept its result.
  */
 @Singleton
 public class ClprBundlePrevalidator {
+    /** Native CLPR sender identity for local verifier calls; matches the verifier dispatch at consensus. */
     private static final ClprDispatchMetadata CLPR_DISPATCH_METADATA =
             new ClprDispatchMetadata(CLPR_SERVICE_ACCOUNT_ID, CLPR_EVM_ADDRESS_BYTES);
 
@@ -64,6 +79,17 @@ public class ClprBundlePrevalidator {
     private final FeeManager feeManager;
     private final Provider<ClprChannelLifecycle> channelLifecycle;
 
+    /**
+     * @param stateAccessor supplies the working state that channels, queues, and verifier contracts are read from
+     * @param bundleValidator the node-level bundle checks shared with consensus handling
+     * @param verifierFactory resolves the verifier for a channel's verifier contract
+     * @param contractHandlers supplies the {@code ContractCallLocal} handler that executes the verifier
+     * @param recordCache needed to build the local query context
+     * @param exchangeRateManager needed to build the local query context
+     * @param feeManager needed to build the local query context
+     * @param channelLifecycle records the peer's proven view of this ledger's endpoint-manifest version; resolved
+     *     lazily
+     */
     @Inject
     public ClprBundlePrevalidator(
             @NonNull final Supplier<AutoCloseableWrapper<State>> stateAccessor,
@@ -85,8 +111,26 @@ public class ClprBundlePrevalidator {
     }
 
     /**
-     * Rejects an inadmissible channel, invalid proof, or bundle that would fail node-level handling.
+     * Rejects an inadmissible channel, an invalid proof, or a bundle that would fail node-level handling.
      * Consensus must repeat these checks because channel state can advance after this call.
+     *
+     * <p>The checks run in this order, and the first failure is reported: CLPR is enabled; the channel id is 32 bytes;
+     * the channel exists and is neither {@code CLOSED} nor {@code PENDING}; the raw payload fits
+     * {@code max_sync_bytes}; the proof verifies; the successor trust-anchor invariant holds;
+     * {@link ClprBundleValidator#validate} passes; and {@link ClprBundleValidator#validateReplies} passes without an
+     * ordering violation.
+     *
+     * <p>As at consensus, once the proof and the trust-anchor invariant pass, the peer's proven view of this ledger's
+     * endpoint-manifest version is recorded, even if a later check rejects the bundle. Idle peers send pure
+     * acknowledgements that are rejected with {@code CLPR_NO_PROGRESS}; without this, the sync runtime would keep
+     * resending a manifest the peer already has.
+     *
+     * @param payload the inbound sync payload
+     * @param configuration the node configuration
+     * @throws PreCheckException with the response code consensus handling reports for the same failure, including
+     *     {@code CLPR_NO_PROGRESS} for a bundle that is valid but changes nothing. A reply ordering violation, which
+     *     consensus handles by pausing the channel, is reported as {@code CLPR_BUNDLE_VERIFICATION_FAILED}. Other
+     *     unexpected failures propagate as runtime exceptions, which callers must treat as a rejection.
      */
     public void validate(@NonNull final ClprSyncPayload payload, @NonNull final Configuration configuration)
             throws PreCheckException {
@@ -132,6 +176,25 @@ public class ClprBundlePrevalidator {
         }
     }
 
+    /**
+     * Executes ABI-encoded call data against the channel's verifier contract as a local {@code ContractCallLocal}
+     * query on {@code state}.
+     *
+     * <p>The query context carries the native CLPR dispatch metadata, so, as at consensus, the EVM uses the CLPR
+     * service account as the sender, treats the gas as prepaid, checks intrinsic gas against the call data, allows a
+     * gas limit above the public query maximum, and applies the CLPR system contract input limits. The handler is
+     * invoked directly, so the call is neither throttled nor paid for.
+     *
+     * @param state the state to execute against
+     * @param stores read-only stores over {@code state}
+     * @param channel the channel whose verifier contract is called
+     * @param configuration the node configuration
+     * @param gasLimit the gas available to the verifier, {@code clpr.verifierGasLimit}
+     * @param callData the ABI-encoded {@code verifyBundle} call
+     * @return the raw EVM return bytes
+     * @throws HandleException with {@code CLPR_BUNDLE_VERIFICATION_FAILED} if the call fails or reverts, or returns no
+     *     result
+     */
     private Bytes callVerifier(
             @NonNull final State state,
             @NonNull final ReadableStoreFactory stores,
