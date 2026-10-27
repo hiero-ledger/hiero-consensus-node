@@ -42,10 +42,15 @@ public final class ClprPeerSelector {
     /**
      * A peer endpoint chosen for one sync.
      *
-     * @param peerId   the {@code host:port} key the peer's failure tracking is filed under
-     * @param endpoint the endpoint to dial
+     * @param peerId      the endpoint's {@code host:port}
+     * @param trackingKey the key its failure tracking is filed under, which is scoped to the Channel (see
+     *                    {@link #trackingKey})
+     * @param endpoint    the endpoint to dial
      */
-    record SelectedPeer(@NonNull String peerId, @NonNull ClprEndpoint endpoint) {}
+    record SelectedPeer(
+            @NonNull String peerId,
+            @NonNull String trackingKey,
+            @NonNull ClprEndpoint endpoint) {}
 
     /**
      * @param configProvider source of the live {@link ClprConfig}: peer exclusion, breaker and reputation settings
@@ -105,28 +110,45 @@ public final class ClprPeerSelector {
             return null;
         }
         final var selectedPeer = selectPeerByReputation(channelId, endpointsById.keySet());
-        return selectedPeer == null ? null : new SelectedPeer(selectedPeer, endpointsById.get(selectedPeer));
+        return selectedPeer == null
+                ? null
+                : new SelectedPeer(selectedPeer, trackingKey(channelId, selectedPeer), endpointsById.get(selectedPeer));
     }
 
     /**
-     * Records a sync with {@code peerId} that went as expected.
+     * Returns the key a peer endpoint's failure tracking is filed under for one Channel. Tracking is per Channel, not
+     * per {@code host:port}: a Channel's verifier chooses its manifest, so one Channel could otherwise list another
+     * Channel's honest peer and, by failing against it, open that peer's breaker for every Channel.
+     *
+     * @param channelId the Channel ID in hex
+     * @param peerId    the endpoint's {@code host:port}
+     * @return the tracking key
      */
-    void recordSuccess(@NonNull final String peerId) {
-        getCircuitBreaker(peerId).recordSuccess();
-        getReputation(peerId).recordSuccess();
+    @NonNull
+    static String trackingKey(@NonNull final String channelId, @NonNull final String peerId) {
+        return channelId + "@" + peerId;
     }
 
     /**
-     * Records a sync with {@code peerId} that failed, counting against its breaker and reputation.
+     * Records a sync that moved a bundle, under the given {@link SelectedPeer#trackingKey()}.
      */
-    void recordFailure(@NonNull final String peerId) {
-        final var breaker = getCircuitBreaker(peerId);
+    void recordSuccess(@NonNull final String trackingKey) {
+        getCircuitBreaker(trackingKey).recordSuccess();
+        getReputation(trackingKey).recordSuccess();
+    }
+
+    /**
+     * Records a failed sync under the given {@link SelectedPeer#trackingKey()}, counting against its breaker and
+     * reputation.
+     */
+    void recordFailure(@NonNull final String trackingKey) {
+        final var breaker = getCircuitBreaker(trackingKey);
         final boolean wasOpen = breaker.state() == CircuitBreaker.State.OPEN;
         breaker.recordFailure();
-        getReputation(peerId).recordFailure();
+        getReputation(trackingKey).recordFailure();
         // Logged on the transition only: while the breaker stays open, every sync tick would otherwise repeat it.
         if (!wasOpen && breaker.state() == CircuitBreaker.State.OPEN) {
-            logger.warn("[CLPR-SYNC-OUTBOUND] circuit breaker opened peer={}", peerId);
+            logger.warn("[CLPR-SYNC-OUTBOUND] circuit breaker opened peer={}", trackingKey);
         }
     }
 
@@ -156,11 +178,12 @@ public final class ClprPeerSelector {
         double totalWeight = 0.0;
 
         for (final var peerId : peerEndpointIds) {
-            if (peerExclusionEnabled && !getCircuitBreaker(peerId).allowRequest()) {
-                logger.debug("[CLPR-SYNC-OUTBOUND] peer excluded by circuit breaker peer={}", peerId);
+            final var trackingKey = trackingKey(channelId, peerId);
+            if (peerExclusionEnabled && !getCircuitBreaker(trackingKey).allowRequest()) {
+                logger.debug("[CLPR-SYNC-OUTBOUND] peer excluded by circuit breaker peer={}", trackingKey);
                 continue;
             }
-            final var rep = getReputation(peerId);
+            final var rep = getReputation(trackingKey);
             final double weight = rep.score();
             candidates.add(peerId);
             weights.add(weight);

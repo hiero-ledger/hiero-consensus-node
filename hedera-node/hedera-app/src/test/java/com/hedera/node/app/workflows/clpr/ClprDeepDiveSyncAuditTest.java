@@ -21,7 +21,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.timeout;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
@@ -350,15 +349,12 @@ class ClprDeepDiveSyncAuditTest {
         }
 
         /**
-         * This test simulates a scenario in which we have a max concurrent sync of 2 but
-         * 3 channels are active and being synced.
-         * We use a CountDownLatch to block the sync for channels 1 and 2.
-         * When the sync for the third channel is initiated, it should be skipped to prevent
-         * throttling.
+         * With every sync slot busy, a Channel that becomes ready waits for a slot rather than being skipped, and runs
+         * as soon as one frees.
          */
         @Test
-        @DisplayName("max concurrent sync operations reached, sync is skipped")
-        void maxConcurrentSyncOperationsReachedNoActionOnSyncTick() {
+        @DisplayName("max concurrent sync operations reached, the next sync waits for a free slot")
+        void maxConcurrentSyncOperationsReachedNextSyncWaits() {
             final int maxConcurrentSyncs = 2;
             given(versionedConfig.getConfigData(ClprConfig.class))
                     .willReturn(defaultClprConfig()
@@ -371,26 +367,22 @@ class ClprDeepDiveSyncAuditTest {
                     .toList();
 
             final var syncCallsCount = new AtomicInteger(0);
-            final var longSyncEmulator = new CountDownLatch(maxConcurrentSyncs);
+            final var longSyncEmulator = new CountDownLatch(1);
             willAnswer(invocation -> {
                         syncCallsCount.incrementAndGet();
                         longSyncEmulator.await();
-                        return null;
+                        return SyncOutcome.IDLE;
                     })
                     .given(synchronizer)
                     .synchronize(any(), any(), anyLong(), anyLong());
 
             channels.forEach(subject::initiateSync);
             await().atMost(Duration.ofMillis(200)).until(() -> syncCallsCount.get() == maxConcurrentSyncs);
-            try {
-                subject.initiateSync(channels.getLast());
-                verify(synchronizer, after(200).never())
-                        .synchronize(eq(channels.getLast()), any(), anyLong(), anyLong());
-            } finally {
-                IntStream.of(0, maxConcurrentSyncs).forEach((_) -> longSyncEmulator.countDown());
-                assertThat(syncCallsCount.get()).isEqualTo(maxConcurrentSyncs);
-                verify(synchronizer, times(maxConcurrentSyncs)).synchronize(any(), any(), anyLong(), anyLong());
-            }
+            verify(synchronizer, after(200).never()).synchronize(eq(channels.getLast()), any(), anyLong(), anyLong());
+
+            longSyncEmulator.countDown();
+
+            verify(synchronizer, timeout(500)).synchronize(eq(channels.getLast()), any(), anyLong(), anyLong());
         }
 
         @Test
@@ -509,7 +501,7 @@ class ClprDeepDiveSyncAuditTest {
                 .copyBuilder()
                 .endpointManifest(ClprEndpointManifest.newBuilder()
                         .version(1L)
-                        .endpoints(List.of(makeEndpoint("10.0.0.1", 50211)))
+                        .endpoints(List.of(makeEndpoint("203.0.113.1", 50211)))
                         .build())
                 .build();
     }
@@ -584,7 +576,7 @@ class ClprDeepDiveSyncAuditTest {
             final var cached = ClprPeerEndpoints.newBuilder()
                     .entries(ClprPeerEndpointsEntry.newBuilder()
                             .channelId(CHANNEL_ID_1)
-                            .endpoints(makeEndpoint("10.0.0.7", 50211))
+                            .endpoints(makeEndpoint("203.0.113.7", 50211))
                             .build())
                     .build();
             final var json = ClprPeerEndpoints.JSON.toJSON(cached);
@@ -601,7 +593,7 @@ class ClprDeepDiveSyncAuditTest {
         @DisplayName("persists channels + endpoints to disk and rehydrates them on a fresh manager")
         void persistsAndRehydratesAcrossRestart() {
             final var cacheFile = tempDir.resolve("clpr-peer-endpoints.json");
-            final var endpoint = makeEndpoint("10.0.0.7", 50211);
+            final var endpoint = makeEndpoint("203.0.113.7", 50211);
 
             // Manager A: activate a channel and seed peer endpoints — both persist to disk.
             subject.start();
@@ -661,7 +653,7 @@ class ClprDeepDiveSyncAuditTest {
         // Populate an eligible channel and peer cache before disabling the master flag.
         final var channel = makeChannel(CHANNEL_ID_1, ClprChannelStatus.ACTIVE, 0L, 2L);
         subject.onChannelActivated(CHANNEL_ID_1);
-        subject.seedPeerEndpoints(CHANNEL_ID_1, List.of(makeEndpoint("10.0.0.7", 50211)));
+        subject.seedPeerEndpoints(CHANNEL_ID_1, List.of(makeEndpoint("203.0.113.7", 50211)));
         Mockito.clearInvocations(stateAccessor, synchronizer, clientCache);
         given(versionedConfig.getConfigData(ClprConfig.class))
                 .willReturn(defaultClprConfig().enabled(false).build());
@@ -683,7 +675,7 @@ class ClprDeepDiveSyncAuditTest {
         final var cached = ClprPeerEndpoints.newBuilder()
                 .entries(List.of(ClprPeerEndpointsEntry.newBuilder()
                         .channelId(CHANNEL_ID_1)
-                        .endpoints(List.of(makeEndpoint("10.0.0.7", 50211)))
+                        .endpoints(List.of(makeEndpoint("203.0.113.7", 50211)))
                         .build()))
                 .build();
         try (final var output = Files.newOutputStream(cacheFile)) {

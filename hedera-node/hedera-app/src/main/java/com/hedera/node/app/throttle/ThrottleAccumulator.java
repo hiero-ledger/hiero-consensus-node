@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.throttle;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CHANNEL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SUBMIT_BUNDLE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL_LOCAL;
@@ -101,8 +102,16 @@ import org.apache.logging.log4j.Logger;
  */
 public class ThrottleAccumulator {
     private static final Logger log = LogManager.getLogger(ThrottleAccumulator.class);
-    private static final Set<HederaFunctionality> CONTRACT_FUNCTIONS =
-            EnumSet.of(CONTRACT_CALL_LOCAL, CONTRACT_CALL, CONTRACT_CREATE, ETHEREUM_TRANSACTION, HOOK_DISPATCH);
+    // Includes the CLPR operations that dispatch to a Channel's verifier contract, whose gas would otherwise
+    // be unthrottled
+    private static final Set<HederaFunctionality> CONTRACT_FUNCTIONS = EnumSet.of(
+            CONTRACT_CALL_LOCAL,
+            CONTRACT_CALL,
+            CONTRACT_CREATE,
+            ETHEREUM_TRANSACTION,
+            HOOK_DISPATCH,
+            CLPR_COMPLETE_CHANNEL,
+            CLPR_SUBMIT_BUNDLE);
     private static final Set<HederaFunctionality> AUTO_CREATE_FUNCTIONS =
             EnumSet.of(CRYPTO_TRANSFER, ETHEREUM_TRANSACTION);
     private static final int UNKNOWN_NUM_IMPLICIT_CREATIONS = -1;
@@ -541,10 +550,11 @@ public class ThrottleAccumulator {
     }
 
     /**
-     * Checks if the given functionality is a contract function.
+     * Checks if the given functionality uses EVM gas that counts against the gas throttle: a contract function, or a
+     * CLPR operation that dispatches to a Channel's verifier contract.
      *
      * @param functionality the functionality to check
-     * @return whether the given functionality is a contract function
+     * @return whether the given functionality is gas-throttled
      */
     public static boolean isGasThrottled(@NonNull final HederaFunctionality functionality) {
         return CONTRACT_FUNCTIONS.contains(functionality);
@@ -831,6 +841,11 @@ public class ThrottleAccumulator {
                                 .callOrElse(HookCall.DEFAULT)
                                 .evmHookCallOrElse(EvmHookCall.DEFAULT)
                                 .gasLimit();
+                    // Each dispatches once to the Channel's verifier contract, with the verifier gas limit
+                    case CLPR_COMPLETE_CHANNEL, CLPR_SUBMIT_BUNDLE -> {
+                        final var clprConfig = configSupplier.get().getConfigData(ClprConfig.class);
+                        yield clprConfig.enabled() ? clprConfig.verifierGasLimit() : 0L;
+                    }
                     default -> 0L;
                 };
         // Interpret negative gas as overflow

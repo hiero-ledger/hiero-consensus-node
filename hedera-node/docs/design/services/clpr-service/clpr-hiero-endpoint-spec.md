@@ -657,7 +657,7 @@ the standard Hiero configuration system. Parameters prefixed with `clpr.` in pro
 | `clpr.retryMaxDelayMs`               | `long` | `30000` | Maximum delay for exponential backoff.                                                                   |
 | `clpr.retryMaxAttempts`              | `int`  | `5`     | Maximum retry attempts before circuit breaker opens.                                                     |
 | `clpr.circuitBreakerCooldownSeconds` | `int`  | `120`   | Time a circuit breaker stays open before allowing a probe.                                               |
-| `clpr.syncPeerExclusionEnabled`      | `bool` | `false` | Enables local peer-exclusion heuristics such as inbound shunning and outbound circuit-breaker filtering. |
+| `clpr.syncPeerExclusionEnabled`      | `bool` | `true`  | Enables local peer-exclusion heuristics such as inbound shunning and outbound circuit-breaker filtering. |
 
 ## 9.5 Throttle Parameters (Published to Peers)
 

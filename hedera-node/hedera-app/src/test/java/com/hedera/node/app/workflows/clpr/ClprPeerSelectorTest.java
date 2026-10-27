@@ -163,19 +163,36 @@ class ClprPeerSelectorTest {
         @Test
         @DisplayName("given a peer with an open circuit breaker, then it is skipped")
         void givenOpenCircuitBreaker_thenPeerIsSkipped() {
-            openBreaker(PEER_1_ID);
+            openBreaker(trackingKey(PEER_1_ID));
 
-            assertThat(subject.getCircuitBreaker(PEER_1_ID).state()).isEqualTo(CircuitBreaker.State.OPEN);
+            assertThat(subject.getCircuitBreaker(trackingKey(PEER_1_ID)).state())
+                    .isEqualTo(CircuitBreaker.State.OPEN);
             assertThat(subject.selectEndpoint(channel(), List.of(PEER_1, PEER_2))
                             .peerId())
                     .isEqualTo(PEER_2_ID);
         }
 
         @Test
+        @DisplayName("given failures through one channel, then the same endpoint is still selected for another channel")
+        void givenFailuresThroughOneChannel_thenOtherChannelsAreUnaffected() {
+            // Another Channel's manifest can list an honest peer's address; failing against it there must not cut
+            // that peer off for this Channel
+            final var otherChannel = channel()
+                    .copyBuilder()
+                    .channelId(Bytes.wrap("another_channel_id_0123456789abc"))
+                    .build();
+            openBreaker(ClprPeerSelector.trackingKey(otherChannel.channelId().toHex(), PEER_1_ID));
+
+            assertThat(subject.selectEndpoint(otherChannel, List.of(PEER_1))).isNull();
+            assertThat(subject.selectEndpoint(channel(), List.of(PEER_1)).peerId())
+                    .isEqualTo(PEER_1_ID);
+        }
+
+        @Test
         @DisplayName("given every peer's circuit breaker is open, then no peer is selected")
         void givenAllCircuitBreakersOpen_thenNoPeerIsSelected() {
-            openBreaker(PEER_1_ID);
-            openBreaker(PEER_2_ID);
+            openBreaker(trackingKey(PEER_1_ID));
+            openBreaker(trackingKey(PEER_2_ID));
 
             assertThat(subject.selectEndpoint(channel(), List.of(PEER_1, PEER_2)))
                     .isNull();
@@ -189,7 +206,7 @@ class ClprPeerSelectorTest {
                             .enabled(true)
                             .syncPeerExclusionEnabled(false)
                             .build());
-            openBreaker(PEER_1_ID);
+            openBreaker(trackingKey(PEER_1_ID));
 
             assertThat(subject.selectEndpoint(channel(), List.of(PEER_1)).peerId())
                     .isEqualTo(PEER_1_ID);
@@ -214,14 +231,14 @@ class ClprPeerSelectorTest {
             //   PEER_3: 3 failures → raw score 0.1 (clamped at MIN_SCORE)
             // Expected proportions over the totalWeight of 1.8: ≈55.6%, ≈38.9%, ≈5.6%.
             // Default reputationDecaySeconds=300, so decay during the test is negligible.
-            subject.getReputation(PEER_2_ID).recordFailure();
-            final var lowRep = subject.getReputation(PEER_3_ID);
+            subject.getReputation(trackingKey(PEER_2_ID)).recordFailure();
+            final var lowRep = subject.getReputation(trackingKey(PEER_3_ID));
             lowRep.recordFailure();
             lowRep.recordFailure();
             lowRep.recordFailure();
 
-            assertThat(subject.getReputation(PEER_1_ID).rawScore()).isCloseTo(1.0, offset(0.0001));
-            assertThat(subject.getReputation(PEER_2_ID).rawScore()).isCloseTo(0.7, offset(0.0001));
+            assertThat(subject.getReputation(trackingKey(PEER_1_ID)).rawScore()).isCloseTo(1.0, offset(0.0001));
+            assertThat(subject.getReputation(trackingKey(PEER_2_ID)).rawScore()).isCloseTo(0.7, offset(0.0001));
             assertThat(lowRep.rawScore()).isCloseTo(0.1, offset(0.0001));
 
             final var endpoints = List.of(PEER_1, PEER_2, PEER_3);
@@ -317,5 +334,10 @@ class ClprPeerSelectorTest {
                         .build())
                 .tlsCertificate(Bytes.wrap(new byte[] {1, 2, 3}))
                 .build();
+    }
+
+    /** The key the selector files a peer's failure tracking under for {@link #channel()}. */
+    private static String trackingKey(final String peerId) {
+        return ClprPeerSelector.trackingKey(channel().channelId().toHex(), peerId);
     }
 }

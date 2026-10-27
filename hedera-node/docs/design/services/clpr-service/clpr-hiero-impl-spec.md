@@ -880,12 +880,13 @@ system (property files / dynamic config).
 
 |           Property            |  Type  | Hiero Default |       Spec Parameter        |
 |-------------------------------|--------|---------------|-----------------------------|
-| `clpr.maxQueueDepth`          | `int`  | `10000`       | `max_queue_depth`           |
-| `clpr.maxMessagePayloadBytes` | `int`  | `16384`       | `max_message_payload_bytes` |
+| `clpr.maxQueueDepth`          | `int`  | `1000`        | `max_queue_depth`           |
+| `clpr.maxMessagePayloadBytes` | `int`  | `4096`        | `max_message_payload_bytes` |
 | `clpr.maxMessagesPerBundle`   | `int`  | `100`         | `max_messages_per_bundle`   |
 | `clpr.maxGasPerMessage`       | `long` | `1000000`     | `max_gas_per_message`       |
 | `clpr.maxSyncsPerSec`         | `int`  | `2`           | `max_syncs_per_sec`         |
 | `clpr.maxSyncBytes`           | `long` | `4194304`     | `max_sync_bytes`            |
+| `clpr.maxPeerEndpoints`       | `int`  | `10`          | `max_peer_endpoints`        |
 
 ## 9.2 Relationship Between Config and State
 

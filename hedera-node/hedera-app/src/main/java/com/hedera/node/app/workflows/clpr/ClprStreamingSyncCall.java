@@ -9,6 +9,9 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import io.grpc.stub.BlockingClientCall;
+import java.time.Duration;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -36,6 +39,13 @@ public final class ClprStreamingSyncCall implements AutoCloseable {
 
     private final BlockingClientCall<byte[], byte[]> call;
 
+    /**
+     * How long any one read or write may block. The call's deadline bounds the whole exchange; this bounds each step,
+     * so a peer that stops answering mid-exchange is abandoned quickly instead of holding a sync slot until the
+     * deadline.
+     */
+    private final Duration stepTimeout;
+
     /** Log prefix tying every line of this exchange together: the call id and the peer authority. */
     private final String tag;
 
@@ -54,8 +64,12 @@ public final class ClprStreamingSyncCall implements AutoCloseable {
     /** Messages received from the peer so far; logged as {@code r#n}. */
     private int readsCount = 0;
 
-    ClprStreamingSyncCall(@NonNull final BlockingClientCall<byte[], byte[]> call, @NonNull final String peer) {
+    ClprStreamingSyncCall(
+            @NonNull final BlockingClientCall<byte[], byte[]> call,
+            @NonNull final String peer,
+            @NonNull final Duration stepTimeout) {
         this.call = requireNonNull(call);
+        this.stepTimeout = requireNonNull(stepTimeout);
         requireNonNull(peer);
         this.tag = "clpr-sync[" + CALL_COUNTER.incrementAndGet() + "] peer=" + peer;
     }
@@ -63,8 +77,9 @@ public final class ClprStreamingSyncCall implements AutoCloseable {
     /**
      * Writes one message to the peer.
      *
-     * @throws ClprSyncException if the write fails, if the thread is interrupted while waiting for the stream to
-     *     become ready, or if the peer has already closed the stream so that the message would be silently dropped
+     * @throws ClprSyncException if the write fails, if the thread is interrupted or the step timeout passes while
+     *     waiting for the stream to become ready, or if the peer has already closed the stream so that the message would
+     *     be silently dropped
      */
     public void write(@NonNull final ClprStreamingSyncPayload payload) throws ClprSyncException {
         requireNonNull(payload);
@@ -84,11 +99,14 @@ public final class ClprStreamingSyncCall implements AutoCloseable {
                         describeRequest(payload),
                         payload.bundleResponse() != null);
             }
-            sent = call.write(bytes);
+            sent = call.write(bytes, stepTimeout.toMillis(), TimeUnit.MILLISECONDS);
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
             cancel("Interrupted during streaming sync write", e);
             throw new ClprSyncException("Streaming sync write interrupted", e);
+        } catch (final TimeoutException e) {
+            cancel("Streaming sync write timed out", e);
+            throw new ClprSyncException("Streaming sync write timed out after " + stepTimeout, e);
         } catch (final Exception e) {
             throw new ClprSyncException("Streaming sync write failed: " + e.getMessage(), e);
         }
@@ -106,12 +124,12 @@ public final class ClprStreamingSyncCall implements AutoCloseable {
      *
      * @return the peer's next message, or {@code null} if the peer closed the stream cleanly
      * @throws ClprSyncException if the read fails, if the peer's message cannot be parsed, or if the thread is
-     *     interrupted while waiting
+     *     interrupted or the step timeout passes while waiting
      */
     @Nullable
     public ClprStreamingSyncPayload read() throws ClprSyncException {
         try {
-            final var bytes = call.read();
+            final var bytes = call.read(stepTimeout.toMillis(), TimeUnit.MILLISECONDS);
             if (bytes == null) {
                 LOG.debug("{} peer closed the stream after {} message(s)", tag, readsCount);
                 peerClosed = true;
@@ -133,6 +151,9 @@ public final class ClprStreamingSyncCall implements AutoCloseable {
             Thread.currentThread().interrupt();
             cancel("Interrupted during streaming sync read", e);
             throw new ClprSyncException("Streaming sync read interrupted", e);
+        } catch (final TimeoutException e) {
+            cancel("Streaming sync read timed out", e);
+            throw new ClprSyncException("Streaming sync read timed out after " + stepTimeout, e);
         } catch (final Exception e) {
             throw new ClprSyncException("Streaming sync read failed: " + e.getMessage(), e);
         }

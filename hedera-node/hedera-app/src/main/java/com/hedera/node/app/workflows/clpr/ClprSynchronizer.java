@@ -26,8 +26,10 @@ public interface ClprSynchronizer {
      *     {@code peerObservedManifestVersion < localEndpointManifestVersion} ⇒ include. This is the
      *     correct axis — it is NOT {@code channel.endpointManifestVersion()}, which tracks the
      *     orthogonal "our cache of the peer's manifest".
+     * @return how the attempt went
      */
-    void synchronize(
+    @NonNull
+    SyncOutcome synchronize(
             @NonNull ClprChannel channel,
             @NonNull List<ClprEndpoint> providedEndpoints,
             long localEndpointManifestVersion,

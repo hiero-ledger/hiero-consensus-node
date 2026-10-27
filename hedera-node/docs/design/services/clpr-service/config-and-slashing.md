@@ -28,20 +28,20 @@ others are node-local.
 | `slashMultiplier`         | `2`                           | yes      | Geometric escalation factor per repeat offence.                            |
 | `slashBanThreshold`       | `5`                           | yes      | Cumulative offences after which a connector is banned.                     |
 | `endpointPenaltyTinybars` | `5 000 000`                   | yes      | Penalty paid by source connector to the submitting endpoint per spec §4.6. |
-| `messageExecutionCost`    | `1 000 000`                   | yes      | Notional cost component used in fee/refund maths.                          |
-| `endpointMarginPercent`   | `10`                          | yes      | Endpoint margin (% of recovered cost) per spec §3.3.3.                     |
+| `progressRewardTinycents` | `100 000 000` (1¢)            | yes      | Reward `Y` per bundle item that makes progress, billed to connectors.      |
 
 ### Sync orchestration (CLPR-4.3, used by `ClprChannelManager` / `ClprEndpointClient`)
 
-|               Key               | Default  | Network? |                  Purpose                   |
-|---------------------------------|----------|----------|--------------------------------------------|
-| `maxConcurrentSyncs`            | `4`      | no       | Semaphore cap on in-flight outbound syncs. |
-| `syncTimeoutSeconds`            | `30`     | no       | gRPC deadline for outbound sync.           |
-| `reputationDecaySeconds`        | `300`    | no       | Half-life of peer reputation.              |
-| `retryInitialDelayMs`           | `1 000`  | no       | Backoff base.                              |
-| `retryMaxDelayMs`               | `30 000` | no       | Backoff cap.                               |
-| `retryMaxAttempts`              | `5`      | no       | Max retries before circuit-break.          |
-| `circuitBreakerCooldownSeconds` | `120`    | no       | Cooldown after circuit opens.              |
+|               Key               | Default  | Network? |                          Purpose                           |
+|---------------------------------|----------|----------|------------------------------------------------------------|
+| `maxConcurrentSyncs`            | `4`      | no       | Sync slots; handed out to ready channels in FIFO order.    |
+| `syncTimeoutSeconds`            | `15`     | no       | Deadline for a whole outbound sync exchange.               |
+| `syncReadTimeoutSeconds`        | `5`      | no       | Max wait for any one write or read in an exchange.         |
+| `reputationDecaySeconds`        | `300`    | no       | Half-life of peer reputation.                              |
+| `retryInitialDelayMs`           | `1 000`  | no       | First per-channel backoff after a failed sync.             |
+| `retryMaxDelayMs`               | `30 000` | no       | Cap on the per-channel backoff, which doubles per failure. |
+| `retryMaxAttempts`              | `5`      | no       | Max retries before circuit-break.                          |
+| `circuitBreakerCooldownSeconds` | `120`    | no       | Cooldown after circuit opens.                              |
 
 ### Inbound misbehaviour (CLPR-4.6, used by `InboundSyncThrottle`)
 
@@ -56,12 +56,52 @@ others are node-local.
 |--------------------------|---------|----------|-----------------------------------------------------------|
 | `connectorQueueQuotaPct` | `50`    | yes      | Max % of total queue depth a single connector may occupy. |
 
+Each sync runs on its own virtual thread; one timer thread fires the per-channel ticks. Circuit breakers and
+reputation are tracked per `(channel, host:port)`, so failures through one channel's manifest can't exclude another
+channel's peer. Only an exchange that moves a bundle counts as a success; one that moves nothing is neutral, and a peer
+that sends more bundle-less messages than the protocol allows fails the sync.
+
+### Operator controls (node-local)
+
+|          Key          | Default | Network? |                                            Purpose                                            |
+|-----------------------|---------|----------|-----------------------------------------------------------------------------------------------|
+| `deniedChannelIds`    | empty   | no       | Channel ids (hex) this node neither syncs nor serves (inbound syncs get `PERMISSION_DENIED`). |
+| `deniedPeerEndpoints` | empty   | no       | Peer endpoints this node never dials: an IP (any port) or `ip:port` (`[ip]:port` for IPv6).   |
+
+Metrics (category `clpr`): `channelsActivated`, `syncsQueued` (a ready channel waited for a slot), `syncFailures`,
+and gauges `syncSlotsBusy` and `syncsWaiting`.
+
+### Channel limit
+
+|      Key      | Default  | Network? |                                                                     Purpose                                                                      |
+|---------------|----------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------|
+| `maxChannels` | `10 000` | yes      | Max channels (closed included). `ClprRegisterChannel` and `ClprCompleteChannel` then fail with `MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED`. |
+
+### Verifier output limits
+
+A Channel's verifier is chosen by whoever completes the Channel, so everything it returns is untrusted.
+
+|              Key              | Default  | Network? |                                                    Purpose                                                    |
+|-------------------------------|----------|----------|---------------------------------------------------------------------------------------------------------------|
+| `allowNonPublicPeerEndpoints` | `false`  | yes      | Allow loopback, private, and other non-public peer endpoint addresses. On only in `configuration/dev`.        |
+| `maxChannelStateBytes`        | `98 304` | yes      | Max serialized `ClprChannel` record (trust anchor + endpoint manifest + peer config), checked on every write. |
+
+Peer endpoints must be canonical IP literals with ports in 1–65535, and (unless `allowNonPublicPeerEndpoints`)
+publicly routable; see `ClprPeerEndpointPolicy`. `ClprCompleteChannel` rejects a violating manifest or oversized
+record with `CLPR_VERIFIER_CONFIG_FAILED`; `ClprSubmitBundle` rejects it with `CLPR_BUNDLE_VERIFICATION_FAILED`,
+charging the submitter only the transaction fee. The sync orchestrator also skips disallowed endpoints already in
+state.
+
 ### Dispatch gas budgets (CLPR-4.4 / 5.3)
 
 |        Key         |   Default   | Network? |                                  Purpose                                  |
 |--------------------|-------------|----------|---------------------------------------------------------------------------|
 | `verifierGasLimit` | `2 000 000` | yes      | Gas for `ClprVerifier.verifyBundle` / `verifyConfig` (`EvmClprVerifier`). |
 
+> `ClprCompleteChannel` and `ClprSubmitBundle` each reserve `verifierGasLimit` from the network gas throttle
+> (`contracts.maxGasPerSec` / `maxGasPerSecBackend`), the same way a contract call reserves its gas limit, so verifier
+> execution can't run unthrottled.
+>
 > The dispatched verifier call must carry at least the EIP-7623 calldata floor for its input, about 40 gas per byte
 > of (mostly non-zero) proof data. A Hiero state proof carries a ~13.7 KB TSS signature, so a `verifyConfig` call
 > needs ~0.6M gas, a `verifyConfig` with an endpoint manifest proof ~1.2M, and a `verifyBundle` ~0.6M plus ~60K per
@@ -106,15 +146,14 @@ fee schedule update mechanism, not config.
 Pure function `slashConnector(connector, offences, config) → SlashResult`.
 
 Inputs from `ClprConfig`: `slashBasePenalty`, `slashMultiplier`, `slashBanThreshold`,
-`endpointPenaltyTinybars`, `endpointMarginPercent`.
+`endpointPenaltyTinybars`.
 
 Algorithm (matches spec §4.6):
 
 ```
 penalty = slashBasePenalty × (slashMultiplier ^ offences)
 banned  = (offences + 1) ≥ slashBanThreshold
-endpoint_payout = min(endpointPenaltyTinybars,
-                       penalty × endpointMarginPercent / 100)
+endpoint_payout = min(penalty, stakingAccount balance)
 new_locked_stake = max(0, connector.locked_stake − penalty)
 ```
 
@@ -141,45 +180,29 @@ bundle dispatch. Readers often focus on slashing because the doc is titled
 "config and slashing," but steady-state revenue matters more for understanding connector
 and endpoint incentives.
 
-### Per-message charge on successful dispatch
+### Bundle compensation
 
-For every inbound data message that dispatches successfully (i.e., the application
-contract returns without reverting and the reply status is `SUCCESS`), the following
-transfer occurs:
+Connectors pay for the bundles that deliver their messages, and the submitting endpoint
+is reimbursed, per clpr-spec PR #65 §3.2 (implemented by `ClprBundleBilling`):
 
-1. **Connector is charged** — the receiving connector's contract account is debited:
+1. **Callback gas, per message.** Before each `onClprMessage` / `onClprResponse`
+   dispatch, the worst-case gas cost (`max_gas_per_message` at the network gas price) is
+   escrowed from the connector's account to the submitter. Afterwards the unused part is
+   returned and the used part (`gasUsed × gasPrice`) is charged to the network fee
+   accounts, since on Hedera the submitter does not pay for callback gas.
+2. **Shared cost, at settlement.** After every message is handled, each connector pays
+   the submitter its share of the bundle's cost, in proportion to its message count:
 
    ```
-   charge = messageExecutionCost + (messageExecutionCost * endpointMarginPercent / 100)
+   B_i = (M_i / M) × (Tm + X × Y)
    ```
-2. **Submitting endpoint is paid** — the entire `charge` is credited to the Hiero
-   consensus node that submitted the `ClprSubmitBundle` transaction. There is no
-   central treasury; the submitter receives the full amount.
 
-The submitting endpoint is identified by `endpoint_node_id` on the transaction body,
-resolved through `ReadableNodeStore`. The node's account receives the payment.
+   where `Tm` is the `ClprSubmitBundle` fee the submitter was charged, `X` the number of
+   bundle items that made progress, and `Y` is `progressRewardTinycents`.
 
-### Why the submitter receives the full charge
-
-The economics are designed so that submitting nodes have a direct financial incentive
-to relay bundles promptly and honestly. A node that delays or censors bundles gives up
-the execution payment to whichever node eventually submits the same bundle. There is no
-"protocol fee" extracted to a treasury — the design assumes that enough competition
-among nodes will keep margins honest.
-
-### Planned gas-based model (E-10)
-
-The current flat `messageExecutionCost` is a placeholder. The planned model charges
-the connector the *actual gas consumed* by the application dispatch plus margin:
-
-```
-charge = gasUsed * gasPriceTinybars * (1 + endpointMarginPercent / 100)
-```
-
-The same "submitter receives all" rule applies. Under the gas-based model, high-gas
-messages cost connectors more and compensate submitters more, aligning costs with
-actual compute. See E-10 in [`clpr-hiero-spec.md`](clpr-hiero-spec.md) for the full
-rationale and implementation notes.
+A bundle with no billable messages is paid for entirely by its submitter. When every
+connector pays in full, the submitter nets `X × Y`. See E-10 in
+[`clpr-hiero-spec.md`](clpr-hiero-spec.md) for the details.
 
 ### Slashing payouts (non-success path)
 

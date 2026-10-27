@@ -18,7 +18,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_CHANNEL_ALREADY_EXISTS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_COMMITMENT_MISMATCH;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_CONNECTOR_ALREADY_EXISTS;
@@ -69,7 +69,7 @@ public class ClprChannelCommitRevealSuite {
         return hapiTest(
                 uploadInitCode(VERIFIER),
                 contractCreate(VERIFIER),
-                cryptoCreate("registrant").balance(ONE_HUNDRED_HBARS),
+                cryptoCreate("registrant").balance(ONE_MILLION_HBARS),
                 clprRegisterChannel()
                         .ownershipCommitment(crypto.commitment())
                         .payingWith("registrant")
@@ -190,8 +190,8 @@ public class ClprChannelCommitRevealSuite {
         return hapiTest(
                 uploadInitCode(VERIFIER),
                 contractCreate(VERIFIER),
-                cryptoCreate("committer").balance(ONE_HUNDRED_HBARS),
-                cryptoCreate("completer").balance(ONE_HUNDRED_HBARS),
+                cryptoCreate("committer").balance(ONE_MILLION_HBARS),
+                cryptoCreate("completer").balance(ONE_MILLION_HBARS),
                 clprRegisterChannel()
                         .ownershipCommitment(crypto.commitment())
                         .payingWith("committer")
@@ -271,7 +271,7 @@ public class ClprChannelCommitRevealSuite {
         return hapiTest(
                 uploadInitCode(VERIFIER),
                 contractCreate(VERIFIER),
-                cryptoCreate("attacker").balance(ONE_HUNDRED_HBARS),
+                cryptoCreate("attacker").balance(ONE_MILLION_HBARS),
                 // Legitimate registrant commits
                 clprRegisterChannel()
                         .ownershipCommitment(legitimate.commitment())

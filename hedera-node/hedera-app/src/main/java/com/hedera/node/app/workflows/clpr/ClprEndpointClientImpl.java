@@ -12,6 +12,7 @@ import io.grpc.MethodDescriptor;
 import io.grpc.netty.GrpcSslContexts;
 import io.grpc.netty.NettyChannelBuilder;
 import io.grpc.stub.ClientCalls;
+import io.netty.channel.ChannelOption;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import java.io.ByteArrayInputStream;
@@ -31,6 +32,9 @@ import org.apache.logging.log4j.Logger;
  */
 class ClprEndpointClientImpl implements ClprEndpointClient {
     private static final Logger logger = LogManager.getLogger(ClprEndpointClientImpl.class);
+
+    /** How long a connection attempt to a peer may take. */
+    private static final int CONNECT_TIMEOUT_MILLIS = 5_000;
 
     /** How long to wait for in-flight calls to drain when shutting the channel down. */
     private static final long SHUTDOWN_TIMEOUT_SECONDS = 5;
@@ -118,13 +122,14 @@ class ClprEndpointClientImpl implements ClprEndpointClient {
     @NonNull
     static ManagedChannel newChannel(@NonNull final String host, final int port, final boolean useTls) {
         requireNonNull(host);
+        // Bound connection setup too, so an address that never accepts can't hold a sync slot until the deadline
+        final var builder = NettyChannelBuilder.forAddress(host, port)
+                .withOption(ChannelOption.CONNECT_TIMEOUT_MILLIS, CONNECT_TIMEOUT_MILLIS);
         if (!useTls) {
-            return NettyChannelBuilder.forAddress(host, port).usePlaintext().build();
+            return builder.usePlaintext().build();
         }
         try {
-            return NettyChannelBuilder.forAddress(host, port)
-                    .sslContext(buildClientSslContext())
-                    .build();
+            return builder.sslContext(buildClientSslContext()).build();
         } catch (final SSLException e) {
             throw new ClientException(
                     "Failed to build TLS channel for CLPR peer " + host + ":" + port + ": " + e.getMessage(), e);
@@ -147,12 +152,13 @@ class ClprEndpointClientImpl implements ClprEndpointClient {
 
     @Override
     @NonNull
-    public ClprStreamingSyncCall sync(@NonNull final Duration timeout) {
+    public ClprStreamingSyncCall sync(@NonNull final Duration timeout, @NonNull final Duration stepTimeout) {
         requireNonNull(timeout);
+        requireNonNull(stepTimeout);
         final var callOptions = CallOptions.DEFAULT.withDeadlineAfter(timeout.toMillis(), TimeUnit.MILLISECONDS);
         final var call = ClientCalls.blockingBidiStreamingCall(channel, SYNC_METHOD_DESCRIPTOR, callOptions);
         logger.debug("Streaming sync initiated with peer {}", channel.authority());
-        return new ClprStreamingSyncCall(call, channel.authority());
+        return new ClprStreamingSyncCall(call, channel.authority(), stepTimeout);
     }
 
     /**

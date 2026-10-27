@@ -225,9 +225,8 @@ With defaults, the escalation sequence is:
 A connector starting with the minimum locked stake of 100 M tinybars would have its
 entire stake exhausted by the 4th offence and would be banned on the 5th.
 
-**Endpoint payout:** on a slash event, the submitting endpoint receives
-`min(endpointPenaltyTinybars, penalty * endpointMarginPercent / 100)` from the slashed
-stake. This is always paid to the *submitting* endpoint, regardless of which side
+**Endpoint payout:** on a slash event, the submitting endpoint receives the penalty
+from the staking account, capped at that account's balance. This is always paid to the *submitting* endpoint, regardless of which side
 (source or destination connector) was at fault.
 
 **Cross-implementation note:** the EVM CLPR implementation also uses geometric
@@ -290,46 +289,48 @@ actual send, which may never happen on an idle channel.
 
 ---
 
-## E-10. `messageExecutionCost` (currently flat; planned gas-based)
+## E-10. Bundle compensation (clpr-spec PR #65)
 
-### Current behavior
+Connectors pay for the bundles that deliver their messages in two phases
+(`ClprBundleBilling`, called from `ClprSubmitBundleHandler`).
 
-Every successful inbound bundle dispatch charges the receiving connector:
+### Callback gas (`G_i`), per message
+
+Before each `onClprMessage` / `onClprResponse` dispatch, the worst-case gas cost —
+`max_gas_per_message` at the network gas price (the `GAS` extra of the simple fee
+schedule) — is escrowed from the connector's account to the submitter, so a reentrant
+callback cannot spend it.
+
+- A destination connector that cannot cover the escrow gets `CONNECTOR_UNDERFUNDED`.
+- A source connector's response is delivered anyway; its connector pays what it can.
+
+After the dispatch, the unused part is returned to the connector and the used part
+(`gasUsed × gasPrice`) is charged to the network fee accounts, since on Hedera the
+submitter never pays for callback gas.
+
+### Shared cost, at settlement
+
+After every message is handled, each connector `C_i` with `M_i` of the bundle's `M`
+billable messages pays the submitter:
 
 ```
-charge = messageExecutionCost + margin
+B_i = (M_i / M) × (Tm + X × Y)
 ```
 
-where:
-- `messageExecutionCost` — a flat `clpr.messageExecutionCost` config value (default:
-1,000,000 tinybars).
-- `margin` — `charge * clpr.endpointMarginPercent / 100`.
+- `Tm` — the `ClprSubmitBundle` fee charged to the submitter. On Hedera this is the
+  shared verification and maintenance cost; the fee schedule can price the bundle's bytes
+  (`PROCESSING_BYTES`) and its verifier call (`GAS` at `clpr.verifierGasLimit`).
+- `X` — the bundle items that made progress: each new message, plus one each for an ack
+  advance, a trust-anchor advance, a manifest advance, and a channel status change.
+- `Y` — `clpr.progressRewardTinycents`.
 
-The full `charge` amount is paid to the **submitting endpoint** (the Hiero consensus
-node that submitted the `ClprSubmitBundle` transaction). There is no central treasury;
-the submitter receives the entire payment.
+Shares are rounded so they sum to exactly `Tm + X × Y`; a connector short of its share
+pays its balance. A bundle with no billable messages (for example, maintenance only) is
+paid for entirely by its submitter. When every connector pays in full, the submitter
+nets `X × Y`.
 
-### Planned behavior (Richard's directive)
-
-The flat fee is a placeholder. The correct model is:
-
-> Charge connector `gasUsed * gasPriceTinybars * (1 + margin)`, where `gasUsed` is the
-> actual gas consumed by the application-contract dispatch. Pay the entire amount to
-> the submitter; there is no separate treasury account.
-
-This aligns the charge with actual compute cost and provides submitters honest
-incentives: submitters earn more by including higher-gas messages and are not penalized
-for low-gas messages. The margin component (`endpointMarginPercent`) remains the
-protocol's incentive premium above break-even.
-
-**Current limitation:** under the flat model, a high-gas message that costs more to
-execute than `messageExecutionCost` under-reimburses the submitting endpoint. Until the
-gas-based model is implemented, connectors sending gas-heavy messages impose an
-uncompensated cost on submitters.
-
-**Implementation note:** measuring `gasUsed` requires reading the child contract call
-result from the dispatch. `ClprSubmitBundleHandler` already captures the child call
-result to detect `APPLICATION_ERROR`; extending it to read `gasUsed` is straightforward.
+This replaces the earlier flat `messageExecutionCost` + `endpointMarginPercent` charge.
+The channel bond from the same spec PR (§3.1) is not implemented.
 
 See also D-8 in [DRIFT-REVIEW-2026-05.md](DRIFT-REVIEW-2026-05.md) and the
 "Success-path economics" subsection in [`config-and-slashing.md`](config-and-slashing.md).

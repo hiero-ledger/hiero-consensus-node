@@ -160,11 +160,14 @@ public class V0780ClprSchema extends Schema<SemanticVersion> {
                 writableStates.<ClprLedgerConfiguration>getSingleton(LEDGER_CONFIGURATION_STATE_ID);
         if (ledgerConfigurationState.get() == null) {
             final var clprConfig = configuration.getConfigData(ClprConfig.class);
+            // Conservative while CLPR is publicly reachable on testnet: these bound the state and sync work any
+            // one Channel can cause. Admins raise them with ClprUpdateLedgerConfiguration.
             final var defaultThrottles = ClprThrottles.newBuilder()
                     .maxSyncBytes(4_194_304L) // 4 MB
-                    .maxMessagesPerBundle(1_000)
-                    .maxQueueDepth(10_000)
-                    .maxMessagePayloadBytes(65_536) // 64 KB per message
+                    .maxMessagesPerBundle(100)
+                    .maxQueueDepth(1_000)
+                    .maxMessagePayloadBytes(4_096) // 4 KB per message
+                    .maxPeerEndpoints(10)
                     .maxGasPerMessage(Math.min(
                             DEFAULT_MAX_GAS_PER_MESSAGE,
                             configuration.getConfigData(ContractsConfig.class).maxGasPerTransaction()))

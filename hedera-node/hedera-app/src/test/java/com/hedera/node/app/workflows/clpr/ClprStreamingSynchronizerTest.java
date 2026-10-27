@@ -81,6 +81,7 @@ class ClprStreamingSynchronizerTest {
     private static final String PEER_HOST = "10.0.0.1";
     private static final int PEER_PORT = 50211;
     private static final String PEER_ID = PEER_HOST + ":" + PEER_PORT;
+    private static final String TRACKING_KEY = "channel@" + PEER_ID;
 
     @Mock
     private ConfigProvider configProvider;
@@ -122,9 +123,11 @@ class ClprStreamingSynchronizerTest {
                 .when(versionedConfig.getConfigData(BlockStreamConfig.class))
                 .thenReturn(HederaTestConfigBuilder.createConfig().getConfigData(BlockStreamConfig.class));
         // Peer selection is covered by ClprPeerSelectorTest; here it just hands back the one peer.
-        lenient().when(peerSelector.selectEndpoint(any(), any())).thenReturn(new SelectedPeer(PEER_ID, endpoint()));
+        lenient()
+                .when(peerSelector.selectEndpoint(any(), any()))
+                .thenReturn(new SelectedPeer(PEER_ID, TRACKING_KEY, endpoint()));
         lenient().when(clientCache.clientFor(any(), anyInt(), anyBoolean())).thenReturn(client);
-        lenient().when(client.sync(any())).thenReturn(streamingCall);
+        lenient().when(client.sync(any(), any())).thenReturn(streamingCall);
         lenient().when(bundleSubmitter.submitBundle(any())).thenReturn(true);
         subject = new ClprStreamingSynchronizer(
                 configProvider, bundleSubmitter, stateProofManager, clientCache, peerSelector);
@@ -236,7 +239,8 @@ class ClprStreamingSynchronizerTest {
             verifyNoInteractions(tssVerifier);
             verify(snapshot).close();
             verify(streamingCall).halfClose();
-            thenSuccessIsRecorded();
+            // The exchange moved no bundle, so it is neutral for the peer's failure tracking
+            thenNoOutcomeIsRecorded();
         }
 
         private void givenEmptyQueueSnapshot(final ClprChannel channel) {
@@ -373,12 +377,38 @@ class ClprStreamingSynchronizerTest {
         givenPeerMessages(payload(request(0L), null));
         final var plaintextEndpoint =
                 endpoint().copyBuilder().tlsCertificate(Bytes.EMPTY).build();
-        given(peerSelector.selectEndpoint(any(), any())).willReturn(new SelectedPeer(PEER_ID, plaintextEndpoint));
+        given(peerSelector.selectEndpoint(any(), any()))
+                .willReturn(new SelectedPeer(PEER_ID, TRACKING_KEY, plaintextEndpoint));
 
         synchronize(channel(1L, 0L, 0L));
 
         verify(clientCache).clientFor(PEER_HOST, PEER_PORT, false);
         verify(streamingCall).halfClose();
+    }
+
+    @Test
+    @DisplayName("given the peer sends more messages without a bundle than the protocol allows, then the sync fails")
+    void givenExtraMessagesWithoutBundle_thenSyncFails() throws Exception {
+        givenMessageQueueIsEmpty();
+        // An opening reply without a bundle is allowed; with no bundle of ours to answer, a second one is not
+        givenPeerMessages(payload(request(0L), null), payload(null, null));
+
+        final var outcome = subject.synchronize(channel(1L, 0L, 0L), List.of(endpoint()), 0L, 0L);
+
+        assertThat(outcome).isEqualTo(SyncOutcome.FAILURE);
+        thenFailureIsRecorded();
+    }
+
+    @Test
+    @DisplayName("given an exchange that moves no bundle, then it is idle and the peer is neither credited nor blamed")
+    void givenNothingMoves_thenExchangeIsIdle() throws Exception {
+        givenMessageQueueIsEmpty();
+        givenPeerMessages(payload(request(0L), null));
+
+        final var outcome = subject.synchronize(channel(1L, 0L, 0L), List.of(endpoint()), 0L, 0L);
+
+        assertThat(outcome).isEqualTo(SyncOutcome.IDLE);
+        thenNoOutcomeIsRecorded();
     }
 
     @Nested
@@ -394,7 +424,8 @@ class ClprStreamingSynchronizerTest {
             synchronize(channel(1L, 0L, 0L));
 
             verifyNoInteractions(bundleSubmitter);
-            thenSuccessIsRecorded();
+            // The exchange moved no bundle, so it is neutral for the peer's failure tracking
+            thenNoOutcomeIsRecorded();
         }
 
         @Test
@@ -559,12 +590,12 @@ class ClprStreamingSynchronizerTest {
     }
 
     private void thenSuccessIsRecorded() {
-        verify(peerSelector).recordSuccess(PEER_ID);
+        verify(peerSelector).recordSuccess(TRACKING_KEY);
         verify(peerSelector, never()).recordFailure(any());
     }
 
     private void thenFailureIsRecorded() {
-        verify(peerSelector).recordFailure(PEER_ID);
+        verify(peerSelector).recordFailure(TRACKING_KEY);
         verify(peerSelector, never()).recordSuccess(any());
     }
 

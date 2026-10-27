@@ -3,6 +3,7 @@ package com.hedera.node.config.testfixtures;
 
 import com.hedera.node.config.data.ClprConfig;
 import java.time.Duration;
+import java.util.Set;
 
 /**
  * Test-only fluent builder for {@link ClprConfig}. Each field is initialized to the
@@ -20,21 +21,26 @@ public final class ClprConfigBuilder {
     private int slashBanThreshold = 5;
     private long endpointPayoutCapTinybars = 5_000_000L;
     private long endpointMisbehaviorPenaltyTinybars = 5_000_000L;
-    private long messageExecutionCost = 1_000_000L;
-    private int endpointMarginPercent = 10;
+    private long progressRewardTinycents = 100_000_000L;
     private int maxConcurrentSyncs = 4;
-    private int syncTimeoutSeconds = 30;
+    private int syncTimeoutSeconds = 15;
+    private int syncReadTimeoutSeconds = 5;
     private int reputationDecaySeconds = 300;
     private long retryInitialDelayMs = 1000L;
     private long retryMaxDelayMs = 30_000L;
     private int retryMaxAttempts = 5;
     private int circuitBreakerCooldownSeconds = 120;
-    private boolean syncPeerExclusionEnabled = false;
+    private boolean syncPeerExclusionEnabled = true;
     private int connectorQueueQuotaPct = 50;
     private long verifierGasLimit = 300_000L;
     private boolean verifyProofsAtSender = true;
     private String peerEndpointsFile = "data/clpr/peer-endpoints.json";
     private long nodeSubmitBundleMaxFee = 1_000_000_000L;
+    private boolean allowNonPublicPeerEndpoints = false;
+    private int maxChannelStateBytes = 98_304;
+    private long maxChannels = 10_000L;
+    private Set<String> deniedChannelIds = Set.of();
+    private Set<String> deniedPeerEndpoints = Set.of();
     private Duration manifestGracePeriod = Duration.ofSeconds(300);
     private Duration manifestGraceExtension = Duration.ofSeconds(300);
     private int manifestMaxGraceExtensions = 2;
@@ -98,13 +104,33 @@ public final class ClprConfigBuilder {
         return this;
     }
 
-    public ClprConfigBuilder messageExecutionCost(final long messageExecutionCost) {
-        this.messageExecutionCost = messageExecutionCost;
+    public ClprConfigBuilder allowNonPublicPeerEndpoints(final boolean allowNonPublicPeerEndpoints) {
+        this.allowNonPublicPeerEndpoints = allowNonPublicPeerEndpoints;
         return this;
     }
 
-    public ClprConfigBuilder endpointMarginPercent(final int endpointMarginPercent) {
-        this.endpointMarginPercent = endpointMarginPercent;
+    public ClprConfigBuilder maxChannelStateBytes(final int maxChannelStateBytes) {
+        this.maxChannelStateBytes = maxChannelStateBytes;
+        return this;
+    }
+
+    public ClprConfigBuilder maxChannels(final long maxChannels) {
+        this.maxChannels = maxChannels;
+        return this;
+    }
+
+    public ClprConfigBuilder deniedChannelIds(final Set<String> deniedChannelIds) {
+        this.deniedChannelIds = deniedChannelIds;
+        return this;
+    }
+
+    public ClprConfigBuilder deniedPeerEndpoints(final Set<String> deniedPeerEndpoints) {
+        this.deniedPeerEndpoints = deniedPeerEndpoints;
+        return this;
+    }
+
+    public ClprConfigBuilder progressRewardTinycents(final long progressRewardTinycents) {
+        this.progressRewardTinycents = progressRewardTinycents;
         return this;
     }
 
@@ -115,6 +141,11 @@ public final class ClprConfigBuilder {
 
     public ClprConfigBuilder syncTimeoutSeconds(final int syncTimeoutSeconds) {
         this.syncTimeoutSeconds = syncTimeoutSeconds;
+        return this;
+    }
+
+    public ClprConfigBuilder syncReadTimeoutSeconds(final int syncReadTimeoutSeconds) {
+        this.syncReadTimeoutSeconds = syncReadTimeoutSeconds;
         return this;
     }
 
@@ -215,10 +246,10 @@ public final class ClprConfigBuilder {
                 slashBanThreshold,
                 endpointPayoutCapTinybars,
                 endpointMisbehaviorPenaltyTinybars,
-                messageExecutionCost,
-                endpointMarginPercent,
+                progressRewardTinycents,
                 maxConcurrentSyncs,
                 syncTimeoutSeconds,
+                syncReadTimeoutSeconds,
                 reputationDecaySeconds,
                 retryInitialDelayMs,
                 retryMaxDelayMs,
@@ -228,6 +259,11 @@ public final class ClprConfigBuilder {
                 connectorQueueQuotaPct,
                 verifierGasLimit,
                 nodeSubmitBundleMaxFee,
+                allowNonPublicPeerEndpoints,
+                maxChannelStateBytes,
+                maxChannels,
+                deniedChannelIds,
+                deniedPeerEndpoints,
                 verifyProofsAtSender,
                 peerEndpointsFile,
                 manifestGracePeriod,

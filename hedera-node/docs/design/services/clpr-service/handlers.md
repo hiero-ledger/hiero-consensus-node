@@ -72,6 +72,17 @@ side-effects.
 - **Lifecycle hook:** `onChannelClosed(channelId)` → orchestrator removes from
   sync schedule.
 
+### `ClprEvictPeerEndpointHandler` — admin endpoint eviction
+
+- Functionality: `CLPR_EVICT_PEER_ENDPOINT`. Body: `ClprEvictPeerEndpointTransactionBody`
+  (`channel_id`, `service_endpoint`).
+- Admin-gated (`PrivilegesVerifier.checkClprAdmin`).
+- Removes every entry matching `service_endpoint` from the channel's cached peer manifest and reseeds the
+  node-local dial cache. Fails with `CLPR_CHANNEL_NOT_FOUND`, `CLPR_INVALID_CHANNEL_STATUS` (closed), or
+  `CLPR_PEER_ENDPOINT_NOT_FOUND`.
+- The manifest version is unchanged, so a later manifest-advancing bundle can list the endpoint again;
+  operators can also deny it locally with `clpr.deniedPeerEndpoints`.
+
 ### `ClprRegisterConnectorHandler` / `ClprCompleteConnectorHandler`
 
 - Functionalities: `CLPR_REGISTER_CONNECTOR`, `CLPR_COMPLETE_CONNECTOR`. Spec §6.3.
@@ -115,8 +126,10 @@ side-effects.
 - State writes: channel's `received_running_hash`, `last_received_message_id`; per-data-
   message replies stored back into the queue (replies on the source-side queue).
 - Slashing/reimbursement: on misbehaviour, calls `ClprSlashingUtils.slashConnector(...)`
-  and credits the submitting endpoint per `ClprConfig.endpointMarginPercent`. See
+  and credits the submitting endpoint from the slashed stake. See
   [`config-and-slashing.md`](config-and-slashing.md).
+- Billing: connectors pay their callbacks' gas per message and share the bundle's cost
+  at settlement (`ClprBundleBilling`; E-10 in [`clpr-hiero-spec.md`](clpr-hiero-spec.md)).
 - On running-hash or ordering mismatch: channel moves to `PAUSED` (spec §4.5).
 
 > **Known gap (D-11 / C-1):** the inbound dispatch loop in `ClprSubmitBundleHandler`

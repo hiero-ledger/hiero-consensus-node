@@ -44,7 +44,8 @@
     { "name":  "CONSENSUS_SUBMIT_MESSAGE_WITHOUT_CUSTOM_FEE_BYTES", "fee": 6800},
     { "name":  "SCHEDULE_CREATE_CONTRACT_CALL_BASE",        "fee": 900000000},
     { "name":  "HOOK_EXECUTION",                            "fee": 50000000 },
-    { "name":  "HOOK_SLOT_UPDATE",                          "fee": 50000000 }
+    { "name":  "HOOK_SLOT_UPDATE",                          "fee": 50000000 },
+    { "name":  "CLPR_BUNDLE_BYTES",                         "fee": 100000 }
   ],
   "services": [
     {
@@ -786,6 +787,62 @@
           "name": "RegisteredNodeDelete",
           "baseFee": 9000000,
           "extras": []
+        }
+      ]
+    },
+    {
+      "name": "Clpr",
+      "schedule": [
+        {
+          "name": "ClprUpdateLedgerConfiguration",
+          "baseFee": 10000000000,
+          "extras": []
+        },
+        {
+          "name": "ClprRegisterChannel",
+          "baseFee": 1000000000000,
+          "extras": []
+        },
+        {
+          "name": "ClprCompleteChannel",
+          "baseFee": 1000000000000,
+          "extras": [ {"name": "STATE_BYTES", "includedCount": 8192 }, {"name": "GAS", "includedCount": 0 } ]
+        },
+        {
+          "name": "ClprCloseChannel",
+          "baseFee": 10000000000,
+          "extras": []
+        },
+        {
+          "name": "ClprEvictPeerEndpoint",
+          "baseFee": 10000000000,
+          "extras": []
+        },
+        {
+          "name": "ClprSubmitBundle",
+          "baseFee": 100000000,
+          "extras": [ {"name": "CLPR_BUNDLE_BYTES", "includedCount": 0 }, {"name": "GAS", "includedCount": 0 } ]
+        },
+        {
+          "name": "ClprRegisterConnector",
+          "baseFee": 100000000000,
+          "extras": []
+        },
+        {
+          "name": "ClprCompleteConnector",
+          "baseFee": 250000000000,
+          "extras": []
+        },
+        {
+          "name": "ClprDeregisterConnector",
+          "baseFee": 100000000000,
+          "extras": []
+        },
+        {
+          "name": "ClprEndpointPublication",
+          "baseFee": 0,
+          "extras": [],
+          "nodeNetworkFeeExempt": true
         }
       ]
     }

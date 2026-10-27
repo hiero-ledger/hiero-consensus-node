@@ -22,6 +22,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.ToLongFunction;
 import org.apache.logging.log4j.LogManager;
@@ -132,6 +133,9 @@ public class ClprStreamingSyncSession {
      */
     private final String tag;
 
+    /** Whether the node operator declines to serve a Channel, in which case its syncs are refused. */
+    private final Predicate<Bytes> isChannelDenied;
+
     ClprStreamingSyncSession(
             @NonNull final Supplier<AutoCloseableWrapper<State>> stateAccessor,
             @NonNull final ClprBundleSubmitter bundleSubmitter,
@@ -146,11 +150,28 @@ public class ClprStreamingSyncSession {
             @NonNull final ClprStateProofManager stateProofManager,
             @NonNull final ToLongFunction<Bytes> peerObservedManifestVersion,
             @Nullable final String correlationId) {
+        this(
+                stateAccessor,
+                bundleSubmitter,
+                stateProofManager,
+                peerObservedManifestVersion,
+                correlationId,
+                id -> false);
+    }
+
+    ClprStreamingSyncSession(
+            @NonNull final Supplier<AutoCloseableWrapper<State>> stateAccessor,
+            @NonNull final ClprBundleSubmitter bundleSubmitter,
+            @NonNull final ClprStateProofManager stateProofManager,
+            @NonNull final ToLongFunction<Bytes> peerObservedManifestVersion,
+            @Nullable final String correlationId,
+            @NonNull final Predicate<Bytes> isChannelDenied) {
         this.stateAccessor = requireNonNull(stateAccessor);
         this.bundleSubmitter = requireNonNull(bundleSubmitter);
         this.stateProofManager = requireNonNull(stateProofManager);
         this.peerObservedManifestVersion = requireNonNull(peerObservedManifestVersion);
         this.tag = correlationId == null ? "" : correlationId + " ";
+        this.isChannelDenied = requireNonNull(isChannelDenied);
     }
 
     /**
@@ -346,6 +367,14 @@ public class ClprStreamingSyncSession {
                     Status.INVALID_ARGUMENT.withDescription("channel_id must be exactly 32 bytes"));
         }
         if (channelId == null) {
+            if (isChannelDenied.test(messageChannelId)) {
+                logger.debug(
+                        "{}[CLPR-STREAM-INBOUND] refusing channel denied by operator channel={}",
+                        tag,
+                        messageChannelId);
+                throw new StatusRuntimeException(Status.PERMISSION_DENIED.withDescription(
+                        "This node does not serve channel " + messageChannelId.toHex()));
+            }
             channelId = messageChannelId;
         } else if (!channelId.equals(messageChannelId)) {
             throw new StatusRuntimeException(

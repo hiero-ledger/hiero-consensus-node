@@ -86,7 +86,10 @@ class V0780ClprSchemaTest {
         verify(configurationState).put(org.mockito.ArgumentMatchers.assertArg(ledgerConfig -> {
             assertThat(ledgerConfig.chainId()).isEqualTo("hiero:test");
             final var throttles = ledgerConfig.throttlesOrThrow();
-            assertThat(throttles.maxMessagesPerBundle()).isEqualTo(1000);
+            assertThat(throttles.maxMessagesPerBundle()).isEqualTo(100);
+            assertThat(throttles.maxQueueDepth()).isEqualTo(1_000);
+            assertThat(throttles.maxMessagePayloadBytes()).isEqualTo(4_096);
+            assertThat(throttles.maxPeerEndpoints()).isEqualTo(10);
             assertThat(throttles.maxGasPerMessage()).isEqualTo(15_000_000L);
         }));
         verify(manifestState).put(org.mockito.ArgumentMatchers.any(ClprEndpointManifest.class));

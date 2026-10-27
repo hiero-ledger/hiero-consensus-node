@@ -20,6 +20,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCloseChanne
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprDeregisterConnector;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprEvictPeerEndpoint;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprSubmitBundle;
@@ -439,7 +440,8 @@ public class ClprDisabledSuite {
                 contractCreate(VERIFIER_CONTRACT),
                 contractCreate(CONNECTOR_CONTRACT),
                 contractCreate(CLPR_CONTRACT),
-                cryptoCreate(CALLER).balance(ONE_HUNDRED_HBARS)));
+                // Pays CLPR prices of up to $100, about 833 hbar at the test exchange rate
+                cryptoCreate(CALLER).balance(ONE_MILLION_HBARS)));
     }
 
     private static HapiTxnOp<?> sendMessage(final ClprChannelCrypto crypto) {
@@ -502,12 +504,15 @@ public class ClprDisabledSuite {
                         .endpointNodeId(0L)
                         .bundlePayload(
                                 toBundleProofBytes(ClprChannelStatus.ACTIVE, 0L, 0L, new byte[32], List.of(payload))));
+        txns.put(
+                "evictPeerEndpoint",
+                clprEvictPeerEndpoint().channelId(crypto.channelId()).endpoint("203.0.113.1", 50211));
         txns.put("closeChannel", clprCloseChannel().channelId(crypto.channelId()));
         // Only governance operations require an administrator; public operations must exercise user throttles.
         txns.values()
                 .forEach(op -> op.payingWith(
                         switch (op.type()) {
-                            case ClprUpdateLedgerConfiguration, ClprCloseChannel -> GENESIS;
+                            case ClprUpdateLedgerConfiguration, ClprCloseChannel, ClprEvictPeerEndpoint -> GENESIS;
                             default -> CALLER;
                         }));
         return txns;

@@ -4,6 +4,7 @@ package com.hedera.node.app.service.clpr.impl.test.handlers;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_CHANNEL_ALREADY_EXISTS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NOT_ENABLED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.PENDING_COMMITMENTS_STATE_ID;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -119,6 +120,25 @@ class ClprRegisterChannelHandlerTest {
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(CLPR_CHANNEL_ALREADY_EXISTS));
         assertThat(commitmentStore.contains(COMMITMENT)).isTrue();
+    }
+
+    @Test
+    @DisplayName("should reject a new commitment once the channel limit is reached")
+    void rejectsCommitmentAtChannelLimit() {
+        final var otherCommitment = new byte[32];
+        otherCommitment[0] = 0x7f;
+        commitmentStore.put(Bytes.wrap(otherCommitment));
+        setupHandleContext(
+                validTxn(),
+                HederaTestConfigBuilder.create()
+                        .withValue("clpr.enabled", true)
+                        .withValue("clpr.maxChannels", 1L)
+                        .getOrCreateConfig());
+
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED));
+        assertThat(commitmentStore.contains(COMMITMENT)).isFalse();
     }
 
     @Test

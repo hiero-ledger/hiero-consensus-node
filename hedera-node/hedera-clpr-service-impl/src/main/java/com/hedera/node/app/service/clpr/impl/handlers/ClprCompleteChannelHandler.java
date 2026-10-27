@@ -7,6 +7,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INVALID_VERIFIER_CONTRACT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_VERIFIER_CONFIG_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_SERVICE_ACCOUNT_NUM;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
@@ -24,6 +25,7 @@ import com.hedera.hapi.node.state.clpr.ClprThrottles;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.service.clpr.ClprChannelLifecycle;
 import com.hedera.node.app.service.clpr.ReadableLedgerConfigurationStore;
+import com.hedera.node.app.service.clpr.impl.ClprPeerEndpointPolicy;
 import com.hedera.node.app.service.clpr.impl.WritableChannelStore;
 import com.hedera.node.app.service.clpr.impl.WritablePendingCommitmentStore;
 import com.hedera.node.app.service.clpr.impl.verifier.ClprVerifier;
@@ -36,6 +38,7 @@ import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.config.data.ClprConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -189,6 +192,9 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
             log.warn("[ClprCompleteChannel] channel already active channelId={}", shortHex(op.channelId()));
             throw new HandleException(CLPR_CHANNEL_ALREADY_EXISTS);
         }
+        final var clprConfig = context.configuration().getConfigData(ClprConfig.class);
+        validateTrue(
+                channelStore.sizeOfState() < clprConfig.maxChannels(), MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED);
 
         // 3. Verify signature over keccak256(channel_id)
         // FUTURE: We may be able to move this to pre-handle to avoid the crypto work on the handle thread
@@ -345,6 +351,19 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
                 peerEndpoints.size(),
                 rawPeerLimit,
                 truncatedPeerEndpoints.size());
+        // Every node dials the stored peer endpoints on each sync tick, so the verifier — which whoever completes
+        // the Channel chooses — must not be able to point them at a node's own network (ClprPeerEndpointPolicy)
+        final boolean endpointsAllowed =
+                ClprPeerEndpointPolicy.allAllowed(truncatedPeerEndpoints, clprConfig.allowNonPublicPeerEndpoints());
+        if (!endpointsAllowed) {
+            log.warn(
+                    "[ClprCompleteChannel] verified manifest rejected: disallowed peer endpoint channelId={} "
+                            + "verifierContract={} endpoints={}",
+                    shortHex(op.channelId()),
+                    op.verifierContractOrThrow(),
+                    truncatedPeerEndpoints.size());
+        }
+        validateTrue(endpointsAllowed, CLPR_VERIFIER_CONFIG_FAILED);
 
         // 8. Reject peer configs with a semantically invalid timestamp
         validateTimestamp(peerConfig.timestamp(), CLPR_VERIFIER_CONFIG_FAILED);
@@ -385,6 +404,19 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
                 peerManifest.copyBuilder().endpoints(truncatedPeerEndpoints).build();
         channelBuilder.endpointManifest(storedManifest).endpointManifestVersion(storedManifest.version());
         final var channel = channelBuilder.build();
+        // The trust anchor, manifest, and peer configuration all come from the verifier, so bound the state it can
+        // make every node store
+        final var channelBytes = ClprChannel.PROTOBUF.measureRecord(channel);
+        if (channelBytes > clprConfig.maxChannelStateBytes()) {
+            log.warn(
+                    "[ClprCompleteChannel] verified config rejected: channel record too large channelId={} "
+                            + "verifierContract={} bytes={} max={}",
+                    shortHex(op.channelId()),
+                    op.verifierContractOrThrow(),
+                    channelBytes,
+                    clprConfig.maxChannelStateBytes());
+        }
+        validateTrue(channelBytes <= clprConfig.maxChannelStateBytes(), CLPR_VERIFIER_CONFIG_FAILED);
         channelStore.put(channel);
         log.debug(
                 "[ClprCompleteChannel] channel ACTIVE channelId={} peerChainId={} endpointsStored={} "

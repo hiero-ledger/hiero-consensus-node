@@ -55,6 +55,7 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import org.junit.jupiter.api.AfterEach;
@@ -350,15 +351,12 @@ class ClprChannelManagerTest {
         }
 
         /**
-         * This test simulates a scenario in which we have a max concurrent sync of 2 but
-         * 3 channels are active and being synced.
-         * We use a CountDownLatch to block the sync for channels 1 and 2.
-         * When the sync for the third channel is initiated, it should be skipped to prevent
-         * throttling.
+         * With every sync slot busy, a Channel that becomes ready waits for a slot rather than being skipped, and runs
+         * as soon as one frees.
          */
         @Test
-        @DisplayName("max concurrent sync operations reached, sync is skipped")
-        void maxConcurrentSyncOperationsReachedNoActionOnSyncTick() {
+        @DisplayName("max concurrent sync operations reached, the next sync waits for a free slot")
+        void maxConcurrentSyncOperationsReachedNextSyncWaits() {
             final int maxConcurrentSyncs = 2;
             given(versionedConfig.getConfigData(ClprConfig.class))
                     .willReturn(defaultClprConfig()
@@ -371,26 +369,124 @@ class ClprChannelManagerTest {
                     .toList();
 
             final var syncCallsCount = new AtomicInteger(0);
-            final var longSyncEmulator = new CountDownLatch(maxConcurrentSyncs);
+            final var longSyncEmulator = new CountDownLatch(1);
             willAnswer(invocation -> {
                         syncCallsCount.incrementAndGet();
                         longSyncEmulator.await();
-                        return null;
+                        return SyncOutcome.IDLE;
                     })
                     .given(synchronizer)
                     .synchronize(any(), any(), anyLong(), anyLong());
 
             channels.forEach(subject::initiateSync);
             await().atMost(Duration.ofMillis(200)).until(() -> syncCallsCount.get() == maxConcurrentSyncs);
-            try {
-                subject.initiateSync(channels.getLast());
-                verify(synchronizer, after(200).never())
-                        .synchronize(eq(channels.getLast()), any(), anyLong(), anyLong());
-            } finally {
-                IntStream.of(0, maxConcurrentSyncs).forEach((_) -> longSyncEmulator.countDown());
-                assertThat(syncCallsCount.get()).isEqualTo(maxConcurrentSyncs);
-                verify(synchronizer, times(maxConcurrentSyncs)).synchronize(any(), any(), anyLong(), anyLong());
-            }
+            verify(synchronizer, after(200).never()).synchronize(eq(channels.getLast()), any(), anyLong(), anyLong());
+
+            longSyncEmulator.countDown();
+
+            verify(synchronizer, timeout(500)).synchronize(eq(channels.getLast()), any(), anyLong(), anyLong());
+        }
+
+        @Test
+        @DisplayName("sync slots go to waiting channels in the order they became ready")
+        void syncSlotsGoToWaitingChannelsInOrder() {
+            given(versionedConfig.getConfigData(ClprConfig.class))
+                    .willReturn(defaultClprConfig().maxConcurrentSyncs(1).build());
+            subject = new ClprChannelManager(configProvider, stateAccessor, synchronizer, clientCache);
+            final var first = makeActiveChannelWithPendingMessages(CHANNEL_ID_1);
+            final var second = makeActiveChannelWithPendingMessages(CHANNEL_ID_2);
+            final var third = makeActiveChannelWithPendingMessages(Bytes.wrap("test_channel_3"));
+            final var release = new CountDownLatch(1);
+            final var order = new java.util.concurrent.CopyOnWriteArrayList<Bytes>();
+            willAnswer(invocation -> {
+                        final ClprChannel channel = invocation.getArgument(0);
+                        order.add(channel.channelId());
+                        if (channel.channelId().equals(CHANNEL_ID_1)) {
+                            release.await();
+                        }
+                        return SyncOutcome.IDLE;
+                    })
+                    .given(synchronizer)
+                    .synchronize(any(), any(), anyLong(), anyLong());
+
+            subject.initiateSync(first);
+            await().atMost(Duration.ofMillis(200)).until(() -> order.size() == 1);
+            subject.initiateSync(second);
+            subject.initiateSync(third);
+            release.countDown();
+
+            await().atMost(Duration.ofMillis(500)).until(() -> order.size() == 3);
+            assertThat(order).containsExactly(CHANNEL_ID_1, CHANNEL_ID_2, third.channelId());
+        }
+
+        @Test
+        @DisplayName("a channel whose sync failed backs off until its delay passes")
+        void failedChannelBacksOff() {
+            final var clock = new AtomicLong(0L);
+            given(versionedConfig.getConfigData(ClprConfig.class))
+                    .willReturn(defaultClprConfig()
+                            .retryInitialDelayMs(1_000L)
+                            .retryMaxDelayMs(30_000L)
+                            .build());
+            subject = new ClprChannelManager(
+                    configProvider, stateAccessor, synchronizer, clientCache, ClprSyncMetrics.noop(), clock::get);
+            given(synchronizer.synchronize(any(), any(), anyLong(), anyLong())).willReturn(SyncOutcome.FAILURE);
+            final var conn = makeActiveChannelWithPendingMessages(CHANNEL_ID_1);
+
+            subject.initiateSync(conn);
+            verify(synchronizer, timeout(200)).synchronize(eq(conn), any(), anyLong(), anyLong());
+
+            // Within the 1s backoff: skipped
+            clock.set(java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(999));
+            await().atMost(Duration.ofMillis(200)).untilAsserted(() -> {
+                subject.initiateSync(conn);
+                verify(synchronizer, times(1)).synchronize(eq(conn), any(), anyLong(), anyLong());
+            });
+
+            // After it: synced again
+            clock.set(java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(1_001));
+            await().atMost(Duration.ofMillis(500)).untilAsserted(() -> {
+                subject.initiateSync(conn);
+                verify(synchronizer, times(2)).synchronize(eq(conn), any(), anyLong(), anyLong());
+            });
+        }
+
+        @Test
+        @DisplayName("a channel the operator denies is never synced")
+        void deniedChannelIsNotSynced() {
+            final var conn = makeActiveChannelWithPendingMessages(CHANNEL_ID_1);
+            given(versionedConfig.getConfigData(ClprConfig.class))
+                    .willReturn(defaultClprConfig()
+                            .deniedChannelIds(
+                                    java.util.Set.of("0x" + CHANNEL_ID_1.toHex().toUpperCase()))
+                            .build());
+
+            subject.initiateSync(conn);
+
+            verify(synchronizer, after(200).never()).synchronize(any(), any(), anyLong(), anyLong());
+            assertThat(subject.isChannelDenied(CHANNEL_ID_1)).isTrue();
+            assertThat(subject.isChannelDenied(CHANNEL_ID_2)).isFalse();
+        }
+
+        @Test
+        @DisplayName("a peer endpoint the operator denies is never dialed")
+        void deniedEndpointIsNotDialed() {
+            final var allowed = makeEndpoint("203.0.113.2", 50211);
+            final var conn = makeChannel(CHANNEL_ID_1, ClprChannelStatus.ACTIVE, 0L, 2L)
+                    .copyBuilder()
+                    .endpointManifest(ClprEndpointManifest.newBuilder()
+                            .version(1L)
+                            .endpoints(List.of(makeEndpoint("203.0.113.1", 50211), allowed))
+                            .build())
+                    .build();
+            given(versionedConfig.getConfigData(ClprConfig.class))
+                    .willReturn(defaultClprConfig()
+                            .deniedPeerEndpoints(java.util.Set.of("203.0.113.1"))
+                            .build());
+
+            subject.initiateSync(conn);
+
+            verify(synchronizer, timeout(200)).synchronize(eq(conn), eq(List.of(allowed)), anyLong(), anyLong());
         }
 
         @Test
@@ -417,6 +513,40 @@ class ClprChannelManagerTest {
             // channel can run — confirms semaphore release and ongoingChannelSyncs cleanup.
             subject.initiateSync(conn);
             verify(synchronizer, timeout(200).times(2)).synchronize(eq(conn), any(), anyLong(), anyLong());
+        }
+
+        @Test
+        @DisplayName("disallowed peer endpoints are never dialed")
+        void disallowedEndpointsAreNotDialed() {
+            final var publicEndpoint = makeEndpoint("203.0.113.1", 50211);
+            final var conn = makeChannel(CHANNEL_ID_1, ClprChannelStatus.ACTIVE, 0L, 2L)
+                    .copyBuilder()
+                    .endpointManifest(ClprEndpointManifest.newBuilder()
+                            .version(1L)
+                            .endpoints(List.of(
+                                    makeEndpoint("127.0.0.1", 50211), publicEndpoint, makeEndpoint("10.0.0.1", 50211)))
+                            .build())
+                    .build();
+
+            subject.initiateSync(conn);
+
+            verify(synchronizer, timeout(200)).synchronize(eq(conn), eq(List.of(publicEndpoint)), anyLong(), anyLong());
+        }
+
+        @Test
+        @DisplayName("a channel whose peer endpoints are all disallowed is not synced")
+        void channelWithOnlyDisallowedEndpointsIsNotSynced() {
+            final var conn = makeChannel(CHANNEL_ID_1, ClprChannelStatus.ACTIVE, 0L, 2L)
+                    .copyBuilder()
+                    .endpointManifest(ClprEndpointManifest.newBuilder()
+                            .version(1L)
+                            .endpoints(List.of(makeEndpoint("169.254.169.254", 80)))
+                            .build())
+                    .build();
+
+            subject.initiateSync(conn);
+
+            verify(synchronizer, after(200).never()).synchronize(any(), any(), anyLong(), anyLong());
         }
 
         @Test
@@ -467,7 +597,7 @@ class ClprChannelManagerTest {
         @Test
         @DisplayName("seedPeerEndpoints with an empty list clears a previously cached endpoint")
         void seedPeerEndpointsWithEmptyListClearsPreviousCache() {
-            subject.seedPeerEndpoints(CHANNEL_ID_1, List.of(makeEndpoint("10.0.0.7", 50211)));
+            subject.seedPeerEndpoints(CHANNEL_ID_1, List.of(makeEndpoint("203.0.113.7", 50211)));
             assertThat(subject.getKnownEndpoints(CHANNEL_ID_1)).isNotEmpty();
 
             subject.seedPeerEndpoints(CHANNEL_ID_1, Collections.emptyList());
@@ -525,7 +655,7 @@ class ClprChannelManagerTest {
                 .copyBuilder()
                 .endpointManifest(ClprEndpointManifest.newBuilder()
                         .version(1L)
-                        .endpoints(List.of(makeEndpoint("10.0.0.1", 50211)))
+                        .endpoints(List.of(makeEndpoint("203.0.113.1", 50211)))
                         .build())
                 .build();
     }
@@ -600,7 +730,7 @@ class ClprChannelManagerTest {
             final var cached = ClprPeerEndpoints.newBuilder()
                     .entries(ClprPeerEndpointsEntry.newBuilder()
                             .channelId(CHANNEL_ID_1)
-                            .endpoints(makeEndpoint("10.0.0.7", 50211))
+                            .endpoints(makeEndpoint("203.0.113.7", 50211))
                             .build())
                     .build();
             final var json = ClprPeerEndpoints.JSON.toJSON(cached);
@@ -617,7 +747,7 @@ class ClprChannelManagerTest {
         @DisplayName("persists channels + endpoints to disk and rehydrates them on a fresh manager")
         void persistsAndRehydratesAcrossRestart() {
             final var cacheFile = tempDir.resolve("clpr-peer-endpoints.json");
-            final var endpoint = makeEndpoint("10.0.0.7", 50211);
+            final var endpoint = makeEndpoint("203.0.113.7", 50211);
 
             // Manager A: activate a channel and seed peer endpoints — both persist to disk.
             subject.start();
@@ -652,7 +782,7 @@ class ClprChannelManagerTest {
         @DisplayName("replacing cached endpoints with an empty manifest clears them on disk and after restart")
         void seedPeerEndpointsEmptyListClearsDiskCacheAndSurvivesRestart() {
             final var cacheFile = tempDir.resolve("clpr-peer-endpoints.json");
-            final var endpoint = makeEndpoint("10.0.0.7", 50211);
+            final var endpoint = makeEndpoint("203.0.113.7", 50211);
 
             subject.start();
             subject.onChannelActivated(CHANNEL_ID_1);
@@ -713,7 +843,7 @@ class ClprChannelManagerTest {
         // Populate an eligible channel and peer cache before disabling the master flag.
         final var channel = makeChannel(CHANNEL_ID_1, ClprChannelStatus.ACTIVE, 0L, 2L);
         subject.onChannelActivated(CHANNEL_ID_1);
-        subject.seedPeerEndpoints(CHANNEL_ID_1, List.of(makeEndpoint("10.0.0.7", 50211)));
+        subject.seedPeerEndpoints(CHANNEL_ID_1, List.of(makeEndpoint("203.0.113.7", 50211)));
         Mockito.clearInvocations(stateAccessor, synchronizer, clientCache);
         given(versionedConfig.getConfigData(ClprConfig.class))
                 .willReturn(defaultClprConfig().enabled(false).build());
@@ -735,7 +865,7 @@ class ClprChannelManagerTest {
         final var cached = ClprPeerEndpoints.newBuilder()
                 .entries(List.of(ClprPeerEndpointsEntry.newBuilder()
                         .channelId(CHANNEL_ID_1)
-                        .endpoints(List.of(makeEndpoint("10.0.0.7", 50211)))
+                        .endpoints(List.of(makeEndpoint("203.0.113.7", 50211)))
                         .build()))
                 .build();
         try (final var output = Files.newOutputStream(cacheFile)) {
@@ -756,5 +886,15 @@ class ClprChannelManagerTest {
         verifyNoInteractions(stateAccessor, synchronizer, clientCache);
         subject.stop();
         assertThat(Files.readAllBytes(cacheFile)).isEqualTo(before);
+    }
+
+    @Test
+    @DisplayName("backoff doubles per consecutive failure up to the maximum")
+    void backoffDoublesUpToMaximum() {
+        assertThat(ClprChannelManager.backoffDelayMs(1, 1_000L, 30_000L)).isEqualTo(1_000L);
+        assertThat(ClprChannelManager.backoffDelayMs(2, 1_000L, 30_000L)).isEqualTo(2_000L);
+        assertThat(ClprChannelManager.backoffDelayMs(5, 1_000L, 30_000L)).isEqualTo(16_000L);
+        assertThat(ClprChannelManager.backoffDelayMs(6, 1_000L, 30_000L)).isEqualTo(30_000L);
+        assertThat(ClprChannelManager.backoffDelayMs(1_000, 1_000L, 30_000L)).isEqualTo(30_000L);
     }
 }

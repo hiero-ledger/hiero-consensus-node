@@ -8,6 +8,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INVALID_VERIFIER_C
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NOT_ENABLED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_VERIFIER_CONFIG_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED;
 import static com.hedera.node.app.hapi.utils.keys.Ed25519Utils.keyFrom;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.PENDING_COMMITMENTS_STATE_ID;
@@ -535,7 +536,7 @@ class ClprCompleteChannelHandlerTest {
                 .serviceAddress(PEER_CONFIG.serviceAddress())
                 .endpoints(List.of(ClprEndpoint.newBuilder()
                         .serviceEndpoint(ClprServiceEndpoint.newBuilder()
-                                .ipAddress("10.0.0.1")
+                                .ipAddress("203.0.113.1")
                                 .port(50211)
                                 .build())
                         .tlsCertificate(Bytes.wrap(new byte[] {9, 9, 9}))
@@ -803,6 +804,73 @@ class ClprCompleteChannelHandlerTest {
     }
 
     @Test
+    void rejectsCompletionAtChannelLimit() {
+        commitmentStore.put(ECDSA_COMMITMENT);
+        channelStore.put(ClprChannel.newBuilder()
+                .channelId(Bytes.wrap(new byte[32]))
+                .status(ClprChannelStatus.ACTIVE)
+                .build());
+        setupHandleContext(
+                validEcdsaTxnWithManifest(manifestWithEndpointCount(1)),
+                HederaTestConfigBuilder.create()
+                        .withValue("clpr.enabled", true)
+                        .withValue("clpr.maxChannels", 1L)
+                        .getOrCreateConfig());
+
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED));
+        assertThat(channelStore.getChannel(CHANNEL_ID)).isNull();
+    }
+
+    @Test
+    void rejectsManifestWithNonPublicPeerEndpoint() {
+        // Every node would dial it, so a verifier must not be able to point a Channel at a node's own network
+        commitmentStore.put(ECDSA_COMMITMENT);
+        setupHandleContext(validEcdsaTxnWithManifest(manifestWithAddress("127.0.0.1")));
+        setupVerifierAccount(true);
+
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(CLPR_VERIFIER_CONFIG_FAILED));
+        assertThat(channelStore.getChannel(CHANNEL_ID)).isNull();
+        then(channelLifecycle).should(never()).seedPeerEndpoints(any(), any());
+    }
+
+    @Test
+    void acceptsNonPublicPeerEndpointWhenAllowed() {
+        commitmentStore.put(ECDSA_COMMITMENT);
+        setupHandleContext(
+                validEcdsaTxnWithManifest(manifestWithAddress("127.0.0.1")),
+                HederaTestConfigBuilder.create()
+                        .withValue("clpr.enabled", true)
+                        .withValue("clpr.allowNonPublicPeerEndpoints", true)
+                        .getOrCreateConfig());
+        setupVerifierAccount(true);
+
+        subject.handle(handleContext);
+
+        assertThat(channelStore.getChannel(CHANNEL_ID)).isNotNull();
+    }
+
+    @Test
+    void rejectsChannelRecordOverStateLimit() {
+        commitmentStore.put(ECDSA_COMMITMENT);
+        setupHandleContext(
+                validEcdsaTxnWithManifest(manifestWithEndpointCount(1)),
+                HederaTestConfigBuilder.create()
+                        .withValue("clpr.enabled", true)
+                        .withValue("clpr.maxChannelStateBytes", 64)
+                        .getOrCreateConfig());
+        setupVerifierAccount(true);
+
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(CLPR_VERIFIER_CONFIG_FAILED));
+        assertThat(channelStore.getChannel(CHANNEL_ID)).isNull();
+    }
+
+    @Test
     void rejectsPeerConfigWithNegativeTimestampSeconds() {
         commitmentStore.put(ECDSA_COMMITMENT);
         final var peerConfig = PEER_CONFIG
@@ -917,7 +985,7 @@ class ClprCompleteChannelHandlerTest {
         for (int i = 0; i < count; i++) {
             endpoints.add(ClprEndpoint.newBuilder()
                     .serviceEndpoint(ClprServiceEndpoint.newBuilder()
-                            .ipAddress("10.0.0." + i)
+                            .ipAddress("203.0.113." + i)
                             .port(50211)
                             .build())
                     .tlsCertificate(Bytes.wrap(new byte[] {(byte) (i + 1)}))
@@ -927,6 +995,19 @@ class ClprCompleteChannelHandlerTest {
                 .version(1L)
                 .serviceAddress(PEER_CONFIG.serviceAddress())
                 .endpoints(endpoints)
+                .build();
+    }
+
+    private static ClprEndpointManifest manifestWithAddress(final String ipAddress) {
+        return ClprEndpointManifest.newBuilder()
+                .version(1L)
+                .serviceAddress(PEER_CONFIG.serviceAddress())
+                .endpoints(List.of(ClprEndpoint.newBuilder()
+                        .serviceEndpoint(ClprServiceEndpoint.newBuilder()
+                                .ipAddress(ipAddress)
+                                .port(50211)
+                                .build())
+                        .build()))
                 .build();
     }
 

@@ -226,6 +226,8 @@ public class GrpcUtils {
                 clients.getClprSvcStub(nodeAccountId, false, false).completeChannel(transaction);
             case ClprCloseChannel ->
                 clients.getClprSvcStub(nodeAccountId, false, false).closeChannel(transaction);
+            case ClprEvictPeerEndpoint ->
+                clients.getClprSvcStub(nodeAccountId, false, false).evictPeerEndpoint(transaction);
             case ClprSubmitBundle ->
                 clients.getClprSvcStub(nodeAccountId, false, false).submitBundle(transaction);
             case ClprRegisterConnector ->

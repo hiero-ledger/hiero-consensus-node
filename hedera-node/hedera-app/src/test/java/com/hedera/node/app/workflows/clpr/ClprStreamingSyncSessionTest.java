@@ -90,6 +90,23 @@ class ClprStreamingSyncSessionTest {
     class ParseAndValidate {
 
         @Test
+        @DisplayName("a channel the operator denies is refused before anything is processed")
+        void refusesDeniedChannel() {
+            final var deniedSession = new ClprStreamingSyncSession(
+                    stateAccessor,
+                    bundleSubmitter,
+                    stateProofManager,
+                    channelId -> peerObservedManifestVersion,
+                    null,
+                    CHANNEL_ID::equals);
+
+            assertThatThrownBy(() -> deniedSession.onMessage(bytes(payload(CHANNEL_ID, request(0L), BUNDLE))))
+                    .isInstanceOf(StatusRuntimeException.class)
+                    .hasMessageContaining("PERMISSION_DENIED");
+            verifyNoInteractions(bundleSubmitter);
+        }
+
+        @Test
         @DisplayName("switching channel_id mid-stream is rejected")
         void rejectsChannelIdSwitch() {
             final var channel = channel(ClprChannelStatus.ACTIVE, 6L, 0L, 0L);

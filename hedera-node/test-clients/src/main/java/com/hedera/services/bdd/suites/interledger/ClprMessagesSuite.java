@@ -214,8 +214,9 @@ public class ClprMessagesSuite {
                         contractCreate(PASS_THROUGH_VERIFIER),
                         uploadInitCode(ECHO_APP),
                         contractCreate(ECHO_APP),
-                        // Fund EchoApplication as the connector contract: must cover
-                        // messageExecutionCost + endpointMarginPercent per DATA message.
+                        // Fund EchoApplication as the connector contract: must cover each DATA message's
+                        // worst-case callback gas (max_gas_per_message at the network gas price), escrowed
+                        // before dispatch, plus its share of each bundle's cost.
                         cryptoTransfer(tinyBarsFromTo(GENESIS, ECHO_APP, ONE_HUNDRED_HBARS)),
                         clprRegisterChannel()
                                 .ownershipCommitment(channelCommitment.toByteArray())

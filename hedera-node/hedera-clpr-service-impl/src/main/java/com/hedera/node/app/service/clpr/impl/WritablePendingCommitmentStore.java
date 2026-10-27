@@ -45,6 +45,13 @@ public class WritablePendingCommitmentStore {
     }
 
     /**
+     * Returns the number of commitments, pending or bound to a Channel.
+     */
+    public long sizeOfState() {
+        return state.size();
+    }
+
+    /**
      * Removes a commitment.
      */
     public void remove(@NonNull final Bytes commitment) {

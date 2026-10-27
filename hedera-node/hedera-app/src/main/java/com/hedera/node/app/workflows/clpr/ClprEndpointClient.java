@@ -31,10 +31,22 @@ public interface ClprEndpointClient {
      *     starts running when this method is called and covers every subsequent write and read on
      *     the returned handle, so it must be sized for the whole multi-bundle conversation rather
      *     than for one round trip.
+     * @param stepTimeout how long any one write or read on the returned handle may block
      * @return a handle for writing/reading messages on the new stream
      */
     @NonNull
-    ClprStreamingSyncCall sync(@NonNull Duration timeout);
+    ClprStreamingSyncCall sync(@NonNull Duration timeout, @NonNull Duration stepTimeout);
+
+    /**
+     * Opens a streaming sync whose individual writes and reads are bounded only by the exchange deadline.
+     *
+     * @param timeout the deadline for the entire exchange
+     * @return a handle for writing/reading messages on the new stream
+     */
+    @NonNull
+    default ClprStreamingSyncCall sync(@NonNull final Duration timeout) {
+        return sync(timeout, timeout);
+    }
 
     /**
      * Exception thrown when an outbound CLPR sync call fails.

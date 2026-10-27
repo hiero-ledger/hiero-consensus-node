@@ -109,26 +109,28 @@ public final class ClprStreamingSynchronizer implements ClprSynchronizer {
     }
 
     @Override
-    public void synchronize(
+    @NonNull
+    public SyncOutcome synchronize(
             @NonNull final ClprChannel channel,
             @NonNull final List<ClprEndpoint> providedEndpoints,
             final long localEndpointManifestVersion,
             final long peerObservedManifestVersion) {
         final var clprConfig = configProvider.getConfiguration().getConfigData(ClprConfig.class);
         if (!clprConfig.enabled()) {
-            return;
+            return SyncOutcome.SKIPPED;
         }
         final var channelId = channel.channelId().toHex();
         final var status = channel.status();
         if (status == ClprChannelStatus.PENDING || status == ClprChannelStatus.CLOSED) {
             logger.debug("[CLPR-SYNC-OUTBOUND] skipping ineligible channel conn={} status={}", channelId, status);
-            return;
+            return SyncOutcome.SKIPPED;
         }
         final var selected = peerSelector.selectEndpoint(channel, providedEndpoints);
         if (selected == null) {
-            return;
+            return SyncOutcome.SKIPPED;
         }
         final var peerId = selected.peerId();
+        final var trackingKey = selected.trackingKey();
         final var endpoint = selected.endpoint();
         logger.debug(
                 "[CLPR-SYNC-OUTBOUND] streaming sync start conn={} peer={} status={} "
@@ -140,8 +142,11 @@ public final class ClprStreamingSynchronizer implements ClprSynchronizer {
                 channel.ackedMessageId(),
                 channel.receivedMessageId());
 
-        // The deadline covers the whole exchange, not one round trip.
+        // The deadline covers the whole exchange, not one round trip; each write and read is bounded separately, so
+        // a peer that stops answering is abandoned within one step timeout.
         final var timeout = Duration.ofSeconds(clprConfig.syncTimeoutSeconds());
+        final var stepTimeout = Duration.ofSeconds(clprConfig.syncReadTimeoutSeconds());
+        SyncOutcome outcome;
         try {
             // A peer advertises its TLS certificate only when its TLS listener is serving, in which
             // case the advertised port is that listener's; otherwise it advertises its plaintext port.
@@ -149,22 +154,26 @@ public final class ClprStreamingSynchronizer implements ClprSynchronizer {
                     endpoint.serviceEndpoint().ipAddress(),
                     endpoint.serviceEndpoint().port(),
                     endpoint.tlsCertificate().length() > 0);
-            final boolean completed;
-            try (var call = client.sync(timeout)) {
-                completed = new Exchange(call, channel, peerId)
+            try (var call = client.sync(timeout, stepTimeout)) {
+                outcome = new Exchange(call, channel, peerId)
                         .run(localEndpointManifestVersion, peerObservedManifestVersion);
             }
-            if (completed) {
-                peerSelector.recordSuccess(peerId);
-            } else {
-                peerSelector.recordFailure(peerId);
-            }
         } catch (final ClprSyncException | ClientException e) {
-            // ClprSyncException: stream failure. ClientException: TLS channel could not be built. Both are
+            // ClprSyncException: stream failure or timeout. ClientException: TLS channel could not be built. Both are
             // peer-level failures for the breaker.
-            peerSelector.recordFailure(peerId);
             logger.error("Streaming sync failed for channel {} via peer {}", channelId, peerId, e);
+            outcome = SyncOutcome.FAILURE;
         }
+        // Only an exchange that moved a bundle earns the peer credit. An idle one is neutral, so a peer can't keep its
+        // breaker closed and its reputation up by answering without ever doing anything.
+        switch (outcome) {
+            case PROGRESS -> peerSelector.recordSuccess(trackingKey);
+            case FAILURE -> peerSelector.recordFailure(trackingKey);
+            default -> {
+                // IDLE and SKIPPED leave the peer's tracking alone
+            }
+        }
+        return outcome;
     }
 
     /**
@@ -193,6 +202,15 @@ public final class ClprStreamingSynchronizer implements ClprSynchronizer {
          */
         private boolean allSubmitted = true;
 
+        /** Bundles this side has written so far; the peer answers each, possibly without a bundle. */
+        private int bundlesSent;
+
+        /** Bundles from the peer accepted for submission so far. */
+        private int bundlesAccepted;
+
+        /** Messages from the peer that carried no bundle, against {@link #allowedMessagesWithoutBundle()}. */
+        private int messagesWithoutBundle;
+
         private Exchange(
                 @NonNull final ClprStreamingSyncCall call,
                 @NonNull final ClprChannel channel,
@@ -207,23 +225,36 @@ public final class ClprStreamingSynchronizer implements ClprSynchronizer {
         /**
          * Drives the whole cycle.
          *
-         * @return {@code true} when the exchange ran to a clean close and every inbound bundle was accepted for
-         * submission; {@code false} when the peer closed early, exceeded the inbound message limit, or a submission was
-         * refused
-         * @throws ClprSyncException if a write or read on the stream fails
+         * @return {@link SyncOutcome#PROGRESS} when the exchange ran to a clean close, every inbound bundle was accepted
+         * for submission, and a bundle moved in either direction; {@link SyncOutcome#IDLE} when it ran cleanly but
+         * moved nothing; {@link SyncOutcome#FAILURE} when the peer closed early, broke the protocol, exceeded the
+         * inbound message limit, or a submission was refused
+         * @throws ClprSyncException if a write or read on the stream fails or times out
          */
-        private boolean run(final long localEndpointManifestVersion, final long peerObservedManifestVersion)
+        @NonNull
+        private SyncOutcome run(final long localEndpointManifestVersion, final long peerObservedManifestVersion)
                 throws ClprSyncException {
             final var openingPayload = open();
             if (openingPayload == null) {
-                return false;
+                return SyncOutcome.FAILURE;
             }
             final var peerRequest = openingPayload.bundleRequest();
             // The peer's live report of its copy of our manifest; the cached observation is the fallback.
             final long peerManifestVersion =
                     peerRequest != null ? peerRequest.currentEndpointManifestVersion() : peerObservedManifestVersion;
             final boolean includeEndpointManifest = peerManifestVersion < localEndpointManifestVersion;
-            return sendBundles(openProducer(peerRequest), includeEndpointManifest) && close();
+            if (!sendBundles(openProducer(peerRequest), includeEndpointManifest) || !close() || !allSubmitted) {
+                return SyncOutcome.FAILURE;
+            }
+            return bundlesSent > 0 || bundlesAccepted > 0 ? SyncOutcome.PROGRESS : SyncOutcome.IDLE;
+        }
+
+        /**
+         * The protocol lets the peer send a message without a bundle only as its opening reply and as its answer to
+         * each of our bundles. Any more is a peer stalling for time, e.g. answering just before each read times out.
+         */
+        private int allowedMessagesWithoutBundle() {
+            return 1 + bundlesSent;
         }
 
         /**
@@ -247,9 +278,7 @@ public final class ClprStreamingSynchronizer implements ClprSynchronizer {
                         peerId);
                 return null;
             }
-            inboundMessages++;
-            submitInbound(opening);
-            return opening;
+            return receive(opening) ? opening : null;
         }
 
         /**
@@ -301,6 +330,7 @@ public final class ClprStreamingSynchronizer implements ClprSynchronizer {
                                 .bundlePayload(bundle)
                                 .build())
                         .build());
+                bundlesSent++;
                 final var reply = call.read();
                 if (reply == null) {
                     logger.warn(
@@ -319,8 +349,8 @@ public final class ClprStreamingSynchronizer implements ClprSynchronizer {
         /**
          * Nothing left on this side: half-closes, then reads until the peer closes too.
          *
-         * @return whether every bundle the peer sent this cycle was accepted, or {@code false} if it exceeded the
-         * inbound limit while draining
+         * @return {@code true} once the peer closes, or {@code false} if it broke the protocol or exceeded the inbound
+         * limit while draining
          */
         private boolean close() throws ClprSyncException {
             call.halfClose();
@@ -335,13 +365,14 @@ public final class ClprStreamingSynchronizer implements ClprSynchronizer {
                     peerId,
                     inboundMessages,
                     allSubmitted);
-            return allSubmitted;
+            return true;
         }
 
         /**
          * Counts one message from the peer and submits the bundle it carries.
          *
-         * @return {@code false} when the message exceeds the inbound limit; the stream should then be abandoned
+         * @return {@code false} when the message exceeds the inbound limit or is one more message without a bundle than
+         * the protocol allows; the stream should then be abandoned
          */
         private boolean receive(@NonNull final ClprStreamingSyncPayload message) {
             inboundMessages++;
@@ -352,6 +383,18 @@ public final class ClprStreamingSynchronizer implements ClprSynchronizer {
                         channelId,
                         peerId,
                         ClprStreamingSyncSession.MAX_INBOUND_MESSAGES);
+                return false;
+            }
+            final var bundleResponse = message.bundleResponse();
+            if ((bundleResponse == null || bundleResponse.bundlePayload().length() == 0)
+                    && ++messagesWithoutBundle > allowedMessagesWithoutBundle()) {
+                logger.warn(
+                        "[CLPR-SYNC-OUTBOUND] peer sent more messages without a bundle than the protocol allows "
+                                + "conn={} peer={} messagesWithoutBundle={} bundlesSent={}; abandoning the stream",
+                        channelId,
+                        peerId,
+                        messagesWithoutBundle,
+                        bundlesSent);
                 return false;
             }
             submitInbound(message);
@@ -376,7 +419,9 @@ public final class ClprStreamingSynchronizer implements ClprSynchronizer {
                     peerId,
                     bundleResponse.bundlePayload().length(),
                     submitted);
-            if (!submitted) {
+            if (submitted) {
+                bundlesAccepted++;
+            } else {
                 logger.warn("Bundle submission failed for channel {} via peer {}", channelId, peerId);
                 allSubmitted = false;
             }

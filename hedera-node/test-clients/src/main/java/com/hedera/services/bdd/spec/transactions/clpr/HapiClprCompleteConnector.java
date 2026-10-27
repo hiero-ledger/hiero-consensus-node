@@ -35,7 +35,12 @@ public class HapiClprCompleteConnector extends HapiTxnOp<HapiClprCompleteConnect
     private Optional<String> adminKeyName = Optional.empty();
     private long lockedStake;
 
-    public HapiClprCompleteConnector() {}
+    /** Covers the $25 CLPR price at the test exchange rate; an explicit {@link #fee} overrides it. */
+    private static final long DEFAULT_MAX_FEE_TINYBARS = 1_000L * 100_000_000L;
+
+    public HapiClprCompleteConnector() {
+        fee(DEFAULT_MAX_FEE_TINYBARS);
+    }
 
     public HapiClprCompleteConnector connectorId(final byte[] connectorId) {
         this.connectorId = connectorId;

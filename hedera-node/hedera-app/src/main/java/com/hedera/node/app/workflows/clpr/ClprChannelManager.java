@@ -12,6 +12,7 @@ import com.hedera.hapi.node.state.clpr.ClprPeerEndpointsEntry;
 import com.hedera.node.app.service.clpr.ClprChannelLifecycle;
 import com.hedera.node.app.service.clpr.ClprService;
 import com.hedera.node.app.service.clpr.ReadableChannelStore;
+import com.hedera.node.app.service.clpr.impl.ClprPeerEndpointPolicy;
 import com.hedera.node.app.service.clpr.impl.ReadableEndpointManifestStoreImpl;
 import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.config.ConfigProvider;
@@ -22,23 +23,29 @@ import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.Semaphore;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -50,8 +57,11 @@ import org.apache.logging.log4j.Logger;
  * periodically scans channels for pending outbound messages and initiates
  * sync calls to peer endpoints.
  *
- * <p>Concurrency is bounded by {@code clpr.maxConcurrentSyncs}. At most one
- * outbound sync per Channel runs at a time (enforced via per-Channel locks).
+ * <p>A single timer thread fires each Channel's sync tick; the syncs themselves, which block on the network, run on
+ * virtual threads. Concurrency is bounded by {@code clpr.maxConcurrentSyncs} sync slots, handed out in the order
+ * Channels became ready, so Channels whose peers hang cannot keep every slot to themselves. At most one outbound sync
+ * per Channel is queued or running at a time, and a Channel whose syncs keep failing backs off exponentially, from
+ * {@code clpr.retryInitialDelayMs} up to {@code clpr.retryMaxDelayMs}.
  *
  * <p>State is read from the latest immutable state via the state accessor.
  * All writes happen through standard consensus (submitBundle HAPI transaction).
@@ -67,11 +77,50 @@ public class ClprChannelManager implements ClprChannelLifecycle {
 
     private final ConfigProvider configProvider;
     private final Supplier<AutoCloseableWrapper<State>> stateAccessor;
+    /** Fires timers only — sync ticks and the peer endpoints flush — and never blocks on the network. */
     private final ScheduledExecutorService scheduler;
-    private final Semaphore syncSemaphore;
+
+    /** Runs each sync, which blocks on the network, on its own virtual thread. */
+    private final ExecutorService workers;
+
+    /** Channels whose sync is queued or running; at most one per Channel. */
     private final Set<String> ongoingChannelSyncs = ConcurrentHashMap.newKeySet();
+
     private final ClprSynchronizer synchronizer;
     private final ClprEndpointClientCache clientCache;
+    private final ClprSyncMetrics metrics;
+    private final LongSupplier nanoClock;
+    private final int maxConcurrentSyncs;
+
+    /** Guards {@link #readySyncs} and {@link #freeSyncSlots}. */
+    private final Object syncSlotLock = new Object();
+
+    /** Syncs waiting for a slot, oldest first. */
+    private final Deque<PendingSync> readySyncs = new ArrayDeque<>();
+
+    /** Sync slots not in use. */
+    private int freeSyncSlots;
+
+    /** Backoff of each Channel whose most recent syncs failed. */
+    private final Map<Bytes, SyncBackoff> syncBackoffs = new ConcurrentHashMap<>();
+
+    /**
+     * A sync waiting for a slot.
+     *
+     * @param channel the Channel, as of its tick
+     * @param endpoints the dial targets
+     * @param peerObservedManifestVersion the peer's last-reported view of our manifest version
+     */
+    private record PendingSync(
+            @NonNull ClprChannel channel, @NonNull List<ClprEndpoint> endpoints, long peerObservedManifestVersion) {}
+
+    /**
+     * A Channel's backoff after failed syncs.
+     *
+     * @param consecutiveFailures failed syncs in a row
+     * @param nextAttemptNanos the {@link #nanoClock} reading before which the Channel is not synced
+     */
+    private record SyncBackoff(int consecutiveFailures, long nextAttemptNanos) {}
 
     private volatile boolean started = false;
 
@@ -127,19 +176,46 @@ public class ClprChannelManager implements ClprChannelLifecycle {
             @NonNull final ConfigProvider configProvider,
             @NonNull final Supplier<AutoCloseableWrapper<State>> stateAccessor,
             @NonNull final ClprSynchronizer synchronizer,
+            @NonNull final ClprEndpointClientCache clientCache,
+            @NonNull final ClprSyncMetrics metrics) {
+        this(configProvider, stateAccessor, synchronizer, clientCache, metrics, System::nanoTime);
+    }
+
+    @VisibleForTesting
+    ClprChannelManager(
+            @NonNull final ConfigProvider configProvider,
+            @NonNull final Supplier<AutoCloseableWrapper<State>> stateAccessor,
+            @NonNull final ClprSynchronizer synchronizer,
             @NonNull final ClprEndpointClientCache clientCache) {
+        this(configProvider, stateAccessor, synchronizer, clientCache, ClprSyncMetrics.noop(), System::nanoTime);
+    }
+
+    @VisibleForTesting
+    ClprChannelManager(
+            @NonNull final ConfigProvider configProvider,
+            @NonNull final Supplier<AutoCloseableWrapper<State>> stateAccessor,
+            @NonNull final ClprSynchronizer synchronizer,
+            @NonNull final ClprEndpointClientCache clientCache,
+            @NonNull final ClprSyncMetrics metrics,
+            @NonNull final LongSupplier nanoClock) {
         this.configProvider = requireNonNull(configProvider);
         this.stateAccessor = requireNonNull(stateAccessor);
         this.synchronizer = requireNonNull(synchronizer);
         this.clientCache = requireNonNull(clientCache);
+        this.metrics = requireNonNull(metrics);
+        this.nanoClock = requireNonNull(nanoClock);
         final var clprConfig = configProvider.getConfiguration().getConfigData(ClprConfig.class);
         this.peerEndpointsPath = Paths.get(clprConfig.peerEndpointsFile());
-        this.syncSemaphore = new Semaphore(clprConfig.maxConcurrentSyncs());
-        this.scheduler = Executors.newScheduledThreadPool(clprConfig.maxConcurrentSyncs(), r -> {
-            final var thread = new Thread(r, "clpr-sync");
+        this.maxConcurrentSyncs = clprConfig.maxConcurrentSyncs();
+        this.freeSyncSlots = maxConcurrentSyncs;
+        this.scheduler = new ScheduledThreadPoolExecutor(1, r -> {
+            final var thread = new Thread(r, "clpr-sync-timer");
             thread.setDaemon(true);
             return thread;
         });
+        this.workers = Executors.newThreadPerTaskExecutor(
+                Thread.ofVirtual().name("clpr-sync-", 0).factory());
+        metrics.registerSlotGauges(this::busySyncSlots, this::waitingSyncs);
     }
 
     /**
@@ -323,18 +399,27 @@ public class ClprChannelManager implements ClprChannelLifecycle {
         peerEndpointsDirty.set(false);
         if (!configProvider.getConfiguration().getConfigData(ClprConfig.class).enabled()) {
             scheduler.shutdownNow();
+            workers.shutdownNow();
             clientCache.shutdownAll();
             return;
         }
         writePeerEndpointsToDisk();
         scheduler.shutdown();
+        synchronized (syncSlotLock) {
+            readySyncs.clear();
+        }
+        workers.shutdown();
         try {
             if (!scheduler.awaitTermination(5, TimeUnit.SECONDS)) {
                 scheduler.shutdownNow();
             }
+            if (!workers.awaitTermination(5, TimeUnit.SECONDS)) {
+                workers.shutdownNow();
+            }
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
             scheduler.shutdownNow();
+            workers.shutdownNow();
         }
         clientCache.shutdownAll();
         logger.info("CLPR sync orchestrator stopped");
@@ -392,10 +477,17 @@ public class ClprChannelManager implements ClprChannelLifecycle {
      */
     public void initiateSync(@NonNull final ClprChannel channel) {
         requireNonNull(channel);
-        if (!configProvider.getConfiguration().getConfigData(ClprConfig.class).enabled()) {
+        final var clprConfig = configProvider.getConfiguration().getConfigData(ClprConfig.class);
+        if (!clprConfig.enabled()) {
             return;
         }
         final String channelId = channel.channelId().toHex();
+
+        // The node operator may decline to serve a Channel (ClprOperatorDenyList)
+        if (ClprOperatorDenyList.isChannelDenied(clprConfig, channel.channelId())) {
+            logger.debug("[CLPR-SYNC-MANAGER] skipping channel denied by operator conn={}", channelId);
+            return;
+        }
 
         // Skip if channel is CLOSED or PENDING (no syncing allowed in either state)
         if (channel.status() == ClprChannelStatus.CLOSED || channel.status() == ClprChannelStatus.PENDING) {
@@ -435,45 +527,151 @@ public class ClprChannelManager implements ClprChannelLifecycle {
             return;
         }
 
-        // Skip if already syncing this channel
+        // Back off a Channel whose recent syncs failed
+        final var backoff = syncBackoffs.get(channel.channelId());
+        if (backoff != null && nanoClock.getAsLong() - backoff.nextAttemptNanos() < 0) {
+            logger.debug(
+                    "[CLPR-SYNC-MANAGER] skipping — backing off after {} failed sync(s) conn={}",
+                    backoff.consecutiveFailures(),
+                    channelId);
+            return;
+        }
+
+        // Skip if this channel's sync is already queued or running
         if (!ongoingChannelSyncs.add(channelId)) {
-            logger.debug("[CLPR-SYNC-MANAGER] skipping already running sync conn={}", channelId);
+            logger.debug("[CLPR-SYNC-MANAGER] skipping already queued or running sync conn={}", channelId);
             return;
         }
 
-        // Try to acquire a sync slot.
-        // This semaphore ensures only a limited number of sync operations are performed concurrently.
-        if (!syncSemaphore.tryAcquire()) {
-            logger.warn("Max concurrent sync reached, skipping sync for channel {}", channelId);
-            ongoingChannelSyncs.remove(channelId);
-            return;
-        }
-
-        // Hand the dial targets to the synchronizer, along with the local ClprEndpointManifest.version()
-        // so it can decide whether to embed a manifest proof in the outbound bundle (see #335).
-        scheduler.execute(() -> {
-            try {
-                final long localManifestVersion = readLocalManifestVersion();
-                this.synchronizer.synchronize(
-                        channel, providedEndpoints, localManifestVersion, peerObservedManifestVersion);
-            } catch (final Exception e) {
-                logger.error("Sync failed for channel {}", channelId, e);
-            } finally {
-                syncSemaphore.release();
-                ongoingChannelSyncs.remove(channelId);
+        // Queue for a sync slot. Slots go to Channels in the order they became ready, and a Channel that just synced
+        // re-queues behind those already waiting, so Channels whose peers hang can't keep every slot to themselves.
+        synchronized (syncSlotLock) {
+            if (freeSyncSlots == 0) {
+                metrics.syncQueued();
             }
-        });
+            readySyncs.addLast(new PendingSync(channel, providedEndpoints, peerObservedManifestVersion));
+        }
+        dispatchReadySyncs();
+    }
+
+    /** Hands free sync slots to waiting syncs, oldest first. */
+    private void dispatchReadySyncs() {
+        synchronized (syncSlotLock) {
+            while (freeSyncSlots > 0 && !readySyncs.isEmpty()) {
+                final var next = readySyncs.pollFirst();
+                freeSyncSlots--;
+                try {
+                    workers.execute(() -> runSync(next));
+                } catch (final RejectedExecutionException shuttingDown) {
+                    freeSyncSlots++;
+                    ongoingChannelSyncs.remove(next.channel().channelId().toHex());
+                }
+            }
+        }
+    }
+
+    /** Runs one sync on a worker, then frees its slot for the next waiting sync. */
+    private void runSync(@NonNull final PendingSync pending) {
+        final var channel = pending.channel();
+        SyncOutcome outcome = SyncOutcome.FAILURE;
+        try {
+            // Hand the dial targets to the synchronizer, along with the local ClprEndpointManifest.version()
+            // so it can decide whether to embed a manifest proof in the outbound bundle (see #335).
+            final long localManifestVersion = readLocalManifestVersion();
+            outcome = synchronizer.synchronize(
+                    channel, pending.endpoints(), localManifestVersion, pending.peerObservedManifestVersion());
+        } catch (final Exception e) {
+            logger.error("Sync failed for channel {}", channel.channelId().toHex(), e);
+        } finally {
+            // Record the backoff before the Channel can be queued again
+            recordOutcome(channel.channelId(), outcome);
+            synchronized (syncSlotLock) {
+                freeSyncSlots++;
+            }
+            ongoingChannelSyncs.remove(channel.channelId().toHex());
+        }
+        dispatchReadySyncs();
     }
 
     /**
-     * Resolves the dial-target list for {@code channel} from its cached endpoint manifest.
-     * Returns an unmodifiable list (possibly empty); never {@code null}.
+     * Updates the Channel's backoff: a failure doubles its delay, from {@code clpr.retryInitialDelayMs} up to
+     * {@code clpr.retryMaxDelayMs}; a completed exchange clears it.
+     */
+    private void recordOutcome(@NonNull final Bytes channelId, @Nullable final SyncOutcome outcome) {
+        if (outcome == SyncOutcome.FAILURE) {
+            metrics.syncFailed();
+            final var clprConfig = configProvider.getConfiguration().getConfigData(ClprConfig.class);
+            syncBackoffs.compute(channelId, (id, prior) -> {
+                final int failures = prior == null ? 1 : prior.consecutiveFailures() + 1;
+                final long delayMs =
+                        backoffDelayMs(failures, clprConfig.retryInitialDelayMs(), clprConfig.retryMaxDelayMs());
+                return new SyncBackoff(failures, nanoClock.getAsLong() + TimeUnit.MILLISECONDS.toNanos(delayMs));
+            });
+        } else if (outcome == SyncOutcome.PROGRESS || outcome == SyncOutcome.IDLE) {
+            syncBackoffs.remove(channelId);
+        }
+    }
+
+    /**
+     * Returns the backoff after the given number of consecutive failures: {@code initialMs} doubled for each failure
+     * after the first, capped at {@code maxMs}.
+     */
+    @VisibleForTesting
+    static long backoffDelayMs(final int failures, final long initialMs, final long maxMs) {
+        long delayMs = Math.max(0L, initialMs);
+        for (int i = 1; i < failures && delayMs < maxMs; i++) {
+            delayMs *= 2;
+        }
+        return Math.min(delayMs, maxMs);
+    }
+
+    /**
+     * Returns whether the node operator declines to serve the Channel, so inbound syncs for it are refused too.
+     *
+     * @param channelId the Channel ID
+     * @return whether it is denied
+     */
+    public boolean isChannelDenied(@NonNull final Bytes channelId) {
+        return ClprOperatorDenyList.isChannelDenied(
+                configProvider.getConfiguration().getConfigData(ClprConfig.class), channelId);
+    }
+
+    private int busySyncSlots() {
+        synchronized (syncSlotLock) {
+            return maxConcurrentSyncs - freeSyncSlots;
+        }
+    }
+
+    private int waitingSyncs() {
+        synchronized (syncSlotLock) {
+            return readySyncs.size();
+        }
+    }
+
+    /**
+     * Resolves the dial-target list for {@code channel} from its cached endpoint manifest, leaving out any endpoint
+     * {@link ClprPeerEndpointPolicy} disallows or the node operator denies. Handlers reject disallowed endpoints before
+     * storing them; this also covers endpoints stored before that check existed. Returns an unmodifiable list (possibly empty); never {@code null}.
      */
     @NonNull
     private List<ClprEndpoint> resolveDialTargets(@NonNull final ClprChannel channel) {
-        return channel.hasEndpointManifest()
-                ? List.copyOf(channel.endpointManifestOrThrow().endpoints())
-                : List.of();
+        if (!channel.hasEndpointManifest()) {
+            return List.of();
+        }
+        final var clprConfig = configProvider.getConfiguration().getConfigData(ClprConfig.class);
+        final var endpoints = channel.endpointManifestOrThrow().endpoints();
+        final var allowed = endpoints.stream()
+                .filter(endpoint ->
+                        ClprPeerEndpointPolicy.isAllowed(endpoint, clprConfig.allowNonPublicPeerEndpoints()))
+                .filter(endpoint -> !ClprOperatorDenyList.isEndpointDenied(clprConfig, endpoint))
+                .toList();
+        if (allowed.size() < endpoints.size()) {
+            logger.warn(
+                    "[CLPR-SYNC-MANAGER] not dialing {} disallowed or denied peer endpoint(s) conn={}",
+                    endpoints.size() - allowed.size(),
+                    channel.channelId());
+        }
+        return allowed;
     }
 
     /**
@@ -517,6 +715,7 @@ public class ClprChannelManager implements ClprChannelLifecycle {
      */
     @Override
     public void onChannelActivated(@NonNull final Bytes channelId) {
+        metrics.channelActivated();
         registerChannel(channelId);
         if (!started || scheduler.isShutdown()) {
             return;
@@ -547,6 +746,7 @@ public class ClprChannelManager implements ClprChannelLifecycle {
         if (future != null) {
             future.cancel(false);
         }
+        syncBackoffs.remove(channelId);
         if (knownChannelIds.remove(channelId)) {
             peerEndpointCache.remove(channelId);
             peerObservedManifestVersions.remove(channelId);

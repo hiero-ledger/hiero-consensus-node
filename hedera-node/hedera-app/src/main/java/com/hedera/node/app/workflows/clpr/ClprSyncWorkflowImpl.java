@@ -62,6 +62,7 @@ public final class ClprSyncWorkflowImpl implements ClprSyncWorkflow {
                 bundleSubmitter,
                 stateProofManager,
                 channelManager::peerObservedManifestVersion,
-                correlationId);
+                correlationId,
+                channelManager::isChannelDenied);
     }
 }

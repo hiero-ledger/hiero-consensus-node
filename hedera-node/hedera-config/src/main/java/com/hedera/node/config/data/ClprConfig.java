@@ -2,9 +2,11 @@
 package com.hedera.node.config.data;
 
 import com.hedera.node.config.NetworkProperty;
+import com.hedera.node.config.NodeProperty;
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
 import java.time.Duration;
+import java.util.Set;
 
 /**
  * Configuration for the CLPR (Cross Ledger Protocol) service.
@@ -37,14 +39,16 @@ public record ClprConfig(
         @ConfigProperty(defaultValue = "5000000") @NetworkProperty
         long endpointMisbehaviorPenaltyTinybars,
 
-        @ConfigProperty(defaultValue = "1000000") @NetworkProperty
-        long messageExecutionCost,
-
-        @ConfigProperty(defaultValue = "10") @NetworkProperty
-        int endpointMarginPercent,
+        // Flat reward Y paid to a bundle submitter for each bundle item that makes progress, in tinycents
+        // (clpr-spec PR #65 §3.2). Billed to the bundle's Connectors in proportion to their message counts.
+        @ConfigProperty(defaultValue = "100000000") @NetworkProperty
+        long progressRewardTinycents,
         // --- Sync orchestration (CLPR-4.3) ---
         @ConfigProperty(defaultValue = "4") int maxConcurrentSyncs,
-        @ConfigProperty(defaultValue = "30") int syncTimeoutSeconds,
+        // Deadline for a whole outbound sync exchange; each read or write must also finish within
+        // syncReadTimeoutSeconds, so a peer that stops answering frees its sync slot quickly
+        @ConfigProperty(defaultValue = "15") int syncTimeoutSeconds,
+        @ConfigProperty(defaultValue = "5") int syncReadTimeoutSeconds,
         @ConfigProperty(defaultValue = "300") int reputationDecaySeconds,
         @ConfigProperty(defaultValue = "1000") long retryInitialDelayMs,
         @ConfigProperty(defaultValue = "30000") long retryMaxDelayMs,
@@ -53,7 +57,7 @@ public record ClprConfig(
         // --- Local peer exclusion heuristics ---
         // When false, CLPR does not reject inbound requests or remove outbound candidates
         // due to local shunning or open circuit-breaker state.
-        @ConfigProperty(defaultValue = "false") boolean syncPeerExclusionEnabled,
+        @ConfigProperty(defaultValue = "true") boolean syncPeerExclusionEnabled,
         // --- Queue monopolization protection (CLPR-3.5) ---
         @ConfigProperty(defaultValue = "50") @NetworkProperty
         int connectorQueueQuotaPct,
@@ -68,6 +72,33 @@ public record ClprConfig(
         // Maximum fee the node will pay when submitting an inbound bundle for consensus.
         @ConfigProperty(defaultValue = "1000000000") @NetworkProperty
         long nodeSubmitBundleMaxFee,
+
+        // --- Verifier output limits (untrusted: a Channel's verifier is chosen by whoever completes it) ---
+        // Whether peer endpoints may use loopback, private, link-local, or other non-public addresses. Every node
+        // dials a Channel's peer endpoints, so this is off on public networks; development and test networks,
+        // whose peers run on loopback or private addresses, turn it on. Literal IP addresses and ports in 1-65535
+        // are required either way.
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        boolean allowNonPublicPeerEndpoints,
+
+        // Maximum serialized size of a Channel record, which holds the verifier-returned trust anchor, endpoint
+        // manifest, and peer configuration. Bounds the state a Channel's verifier can make every node store. An
+        // Ethereum Channel's record is about 50 KB (its anchor carries the full sync committee), so this leaves room
+        // for that plus a full endpoint manifest.
+        @ConfigProperty(defaultValue = "98304") @NetworkProperty
+        int maxChannelStateBytes,
+
+        // Maximum number of Channels in state, closed ones included; registering or completing a Channel fails once
+        // it is reached. Bounds the state and sync work that permissionless Channel creation can cause.
+        @ConfigProperty(defaultValue = "10000") @NetworkProperty
+        long maxChannels,
+
+        // --- Operator controls (node-local, not consensus) ---
+        // Channel ids (hex) this node declines to serve: it neither syncs them nor answers their inbound syncs.
+        @ConfigProperty(defaultValue = "") @NodeProperty Set<String> deniedChannelIds,
+
+        // Peer endpoints this node never dials, as an IP address (any port) or ip:port ([ipv6]:port for IPv6).
+        @ConfigProperty(defaultValue = "") @NodeProperty Set<String> deniedPeerEndpoints,
 
         // --- Sender-side state-proof verification (bring-up sanity check) ---
         // When true, re-parses every freshly built bundle/config StateProof and verifies its TSS

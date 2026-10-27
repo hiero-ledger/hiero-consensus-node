@@ -3,6 +3,7 @@ package com.hedera.node.app.service.clpr.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_CHANNEL_ALREADY_EXISTS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 
@@ -12,6 +13,7 @@ import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.config.data.ClprConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -52,6 +54,10 @@ public class ClprRegisterChannelHandler extends AbstractClprHandler {
         final var commitmentStore = context.storeFactory().writableStore(WritablePendingCommitmentStore.class);
 
         validateTrue(!commitmentStore.contains(op.ownershipCommitment()), CLPR_CHANNEL_ALREADY_EXISTS);
+        // Every Channel keeps its commitment, so bounding commitments bounds Channels too, including pending ones
+        final var maxChannels =
+                context.configuration().getConfigData(ClprConfig.class).maxChannels();
+        validateTrue(commitmentStore.sizeOfState() < maxChannels, MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED);
         commitmentStore.put(op.ownershipCommitment());
     }
 }

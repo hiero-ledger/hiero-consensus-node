@@ -54,6 +54,7 @@ import com.hedera.hapi.node.state.clpr.ClprQueueMetadata;
 import com.hedera.hapi.node.state.clpr.ClprServiceEndpoint;
 import com.hedera.hapi.node.state.clpr.ClprThrottles;
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.clpr.ClprChannelLifecycle;
@@ -71,6 +72,7 @@ import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
+import com.hedera.node.app.spi.fees.ExchangeRateInfo;
 import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.info.NodeInfo;
@@ -80,6 +82,7 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.WritableStates;
@@ -121,14 +124,14 @@ class ClprDeepDiveBundleAuditTest {
     // Per-message gas ceiling used by the default test config; the application callbacks
     // (onClprMessage / onClprResponse) are dispatched with this budget (spec §1.1 max_gas_per_message).
     private static final long TEST_MAX_GAS_PER_MESSAGE = 15_000_000L;
-    // Connector execution charge, mirrored into the test config in setupHandleContext():
-    //   worstCaseCharge = messageExecutionCost + messageExecutionCost * endpointMarginPercent / 100
-    // (see ClprSubmitBundleHandler worstCaseCharge). Kept as named constants so the charge
-    // assertions below trace back to the config values that produce them.
-    private static final long MESSAGE_EXECUTION_COST = 1_000_000L;
-    private static final long ENDPOINT_MARGIN_PERCENT = 10L;
-    private static final long WORST_CASE_CHARGE =
-            MESSAGE_EXECUTION_COST + MESSAGE_EXECUTION_COST * ENDPOINT_MARGIN_PERCENT / 100;
+    // Gas price and exchange rate of the default test context (setupHandleContext()): 1 tinycent per gas at
+    // 1 tinybar per tinycent, so a callback's gas cost in tinybars equals its gas.
+    private static final long TEST_GAS_PRICE_TINYCENTS = 1L;
+    // Worst-case callback gas cost a connector must hold, escrowed before each dispatch (clpr-spec PR #65 §3.2.4)
+    private static final long WORST_CASE_CHARGE = TEST_MAX_GAS_PER_MESSAGE * TEST_GAS_PRICE_TINYCENTS;
+    // The ClprSubmitBundle fee charged to the submitter (Tm) and the per-progress-item reward (Y)
+    private static final long TEST_BUNDLE_FEE = 2_000_000L;
+    private static final long TEST_PROGRESS_REWARD = 1_000L;
     private static final Timestamp CONFIG_TIMESTAMP =
             Timestamp.newBuilder().seconds(1000).nanos(0).build();
     private static final Timestamp ZERO_TIMESTAMP =
@@ -175,6 +178,15 @@ class ClprDeepDiveBundleAuditTest {
 
     @Mock
     private FeeCharging.Context feeChargingContext;
+
+    @Mock
+    private ExchangeRateInfo exchangeRateInfo;
+
+    @Mock
+    private HandleContext.SavepointStack savepointStack;
+
+    @Mock
+    private StreamBuilder baseBuilder;
 
     private static final AccountID STAKING_ACCOUNT =
             AccountID.newBuilder().accountNum(803).build();
@@ -730,7 +742,7 @@ class ClprDeepDiveBundleAuditTest {
         putChannel(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH);
         final var bundle = buildBundle(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH, List.of(dataPayload()));
         setupHandleContext(bundle, true);
-        putConnectorWithStakeAndBalance(100_000_000L, 0, 10_000_000L);
+        putConnectorWithStakeAndBalance(100_000_000L, 0, WORST_CASE_CHARGE);
 
         subject.handle(handleContext);
 
@@ -761,7 +773,7 @@ class ClprDeepDiveBundleAuditTest {
         final var bundle = buildBundle(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH, List.of(dataPayload()));
         setupHandleContext(bundle, true);
         putConnectorWithStakeAndBalance(100_000_000L, 0, 0L);
-        // Balance 0 < worstCaseCharge (1_100_000) triggers the pre-check underfunded path; no dispatch
+        // Balance 0 < WORST_CASE_CHARGE triggers the pre-check underfunded path; no dispatch
 
         subject.handle(handleContext);
 
@@ -926,13 +938,16 @@ class ClprDeepDiveBundleAuditTest {
         }
 
         @Test
-        @DisplayName("5.6.2 — connector pays the execution charge on an over-budget message; not slashed")
+        @DisplayName("5.6.2 — connector pays for all its gas on an over-budget message; not slashed")
         void overBudgetMessageStillChargesConnectorWithoutSlash() {
-            // CEI debits the connector before dispatch, so the connector pays for the attempted
-            // execution even when the callback runs out of gas. APPLICATION_ERROR carries no slash
-            // (spec §4.6), so the connector's stake is untouched and no endpoint reimbursement fires.
+            // CEI escrows the connector's worst-case gas cost before dispatch, and a callback that runs out
+            // of gas used all of it, so the connector pays for the attempted execution in full.
+            // APPLICATION_ERROR carries no slash (spec §4.6), so the connector's stake is untouched and no
+            // endpoint reimbursement fires.
             setUpSingleDataDispatch();
             lenient().when(dispatchResult.status()).thenReturn(ResponseCodeEnum.INSUFFICIENT_GAS);
+            lenient().when(dispatchResult.hasContractResult()).thenReturn(true);
+            lenient().when(dispatchResult.getGasUsedForContractTxn()).thenReturn(TEST_MAX_GAS_PER_MESSAGE);
 
             subject.handle(handleContext);
 
@@ -944,9 +959,11 @@ class ClprDeepDiveBundleAuditTest {
                             .status())
                     .isEqualTo(ClprMessageReplyStatus.APPLICATION_ERROR);
 
-            // The connector was charged the flat worst-case execution cost (WORST_CASE_CHARGE)
-            // exactly once — the pre-dispatch CEI debit — despite the gas overrun.
+            // The pre-dispatch CEI escrow covered the whole budget; none of it comes back, and all of it
+            // pays the network for the gas.
             verify(tokenServiceApi).transferFromTo(CONNECTOR_CONTRACT_ACCOUNT, PAYER_ID, WORST_CASE_CHARGE);
+            verify(tokenServiceApi, never()).transferFromTo(eq(PAYER_ID), eq(CONNECTOR_CONTRACT_ACCOUNT), anyLong());
+            verify(handleContext).tryToCharge(PAYER_ID, WORST_CASE_CHARGE);
 
             // No slash: stake and offence count are untouched (gas overrun is not Connector misbehavior).
             final var connector = connectorStore.getConnector(new ClprConnectorKey(CHANNEL_ID, CONNECTOR_ADDRESS));
@@ -958,18 +975,25 @@ class ClprDeepDiveBundleAuditTest {
         }
 
         @Test
-        @DisplayName("within-budget dispatch succeeds; connector charge is independent of the gas limit")
-        void withinBudgetDispatchChargesFlatExecutionCost() {
+        @DisplayName("within-budget dispatch succeeds; connector pays only for the gas used")
+        void withinBudgetDispatchChargesGasUsed() {
+            final long gasLimit = 30_000_000L;
+            final long gasUsed = 40_000L;
             setUpSingleDataDispatch();
-            // Even with a very large gas ceiling, the charge stays the flat messageExecutionCost + margin.
-            overrideMaxGasPerMessage(30_000_000L);
+            overrideMaxGasPerMessage(gasLimit);
+            lenient().when(dispatchResult.hasContractResult()).thenReturn(true);
+            lenient().when(dispatchResult.getGasUsedForContractTxn()).thenReturn(gasUsed);
 
             subject.handle(handleContext);
 
             final var response = messageQueueStore.getMessage(CHANNEL_ID, 0);
             assertThat(response.payload().messageReplyOrThrow().status()).isEqualTo(ClprMessageReplyStatus.SUCCESS);
-            // WORST_CASE_CHARGE = messageExecutionCost + 10% margin, gas-limit-independent.
-            verify(tokenServiceApi).transferFromTo(CONNECTOR_CONTRACT_ACCOUNT, PAYER_ID, WORST_CASE_CHARGE);
+            // The whole budget is escrowed, the unused part returned, and the used part paid to the network.
+            final long escrowed = gasLimit * TEST_GAS_PRICE_TINYCENTS;
+            final long charged = gasUsed * TEST_GAS_PRICE_TINYCENTS;
+            verify(tokenServiceApi).transferFromTo(CONNECTOR_CONTRACT_ACCOUNT, PAYER_ID, escrowed);
+            verify(tokenServiceApi).transferFromTo(PAYER_ID, CONNECTOR_CONTRACT_ACCOUNT, escrowed - charged);
+            verify(handleContext).tryToCharge(PAYER_ID, charged);
         }
     }
 
@@ -1643,7 +1667,7 @@ class ClprDeepDiveBundleAuditTest {
     @DisplayName("#333: manifest replaced when version advances")
     void manifestReplacedWhenVersionAdvances() {
         putChannel(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH);
-        final var newManifest = buildManifest(3L, "10.0.0.5");
+        final var newManifest = buildManifest(3L, "203.0.113.5");
         // Bundle carries a message (Criterion 1) so progress isn't in question; we're
         // asserting only that the manifest write lands.
         final var bundleContent = buildBundleWithManifest(newManifest, List.of(dataPayload()));
@@ -1662,7 +1686,7 @@ class ClprDeepDiveBundleAuditTest {
         // Cache is at v=5; bundle carries v=3 (stale) — silent skip, bundle still succeeds
         // via Criterion 1 (message).
         putChannelWithManifestVersion(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH, 5L);
-        final var staleManifest = buildManifest(3L, "10.0.0.3");
+        final var staleManifest = buildManifest(3L, "203.0.113.3");
         final var bundleContent = buildBundleWithManifest(staleManifest, List.of(dataPayload()));
         setupHandleContextWithFlags(bundleTxn(bundleContent), true);
 
@@ -1690,7 +1714,7 @@ class ClprDeepDiveBundleAuditTest {
     @DisplayName("#333: manifest update applied on DRAINED channel")
     void manifestUpdateAppliedOnDrainedChannel() {
         putChannelWithManifestVersion(ClprChannelStatus.DRAINED, 0, 0, ZERO_HASH, 1L);
-        final var newManifest = buildManifest(2L, "10.0.0.7");
+        final var newManifest = buildManifest(2L, "203.0.113.7");
         // Peer bundle metadata declares ACTIVE (peer's own channel state); local receiver
         // stays DRAINED. Manifest advancement is Criterion 5, satisfying NoProgress on its own.
         final var bundleContent = ClprBundleContent.newBuilder()
@@ -1715,7 +1739,7 @@ class ClprDeepDiveBundleAuditTest {
     @DisplayName("#334: bundle with only advancing manifest satisfies NoProgress via Criterion 5")
     void bundleWithOnlyAdvancingManifestSatisfiesProgress() {
         putChannel(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH);
-        final var newManifest = buildManifest(1L, "10.0.0.11");
+        final var newManifest = buildManifest(1L, "203.0.113.11");
         // No messages, no trust anchor, no ack advance, no state transition — only Criterion 5.
         final var bundleContent = ClprBundleContent.newBuilder()
                 .metadata(ClprQueueMetadata.newBuilder()
@@ -1738,7 +1762,7 @@ class ClprDeepDiveBundleAuditTest {
     @DisplayName("#334: stale-only manifest fails NoProgress (Criterion 5 requires advance)")
     void bundleWithStaleManifestOnlyIsNoProgress() {
         putChannelWithManifestVersion(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH, 5L);
-        final var staleManifest = buildManifest(3L, "10.0.0.13");
+        final var staleManifest = buildManifest(3L, "203.0.113.13");
         final var bundleContent = ClprBundleContent.newBuilder()
                 .metadata(ClprQueueMetadata.newBuilder()
                         .nextMessageId(1)
@@ -2021,7 +2045,9 @@ class ClprDeepDiveBundleAuditTest {
         assertThat(conn.lockedStake()).isEqualTo(100_000_000L);
         assertThat(conn.slashCount()).isEqualTo(0);
 
-        verify(tokenServiceApi, never()).transferFromTo(any(), any(), anyLong());
+        // No slash reimbursement from the staking account; the only transfers are the connector's
+        // onClprResponse gas escrow and refund
+        verify(tokenServiceApi, never()).transferFromTo(eq(STAKING_ACCOUNT), any(), anyLong());
     }
 
     @Test
@@ -2041,7 +2067,9 @@ class ClprDeepDiveBundleAuditTest {
         assertThat(conn).isNotNull();
         assertThat(conn.lockedStake()).isEqualTo(100_000_000L);
 
-        verify(tokenServiceApi, never()).transferFromTo(any(), any(), anyLong());
+        // No slash reimbursement from the staking account; the only transfers are the connector's
+        // onClprResponse gas escrow and refund
+        verify(tokenServiceApi, never()).transferFromTo(eq(STAKING_ACCOUNT), any(), anyLong());
     }
 
     @Test
@@ -2155,8 +2183,11 @@ class ClprDeepDiveBundleAuditTest {
 
         subject.handle(handleContext);
 
-        // Transfer still called — debit is pre-dispatch (no second transfer after exception)
+        // Transfer still called — debit is pre-dispatch (no second transfer after exception). Gas use is
+        // unknown when the dispatch throws, so the whole escrow is charged and nothing is returned.
         verify(tokenServiceApi, times(1)).transferFromTo(CONNECTOR_CONTRACT_ACCOUNT, PAYER_ID, WORST_CASE_CHARGE);
+        verify(tokenServiceApi, never()).transferFromTo(eq(PAYER_ID), eq(CONNECTOR_CONTRACT_ACCOUNT), anyLong());
+        verify(handleContext).tryToCharge(PAYER_ID, WORST_CASE_CHARGE);
         // Reply is APPLICATION_ERROR
         final var response = messageQueueStore.getMessage(CHANNEL_ID, 0);
         assertThat(response.payload().messageReplyOrThrow().status())
@@ -2905,8 +2936,7 @@ class ClprDeepDiveBundleAuditTest {
                 .withValue("clpr.slashBasePenalty", "10000000")
                 .withValue("clpr.slashMultiplier", "2")
                 .withValue("clpr.slashBanThreshold", "5")
-                .withValue("clpr.messageExecutionCost", String.valueOf(MESSAGE_EXECUTION_COST))
-                .withValue("clpr.endpointMarginPercent", String.valueOf(ENDPOINT_MARGIN_PERCENT))
+                .withValue("clpr.progressRewardTinycents", String.valueOf(TEST_PROGRESS_REWARD))
                 .withValue("clpr.endpointMisbehaviorPenaltyTinybars", "5000000")
                 .withValue("clpr.endpointPenaltyTinybars", "5000000")
                 .getOrCreateConfig();
@@ -2990,8 +3020,7 @@ class ClprDeepDiveBundleAuditTest {
                 .withValue("clpr.slashBasePenalty", "10000000")
                 .withValue("clpr.slashMultiplier", "2")
                 .withValue("clpr.slashBanThreshold", "5")
-                .withValue("clpr.messageExecutionCost", String.valueOf(MESSAGE_EXECUTION_COST))
-                .withValue("clpr.endpointMarginPercent", String.valueOf(ENDPOINT_MARGIN_PERCENT))
+                .withValue("clpr.progressRewardTinycents", String.valueOf(TEST_PROGRESS_REWARD))
                 .withValue("clpr.endpointMisbehaviorPenaltyTinybars", "5000000")
                 .withValue("clpr.endpointPenaltyTinybars", "5000000")
                 .getOrCreateConfig();
@@ -3010,6 +3039,15 @@ class ClprDeepDiveBundleAuditTest {
                 .thenReturn(messageQueueStore);
         lenient().when(storeFactory.writableStore(WritableConnectorStore.class)).thenReturn(connectorStore);
         lenient().when(handleContext.consensusNow()).thenReturn(Instant.ofEpochSecond(1_700_000_000L));
+        // Bundle billing: gas price, exchange rate, and the ClprSubmitBundle fee already charged (Tm)
+        lenient().when(handleContext.getGasPriceInTinycents()).thenReturn(TEST_GAS_PRICE_TINYCENTS);
+        lenient().when(handleContext.exchangeRateInfo()).thenReturn(exchangeRateInfo);
+        lenient()
+                .when(exchangeRateInfo.activeRate(any()))
+                .thenReturn(ExchangeRate.newBuilder().hbarEquiv(1).centEquiv(1).build());
+        lenient().when(handleContext.savepointStack()).thenReturn(savepointStack);
+        lenient().when(savepointStack.getBaseBuilder(StreamBuilder.class)).thenReturn(baseBuilder);
+        lenient().when(baseBuilder.transactionFee()).thenReturn(TEST_BUNDLE_FEE);
         lenient()
                 .when(storeFactory.readableStore(ReadableLedgerConfigurationStore.class))
                 .thenReturn(configStore);
@@ -3112,7 +3150,12 @@ class ClprDeepDiveBundleAuditTest {
     private static List<ClprEndpoint> endpointList(final int count) {
         final var endpoints = new ArrayList<ClprEndpoint>();
         for (int i = 0; i < count; i++) {
-            endpoints.add(ClprEndpoint.newBuilder().build());
+            endpoints.add(ClprEndpoint.newBuilder()
+                    .serviceEndpoint(ClprServiceEndpoint.newBuilder()
+                            .ipAddress("203.0.113." + i)
+                            .port(50211)
+                            .build())
+                    .build());
         }
         return endpoints;
     }

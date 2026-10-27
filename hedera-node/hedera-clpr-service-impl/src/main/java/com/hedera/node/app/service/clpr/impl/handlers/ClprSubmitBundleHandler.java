@@ -23,6 +23,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
+import com.hedera.hapi.node.state.clpr.ClprChannel;
 import com.hedera.hapi.node.state.clpr.ClprChannelStatus;
 import com.hedera.hapi.node.state.clpr.ClprConfigUpdate;
 import com.hedera.hapi.node.state.clpr.ClprConnectorKey;
@@ -36,7 +37,9 @@ import com.hedera.hapi.node.state.clpr.ClprMessageValue;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.clpr.ClprChannelLifecycle;
 import com.hedera.node.app.service.clpr.ReadableLedgerConfigurationStore;
+import com.hedera.node.app.service.clpr.impl.ClprBundleBilling;
 import com.hedera.node.app.service.clpr.impl.ClprHashUtils;
+import com.hedera.node.app.service.clpr.impl.ClprPeerEndpointPolicy;
 import com.hedera.node.app.service.clpr.impl.ClprServiceApiImpl;
 import com.hedera.node.app.service.clpr.impl.ClprSlashingUtils;
 import com.hedera.node.app.service.clpr.impl.WritableChannelStore;
@@ -55,6 +58,7 @@ import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.ClprConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -176,14 +180,13 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         final var throttles = ledgerConfig.throttlesOrThrow();
         log.debug(
                 "[ClprSubmitBundle] ledger config conn={} maxSyncBytes={} maxMessagesPerBundle={} "
-                        + "maxPayloadBytes={} appDispatchGas={} messageExecutionCost={} endpointMarginPercent={}",
+                        + "maxPayloadBytes={} appDispatchGas={} progressRewardTinycents={}",
                 channelId,
                 throttles.maxSyncBytes(),
                 throttles.maxMessagesPerBundle(),
                 throttles.maxMessagePayloadBytes(),
                 throttles.maxGasPerMessage(),
-                clprConfig.messageExecutionCost(),
-                clprConfig.endpointMarginPercent());
+                clprConfig.progressRewardTinycents());
 
         // Reject an oversized wire payload before invoking a potentially expensive cryptographic
         // verifier. The limit applies to the raw bundle payload received on the wire.
@@ -279,6 +282,12 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                 final var truncatedEndpoints = rawPeerLimit > 0 && incomingEndpoints.size() > rawPeerLimit
                         ? incomingEndpoints.subList(0, rawPeerLimit)
                         : incomingEndpoints;
+                // Every node dials these, so the Channel's verifier must not be able to point them at a node's own
+                // network (ClprPeerEndpointPolicy). The submitter cannot vet the peer's manifest, so it pays only the
+                // transaction fee, not the misbehavior penalty.
+                validateTrue(
+                        ClprPeerEndpointPolicy.allAllowed(truncatedEndpoints, clprConfig.allowNonPublicPeerEndpoints()),
+                        CLPR_BUNDLE_VERIFICATION_FAILED);
                 final var storedManifest = newEndpointManifest
                         .copyBuilder()
                         .endpoints(truncatedEndpoints)
@@ -299,6 +308,11 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                 updatedBuilder = updatedBuilder.trustAnchor(newTrustAnchor).trustAnchorId(newTrustAnchorId);
             }
             channel = updatedBuilder.build();
+            // The successor trust anchor and manifest come from the verifier, so bound the state it can make every
+            // node store; as above, the submitter pays only the transaction fee
+            validateTrue(
+                    ClprChannel.PROTOBUF.measureRecord(channel) <= clprConfig.maxChannelStateBytes(),
+                    CLPR_BUNDLE_VERIFICATION_FAILED);
             channelStore.put(channel);
         }
 
@@ -495,6 +509,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                 penaltyAmount);
 
         var currentStatus = channel.status(); // Our current channel status
+        final var statusBeforeBundle = currentStatus;
         final var peerStatus = metadata.status(); // Remote peer state (used in step 10 and step 11)
 
         // --- Step 8: Read-only outbound queue pre-scan ---
@@ -663,6 +678,13 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                 .lastConfigTimestamp(lastConfigTimestamp)
                 .build());
 
+        // Connectors pay for their callbacks' gas in Step 10 and share the bundle's cost in Step 12 (clpr-spec PR #65
+        // §3.2). Nothing has been charged since the ClprSubmitBundle fee itself — the penalties above are charged
+        // only on the rejection paths, which leave the handler — so the base builder still holds exactly that fee.
+        final var billing = new ClprBundleBilling(context, chargedBundleFee(context));
+        final long maxGasPerMessage = throttles.maxGasPerMessage();
+        final long worstCaseGasCost = billing.gasCost(maxGasPerMessage);
+
         var peerConfigTimestamp = channel.peerConfigTimestamp();
         var peerThrottles = channel.peerThrottles();
         var receivedMessageId = channel.receivedMessageId();
@@ -755,12 +777,10 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                         outbound.enqueueReply(
                                 receivedMessageId, ClprMessageReplyStatus.CONNECTOR_NOT_FOUND, Bytes.EMPTY);
                     } else {
-                        // Compute worst-case charge: execution cost + endpoint margin
-                        final var executionCost = clprConfig.messageExecutionCost();
-                        final var margin = executionCost * clprConfig.endpointMarginPercent() / 100;
-                        final var worstCaseCharge = executionCost + margin;
-
-                        // Validate the connector has sufficient balance before dispatching.
+                        // The callback may use up to max_gas_per_message, so the connector must be able to pay for
+                        // all of it at the network gas price (clpr-spec PR #65 §3.2.4: G_i is charged per message,
+                        // and this is where CONNECTOR_UNDERFUNDED is decided). Validate before dispatching.
+                        final var worstCaseCharge = worstCaseGasCost;
                         // Use getContractById to handle both contractNum and evmAddress forms.
                         final var tokenServiceApi = storeFactory.serviceApi(TokenServiceApi.class);
                         final var accountStore = storeFactory.readableStore(ReadableAccountStore.class);
@@ -807,22 +827,20 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                             continue;
                         }
 
-                        // CEI: debit the connector BEFORE dispatching so that a reentering call
+                        // CEI: escrow the worst-case gas cost BEFORE dispatching so that a reentering call
                         // cannot observe unspent balance and dispatch again before the charge lands.
+                        final var connectorAccountId = connectorAccount.accountIdOrThrow();
                         log.debug(
-                                "[ClprSubmitBundle] step10 DATA debiting connector conn={} receivedMsgId={} "
+                                "[ClprSubmitBundle] step10 DATA escrowing connector gas conn={} receivedMsgId={} "
                                         + "from={} toPayer={} amount={}",
                                 channelId,
                                 receivedMessageId,
-                                connectorAccount.accountIdOrThrow(),
+                                connectorAccountId,
                                 context.payer(),
                                 worstCaseCharge);
-                        tokenServiceApi.transferFromTo(
-                                connectorAccount.accountIdOrThrow(), context.payer(), worstCaseCharge);
-                        log.debug(
-                                "[ClprSubmitBundle] step10 DATA connector debit complete conn={} receivedMsgId={}",
-                                channelId,
-                                receivedMessageId);
+                        final var escrowed = billing.escrowGas(connectorAccount, worstCaseCharge);
+                        // Unknown until the dispatch reports it; a dispatch that throws is charged the full budget
+                        long gasUsed = maxGasPerMessage;
 
                         final var callData = encodeOnClprMessage(channelId, dataMsg.sender(), dataMsg.messageData());
                         // Use EntityIdFactory so shard/realm match this network
@@ -837,7 +855,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                         // Delivery). On overrun the dispatch returns
                                         // non-SUCCESS → APPLICATION_ERROR below, with no
                                         // Connector slash (§4.6).
-                                        .gas(throttles.maxGasPerMessage())
+                                        .gas(maxGasPerMessage)
                                         .functionParameters(Bytes.wrap(callData))
                                         .build())
                                 .build();
@@ -868,13 +886,15 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                     HookDispatchStreamBuilder.class,
                                     NOOP_SIGNED_TX_CUSTOMIZER,
                                     CLPR_DISPATCH_METADATA));
+                            gasUsed = gasUsedBy(result, maxGasPerMessage);
                             log.debug(
                                     "[ClprSubmitBundle] step10 DATA dispatch RETURNED conn={} receivedMsgId={} "
-                                            + "target={} status={}",
+                                            + "target={} status={} gasUsed={}",
                                     channelId,
                                     receivedMessageId,
                                     appContractId,
-                                    result.status());
+                                    result.status(),
+                                    gasUsed);
                             Bytes rawEvmResult = null;
                             try {
                                 rawEvmResult = result.getEvmCallResult();
@@ -949,6 +969,17 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                     e.getMessage());
                             replyStatus = ClprMessageReplyStatus.APPLICATION_ERROR;
                         }
+                        final var gasCharged = billing.chargeGas(connectorAccountId, escrowed, gasUsed);
+                        billing.recordBillableMessage(connectorAccountId);
+                        log.debug(
+                                "[ClprSubmitBundle] step10 DATA connector gas charged conn={} receivedMsgId={} "
+                                        + "connector={} gasUsed={} escrowed={} charged={}",
+                                channelId,
+                                receivedMessageId,
+                                connectorAccountId,
+                                gasUsed,
+                                escrowed,
+                                gasCharged);
 
                         // OutboundQueue reads/writes channel state directly from the
                         // store on each enqueue, so any precompile-side bumps from the
@@ -1013,6 +1044,17 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                         continue;
                     }
 
+                    // The source connector pays for its application's onClprResponse gas and counts the reply
+                    // toward its share of the bundle's cost. Payment is best-effort: the response is delivered even
+                    // when the connector is gone or cannot pay (clpr-spec PR #65 §3.2.5, Connector Degeneracy).
+                    final var sourceConnectorKey = new ClprConnectorKey(channelId, origDataMsg.connectorId());
+                    final var payingConnector = connectorStore.getConnector(sourceConnectorKey);
+                    final var payingConnectorAccount = payingConnector == null
+                            ? null
+                            : storeFactory
+                                    .readableStore(ReadableAccountStore.class)
+                                    .getContractById(payingConnector.connectorContractOrThrow());
+
                     // Deliver response to the originating application (best-effort). The response might even be
                     // CONNECTOR_NOT_FOUND or some other error, or that the remote side is CLOSED. Whatever it is,
                     // we must inform the originating application so it can do proper bookkeeping.
@@ -1028,7 +1070,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                         // Response delivery is also an application dispatch (§6.0),
                                         // so it shares the same per-message gas ceiling
                                         // (spec §1.1 max_gas_per_message).
-                                        .gas(throttles.maxGasPerMessage())
+                                        .gas(maxGasPerMessage)
                                         .functionParameters(Bytes.wrap(callData))
                                         .build())
                                 .build();
@@ -1042,17 +1084,26 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                 callData.length,
                                 throttles.maxGasPerMessage(),
                                 shortHex(Bytes.wrap(callData)));
+                        // CEI: escrow before dispatching, as for Data messages
+                        final var escrowed = payingConnectorAccount == null
+                                ? 0L
+                                : billing.escrowGas(payingConnectorAccount, worstCaseGasCost);
+                        // Unknown until the dispatch reports it; a dispatch that throws is charged the full budget
+                        long gasUsed = maxGasPerMessage;
                         try {
-                            context.dispatch(stepDispatch(
+                            final var result = context.dispatch(stepDispatch(
                                     systemAdminAccountId,
                                     syntheticBody,
                                     HookDispatchStreamBuilder.class,
                                     NOOP_SIGNED_TX_CUSTOMIZER,
                                     CLPR_DISPATCH_METADATA));
+                            gasUsed = gasUsedBy(result, maxGasPerMessage);
                             log.debug(
-                                    "[ClprSubmitBundle] onClprResponse dispatch SUCCESS to sender={} replyTargetId={}",
+                                    "[ClprSubmitBundle] onClprResponse dispatch SUCCESS to sender={} replyTargetId={} "
+                                            + "gasUsed={}",
                                     senderAddress,
-                                    replyTargetId);
+                                    replyTargetId,
+                                    gasUsed);
                         } catch (final HandleException e) {
                             // Best-effort: callback failure does not stop bundle processing. Log so we can
                             // see when an application's onClprResponse rejected or reverted.
@@ -1061,6 +1112,18 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                     senderAddress,
                                     replyTargetId,
                                     e.getMessage());
+                        }
+                        if (payingConnectorAccount != null) {
+                            final var gasCharged =
+                                    billing.chargeGas(payingConnectorAccount.accountIdOrThrow(), escrowed, gasUsed);
+                            log.debug(
+                                    "[ClprSubmitBundle] onClprResponse connector gas charged conn={} connectorId={} "
+                                            + "gasUsed={} escrowed={} charged={}",
+                                    channelId,
+                                    origDataMsg.connectorId(),
+                                    gasUsed,
+                                    escrowed,
+                                    gasCharged);
                         }
                         // OutboundQueue reads/writes channel state directly from the store,
                         // so any precompile-side bumps from the dispatched onClprResponse
@@ -1077,7 +1140,10 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                     // and it replied indicating the connector on our side was at fault, then we will punish the
                     // connector on our side accordingly.
                     final var replyStatus = reply.status();
-                    final var sourceConnectorKey = new ClprConnectorKey(channelId, origDataMsg.connectorId());
+                    if (payingConnectorAccount != null) {
+                        billing.recordBillableMessage(payingConnectorAccount.accountIdOrThrow());
+                    }
+                    // Re-read the connector: the onClprResponse callback may have sent through it
                     var sourceConnector = connectorStore.getConnector(sourceConnectorKey);
                     if (sourceConnector != null) {
                         // Decrement in-flight counter — this reply is a terminal event for the DATA message.
@@ -1278,6 +1344,21 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                 updatedChannel.peerConfigTimestamp());
         channelStore.put(updatedChannel);
 
+        // --- Step 12: Settle the bundle's shared cost (clpr-spec PR #65 §3.2.4) ---
+        // X counts each new message (whether or not its connector could pay) and each other item that made
+        // progress. Replayed messages are not progress, so their cost stays with the submitter.
+        final long progressItems = newMessages.size()
+                + (newAckedMessageId > oldAckedMessageId ? 1 : 0)
+                + (hasTrustAnchorAdvancement ? 1 : 0)
+                + (hasManifestAdvancement ? 1 : 0)
+                + (currentStatus != statusBeforeBundle ? 1 : 0);
+        final var settledPayout = billing.settle(progressItems);
+        log.debug(
+                "[ClprSubmitBundle] step12 settlement conn={} progressItems={} payoutToSubmitter={}",
+                channelId,
+                progressItems,
+                settledPayout);
+
         // Fast-path notify: drop this id from the orchestrator's in-memory
         // registry now that the channel is terminal. This is a best-effort
         // optimization — if the surrounding transaction rolls back, the registry
@@ -1288,6 +1369,22 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
             log.debug("[ClprSubmitBundle] notifying lifecycle channel closed conn={}", channelId);
             channelLifecycle.onChannelClosed(channelId);
         }
+    }
+
+    /**
+     * Returns the {@code ClprSubmitBundle} fee charged to the submitter, as recorded on the transaction's base builder.
+     * Must be read before the handler charges anything else, since later charges accumulate into the same total.
+     */
+    private static long chargedBundleFee(@NonNull final HandleContext context) {
+        return context.savepointStack().getBaseBuilder(StreamBuilder.class).transactionFee();
+    }
+
+    /**
+     * Returns the gas an application callback used, capped at the gas it was given. A dispatch rejected before the
+     * EVM ran has no contract result and used no gas.
+     */
+    private static long gasUsedBy(@NonNull final StreamBuilder result, final long gasLimit) {
+        return result.hasContractResult() ? Math.min(result.getGasUsedForContractTxn(), gasLimit) : 0L;
     }
 
     /**
