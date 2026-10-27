@@ -35,6 +35,20 @@ public interface QueryContext {
     AccountID payer();
 
     /**
+     * Returns synthetic sender metadata for local proof verification initiated by the native CLPR service.
+     *
+     * <p>This metadata is supplied only by the internal CLPR workflow and cannot be set by an ordinary query
+     * request. It preserves the native CLPR caller and execution limits when running a verifier in a read-only
+     * query context before submitting a bundle for consensus.
+     *
+     * @return native CLPR dispatch metadata, or {@code null} for ordinary queries
+     */
+    @Nullable
+    default ClprDispatchMetadata clprDispatchMetadata() {
+        return null;
+    }
+
+    /**
      * Create a new store given the store's interface. This gives read-only access to the store.
      *
      * @param storeInterface The store interface to find and create a store for

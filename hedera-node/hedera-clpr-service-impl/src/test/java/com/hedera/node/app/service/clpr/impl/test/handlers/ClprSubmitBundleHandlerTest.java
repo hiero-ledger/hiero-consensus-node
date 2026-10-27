@@ -58,6 +58,7 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.clpr.ClprChannelLifecycle;
 import com.hedera.node.app.service.clpr.ReadableLedgerConfigurationStore;
+import com.hedera.node.app.service.clpr.impl.ClprBundleValidator;
 import com.hedera.node.app.service.clpr.impl.ClprHashUtils;
 import com.hedera.node.app.service.clpr.impl.WritableChannelStore;
 import com.hedera.node.app.service.clpr.impl.WritableConnectorStore;
@@ -193,7 +194,8 @@ class ClprSubmitBundleHandlerTest {
 
     @BeforeEach
     void setUp() {
-        subject = new ClprSubmitBundleHandler(verifierFactory, entityIdFactory, channelLifecycle);
+        subject = new ClprSubmitBundleHandler(
+                verifierFactory, entityIdFactory, channelLifecycle, new ClprBundleValidator());
         lenient().when(verifierFactory.getVerifier(any())).thenReturn(new PassThroughClprVerifier());
 
         writableChannels = MapWritableKVState.<Bytes, ClprChannel>builder(CHANNELS_STATE_ID, "ClprService:CHANNELS")
@@ -517,6 +519,37 @@ class ClprSubmitBundleHandlerTest {
         assertThat(updated.receivedMessageId()).isEqualTo(5L);
         assertThat(updated.receivedRunningHash()).isEqualTo(runningHashOver(INTERMEDIATE_HASH, newTail));
         verify(handleContext, times(2)).dispatch(any());
+    }
+
+    @Test
+    @DisplayName("replayed ConfigUpdate is not revalidated against its already installed timestamp")
+    void replayedConfigUpdateDoesNotRejectNewDataMessage() {
+        final var peerTimestamp = Timestamp.newBuilder().seconds(5000).nanos(42).build();
+        final var configPayload = ClprMessagePayload.newBuilder()
+                .control(buildControlMessage(peerTimestamp))
+                .build();
+        final var receivedHash = ClprHashUtils.computeRunningHash(ZERO_HASH, configPayload);
+        putChannel(ClprChannelStatus.ACTIVE, 1, 0, 1, receivedHash);
+        channelStore.put(channelStore
+                .getChannel(CHANNEL_ID)
+                .copyBuilder()
+                .peerConfigTimestamp(peerTimestamp)
+                .build());
+        final var bundle = bundleEndingAt(3, receivedHash, List.of(dataPayload()))
+                .copyBuilder()
+                .messages(List.of(configPayload, dataPayload()))
+                .build();
+        setupHandleContext(bundleTxn(bundle), true);
+        putConnector();
+
+        subject.handle(handleContext);
+
+        final var updated = channelStore.getChannel(CHANNEL_ID);
+        assertThat(updated.receivedMessageId()).isEqualTo(2L);
+        assertThat(updated.receivedRunningHash())
+                .isEqualTo(ClprHashUtils.computeRunningHash(receivedHash, dataPayload()));
+        assertThat(updated.peerConfigTimestamp()).isEqualTo(peerTimestamp);
+        verify(handleContext).dispatch(any(DispatchOptions.class));
     }
 
     @Test
@@ -1908,6 +1941,73 @@ class ClprSubmitBundleHandlerTest {
         assertThatThrownBy(() -> subject.handle(handleContext))
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(CLPR_BUNDLE_VERIFICATION_FAILED));
+    }
+
+    @Test
+    @DisplayName("invalid ConfigUpdate after data rejects before dispatch or state changes")
+    void invalidConfigUpdateAfterDataRejectsBeforeDispatchOrStateChanges() {
+        final var invalidConfig = ClprMessagePayload.newBuilder()
+                .control(ClprControlMessage.newBuilder()
+                        .configUpdate(ClprConfigUpdate.newBuilder()
+                                .configuration(ClprLedgerConfiguration.newBuilder()
+                                        .protocolVersion(42)
+                                        .timestamp(CONFIG_TIMESTAMP)
+                                        .build())
+                                .build())
+                        .build())
+                .build();
+
+        assertLaterInvalidControlRejectsBeforeDispatchOrStateChanges(invalidConfig);
+    }
+
+    @Test
+    @DisplayName("unknown control after data rejects before dispatch or state changes")
+    void unknownControlAfterDataRejectsBeforeDispatchOrStateChanges() {
+        final var unknownControl = ClprMessagePayload.newBuilder()
+                .control(ClprControlMessage.newBuilder().build())
+                .build();
+
+        assertLaterInvalidControlRejectsBeforeDispatchOrStateChanges(unknownControl);
+    }
+
+    private void assertLaterInvalidControlRejectsBeforeDispatchOrStateChanges(
+            @NonNull final ClprMessagePayload invalidControl) {
+        putChannel(ClprChannelStatus.ACTIVE, 2, 0, ZERO_HASH);
+        putOutboundSlot(1, replyPayload(9));
+        putConnector();
+        final var originalChannel = channelStore.getChannel(CHANNEL_ID);
+        final var connectorKey = new ClprConnectorKey(CHANNEL_ID, CONNECTOR_ADDRESS);
+        final var originalConnector = connectorStore.getConnector(connectorKey);
+        final var originalOutbound = messageQueueStore.getMessage(CHANNEL_ID, 1);
+        final var messages = List.of(dataPayload(), invalidControl);
+        final var metadata = ClprQueueMetadata.newBuilder()
+                .nextMessageId(3)
+                .sentRunningHash(runningHashOver(ZERO_HASH, messages))
+                .receivedMessageId(1)
+                .status(ClprChannelStatus.ACTIVE)
+                .build();
+        final var bundle = ClprBundleContent.newBuilder()
+                .metadata(metadata)
+                .messages(messages)
+                .newEndpointManifest(buildManifest(1, "10.0.0.1"))
+                .newTrustAnchor(Bytes.wrap(new byte[] {1}))
+                .newTrustAnchorId(Bytes.wrap(new byte[] {2}))
+                .build();
+        setupHandleContext(bundleTxn(bundle), true);
+
+        final var exception = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+
+        assertThat(exception).has(responseCode(CLPR_BUNDLE_VERIFICATION_FAILED));
+        verify(handleContext, never()).dispatch(any(DispatchOptions.class));
+        verify(tokenServiceApi, never()).transferFromTo(any(), any(), anyLong());
+        assertThat(channelStore.getChannel(CHANNEL_ID)).isEqualTo(originalChannel);
+        assertThat(connectorStore.getConnector(connectorKey)).isEqualTo(originalConnector);
+        assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1)).isEqualTo(originalOutbound);
+        assertThat(writableMessages.size()).isEqualTo(1L);
+        verify(channelLifecycle, never()).seedPeerEndpoints(any(), any());
+
+        exception.maybeReplay(feeChargingContext, handleContext);
+        verify(feeChargingContext).charge(PAYER_ID, new Fees(0, 5_000_000L, 0), null);
     }
 
     @Test
