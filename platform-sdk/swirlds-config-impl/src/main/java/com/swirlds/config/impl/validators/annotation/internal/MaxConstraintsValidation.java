@@ -22,8 +22,14 @@ public class MaxConstraintsValidation implements ConfigValidator {
     public Stream<ConfigViolation> validate(@NonNull final Configuration configuration) {
         return ConfigReflectionUtils.getAllMatchingPropertiesForConstraintAnnotation(Max.class, configuration).stream()
                 .filter(property -> ConfigNumberUtils.isNumber(property.propertyType()))
-                .filter(property -> property.annotation(Max.class).value()
-                        < ConfigNumberUtils.getLongValue(property.propertyValue()))
+                .filter(property -> {
+                    final Object value = property.propertyValue();
+                    return ConfigNumberUtils.isNaN(value)
+                            || ConfigNumberUtils.compareWithBound(
+                                            value,
+                                            property.annotation(Max.class).value())
+                                    > 0;
+                })
                 .map(property -> new DefaultConfigViolation(
                         property.propertyName(),
                         property.propertyValue() + "",
