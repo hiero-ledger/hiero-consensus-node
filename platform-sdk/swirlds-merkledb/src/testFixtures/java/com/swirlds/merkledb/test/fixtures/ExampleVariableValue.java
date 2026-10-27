@@ -2,7 +2,6 @@
 package com.swirlds.merkledb.test.fixtures;
 
 import com.hedera.pbj.runtime.Codec;
-import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -63,7 +62,7 @@ public final class ExampleVariableValue extends ExampleByteArrayVirtualValue {
         out.writeBytes(data);
     }
 
-    public static class ExampleVariableValueCodec implements Codec<ExampleVariableValue> {
+    public static class ExampleVariableValueCodec extends Codec<ExampleVariableValue> {
 
         @Override
         public ExampleVariableValue getDefaultInstance() {
@@ -73,7 +72,7 @@ public final class ExampleVariableValue extends ExampleByteArrayVirtualValue {
 
         @NonNull
         @Override
-        public ExampleVariableValue parse(
+        protected ExampleVariableValue parseImpl(
                 @NonNull ReadableSequentialData in,
                 boolean strictMode,
                 boolean parseUnknownFields,
@@ -83,25 +82,13 @@ public final class ExampleVariableValue extends ExampleByteArrayVirtualValue {
         }
 
         @Override
-        public void write(@NonNull ExampleVariableValue value, @NonNull WritableSequentialData out) {
+        protected void writeImpl(@NonNull ExampleVariableValue value, @NonNull WritableSequentialData out) {
             value.writeTo(out);
-        }
-
-        @Override
-        public int measure(@NonNull ReadableSequentialData in) {
-            throw new UnsupportedOperationException("ExampleVariableValueCodec.measure() not implemented");
         }
 
         @Override
         public int measureRecord(ExampleVariableValue value) {
             return value.getSizeInBytes();
-        }
-
-        @Override
-        public boolean fastEquals(@NonNull ExampleVariableValue value, @NonNull ReadableSequentialData in)
-                throws ParseException {
-            final ExampleVariableValue other = parse(in);
-            return other.equals(value);
         }
     }
 }

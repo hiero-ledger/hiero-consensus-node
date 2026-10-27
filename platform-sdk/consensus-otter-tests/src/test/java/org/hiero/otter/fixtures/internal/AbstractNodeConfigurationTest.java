@@ -5,6 +5,7 @@ import static java.util.Optional.ofNullable;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
 import static org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerType.SEQUENTIAL;
+import static org.hiero.otter.fixtures.internal.AbstractMiniNode.LifeCycle.INIT;
 
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
@@ -22,7 +23,7 @@ import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerConfiguration;
 import org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerType;
 import org.hiero.otter.fixtures.NodeConfiguration;
-import org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle;
+import org.hiero.otter.fixtures.internal.AbstractMiniNode.LifeCycle;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -43,7 +44,7 @@ public class AbstractNodeConfigurationTest {
 
     @BeforeEach
     void setUp() {
-        lifeCycle = LifeCycle.INIT;
+        lifeCycle = INIT;
         subject = new TestNodeConfiguration(() -> lifeCycle);
     }
 

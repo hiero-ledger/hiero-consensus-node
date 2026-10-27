@@ -34,13 +34,11 @@ cp ../test-clients/yahcli/localhost/keys/account2.pass localhost/keys/
 
 ```bash
 cd clpr-hiero/hedera-node/yahcli/scripts/clpre2e
-TSS_LIB_WRAPS_ARTIFACTS_PATH=/Users/neeharikasompalli/Documents/wraps-v1.0.0 \
-  ./start-hiero-local.sh
+./start-hiero-local.sh
 ```
 
-If `~/Documents/wraps-v1.0.0` exists, the script auto-exports
-`TSS_LIB_WRAPS_ARTIFACTS_PATH`. Override `HIERO_GRADLE_TASK` if you need a
-different Gradle task; the default is `:app:run`.
+Override `HIERO_GRADLE_TASK` if you need a different Gradle task; the default
+is `:app:run`.
 
 ### Step 2 — Start one local Sei node
 
@@ -137,8 +135,7 @@ cd clpr-hiero/hedera-node/yahcli/scripts/clpre2e
 SEI_SKIP_BUILD=true SEI_MEMORY=8g SEI_CPUS=2 GOMEMLIMIT=6GiB GOGC=50 \
   ./start-sei-local.sh
 
-TSS_LIB_WRAPS_ARTIFACTS_PATH=/Users/neeharikasompalli/Documents/wraps-v1.0.0 \
-  ./start-hiero-local.sh
+./start-hiero-local.sh
 
 ./deploy-sei-clpr.sh
 ./bridge-from-sei.sh

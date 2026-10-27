@@ -24,6 +24,7 @@ import static com.hedera.services.bdd.suites.clpr.HieroToHieroBase.POST_SYNC_POI
 import static com.hedera.services.bdd.suites.clpr.HieroToHieroBase.awaitWrapsExtensible;
 import static com.hedera.services.bdd.suites.clpr.HieroToHieroBase.awaitWrapsSyncPoint;
 import static com.hedera.services.bdd.suites.clpr.HieroToHieroBase.captureManifestProof;
+import static com.hedera.services.bdd.suites.clpr.HieroToHieroBase.multiNetworkHapiTest;
 import static com.hedera.services.bdd.suites.clpr.HieroToHieroBase.pollManifest;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
@@ -47,6 +48,7 @@ import com.google.protobuf.ByteString;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.MultiNetworkHapiTest;
 import com.hedera.services.bdd.junit.MultiNetworkHapiTest.Network;
+import com.hedera.services.bdd.junit.MultiNetworkLeakyHapiTest;
 import com.hedera.services.bdd.junit.TestTags;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.spec.queries.QueryVerbs;
@@ -93,6 +95,7 @@ import org.junit.jupiter.api.Tag;
  * manifest, supplied to the pass-through verifier as a synthetic proof.
  */
 @Tag(TestTags.MULTINETWORK)
+@MultiNetworkLeakyHapiTest
 public class ClprMessagesSuite {
 
     private static final String NET_A_CHAIN_ID = "hiero:msgs-a";
@@ -392,8 +395,11 @@ public class ClprMessagesSuite {
         }
         // NET_B's finalized manifest StateProof, threaded into NET_A's completeChannel.
         final var netBManifestCapture = captureManifestProof(netB, manifestProofForNetA);
-        return Stream.concat(
-                Stream.of(netAManifestCapture, netBSetup, netBManifestCapture, netASetup), Stream.of(invocationTests));
+        return multiNetworkHapiTest(
+                "multiMessageRoundTrip",
+                Stream.concat(
+                        Stream.of(netAManifestCapture, netBSetup, netBManifestCapture, netASetup),
+                        Stream.of(invocationTests)));
     }
 
     /**
@@ -406,7 +412,7 @@ public class ClprMessagesSuite {
      * {@code ClprUpdateLedgerConfigurationHandler} validation). The service address must equal the
      * one in this ledger's endpoint manifest, which the native verifier enforces (spec §4.8). The
      * endpoint is not a dial target — peers dial from the manifest — and its {@code tlsCertificate}
-     * is a single-byte dummy, not used for actual mTLS in test contexts.
+     * is a single-byte dummy, not used for actual TLS in test contexts.
      */
     private static ClprLedgerConfiguration buildLedgerConfig(final String chainId, final int peerPort) {
         return ClprLedgerConfiguration.newBuilder()

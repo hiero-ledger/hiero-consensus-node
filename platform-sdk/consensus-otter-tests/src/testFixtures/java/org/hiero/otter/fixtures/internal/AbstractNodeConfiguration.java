@@ -2,6 +2,7 @@
 package org.hiero.otter.fixtures.internal;
 
 import static java.util.Objects.requireNonNull;
+import static org.hiero.otter.fixtures.internal.AbstractMiniNode.LifeCycle.RUNNING;
 import static org.hiero.otter.fixtures.internal.helpers.Utils.createConfiguration;
 
 import com.swirlds.config.api.Configuration;
@@ -14,7 +15,7 @@ import java.util.Map;
 import java.util.function.Supplier;
 import org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerConfiguration;
 import org.hiero.otter.fixtures.NodeConfiguration;
-import org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle;
+import org.hiero.otter.fixtures.internal.AbstractMiniNode.LifeCycle;
 
 /**
  * An abstract base class for node configurations that provides common functionality
@@ -164,8 +165,11 @@ public abstract class AbstractNodeConfiguration implements NodeConfiguration {
         return this;
     }
 
+    /**
+     * Throws an {@link IllegalStateException} if the node is running, indicating that configuration modification is not allowed.
+     */
     protected final void throwIfNodeIsRunning() {
-        if (lifecycleSupplier.get() == LifeCycle.RUNNING) {
+        if (lifecycleSupplier.get() == RUNNING) {
             throw new IllegalStateException("Configuration modification is not allowed when the node is running.");
         }
     }
@@ -186,8 +190,8 @@ public abstract class AbstractNodeConfiguration implements NodeConfiguration {
     /**
      * {@inheritDoc}
      */
-    @NonNull
     @Override
+    @NonNull
     public Configuration current() {
         return createConfiguration(effectiveProperties());
     }

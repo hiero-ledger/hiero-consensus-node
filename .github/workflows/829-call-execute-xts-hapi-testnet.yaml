@@ -201,7 +201,6 @@ jobs:
       node-version: ${{ inputs.node-version }}
       enable-network-log-capture: ${{ inputs.enable-network-log-capture }}
       # This rerun skips 846, whose hapiTestCutover ignores the profile anyway
-      include-wraps-download: true
       hapi-test-config-profile: "testnet"
       name-suffix: " (Cutover configs)"
     secrets:

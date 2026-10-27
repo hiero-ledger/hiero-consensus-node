@@ -19,6 +19,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.spy;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.pbj.runtime.ParseException;
@@ -34,6 +36,9 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.atomic.AtomicBoolean;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.config.Configurator;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.Mnemonics;
 import org.hiero.base.crypto.Signature;
@@ -46,6 +51,7 @@ import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.state.saved.DeserializedSignedState;
+import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SigSet;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.snapshot.StateToDiskReason;
@@ -201,5 +207,49 @@ class SignedStateFileReadWriteTest {
         assertTrue(exists(consensusSnapshotFile), "consensus snapshot file should exist");
 
         stateLifecycleManager.getMutableState().release();
+    }
+
+    @Test
+    @DisplayName("writeSignedStateToDisk() doesn't read the state after an async snapshot releases it")
+    void writeSignedStateToDiskDoesNotReadReleasedStateTest() throws IOException {
+        // After the write, the round is only read by an INFO log message
+        Configurator.setLevel(SignedStateFileWriter.class.getName(), Level.INFO);
+        try {
+            final SignedState signedState = spy(new RandomSignedStateGenerator()
+                    .setSoftwareVersion(platformVersion)
+                    .build());
+            stateLifecycleManager.initWithState(signedState.getState());
+            // Async snapshot requires all references to the state being written to disk to be released
+            stateLifecycleManager.getLatestImmutableState().release();
+
+            // Once released, the state may be the last copy of its virtual map, and then its data source
+            // is closed right after the snapshot is written
+            final ReservedSignedState reservedSignedState = signedState.reserve("test");
+            final AtomicBoolean readAfterRelease = new AtomicBoolean();
+            doAnswer(invocation -> {
+                        if (reservedSignedState.isClosed()) {
+                            readAfterRelease.set(true);
+                        }
+                        return invocation.callRealMethod();
+                    })
+                    .when(signedState)
+                    .getRound();
+
+            writeSignedStateToDisk(
+                    new TestConfigBuilder().getOrCreateConfig(),
+                    fileSystemManager,
+                    NodeId.of(0),
+                    testDirectory.resolve("state"),
+                    StateToDiskReason.PERIODIC_SNAPSHOT,
+                    reservedSignedState,
+                    stateLifecycleManager);
+
+            assertTrue(reservedSignedState.isClosed(), "the reservation should be released");
+            assertFalse(readAfterRelease.get(), "the round should not be read after the reservation is released");
+
+            stateLifecycleManager.getMutableState().release();
+        } finally {
+            Configurator.reconfigure();
+        }
     }
 }

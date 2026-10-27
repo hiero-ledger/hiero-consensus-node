@@ -2,11 +2,17 @@
 package com.hedera.services.bdd.suites.blocknode;
 
 import static com.hedera.services.bdd.junit.TestTags.BLOCK_NODE;
+import static com.hedera.services.bdd.junit.hedera.NodeSelector.allNodes;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertBlockNodeCommsLogContainsTimeframe;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.untilHgcaaLogContainsText;
+import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
+import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 
 import com.hedera.services.bdd.HapiBlockNode;
 import com.hedera.services.bdd.HapiBlockNode.BlockNodeConfig;
@@ -14,6 +20,7 @@ import com.hedera.services.bdd.HapiBlockNode.SubProcessNodeConfig;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
+import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import java.time.Duration;
 import java.time.Instant;
@@ -30,6 +37,10 @@ import org.junit.jupiter.api.Tag;
 @Tag(BLOCK_NODE)
 @OrderedInIsolation
 public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
+    /**
+     * The ledger id is only established by the genesis WRAPS proof grounding the chain of trust.
+     */
+    private static final Duration LEDGER_ID_TIMEOUT = Duration.ofMinutes(5);
 
     @HapiTest
     @HapiBlockNode(
@@ -49,8 +60,6 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                             "tss.hintsEnabled",
                             "true",
                             "tss.historyEnabled",
-                            "true",
-                            "tss.forceHandoffs",
                             "true",*/
                             "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk",
                             "false",
@@ -72,8 +81,6 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                             "tss.hintsEnabled",
                             "true",
                             "tss.historyEnabled",
-                            "true",
-                            "tss.forceHandoffs",
                             "true",*/
                             "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk",
                             "false",
@@ -95,8 +102,6 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                             "tss.hintsEnabled",
                             "true",
                             "tss.historyEnabled",
-                            "true",
-                            "tss.forceHandoffs",
                             "true",*/
                             "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk",
                             "false",
@@ -118,8 +123,6 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                             "tss.hintsEnabled",
                             "true",
                             "tss.historyEnabled",
-                            "true",
-                            "tss.forceHandoffs",
                             "true",*/
                             "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk",
                             "false",
@@ -141,6 +144,11 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                     blockNodePort.set(spec.getBlockNodePortById(0));
                     timeRef.set(Instant.now());
                 }),
+                // An upgrade adopts the override network's roster, which needs completed TSS state once the
+                // hinTS scheme exists; so finish the genesis TSS ceremony before the first upgrade
+                untilHgcaaLogContainsText(
+                        allNodes(), "Externalizing ledger id", LEDGER_ID_TIMEOUT, Duration.ofSeconds(1), () ->
+                                new SpecOperation[] {cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L))}),
                 prepareFakeUpgrade(),
                 doingContextual(spec -> timeRef.set(Instant.now())),
                 upgradeToNextConfigVersion(),
