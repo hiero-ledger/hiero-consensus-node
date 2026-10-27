@@ -353,10 +353,14 @@ fun hapiTestOverrides(name: String, embedded: Boolean, remote: Boolean): Map<Str
 }
 
 // hapiTestRestart reconnects the same node repeatedly; the 10m production throttle would starve it.
+// hapiTestClprMultinetwork restarts single nodes while their peers keep running; OBSERVING lets a
+// restarted node learn its latest self event from them before creating new ones, so it does not
+// branch.
 val prCheckPlatformOverrides =
     mapOf(
         "hapiTestRestart" to
-            "platformStatus.observingStatusDelay=10s,reconnect.minimumTimeBetweenReconnects=10s"
+            "platformStatus.observingStatusDelay=10s,reconnect.minimumTimeBetweenReconnects=10s",
+        "hapiTestClprMultinetwork" to "platformStatus.observingStatusDelay=10s",
     )
 val prCheckPrepareUpgradeOffsets = mapOf("hapiTestAdhoc" to "PT300S")
 // We don't want to run stream or log validation for these tasks
