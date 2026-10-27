@@ -120,10 +120,10 @@ jobs:
           echo "Using workflow reference: ${RESOLVED_REF}"
           echo "workflow-ref=${RESOLVED_REF}" >> "${GITHUB_OUTPUT}"
 
-      - name: "Trigger 301: [FLOW] Deploy Prod Release"
+      - name: "Trigger 307: [DISP] Build Commit Artifact"
         uses: step-security/workflow-dispatch@024752877e2bfa07299ee4204cc5f7e7c14ff930 # v1.3.21
         with:
-          workflow: .github/workflows/301-flow-deploy-release-artifact.yaml
+          workflow: .github/workflows/307-disp-build-commit-artifact.yaml
           repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
           ref: ${{ steps.resolve-ref.outputs.workflow-ref }} # ensure we are always using the correct workflow definition. Default to main.
           token: ${{ secrets.GH_ACCESS_TOKEN }}
