@@ -56,10 +56,12 @@ import org.openjdk.jmh.annotations.Warmup;
  * which does not matter here: the validator does not look them up. Every hash is a SHA-256 hash, as in production after
  * the event cutover. All events are valid, as nearly all are in production.
  *
- * <p>The first call of {@link PlatformEvent#getDescriptor()} creates the event's descriptor, and the event keeps it.
- * The validator makes that first call in production, so every invocation validates the events as received anew
- * ({@link EventStreamGenerator#receive(List)}): parsed from the gossip streams, built, and hashed outside the measured
- * region, as a node receives an event.
+ * <p>The intake validates an event right after it has received and hashed it, and the validator makes the first call of
+ * {@link PlatformEvent#getDescriptor()}, which creates the event's descriptor. So the benchmark receives every event
+ * anew right before it validates it ({@link EventStreamGenerator#receive(List)}): parsed from the gossip streams, built,
+ * and hashed, with its data still in the CPU caches. Validating the events only after receiving all of a pass would
+ * leave them out of the caches: on the benchmark machine, two transactions then cost about 480 ns more than none
+ * (calibration run 40544670094), although the validator only reads their lengths.
  *
  * <p>The validator gets the production metrics implementation, {@link DefaultPlatformMetrics}, not started, and the
  * system clock. It updates a metric and logs only when it rejects an event, so the measured calls use neither.
@@ -67,31 +69,24 @@ import org.openjdk.jmh.annotations.Warmup;
  * <p>After every invocation, the number of valid events must equal the number of events. The validator stops at the
  * first check that fails, so an event is valid only if all checks ran on it.
  *
- * <p>One invocation, a pass, validates {@value #NUMBER_OF_EVENTS} events. In production, the validator checks an event
- * right after the hasher has read all of it; here, every pass receives and hashes its events right before it validates
- * them. On an Apple M4 laptop, passes of 1,000, 10,000, and 100,000 events made no consistent difference to the mean,
- * but passes of 1,000 gave less than half the samples of 10,000, too few for p99.99 in most 5 s iterations.
- *
- * <p>The primary score is the mean time per event. A {@link LatencyRecorder} also times every call but the first, with
- * one timestamp per call ({@link LatencyRecorder#lap()}), so each latency also contains the counting of the previous
- * call. {@link LatencyProfiler} reports the percentiles and the allocation per call. The allocation is measured around
- * the timed calls only, because {@code -prof gc} also counts the receiving in the setup.
+ * <p>One invocation, a pass, receives and validates {@value #NUMBER_OF_EVENTS} events. A {@link LatencyRecorder} is
+ * paused while an event is received, so the receiving counts neither in a latency nor in the allocation. It times each
+ * validation from {@link LatencyRecorder#resume()} right before the call to {@link LatencyRecorder#lap()} right after
+ * it, and {@link LatencyProfiler} reports the percentiles and the allocation per validation. JMH's primary score, the
+ * mean time per event of the whole pass, includes the receiving; track {@code latency.mean} instead.
  *
  * <p>The first call of a pass, right after the setup, is validated but not timed: it takes several microseconds. On an
- * Apple M4 laptop, timing it put p99.99 at 7.1–7.8 µs, against 1.1–3.4 µs without it, in alternating runs. No such
+ * Apple M4 laptop, timing it put p99.99 at 4.8–5.5 µs, against 1.1–2.7 µs without it, in alternating runs. No such
  * setup precedes an event in production.
  *
- * <p>A validation takes so little time that the timing is a noticeable part of every latency. On an Apple M4 laptop,
- * {@code lap()} added 8.0–8.7 ns to a call without transactions (5.5–6.0% of the timed call) and 1.3–2.5 ns to a call
- * with two transactions (0.7–1.3%), measured with and without laps in chunks interleaved in the same run; on the
- * benchmark machine it is unmeasured. A CPU profile overstates this share, at 10–11%: reading the clock waits for
- * the preceding instructions to finish, so the profiler charges their time to the clock read. The share is about
- * constant, so a regression of the validator still shows in full nanoseconds, but as a slightly smaller percentage.
+ * <p>Each latency also contains one reading of the clock, which is a noticeable part of a call this short. On an Apple
+ * M4 laptop, an empty call, {@code resume()} directly followed by {@code lap()}, took 11.2–11.5 ns on average, about 8%
+ * of a validation without transactions; on the benchmark machine it is unmeasured. The share is about constant, so a
+ * regression of the validator still shows in full nanoseconds, but as a slightly smaller percentage.
  *
- * <p>Each invocation's setup ends with {@code System.gc()}, so usually no garbage collection falls into the measured
- * calls. A pass during which one does is discarded and replaced by the next invocation, so the latency results and
- * {@code latency.mean} exclude garbage collection. JMH's primary score, measured by JMH itself, still includes
- * discarded passes.
+ * <p>Each invocation's setup ends with {@code System.gc()}, so usually no garbage collection falls into the pass, although
+ * receiving allocates several kilobytes per event. A pass during which one does is discarded and replaced by the next
+ * invocation, so the latency results and {@code latency.mean} exclude garbage collection.
  *
  * <p>Run with {@code -prof org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler}.
  */
@@ -131,11 +126,8 @@ public class EventFieldValidatorBenchmark {
     /** The validator under test. */
     private DefaultEventFieldValidator validator;
 
-    /** The generated events. */
+    /** The generated events. Every invocation receives each of them anew before it validates it. */
     private List<PlatformEvent> generatedEvents;
-
-    /** The events that the validator checks in one invocation, received anew for every invocation. */
-    private List<PlatformEvent> events;
 
     /** The number of events the validator found valid in the invocation. */
     private int validEvents;
@@ -179,17 +171,14 @@ public class EventFieldValidatorBenchmark {
     }
 
     /**
-     * Prepares the benchmark invocation by receiving the generated events anew. This method is called once per
-     * invocation.
+     * Prepares the benchmark invocation. This method is called once per invocation.
      */
     @Setup(Level.Invocation)
     public void prepareInvocation() {
-        events = EventStreamGenerator.receive(generatedEvents);
         validEvents = 0;
         recorder = LatencyProfiler.recorder();
 
-        // Collect the garbage of the setup and of the previous invocation now, so that it is not collected during the
-        // measured calls.
+        // Collect the garbage of the previous invocation now, so that it is not collected during the measured calls.
         System.gc();
     }
 
@@ -202,12 +191,12 @@ public class EventFieldValidatorBenchmark {
             throw new IllegalStateException(
                     "Expected %d valid events, but got %d".formatted(NUMBER_OF_EVENTS, validEvents));
         }
-        events = null;
         recorder = null;
     }
 
     /**
-     * Validates all events and records the latency of each call but the first.
+     * Receives every event anew and validates it right away, as the intake does, and records the latency of each
+     * validation but the first. The recorder is paused while an event is received.
      */
     @Benchmark
     @BenchmarkMode(Mode.AverageTime)
@@ -215,20 +204,27 @@ public class EventFieldValidatorBenchmark {
     @OperationsPerInvocation(NUMBER_OF_EVENTS)
     public void validateEvents() {
         recorder.startMeasurement();
-        // The first call follows the setup, which makes it slow; it is validated but not timed.
         recorder.pause();
-        if (validator.isValid(events.getFirst())) {
+        // The first call follows the setup, which makes it slow; it is validated but not timed.
+        if (validator.isValid(receive(generatedEvents.getFirst()))) {
             validEvents++;
         }
-        recorder.resume();
         for (int i = 1; i < NUMBER_OF_EVENTS; i++) {
-            final boolean valid = validator.isValid(events.get(i));
-            // One timestamp per call: each latency also contains the counting of the previous call.
+            final PlatformEvent event = receive(generatedEvents.get(i));
+            recorder.resume();
+            final boolean valid = validator.isValid(event);
             recorder.lap();
+            recorder.pause();
             if (valid) {
                 validEvents++;
             }
         }
+        recorder.resume();
         recorder.stopMeasurement();
+    }
+
+    /** Receives a generated event anew, as the intake receives it: parsed from the gossip streams, built, and hashed. */
+    private static PlatformEvent receive(final PlatformEvent generatedEvent) {
+        return EventStreamGenerator.receive(List.of(generatedEvent)).getFirst();
     }
 }
