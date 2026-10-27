@@ -72,7 +72,8 @@ while IFS= read -r ref; do
 
   # a missing BlockNodeContainer fails git show (and the script); only a present file without the env var means "no"
   bn_container=$(git show "FETCH_HEAD:${BN_CONTAINER}")
-  if grep -q 'BLOCK_NODE_VERSION' <<< "${bn_container}"; then override=true; else override=false; fi
+  # the quoted env var name: release branches have a constant that is also called BLOCK_NODE_VERSION but is hard-coded
+  if grep -q '"BLOCK_NODE_VERSION"' <<< "${bn_container}"; then override=true; else override=false; fi
 
   # the slug is the only part of the ref in artifact names, so two refs sharing one (release/0.72, release-0.72) would
   # make the second leg's upload fail with a duplicate name

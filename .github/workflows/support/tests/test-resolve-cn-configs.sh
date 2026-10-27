@@ -53,7 +53,7 @@ commit_ref() {
   if [[ "${BN_OVERRIDE:-1}" == "1" ]]; then
     echo 'String e = "BLOCK_NODE_VERSION";' > "${bn_dir}/BlockNodeContainer.java"
   else
-    echo 'String v = "0.45.0";' > "${bn_dir}/BlockNodeContainer.java"
+    echo 'static final String BLOCK_NODE_VERSION = "0.41.0-rc1";' > "${bn_dir}/BlockNodeContainer.java"
   fi
   echo "jdk=$3" > "${WORK}/origin/gradle/toolchain-versions.properties"
   git -C "${WORK}/origin" add -A
