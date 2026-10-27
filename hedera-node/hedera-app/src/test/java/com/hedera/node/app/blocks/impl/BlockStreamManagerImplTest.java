@@ -271,7 +271,7 @@ class BlockStreamManagerImplTest {
                 case "numBlockSizeCircuitBreakerTrips" -> blockSizeCircuitBreakerTripsCounter;
                 case "numMaxBlockSizeThrottleRejections",
                         "maxBlockSizeThrottleRejectedBytes",
-                        "numMaxBlockSizeThrottleSignedTxns" ->
+                        "numSignedTxnsInSizeLimitedBlocks" ->
                     throttleCounters.computeIfAbsent(counterConfig.getName(), name -> mock(Counter.class));
                 default -> indirectProofsCounter;
             };
@@ -798,7 +798,7 @@ class BlockStreamManagerImplTest {
         assertEquals(before + 2 * batchBytes, bytesField.getLong(subject));
         verify(throttleCounters.get("numMaxBlockSizeThrottleRejections")).increment();
         verify(throttleCounters.get("maxBlockSizeThrottleRejectedBytes")).add(batchBytes);
-        verify(throttleCounters.get("numMaxBlockSizeThrottleSignedTxns"), times(2))
+        verify(throttleCounters.get("numSignedTxnsInSizeLimitedBlocks"), times(2))
                 .add(1L);
         verify(throttleGauges.get("bytesAtMaxBlockSizeCutoff")).set(longThat(bytes -> bytes > 1L));
     }

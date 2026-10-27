@@ -1463,12 +1463,17 @@ class HandleWorkflowTest {
         verify(blockRecordManager, never()).closeCurrentRecordFileIfOpen(state);
     }
 
-    @Test
-    void fullBlockDelegatesToFeeChargingDispatchPath() throws Exception {
+    @ParameterizedTest
+    @EnumSource(
+            value = HederaFunctionality.class,
+            names = {"CRYPTO_TRANSFER", "CLPR_SUBMIT_BUNDLE"})
+    void fullBlockDelegatesToFeeChargingDispatchPath(final HederaFunctionality functionality) throws Exception {
         givenSubjectWith(BLOCKS, BlockStreamWriterMode.FILE, emptyList());
         given(blockStreamManager.hasReachedMaxBlockSize()).willReturn(true);
         final var parent = mock(ParentTxn.class, RETURNS_DEEP_STUBS);
-        given(parent.functionality()).willReturn(HederaFunctionality.CRYPTO_TRANSFER);
+        given(parent.functionality()).willReturn(functionality);
+        given(parent.txnInfo().payerID())
+                .willReturn(AccountID.newBuilder().accountNum(1001L).build());
         given(parent.consensusNow()).willReturn(NOW);
         given(parent.baseBuilder().status()).willReturn(ResponseCodeEnum.THROTTLED_AT_CONSENSUS);
         final var dispatch = mock(Dispatch.class);
@@ -1507,7 +1512,6 @@ class HandleWorkflowTest {
         if (exempt) {
             verify(dispatchProcessor).processDispatch(eq(dispatch), any());
             verify(dispatchProcessor, never()).processDispatch(any(), any(), eq(true));
-            verify(blockStreamManager, never()).hasReachedMaxBlockSize();
         } else {
             verify(dispatchProcessor).processDispatch(eq(dispatch), any(), eq(true));
         }
@@ -1526,8 +1530,7 @@ class HandleWorkflowTest {
                 "HISTORY_PROOF_KEY_PUBLICATION",
                 "HISTORY_ASSEMBLY_SIGNATURE",
                 "HISTORY_PROOF_VOTE",
-                "CLPR_ENDPOINT_PUBLICATION",
-                "CLPR_SUBMIT_BUNDLE"
+                "CLPR_ENDPOINT_PUBLICATION"
             })
     void fullBlockStillDispatchesProtocolTransactionsWithNonExemptPayer(final HederaFunctionality functionality)
             throws Exception {
@@ -1550,7 +1553,6 @@ class HandleWorkflowTest {
 
         verify(dispatchProcessor).processDispatch(eq(dispatch), any());
         verify(dispatchProcessor, never()).processDispatch(any(), any(), eq(true));
-        verify(blockStreamManager, never()).hasReachedMaxBlockSize();
         verify(opWorkflowMetrics, never()).incrementThrottled(any());
     }
 
@@ -1584,9 +1586,23 @@ class HandleWorkflowTest {
                 StreamBuilder.class,
                 builder -> {});
         final var remaining = new AtomicInteger(2);
+        final var nextKnown = new AtomicBoolean();
         final var iter = mock(ExecutableTxnIterator.class);
-        given(iter.hasNext()).willAnswer(ignore -> remaining.get() > 0);
-        given(iter.next()).willAnswer(ignore -> executable);
+        given(iter.hasNext()).willAnswer(ignore -> {
+            nextKnown.set(true);
+            return remaining.get() > 0;
+        });
+        given(iter.next()).willAnswer(ignore -> {
+            nextKnown.set(false);
+            return executable;
+        });
+        // Like the real iterator, purging is only legal once hasNext() has located the next executable schedule
+        given(iter.purgeUntilNext()).willAnswer(ignore -> {
+            if (!nextKnown.get()) {
+                throw new IllegalStateException("purgeUntilNext() called before hasNext()");
+            }
+            return false;
+        });
         willAnswer(ignore -> {
                     remaining.decrementAndGet();
                     return null;
@@ -1620,7 +1636,14 @@ class HandleWorkflowTest {
         verify(dispatchProcessor, times(executedBeforeFull)).processDispatch(dispatch);
         verify(iter, times(executedBeforeFull)).next();
         verify(iter, times(executedBeforeFull)).remove();
-        verify(blockStreamManager).setLastIntervalProcessTime(executionStart);
+        if (initiallyFull) {
+            // Nothing is scanned or purged, and the unprocessed interval is left untouched
+            verify(scheduleService, never()).executableTxns(any(), any(), any());
+            verify(blockStreamManager, never()).setLastIntervalProcessTime(any());
+        } else {
+            verify(iter).purgeUntilNext();
+            verify(blockStreamManager).setLastIntervalProcessTime(executionStart);
+        }
 
         // A new block clears the limit. The old interval must still be eligible for scanning.
         full.set(false);
@@ -1630,6 +1653,36 @@ class HandleWorkflowTest {
         verify(dispatchProcessor, times(2)).processDispatch(dispatch);
         verify(iter, times(2)).remove();
         verify(blockStreamManager).setLastIntervalProcessTime(NOW);
+    }
+
+    @ParameterizedTest
+    @EnumSource(StreamMode.class)
+    void unprocessedIntervalIsPreservedOnlyInBlocksMode(final StreamMode mode) throws Exception {
+        // txnOffsetNanos=951 makes lastUsableTime precede nextTime, so no due schedule can run
+        givenSubjectWith(
+                mode, BlockStreamWriterMode.FILE, emptyList(), Map.of("scheduling.longTermEnabled", "true"), 951);
+        final var executionStart = NOW.minusSeconds(2);
+        given(state.getWritableStates(EntityIdService.NAME))
+                .willReturn(
+                        mock(WritableStates.class, withSettings().extraInterfaces(CommittableWritableStates.class)));
+        given(state.getWritableStates(ScheduleService.NAME)).willReturn(mock(WritableStates.class));
+        lenient().when(blockStreamManager.lastUsedConsensusTime()).thenReturn(NOW);
+        lenient().when(blockRecordManager.lastUsedConsensusTime()).thenReturn(NOW);
+        final var iter = mock(ExecutableTxnIterator.class);
+        given(iter.hasNext()).willReturn(true);
+        given(scheduleService.executableTxns(any(), any(), any())).willReturn(iter);
+        final var method = HandleWorkflow.class.getDeclaredMethod(
+                "executeAsManyScheduled", State.class, Instant.class, Instant.class, NodeInfo.class);
+        method.setAccessible(true);
+
+        assertEquals(false, method.invoke(subject, state, executionStart, NOW, mock(NodeInfo.class)));
+
+        verify(iter, never()).next();
+        switch (mode) {
+            case RECORDS -> verify(blockRecordManager).setLastIntervalProcessTime(NOW, state);
+            case BOTH -> verify(blockStreamManager).setLastIntervalProcessTime(NOW);
+            case BLOCKS -> verify(blockStreamManager).setLastIntervalProcessTime(executionStart);
+        }
     }
 
     /**

@@ -780,7 +780,15 @@ public class ThrottleAccumulator {
         }
     }
 
-    private static boolean throttleExempt(
+    /**
+     * Returns whether the given payer is exempt from throttling, i.e. its account number is in
+     * {@code 1..accounts.lastThrottleExempt}.
+     *
+     * @param accountID the payer account, if any
+     * @param configuration the configuration to read {@code accounts.lastThrottleExempt} from
+     * @return whether the payer is throttle exempt
+     */
+    public static boolean throttleExempt(
             @Nullable final AccountID accountID, @NonNull final Configuration configuration) {
         final long maxThrottleExemptNum =
                 configuration.getConfigData(AccountsConfig.class).lastThrottleExempt();

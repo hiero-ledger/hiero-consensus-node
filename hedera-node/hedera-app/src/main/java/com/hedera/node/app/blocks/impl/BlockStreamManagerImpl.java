@@ -302,7 +302,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private final Counter maxBlockSizeThrottleTripsCounter;
     private final Counter maxBlockSizeThrottleRejectionsCounter;
     private final Counter maxBlockSizeThrottleRejectedBytesCounter;
-    private final Counter maxBlockSizeThrottleSignedTxnsCounter;
+    private final Counter signedTxnsInSizeLimitedBlocksCounter;
     private final LongGauge bytesAtMaxBlockSizeCutoffGauge;
 
     @Inject
@@ -370,10 +370,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 metrics.getOrCreate(new Counter.Config("block", "maxBlockSizeThrottleRejectedBytes")
                         .withDescription("Serialized bytes of block items written for transactions rejected because the"
                                 + " canonical block had reached the max block size limit"));
-        maxBlockSizeThrottleSignedTxnsCounter =
-                metrics.getOrCreate(new Counter.Config("block", "numMaxBlockSizeThrottleSignedTxns")
-                        .withDescription("Number of signed transactions written to canonical blocks while the max block"
-                                + " size throttle is enabled"));
+        signedTxnsInSizeLimitedBlocksCounter =
+                metrics.getOrCreate(new Counter.Config("block", "numSignedTxnsInSizeLimitedBlocks")
+                        .withDescription("Number of signed transactions written to canonical blocks with the max block"
+                                + " size limit enabled, both before and after the limit is reached"));
         bytesAtMaxBlockSizeCutoffGauge = metrics.getOrCreate(new LongGauge.Config("block", "bytesAtMaxBlockSizeCutoff")
                 .withDescription("Serialized size in bytes of the most recent canonical block when it reached the"
                         + " max block size limit"));
@@ -1262,7 +1262,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         final long signedTxns =
                 items.stream().filter(BlockItem::hasSignedTransaction).count();
         if (signedTxns > 0) {
-            maxBlockSizeThrottleSignedTxnsCounter.add(signedTxns);
+            signedTxnsInSizeLimitedBlocksCounter.add(signedTxns);
         }
         if (!maxBlockSizeReached && currentThrottleBlockSizeBytes > maxBlockExecutionSizeBytes) {
             bytesAtMaxBlockSizeCutoffGauge.set(currentThrottleBlockSizeBytes);

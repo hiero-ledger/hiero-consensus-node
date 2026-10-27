@@ -565,6 +565,61 @@ class DispatchProcessorTest {
     }
 
     @Test
+    void blockFullEthTxnRecordsEthereumHashWithoutExecuting() throws ThrottleException {
+        given(dispatch.fees()).willReturn(FEES);
+        given(dispatch.handleContext()).willReturn(context);
+        given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
+        given(dispatchValidator.validateFeeChargingScenario(dispatch))
+                .willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
+        given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
+        given(dispatch.txnInfo()).willReturn(ETH_TXN_INFO);
+        givenAuthorization(ETH_TXN_INFO);
+        given(dispatch.txnCategory()).willReturn(USER);
+        doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
+        doCallRealMethod().when(dispatch).category();
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
+
+        subject.processDispatch(dispatch, null, true);
+
+        verifyTrackedFeePayments();
+        verify(dispatcher, never()).dispatchHandle(context);
+        verify(dispatchUsageManager, never()).screenForCapacity(dispatch);
+        verify(recordBuilder).status(com.hedera.hapi.node.base.ResponseCodeEnum.THROTTLED_AT_CONSENSUS);
+        verify(feeAccumulator).chargeFees(PAYER_ACCOUNT_ID, CREATOR_ACCOUNT_ID, FEES, null);
+        verify(feeAccumulator).chargeFees(PAYER_ACCOUNT_ID, CREATOR_ACCOUNT_ID, FEES.withoutServiceComponent(), null);
+        verify(feeAccumulator).reverseAccumulatedNodeFees();
+        verify(ethereumTransactionHandler).handleThrottled(context);
+        verify(opWorkflowMetrics).incrementThrottled(ETHEREUM_TRANSACTION);
+        assertFinished();
+    }
+
+    @Test
+    void blockFullStillReplaysHollowFinalizations() throws ThrottleException {
+        given(dispatch.fees()).willReturn(FEES);
+        given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
+        given(dispatchValidator.validateFeeChargingScenario(dispatch))
+                .willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
+        given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
+        given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
+        given(dispatch.handleContext()).willReturn(context);
+        givenAuthorization();
+        given(dispatch.txnCategory()).willReturn(USER);
+        doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
+        doCallRealMethod().when(dispatch).category();
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
+
+        subject.processDispatch(dispatch, hollowAccountCompletionsDetails, true);
+
+        verify(dispatcher, never()).dispatchHandle(context);
+        verify(recordBuilder).status(com.hedera.hapi.node.base.ResponseCodeEnum.THROTTLED_AT_CONSENSUS);
+        // Like any other consensus throttling, the rollback must not undo finalizing the hollow payer
+        verify(hollowAccountCompletionsDetails).replay(any());
+        assertFinished();
+    }
+
+    @Test
     void consGasExhaustedWaivesServiceFee() throws ThrottleException {
         given(dispatch.fees()).willReturn(FEES);
         given(dispatch.feeAccumulator()).willReturn(feeAccumulator);

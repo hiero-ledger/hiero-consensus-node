@@ -21,6 +21,7 @@ import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartR
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartUserTransaction;
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartUserTransactionPreHandleResultP2;
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartUserTransactionPreHandleResultP3;
+import static com.hedera.node.app.throttle.ThrottleAccumulator.throttleExempt;
 import static com.hedera.node.app.workflows.handle.TransactionType.ORDINARY_TRANSACTION;
 import static com.hedera.node.app.workflows.handle.TransactionType.POST_UPGRADE_TRANSACTION;
 import static com.hedera.node.app.workflows.handle.record.SystemTransactions.MAX_NANOS_PER_SYSTEM_DISPATCH;
@@ -111,7 +112,6 @@ import com.hedera.node.app.workflows.handle.steps.ParentTxnFactory;
 import com.hedera.node.app.workflows.handle.steps.StakePeriodChanges;
 import com.hedera.node.app.workflows.prehandle.PreHandleWorkflow.ShortCircuitCallback;
 import com.hedera.node.config.ConfigProvider;
-import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.ClprConfig;
 import com.hedera.node.config.data.ConsensusConfig;
@@ -792,6 +792,9 @@ public class HandleWorkflow {
      * As a side effect on the workflow internal state, updates the {@link BlockStreamManager}'s last interval process
      * time to the latest time known to have been processed; and the {@link #lastExecutedSecond} value to the last
      * second of the interval for which all scheduled transactions were executed.
+     * <p>
+     * In {@code StreamMode.BLOCKS}, once the current block has reached its execution budget, no further schedules
+     * are executed or purged; they remain in state, and the interval stays unprocessed, until a later block.
      *
      * @param state the state to execute scheduled transactions from
      * @param executionStart the start of the interval to execute transactions in
@@ -804,14 +807,20 @@ public class HandleWorkflow {
             @NonNull final Instant executionStart,
             @NonNull final Instant consensusNow,
             @NonNull final NodeInfo creatorInfo) {
+        if (streamMode == BLOCKS && blockStreamManager.hasReachedMaxBlockSize()) {
+            // Leave the whole unprocessed interval, and its schedules, in state for a later block
+            return false;
+        }
         boolean transactionsDispatched = false;
         // Non-final right endpoint of the execution interval, in case we cannot do all the scheduled work
         var executionEnd = consensusNow;
         // We only construct an Iterator<ExecutableTxn> if this is not genesis, and we haven't already
         // created and exhausted iterators through the last second in the interval
         if (executionEnd.getEpochSecond() > lastExecutedSecond) {
-            // If no schedule can run, preserve the beginning of the unprocessed interval.
-            executionEnd = executionStart;
+            if (streamMode == BLOCKS) {
+                // If no schedule can run, preserve the beginning of the unprocessed interval
+                executionEnd = executionStart;
+            }
             final var config = configProvider.getConfiguration();
             final var schedulingConfig = config.getConfigData(SchedulingConfig.class);
             final var consensusConfig = config.getConfigData(ConsensusConfig.class);
@@ -853,12 +862,12 @@ public class HandleWorkflow {
             final var writableStates = state.getWritableStates(ScheduleService.NAME);
             // Configuration sets a maximum number of execution slots per user transaction
             int n = schedulingConfig.maxExecutionsPerUserTxn();
-            while (iter.hasNext()
-                    && !nextTime.isAfter(lastUsableTime)
-                    && n > 0
-                    && (streamMode != BLOCKS || !blockStreamManager.hasReachedMaxBlockSize())) {
-                // Leave the next executable schedule in state when the block fills; retry in a later block.
-                // Checking before next() also prevents the iterator cleanup below from purging it.
+            while (iter.hasNext() && !nextTime.isAfter(lastUsableTime) && n > 0) {
+                // If the block filled, leave the next executable schedule in state for a later block; this
+                // check must follow hasNext() so purgeUntilNext() below is legal and stops before that schedule
+                if (streamMode == BLOCKS && blockStreamManager.hasReachedMaxBlockSize()) {
+                    break;
+                }
                 final var executableTxn = iter.next();
                 if (schedulingConfig.longTermEnabled()) {
                     stakePeriodManager.setCurrentStakePeriodFor(nextTime);
@@ -938,8 +947,7 @@ public class HandleWorkflow {
                     HISTORY_PROOF_KEY_PUBLICATION,
                     HISTORY_ASSEMBLY_SIGNATURE,
                     HISTORY_PROOF_VOTE,
-                    CLPR_ENDPOINT_PUBLICATION,
-                    CLPR_SUBMIT_BUNDLE -> true;
+                    CLPR_ENDPOINT_PUBLICATION -> true;
             default -> false;
         };
     }
@@ -963,17 +971,11 @@ public class HandleWorkflow {
         try {
             final var platformStateStore =
                     new ReadablePlatformStateStore(state.getReadableStates(PlatformStateService.NAME));
-            final long payerNum = parentTxn.txnInfo().payerID().accountNumOrElse(0L);
-            final long lastThrottleExempt = configProvider
-                    .getConfiguration()
-                    .getConfigData(AccountsConfig.class)
-                    .lastThrottleExempt();
-            final boolean payerThrottleExempt = payerNum >= 1 && payerNum <= lastThrottleExempt;
             // Non-exempt block-full submissions follow normal consensus throttle fee charging.
             final boolean blockFull = streamMode == BLOCKS
+                    && blockStreamManager.hasReachedMaxBlockSize()
                     && !isExecutionBudgetExempt(parentTxn.functionality())
-                    && !payerThrottleExempt
-                    && blockStreamManager.hasReachedMaxBlockSize();
+                    && !throttleExempt(parentTxn.txnInfo().payerID(), configProvider.getConfiguration());
             if (this.initTrigger != EVENT_STREAM_RECOVERY
                     && eventBirthRound <= platformStateStore.getLatestFreezeRound()) {
                 if (streamMode != RECORDS) {
