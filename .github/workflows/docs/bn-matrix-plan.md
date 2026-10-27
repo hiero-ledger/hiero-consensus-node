@@ -7,8 +7,12 @@ not only the single version pinned in `.citr-env`.
 
 - New workflow `906-cron-block-node-matrix.yaml`, `workflow_dispatch` only for now (a nightly `schedule` trigger can
   be added later, but would need automatic BN version discovery).
-- The caller must supply both inputs (no defaults): `cn-refs` (comma-separated consensus node branches/tags/SHAs)
-  and `bn-versions` (comma-separated Block Node versions).
+- Both inputs are optional. `cn-refs` (comma-separated consensus node branches/tags/SHAs) defaults to `main` plus the
+  newest `release/X.Y` branch (`support/scripts/discover-cn-refs.sh`, newest by version). `bn-versions` (comma-separated
+  Block Node versions) defaults, per CN ref, to the version that ref pins in `.citr-env` (`block-node-version`) plus
+  the newest stable Block Node release if different (`support/scripts/resolve-latest-bn-release.sh`, sorted by
+  version since the releases API lists by creation date). Given `bn-versions`, every ref is tested with every version.
+  `support/scripts/build-bn-matrix.sh` builds the legs for both cases.
 - Only the Block Node container version varies. The BN protobuf sources CN compiles against stay pinned
   (`blockNodeProtobufSources` in `hiero-dependency-versions/build.gradle.kts`), so each leg tests the current CN
   protobufs against that BN version.
@@ -42,6 +46,7 @@ not only the single version pinned in `.citr-env`.
 | `BlockNodeContainer.java` | Image/plugin version overridable via `BLOCK_NODE_VERSION` (default stays the pinned version) |
 | `821-call-block-node-regression.yaml` | BN version (and the optional `cn-label` input) added to uploaded artifact names and to the Slack panel label |
 | `support/scripts/resolve-bn-versions.sh`, `support/tests/test-resolve-bn-versions.sh` | BN version parsing and validation for 906; tests wired into 857 |
+| `support/scripts/discover-cn-refs.sh`, `resolve-latest-bn-release.sh`, `build-bn-matrix.sh` and their tests | Detection of CN refs and BN versions when the inputs are empty; tests wired into 857 |
 | `support/scripts/summarize-bn-matrix.sh`, `support/tests/test-summarize-bn-matrix.sh` | Per-leg result lines for the 906 summary; tests wired into 857 |
 | `docs/workflow-manifest.md` | Row for 906 |
 

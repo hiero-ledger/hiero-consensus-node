@@ -81,3 +81,47 @@ jobs:
 
       - name: Test Block Node Version Resolution
         run: bash ./.github/workflows/support/tests/test-resolve-bn-versions.sh
+
+  test-discover-cn-refs:
+    name: Validate Consensus Node Ref Discovery
+    runs-on: hl-cn-default-lin-sm
+    steps:
+      - name: Initialize GitHub Job
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+        with:
+          checkout: "true"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+          setup-jq: "true"
+
+      - name: Test Consensus Node Ref Discovery
+        run: bash ./.github/workflows/support/tests/test-discover-cn-refs.sh
+
+
+  test-resolve-latest-bn-release:
+    name: Validate Latest Block Node Release Resolution
+    runs-on: hl-cn-default-lin-sm
+    steps:
+      - name: Initialize GitHub Job
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+        with:
+          checkout: "true"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+          setup-jq: "true"
+
+      - name: Test Latest Block Node Release Resolution
+        run: bash ./.github/workflows/support/tests/test-resolve-latest-bn-release.sh
+
+
+  test-build-bn-matrix:
+    name: Validate Block Node Matrix Building
+    runs-on: hl-cn-default-lin-sm
+    steps:
+      - name: Initialize GitHub Job
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+        with:
+          checkout: "true"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+          setup-jq: "true"
+
+      - name: Test Block Node Matrix Building
+        run: bash ./.github/workflows/support/tests/test-build-bn-matrix.sh

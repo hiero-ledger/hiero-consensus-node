@@ -3,7 +3,7 @@
 #
 # Prints, as a compact JSON array, the test configuration of every consensus node ref to regression-test.
 # Each element holds the ref plus the versions that ref pins for itself (read with `git show`, no checkout):
-#   {"cn-ref","cn-slug","solo-version","java-version","bn-mirror-node-version","tck-version","js-sdk-version","bn-version-override"}
+#   {"cn-ref","cn-slug","solo-version","java-version","bn-mirror-node-version","tck-version","js-sdk-version","bn-pinned-version","bn-version-override"}
 # "bn-version-override" is true when the ref's BlockNodeContainer reads the BLOCK_NODE_VERSION env var; on refs
 # without it the BN communication suite would silently run the pinned Block Node image whatever version is requested.
 #
@@ -69,6 +69,7 @@ while IFS= read -r ref; do
   mn=$(echo "${citr}" | get bn-mirror-node-version "${CITR_ENV}")
   tck=$(echo "${citr}" | get tck-version "${CITR_ENV}")
   sdk=$(echo "${citr}" | get js-sdk-version "${CITR_ENV}")
+  bn=$(echo "${citr}" | get block-node-version "${CITR_ENV}")
 
   # a missing BlockNodeContainer fails git show (and the script); only a present file without the env var means "no"
   bn_container=$(git show "FETCH_HEAD:${BN_CONTAINER}")
@@ -85,9 +86,9 @@ while IFS= read -r ref; do
 
   configs=$(echo "${configs}" | jq -c \
     --arg ref "${ref}" --arg slug "${slug}" --arg solo "${solo}" --arg java "${java}" \
-    --arg mn "${mn}" --arg tck "${tck}" --arg sdk "${sdk}" --argjson override "${override}" \
+    --arg mn "${mn}" --arg tck "${tck}" --arg sdk "${sdk}" --arg bn "${bn}" --argjson override "${override}" \
     '. + [{"cn-ref": $ref, "cn-slug": $slug, "solo-version": $solo, "java-version": $java,
-           "bn-mirror-node-version": $mn, "tck-version": $tck, "js-sdk-version": $sdk,
+           "bn-mirror-node-version": $mn, "tck-version": $tck, "js-sdk-version": $sdk, "bn-pinned-version": $bn,
            "bn-version-override": $override}]')
 done <<< "${refs}"
 
