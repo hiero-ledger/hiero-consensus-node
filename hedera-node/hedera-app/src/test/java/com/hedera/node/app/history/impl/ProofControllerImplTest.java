@@ -6,6 +6,7 @@ import static com.hedera.hapi.node.state.history.WrapsPhase.R1;
 import static com.hedera.hapi.node.state.history.WrapsPhase.R2;
 import static com.hedera.hapi.node.state.history.WrapsPhase.R3;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
+import static com.hedera.node.app.history.HistoryLibrary.MAX_ADDRESS_BOOK_SIZE;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.AdditionalMatchers.aryEq;
 import static org.mockito.ArgumentMatchers.any;
@@ -26,6 +27,7 @@ import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
+import com.hedera.hapi.node.state.history.ProofKey;
 import com.hedera.hapi.node.state.history.WrapsSigningState;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.HistoryService;
@@ -37,13 +39,17 @@ import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.stream.LongStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -63,6 +69,7 @@ class ProofControllerImplTest {
     private static final Bytes ROSTER_HASH = Bytes.wrap("roster-hash");
     private static final Bytes TARGET_BOOK_HASH = Bytes.wrap("target-book-hash");
     private static final Bytes GROUNDED_LEDGER_ID = Bytes.wrap("grounded-ledger-id");
+    private static final History TARGET_HISTORY = new History(TARGET_BOOK_HASH, METADATA);
     private static final String RECOVERABLE_REASON =
             "Still missing messages from R1 nodes [2] after end of grace period for phase R2";
     private static final TssConfig DEFAULT_TSS_CONFIG = DEFAULT_CONFIG.getConfigData(TssConfig.class);
@@ -926,10 +933,11 @@ class ProofControllerImplTest {
     }
 
     @Test
-    void addProofVoteStoresDirectProofVoteAndMayFinish() {
-        final var proof = recursiveProof("compressed", "uncompressed");
+    void addProofVoteStoresDirectProofVoteAndMayFinish() throws Exception {
+        final var proof = recursiveProof("compressed", "uncompressed", TARGET_HISTORY);
         final var vote = HistoryProofVote.newBuilder().proof(proof).build();
 
+        givenTargetHistory();
         given(historyLibrary.verifyCompressedProof(any(), any(), any())).willReturn(true);
         given(weights.sourceWeightOf(SELF_ID)).willReturn(10L);
         given(weights.sourceWeightThreshold()).willReturn(5L);
@@ -944,8 +952,8 @@ class ProofControllerImplTest {
     }
 
     @Test
-    void addProofVoteHandlesCongruentVotes() {
-        final var proof = recursiveProof("compressed", "uncompressed");
+    void addProofVoteHandlesCongruentVotes() throws Exception {
+        final var proof = recursiveProof("compressed", "uncompressed", TARGET_HISTORY);
         final var baseVote = HistoryProofVote.newBuilder().proof(proof).build();
         existingVotes.put(OTHER_NODE_ID, baseVote);
 
@@ -970,6 +978,7 @@ class ProofControllerImplTest {
         final var congruentVote =
                 HistoryProofVote.newBuilder().congruentNodeId(OTHER_NODE_ID).build();
 
+        givenTargetHistory();
         given(historyLibrary.verifyCompressedProof(any(), any(), any())).willReturn(true);
         given(weights.sourceWeightOf(SELF_ID)).willReturn(10L);
         given(weights.sourceWeightOf(OTHER_NODE_ID)).willReturn(10L);
@@ -1027,10 +1036,14 @@ class ProofControllerImplTest {
     }
 
     @Test
-    void addProofVoteCategorizesVoteWithoutWrapsProofAsInvalidEvenWithThresholdWeight() {
-        final var proof = aggregatedSignatureProof();
+    void addProofVoteCategorizesVoteWithoutWrapsProofAsInvalidEvenWithThresholdWeight() throws Exception {
+        final var proof = aggregatedSignatureProof()
+                .copyBuilder()
+                .targetHistory(TARGET_HISTORY)
+                .build();
         final var vote = HistoryProofVote.newBuilder().proof(proof).build();
 
+        givenTargetHistory();
         given(weights.sourceWeightOf(SELF_ID)).willReturn(10L);
         given(weights.sourceWeightThreshold()).willReturn(5L);
 
@@ -1042,14 +1055,15 @@ class ProofControllerImplTest {
     }
 
     @Test
-    void addProofVoteCategorizesInvalidRecursiveVoteWithoutFinishing() {
-        final var proof = recursiveProof("compressed", "uncompressed");
+    void addProofVoteCategorizesInvalidRecursiveVoteWithoutFinishing() throws Exception {
+        final var proof = recursiveProof("compressed", "uncompressed", TARGET_HISTORY);
         final var vote = HistoryProofVote.newBuilder().proof(proof).build();
 
+        givenTargetHistory();
         given(historyLibrary.verifyCompressedProof(
                         eq(Bytes.wrap("compressed").toByteArray()),
                         eq(Bytes.EMPTY.toByteArray()),
-                        eq(Bytes.EMPTY.toByteArray())))
+                        eq(METADATA.toByteArray())))
                 .willReturn(false);
         given(weights.sourceWeightOf(SELF_ID)).willReturn(10L);
         given(weights.sourceWeightThreshold()).willReturn(15L);
@@ -1062,9 +1076,9 @@ class ProofControllerImplTest {
     }
 
     @Test
-    void addProofVoteFinishesRecursiveProofWhenValidVotesReachThreshold() {
-        final var higherNodeProof = recursiveProof("compressed-2", "uncompressed-2");
-        final var lowerNodeProof = recursiveProof("compressed-1", "uncompressed-1");
+    void addProofVoteFinishesRecursiveProofWhenValidVotesReachThreshold() throws Exception {
+        final var higherNodeProof = recursiveProof("compressed-2", "uncompressed-2", TARGET_HISTORY);
+        final var lowerNodeProof = recursiveProof("compressed-1", "uncompressed-1", TARGET_HISTORY);
         existingVotes.put(
                 OTHER_NODE_ID,
                 HistoryProofVote.newBuilder().proof(higherNodeProof).build());
@@ -1090,15 +1104,16 @@ class ProofControllerImplTest {
         final var lowerNodeVote =
                 HistoryProofVote.newBuilder().proof(lowerNodeProof).build();
 
+        givenTargetHistory();
         given(historyLibrary.verifyCompressedProof(
                         eq(Bytes.wrap("compressed-1").toByteArray()),
                         eq(Bytes.EMPTY.toByteArray()),
-                        eq(Bytes.EMPTY.toByteArray())))
+                        eq(METADATA.toByteArray())))
                 .willReturn(true);
         given(historyLibrary.verifyCompressedProof(
                         eq(Bytes.wrap("compressed-2").toByteArray()),
                         eq(Bytes.EMPTY.toByteArray()),
-                        eq(Bytes.EMPTY.toByteArray())))
+                        eq(METADATA.toByteArray())))
                 .willReturn(true);
         given(weights.sourceWeightOf(SELF_ID)).willReturn(10L);
         given(weights.sourceWeightOf(OTHER_NODE_ID)).willReturn(10L);
@@ -1115,21 +1130,27 @@ class ProofControllerImplTest {
 
     @Test
     void recursiveProofValidationCacheIncludesLedgerAndMetadataContext() throws Exception {
-        final var proof = recursiveProof("compressed", "uncompressed");
+        final var metadata1 = Bytes.wrap("metadata-1");
+        final var metadata2 = Bytes.wrap("metadata-2");
+        final var proof = recursiveProof("compressed", "uncompressed", new History(TARGET_BOOK_HASH, metadata1));
         final var vote = HistoryProofVote.newBuilder().proof(proof).build();
         final var ledgerId1 = Bytes.wrap("ledger-1");
         final var ledgerId2 = Bytes.wrap("ledger-2");
-        final var metadata1 = Bytes.wrap("metadata-1");
-        final var metadata2 = Bytes.wrap("metadata-2");
 
+        given(historyLibrary.hashAddressBook(any())).willReturn(TARGET_BOOK_HASH.toByteArray());
+        given(historyLibrary.verifyCompressedProof(any(), any(), aryEq(metadata1.toByteArray())))
+                .willReturn(true);
         given(writableHistoryStore.getLedgerId()).willReturn(ledgerId1, ledgerId2);
         given(weights.sourceWeightThreshold()).willReturn(1L);
 
         setField("targetMetadata", metadata1);
         subject.addProofVote(SELF_ID, vote, Instant.EPOCH, writableHistoryStore, tssConfig);
-
-        setField("targetMetadata", metadata2);
         subject.addProofVote(OTHER_NODE_ID, vote, Instant.EPOCH, writableHistoryStore, tssConfig);
+
+        // The proof commits to a history with the first metadata, so it is invalid for the second (and is only
+        // found invalid if its validity for the first metadata is not reused)
+        setField("targetMetadata", metadata2);
+        subject.addProofVote(3L, vote, Instant.EPOCH, writableHistoryStore, tssConfig);
 
         verify(historyLibrary)
                 .verifyCompressedProof(
@@ -1140,7 +1161,9 @@ class ProofControllerImplTest {
                 .verifyCompressedProof(
                         aryEq(Bytes.wrap("compressed").toByteArray()),
                         aryEq(ledgerId2.toByteArray()),
-                        aryEq(metadata2.toByteArray()));
+                        aryEq(metadata1.toByteArray()));
+        verify(historyLibrary, never()).verifyCompressedProof(any(), any(), aryEq(metadata2.toByteArray()));
+        verify(prover).observeProofVote(eq(3L), eq(vote), eq(false), eq(ProofVoteCategory.INVALID));
     }
 
     @Test
@@ -1166,10 +1189,10 @@ class ProofControllerImplTest {
                 null,
                 historyProofMetrics,
                 DEFAULT_TSS_CONFIG);
-        final var proof = recursiveProof("compressed", "uncompressed");
-        final var vote = HistoryProofVote.newBuilder().proof(proof).build();
         final var ledgerId = Bytes.wrap("ledger");
         final var metadata = Bytes.wrap("metadata");
+        final var proof = recursiveProof("compressed", "uncompressed", new History(TARGET_BOOK_HASH, metadata));
+        final var vote = HistoryProofVote.newBuilder().proof(proof).build();
         final var restarted = HistoryProofConstruction.newBuilder()
                 .constructionId(CONSTRUCTION_ID)
                 .proofKeyCutoffTime(asTimestamp(Instant.EPOCH.plusSeconds(10)))
@@ -1177,6 +1200,7 @@ class ProofControllerImplTest {
                 .wrapsRetryCount(1)
                 .build();
 
+        given(historyLibrary.hashAddressBook(any())).willReturn(TARGET_BOOK_HASH.toByteArray());
         given(writableHistoryStore.getLedgerId()).willReturn(ledgerId);
         given(weights.sourceWeightThreshold()).willReturn(1L);
         given(prover.advance(any(), any(), any(), any(), eq(DEFAULT_TSS_CONFIG), any(), eq(true)))
@@ -1299,6 +1323,96 @@ class ProofControllerImplTest {
     }
 
     @Test
+    void addProofVoteOnlyAcceptsProofOfThisNodesTargetHistory() throws Exception {
+        final long lowestNodeId = 0L;
+        final var proof = recursiveProof("compressed", "uncompressed", TARGET_HISTORY);
+        // The same compressed proof with another target history
+        final var otherHistoryProof = proof.copyBuilder()
+                .targetHistory(new History(Bytes.wrap("SOME_OTHER_BOOK_HASH"), METADATA))
+                .build();
+        final var otherHistoryVote =
+                HistoryProofVote.newBuilder().proof(otherHistoryProof).build();
+        final var vote = HistoryProofVote.newBuilder().proof(proof).build();
+        givenTargetHistory();
+        given(historyLibrary.verifyCompressedProof(any(), any(), any())).willReturn(true);
+        given(weights.sourceWeightOf(lowestNodeId)).willReturn(10L);
+        given(weights.sourceWeightOf(SELF_ID)).willReturn(10L);
+        given(weights.sourceWeightThreshold()).willReturn(10L);
+        given(writableHistoryStore.completeProof(CONSTRUCTION_ID, proof)).willReturn(construction);
+
+        // Had the lowest node's proof been valid, its vote alone would have finished the construction
+        subject.addProofVote(lowestNodeId, otherHistoryVote, Instant.EPOCH, writableHistoryStore, tssConfig);
+        subject.addProofVote(SELF_ID, vote, Instant.EPOCH, writableHistoryStore, tssConfig);
+
+        verify(prover)
+                .observeProofVote(eq(lowestNodeId), eq(otherHistoryVote), eq(false), eq(ProofVoteCategory.INVALID));
+        verify(writableHistoryStore, never()).completeProof(CONSTRUCTION_ID, otherHistoryProof);
+        verify(writableHistoryStore).completeProof(CONSTRUCTION_ID, proof);
+    }
+
+    @Test
+    void addProofVoteOnlyAcceptsProofOfThisNodesTargetProofKeys() throws Exception {
+        final long lowestNodeId = 0L;
+        given(weights.targetIncludes(SELF_ID)).willReturn(true);
+        subject.addProofKeyPublication(new ProofKeyPublication(SELF_ID, PROOF_KEY_1, Instant.EPOCH));
+        final var proof = recursiveProof("compressed", "uncompressed", TARGET_HISTORY)
+                .copyBuilder()
+                .targetProofKeys(new ProofKey(SELF_ID, PROOF_KEY_1))
+                .build();
+        // The same compressed proof with another target proof key
+        final var otherKeysProof = proof.copyBuilder()
+                .targetProofKeys(new ProofKey(SELF_ID, Bytes.wrap("other-key")))
+                .build();
+        final var otherKeysVote =
+                HistoryProofVote.newBuilder().proof(otherKeysProof).build();
+        final var vote = HistoryProofVote.newBuilder().proof(proof).build();
+        givenTargetHistory();
+        given(historyLibrary.verifyCompressedProof(any(), any(), any())).willReturn(true);
+        given(weights.sourceWeightOf(lowestNodeId)).willReturn(10L);
+        given(weights.sourceWeightOf(SELF_ID)).willReturn(10L);
+        given(weights.sourceWeightThreshold()).willReturn(10L);
+        given(writableHistoryStore.completeProof(CONSTRUCTION_ID, proof)).willReturn(construction);
+
+        // Had the lowest node's proof been valid, its vote alone would have finished the construction
+        subject.addProofVote(lowestNodeId, otherKeysVote, Instant.EPOCH, writableHistoryStore, tssConfig);
+        subject.addProofVote(SELF_ID, vote, Instant.EPOCH, writableHistoryStore, tssConfig);
+
+        verify(prover).observeProofVote(eq(lowestNodeId), eq(otherKeysVote), eq(false), eq(ProofVoteCategory.INVALID));
+        verify(writableHistoryStore, never()).completeProof(CONSTRUCTION_ID, otherKeysProof);
+        verify(writableHistoryStore).completeProof(CONSTRUCTION_ID, proof);
+    }
+
+    @Test
+    void proofValidityIsRecomputedWhenTargetProofKeysChange() throws Exception {
+        final var proof = recursiveProof("compressed", "uncompressed", TARGET_HISTORY)
+                .copyBuilder()
+                .targetProofKeys(new ProofKey(SELF_ID, PROOF_KEY_1))
+                .build();
+        final var vote = HistoryProofVote.newBuilder().proof(proof).build();
+        givenTargetHistory();
+        given(historyLibrary.verifyCompressedProof(any(), any(), any())).willReturn(true);
+        given(weights.targetIncludes(SELF_ID)).willReturn(true);
+        given(weights.sourceWeightOf(SELF_ID)).willReturn(10L);
+        given(weights.sourceWeightOf(OTHER_NODE_ID)).willReturn(10L);
+        given(weights.sourceWeightThreshold()).willReturn(20L);
+        given(writableHistoryStore.completeProof(CONSTRUCTION_ID, proof)).willReturn(construction);
+
+        // The vote is invalid until the key it commits to is published; after that, a node that rebuilds this
+        // controller from state counts it as valid, so this controller must not keep its earlier result
+        subject.addProofVote(OTHER_NODE_ID, vote, Instant.EPOCH, writableHistoryStore, tssConfig);
+        subject.addProofKeyPublication(new ProofKeyPublication(SELF_ID, PROOF_KEY_1, Instant.EPOCH));
+        subject.addProofVote(
+                SELF_ID,
+                HistoryProofVote.newBuilder().congruentNodeId(OTHER_NODE_ID).build(),
+                Instant.EPOCH,
+                writableHistoryStore,
+                tssConfig);
+
+        verify(prover).observeProofVote(eq(OTHER_NODE_ID), eq(vote), eq(false), eq(ProofVoteCategory.INVALID));
+        verify(writableHistoryStore).completeProof(CONSTRUCTION_ID, proof);
+    }
+
+    @Test
     void advanceConstructionStartsAssemblyAfterGracePeriodWhenPublishedWeightMeetsThreshold() {
         given(weights.numTargetNodesInSource()).willReturn(2);
         given(weights.targetIncludes(SELF_ID)).willReturn(true);
@@ -1356,7 +1470,7 @@ class ProofControllerImplTest {
     }
 
     @Test
-    void constructorReplaysCongruentVoteChainRegardlessOfMapOrder() {
+    void constructorReplaysCongruentVoteChainRegardlessOfMapOrder() throws Exception {
         // Regression for #26524: persisted votes come back from state in HashMap iteration order, NOT the consensus
         // order in which they were cast. A congruent vote replayed before the explicit vote it references must still
         // be counted; otherwise a reconnecting node ends up with less counted weight than the nodes that never
@@ -1365,7 +1479,7 @@ class ProofControllerImplTest {
         // and the chain node 0 -> node 1 -> node 2 (explicit) is only rebuilt if replay resolves dependencies
         // iteratively rather than in map order -- so the test does not depend on the current JDK's HashMap bucket
         // order.
-        final var proof = recursiveProof("compressed", "uncompressed");
+        final var proof = recursiveProof("compressed", "uncompressed", TARGET_HISTORY);
         final Map<Long, HistoryProofVote> hostileOrderVotes = new LinkedHashMap<>();
         hostileOrderVotes.put(
                 0L, HistoryProofVote.newBuilder().congruentNodeId(1L).build());
@@ -1394,6 +1508,7 @@ class ProofControllerImplTest {
         // Nodes 0, 1, and 2 must all be counted (weight 30). With a threshold of 35 the proof is not yet complete,
         // but one more congruent vote (node 3) crosses it. Had node 0 or node 1 been dropped during replay, the tally
         // would be short of the threshold and completeProof would never be called.
+        givenTargetHistory();
         given(historyLibrary.verifyCompressedProof(any(), any(), any())).willReturn(true);
         given(weights.sourceWeightOf(0L)).willReturn(10L);
         given(weights.sourceWeightOf(1L)).willReturn(10L);
@@ -1561,6 +1676,160 @@ class ProofControllerImplTest {
         verify(prover).advance(any(), any(), eq(METADATA), eq(accepted), any(), any(), eq(true));
     }
 
+    @Test
+    void invalidAndCopiedProofKeysAreIgnoredTheSameWayLiveAndRebuiltFromState() throws Exception {
+        final var library = new HistoryLibraryImpl();
+        final var key1 = Bytes.wrap(library.newSchnorrKeyPair().publicKey());
+        final var key4 = Bytes.wrap(library.newSchnorrKeyPair().publicKey());
+        final var nodeWeights = new TreeMap<>(Map.of(1L, 1L, 2L, 1L, 3L, 1L, 4L, 1L));
+        // Node 2 copies node 4's key after node 4 adopted it, and node 3 publishes bytes that are not a key
+        final var publications = List.of(
+                new ProofKeyPublication(1L, key1, Instant.EPOCH),
+                new ProofKeyPublication(2L, key4, Instant.EPOCH.plusSeconds(2)),
+                new ProofKeyPublication(3L, Bytes.wrap(new byte[(int) key1.length()]), Instant.EPOCH.plusSeconds(3)),
+                new ProofKeyPublication(4L, key4, Instant.EPOCH.plusSeconds(1)));
+
+        final var live = keySelectingController(library, nodeWeights, List.of());
+        publications.stream()
+                .sorted(Comparator.comparing(ProofKeyPublication::adoptionTime))
+                .forEach(live::addProofKeyPublication);
+        final var rebuilt = keySelectingController(library, nodeWeights, publications);
+
+        final var expected = Map.of(1L, key1, 4L, key4);
+        assertEquals(expected, targetProofKeysOf(live));
+        assertEquals(expected, targetProofKeysOf(rebuilt));
+    }
+
+    @Test
+    void copiedProofKeySelectionDependsOnAdoptionTimeNotArrivalOrder() throws Exception {
+        // A key rotated in when a construction is created is adopted at the last consensus time of that round;
+        // so a first key published in the same round can arrive later but have an earlier adoption time
+        final var library = new HistoryLibraryImpl();
+        final var key = Bytes.wrap(library.newSchnorrKeyPair().publicKey());
+        final var nodeWeights = new TreeMap<>(Map.of(1L, 1L, 2L, 1L));
+        final var rotated = new ProofKeyPublication(1L, key, Instant.EPOCH.plusSeconds(1));
+        final var published =
+                new ProofKeyPublication(2L, key, Instant.EPOCH.plusSeconds(1).minusNanos(1));
+
+        final var live = keySelectingController(library, nodeWeights, List.of(rotated));
+        live.addProofKeyPublication(published);
+        final var rebuilt = keySelectingController(library, nodeWeights, List.of(rotated, published));
+
+        assertEquals(Map.of(2L, key), targetProofKeysOf(live));
+        assertEquals(Map.of(2L, key), targetProofKeysOf(rebuilt));
+    }
+
+    @Test
+    void proofKeyPublishedAfterTheOthersIsCheckedWithOneHash() throws Exception {
+        final var invalidKey = Bytes.wrap("invalid");
+        given(historyLibrary.hashAddressBook(any())).willAnswer(invocation -> {
+            final HistoryLibrary.AddressBook book = invocation.getArgument(0);
+            if (Arrays.stream(book.publicKeys()).anyMatch(key -> Arrays.equals(key, invalidKey.toByteArray()))) {
+                throw new IllegalArgumentException("Invalid key");
+            }
+            return TARGET_BOOK_HASH.toByteArray();
+        });
+        final var nodeWeights = new TreeMap<>(Map.of(1L, 1L, 2L, 1L, 3L, 1L, 4L, 1L, 5L, 1L));
+        final var live = keySelectingController(historyLibrary, nodeWeights, List.of());
+
+        live.addProofKeyPublication(new ProofKeyPublication(1L, invalidKey, Instant.EPOCH));
+        for (long nodeId = 2L; nodeId <= 5L; nodeId++) {
+            live.addProofKeyPublication(
+                    new ProofKeyPublication(nodeId, Bytes.wrap("key" + nodeId), Instant.EPOCH.plusSeconds(nodeId)));
+        }
+
+        // Keys are not all checked again each time a key arrives after an invalid one
+        verify(historyLibrary, times(5)).hashAddressBook(any());
+        assertEquals(Set.of(2L, 3L, 4L, 5L), targetProofKeysOf(live).keySet());
+    }
+
+    @Test
+    void everyProofKeyIsKeptForATargetRosterTooLargeForAnyAddressBook() throws Exception {
+        final var nodeWeights = new TreeMap<Long, Long>();
+        LongStream.rangeClosed(1, MAX_ADDRESS_BOOK_SIZE + 1).forEach(nodeId -> nodeWeights.put(nodeId, 1L));
+        final var publications = List.of(
+                new ProofKeyPublication(1L, PROOF_KEY_1, Instant.EPOCH),
+                new ProofKeyPublication(2L, PROOF_KEY_1, Instant.EPOCH));
+
+        final var rebuilt = keySelectingController(historyLibrary, nodeWeights, publications);
+
+        // So the prover fails the construction for its address book being too large
+        assertEquals(Map.of(1L, PROOF_KEY_1, 2L, PROOF_KEY_1), targetProofKeysOf(rebuilt));
+        verify(historyLibrary, never()).hashAddressBook(any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void invalidAndCopiedProofKeysDoNotStopWrapsSigning(final boolean replayedFromState) {
+        final var library = new HistoryLibraryImpl();
+        final var selfKeys = library.newSchnorrKeyPair();
+        final var node2Key = Bytes.wrap(library.newSchnorrKeyPair().publicKey());
+        // Nodes 4 and 5 hold too little weight to stop assembly once their keys are ignored
+        final var nodeWeights = new TreeMap<>(Map.of(SELF_ID, 3L, 2L, 3L, 3L, 3L, 4L, 1L, 5L, 1L));
+        final var publications = List.of(
+                new ProofKeyPublication(SELF_ID, Bytes.wrap(selfKeys.publicKey()), Instant.EPOCH),
+                new ProofKeyPublication(2L, node2Key, Instant.EPOCH),
+                new ProofKeyPublication(
+                        3L, Bytes.wrap(library.newSchnorrKeyPair().publicKey()), Instant.EPOCH),
+                new ProofKeyPublication(4L, Bytes.wrap(new byte[selfKeys.publicKey().length]), Instant.EPOCH),
+                new ProofKeyPublication(5L, node2Key, Instant.EPOCH.plusSeconds(1)));
+        final HistoryProver.Factory wrapsProverFactory = (s, t, k, p, w, r, x, l, m) -> new WrapsHistoryProver(
+                s,
+                t.wrapsMessageGracePeriod(),
+                k,
+                p,
+                w,
+                r,
+                CompletableFuture::delayedExecutor,
+                x,
+                l,
+                m,
+                new WrapsMpcStateMachine());
+        final var rosterHash = Bytes.wrap("roster");
+        final var genesisConstruction = construction
+                .copyBuilder()
+                .sourceRosterHash(rosterHash)
+                .targetRosterHash(rosterHash)
+                .build();
+        final var assembledConstruction = genesisConstruction
+                .copyBuilder()
+                .assemblyStartTime(asTimestamp(Instant.EPOCH))
+                .build();
+        given(writableHistoryStore.setAssemblyTime(eq(CONSTRUCTION_ID), any())).willReturn(assembledConstruction);
+        given(writableHistoryStore.getConstructionOrThrow(CONSTRUCTION_ID)).willReturn(assembledConstruction);
+        given(submissions.submitWrapsSigningMessage(eq(R1), any(), eq(CONSTRUCTION_ID)))
+                .willReturn(CompletableFuture.completedFuture(null));
+
+        subject = new ProofControllerImpl(
+                SELF_ID,
+                new ProofKeysAccessorImpl.SchnorrKeyPair(
+                        Bytes.wrap(selfKeys.privateKey()), Bytes.wrap(selfKeys.publicKey())),
+                genesisConstruction,
+                new RosterTransitionWeights(nodeWeights, nodeWeights),
+                executor,
+                submissions,
+                machine,
+                replayedFromState ? publications : List.of(),
+                wrapsMessagePublications,
+                existingVotes,
+                historyService,
+                library,
+                wrapsProverFactory,
+                null,
+                historyProofMetrics,
+                DEFAULT_TSS_CONFIG);
+        if (!replayedFromState) {
+            publications.forEach(subject::addProofKeyPublication);
+        }
+
+        for (int i = 1; i <= 30; i++) {
+            subject.advanceConstruction(
+                    Instant.EPOCH.plusSeconds(i), METADATA, writableHistoryStore, true, DEFAULT_TSS_CONFIG);
+        }
+
+        verify(submissions).submitWrapsSigningMessage(eq(R1), any(), eq(CONSTRUCTION_ID));
+    }
+
     private void givenGroundingSubject() {
         construction = HistoryProofConstruction.newBuilder()
                 .constructionId(CONSTRUCTION_ID)
@@ -1624,6 +1893,49 @@ class ProofControllerImplTest {
 
         verify(historyProofMetrics, times(2)).observeStage(CONSTRUCTION_ID, stage, now);
         reset(historyProofMetrics, prover, writableHistoryStore);
+    }
+
+    /**
+     * Gives the subject the target metadata, and the library a target address book hash, so that only a proof
+     * committing to {@link #TARGET_HISTORY} gets as far as having its compressed proof verified.
+     */
+    private void givenTargetHistory() throws Exception {
+        given(historyLibrary.hashAddressBook(any())).willReturn(TARGET_BOOK_HASH.toByteArray());
+        setField("targetMetadata", METADATA);
+    }
+
+    /**
+     * Returns a controller using the given library and target roster, with the given proof key publications in
+     * state; and whose prover is the mock.
+     */
+    private ProofControllerImpl keySelectingController(
+            final HistoryLibrary library,
+            final TreeMap<Long, Long> nodeWeights,
+            final List<ProofKeyPublication> publications) {
+        return new ProofControllerImpl(
+                SELF_ID,
+                keyPair,
+                construction,
+                new RosterTransitionWeights(nodeWeights, nodeWeights),
+                executor,
+                submissions,
+                machine,
+                publications,
+                List.of(),
+                Map.of(),
+                historyService,
+                library,
+                (s, t, k, p, w, r, x, l, m) -> prover,
+                null,
+                historyProofMetrics,
+                DEFAULT_TSS_CONFIG);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<Long, Bytes> targetProofKeysOf(final ProofControllerImpl controller) throws Exception {
+        final var field = ProofControllerImpl.class.getDeclaredField("targetProofKeys");
+        field.setAccessible(true);
+        return (Map<Long, Bytes>) field.get(controller);
     }
 
     private void setField(String name, Object value) throws Exception {
