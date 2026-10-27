@@ -113,6 +113,22 @@ jobs:
             echo "::error::$t failed"
             echo "❌ $t FAILED — expand group above for details"
           }
+          # TEMP debug: thread-dump all nodes when TransactionHandler backlog grows
+          (
+            D=hedera-node/test-clients/build/hapi-test/hapiTestMiscRecords
+            n=0
+            while [ $n -lt 8 ]; do
+              sleep 2
+              if grep -qE 'TransactionHandler.*unhealthy' $D/node0/output/swirlds.log 2>/dev/null \
+                && [ "$(grep -cE 'TransactionHandler.*unhealthy' $D/node0/output/swirlds.log)" -gt "$n" ]; then
+                n=$((n+1))
+                for p in $(pgrep -f ServicesMain); do
+                  "${JAVA_HOME}/bin/jcmd" "$p" Thread.print -l > "$D/node0/output/threaddump-$n-$p.txt" 2>&1
+                done
+                sleep 5
+              fi
+            done
+          ) &
           run_subtask hapiTestMiscRecords
           run_subtask hapiTestMiscRecordsSerial
           run_subtask hapiTestCrypto
