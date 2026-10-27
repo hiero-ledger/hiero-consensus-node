@@ -95,6 +95,8 @@ public class HgcaaLogValidator {
                 List.of("No pending blocks found"),
                 // Guarded joint TSS handoff deliberately skips partial promotions until both services are ready
                 List.of("TssHandoffCoordinator", "Skipping TSS handoff because"),
+                // hinTS store refuses a handoff whose next construction has no matching completed CRS and scheme yet
+                List.of("WritableHintsStoreImpl", "Ignoring handoff to construction"),
                 List.of("HintsSubmissions", "Failed to submit"),
                 List.of("Ignoring invalid partial signature"),
                 List.of("Action stack prematurely empty"),
