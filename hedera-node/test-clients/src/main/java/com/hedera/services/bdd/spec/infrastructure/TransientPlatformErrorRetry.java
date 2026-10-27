@@ -17,22 +17,23 @@ import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
  * A time-based retry with exponential backoff is used instead of a fixed retry count
  * so that the test client rides out these transient windows.
  *
- * <p>Other transient errors ({@link ResponseCodeEnum#BUSY},
- * {@link ResponseCodeEnum#PLATFORM_TRANSACTION_NOT_CREATED}) are short-lived and
- * use a simple count-based retry with fixed backoff.
+ * <p>{@link ResponseCodeEnum#PLATFORM_TRANSACTION_NOT_CREATED} also uses this window:
+ * an ACTIVE node can reject submissions while its transaction handler drains a backlog,
+ * including immediately after a restart. {@link ResponseCodeEnum#BUSY} retains its
+ * short, count-based retry with fixed backoff.
  */
 public final class TransientPlatformErrorRetry {
 
-    /** Maximum wall-clock time to keep retrying PLATFORM_NOT_ACTIVE. */
+    /** Maximum wall-clock time to keep retrying platform availability errors. */
     public static final long PLATFORM_NOT_ACTIVE_TIMEOUT_MS = 10_000;
 
-    /** Initial backoff for PLATFORM_NOT_ACTIVE, doubles each attempt up to {@link #MAX_BACKOFF_MS}. */
+    /** Initial platform backoff, doubles each attempt up to {@link #MAX_BACKOFF_MS}. */
     private static final long INITIAL_BACKOFF_MS = 100;
-    /** Maximum backoff interval for PLATFORM_NOT_ACTIVE retries. */
+    /** Maximum backoff interval for platform availability retries. */
     private static final long MAX_BACKOFF_MS = 2_000;
-    /** Maximum retries for BUSY / PLATFORM_TRANSACTION_NOT_CREATED. */
+    /** Maximum retries for BUSY. */
     private static final int MAX_OTHER_TRANSIENT_RETRIES = 10;
-    /** Fixed backoff for BUSY / PLATFORM_TRANSACTION_NOT_CREATED. */
+    /** Fixed backoff for BUSY. */
     private static final long OTHER_TRANSIENT_BACKOFF_MS = 100;
 
     private TransientPlatformErrorRetry() {}
@@ -42,7 +43,7 @@ public final class TransientPlatformErrorRetry {
      *
      * @param shouldRetry  {@code true} if the caller should retry
      * @param sleepMs      how long to sleep before the next attempt
-     * @param firstSeenMs  the wall-clock timestamp when PLATFORM_NOT_ACTIVE was first
+     * @param firstSeenMs  the wall-clock timestamp when a platform availability error was first
      *                     observed (pass back into the next {@link #evaluate} call;
      *                     0 if not applicable)
      */
@@ -58,7 +59,7 @@ public final class TransientPlatformErrorRetry {
      * @param precheck               the precheck status returned by the node
      * @param retryCount             1-based retry counter maintained by the caller
      * @param platformNotActiveStart the {@link System#currentTimeMillis()} when the first
-     *                               PLATFORM_NOT_ACTIVE was observed (0 if not yet seen)
+     *                               platform availability error was observed (0 if not yet seen)
      * @param nowMs                  the current {@link System#currentTimeMillis()}
      * @return a {@link RetryDecision} indicating whether to retry and how long to sleep
      */
@@ -67,15 +68,15 @@ public final class TransientPlatformErrorRetry {
             final int retryCount,
             final long platformNotActiveStart,
             final long nowMs) {
-        if (precheck == PLATFORM_NOT_ACTIVE) {
+        if (precheck == PLATFORM_NOT_ACTIVE || precheck == PLATFORM_TRANSACTION_NOT_CREATED) {
             final long firstSeen = platformNotActiveStart == 0 ? nowMs : platformNotActiveStart;
             final boolean shouldRetry = (nowMs - firstSeen) < PLATFORM_NOT_ACTIVE_TIMEOUT_MS;
             final long sleepMs = computePlatformNotActiveBackoffMs(retryCount);
             return new RetryDecision(shouldRetry, sleepMs, firstSeen);
         }
-        if (precheck == PLATFORM_TRANSACTION_NOT_CREATED || precheck == BUSY) {
+        if (precheck == BUSY) {
             final boolean shouldRetry = retryCount < MAX_OTHER_TRANSIENT_RETRIES;
-            return new RetryDecision(shouldRetry, OTHER_TRANSIENT_BACKOFF_MS, 0);
+            return new RetryDecision(shouldRetry, OTHER_TRANSIENT_BACKOFF_MS, platformNotActiveStart);
         }
         return NO_RETRY;
     }

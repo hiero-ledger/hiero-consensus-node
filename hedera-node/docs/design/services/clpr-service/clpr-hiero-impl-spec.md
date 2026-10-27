@@ -59,8 +59,8 @@ call it directly from EVM execution context. See [section 6](#6-connector-author
 **Note:** `registerEndpoint` and `deregisterEndpoint` from spec section 6.5 are **not implemented** on Hiero.
 Endpoints are derived automatically from the active roster (see [section 4](#4-endpoint-implementation)).
 
-**Note:** `updateEndpointRoster` from spec section 6.2 is **not implemented**. Peer endpoint discovery is
-handled off-chain via gossip (see cross-platform spec §5.4). Peer endpoint data is not stored in on-ledger state.
+**Note:** `updateEndpointRoster` from spec section 6.2 is **not implemented**. Peer endpoints are learned from the
+peer ledger's endpoint manifest, cached on the Channel (`Channel.endpoint_manifest`).
 
 ## 1.2 Protobuf Message Definitions
 
@@ -508,7 +508,7 @@ Each HAPI transaction type maps to a `TransactionHandler` implementation. Handle
 
 |             Handler Class              |        Transaction Type         |                                                                                                                                                 Complexity                                                                                                                                                 |
 |----------------------------------------|---------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ClprUpdateLedgerConfigurationHandler` | `ClprUpdateLedgerConfiguration` | Medium (admin key check, store config). The handler preserves immutable fields (`chain_id`, `protocol_version`) from the genesis configuration and updates only mutable fields (throttles, service_address, endpoints). Timestamp is set to the consensus time of the transaction.                         |
+| `ClprUpdateLedgerConfigurationHandler` | `ClprUpdateLedgerConfiguration` | Medium (admin key check, store config). The handler preserves immutable fields (`chain_id`, `protocol_version`) from the genesis configuration and updates only mutable fields (throttles, endpoints); `service_address` is fixed. Timestamp is set to the consensus time of the transaction.              |
 | `ClprRegisterChannelHandler`           | `ClprRegisterChannel`           | Medium (commit phase: verifyConfig call, store verifier contract and code fingerprint, Channel creation in PENDING state). No ECDSA verification at this stage. The `chain_id` and `service_address` are derived from the verified peer configuration proof. The verifier is immutable after registration. |
 | `ClprCompleteChannelHandler`           | `ClprCompleteChannel`           | Medium (reveal phase: ECDSA verify, keccak256(channel_id ‖ public_key) == stored commitment check, create Channel in ACTIVE state).                                                                                                                                                                        |
 | `ClprCloseChannelHandler`              | `ClprCloseChannel`              | Low (PENDING → immediate deletion; ACTIVE/PAUSED → transition to CLOSING; `ClprQueueMetadata.state` reflects Channel status; automatic transition to DRAINED when peer acks all outbound, then to CLOSED when both sides DRAINED)                                                                          |
@@ -721,9 +721,14 @@ Per cross-platform spec §3.2 for the `IClprConnectorAuth` interface definition 
 ## 6.1 Authorization Contracts on Hiero
 
 On Hiero, Connector authorization contracts are **smart contracts** (EVM contracts with Hiero `AccountID`s)
-implementing the `IClprConnectorAuth` interface (spec §3.2). The CLPR service invokes `authorizeMessage()`
-during `ClprSendMessage` handling via `HandleContext.dispatchChildTransaction()` with a
-`ContractCallTransactionBody`. The call is read-only (view function) and MUST NOT modify state.
+implementing the `IClprConnectorAuth` interface (spec §3.2). The CLPR `sendMessage` system contract invokes
+`authorizeOutboundMessage(bytes32,bytes,bytes,bytes)` as a child EVM `CALL` frame on the sending transaction's own
+frame stack, with the CLPR system contract as `msg.sender` and a fixed 50,000 gas budget that is not charged to the
+caller. The connector thus shares the sending transaction's context: its `tx.origin`, transient storage, and warm
+addresses; and, when the sender is an EVM hook, the hook's restrictions (no `DELEGATECALL` or `CALLCODE`). A revert,
+halt, or `false` result fails the send with `CLPR_AUTHORIZATION_FAILED`, without failing the rest of the transaction.
+The connector may update its own contract state and emit logs during authorization. These changes revert if
+authorization, the send, or an enclosing call fails.
 
 ## 6.2 Simple Connector Implementations
 
@@ -892,7 +897,9 @@ system (property files / dynamic config).
 Some parameters appear in both (e.g., `maxQueueDepth`, `maxMessagePayloadBytes`). The on-ledger values are
 authoritative for cross-ledger purposes. The `chain_id` and `protocol_version` are set at genesis from
 `clpr.chainId` and `clpr.protocolVersion` configuration properties and are immutable thereafter. The mutable
-fields (throttles, service_address, endpoints) can be updated via `ClprUpdateLedgerConfiguration`.
+fields (throttles, endpoints) can be updated via `ClprUpdateLedgerConfiguration`. `service_address` is fixed to
+the CLPR system contract address (the value this ledger's endpoint manifest carries, which peers verify it
+against); an update may restate it or omit it, and any other value is rejected.
 
 ---
 
@@ -950,8 +957,8 @@ Hiero-specific choices made.
 Hiero where "consensus nodes are the endpoints."
 
 **Hiero decision:** No `registerEndpoint` or `deregisterEndpoint` transactions. Endpoints are derived
-automatically from the active roster. Peer endpoint discovery is handled off-chain via the gossip-based
-`discoverEndpoints` RPC (see cross-platform spec §5.4). Peer endpoint data is NOT stored in on-ledger state.
+automatically from the active roster. Peer endpoints are learned from the peer ledger's endpoint manifest, cached
+on the Channel (`Channel.endpoint_manifest`).
 
 ## 11.2 Endpoint Bond
 

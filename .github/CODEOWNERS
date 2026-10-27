@@ -1,3 +1,7 @@
+# UPDATE BOTH THE `.codeowners` FILE AND THE `.github/CODEOWNERS` FILE WHEN MAKING CHANGES TO OWNERSHIP RULES
+# The `.codeowners` file controls the ownership of files within the repository (ensures the right people are requested for review when a PR is opened)
+# The `.github/CODEOWNERS` file controls PR file filtering (functional for only the PR File Filter feature when performing a code review)
+
 ###################################
 ##### Global Protection Rule ######
 ###################################
@@ -194,6 +198,10 @@ gradlew.bat                                         @hiero-ledger/github-maintai
 # Self-protection for root CODEOWNERS files (this file should not exist and should definitely require approval)
 /CODEOWNERS                                         @hiero-ledger/github-maintainers
 
+# Self-protection for actual CODEOWNERS files - changes to ownership itself must be approved
+/.github/CODEOWNERS                                 @hiero-ledger/github-maintainers
+.codeowners                                         @hiero-ledger/github-maintainers
+
 # Protect the repository root files
 /README.md                                          @hiero-ledger/github-maintainers @hiero-ledger/hiero-consensus-node-foundation-codeowners @hiero-ledger/hiero-consensus-node-execution-codeowners @hiero-ledger/hiero-consensus-node-consensus-codeowners
 **/LICENSE                                          @hiero-ledger/github-maintainers
@@ -206,5 +214,5 @@ gradlew.bat                                         @hiero-ledger/github-maintai
 **/.gitignore.*                                     @hiero-ledger/github-maintainers @hiero-ledger/hiero-consensus-node-foundation-codeowners @hiero-ledger/hiero-consensus-node-execution-codeowners @hiero-ledger/hiero-consensus-node-consensus-codeowners
 
 # Legacy CircleCI configuration
-.circleci.settings.xml                              @hiero-ledger/github-maintainers 
+.circleci.settings.xml                              @hiero-ledger/github-maintainers
 /.circleci/                                         @hiero-ledger/github-maintainers

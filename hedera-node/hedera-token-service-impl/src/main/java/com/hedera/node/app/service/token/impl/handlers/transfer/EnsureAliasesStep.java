@@ -14,7 +14,6 @@ import com.hedera.hapi.node.base.NftTransfer;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -32,7 +31,7 @@ public class EnsureAliasesStep implements TransferStep {
      * an alias is repeated. It is allowed to be repeated in multiple token transfer lists, but not in a single
      * token transfer list
      */
-    private final Map<Bytes, AccountID> tokenTransferResolutions = new LinkedHashMap<>();
+    private final Map<AccountID, AccountID> tokenTransferResolutions = new LinkedHashMap<>();
 
     /**
      * Constructs a {@link EnsureAliasesStep} instance.
@@ -68,8 +67,7 @@ public class EnsureAliasesStep implements TransferStep {
             for (final var adjust : tt.transfers()) {
                 if (isAlias(adjust.accountIDOrThrow())) {
                     final var account = resolveForFungibleToken(adjust, transferContext);
-                    final var alias = adjust.accountIDOrThrow().alias();
-                    tokenTransferResolutions.put(alias, account);
+                    tokenTransferResolutions.put(adjust.accountIDOrThrow(), account);
                     validateTrue(account != null, INVALID_ACCOUNT_ID);
                 }
             }
@@ -83,20 +81,19 @@ public class EnsureAliasesStep implements TransferStep {
     private AccountID resolveForFungibleToken(
             @NonNull final AccountAmount adjust, @NonNull final TransferContext transferContext) {
         final var accountId = adjust.accountIDOrThrow();
-        validateFalse(tokenTransferResolutions.containsKey(accountId.alias()), INVALID_ALIAS_KEY);
+        validateFalse(tokenTransferResolutions.containsKey(accountId), INVALID_ALIAS_KEY);
         final var account = transferContext.getFromAlias(accountId);
         if (account == null) {
-            final var alias = accountId.alias();
             // If the token resolutions map already contains this unknown alias, we can assume
             // it was successfully auto-created by a prior mention in this CryptoTransfer.
             // (If it appeared in a sender location, this transfer will fail anyway.)
-            final var isInResolutions = transferContext.resolutions().containsKey(alias);
+            final var isInResolutions = transferContext.resolutions().containsKey(accountId);
             if (adjust.amount() > 0 && !isInResolutions) {
-                transferContext.createFromAlias(alias, impliedAutoAssociationsForAlias(accountId, op));
+                transferContext.createFromAlias(accountId, impliedAutoAssociationsForAlias(accountId, op));
             } else {
-                validateTrue(transferContext.resolutions().containsKey(alias), INVALID_ACCOUNT_ID);
+                validateTrue(transferContext.resolutions().containsKey(accountId), INVALID_ACCOUNT_ID);
             }
-            return transferContext.resolutions().get(alias);
+            return transferContext.resolutions().get(accountId);
         } else {
             return account;
         }
@@ -116,14 +113,13 @@ public class EnsureAliasesStep implements TransferStep {
             final var accountId = aa.accountIDOrThrow();
             if (isAlias(accountId)) {
                 // If an alias is repeated for hbar transfers, it will fail
-                final var isInResolutions = transferContext.resolutions().containsKey(accountId.alias());
+                final var isInResolutions = transferContext.resolutions().containsKey(accountId);
                 validateTrue(!isInResolutions, ACCOUNT_REPEATED_IN_ACCOUNT_AMOUNTS);
 
                 final var account = transferContext.getFromAlias(accountId);
                 if (aa.amount() > 0) {
                     if (account == null) {
-                        transferContext.createFromAlias(
-                                accountId.alias(), impliedAutoAssociationsForAlias(accountId, op));
+                        transferContext.createFromAlias(accountId, impliedAutoAssociationsForAlias(accountId, op));
                     }
                 } else {
                     validateTrue(account != null, INVALID_ACCOUNT_ID);
@@ -149,10 +145,9 @@ public class EnsureAliasesStep implements TransferStep {
         if (isAlias(receiverId)) {
             final var receiver = transferContext.getFromAlias(receiverId);
             if (receiver == null) {
-                final var isInResolutions = transferContext.resolutions().containsKey(receiverId.alias());
+                final var isInResolutions = transferContext.resolutions().containsKey(receiverId);
                 if (!isInResolutions) {
-                    transferContext.createFromAlias(
-                            receiverId.alias(), impliedAutoAssociationsForAlias(receiverId, op));
+                    transferContext.createFromAlias(receiverId, impliedAutoAssociationsForAlias(receiverId, op));
                 }
             } else {
                 validateTrue(receiver != null, INVALID_ACCOUNT_ID);

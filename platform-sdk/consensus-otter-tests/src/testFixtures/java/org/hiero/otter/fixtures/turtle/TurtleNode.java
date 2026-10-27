@@ -7,11 +7,13 @@ import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialSta
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.fail;
 import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.roundOf;
+import static org.hiero.consensus.roster.RosterUtils.rosterInputsFromGenesis;
 import static org.hiero.otter.fixtures.app.OtterStateUtils.initGenesisState;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
+import static org.hiero.otter.fixtures.internal.AbstractMiniNode.LifeCycle.DESTROYED;
+import static org.hiero.otter.fixtures.internal.AbstractMiniNode.LifeCycle.INIT;
+import static org.hiero.otter.fixtures.internal.AbstractMiniNode.LifeCycle.RUNNING;
+import static org.hiero.otter.fixtures.internal.AbstractMiniNode.LifeCycle.SHUTDOWN;
 import static org.hiero.otter.fixtures.logging.context.NodeLoggingContext.logToConsole;
 import static org.hiero.otter.fixtures.result.SubscriberAction.CONTINUE;
 import static org.hiero.otter.fixtures.result.SubscriberAction.UNSUBSCRIBE;
@@ -47,21 +49,21 @@ import org.hiero.consensus.PathsConfig;
 import org.hiero.consensus.event.stream.config.EventConfig;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.io.RecycleBinImpl;
+import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.roster.ConsensusLayerRosterInputs;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.platformstate.PlatformStateService;
-import org.hiero.consensus.platformstate.ReadablePlatformStateStore;
 import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.roster.WritableRosterStore;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.status.monitor.actions.PlatformStatusAction;
 import org.hiero.consensus.wiring.framework.model.DeterministicWiringModel;
 import org.hiero.consensus.wiring.framework.model.WiringModelBuilder;
+import org.hiero.consensus.wiring.framework.wires.input.InputWire;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
-import org.hiero.otter.fixtures.ProfilerEvent;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.app.OtterApp;
 import org.hiero.otter.fixtures.app.OtterExecutionLayer;
@@ -192,7 +194,10 @@ public class TurtleNode extends AbstractNode implements Node, SimulatorTimeManag
             // Uses a platform logger to ensure it routes through per-node appenders
             startupLogger.info(LogMarker.STARTUP.getMarker(), "\n\n" + StaticPlatformBuilder.STARTUP_MESSAGE + "\n");
 
-            if (savedStateDirectory != null) {
+            // Only copy the saved state on the first start. On restart, the node must resume from its own files;
+            // copying again would restore the original PCES files alongside the ones the node has since written
+            // or compacted.
+            if (lifeCycle == INIT && savedStateDirectory != null) {
                 try {
                     OtterSavedStateUtils.copySaveState(selfId, savedStateDirectory, outputDirectory);
                 } catch (final IOException exception) {
@@ -233,7 +238,7 @@ public class TurtleNode extends AbstractNode implements Node, SimulatorTimeManag
                     .withUncaughtExceptionHandler((t, e) -> fail("Unexpected exception in wiring framework", e))
                     .build();
 
-            otterApp = new OtterApp(currentConfiguration, version);
+            otterApp = new OtterApp(currentConfiguration, version, roster());
 
             final HashedReservedSignedState reservedState = loadInitialState(
                     recycleBin,
@@ -245,22 +250,23 @@ public class TurtleNode extends AbstractNode implements Node, SimulatorTimeManag
                     fileSystemManager,
                     stateLifecycleManager);
 
-            if (reservedState.state().get().isGenesisState()) {
-                initGenesisState(reservedState.state().get().getState(), roster(), version, otterApp.allServices());
-            }
-
             final ReservedSignedState initialState = reservedState.state();
             final VirtualMapState state = initialState.get().getState();
 
-            // Set the active roster
-            final ReadablePlatformStateStore platformStateStore =
-                    new ReadablePlatformStateStore(state.getReadableStates(PlatformStateService.NAME));
-            final WritableRosterStore rosterStore =
-                    new WritableRosterStore(state.getWritableStates(RosterStateId.SERVICE_NAME));
-            rosterStore.putActiveRoster(roster(), platformStateStore.getRound() + 1);
-            OtterStateUtils.commitState(state);
+            final ConsensusLayerRosterInputs rosterInputs;
+            if (initialState.get().isGenesisState()) {
+                // Like in production, the genesis roster is written to the state in the first round
+                initGenesisState(state, version, otterApp.allServices());
+                rosterInputs = rosterInputsFromGenesis(roster());
+            } else {
+                // Set the active roster
+                final WritableRosterStore rosterStore =
+                        new WritableRosterStore(state.getWritableStates(RosterStateId.SERVICE_NAME));
+                rosterStore.putActiveRoster(roster(), roundOf(state) + 1);
+                OtterStateUtils.commitState(state);
+                rosterInputs = rosterStore.getConsensusLayerRosterInputs();
+            }
 
-            final ConsensusLayerRosterInputs rosterInputs = rosterStore.getConsensusLayerRosterInputs();
             final String eventStreamLoc = Long.toString(selfId.id());
 
             this.executionLayer = new OtterExecutionLayer(new Random(random.nextLong()), metrics, timeManager.time());
@@ -289,6 +295,10 @@ public class TurtleNode extends AbstractNode implements Node, SimulatorTimeManag
             platform = builder.build();
 
             buildingBlocks = builder.buildingBlocks();
+            final InputWire<PlatformStatusAction> platformStatusInputWire =
+                    buildingBlocks.statusMonitorModule().platformStatusActionInputWire();
+
+            gossip.provideStatusActionSubmitter(platformStatusInputWire::put);
 
             buildingBlocks
                     .hashgraphModule()
@@ -493,8 +503,9 @@ public class TurtleNode extends AbstractNode implements Node, SimulatorTimeManag
      * {@inheritDoc}
      */
     @Override
-    public boolean isAlive() {
-        return lifeCycle == RUNNING;
+    @NonNull
+    public EventWindow latestEventWindow() {
+        return newConsensusResult().getLatestEventWindow();
     }
 
     /**
@@ -537,7 +548,7 @@ public class TurtleNode extends AbstractNode implements Node, SimulatorTimeManag
     }
 
     @NonNull
-    private NodeLoggingContext.LoggingContextScope installNodeContext() {
+    protected final NodeLoggingContext.LoggingContextScope installNodeContext() {
         return NodeLoggingContext.install(Long.toString(selfId().id()));
     }
 
@@ -558,45 +569,5 @@ public class TurtleNode extends AbstractNode implements Node, SimulatorTimeManag
      */
     public boolean startFromSavedState() {
         return savedStateDirectory != null;
-    }
-
-    /**
-     * {@inheritDoc}
-     * <p>
-     * Profiling is not supported in the Turtle environment.
-     *
-     * @throws UnsupportedOperationException always, as profiling is only supported in container environments
-     */
-    @Override
-    public void startProfiling(
-            @NonNull final String outputFilename,
-            @NonNull final Duration samplingInterval,
-            @NonNull final ProfilerEvent... events) {
-        throw new UnsupportedOperationException("Profiling is not supported in the Turtle environment");
-    }
-
-    /**
-     * {@inheritDoc}
-     * <p>
-     * Profiling is not supported in the Turtle environment.
-     *
-     * @throws UnsupportedOperationException always, as profiling is only supported in container environments
-     */
-    @Override
-    public void stopProfiling() {
-        throw new UnsupportedOperationException("Profiling is not supported in the Turtle environments");
-    }
-
-    /**
-     * {@inheritDoc}
-     * <p>
-     * Thread dump is not supported in the Turtle environment.
-     *
-     * @throws UnsupportedOperationException always, as thread dump is only supported in container environments
-     */
-    @Override
-    @NonNull
-    public String dumpThreads() {
-        throw new UnsupportedOperationException("Thread dump not supported in the Turtle environment");
     }
 }

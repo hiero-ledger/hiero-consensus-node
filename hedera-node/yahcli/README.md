@@ -990,6 +990,11 @@ ownership commitment, reveal signature). Pass it back to `complete-channel` with
 `--identity <path>` and skip the per-flag arguments. The commit/reveal design is in
 [`docs/superpowers/specs/2026-04-29-connector-registration-redesign.md`](../../docs/superpowers/specs/2026-04-29-connector-registration-redesign.md).
 
+`complete-channel` also takes the peer ledger's state proofs: `--config-proof` (written by the
+peer's `get-ledger-configuration --proof-path`) and `--endpoint-manifest-proof` (written by the
+peer's `get-endpoint-manifest --proof-path`). The Hiero TSS verifier (`0.0.366`) requires both;
+the Besu, Sei, and Ethereum verifiers accept an empty manifest proof.
+
 ### Connector lifecycle
 
 |   Phase    |           Command           |                Description                 |
@@ -1002,18 +1007,18 @@ ownership commitment, reveal signature). Pass it back to `complete-channel` with
 
 ### Bundles and messages
 
-|        Command        |                                                        Description                                                         |
-|-----------------------|----------------------------------------------------------------------------------------------------------------------------|
-| `clpr submit-bundle`  | Submits a `ClprSubmitBundle` with a hex/file bundle payload.                                                               |
-| `clpr redact-message` | Submits a `ClprRedactMessage` for a given `(channel-id, message-id)`.                                                      |
-| `clpr send-message`   | Invokes `sendMessage()` on a deployed connector wrapper contract, which forwards to the CLPR system precompile at `0x16e`. |
+|       Command        |                                                        Description                                                         |
+|----------------------|----------------------------------------------------------------------------------------------------------------------------|
+| `clpr submit-bundle` | Submits a `ClprSubmitBundle` with a hex/file bundle payload.                                                               |
+| `clpr send-message`  | Invokes `sendMessage()` on a deployed connector wrapper contract, which forwards to the CLPR system precompile at `0x16e`. |
 
-### Ledger configuration
+### Ledger configuration and endpoint manifest
 
 |              Command               |                                                                                                      Description                                                                                                      |
 |------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `clpr get-ledger-configuration`    | Runs `ClprGetLedgerConfiguration` and prints the configuration as proto3 JSON (the base64 state-proof is always included as `configurationStateProof`); pass `--proof-path <file>` to also write the raw proof bytes. |
 | `clpr update-ledger-configuration` | Reads a JSON `ClprLedgerConfiguration` (`bytes` fields base64-encoded per proto3 JSON) and submits `ClprUpdateLedgerConfiguration`.                                                                                   |
+| `clpr get-endpoint-manifest`       | Runs `ClprGetEndpointManifest` and prints the endpoint manifest (the endpoints peers dial) as proto3 JSON with its base64 state-proof and a `finalized` flag; `--proof-path <file>` also writes the raw proof bytes.  |
 
 ### Verifier deploy
 
@@ -1030,7 +1035,7 @@ local networks:
 ```bash
 # Spin both networks up with the configured ledger ids, then drive
 # register → complete → message-send → bundle-sync.
-LEDGER_ID_A=<32-byte-hex> LEDGER_ID_B=<32-byte-hex> ./run-clpr-end-to-end.sh
+LEDGER_ID_A=<64-byte-hex> LEDGER_ID_B=<64-byte-hex> ./run-clpr-end-to-end.sh
 ```
 
 `run-clpr-demo.sh` is the short variant that exercises a single happy-path bundle.

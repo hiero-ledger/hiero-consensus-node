@@ -68,8 +68,8 @@ import org.junit.jupiter.api.Tag;
  * {@code HistoryProofKeyPublication} it submits through node 3 is handled as a WRAPS message from node 3. Once
  * node 3 has an R1 message in the construction, its own prover never generates the entropy it needs for R2 and
  * R3, so only the submitted messages count for it. They come from a key pair other than node 3's: the checks of
- * R1 and R2 messages on arrival do not involve the sender's key, so they accept the R1 and R2; and the R3, a share
- * for node 3 signing alone, is well-formed but cannot aggregate with the others.
+ * R1 and R2 messages on arrival do not depend on the key that made them, so they accept the R1 and R2; and the R3, a
+ * share for node 3 signing alone, is well-formed but cannot aggregate with the others.
  */
 @Tag(LONG_RUNNING)
 @HapiTestLifecycle
@@ -111,13 +111,15 @@ public class WrapsSigningLivenessTest {
         new SecureRandom().nextBytes(entropy);
         final var soloBook =
                 new AddressBook(new long[] {1L}, new byte[][] {keys.publicKey()}, new long[] {BYZANTINE_NODE_ID});
-        final var r1 = library.runWrapsPhaseR1(entropy, new byte[0], keys.privateKey());
+        // The checks of R1 and R2 messages do not involve the message signed, so any valid one will do
+        final var message = library.computeWrapsMessage(soloBook, new byte[] {1});
+        final var r1 = library.runWrapsPhaseR1(entropy, message, keys.privateKey());
         final var r2 = library.runWrapsPhaseR2(
-                entropy, new byte[0], new byte[][] {r1}, keys.privateKey(), soloBook, Set.of(BYZANTINE_NODE_ID));
+                entropy, message, new byte[][] {r1}, keys.privateKey(), soloBook, Set.of(BYZANTINE_NODE_ID));
         // A well-formed share, but for node 3 signing alone with another key; so it cannot aggregate with the others
         final var r3 = library.runWrapsPhaseR3(
                 entropy,
-                new byte[0],
+                message,
                 new byte[][] {r1},
                 new byte[][] {r2},
                 keys.privateKey(),

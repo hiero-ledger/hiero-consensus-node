@@ -167,5 +167,5 @@ public interface EventCreatorModule {
      */
     @InputWireLabel("clear")
     @NonNull
-    InputWire<Object> clearCreationMangerInputWire();
+    InputWire<Object> clearCreationManagerInputWire();
 }

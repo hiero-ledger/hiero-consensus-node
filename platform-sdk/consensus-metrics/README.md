@@ -1,12 +1,17 @@
 # consensus-metrics
 
 Metrics collection and reporting for the consensus layer: counters, gauges, cycle statistics,
-and the Prometheus exposition endpoint.
+latency percentiles, and the Prometheus exposition endpoint.
 
 ## Architecture
 
 Sits above `consensus-model` in the supporting module DAG. Provides metrics infrastructure
 consumed across the layer.
+
+## Benchmarks
+
+The JMH benchmarks in `src/jmh` follow the
+[benchmark conventions](../docs/consensus-layer/benchmarks/README.md).
 
 ## Dependency Rules
 

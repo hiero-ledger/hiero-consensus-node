@@ -3,28 +3,20 @@ package com.hedera.node.app.workflows.clpr;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.node.state.clpr.ClprDiscoverEndpointsRequest;
-import com.hedera.hapi.node.state.clpr.ClprDiscoverEndpointsResponse;
-import com.hedera.hapi.node.state.clpr.ClprEndpoint;
-import com.hedera.hapi.node.state.clpr.ClprSyncPayload;
 import com.hedera.node.app.service.clpr.ClprEndpointServiceDefinition;
-import com.hedera.node.app.workflows.clpr.mtls.ClprMtlsContexts;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import io.grpc.CallOptions;
 import io.grpc.Channel;
 import io.grpc.ManagedChannel;
 import io.grpc.MethodDescriptor;
+import io.grpc.netty.GrpcSslContexts;
 import io.grpc.netty.NettyChannelBuilder;
 import io.grpc.stub.ClientCalls;
 import io.netty.handler.ssl.SslContext;
+import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
-import java.security.cert.CertificateFactory;
-import java.security.cert.X509Certificate;
 import java.time.Duration;
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 import javax.net.ssl.SSLException;
 import org.apache.logging.log4j.LogManager;
@@ -32,7 +24,7 @@ import org.apache.logging.log4j.Logger;
 
 /**
  * gRPC-backed {@link ClprEndpointClient}. Uses Netty for HTTP/2 transport and grpc-java
- * {@link ClientCalls} for both the unary calls and the bidirectional-streaming {@code streamingSync}.
+ * {@link ClientCalls} for the bidirectional-streaming {@code sync}.
  *
  * <p>Each instance targets a single peer endpoint address and owns the {@link ManagedChannel} it
  * builds for the lifetime of the instance.
@@ -45,12 +37,6 @@ class ClprEndpointClientImpl implements ClprEndpointClient {
 
     /** The gRPC service name. */
     private static final String SERVICE_NAME = ClprEndpointServiceDefinition.SERVICE_NAME;
-
-    /** The sync method name within the service. */
-    private static final String SYNC_METHOD = "sync";
-
-    /** The discoverEndpoints method name within the service. */
-    private static final String DISCOVER_METHOD = "discoverEndpoints";
 
     /** A simple byte-array marshaller for protobuf-encoded messages. */
     private static final MethodDescriptor.Marshaller<byte[]> BYTE_MARSHALLER = new MethodDescriptor.Marshaller<>() {
@@ -69,29 +55,11 @@ class ClprEndpointClientImpl implements ClprEndpointClient {
         }
     };
 
-    /** The grpc-java method descriptor for the sync RPC. */
+    /** The grpc-java method descriptor for the bidirectional-streaming {@code sync} RPC. */
     private static final MethodDescriptor<byte[], byte[]> SYNC_METHOD_DESCRIPTOR =
             MethodDescriptor.<byte[], byte[]>newBuilder()
-                    .setType(MethodDescriptor.MethodType.UNARY)
-                    .setFullMethodName(MethodDescriptor.generateFullMethodName(SERVICE_NAME, SYNC_METHOD))
-                    .setRequestMarshaller(BYTE_MARSHALLER)
-                    .setResponseMarshaller(BYTE_MARSHALLER)
-                    .build();
-
-    /** The grpc-java method descriptor for the discoverEndpoints RPC. */
-    private static final MethodDescriptor<byte[], byte[]> DISCOVER_METHOD_DESCRIPTOR =
-            MethodDescriptor.<byte[], byte[]>newBuilder()
-                    .setType(MethodDescriptor.MethodType.UNARY)
-                    .setFullMethodName(MethodDescriptor.generateFullMethodName(SERVICE_NAME, DISCOVER_METHOD))
-                    .setRequestMarshaller(BYTE_MARSHALLER)
-                    .setResponseMarshaller(BYTE_MARSHALLER)
-                    .build();
-
-    /** The grpc-java method descriptor for the streamingSync RPC. */
-    private static final MethodDescriptor<byte[], byte[]> STREAMING_SYNC_METHOD_DESCRIPTOR =
-            MethodDescriptor.<byte[], byte[]>newBuilder()
                     .setType(MethodDescriptor.MethodType.BIDI_STREAMING)
-                    .setFullMethodName(ClprEndpointServiceDefinition.STREAMING_SYNC_FULL_METHOD_NAME)
+                    .setFullMethodName(ClprEndpointServiceDefinition.SYNC_FULL_METHOD_NAME)
                     .setRequestMarshaller(BYTE_MARSHALLER)
                     .setResponseMarshaller(BYTE_MARSHALLER)
                     .build();
@@ -113,145 +81,76 @@ class ClprEndpointClientImpl implements ClprEndpointClient {
 
     /**
      * Constructor for a non-TLS (plain-text) client.
-     * All the TLS related fields are set to null.
      *
      * @param host the peer's IP address
      * @param port the peer's gRPC port
      */
-    ClprEndpointClientImpl(@NonNull final String host, @NonNull final int port) {
-        this(host, port, null, null);
+    ClprEndpointClientImpl(@NonNull final String host, final int port) {
+        this(host, port, false);
     }
 
     /**
      * Creates a client targeting the given peer address.
      *
-     * <p>When {@code clientCredentials} is non-null, the channel uses mutually-authenticated TLS:
-     * the peer's ECDSA P-384 CA cert is pinned from {@code peerTlsCertificate} and the chain is
-     * validated against it; this node presents its leaf identity from {@code clientCredentials}. When
-     * {@code clientCredentials} is {@code null} (no CA cert configured), the channel falls back to
-     * plaintext — expected during local development.
+     * <p>When {@code useTls} is {@code true}, the channel is encrypted with TLS against the peer's TLS
+     * port. The peer's server certificate is <b>not</b> verified: TLS here provides confidentiality only, and
+     * the authenticity of everything exchanged over {@code sync} comes from the state proofs carried in the
+     * payload, which the receiving ledger verifies. When {@code useTls} is {@code false}, the channel is
+     * plaintext — expected during local development and in test networks without a TLS certificate.
      *
      * @param host the peer's IP address
-     * @param port the peer's gRPC port
-     * @param peerTlsCertificate the peer's DER-encoded ECDSA P-384 CA cert (trust anchor); required only when
-     *     {@code clientCredentials != null} (mTLS), and may be {@code null} on the plaintext path (ignored)
-     * @param clientCredentials this node's ephemeral leaf identity to present at handshake, or {@code null} for plaintext
+     * @param port the peer's gRPC port (the TLS port when {@code useTls}, the plaintext port otherwise)
+     * @param useTls whether to encrypt the channel with TLS
      */
-    ClprEndpointClientImpl(
-            @NonNull final String host,
-            final int port,
-            @Nullable final Bytes peerTlsCertificate,
-            @Nullable final ClprLeafCredentials clientCredentials) {
-        this.channel = newChannel(host, port, peerTlsCertificate, clientCredentials);
+    ClprEndpointClientImpl(@NonNull final String host, final int port, final boolean useTls) {
+        this.channel = newChannel(host, port, useTls);
     }
 
     /**
-     * Builds the {@link ManagedChannel} backing this client, using the same mTLS/plaintext rules as the
+     * Builds the {@link ManagedChannel} backing this client, using the same TLS/plaintext rules as the
      * constructors.
      *
      * @param host the peer's IP address
      * @param port the peer's gRPC port
-     * @param peerTlsCertificate the peer's DER-encoded CA cert; required only for mTLS, ignored for plaintext
-     * @param clientCredentials this node's leaf identity for mTLS, or {@code null} for plaintext
+     * @param useTls whether to encrypt the channel with TLS
      * @return a new managed channel owned by this client instance
      */
     @NonNull
-    static ManagedChannel newChannel(
-            @NonNull final String host,
-            final int port,
-            @Nullable final Bytes peerTlsCertificate,
-            @Nullable final ClprLeafCredentials clientCredentials) {
+    static ManagedChannel newChannel(@NonNull final String host, final int port, final boolean useTls) {
         requireNonNull(host);
+        if (!useTls) {
+            return NettyChannelBuilder.forAddress(host, port).usePlaintext().build();
+        }
         try {
-            if (clientCredentials != null) {
-                requireNonNull(peerTlsCertificate, "peerTlsCertificate is required for mTLS");
-                final var sslContext = buildClientSslContext(peerTlsCertificate, clientCredentials);
-                return NettyChannelBuilder.forAddress(host, port)
-                        .sslContext(sslContext)
-                        .build();
-            } else {
-                return NettyChannelBuilder.forAddress(host, port).usePlaintext().build();
-            }
+            return NettyChannelBuilder.forAddress(host, port)
+                    .sslContext(buildClientSslContext())
+                    .build();
         } catch (final SSLException e) {
             throw new ClientException(
-                    "Failed to build mTLS channel for CLPR peer " + host + ":" + port + ": " + e.getMessage(), e);
+                    "Failed to build TLS channel for CLPR peer " + host + ":" + port + ": " + e.getMessage(), e);
         }
     }
 
     /**
-     * Builds the client-side {@link SslContext} for the mTLS sync channel.
-     *
-     * <p>The peer's ECDSA P-384 CA cert is parsed from {@code peerTlsCertificate} (on-chain bytes)
-     * and used as the sole trust anchor: the peer's leaf is accepted only if it was signed by that CA
-     * and is not itself a CA cert. This node presents its own leaf identity from
-     * {@code clientCredentials}.
+     * Builds the client-side {@link SslContext} for the TLS sync channel. It trusts any server certificate and
+     * skips hostname verification: peers are dialed by IP address and their TLS certificates are
+     * operator-provisioned, so there is no trust anchor to validate them against (see the constructor for why
+     * this is acceptable).
      */
     @NonNull
-    static SslContext buildClientSslContext(
-            @NonNull final Bytes peerTlsCertificate, @NonNull final ClprLeafCredentials clientCredentials)
-            throws SSLException {
-        final X509Certificate peerCaCert;
-        try (final var in = new ByteArrayInputStream(peerTlsCertificate.toByteArray())) {
-            peerCaCert =
-                    (X509Certificate) CertificateFactory.getInstance("X.509").generateCertificate(in);
-        } catch (final Exception e) {
-            throw new SSLException("Failed to parse peer TLS certificate", e);
-        }
-        // Built on BouncyCastle JSSE: the CLPR leaf is Ed25519, unusable as a local TLS identity on
-        // SunJSSE and rejected by netty-tcnative/BoringSSL. See ClprMtlsContexts.
-        return ClprMtlsContexts.clientContext(clientCredentials, peerCaCert);
+    static SslContext buildClientSslContext() throws SSLException {
+        return GrpcSslContexts.forClient()
+                .trustManager(InsecureTrustManagerFactory.INSTANCE)
+                .endpointIdentificationAlgorithm(null)
+                .build();
     }
 
     @Override
     @NonNull
-    public ClprSyncPayload sync(@NonNull final ClprSyncPayload request, @NonNull final Duration timeout)
-            throws ClprSyncException {
-        requireNonNull(request);
-        requireNonNull(timeout);
-        try {
-            final var requestBytes = ClprSyncPayload.PROTOBUF.toBytes(request);
-
-            final var callOptions = CallOptions.DEFAULT.withDeadlineAfter(timeout.toMillis(), TimeUnit.MILLISECONDS);
-
-            final var responseBytes = ClientCalls.blockingUnaryCall(
-                    channel, SYNC_METHOD_DESCRIPTOR, callOptions, requestBytes.toByteArray());
-
-            return ClprSyncPayload.PROTOBUF.parseStrict(Bytes.wrap(responseBytes));
-        } catch (final Exception e) {
-            throw new ClprSyncException("Sync call failed: " + e.getMessage(), e);
-        }
-    }
-
-    @Override
-    @NonNull
-    public List<ClprEndpoint> discoverEndpoints(@NonNull final Bytes channelId, @NonNull final Duration timeout)
-            throws ClprDiscoveryException {
-        requireNonNull(channelId);
-        requireNonNull(timeout);
-        try {
-            final var request = ClprDiscoverEndpointsRequest.newBuilder()
-                    .channelId(channelId)
-                    .build();
-            final var requestBytes = ClprDiscoverEndpointsRequest.PROTOBUF.toBytes(request);
-
-            final var callOptions = CallOptions.DEFAULT.withDeadlineAfter(timeout.toMillis(), TimeUnit.MILLISECONDS);
-
-            final var responseBytes = ClientCalls.blockingUnaryCall(
-                    channel, DISCOVER_METHOD_DESCRIPTOR, callOptions, requestBytes.toByteArray());
-
-            final var response = ClprDiscoverEndpointsResponse.PROTOBUF.parseStrict(Bytes.wrap(responseBytes));
-            return response.endpoints();
-        } catch (final Exception e) {
-            throw new ClprDiscoveryException("discoverEndpoints call failed: " + e.getMessage(), e);
-        }
-    }
-
-    @Override
-    @NonNull
-    public ClprStreamingSyncCall streamingSync(@NonNull final Duration timeout) {
+    public ClprStreamingSyncCall sync(@NonNull final Duration timeout) {
         requireNonNull(timeout);
         final var callOptions = CallOptions.DEFAULT.withDeadlineAfter(timeout.toMillis(), TimeUnit.MILLISECONDS);
-        final var call = ClientCalls.blockingBidiStreamingCall(channel, STREAMING_SYNC_METHOD_DESCRIPTOR, callOptions);
+        final var call = ClientCalls.blockingBidiStreamingCall(channel, SYNC_METHOD_DESCRIPTOR, callOptions);
         logger.debug("Streaming sync initiated with peer {}", channel.authority());
         return new ClprStreamingSyncCall(call, channel.authority());
     }
@@ -259,7 +158,7 @@ class ClprEndpointClientImpl implements ClprEndpointClient {
     /**
      * Shuts down the channel this client owns. Package-private and absent from the
      * {@link ClprEndpointClient} interface: only {@link ClprEndpointClientCache} — the sole holder of a
-     * reference typed to this concrete class — may tear a client down, on cert rotation or node stop.
+     * reference typed to this concrete class — may tear a client down, on a transport change or node stop.
      */
     void shutdownChannel() {
         if (channel == null) {

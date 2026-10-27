@@ -5,7 +5,6 @@ import static org.hiero.base.utility.Threshold.SUPER_MAJORITY;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetAdvancementWeight.ZERO_ADVANCEMENT_WEIGHT;
 import static org.hiero.consensus.model.event.NonDeterministicGeneration.FIRST_GENERATION;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
-import static org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory.createRosterWrapper;
 import static org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory.randomRoster;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -14,7 +13,6 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
@@ -35,7 +33,7 @@ import org.hiero.consensus.model.roster.RosterEntryWrapper;
 import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
-import org.hiero.consensus.roster.test.fixtures.RosterFactory;
+import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.hiero.junit.extensions.ParamName;
 import org.hiero.junit.extensions.ParamSource;
@@ -484,23 +482,16 @@ class TipsetWeightCalculatorTests {
     public void zeroWeightNodeTest(@ParamName("random") final Random random) {
         final int nodeCount = 4;
 
-        final Roster pbjRoster = RosterFactory.randomRoster(random, nodeCount, WeightGenerators.BALANCED);
+        final RosterWrapper balancedRoster =
+                RosterWrapperFactory.randomRoster(random, nodeCount, WeightGenerators.BALANCED);
         // In this test, we simulate from the perspective of node A.
-        // All nodes have 1 weight except for D, which has 0 weight.
-        final NodeId nodeA = NodeId.of(pbjRoster.rosterEntries().get(0).nodeId());
-        final NodeId nodeB = NodeId.of(pbjRoster.rosterEntries().get(1).nodeId());
-        final NodeId nodeC = NodeId.of(pbjRoster.rosterEntries().get(2).nodeId());
-        final NodeId nodeD = NodeId.of(pbjRoster.rosterEntries().get(3).nodeId());
+        // All nodes have the same weight except for D, which has 0 weight.
+        final NodeId nodeA = balancedRoster.rosterEntries().get(0).nodeId();
+        final NodeId nodeB = balancedRoster.rosterEntries().get(1).nodeId();
+        final NodeId nodeC = balancedRoster.rosterEntries().get(2).nodeId();
+        final NodeId nodeD = balancedRoster.rosterEntries().get(3).nodeId();
 
-        final RosterWrapper roster = createRosterWrapper(pbjRoster.rosterEntries().stream()
-                .map(entry -> {
-                    if (entry.nodeId() == nodeD.id()) {
-                        return entry.copyBuilder().weight(0).build();
-                    } else {
-                        return entry;
-                    }
-                })
-                .toList());
+        final RosterWrapper roster = RosterWrapperFactory.zeroOutWeightOfRosterEntry(balancedRoster, nodeD);
 
         final Configuration configuration =
                 ConfigurationBuilder.create().autoDiscoverExtensions().build();

@@ -239,6 +239,22 @@ jobs:
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
+  xts-hapi-tests-testnet:
+    name: XTS HAPI Tests (Cutover configs)
+    needs:
+      - commit-info
+      - build
+    if: ${{ needs.build.result == 'success' && inputs.enable-hapi-test-suite == 'true' }}
+    uses: ./.github/workflows/829-call-execute-xts-hapi-testnet.yaml
+    with:
+      ref: ${{ needs.commit-info.outputs.sha }}
+      enable-network-log-capture: "true"
+      java-version: "${{ inputs.java-version }}"
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
   xts-otter-tests:
     name: XTS Otter Tests
     needs:
@@ -388,6 +404,7 @@ jobs:
       - xts-timing-sensitive-tests
       - xts-hammer-tests
       - xts-hapi-tests
+      - xts-hapi-tests-testnet
       - xts-otter-tests
       - hedera-node-jrs-panel
       - sdk-tck-regression-panel
@@ -411,6 +428,7 @@ jobs:
             ${{ needs.xts-timing-sensitive-tests.result }}
             ${{ needs.xts-hammer-tests.result }}
             ${{ needs.xts-hapi-tests.result }}
+            ${{ needs.xts-hapi-tests-testnet.result }}
             ${{ needs.xts-otter-tests.result }}
             ${{ needs.hedera-node-jrs-panel.result }}
             ${{ needs.sdk-tck-regression-panel.result }}
@@ -423,6 +441,7 @@ jobs:
             ${{ needs.xts-timing-sensitive-tests.outputs.failure-mode || 'none' }}
             ${{ needs.xts-hammer-tests.outputs.failure-mode || 'none' }}
             ${{ needs.xts-hapi-tests.outputs.failure-mode || 'none' }}
+            ${{ needs.xts-hapi-tests-testnet.outputs.failure-mode || 'none' }}
             ${{ needs.xts-otter-tests.outputs.failure-mode || 'none' }}
             ${{ needs.hedera-node-jrs-panel.outputs.failure-mode || 'none' }}
             ${{ needs.sdk-tck-regression-panel.outputs.failure-mode || 'none' }}
@@ -435,6 +454,7 @@ jobs:
             xts-timing-sensitive-tests
             xts-hammer-tests
             xts-hapi-tests
+            xts-hapi-tests-testnet
             xts-otter-tests
             hedera-node-jrs-panel
             sdk-tck-regression-panel

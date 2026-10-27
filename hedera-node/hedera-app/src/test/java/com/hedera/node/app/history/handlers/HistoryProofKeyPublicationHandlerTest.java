@@ -22,9 +22,7 @@ import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
-import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.Optional;
@@ -38,10 +36,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class HistoryProofKeyPublicationHandlerTest {
     private static final long NODE_ID = 123L;
+    private static final long CONSTRUCTION_ID = 42L;
     private static final Bytes PROOF_KEY = Bytes.wrap("PK");
     private static final Bytes WRAPS_MESSAGE = Bytes.wrap("MSG");
     private static final Instant CONSENSUS_NOW = Instant.ofEpochSecond(1_234_567L, 890);
-    private static final long CONSTRUCTION_ID = 42L;
 
     @Mock
     private ProofControllers controllers;
@@ -67,12 +65,6 @@ class HistoryProofKeyPublicationHandlerTest {
     @Mock
     private PureChecksContext pureChecksContext;
 
-    @Mock
-    private TssConfig tssConfig;
-
-    @Mock
-    private Configuration configuration;
-
     private HistoryProofKeyPublicationHandler subject;
 
     @BeforeEach
@@ -93,11 +85,9 @@ class HistoryProofKeyPublicationHandlerTest {
         given(context.creatorInfo()).willReturn(nodeInfo);
         given(context.storeFactory()).willReturn(factory);
         given(context.consensusNow()).willReturn(CONSENSUS_NOW);
-        given(context.configuration()).willReturn(configuration);
-        given(configuration.getConfigData(TssConfig.class)).willReturn(tssConfig);
         given(factory.writableStore(WritableHistoryStore.class)).willReturn(store);
         given(store.setProofKey(NODE_ID, PROOF_KEY, CONSENSUS_NOW)).willReturn(true);
-        given(controllers.getAnyInProgress(tssConfig)).willReturn(Optional.of(controller));
+        given(controllers.getAnyInProgress()).willReturn(Optional.of(controller));
 
         subject.handle(context);
 
@@ -115,8 +105,6 @@ class HistoryProofKeyPublicationHandlerTest {
         given(context.creatorInfo()).willReturn(nodeInfo);
         given(context.storeFactory()).willReturn(factory);
         given(context.consensusNow()).willReturn(CONSENSUS_NOW);
-        given(context.configuration()).willReturn(configuration);
-        given(configuration.getConfigData(TssConfig.class)).willReturn(tssConfig);
         given(factory.writableStore(WritableHistoryStore.class)).willReturn(store);
         given(store.setProofKey(NODE_ID, PROOF_KEY, CONSENSUS_NOW)).willReturn(false);
 
@@ -133,9 +121,7 @@ class HistoryProofKeyPublicationHandlerTest {
         given(context.storeFactory()).willReturn(factory);
         given(factory.writableStore(WritableHistoryStore.class)).willReturn(store);
         given(context.consensusNow()).willReturn(CONSENSUS_NOW);
-        given(context.configuration()).willReturn(configuration);
-        given(configuration.getConfigData(TssConfig.class)).willReturn(tssConfig);
-        given(controllers.getAnyInProgress(tssConfig)).willReturn(Optional.of(controller));
+        given(controllers.getInProgressById(CONSTRUCTION_ID)).willReturn(Optional.of(controller));
         given(controller.addWrapsMessagePublication(any(ReadableHistoryStore.WrapsMessagePublication.class), eq(store)))
                 .willReturn(true);
         given(controller.constructionId()).willReturn(CONSTRUCTION_ID);
@@ -150,6 +136,7 @@ class HistoryProofKeyPublicationHandlerTest {
         assertEquals(WrapsPhase.R1, publication.phase());
         assertEquals(CONSENSUS_NOW, publication.receiptTime());
         verify(store).addWrapsMessage(CONSTRUCTION_ID, publication);
+        verify(controllers, never()).getAnyInProgress();
     }
 
     @Test
@@ -160,10 +147,7 @@ class HistoryProofKeyPublicationHandlerTest {
         given(context.storeFactory()).willReturn(factory);
         given(factory.writableStore(WritableHistoryStore.class)).willReturn(store);
         given(context.consensusNow()).willReturn(CONSENSUS_NOW);
-        given(context.configuration()).willReturn(configuration);
-        given(configuration.getConfigData(TssConfig.class)).willReturn(tssConfig);
-        given(controllers.getAnyInProgress(tssConfig)).willReturn(Optional.of(controller));
-        given(controller.constructionId()).willReturn(CONSTRUCTION_ID);
+        given(controllers.getInProgressById(CONSTRUCTION_ID)).willReturn(Optional.of(controller));
         given(controller.addWrapsMessagePublication(any(ReadableHistoryStore.WrapsMessagePublication.class), eq(store)))
                 .willReturn(false);
 
@@ -175,22 +159,20 @@ class HistoryProofKeyPublicationHandlerTest {
     }
 
     @Test
-    void ignoresWrapsMessageForAnotherConstruction() {
-        givenWrapsMessagePublicationWith(WRAPS_MESSAGE, WrapsPhase.R1);
+    void ignoresWrapsMessageFromReplacedConstruction() {
+        final long staleConstructionId = CONSTRUCTION_ID - 1;
+        givenWrapsMessagePublicationWith(WRAPS_MESSAGE, WrapsPhase.R1, staleConstructionId);
         given(nodeInfo.nodeId()).willReturn(NODE_ID);
         given(context.creatorInfo()).willReturn(nodeInfo);
         given(context.storeFactory()).willReturn(factory);
         given(factory.writableStore(WritableHistoryStore.class)).willReturn(store);
-        given(context.configuration()).willReturn(configuration);
-        given(configuration.getConfigData(TssConfig.class)).willReturn(tssConfig);
-        given(controllers.getAnyInProgress(tssConfig)).willReturn(Optional.of(controller));
-        // For example, a message sent for a construction that a new candidate roster has since replaced
-        given(controller.constructionId()).willReturn(CONSTRUCTION_ID + 1);
+        given(controllers.getInProgressById(staleConstructionId)).willReturn(Optional.empty());
 
         subject.handle(context);
 
-        verify(controller, never()).addWrapsMessagePublication(any(), any());
-        verify(store, never()).addWrapsMessage(anyLong(), any());
+        verify(controllers).getInProgressById(staleConstructionId);
+        verify(controllers, never()).getAnyInProgress();
+        verifyNoInteractions(controller, store);
     }
 
     private void givenProofKeyPublicationWith(@NonNull final Bytes key) {
@@ -204,10 +186,15 @@ class HistoryProofKeyPublicationHandlerTest {
     }
 
     private void givenWrapsMessagePublicationWith(@NonNull final Bytes message, @NonNull final WrapsPhase phase) {
+        givenWrapsMessagePublicationWith(message, phase, CONSTRUCTION_ID);
+    }
+
+    private void givenWrapsMessagePublicationWith(
+            @NonNull final Bytes message, @NonNull final WrapsPhase phase, final long constructionId) {
         final var op = HistoryProofKeyPublicationTransactionBody.newBuilder()
                 .wrapsMessage(message)
                 .phase(phase)
-                .constructionId(CONSTRUCTION_ID)
+                .constructionId(constructionId)
                 .build();
         final var body =
                 TransactionBody.newBuilder().historyProofKeyPublication(op).build();

@@ -72,39 +72,28 @@ jobs:
     runs-on: hl-cn-sdpt-lin-sm
     continue-on-error: true
     outputs:
-      build-number: ${{ steps.verify-tag.outputs.build-number }}
+      build-number: ${{ steps.resolve-ref.outputs.build-number }}
+      commit: ${{ steps.resolve-ref.outputs.commit }}
+      branch: ${{ steps.resolve-ref.outputs.branch }}
+      build-tag-number: ${{ steps.resolve-ref.outputs.build-tag-number }}
     steps:
       - name: Prepare Runner
         id: prepare-runner
         uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
-          checkout-ref: "${{ github.ref }}"
+          checkout-ref: "${{ inputs.ref || github.ref }}"
           checkout-token: "${{ secrets.GITHUB_TOKEN }}"
 
-      - name: Verify Tag
-        id: verify-tag
+      # Chewie records AdHoc results against the commit under test, with its branch when the ref is a
+      # branch and its build number when the ref is a build tag.
+      - name: Resolve Ref
+        id: resolve-ref
         env:
-          PROMOTED_GREP_PATTERN: "build-(.{5})" # Pattern to match build tags (e.g., build-12345)
-          CHECK_TAG: "${{ inputs.ref || github.ref }}"
-        run: |
-          # Ensure the tag that we received is a build tag
-          # if the tag is a build tag then we can parse out the build number (the last 5 characters)
-          # return the build tag as an output
-          # if the tag is not a build tag then we will fail the workflow
-          if [[ "${CHECK_TAG}" =~ ${PROMOTED_GREP_PATTERN} ]]; then
-            echo "The tag is a valid build tag."
-            BUILD_NUMBER="${BASH_REMATCH[1]}"
-            echo "build-number=${BUILD_NUMBER}" >> "${GITHUB_OUTPUT}"
-
-            echo "### Running SDPT" >> "${GITHUB_STEP_SUMMARY}"
-            echo "Build number: ${BUILD_NUMBER}" >> "${GITHUB_STEP_SUMMARY}"
-          else
-            echo "::notice title=Invalid Build Tag::The provided tag (${CHECK_TAG}) is not a valid build tag."
-
-            echo "### Running SDPT" >> "${GITHUB_STEP_SUMMARY}"
-            echo "Ref: ${CHECK_TAG}" >> "${GITHUB_STEP_SUMMARY}"
-          fi
+          REF: "${{ inputs.ref || github.ref }}"
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch || 'main' }}
+          GH_TOKEN: ${{ github.token }}
+        run: ./.github/workflows/support/citr/resolve-ref.sh -r "${REF}" -d "${DEFAULT_BRANCH}" -l SDPT
 
   extract-jdk-version:
     name: Extract Java Version
@@ -230,6 +219,29 @@ jobs:
       chewie-token: ${{ needs.get-chewie-jwt.outputs.jwt }}
       chewie-host: ${{ secrets.CHEWIE_HOST }}
 
+  # Required: a failed report fails the run. Starts together with the test: same needs, so it reports
+  # running when the test kicks off. Neither waits on the other. Reported whether or not notifications
+  # are disabled; that input only controls the tags and Slack.
+  report-adhoc-sdpt-running:
+    name: Report AdHoc SDPT Running to Chewie
+    needs:
+      - verify-tag
+      - extract-jdk-version
+      - extract-citr-vars
+      - verify-citr-vars
+      - acquire-kubernetes-resources
+    if: ${{ needs.verify-tag.outputs.commit != '' }}
+    uses: ./.github/workflows/864-call-report-suite-result.yaml
+    with:
+      suite-type: adhoc_sdpt
+      commit: ${{ needs.verify-tag.outputs.commit }}
+      branch: ${{ needs.verify-tag.outputs.branch }}
+      build-number: ${{ needs.verify-tag.outputs.build-tag-number }}
+      disposition: running
+    secrets:
+      chewie-key: ${{ secrets.CHEWIE_REPO_IDENTITY_KEY }}
+      chewie-host: ${{ secrets.CHEWIE_HOST }}
+
   run-single-day-performance-test:
     name: Performance Test
     needs:
@@ -257,6 +269,29 @@ jobs:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
       github-token: ${{ secrets.GITHUB_TOKEN }}
       chewie-id-key: ${{ secrets.CHEWIE_REPO_IDENTITY_KEY }}
+      chewie-host: ${{ secrets.CHEWIE_HOST }}
+
+  # Required: a failed report fails the run.
+  report-adhoc-sdpt-result:
+    name: Report AdHoc SDPT Result to Chewie
+    needs:
+      - verify-tag
+      - report-adhoc-sdpt-running # keeps the terminal report after the running one, so it is the latest
+      - run-single-day-performance-test
+    if: ${{ always() && needs.verify-tag.outputs.commit != '' }}
+    uses: ./.github/workflows/864-call-report-suite-result.yaml
+    with:
+      suite-type: adhoc_sdpt
+      commit: ${{ needs.verify-tag.outputs.commit }}
+      branch: ${{ needs.verify-tag.outputs.branch }}
+      build-number: ${{ needs.verify-tag.outputs.build-tag-number }}
+      disposition:
+        ${{ needs.run-single-day-performance-test.result == 'cancelled' && 'cancelled'
+        || needs.run-single-day-performance-test.outputs.result == 'success' && 'passed'
+        || needs.run-single-day-performance-test.result == 'skipped' && 'not_run'
+        || 'failed' }}
+    secrets:
+      chewie-key: ${{ secrets.CHEWIE_REPO_IDENTITY_KEY }}
       chewie-host: ${{ secrets.CHEWIE_HOST }}
 
   tag-sdpt-result:

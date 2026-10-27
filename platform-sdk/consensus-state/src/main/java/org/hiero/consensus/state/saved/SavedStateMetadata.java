@@ -3,7 +3,6 @@ package org.hiero.consensus.state.saved;
 
 import static com.swirlds.base.formatting.StringFormattingUtils.formattedList;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static org.hiero.base.crypto.Cryptography.DEFAULT_DIGEST_TYPE;
 import static org.hiero.base.utility.CommonUtils.unhex;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.ancientThresholdOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.consensusSnapshotOf;
@@ -135,8 +134,8 @@ public record SavedStateMetadata(
         final Map<SavedStateMetadataField, String> data = parseStringMap(metadataFile);
         return new SavedStateMetadata(
                 parsePrimitiveLong(data, ROUND),
-                // The state root hash digest type uses this default
-                parseNonNullHash(data, HASH, DEFAULT_DIGEST_TYPE),
+                // The state root hash digest type is determined by the hash byte array length
+                parseNonNullHash(data, HASH),
                 parseNonNullString(data, HASH_MNEMONIC),
                 parsePrimitiveLong(data, NUMBER_OF_CONSENSUS_EVENTS),
                 parseNonNullInstant(data, CONSENSUS_TIMESTAMP),
@@ -550,9 +549,7 @@ public record SavedStateMetadata(
     @SuppressWarnings("SameParameterValue")
     @NonNull
     private static Hash parseNonNullHash(
-            @NonNull final Map<SavedStateMetadataField, String> data,
-            @NonNull final SavedStateMetadataField field,
-            @NonNull final DigestType digestType)
+            @NonNull final Map<SavedStateMetadataField, String> data, @NonNull final SavedStateMetadataField field)
             throws IOException {
 
         if (!data.containsKey(field)) {
@@ -563,7 +560,8 @@ public record SavedStateMetadata(
         final String value = data.get(field);
 
         try {
-            return new Hash(unhex(value), digestType);
+            final byte[] hashBytes = unhex(value);
+            return new Hash(hashBytes, DigestType.digestLengthToDigestType(hashBytes.length));
         } catch (final IllegalArgumentException e) {
             throwInvalidRequiredField(field, value, e);
             return null;

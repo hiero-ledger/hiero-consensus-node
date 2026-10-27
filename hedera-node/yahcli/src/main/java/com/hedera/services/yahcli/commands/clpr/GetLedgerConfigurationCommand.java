@@ -120,7 +120,7 @@ public class GetLedgerConfigurationCommand implements Callable<Integer> {
 
     /** Indents every line of {@code s} (except the first) by {@code spaces} spaces, so the
      *  nested JsonFormat output sits cleanly inside our outer object. */
-    private static String indent(final String s, final int spaces) {
+    static String indent(final String s, final int spaces) {
         final var pad = " ".repeat(spaces);
         return s.replace("\n", "\n" + pad).stripTrailing();
     }

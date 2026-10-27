@@ -1,0 +1,192 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "007: [USER] Benchmark Calibration"
+# Calibration run of a JMH benchmark on the benchmark runner, a node shared with other workloads. Runs the benchmark jar
+# with a generous configuration, repeats a parameter set that was measured under load, and writes the calibration
+# analysis to the job summary. Publishes nothing; the results are kept as an artifact.
+on:
+  workflow_dispatch:
+    inputs:
+      module:
+        description: "Gradle module with the benchmark, for example consensus-hashgraph-impl."
+        type: string
+        required: true
+        default: "consensus-hashgraph-impl"
+      benchmark:
+        description: "JMH include pattern of the benchmarks to calibrate."
+        type: string
+        required: true
+        default: "ConsensusImplBenchmark"
+      profilers:
+        description: "JMH profilers, separated by spaces."
+        type: string
+        required: false
+        default: "org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler"
+      jmh-args:
+        description: "JMH arguments. Warmup iterations stay out of the JSON, so calibration measures every iteration."
+        type: string
+        required: true
+        default: "-f 10 -wi 0 -i 20 -r 5s"
+      max-load:
+        description: "Most CPUs that other workloads on the node may use during a quiet measurement."
+        type: string
+        required: true
+        default: "0.5"
+      attempts:
+        description: "Most runs of a parameter set until one is quiet."
+        type: string
+        required: true
+        default: "3"
+      deadline-minutes:
+        description: "Minutes to wait for quiet at most; sets still open then run once without waiting."
+        type: string
+        required: true
+        default: "180"
+      ref:
+        description: "The branch, tag or SHA to calibrate (default: the selected branch)."
+        type: string
+        required: false
+        default: ""
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+
+# never two calibration runs at once: they would load each other's node. queue: max keeps up to 100 waiting runs and
+# starts them one after another; without it, each new run would cancel the one waiting.
+concurrency:
+  group: benchmark-calibration
+  cancel-in-progress: false
+  queue: max
+
+env:
+  GRADLE_CACHE_USERNAME: ${{ secrets.GRADLE_CACHE_USERNAME }}
+  GRADLE_CACHE_PASSWORD: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+  RESULTS_DIR: build/benchmark-calibration
+
+jobs:
+  extract-jdk-version:
+    name: Extract Java Version
+    uses: ./.github/workflows/854-call-extract-jdk-version.yaml
+    with:
+      ref: ${{ inputs.ref || github.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  calibrate:
+    name: Calibrate ${{ inputs.benchmark }}
+    strategy:
+      # a single entry: the runner label is then defined once, for runs-on and for the results' runner label
+      matrix:
+        runner: ["hl-cn-benchmark-lin"]
+    runs-on: ${{ matrix.runner }}
+    # the default arguments take about 40 minutes per attempt of both parameter sets of ConsensusImplBenchmark; the
+    # timeout covers the default deadline of 3 hours and one attempt of each set after it
+    timeout-minutes: 300
+    needs:
+      - extract-jdk-version
+    env:
+      RUNNER_LABEL: ${{ matrix.runner }}
+    steps:
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+        with:
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref || github.ref }}"
+          checkout-fetch-depth: "1"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+          setup-java: "true"
+          java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
+          java-distribution: "temurin"
+          setup-gradle: "true"
+          gradle-cache-read-only: "true"
+
+      # The runner image's Python: on the hl-cn runners, setup-python can pick a cached build that needs a newer glibc
+      - name: Install Python
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends python3
+
+      # Stops the daemon afterwards, so that no Gradle process is alive while the benchmark measures
+      - name: Build Benchmark Jar
+        env:
+          MODULE: ${{ inputs.module }}
+        run: |
+          ./gradlew ":${MODULE}:jmhJarWithMergedServiceFiles"
+          ./gradlew --stop
+
+      - name: Record Environment Before
+        env:
+          BENCHMARK_REF: ${{ inputs.ref || github.ref }}
+          MODULE: ${{ inputs.module }}
+          BENCHMARK: ${{ inputs.benchmark }}
+          JMH_ARGS: ${{ inputs.jmh-args }}
+        run: |
+          mkdir -p "${RESULTS_DIR}"
+          {
+            echo "commit=$(git rev-parse HEAD)"
+            echo "ref=${BENCHMARK_REF}"
+            echo "run_id=${GITHUB_RUN_ID}"
+            echo "run_attempt=${GITHUB_RUN_ATTEMPT}"
+            echo "run_url=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            echo "runner_name=${RUNNER_NAME}"
+            echo "runner_label=${RUNNER_LABEL}"
+            echo "run_type=calibration"
+            echo "module=${MODULE}"
+            echo "benchmark=${BENCHMARK}"
+            echo "jmh_args=${JMH_ARGS}"
+            echo "started=$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          } > "${RESULTS_DIR}/run-info.properties"
+          .github/workflows/support/scripts/record-benchmark-environment.sh > "${RESULTS_DIR}/environment-before.txt"
+          cat "${RESULTS_DIR}/run-info.properties"
+          sed -n '/^== summary/,/^== end summary/p' "${RESULTS_DIR}/environment-before.txt"
+
+      # The job's timeout is the hang guard: it ends the ephemeral runner with every JVM in it. The driver pins the
+      # processor count of the forks as the nightly job does, so the calibration measures the nightly configuration.
+      - name: Run Benchmark
+        id: jmh
+        env:
+          MODULE: ${{ inputs.module }}
+          BENCHMARK: ${{ inputs.benchmark }}
+          PROFILERS: ${{ inputs.profilers }}
+          JMH_ARGS: ${{ inputs.jmh-args }}
+          MAX_LOAD: ${{ inputs.max-load }}
+          ATTEMPTS: ${{ inputs.attempts }}
+          DEADLINE_MINUTES: ${{ inputs.deadline-minutes }}
+        run: |
+          jar=$(ls "platform-sdk/${MODULE}/build/libs/${MODULE}"-*-jmh-merged.jar)
+          profiler_args=()
+          for profiler in ${PROFILERS}; do
+            profiler_args+=(--profiler "${profiler}")
+          done
+          # shellcheck disable=SC2086 # JMH_ARGS holds several arguments
+          python3 .github/workflows/support/scripts/benchmarks/run_benchmarks.py \
+            --jar "${jar}" --benchmark "${BENCHMARK}" --out "${RESULTS_DIR}" "${profiler_args[@]}" \
+            --max-load "${MAX_LOAD}" --attempts "${ATTEMPTS}" --deadline "$((DEADLINE_MINUTES * 60))" -- ${JMH_ARGS}
+
+      - name: Record Environment After
+        if: ${{ always() && steps.jmh.outcome != 'skipped' }}
+        run: |
+          echo "finished=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "${RESULTS_DIR}/run-info.properties"
+          .github/workflows/support/scripts/record-benchmark-environment.sh > "${RESULTS_DIR}/environment-after.txt"
+          sed -n '/^== summary/,/^== end summary/p' "${RESULTS_DIR}/environment-after.txt"
+
+      # One run cannot show the noise between runs; analyze the artifacts of several runs together for that
+      - name: Analyze Calibration
+        if: ${{ always() && steps.jmh.outcome != 'skipped' }}
+        run: |
+          python3 .github/workflows/support/scripts/benchmarks/analyze_calibration.py "${RESULTS_DIR}" \
+            > "${RESULTS_DIR}/calibration.md"
+          cat "${RESULTS_DIR}/calibration.md" >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload Results
+        if: ${{ always() && steps.jmh.outcome != 'skipped' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: benchmark-calibration
+          path: ${{ env.RESULTS_DIR }}
+          if-no-files-found: error
+          retention-days: 90

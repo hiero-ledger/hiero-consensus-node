@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "703: [FLOW] Codeowners Rerun"
+on:
+  pull_request_review:
+    types:
+      - submitted
+      - dismissed
+      - edited
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  actions: write
+
+concurrency:
+  group: codeowners-rerun-${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  rerun-codeowners:
+    name: Rerun Codeowners Check
+    runs-on: hl-cn-default-lin-sm
+    steps:
+      - name: Initialize Job
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+        with:
+          checkout: "true"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+          # Run the script from the tip of the base branch so pull requests
+          # whose branch predates the script, or carries an outdated copy,
+          # still use the current version. The base ref is used rather than
+          # base.sha, which can point at a commit older than the script. The
+          # script only needs the head SHA from the event payload, never files
+          # from the pull request itself.
+          checkout-ref: "${{ github.event.pull_request.base.ref }}"
+
+      - name: Rerun the codeowners check for this commit
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          script: |
+            const script = require('.github/workflows/support/scripts/rerun-codeowners-check.js');
+            await script({github, context, core})

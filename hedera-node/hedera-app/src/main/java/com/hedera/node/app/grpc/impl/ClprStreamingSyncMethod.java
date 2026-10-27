@@ -17,7 +17,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * gRPC method for the bidirectional-streaming CLPR sync {@code streamingSync}: marshaling, and closing the call at
+ * gRPC method for the bidirectional-streaming CLPR {@code sync}: marshaling, and closing the call at
  * the right moment. All protocol decisions belong to the {@link ClprStreamingSyncSession} this creates per stream.
  *
  * <p>A single instance serves every stream; the per-stream state lives in the session.

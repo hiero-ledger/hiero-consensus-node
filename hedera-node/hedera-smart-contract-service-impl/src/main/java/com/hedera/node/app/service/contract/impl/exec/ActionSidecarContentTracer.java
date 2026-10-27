@@ -68,6 +68,11 @@ public interface ActionSidecarContentTracer extends OperationTracer {
      * Called by Bonneville in hot code.
      * Same as tracePostExecution when the parent is suspended, except parent
      * frame, child frame and opCall already broken out.
+     *
+     * <p>Also called by the message call processor when a system contract suspends
+     * its frame to run a child frame (e.g. a CLPR connector authorization). Such a
+     * parent has not executed any operation, so {@code parent.getCurrentOperation()}
+     * is {@code null}; implementations must not assume a current operation.
      */
     void traceSuspended(MessageFrame parent, MessageFrame child, CallOperationType opCall);
 

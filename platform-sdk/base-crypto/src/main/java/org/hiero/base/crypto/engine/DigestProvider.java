@@ -21,20 +21,6 @@ public class DigestProvider extends CachingOperationProvider<Message, Void, byte
     }
 
     /**
-     * Computes the result of the cryptographic transformation using the provided message. This
-     * implementation defaults to an SHA-384 message digest and is provided for convenience.
-     *
-     * @param msg
-     * 		the message for which to compute a message digest
-     * @return true if the provided signature is valid; false otherwise
-     * @throws NoSuchAlgorithmException
-     * 		if an implementation of the required algorithm cannot be located or loaded
-     */
-    protected @NonNull byte[] compute(@NonNull final byte[] msg) throws NoSuchAlgorithmException {
-        return compute(msg, DigestType.SHA_384);
-    }
-
-    /**
      * Computes the result of the cryptographic transformation using the provided message.
      *
      * @param msg
@@ -56,7 +42,7 @@ public class DigestProvider extends CachingOperationProvider<Message, Void, byte
 
     /**
      * Computes the result of the cryptographic transformation using the given subset of bytes from the provided
-     * message.  This implementation defaults to an SHA-384 message digest and is provided for convenience.
+     * message.
      *
      * @param msg
      * 		the message for which to compute a message digest
@@ -100,7 +86,7 @@ public class DigestProvider extends CachingOperationProvider<Message, Void, byte
 
     /**
      * Computes the result of the cryptographic transformation using the given subset of bytes from the provided
-     * message.  This implementation defaults to an SHA-384 message digest and is provided for convenience.
+     * message.
      *
      * @param algorithm
      * 		the required algorithm implemented to be used

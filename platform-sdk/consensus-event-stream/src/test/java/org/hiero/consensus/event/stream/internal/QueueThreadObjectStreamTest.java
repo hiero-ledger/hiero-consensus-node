@@ -41,7 +41,8 @@ class QueueThreadObjectStreamTest {
     @BeforeAll
     static void init() {
         cryptography = mock(Cryptography.class);
-        when(cryptography.digestSync(any(SelfSerializable.class))).thenReturn(CryptoRandomUtils.randomHash());
+        when(cryptography.digestSync(any(SelfSerializable.class), any(DigestType.class)))
+                .thenReturn(CryptoRandomUtils.randomHash());
     }
 
     @BeforeEach

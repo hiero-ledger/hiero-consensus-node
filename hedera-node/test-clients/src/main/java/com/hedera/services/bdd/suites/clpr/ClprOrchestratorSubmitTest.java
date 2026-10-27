@@ -18,25 +18,25 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
+import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.CLPR_SERVICE_ADDRESS_20;
 import static java.util.Objects.requireNonNull;
 
 import com.google.protobuf.ByteString;
 import com.hedera.hapi.block.stream.MerklePath;
 import com.hedera.hapi.block.stream.StateProof;
-import com.hedera.hapi.node.state.clpr.ClprSyncPayload;
+import com.hedera.hapi.node.state.clpr.ClprBundleRequest;
+import com.hedera.hapi.node.state.clpr.ClprBundleResponse;
+import com.hedera.hapi.node.state.clpr.ClprStreamingSyncPayload;
 import com.hedera.hapi.platform.state.StateItem;
 import com.hedera.hapi.platform.state.StateValue;
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
-import com.hederahashgraph.api.proto.java.ClprEndpoint;
 import com.hederahashgraph.api.proto.java.ClprLedgerConfiguration;
-import com.hederahashgraph.api.proto.java.ClprServiceEndpoint;
 import com.hederahashgraph.api.proto.java.ClprSignatureScheme;
 import com.hederahashgraph.api.proto.java.ClprThrottles;
 import java.nio.charset.StandardCharsets;
 import java.util.stream.Stream;
-import org.bouncycastle.jcajce.provider.digest.Keccak;
 import org.bouncycastle.math.ec.rfc8032.Ed25519;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -44,12 +44,12 @@ import org.junit.jupiter.api.Tag;
 
 /**
  * Single-node embedded test that exercises the *receive* side of the CLPR sync
- * pipeline by invoking {@code ClprSyncWorkflow#handleSync} directly with a
- * {@code ClprSyncPayload} — exactly as the gRPC server does when a peer
- * endpoint calls {@code proto.ClprEndpointService/sync}.
+ * pipeline by opening a {@code ClprSyncWorkflow#openStreamingSync} session and feeding it a
+ * {@code ClprStreamingSyncPayload} — exactly as the gRPC server does when a peer
+ * endpoint streams on {@code proto.ClprEndpointService/sync}.
  *
- * <p>This is the production code path: the inbound gRPC handler deserializes
- * a {@code ClprSyncPayload}, validates the channel, builds a response, and
+ * <p>This is the production code path: the session deserializes the
+ * {@code ClprStreamingSyncPayload}, validates the channel, builds a reply, and
  * fire-and-forget submits the inbound bundle as a {@code ClprSubmitBundle}
  * HAPI transaction via {@link com.hedera.node.app.spi.AppContext.Gossip#submit}
  * (i.e. {@link com.hedera.node.app.Hedera#submit}). Runs in embedded mode so
@@ -69,7 +69,6 @@ public class ClprOrchestratorSubmitTest {
 
         final var proofBytes = buildProofBytes();
         return hapiTest(
-                overriding("clpr.enabled", "true"),
                 overriding("clpr.minLockedStake", String.valueOf(MIN_LOCKED_STAKE)),
                 // Fund the self node's account (account 3 in embedded) so the inbound
                 // ClprSubmitBundle transaction — submitted by the node and paying with its
@@ -111,16 +110,17 @@ public class ClprOrchestratorSubmitTest {
                     final var workflow = requireNonNull(
                             hedera.clprSyncWorkflow(), "ClprSyncWorkflow not available — Hedera not started?");
 
-                    // Build a ClprSyncPayload (PBJ form, same shape the gRPC server sees
-                    // after deserializing the wire bytes from a peer endpoint).
-                    final var syncPayload = ClprSyncPayload.newBuilder()
+                    // The peer's opening message: its one-shot request plus its bundle (PBJ form, same
+                    // shape the session sees after the gRPC server deserializes the wire bytes).
+                    final var syncPayload = ClprStreamingSyncPayload.newBuilder()
                             .channelId(Bytes.wrap(crypto.channelId))
-                            .bundlePayload(proofBytes)
+                            .bundleRequest(ClprBundleRequest.DEFAULT)
+                            .bundleResponse(ClprBundleResponse.newBuilder()
+                                    .bundlePayload(proofBytes)
+                                    .build())
                             .build();
-                    final var requestBytes = ClprSyncPayload.PROTOBUF.toBytes(syncPayload);
-                    final var responseBuf = BufferedData.allocate(8192);
 
-                    workflow.handleSync(requestBytes, responseBuf);
+                    workflow.openStreamingSync().onMessage(ClprStreamingSyncPayload.PROTOBUF.toBytes(syncPayload));
 
                     // Pump fake-platform time so the fire-and-forget ClprSubmitBundle
                     // submission can traverse consensus + handle.
@@ -154,14 +154,7 @@ public class ClprOrchestratorSubmitTest {
     private static ClprLedgerConfiguration buildLedgerConfig() {
         return ClprLedgerConfiguration.newBuilder()
                 .setChainId("hiero:embedded")
-                .setServiceAddress(ByteString.copyFrom(new byte[] {0, 0, 1}))
-                .addEndpoints(ClprEndpoint.newBuilder()
-                        .setServiceEndpoint(ClprServiceEndpoint.newBuilder()
-                                .setIpAddress("127.0.0.1")
-                                .setPort(50211)
-                                .build())
-                        .setTlsCertificate(ByteString.copyFrom(new byte[] {0x01}))
-                        .build())
+                .setServiceAddress(ByteString.copyFrom(CLPR_SERVICE_ADDRESS_20))
                 .setThrottles(ClprThrottles.newBuilder()
                         .setMaxMessagesPerBundle(100)
                         .setMaxMessagePayloadBytes(65536)
@@ -194,18 +187,14 @@ public class ClprOrchestratorSubmitTest {
 
         Crypto() {
             Ed25519.generatePublicKey(TEST_PRIVATE_KEY, 0, publicKey, 0);
-            channelId = keccak256("orch-test-conn-v1".getBytes(StandardCharsets.UTF_8));
-            channelCommitment = keccak256(concat(channelId, publicKey));
-            final var connSig = keccak256(channelId);
+            channelId = MiscCryptoUtils.keccak256DigestOf("orch-test-conn-v1".getBytes(StandardCharsets.UTF_8));
+            channelCommitment = MiscCryptoUtils.keccak256DigestOf(concat(channelId, publicKey));
+            final var connSig = MiscCryptoUtils.keccak256DigestOf(channelId);
             Ed25519.sign(TEST_PRIVATE_KEY, 0, connSig, 0, connSig.length, channelSignature, 0);
-            connectorId = keccak256(concat(channelId, concat(publicKey, connectorSalt)));
-            connectorCommitment = keccak256(concat(connectorId, publicKey));
-            final var connectorSig = keccak256(concat(connectorId, CLPR_SERVICE_ADDRESS));
+            connectorId = MiscCryptoUtils.keccak256DigestOf(concat(channelId, concat(publicKey, connectorSalt)));
+            connectorCommitment = MiscCryptoUtils.keccak256DigestOf(concat(connectorId, publicKey));
+            final var connectorSig = MiscCryptoUtils.keccak256DigestOf(concat(connectorId, CLPR_SERVICE_ADDRESS));
             Ed25519.sign(TEST_PRIVATE_KEY, 0, connectorSig, 0, connectorSig.length, connectorSignature, 0);
-        }
-
-        private static byte[] keccak256(final byte[] in) {
-            return new Keccak.Digest256().digest(in);
         }
 
         private static byte[] concat(final byte[] a, final byte[] b) {

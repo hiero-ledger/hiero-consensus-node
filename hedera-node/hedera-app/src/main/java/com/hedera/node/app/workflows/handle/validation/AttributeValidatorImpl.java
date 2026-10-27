@@ -8,6 +8,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_RENEWAL_PERIOD;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ZERO_BYTE_IN_STRING;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MEMO_TOO_LONG;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isValid;
+import static com.hedera.node.app.spi.validation.AttributeValidator.isWithinNestedKeyLimit;
 import static com.hedera.node.app.spi.validation.ExpiryMeta.NA;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
@@ -43,9 +44,12 @@ public class AttributeValidatorImpl implements AttributeValidator {
      */
     @Override
     public void validateKey(@NonNull final Key key) {
-        validateKeyAtLevel(key, 1);
-
-        // If key is mappable in all levels, validate the key is valid
+        // Enforce the nesting-depth cap through the shared SPI helper so the handle path and the stateless
+        // pure-check / pre-handle callers stay in lockstep on the same MAX_NESTED_KEY_LEVELS limit.
+        if (!isWithinNestedKeyLimit(key)) {
+            throw new HandleException(BAD_ENCODING);
+        }
+        // If the key is within the depth limit, validate that it is structurally valid.
         if (!isValid(key)) {
             throw new HandleException(BAD_ENCODING);
         }
@@ -102,31 +106,6 @@ public class AttributeValidatorImpl implements AttributeValidator {
                 autoRenewPeriod >= ledgerConfig.autoRenewPeriodMinDuration()
                         && autoRenewPeriod <= ledgerConfig.autoRenewPeriodMaxDuration(),
                 AUTORENEW_DURATION_NOT_IN_RANGE);
-    }
-
-    private void validateKeyAtLevel(@NonNull final Key key, final int level) {
-        if (level > MAX_NESTED_KEY_LEVELS) {
-            throw new HandleException(BAD_ENCODING);
-        }
-        if (!key.hasThresholdKey() && !key.hasKeyList()) {
-            validateSimple(key);
-        } else if (key.hasThresholdKey() && key.thresholdKeyOrThrow().hasKeys()) {
-            key.thresholdKeyOrThrow().keysOrThrow().keys().forEach(k -> validateKeyAtLevel(k, level + 1));
-        } else {
-            key.keyListOrThrow().keys().forEach(k -> validateKeyAtLevel(k, level + 1));
-        }
-    }
-
-    /**
-     * Current behavior is to only invalidate a simple key structure if it has no explicit type. Other validations,
-     * like on the number of bytes in the public key; or on the size of the threshold key; are done elsewhere.
-     *
-     * @param key the key to validate
-     */
-    private void validateSimple(@NonNull final Key key) {
-        if (key.key().kind() == Key.KeyOneOfType.UNSET) {
-            throw new HandleException(BAD_ENCODING);
-        }
     }
 
     private static boolean containsZeroByte(@NonNull final byte[] bytes) {

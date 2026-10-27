@@ -16,11 +16,11 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.toBundleProofBytes;
 import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.toConfigProofBytes;
+import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.CLPR_SERVICE_ADDRESS_20;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_CHANNEL_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_INVALID_CHANNEL_STATUS;
@@ -56,7 +56,9 @@ public class ClprSubmitBundleSuite {
     private static final String CLPR_CONTRACT = "ClprSystemContract";
     private static final byte[] ZERO_HASH = new byte[32];
 
-    @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
+    @LeakyHapiTest(
+            requirement = PROPERTY_OVERRIDES,
+            overrides = {"clpr.enabled"})
     final Stream<DynamicTest> rejectsSubmitBundleWhenDisabled() {
         return hapiTest(
                 overriding("clpr.enabled", "false"),
@@ -70,33 +72,28 @@ public class ClprSubmitBundleSuite {
 
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
     final Stream<DynamicTest> rejectsInvalidChannelIdLength() {
-        return hapiTest(
-                overriding("clpr.enabled", "true"),
-                clprSubmitBundle()
-                        .channelId(new byte[16])
-                        .bundlePayload(new byte[] {1})
-                        .endpointNodeId(0L)
-                        .payingWith(GENESIS)
-                        .hasPrecheck(INVALID_TRANSACTION_BODY));
+        return hapiTest(clprSubmitBundle()
+                .channelId(new byte[16])
+                .bundlePayload(new byte[] {1})
+                .endpointNodeId(0L)
+                .payingWith(GENESIS)
+                .hasPrecheck(INVALID_TRANSACTION_BODY));
     }
 
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
     final Stream<DynamicTest> rejectsChannelNotFound() {
-        return hapiTest(
-                overriding("clpr.enabled", "true"),
-                clprSubmitBundle()
-                        .channelId(new byte[32])
-                        .bundlePayload(new byte[] {1})
-                        .endpointNodeId(0L)
-                        .payingWith(GENESIS)
-                        .hasKnownStatus(CLPR_CHANNEL_NOT_FOUND));
+        return hapiTest(clprSubmitBundle()
+                .channelId(new byte[32])
+                .bundlePayload(new byte[] {1})
+                .endpointNodeId(0L)
+                .payingWith(GENESIS)
+                .hasKnownStatus(CLPR_CHANNEL_NOT_FOUND));
     }
 
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
     final Stream<DynamicTest> rejectsMalformedPayload() {
         final var crypto = new ClprChannelCrypto();
         return hapiTest(
-                overriding("clpr.enabled", "true"),
                 clprUpdateLedgerConfiguration()
                         .configuration(defaultLedgerConfig())
                         .payingWith(GENESIS),
@@ -133,7 +130,6 @@ public class ClprSubmitBundleSuite {
                         .build())
                 .build();
         return hapiTest(
-                overriding("clpr.enabled", "true"),
                 clprUpdateLedgerConfiguration()
                         .configuration(defaultLedgerConfig())
                         .payingWith(GENESIS),
@@ -168,7 +164,7 @@ public class ClprSubmitBundleSuite {
                         .build())
                 .build();
         return hapiTest(
-                overridingTwo("clpr.enabled", "true", "clpr.minLockedStake", "100"),
+                overriding("clpr.minLockedStake", "100"),
                 clprUpdateLedgerConfiguration()
                         .configuration(defaultLedgerConfig())
                         .payingWith(GENESIS),
@@ -241,7 +237,6 @@ public class ClprSubmitBundleSuite {
                 .addMessages(helloMessage)
                 .build();
         return hapiTest(
-                overriding("clpr.enabled", "true"),
                 clprUpdateLedgerConfiguration()
                         .configuration(defaultLedgerConfig())
                         .payingWith(GENESIS),
@@ -294,7 +289,7 @@ public class ClprSubmitBundleSuite {
                         .build())
                 .build();
         return hapiTest(
-                overridingTwo("clpr.enabled", "true", "clpr.minLockedStake", "100"),
+                overriding("clpr.minLockedStake", "100"),
                 clprUpdateLedgerConfiguration()
                         .configuration(defaultLedgerConfig())
                         .payingWith(GENESIS),
@@ -371,7 +366,6 @@ public class ClprSubmitBundleSuite {
                         .build())
                 .build();
         return hapiTest(
-                overriding("clpr.enabled", "true"),
                 // Initial config
                 clprUpdateLedgerConfiguration()
                         .configuration(defaultLedgerConfig())
@@ -403,24 +397,13 @@ public class ClprSubmitBundleSuite {
     private static ClprLedgerConfiguration defaultLedgerConfig() {
         return ClprLedgerConfiguration.newBuilder()
                 .setChainId("hiero:testing")
-                .setServiceAddress(ByteString.copyFrom(new byte[] {0, 0, 1}))
+                .setServiceAddress(ByteString.copyFrom(CLPR_SERVICE_ADDRESS_20))
                 .setThrottles(ClprThrottles.newBuilder()
                         .setMaxMessagesPerBundle(100)
                         .setMaxMessagePayloadBytes(65536)
                         .setMaxGasPerMessage(1_000_000L)
                         .setMaxQueueDepth(1000)
                         .setMaxSyncBytes(1_048_576L)
-                        .build())
-                // Non-empty endpoints required by ClprCompleteChannelHandler (spec §5.1.3
-                // step 5 — verified peer config must carry at least one endpoint; shape per
-                // §1.1 / §1.2). The endpoint identity isn't exercised here — we're testing
-                // the bundle path, not the peer.
-                .addEndpoints(ClprEndpoint.newBuilder()
-                        .setServiceEndpoint(ClprServiceEndpoint.newBuilder()
-                                .setIpAddress("127.0.0.1")
-                                .setPort(50211)
-                                .build())
-                        .setTlsCertificate(ByteString.copyFrom(new byte[] {0x01}))
                         .build())
                 .build();
     }

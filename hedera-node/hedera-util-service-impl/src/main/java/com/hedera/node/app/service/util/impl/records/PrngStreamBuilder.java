@@ -21,10 +21,11 @@ public interface PrngStreamBuilder extends StreamBuilder {
     PrngStreamBuilder entropyNumber(int num);
 
     /**
-     * Tracks the pseudorandom 384-bit string generated when no output range is provided or range of 0 is provided in
+     * Tracks the pseudorandom bytes generated when no output range is provided or range of 0 is provided in
      * {@link com.hedera.hapi.node.util.UtilPrngTransactionBody}.
      *
-     * @param prngBytes the pseudorandom 384-bit string
+     * @param prngBytes the pseudorandom bytes, the n-3 running hash: 48 bytes from the record stream, or the block
+     *     digest's length in BLOCKS mode
      * @return this builder
      */
     @NonNull

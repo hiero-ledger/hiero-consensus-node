@@ -12,6 +12,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.LongAdder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -31,7 +32,8 @@ import org.apache.logging.log4j.Logger;
  * implementation is somewhat in between. For every internal node, this class waits
  * for the teacher to confirm it's clean or dirty. If a node is dirty, its child
  * nodes are sent to the teacher, but not immediate children, but the grand children
- * several ranks lower in the tree.
+ * several ranks lower in the tree. Drill-down stops {@link #BOTTOM_GAP} ranks above the
+ * leaf rank, where a dirty node causes all its leaves to be sent.
  *
  * <p>When leaves are processed, the policy is to wait till they have a clean parent
  * anywhere up in the tree (in this case, the leaves will be skipped, no requests to
@@ -67,7 +69,110 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
      */
     private static final int DEFAULT_CHUNK_HEIGHT = 23;
 
+    /**
+     * The distance between the lowest checked internal rank and the chunk leaf rank. A dirty internal
+     * at this distance isn't drilled down further. Instead, all its {@code 2^BOTTOM_GAP} leaves are sent.
+     *
+     * <p>A smaller gap sends fewer clean leaves under dirty internals, but more internal requests at the
+     * lowest checked rank. Gap 2 minimizes the total number of requests for dirty leaf fractions from
+     * about 0.01% to about 30%. Compared to gap 3, it needs 8-13% fewer requests at 1-10% dirty leaves.
+     * Gap 1 is never better than gap 2.
+     */
+    private static final int BOTTOM_GAP = 2;
+
     private static final Logger logger = LogManager.getLogger(TopToBottomTraversalOrder.class);
+
+    /**
+     * Size of per-distance statistics arrays. Paths are longs, so no rank, and therefore no distance
+     * from an internal node to a leaf rank, can exceed 63.
+     */
+    private static final int MAX_RANK_DISTANCE = 64;
+
+    /**
+     * Returns the number of ranks between a chunk root and the rank, where the chunk's initial
+     * internals are seeded.
+     *
+     * <p>The lowest checked rank is {@link #BOTTOM_GAP} ranks above the chunk leaf rank, and dirty
+     * internals are drilled down by {@link #RANK_STEP} ranks. The seed rank is therefore the highest
+     * rank at or below the chunk midpoint, which is a multiple of {@code RANK_STEP} ranks above the
+     * lowest checked rank: the midpoint, or up to {@code RANK_STEP - 1} ranks below it. Seeding below
+     * rather than above the midpoint doesn't add a drill-down step, but increases the number of seeded
+     * internals by up to {@code 2^(RANK_STEP - 1)} times.
+     *
+     * @param chunkHeight the number of ranks between the chunk root and the chunk leaf rank, at least 3
+     * @return the seed rank offset from the chunk root rank
+     */
+    static int seedRankOffset(final int chunkHeight) {
+        final int midpoint = chunkHeight / 2;
+        final int lowestCheckedOffset = chunkHeight - BOTTOM_GAP;
+        assert lowestCheckedOffset >= midpoint : "Chunk height is too small: " + chunkHeight;
+        return lowestCheckedOffset - (lowestCheckedOffset - midpoint) / RANK_STEP * RANK_STEP;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Statistics
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /**
+     * Response statistics for chunks, whose leaves are at a single leaf rank. Internal response counts
+     * are indexed by the distance from the internal node rank to the chunk leaf rank. Leaf counts only
+     * include leaves within the old leaf path range, i.e. leaves checked via internal node responses.
+     *
+     * <p>The dirty fraction of internals at distance {@code d} estimates the dirty leaf fraction
+     * {@code p}: a node is dirty if any of its {@code 2^d} leaves is dirty, so the expected dirty
+     * fraction of all nodes at that distance is {@code 1 - (1 - p)^(2^d)}.
+     */
+    private static final class LeafRankStats {
+
+        // LongAdders rather than atomics: internal responses are recorded concurrently by all receiver
+        // threads, and most of them hit the same one or two distances
+        final LongAdder[] internals = newAdders();
+        final LongAdder[] cleanInternals = newAdders();
+        final LongAdder leaves = new LongAdder();
+        final LongAdder cleanLeaves = new LongAdder();
+
+        private static LongAdder[] newAdders() {
+            final LongAdder[] adders = new LongAdder[MAX_RANK_DISTANCE];
+            for (int i = 0; i < adders.length; i++) {
+                adders[i] = new LongAdder();
+            }
+            return adders;
+        }
+
+        void appendTo(final StringBuilder sb, final int leafRank) {
+            sb.append("leaf rank ").append(leafRank).append(": leaves=").append(leaves.sum());
+            sb.append(", cleanLeaves=").append(cleanLeaves.sum());
+            sb.append(", internals by distance to leaf rank (total/clean)=[");
+            boolean first = true;
+            for (int distance = MAX_RANK_DISTANCE - 1; distance >= 0; distance--) {
+                final long total = internals[distance].sum();
+                if (total == 0) {
+                    continue;
+                }
+                if (!first) {
+                    sb.append(", ");
+                }
+                first = false;
+                sb.append(distance).append('=').append(total).append('/').append(cleanInternals[distance].sum());
+            }
+            sb.append(']');
+        }
+    }
+
+    /** Stats for chunks with leaves at {@link #firstLeafRank}, if it differs from {@link #lastLeafRank}. */
+    private final LeafRankStats firstLeafRankStats = new LeafRankStats();
+
+    /** Stats for chunks with leaves at {@link #lastLeafRank}. */
+    private final LeafRankStats lastLeafRankStats = new LeafRankStats();
+
+    /** Responses for leaves outside the old leaf path range. Such leaves are sent without checks. */
+    private final LongAdder outOfRangeLeaves = new LongAdder();
+
+    /** Internal node responses received after their chunks were completed. */
+    private final LongAdder staleInternals = new LongAdder();
+
+    /** The number of chunks created, including pre-fetched chunks. */
+    private final LongAdder chunks = new LongAdder();
 
     // ═══════════════════════════════════════════════════════════════════════
     // Per-chunk state
@@ -98,9 +203,9 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
 
         /**
          * The rank at which initial chunk internals are seeded, equal to
-         * {@code chunkRootRank + (chunkLastRank - chunkRootRank) / 2} — the midpoint
-         * of the chunk. Used by {@code skipCleanPaths} to bound how far up the tree
-         * it walks looking for clean ancestors.
+         * {@code chunkRootRank + seedRankOffset(chunkLastRank - chunkRootRank)} — the midpoint of
+         * the chunk, or up to {@code RANK_STEP - 1} ranks below it. Used by
+         * {@code skipCleanPaths} to bound how far up the tree it walks looking for clean ancestors.
          */
         final int chunkFirstCheckedRank;
 
@@ -142,7 +247,7 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
                     MerklePathUtils.getRightGrandChildPath(chunkRootPath, chunkLastRank - chunkRootRank);
 
             final int chunkHeight = chunkLastRank - chunkRootRank;
-            final int skipRanks = chunkHeight / 2;
+            final int skipRanks = seedRankOffset(chunkHeight);
             this.chunkFirstCheckedRank = chunkRootRank + skipRanks;
             final long firstPath = MerklePathUtils.getLeftGrandChildPath(chunkRootPath, skipRanks);
             final long lastPath = MerklePathUtils.getRightGrandChildPath(chunkRootPath, skipRanks);
@@ -248,8 +353,77 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
             final int chunkLastRank = MerklePathUtils.getRank(startingLeaf);
             final long chunkRootPath = MerklePathUtils.getGrandParentPath(startingLeaf, chunkLastRank - chunkRootRank);
             activeChunks.addLast(new ChunkState(chunkRootPath, chunkLastRank, oldFirstLeafPath, oldLastLeafPath));
+            chunks.increment();
 
-            logger.debug(RECONNECT.getMarker(), "Pull start: chunk root rank = {}", chunkRootRank);
+            // Tree geometry. Together with traversal statistics (see getStatistics()), it's enough to
+            // estimate the dirty leaf fraction and how many requests were spent at every rank
+            logger.info(
+                    RECONNECT.getMarker(),
+                    "Pull start: learner leaves=[{}, {}], teacher leaves=[{}, {}], chunk root rank={}, "
+                            + "bottom gap={}, seed ranks: {} (leaf rank {} chunks), {} (leaf rank {} chunks)",
+                    oldFirstLeafPath,
+                    oldLastLeafPath,
+                    firstLeafPath,
+                    lastLeafPath,
+                    chunkRootRank,
+                    BOTTOM_GAP,
+                    chunkRootRank + seedRankOffset(firstLeafRank - chunkRootRank),
+                    firstLeafRank,
+                    chunkRootRank + seedRankOffset(lastLeafRank - chunkRootRank),
+                    lastLeafRank);
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Example: {@code chunks=64, outOfRangeLeaves=6020576, staleInternals=0; leaf rank 29:
+     * leaves=192910932, cleanLeaves=158307125, internals by distance to leaf rank (total/clean)=[11=..., 8=...,
+     * 5=..., 2=...]; leaf rank 28: ...}. Leaf rank statistics are reported for the last leaf rank first.
+     */
+    @Override
+    public String getStatistics() {
+        if (simpleMode) {
+            return "simple mode";
+        }
+        final StringBuilder sb = new StringBuilder();
+        sb.append("chunks=").append(chunks.sum());
+        sb.append(", outOfRangeLeaves=").append(outOfRangeLeaves.sum());
+        sb.append(", staleInternals=").append(staleInternals.sum());
+        sb.append("; ");
+        lastLeafRankStats.appendTo(sb, lastLeafRank);
+        if (firstLeafRank != lastLeafRank) {
+            sb.append("; ");
+            firstLeafRankStats.appendTo(sb, firstLeafRank);
+        }
+        return sb.toString();
+    }
+
+    private LeafRankStats statsForLeafRank(final int leafRank) {
+        return (leafRank == lastLeafRank) ? lastLeafRankStats : firstLeafRankStats;
+    }
+
+    private void recordLeafResponse(final long path, final boolean isClean) {
+        if ((path < oldFirstLeafPath) || (path > oldLastLeafPath)) {
+            outOfRangeLeaves.increment();
+            return;
+        }
+        final LeafRankStats stats = statsForLeafRank(MerklePathUtils.getRank(path));
+        stats.leaves.increment();
+        if (isClean) {
+            stats.cleanLeaves.increment();
+        }
+    }
+
+    private void recordInternalResponse(final ChunkState chunk, final int rank, final boolean isClean) {
+        final int distance = chunk.chunkLastRank - rank;
+        if ((distance < 0) || (distance >= MAX_RANK_DISTANCE)) {
+            return;
+        }
+        final LeafRankStats stats = statsForLeafRank(chunk.chunkLastRank);
+        stats.internals[distance].increment();
+        if (isClean) {
+            stats.cleanInternals[distance].increment();
         }
     }
 
@@ -297,19 +471,22 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
 
     @Override
     public void nodeReceived(final long path, final boolean isClean) {
-        final boolean isLeaf = path >= firstLeafPath;
-        if ((path == 0) || isLeaf) {
+        if (path == 0) {
             return;
         }
-        if (simpleMode) {
-            // No chunks in simple mode — internal responses are not expected
+        final boolean isLeaf = path >= firstLeafPath;
+        assert isLeaf || !simpleMode : "No internal responses are expected in the simple mode";
+        if (isLeaf) {
+            recordLeafResponse(path, isClean);
             return;
         }
         final ChunkState chunk = findOwningChunk(path);
         if (chunk == null) {
+            staleInternals.increment();
             return; // stale response for a completed chunk
         }
         final int rank = MerklePathUtils.getRank(path);
+        recordInternalResponse(chunk, rank, isClean);
         if (isClean) {
             chunk.cleanPaths.add(path);
         } else if (rank >= chunk.chunkLastRank - RANK_STEP) {
@@ -488,6 +665,7 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
             assert lastChunk.chunkLastRank == firstLeafRank;
             nextChunkLastRank = lastLeafRank;
         }
+        chunks.increment();
         return new ChunkState(nextChunkRootPath, nextChunkLastRank, oldFirstLeafPath, oldLastLeafPath);
     }
 
@@ -496,7 +674,7 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
      * the old leaf range and the next chunk does not cross the rank-change boundary.
      *
      * <p>At most one chunk is seeded per invocation: seeding allocates a {@link ChunkState} and
-     * inserts its initial internals ({@code 2^(chunkHeight/2)} entries) under the view's sync lock, so
+     * inserts its initial internals ({@code 2^seedRankOffset} entries) under the view's sync lock, so
      * seeding several at once would hold that lock proportionally longer and block other senders.
      * Sender threads cycle back quickly, so a subsequent stall seeds the subsequent chunk if still
      * warranted. Pre-fetch is unbounded — sustained stalls grow the deque one chunk per stall.

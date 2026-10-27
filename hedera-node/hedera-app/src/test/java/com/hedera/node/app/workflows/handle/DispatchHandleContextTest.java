@@ -976,6 +976,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
         doReturn(ledgerIdSingleton).when(historyStates).getSingleton(LEDGER_ID_STATE_ID);
         given(ledgerIdSingleton.get()).willReturn(new ProtoBytes(externalizedId));
         assertEquals(externalizedId, subject.ledgerId());
+        assertEquals(externalizedId, subject.historyLedgerId());
     }
 
     @Test
@@ -986,6 +987,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
         doReturn(ledgerIdSingleton).when(historyStates).getSingleton(LEDGER_ID_STATE_ID);
         given(ledgerIdSingleton.get()).willReturn(ProtoBytes.DEFAULT);
         assertEquals(Bytes.fromHex("00"), subject.ledgerId());
+        assertEquals(Bytes.EMPTY, subject.historyLedgerId());
     }
 
     private void mockNeeded() {

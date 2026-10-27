@@ -8,7 +8,10 @@ import static com.hedera.services.bdd.junit.TestTags.CLPR;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCloseChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteChannel;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteConnector;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprDeregisterConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterChannel;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
@@ -18,6 +21,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_CHANNEL_ALREADY_EXISTS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_COMMITMENT_MISMATCH;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_CONNECTOR_ALREADY_EXISTS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_INVALID_VERIFIER_CONTRACT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_NOT_ENABLED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -32,9 +36,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.HapiSpec;
-import com.hederahashgraph.api.proto.java.ClprEndpoint;
 import com.hederahashgraph.api.proto.java.ClprLedgerConfiguration;
-import com.hederahashgraph.api.proto.java.ClprServiceEndpoint;
 import com.hederahashgraph.api.proto.java.ClprSignatureScheme;
 import com.hederahashgraph.api.proto.java.ClprThrottles;
 import com.hederahashgraph.api.proto.java.ContractID;
@@ -55,6 +57,8 @@ import org.junit.jupiter.api.Tag;
 public class ClprChannelCommitRevealSuite {
 
     private static final String VERIFIER = "ClprPassThroughVerifier";
+    private static final String CONNECTOR_CONTRACT = "PassThroughAuth";
+    private static final long LOCKED_STAKE = 100_000_000L;
 
     // ── Happy-path tests ─────────────────────────────────────────────────────
 
@@ -63,7 +67,6 @@ public class ClprChannelCommitRevealSuite {
     final Stream<DynamicTest> commitThenRevealCreatesActiveChannel() {
         final var crypto = new ClprChannelCrypto();
         return hapiTest(
-                overriding("clpr.enabled", "true"),
                 uploadInitCode(VERIFIER),
                 contractCreate(VERIFIER),
                 cryptoCreate("registrant").balance(ONE_HUNDRED_HBARS),
@@ -83,11 +86,10 @@ public class ClprChannelCommitRevealSuite {
     }
 
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
-    @DisplayName("Commit is idempotent — re-submitting same commitment succeeds")
-    final Stream<DynamicTest> commitIsIdempotent() {
+    @DisplayName("Re-registering a pending commitment fails with CHANNEL_ALREADY_EXISTS")
+    final Stream<DynamicTest> reRegisteringPendingCommitmentFails() {
         final var crypto = new ClprChannelCrypto();
         return hapiTest(
-                overriding("clpr.enabled", "true"),
                 clprRegisterChannel()
                         .ownershipCommitment(crypto.commitment())
                         .payingWith(GENESIS)
@@ -95,7 +97,90 @@ public class ClprChannelCommitRevealSuite {
                 clprRegisterChannel()
                         .ownershipCommitment(crypto.commitment())
                         .payingWith(GENESIS)
-                        .hasKnownStatus(SUCCESS));
+                        .hasKnownStatus(CLPR_CHANNEL_ALREADY_EXISTS));
+    }
+
+    @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
+    @DisplayName("Re-registering the commitment of an existing channel fails with CHANNEL_ALREADY_EXISTS")
+    final Stream<DynamicTest> reRegisteringCompletedChannelCommitmentFails() {
+        final var crypto = new ClprChannelCrypto();
+        return hapiTest(
+                overriding("clpr.enabled", "true"),
+                uploadInitCode(VERIFIER),
+                contractCreate(VERIFIER),
+                clprRegisterChannel().ownershipCommitment(crypto.commitment()).payingWith(GENESIS),
+                clprCompleteChannel()
+                        .channelId(crypto.channelId())
+                        .publicKey(crypto.publicKey())
+                        .signature(crypto.signature())
+                        .signatureScheme(ClprSignatureScheme.ED25519)
+                        .verifierContract(VERIFIER)
+                        .configProofBytes(defaultConfigProofBytes())
+                        .payingWith(GENESIS)
+                        .hasKnownStatus(SUCCESS),
+                clprRegisterChannel()
+                        .ownershipCommitment(crypto.commitment())
+                        .payingWith(GENESIS)
+                        .hasKnownStatus(CLPR_CHANNEL_ALREADY_EXISTS));
+    }
+
+    @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
+    @DisplayName("Connector commitment cannot be re-registered while pending, active, or after deregistration")
+    final Stream<DynamicTest> connectorCommitmentCannotBeReRegistered() {
+        final var crypto = new ClprChannelCrypto();
+        return hapiTest(
+                overriding("clpr.enabled", "true"),
+                uploadInitCode(VERIFIER, CONNECTOR_CONTRACT),
+                contractCreate(VERIFIER),
+                contractCreate(CONNECTOR_CONTRACT),
+                clprRegisterChannel().ownershipCommitment(crypto.commitment()).payingWith(GENESIS),
+                clprCompleteChannel()
+                        .channelId(crypto.channelId())
+                        .publicKey(crypto.publicKey())
+                        .signature(crypto.signature())
+                        .signatureScheme(ClprSignatureScheme.ED25519)
+                        .verifierContract(VERIFIER)
+                        .configProofBytes(defaultConfigProofBytes())
+                        .payingWith(GENESIS)
+                        .hasKnownStatus(SUCCESS),
+                clprRegisterConnector()
+                        .commitment(crypto.connectorCommitment())
+                        .payingWith(GENESIS)
+                        .hasKnownStatus(SUCCESS),
+                // Pending reveal
+                clprRegisterConnector()
+                        .commitment(crypto.connectorCommitment())
+                        .payingWith(GENESIS)
+                        .hasKnownStatus(CLPR_CONNECTOR_ALREADY_EXISTS),
+                clprCompleteConnector()
+                        .connectorId(crypto.connectorId())
+                        .publicKey(crypto.publicKey())
+                        .signature(crypto.connectorSignature())
+                        .signatureScheme(ClprSignatureScheme.ED25519)
+                        .salt(crypto.connectorSalt())
+                        .channelId(crypto.channelId())
+                        .connectorContract(CONNECTOR_CONTRACT)
+                        .adminKeyName(GENESIS)
+                        .lockedStake(LOCKED_STAKE)
+                        .payingWith(GENESIS)
+                        .hasKnownStatus(SUCCESS),
+                // Connector exists
+                clprRegisterConnector()
+                        .commitment(crypto.connectorCommitment())
+                        .payingWith(GENESIS)
+                        .hasKnownStatus(CLPR_CONNECTOR_ALREADY_EXISTS),
+                clprDeregisterConnector()
+                        .channelId(crypto.channelId())
+                        .connectorId(crypto.connectorId())
+                        .adminKey(GENESIS)
+                        .stakeRecipient(GENESIS)
+                        .payingWith(GENESIS)
+                        .hasKnownStatus(SUCCESS),
+                // Connector deregistered: the commitment is never released
+                clprRegisterConnector()
+                        .commitment(crypto.connectorCommitment())
+                        .payingWith(GENESIS)
+                        .hasKnownStatus(CLPR_CONNECTOR_ALREADY_EXISTS));
     }
 
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
@@ -103,7 +188,6 @@ public class ClprChannelCommitRevealSuite {
     final Stream<DynamicTest> differentPayerCanComplete() {
         final var crypto = new ClprChannelCrypto();
         return hapiTest(
-                overriding("clpr.enabled", "true"),
                 uploadInitCode(VERIFIER),
                 contractCreate(VERIFIER),
                 cryptoCreate("committer").balance(ONE_HUNDRED_HBARS),
@@ -130,7 +214,6 @@ public class ClprChannelCommitRevealSuite {
     final Stream<DynamicTest> doubleRevealFails() {
         final var crypto = new ClprChannelCrypto();
         return hapiTest(
-                overriding("clpr.enabled", "true"),
                 uploadInitCode(VERIFIER),
                 contractCreate(VERIFIER),
                 clprRegisterChannel().ownershipCommitment(crypto.commitment()).payingWith(GENESIS),
@@ -159,7 +242,6 @@ public class ClprChannelCommitRevealSuite {
     final Stream<DynamicTest> adminDeletesPendingThenRevealFails() {
         final var crypto = new ClprChannelCrypto();
         return hapiTest(
-                overriding("clpr.enabled", "true"),
                 uploadInitCode(VERIFIER),
                 contractCreate(VERIFIER),
                 // Phase 1: commit
@@ -187,7 +269,6 @@ public class ClprChannelCommitRevealSuite {
         final var legitimate = new ClprChannelCrypto();
         final var attacker = new ClprChannelCrypto();
         return hapiTest(
-                overriding("clpr.enabled", "true"),
                 uploadInitCode(VERIFIER),
                 contractCreate(VERIFIER),
                 cryptoCreate("attacker").balance(ONE_HUNDRED_HBARS),
@@ -218,7 +299,6 @@ public class ClprChannelCommitRevealSuite {
                 .setContractNum(99_999_999L)
                 .build();
         return hapiTest(
-                overriding("clpr.enabled", "true"),
                 clprRegisterChannel().ownershipCommitment(crypto.commitment()).payingWith(GENESIS),
                 clprCompleteChannel()
                         .channelId(crypto.channelId())
@@ -231,7 +311,9 @@ public class ClprChannelCommitRevealSuite {
                         .hasKnownStatus(CLPR_INVALID_VERIFIER_CONTRACT));
     }
 
-    @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
+    @LeakyHapiTest(
+            requirement = PROPERTY_OVERRIDES,
+            overrides = {"clpr.enabled"})
     @DisplayName("Commit when CLPR is disabled fails with CLPR_NOT_ENABLED")
     final Stream<DynamicTest> commitWhenDisabledFails() {
         return hapiTest(
@@ -247,11 +329,10 @@ public class ClprChannelCommitRevealSuite {
     @LeakyEmbeddedHapiTest(
             reason = NEEDS_STATE_ACCESS,
             overrides = {"clpr.enabled"})
-    @DisplayName("verifyConfigWithSeedEndpoints: verifier-returned throttles and chainId are stored on channel")
-    final Stream<DynamicTest> verifyConfigWithSeedEndpointsFieldsStoredOnChannel() {
+    @DisplayName("verifyConfig: verifier-returned throttles and chainId are stored on channel")
+    final Stream<DynamicTest> verifyConfigFieldsStoredOnChannel() {
         final var crypto = new ClprChannelCrypto();
         return hapiTest(
-                overriding("clpr.enabled", "true"),
                 uploadInitCode(VERIFIER),
                 contractCreate(VERIFIER),
                 clprRegisterChannel().ownershipCommitment(crypto.commitment()).payingWith(GENESIS),
@@ -267,11 +348,9 @@ public class ClprChannelCommitRevealSuite {
                 withOpContext((spec, opLog) -> {
                     final var conn = readChannelFromState(spec, crypto);
                     assertEquals(
-                            "hiero:testing",
-                            conn.chainId(),
-                            "chainId from verifyConfigWithSeedEndpoints should be stored on channel");
+                            "hiero:testing", conn.chainId(), "chainId from verifyConfig should be stored on channel");
                     final var t = conn.peerThrottles();
-                    assertNotNull(t, "peerThrottles should be stored from verifyConfigWithSeedEndpoints return");
+                    assertNotNull(t, "peerThrottles should be stored from verifyConfig return");
                     assertEquals(
                             100,
                             t.maxMessagesPerBundle(),
@@ -311,15 +390,6 @@ public class ClprChannelCommitRevealSuite {
                         .setMaxGasPerMessage(1_000_000L)
                         .setMaxQueueDepth(1000)
                         .setMaxSyncBytes(1_048_576L)
-                        .build())
-                // Non-empty endpoints required by ClprCompleteChannelHandler (spec §5.1.3
-                // step 5 — verified peer config must include at least one endpoint).
-                .addEndpoints(ClprEndpoint.newBuilder()
-                        .setServiceEndpoint(ClprServiceEndpoint.newBuilder()
-                                .setIpAddress("127.0.0.1")
-                                .setPort(50211)
-                                .build())
-                        .setTlsCertificate(ByteString.copyFrom(new byte[] {0x01}))
                         .build())
                 .build());
     }

@@ -31,22 +31,21 @@ public interface ClprVerifier {
      *       verifier has no rotating-authority concept).</li>
      *   <li>A manifest whose {@code service_address} does not match the config's
      *       {@code service_address}.</li>
-     *   <li>A manifest with {@code version == 0}.</li>
+     *   <li>A proven manifest with {@code version == 0}.</li>
      * </ul>
+     * When {@code endpointManifestProofBytes} is empty, an implementation MAY return the uninitialized
+     * manifest instead ({@code version == 0}, the config's {@code service_address}, no endpoints), as
+     * the Solidity verifiers do. The first proven manifest ({@code version >= 1}) then applies via
+     * §4.2 Step 1b.
      * Implementations MUST NOT reject a manifest solely because its {@code endpoints} list is
      * empty (spec §2.4.1 - empty manifest at version >= 1 is valid).
      *
      * @param configProofBytes opaque proof bytes attesting the peer's configuration
      * @param channelId 32-byte Channel identifier; echoed by the verifier into the
-     *     returned {@code ChannelContext} on platforms that carry one. MUST be
-     *     {@link Bytes#EMPTY} when {@code clpr.endpointManifestEnabled=false} (the legacy
-     *     verifier ABI does not take a channel id).
+     *     returned {@code ChannelContext} on platforms that carry one.
      * @param endpointManifestProofBytes opaque proof bytes attesting the peer's endpoint
      *     manifest; MUST be verifiable against the same initial trust anchor as
-     *     {@code configProofBytes}. MUST be {@link Bytes#EMPTY} when
-     *     {@code clpr.endpointManifestEnabled=false} — implementations select between the
-     *     legacy 1-arg ABI and the manifest-aware 3-arg ABI based on the flag and ignore
-     *     this argument on the legacy path
+     *     {@code configProofBytes}
      * @param context the current handle context, available for EVM dispatch if needed
      * @return the verified config plus the initial endpoint manifest
      * @throws HandleException if any proof verification or invariant check fails

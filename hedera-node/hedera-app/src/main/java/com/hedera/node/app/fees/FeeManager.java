@@ -72,22 +72,23 @@ public final class FeeManager {
     }
 
     /**
-     * Updates the simple fee schedule based on the given file content. This is called on genesis and whenever
-     * the simple fee schedule file is updated. The schedule must be well-formed and must price every transaction
-     * and query type that has a registered fee calculator; otherwise it is rejected and the current schedule is kept.
+     * Updates the simple fee schedule based on the given file content. This is called on restart and whenever
+     * the simple fee schedule file is updated. Any well-formed schedule is installed, so the schedule in use always
+     * matches the file in state on every node; registered types it leaves unpriced are logged.
      *
      * @param bytes The new simple fee schedule file content.
      * @return {@link ResponseCodeEnum#SUCCESS} if the schedule was installed, otherwise
      * {@link ResponseCodeEnum#FEE_SCHEDULE_FILE_PART_UPLOADED}
      */
     public ResponseCodeEnum updateSimpleFees(@NonNull final Bytes bytes) {
-        return updateSimpleFees(bytes, true);
+        return updateSimpleFees(bytes, false);
     }
 
     /**
      * Updates the simple fee schedule based on the given file content. A well-formed schedule that leaves some
      * registered transaction or query type unpriced is rejected when {@code requireFullCoverage} is true; otherwise
-     * it is installed and the unpriced types are logged.
+     * it is installed and the unpriced types are logged. Only genesis may require full coverage, since a rejected
+     * update would leave the file in state different from the schedule in use.
      *
      * @param bytes The new simple fee schedule file content.
      * @param requireFullCoverage whether to reject a schedule that leaves a registered type unpriced

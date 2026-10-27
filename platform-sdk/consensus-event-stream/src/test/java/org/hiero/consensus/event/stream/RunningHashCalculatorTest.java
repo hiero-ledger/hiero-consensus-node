@@ -27,7 +27,7 @@ class RunningHashCalculatorTest {
         for (int i = 0; i < 100; i++) {
             ObjectForTestStream object = ObjectForTestStream.getRandomObjectForTestStream(PAY_LOAD_SIZE_4);
             runningHashCalculator.addObject(object);
-            expected = cryptography.calcRunningHash(expected, object.getHash());
+            expected = cryptography.calcRunningHash(expected, object.getHash(), DigestType.SHA_384);
             assertEquals(
                     expected,
                     runningHashCalculator.getRunningHash(),
@@ -45,7 +45,7 @@ class RunningHashCalculatorTest {
         for (int i = 0; i < 100; i++) {
             ObjectForTestStream object = ObjectForTestStream.getRandomObjectForTestStream(PAY_LOAD_SIZE_4);
             runningHashCalculator.addObject(object);
-            expected = cryptography.calcRunningHash(expected, object.getHash());
+            expected = cryptography.calcRunningHash(expected, object.getHash(), DigestType.SHA_384);
             assertEquals(
                     expected,
                     runningHashCalculator.getRunningHash(),
@@ -57,7 +57,7 @@ class RunningHashCalculatorTest {
     void newHashIsNullTest() {
         Exception exception = assertThrows(
                 IllegalArgumentException.class,
-                () -> cryptography.calcRunningHash(null, null),
+                () -> cryptography.calcRunningHash(null, null, DigestType.SHA_384),
                 "should throw IllegalArgumentException when newHashToAdd is null");
         assertTrue(
                 exception.getMessage().contains("newHashToAdd is null"),

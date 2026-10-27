@@ -9,7 +9,10 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mockConstruction;
 
 import com.esaulpaugh.headlong.abi.Tuple;
+import com.hedera.hapi.node.state.clpr.ClprEndpoint;
+import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
+import com.hedera.hapi.node.state.clpr.ClprServiceEndpoint;
 import com.hedera.hapi.node.state.clpr.ClprThrottles;
 import com.hedera.node.app.service.clpr.impl.verifier.BesuQbftVerifier;
 import com.hedera.node.app.service.clpr.impl.verifier.ProofException;
@@ -66,7 +69,7 @@ class BesuQBFTVerifyConfigCallTest extends CallTestBase {
     }
 
     @Test
-    void seedEndpointsEncodingReturns8TupleWithAllConfigFields() throws Exception {
+    void manifestEncodingReturns8TupleWithAllConfigFields() throws Exception {
         final byte[] channelId32 = new byte[32];
         channelId32[0] = (byte) 0xAB;
         final ClprThrottles throttles = ClprThrottles.newBuilder()
@@ -85,13 +88,14 @@ class BesuQBFTVerifyConfigCallTest extends CallTestBase {
                 .build();
 
         try (final var ignored = mockVerifier(config)) {
-            final var result = new BesuQBFTVerifyConfigCall(mockEnhancement(), gasCalculator, STATE_PROOF, channelId32)
+            final var result = new BesuQBFTVerifyConfigCall(
+                            mockEnhancement(), gasCalculator, STATE_PROOF, channelId32, new byte[0])
                     .execute(frame);
 
             assertThat(result.responseCode()).isEqualTo(SUCCESS);
             assertThat(result.fullResult().result().state()).isEqualTo(MessageFrame.State.COMPLETED_SUCCESS);
 
-            final var decoded = BesuQBFTVerifyConfigTranslator.VERIFY_CONFIG_WITH_SEED_ENDPOINTS
+            final var decoded = BesuQBFTVerifyConfigTranslator.VERIFY_CONFIG
                     .getOutputs()
                     .decode(result.fullResult().output().toArray());
             // field 0: channelContext = channelId32 ++ serviceAddress
@@ -103,13 +107,56 @@ class BesuQBFTVerifyConfigCallTest extends CallTestBase {
             assertThat(((byte[]) decoded.get(2)).length).isEqualTo(20);
             // field 4: throttles tuple — index 0 = maxMessagesPerBundle, index 2 = maxGasPerMessage
             final Tuple throttlesTuple = decoded.get(4);
-            assertThat(((BigInteger) throttlesTuple.get(0)).intValue()).isEqualTo(100);
+            assertThat(((Number) throttlesTuple.get(0)).intValue()).isEqualTo(100);
             assertThat(((BigInteger) throttlesTuple.get(2)).longValue()).isEqualTo(1_000_000L);
+            // field 7: no manifest proof supplied → uninitialized manifest (version 0, config's
+            // serviceAddress, no endpoints), matching the Solidity verifiers.
+            final Tuple manifestTuple = decoded.get(7);
+            assertThat(((BigInteger) manifestTuple.get(0)).longValue()).isZero();
+            assertThat(((byte[]) manifestTuple.get(1)).length).isEqualTo(20);
+            assertThat((Tuple[]) manifestTuple.get(2)).isEmpty();
+        }
+    }
+
+    @Test
+    void returnsProvenManifestVerbatim() {
+        final var provenManifest = ClprEndpointManifest.newBuilder()
+                .version(3L)
+                .serviceAddress(Bytes.wrap(new byte[20]))
+                .endpoints(ClprEndpoint.newBuilder()
+                        .serviceEndpoint(ClprServiceEndpoint.newBuilder()
+                                .ipAddress("10.0.0.1")
+                                .port(50211)
+                                .build())
+                        .build())
+                .build();
+        final byte[] manifestBytes =
+                ClprEndpointManifest.PROTOBUF.toBytes(provenManifest).toByteArray();
+
+        try (final var ignored = mockVerifier(minimalConfig(), manifestBytes)) {
+            final var result = subject().execute(frame);
+
+            assertThat(result.responseCode()).isEqualTo(SUCCESS);
+            final var decoded = BesuQBFTVerifyConfigTranslator.VERIFY_CONFIG
+                    .getOutputs()
+                    .decode(result.fullResult().output().toArray());
+            final Tuple manifestTuple = decoded.get(7);
+            assertThat(((BigInteger) manifestTuple.get(0)).longValue()).isEqualTo(3L);
+            final Tuple[] endpoints = manifestTuple.get(2);
+            assertThat(endpoints).hasSize(1);
+            assertThat((String) endpoints[0].get(0)).isEqualTo("10.0.0.1");
+        }
+    }
+
+    @Test
+    void rejectsMalformedProvenManifest() {
+        try (final var ignored = mockVerifier(minimalConfig(), new byte[] {(byte) 0xFF, (byte) 0xFF})) {
+            assertFailed(subject().execute(frame));
         }
     }
 
     private BesuQBFTVerifyConfigCall subject() {
-        return new BesuQBFTVerifyConfigCall(mockEnhancement(), gasCalculator, STATE_PROOF, new byte[32]);
+        return new BesuQBFTVerifyConfigCall(mockEnhancement(), gasCalculator, STATE_PROOF, new byte[32], new byte[0]);
     }
 
     private static ClprLedgerConfiguration minimalConfig() {
@@ -122,8 +169,13 @@ class BesuQBFTVerifyConfigCallTest extends CallTestBase {
     }
 
     private static MockedConstruction<BesuQbftVerifier> mockVerifier(final ClprLedgerConfiguration config) {
+        return mockVerifier(config, new byte[0]);
+    }
+
+    private static MockedConstruction<BesuQbftVerifier> mockVerifier(
+            final ClprLedgerConfiguration config, final byte[] endpointManifestBytes) {
         return mockConstruction(BesuQbftVerifier.class, (mock, ctx) -> given(mock.verifyConfigPayload(any(), any()))
-                .willReturn(new BesuQbftVerifier.VerifiedConfig(new byte[32], config, new byte[0])));
+                .willReturn(new BesuQbftVerifier.VerifiedConfig(new byte[32], config, endpointManifestBytes)));
     }
 
     private static MockedConstruction<BesuQbftVerifier> mockVerifierThrowing(final RuntimeException toThrow) {

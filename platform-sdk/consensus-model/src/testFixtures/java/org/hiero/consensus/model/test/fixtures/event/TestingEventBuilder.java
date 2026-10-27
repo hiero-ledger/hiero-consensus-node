@@ -19,12 +19,14 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
+import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.SignatureType;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.model.event.EventHashFactory;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -537,14 +539,17 @@ public class TestingEventBuilder {
                 birthRound,
                 timeCreated,
                 transactionBytes,
-                random.nextLong(0, Long.MAX_VALUE));
+                random.nextLong(0, Long.MAX_VALUE),
+                timeCreated,
+                List.of());
 
         final byte[] signature = new byte[SignatureType.RSA.signatureLength()];
         random.nextBytes(signature);
 
         final PlatformEvent platformEvent = new PlatformEvent(unsignedEvent, Bytes.wrap(signature), origin);
 
-        platformEvent.setHash(hash != null ? hash : CryptoRandomUtils.randomHash(random));
+        final DigestType digestType = EventHashFactory.getTypeForBirthRound(birthRound);
+        platformEvent.setHash(hash != null ? hash : CryptoRandomUtils.randomHash(random, digestType));
 
         platformEvent.setNGen(nGen);
         if (sequenceNumberOverride > EventConstants.SEQUENCE_NUMBER_UNDEFINED) {

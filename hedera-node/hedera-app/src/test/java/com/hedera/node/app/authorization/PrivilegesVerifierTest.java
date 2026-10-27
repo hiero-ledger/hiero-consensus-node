@@ -19,7 +19,6 @@ import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ClprCloseChannelTransactionBody;
-import com.hederahashgraph.api.proto.java.ClprRedactMessageTransactionBody;
 import com.hederahashgraph.api.proto.java.ClprUpdateLedgerConfigurationTransactionBody;
 import com.hederahashgraph.api.proto.java.ContractDeleteTransactionBody;
 import com.hederahashgraph.api.proto.java.ContractID;
@@ -54,7 +53,6 @@ class PrivilegesVerifierTest {
     // System account numbers — must match AccountsConfig defaults.
     private static final long TREASURY = 2L;
     private static final long SYSTEM_ADMIN = 50L;
-    private static final long ADDRESS_BOOK_ADMIN = 55L;
     private static final long EXCHANGE_RATES_ADMIN = 57L;
     private static final long FREEZE_ADMIN = 58L;
     private static final long CIVILIAN = 75231L;
@@ -658,7 +656,6 @@ class PrivilegesVerifierTest {
             case CLPR_UPDATE_LEDGER_CONFIGURATION ->
                 txn.setClprUpdateLedgerConfiguration(ClprUpdateLedgerConfigurationTransactionBody.getDefaultInstance());
             case CLPR_CLOSE_CHANNEL -> txn.setClprCloseChannel(ClprCloseChannelTransactionBody.getDefaultInstance());
-            case CLPR_REDACT_MESSAGE -> txn.setClprRedactMessage(ClprRedactMessageTransactionBody.getDefaultInstance());
             default -> throw new IllegalArgumentException("Unexpected CLPR operation: " + operation);
         }
 
@@ -691,14 +688,7 @@ class PrivilegesVerifierTest {
                         HederaFunctionality.CLPR_CLOSE_CHANNEL,
                         EXCHANGE_RATES_ADMIN,
                         SystemOpAuthorization.UNAUTHORIZED),
-                Arguments.of(HederaFunctionality.CLPR_CLOSE_CHANNEL, CIVILIAN, SystemOpAuthorization.UNAUTHORIZED),
-                Arguments.of(HederaFunctionality.CLPR_REDACT_MESSAGE, TREASURY, SystemOpAuthorization.AUTHORIZED),
-                Arguments.of(HederaFunctionality.CLPR_REDACT_MESSAGE, SYSTEM_ADMIN, SystemOpAuthorization.AUTHORIZED),
-                Arguments.of(
-                        HederaFunctionality.CLPR_REDACT_MESSAGE,
-                        ADDRESS_BOOK_ADMIN,
-                        SystemOpAuthorization.UNAUTHORIZED),
-                Arguments.of(HederaFunctionality.CLPR_REDACT_MESSAGE, CIVILIAN, SystemOpAuthorization.UNAUTHORIZED));
+                Arguments.of(HederaFunctionality.CLPR_CLOSE_CHANNEL, CIVILIAN, SystemOpAuthorization.UNAUTHORIZED));
     }
 
     private TestCase accessor(TransactionBody.Builder transaction) throws InvalidProtocolBufferException {

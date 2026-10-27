@@ -12,10 +12,10 @@ import static org.hiero.otter.fixtures.container.utils.ContainerConstants.METRIC
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.NODE_COMMUNICATION_PORT;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.OTTER_LOG_PATH;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.SWIRLDS_LOG_PATH;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
+import static org.hiero.otter.fixtures.internal.AbstractMiniNode.LifeCycle.DESTROYED;
+import static org.hiero.otter.fixtures.internal.AbstractMiniNode.LifeCycle.INIT;
+import static org.hiero.otter.fixtures.internal.AbstractMiniNode.LifeCycle.RUNNING;
+import static org.hiero.otter.fixtures.internal.AbstractMiniNode.LifeCycle.SHUTDOWN;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.google.protobuf.Empty;
@@ -44,6 +44,7 @@ import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.PathsConfig;
 import org.hiero.consensus.event.stream.config.EventConfig;
 import org.hiero.consensus.model.event.EventHashFactory;
+import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
@@ -122,7 +123,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     private final ContainerControlServiceGrpc.ContainerControlServiceBlockingStub containerControlBlockingStub;
 
     /** The gRPC service used to communicate with the consensus node */
-    private NodeCommunicationServiceGrpc.NodeCommunicationServiceBlockingStub nodeCommBlockingStub;
+    protected NodeCommunicationServiceGrpc.NodeCommunicationServiceBlockingStub nodeCommBlockingStub;
 
     /** The configuration of this node */
     private final ContainerNodeConfiguration nodeConfiguration;
@@ -181,7 +182,11 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         this.resultsCollector = new NodeResultsCollector(selfId, consensusRoundPool);
         this.nodeConfiguration =
                 new ContainerNodeConfiguration(() -> lifeCycle, networkConfiguration.overrideProperties());
-        EventHashFactory.initialize(Long.MAX_VALUE);
+        if (nodeConfiguration.current().getConfigData(EventConfig.class).enableEventCutover()) {
+            EventHashFactory.initialize(1L);
+        } else {
+            EventHashFactory.initialize(Long.MAX_VALUE);
+        }
         this.random = new SecureRandom();
         this.gcLoggingEnabled = gcLoggingEnabled;
         this.jvmArgs = List.copyOf(requireNonNull(jvmArgs, "jvmArgs must not be null"));
@@ -226,12 +231,12 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
      */
     @Override
     protected void doStart(@NonNull final Duration timeout) {
-        throwIfInLifecycle(LifeCycle.RUNNING, "Node has already been started.");
-        throwIfInLifecycle(LifeCycle.DESTROYED, "Node has already been destroyed.");
+        throwIfInLifecycle(RUNNING, "Node has already been started.");
+        throwIfInLifecycle(DESTROYED, "Node has already been destroyed.");
 
         log.info("Starting node {}...", selfId);
 
-        if (savedStateDirectory != null) {
+        if (lifeCycle == INIT && savedStateDirectory != null) {
             final PathsConfig pathsConfig = configuration().current().getConfigData(PathsConfig.class);
             ContainerUtils.copySavedStateToContainer(container, selfId, pathsConfig, savedStateDirectory);
         }
@@ -267,12 +272,12 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     }
 
     /**
-     * Invokes the unary {@code start} RPC, retrying while the response is {@code UNAVAILABLE} and the
-     * start budget has not been exhausted. This tolerates the shared channel needing to reconnect to a
-     * freshly (re)started node process; any other status, or exhausting the budget, propagates the error.
+     * Invokes the unary {@code start} RPC, retrying while the response is {@code UNAVAILABLE} and the start budget has
+     * not been exhausted. This tolerates the shared channel needing to reconnect to a freshly (re)started node process;
+     * any other status, or exhausting the budget, propagates the error.
      *
      * @param startRequest the request to send
-     * @param timeout the overall budget for starting the platform
+     * @param timeout      the overall budget for starting the platform
      */
     @SuppressWarnings("ResultOfMethodCallIgnored")
     private void startPlatform(@NonNull final StartRequest startRequest, @NonNull final Duration timeout) {
@@ -413,6 +418,15 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
 
     /**
      * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public EventWindow latestEventWindow() {
+        return newConsensusResult().getLatestEventWindow();
+    }
+
+    /**
+     * {@inheritDoc}
      *
      * <p>The dump is produced by the container's control process attaching to the (separate) consensus node process,
      * so it can capture a node whose own threads are wedged. Best-effort: returns a short explanatory message instead
@@ -484,7 +498,10 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     @Override
     @NonNull
     public SingleNodePcesResult newPcesResult() {
-        throwIsNotInLifecycle(SHUTDOWN, "Node must be in the shutdown state to retrieve PCES results.");
+        throwIsNotInLifecycle(
+                SHUTDOWN,
+                "Node must be in the shutdown state to retrieve PCES results. "
+                        + "Ensure network.shutdown() or node.shutdown() is called before accessing PCES results.");
 
         final Configuration configuration = nodeConfiguration.current();
         final PathsConfig pathsConfig = configuration.getConfigData(PathsConfig.class);
@@ -733,10 +750,10 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     }
 
     /**
-     * Applies the status snapshot carried by a sync point to the cached {@link #platformStatus}. A sync
-     * point is a snapshot delivered at the start of a (re-)subscription, not a transition, so it is
-     * deliberately <em>not</em> added to the results collector's status progression; doing so would
-     * inject a phantom transition on every reconnect.
+     * Applies the status snapshot carried by a sync point to the cached {@link #platformStatus}. A sync point is a
+     * snapshot delivered at the start of a (re-)subscription, not a transition, so it is deliberately <em>not</em>
+     * added to the results collector's status progression; doing so would inject a phantom transition on every
+     * reconnect.
      */
     private void handleSyncPoint(@NonNull final EventMessage value) {
         final SyncPoint syncPoint = value.getSyncPoint();

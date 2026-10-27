@@ -9,8 +9,8 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 
-import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.block.stream.MerklePath;
+import com.hedera.hapi.block.stream.SiblingNode;
 import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.block.stream.TssSignedBlockProof;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
@@ -18,20 +18,29 @@ import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.platform.state.StateItem;
 import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.node.app.hapi.utils.blocks.NativeTssVerifier;
+import com.hedera.node.app.hapi.utils.blocks.StateProofVerifier;
 import com.hedera.node.app.hapi.utils.blocks.TssVerifier;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.clpr.verify.VerifyConfigCall;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.clpr.verify.VerifyConfigTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call;
+import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import org.hiero.base.crypto.DigestType;
 import org.hyperledger.besu.evm.frame.MessageFrame;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -51,6 +60,16 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class VerifyConfigCallTest extends CallTestBase {
 
+    @BeforeEach
+    void setUpFrame() {
+        // Pinned to SHA-384 so the SHA-256 proofs in verifiesProofsHashedWithADifferentDigestThanConfigured differ
+        final Configuration config = HederaTestConfigBuilder.create()
+                .withValue("blockStream.digestType", DigestType.SHA_384.name())
+                .getOrCreateConfig();
+        given(frame.getMessageFrameStack()).willReturn(new ArrayDeque<>());
+        given(frame.getContextVariable(FrameUtils.CONFIG_CONTEXT_VARIABLE)).willReturn(config);
+    }
+
     /**
      * Reads {@code stateProofFile} from disk and runs a {@link VerifyConfigCall}, returning
      * the call's outcome.
@@ -63,22 +82,11 @@ class VerifyConfigCallTest extends CallTestBase {
     @NonNull
     Call.PricedResult invokeVerifyConfig(@NonNull final Path stateProofFile, @NonNull final TssVerifier tssVerifier)
             throws IOException {
-        return invokeVerifyConfig(stateProofFile, tssVerifier, true);
-    }
-
-    @NonNull
-    Call.PricedResult invokeVerifyConfig(
-            @NonNull final Path stateProofFile, @NonNull final TssVerifier tssVerifier, final boolean manifestAware)
-            throws IOException {
         final var stateProofBytes = Files.readAllBytes(stateProofFile);
-        // manifestAware routes between the config tuple with seed endpoints and the endpoint manifest tuple. The
-        // manifest-aware path uses a 32-byte
-        // channelId and an empty
-        // manifest proof (these tests fail at config parsing before the manifest is reached).
-        final var subject = manifestAware
-                ? new VerifyConfigCall(
-                        mockEnhancement(), gasCalculator, stateProofBytes, new byte[32], new byte[0], tssVerifier)
-                : new VerifyConfigCall(mockEnhancement(), gasCalculator, stateProofBytes, new byte[32], tssVerifier);
+        // The manifest-aware path uses a 32-byte channelId and an empty manifest proof (these tests
+        // fail at config parsing before the manifest is reached).
+        final var subject = new VerifyConfigCall(
+                mockEnhancement(), gasCalculator, stateProofBytes, new byte[32], new byte[0], tssVerifier);
         return subject.execute(frame);
     }
 
@@ -122,19 +130,6 @@ class VerifyConfigCallTest extends CallTestBase {
         assertThat(result.fullResult().result().state()).isEqualTo(MessageFrame.State.REVERT);
     }
 
-    @Test
-    @DisplayName("reverts through the seed-endpoint code path when manifestAware=false")
-    void revertsOnMalformedConfigProof(@TempDir final Path tempDir) throws IOException {
-        final var proofFile = tempDir.resolve("malformed-config.proof");
-        Files.write(proofFile, new byte[] {(byte) 0xff, (byte) 0xff, (byte) 0xff, (byte) 0xff});
-
-        final var result = invokeVerifyConfig(proofFile, new NativeTssVerifier(), /*manifestAware*/ false);
-
-        assertThat(result.isViewCall()).isTrue();
-        assertThat(result.responseCode()).isEqualTo(CLPR_VERIFIER_CONFIG_FAILED);
-        assertThat(result.fullResult().result().state()).isEqualTo(MessageFrame.State.REVERT);
-    }
-
     // ---- endpoint manifest-proof path (verifyManifest, spec §4.8) ----
     // These drive the full config + manifest verification with a stubbed TssVerifier (returns true),
     // so a synthetic single-leaf StateProof — nextPathIndex=-1 so computeRootHash accepts it — reaches
@@ -149,8 +144,7 @@ class VerifyConfigCallTest extends CallTestBase {
                 .append(Bytes.fromHex("c03e01"))
                 .toByteArray();
         final var tss = mock(TssVerifier.class);
-        final var result =
-                new VerifyConfigCall(mockEnhancement(), gasCalculator, proof, new byte[32], tss).execute(frame);
+        final var result = invokeWithManifest(proof, validManifestProofBytes(), tss);
 
         assertThat(result.responseCode()).isEqualTo(CLPR_VERIFIER_CONFIG_FAILED);
         assertThat(result.fullResult().result().state()).isEqualTo(MessageFrame.State.REVERT);
@@ -165,9 +159,7 @@ class VerifyConfigCallTest extends CallTestBase {
         final var configWithUnknown = ClprLedgerConfiguration.PROTOBUF.parse(
                 configBytes.toReadableSequentialData(), false, true, Codec.DEFAULT_MAX_DEPTH);
         final var tss = mock(TssVerifier.class);
-        final var result = new VerifyConfigCall(
-                        mockEnhancement(), gasCalculator, configProofBytes(configWithUnknown), new byte[32], tss)
-                .execute(frame);
+        final var result = invokeWithManifest(configProofBytes(configWithUnknown), validManifestProofBytes(), tss);
 
         assertThat(result.responseCode()).isEqualTo(CLPR_VERIFIER_CONFIG_FAILED);
         assertThat(result.fullResult().result().state()).isEqualTo(MessageFrame.State.REVERT);
@@ -188,22 +180,6 @@ class VerifyConfigCallTest extends CallTestBase {
 
         assertThat(result.responseCode()).isEqualTo(CLPR_VERIFIER_CONFIG_FAILED);
         assertThat(result.fullResult().result().state()).isEqualTo(MessageFrame.State.REVERT);
-    }
-
-    @Test
-    void returnsConfigTupleWithSeedEndpoints() {
-        final var result = new VerifyConfigCall(
-                        mockEnhancement(), gasCalculator, configProofBytes(testConfig()), new byte[32], acceptingTss())
-                .execute(frame);
-
-        assertThat(result.responseCode()).isEqualTo(SUCCESS);
-        final Tuple decoded = VerifyConfigTranslator.VERIFY_CONFIG_WITH_SEED_ENDPOINTS
-                .getOutputs()
-                .decode(result.fullResult().output().toArray());
-        assertThat(decoded.size()).isEqualTo(8);
-        assertThat((String) decoded.get(1)).isEqualTo("295");
-        assertThat((byte[]) decoded.get(5)).isEqualTo(TRUST_ANCHOR.toByteArray());
-        assertThat((Tuple[]) decoded.get(7)).isEmpty();
     }
 
     @Test
@@ -269,6 +245,56 @@ class VerifyConfigCallTest extends CallTestBase {
         assertThat(result.fullResult().result().state()).isEqualTo(MessageFrame.State.REVERT);
     }
 
+    @Test
+    @DisplayName("verifies config + manifest proofs hashed with SHA-256 while this node is configured for SHA-384")
+    void verifiesProofsHashedWithADifferentDigestThanConfigured() throws ParseException {
+        final var sha256Sibling = List.of(SiblingNode.newBuilder()
+                .isLeft(false)
+                .hash(Bytes.wrap(new byte[32]))
+                .build());
+        final var configProof = proofBytes(
+                StateValue.newBuilder()
+                        .clprServiceILedgerConfiguration(testConfig())
+                        .build(),
+                sha256Sibling);
+        final var manifestProof = proofBytes(
+                StateValue.newBuilder()
+                        .clprServiceIEndpointManifest(ClprEndpointManifest.newBuilder()
+                                .version(2L)
+                                .serviceAddress(SERVICE_ADDR)
+                                .build())
+                        .build(),
+                sha256Sibling);
+
+        final var result = invokeWithManifest(
+                configProof, manifestProof, tssAcceptingRootsOf(DigestType.SHA_256, configProof, manifestProof));
+
+        assertThat(result.responseCode()).isEqualTo(SUCCESS);
+    }
+
+    @Test
+    @DisplayName("falls back to the configured digest (SHA-384) when the proofs carry no hash-length signal")
+    void fallsBackToConfiguredDigestWhenProofsCarryNoHashLengthSignal() throws ParseException {
+        final var configProof = configProofBytes(testConfig());
+        final var manifestProof = validManifestProofBytes();
+
+        final var result = invokeWithManifest(
+                configProof, manifestProof, tssAcceptingRootsOf(DigestType.SHA_384, configProof, manifestProof));
+
+        assertThat(result.responseCode()).isEqualTo(SUCCESS);
+    }
+
+    /** A {@link TssVerifier} that accepts only the block roots of the given proofs computed with {@code digest}. */
+    private static TssVerifier tssAcceptingRootsOf(@NonNull final DigestType digest, @NonNull final byte[]... proofs)
+            throws ParseException {
+        final var roots = new ArrayList<byte[]>();
+        for (final var proof : proofs) {
+            roots.add(StateProofVerifier.computeBlockRootHash(
+                    StateProof.PROTOBUF.parse(Bytes.wrap(proof)), digest.buildDigest()));
+        }
+        return (ledgerId, signature, root) -> roots.stream().anyMatch(r -> Arrays.equals(r, root.toByteArray()));
+    }
+
     @NonNull
     private Call.PricedResult invokeWithManifest(
             @NonNull final byte[] configProof, @NonNull final byte[] manifestProof, @NonNull final TssVerifier tss) {
@@ -296,6 +322,13 @@ class VerifyConfigCallTest extends CallTestBase {
                 StateValue.newBuilder().clprServiceILedgerConfiguration(config).build());
     }
 
+    private static byte[] validManifestProofBytes() {
+        return manifestProofBytes(ClprEndpointManifest.newBuilder()
+                .version(2L)
+                .serviceAddress(SERVICE_ADDR)
+                .build());
+    }
+
     private static byte[] manifestProofBytes(@NonNull final ClprEndpointManifest manifest) {
         return proofBytes(
                 StateValue.newBuilder().clprServiceIEndpointManifest(manifest).build());
@@ -307,10 +340,17 @@ class VerifyConfigCallTest extends CallTestBase {
      * proof carrying a non-empty (unchecked — the TssVerifier is stubbed) block signature.
      */
     private static byte[] proofBytes(@NonNull final StateValue stateValue) {
+        return proofBytes(stateValue, List.of());
+    }
+
+    private static byte[] proofBytes(@NonNull final StateValue stateValue, @NonNull final List<SiblingNode> siblings) {
         final var leaf = StateItem.PROTOBUF.toBytes(
                 StateItem.newBuilder().value(stateValue).build());
-        final var path =
-                MerklePath.newBuilder().stateItemLeaf(leaf).nextPathIndex(-1).build();
+        final var path = MerklePath.newBuilder()
+                .stateItemLeaf(leaf)
+                .siblings(siblings)
+                .nextPathIndex(-1)
+                .build();
         final var proof = StateProof.newBuilder()
                 .paths(path)
                 .signedBlockProof(TssSignedBlockProof.newBuilder()

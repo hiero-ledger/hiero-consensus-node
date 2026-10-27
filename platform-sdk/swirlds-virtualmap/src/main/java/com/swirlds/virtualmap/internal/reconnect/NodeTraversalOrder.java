@@ -60,4 +60,15 @@ public interface NodeTraversalOrder {
      * @param isClean indicates if the node at the given path matches the corresponding node on the teacher
      */
     void nodeReceived(final long path, final boolean isClean);
+
+    /**
+     * Returns a human-readable summary of traversal statistics collected during this reconnect. It's
+     * logged when the reconnect completes. Implementations that don't collect any statistics return
+     * an empty string.
+     *
+     * @return traversal statistics summary
+     */
+    default String getStatistics() {
+        return "";
+    }
 }

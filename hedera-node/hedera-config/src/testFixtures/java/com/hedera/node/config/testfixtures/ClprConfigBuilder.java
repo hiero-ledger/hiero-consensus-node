@@ -30,16 +30,11 @@ public final class ClprConfigBuilder {
     private int retryMaxAttempts = 5;
     private int circuitBreakerCooldownSeconds = 120;
     private boolean syncPeerExclusionEnabled = false;
-    private int discoveryIntervalSeconds = 300;
     private int connectorQueueQuotaPct = 50;
     private long verifierGasLimit = 300_000L;
     private boolean verifyProofsAtSender = true;
     private String peerEndpointsFile = "data/clpr/peer-endpoints.json";
     private long nodeSubmitBundleMaxFee = 1_000_000_000L;
-    private String caCrtPath = "";
-    private String caKeyPath = "";
-    private int mtlsPort = 50214;
-    private boolean endpointManifestEnabled = false;
     private Duration manifestGracePeriod = Duration.ofSeconds(300);
     private Duration manifestGraceExtension = Duration.ofSeconds(300);
     private int manifestMaxGraceExtensions = 2;
@@ -55,11 +50,6 @@ public final class ClprConfigBuilder {
 
     public ClprConfigBuilder enabled(final boolean enabled) {
         this.enabled = enabled;
-        return this;
-    }
-
-    public ClprConfigBuilder endpointManifestEnabled(final boolean endpointManifestEnabled) {
-        this.endpointManifestEnabled = endpointManifestEnabled;
         return this;
     }
 
@@ -158,11 +148,6 @@ public final class ClprConfigBuilder {
         return this;
     }
 
-    public ClprConfigBuilder discoveryIntervalSeconds(final int discoveryIntervalSeconds) {
-        this.discoveryIntervalSeconds = discoveryIntervalSeconds;
-        return this;
-    }
-
     public ClprConfigBuilder connectorQueueQuotaPct(final int connectorQueueQuotaPct) {
         this.connectorQueueQuotaPct = connectorQueueQuotaPct;
         return this;
@@ -185,21 +170,6 @@ public final class ClprConfigBuilder {
 
     public ClprConfigBuilder peerEndpointsFile(final String peerEndpointsFile) {
         this.peerEndpointsFile = peerEndpointsFile;
-        return this;
-    }
-
-    public ClprConfigBuilder caCrtPath(final String caCrtPath) {
-        this.caCrtPath = caCrtPath;
-        return this;
-    }
-
-    public ClprConfigBuilder caKeyPath(final String caKeyPath) {
-        this.caKeyPath = caKeyPath;
-        return this;
-    }
-
-    public ClprConfigBuilder mtlsPort(final int mtlsPort) {
-        this.mtlsPort = mtlsPort;
         return this;
     }
 
@@ -255,16 +225,11 @@ public final class ClprConfigBuilder {
                 retryMaxAttempts,
                 circuitBreakerCooldownSeconds,
                 syncPeerExclusionEnabled,
-                discoveryIntervalSeconds,
                 connectorQueueQuotaPct,
                 verifierGasLimit,
                 nodeSubmitBundleMaxFee,
                 verifyProofsAtSender,
                 peerEndpointsFile,
-                caCrtPath,
-                caKeyPath,
-                mtlsPort,
-                endpointManifestEnabled,
                 manifestGracePeriod,
                 manifestGraceExtension,
                 manifestMaxGraceExtensions,

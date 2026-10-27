@@ -23,6 +23,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import java.util.function.Supplier;
+import java.util.function.ToLongFunction;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -100,6 +101,12 @@ public class ClprStreamingSyncSession {
     private final ClprBundleSubmitter bundleSubmitter;
     private final ClprStateProofManager stateProofManager;
 
+    /**
+     * The peer's last-reported view of <em>our</em> endpoint-manifest version, by channel id — the node-local signal
+     * recorded from the peer's bundles ({@code ClprChannelManager.peerObservedManifestVersion}).
+     */
+    private final ToLongFunction<Bytes> peerObservedManifestVersion;
+
     private SessionState sessionState = SessionState.AWAITING_INITIAL_BUNDLE_REQUEST;
 
     /** The Channel this stream is scoped to, fixed by the first message. */
@@ -128,18 +135,21 @@ public class ClprStreamingSyncSession {
     ClprStreamingSyncSession(
             @NonNull final Supplier<AutoCloseableWrapper<State>> stateAccessor,
             @NonNull final ClprBundleSubmitter bundleSubmitter,
-            @NonNull final ClprStateProofManager stateProofManager) {
-        this(stateAccessor, bundleSubmitter, stateProofManager, null);
+            @NonNull final ClprStateProofManager stateProofManager,
+            @NonNull final ToLongFunction<Bytes> peerObservedManifestVersion) {
+        this(stateAccessor, bundleSubmitter, stateProofManager, peerObservedManifestVersion, null);
     }
 
     ClprStreamingSyncSession(
             @NonNull final Supplier<AutoCloseableWrapper<State>> stateAccessor,
             @NonNull final ClprBundleSubmitter bundleSubmitter,
             @NonNull final ClprStateProofManager stateProofManager,
+            @NonNull final ToLongFunction<Bytes> peerObservedManifestVersion,
             @Nullable final String correlationId) {
         this.stateAccessor = requireNonNull(stateAccessor);
         this.bundleSubmitter = requireNonNull(bundleSubmitter);
         this.stateProofManager = requireNonNull(stateProofManager);
+        this.peerObservedManifestVersion = requireNonNull(peerObservedManifestVersion);
         this.tag = correlationId == null ? "" : correlationId + " ";
     }
 
@@ -416,8 +426,12 @@ public class ClprStreamingSyncSession {
                         localState.getReadableStates(ClprService.NAME))
                 .get()
                 .version();
-        final long peerManifestVersion =
-                peerRequest != null ? peerRequest.currentEndpointManifestVersion() : channel.endpointManifestVersion();
+        // The peer's view of OUR manifest: its request states it directly; without one, fall back to the version it
+        // last reported in a bundle, as the unary responder does. channel.endpointManifestVersion() is the other axis
+        // (our cached version of the PEER's manifest) and must not stand in for it.
+        final long peerManifestVersion = peerRequest != null
+                ? peerRequest.currentEndpointManifestVersion()
+                : peerObservedManifestVersion.applyAsLong(channel.channelId());
         return peerManifestVersion < localManifestVersion;
     }
 }

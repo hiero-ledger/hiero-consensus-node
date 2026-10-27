@@ -31,6 +31,7 @@ final class ApiPermissionConfigTest {
                 "LEDGER_ID_PUBLICATION",
                 "MIGRATION_ROOT_HASH_VOTE",
                 "CLPR_ENDPOINT_PUBLICATION",
+                "CLPR_MAINTENANCE",
             })
     void internalDispatchTypesAreExplicitlyProhibited(@NonNull final HederaFunctionality function) {
         final var config = HederaTestConfigBuilder.create()

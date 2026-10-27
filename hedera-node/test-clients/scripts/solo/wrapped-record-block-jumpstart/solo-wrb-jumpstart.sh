@@ -253,21 +253,29 @@ cleanup() {
 trap cleanup EXIT
 
 # Remote multi-tenant cluster only: solo's mirror-node and shared-resources (postgres/redis)
-# sub-charts do not tolerate this cluster's solo.hashgraph.io/owner node taint, and solo exposes no
-# values knob for the shared-resources tolerations. While the mirror/explorer deploy steps run, this
-# background loop (a) patches the namespace's NON-consensus workloads - skipping network-node/haproxy/
-# envoy/minio so the live network is never restarted - to tolerate all taints, and (b) deletes their
-# already-Pending pods so the controllers recreate them from the patched template (a StatefulSet does
-# not recreate a Pending pod on a template change by itself). Converges once recreated pods carry the
-# toleration; stopped by stop_* and the cleanup trap.
+# sub-charts carry none of the Chewie allocation's scheduling constraints, and solo exposes no values
+# knob for the shared-resources ones. While the mirror/explorer deploy steps run, this background
+# loop (a) patches the namespace's NON-consensus workloads - skipping network-node/haproxy/envoy/minio
+# so the live network is never restarted - onto the allocation's auxiliary machines (the aux group's
+# labels as nodeSelector, its tolerations; AUX_LABELS / AUX_TOLERATIONS as compact JSON), and
+# (b) deletes their already-Pending pods so the controllers recreate them from the patched template
+# (a StatefulSet does not recreate a Pending pod on a template change by itself). Converges once
+# recreated pods carry the aux nodeSelector; stopped by stop_* and the cleanup trap.
 REMOTE_TOLERATION_PATCHER_PID=""
 start_remote_toleration_patcher() {
   [[ "${CLUSTER_TARGET}" == "remote" ]] || return 0
+  if [[ -z "${AUX_LABELS:-}" || -z "${AUX_TOLERATIONS:-}" ]]; then
+    log "Error: AUX_LABELS and AUX_TOLERATIONS must be set on remote (the Chewie allocation's aux group)"
+    return 1
+  fi
+  local patch
+  patch="$(jq -cn --argjson labels "${AUX_LABELS}" --argjson tolerations "${AUX_TOLERATIONS}" \
+    '{spec: {template: {spec: {nodeSelector: $labels, tolerations: $tolerations}}}}')"
   (
     set +e
     deadline=$(( $(date +%s) + 1800 ))
     while [[ "$(date +%s)" -lt "${deadline}" ]]; do
-      # (a) ensure non-consensus workload templates tolerate the node taint
+      # (a) ensure non-consensus workload templates target the allocation's aux machines
       for res in statefulset deployment; do
         kubectl -n "${SOLO_NAMESPACE}" get "${res}" \
           -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null | while IFS= read -r name; do
@@ -276,11 +284,11 @@ start_remote_toleration_patcher() {
             network-node*|haproxy*|envoy*|minio*) continue ;;
           esac
           kubectl -n "${SOLO_NAMESPACE}" patch "${res}" "${name}" --type merge \
-            -p '{"spec":{"template":{"spec":{"tolerations":[{"operator":"Exists"}]}}}}' >/dev/null 2>&1 || true
+            -p "${patch}" >/dev/null 2>&1 || true
         done
       done
-      # (b) recreate Pending pods that don't yet carry the toleration (i.e. were created from the
-      #     pre-patch template); the controller recreates them from the now-patched template
+      # (b) recreate Pending pods that don't yet carry the aux nodeSelector (i.e. were created from
+      #     the pre-patch template); the controller recreates them from the now-patched template
       kubectl -n "${SOLO_NAMESPACE}" get pods --field-selector=status.phase=Pending \
         -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null | while IFS= read -r pod; do
         [[ -n "${pod}" ]] || continue
@@ -288,7 +296,7 @@ start_remote_toleration_patcher() {
           network-node*|haproxy*|envoy*|minio*) continue ;;
         esac
         if ! kubectl -n "${SOLO_NAMESPACE}" get pod "${pod}" -o json 2>/dev/null \
-            | jq -e '.spec.tolerations[]? | select(.operator=="Exists" and (.key==null))' >/dev/null 2>&1; then
+            | jq -e --argjson want "${AUX_LABELS}" '(.spec.nodeSelector // {}) | contains($want)' >/dev/null 2>&1; then
           kubectl -n "${SOLO_NAMESPACE}" delete pod "${pod}" --wait=false >/dev/null 2>&1 || true
         fi
       done
@@ -1465,7 +1473,7 @@ deploy_args=(
   --release-tag "${INITIAL_RELEASE_TAG}"
 )
 if [[ "${CLUSTER_TARGET}" == "remote" ]]; then
-  # Shared multi-tenant cluster: pass the scheduling (tolerations) + MinIO storage overrides and
+  # Shared multi-tenant cluster: pass the scheduling + MinIO storage overrides and
   # deploy without PVCs (emptyDir is fine for a single run; no default StorageClass for consensus).
   deploy_pvcs="false"
   deploy_args+=(--values-file "${REMOTE_NETWORK_VALUES_TEMPLATE}")

@@ -15,6 +15,7 @@ import com.hedera.node.config.data.ClprConfig;
 import com.hedera.node.config.data.HederaConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
+import java.util.concurrent.atomic.AtomicReference;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
@@ -39,6 +40,7 @@ public class ClprBundleSubmitter {
 
     private final AppContext appContext;
     private final ConfigProvider configProvider;
+    private final AtomicReference<Instant> lastUsedInstant = new AtomicReference<>(Instant.MIN);
 
     @Inject
     public ClprBundleSubmitter(@NonNull final AppContext appContext, @NonNull final ConfigProvider configProvider) {
@@ -76,7 +78,13 @@ public class ClprBundleSubmitter {
 
         final var selfNode = appContext.selfNodeInfoSupplier().get();
         final var selfAccountId = selfNode.accountId();
-        final var now = Instant.now();
+        // Guarantee strictly monotonic valid-start timestamps: if the wall clock hasn't
+        // advanced past the last-used instant (same nanosecond on fast hardware, or a
+        // backward clock step), nudge by 1 ns so no two submissions share a TransactionID.
+        final Instant now = lastUsedInstant.updateAndGet(last -> {
+            final Instant candidate = appContext.instantSource().instant();
+            return candidate.isAfter(last) ? candidate : last.plusNanos(1);
+        });
         final var hederaConfig = configuration.getConfigData(HederaConfig.class);
         final var validDuration = new Duration(hederaConfig.transactionMaxValidDuration());
 

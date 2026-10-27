@@ -67,6 +67,10 @@ public class ContractCreateIssTest {
                                             .setNode(Long.toString(
                                                     node.getAccountId().accountNum()))
                                             .exposingTo(record -> {
+                                                // Lagging node returns empty record (RECORD_NOT_FOUND) before retry
+                                                if (!record.hasReceipt()) {
+                                                    return;
+                                                }
                                                 final var currentErrorMessage = record.getContractCreateResult()
                                                         .getErrorMessage();
                                                 if (error.get() == null) {

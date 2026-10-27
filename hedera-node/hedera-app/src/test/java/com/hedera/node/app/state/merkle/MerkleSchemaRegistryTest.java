@@ -12,6 +12,7 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.node.app.services.MigrationStateChanges;
 import com.hedera.node.app.spi.fixtures.TestSchema;
+import com.hedera.node.app.spi.migrate.HederaMigrationContext;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.config.data.HederaConfig;
 import com.swirlds.config.api.Configuration;
@@ -40,6 +41,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -118,9 +121,9 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
             // When it is registered
             schemaRegistry.register(schema);
 
-            // Then on migrateFromV9ToV10, it is called
+            // Then on migrateFromV9ToV10, it is restarted
             migrateFromV9ToV10();
-            Mockito.verify(schema, Mockito.times(1)).migrate(Mockito.any());
+            Mockito.verify(schema, Mockito.times(1)).restart(Mockito.any());
         }
 
         @Test
@@ -133,9 +136,9 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
             schemaRegistry.register(schema);
             schemaRegistry.register(schema);
 
-            // Then on migrateFromV9ToV10, it is called only once
+            // Then on migrateFromV9ToV10, it is restarted only once
             migrateFromV9ToV10();
-            Mockito.verify(schema, Mockito.times(1)).migrate(Mockito.any());
+            Mockito.verify(schema, Mockito.times(1)).restart(Mockito.any());
         }
 
         @Test
@@ -151,8 +154,8 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
 
             // Then on migrateFromV9ToV10, the last one registered wins
             migrateFromV9ToV10();
-            Mockito.verify(schema1, Mockito.times(0)).migrate(Mockito.any());
-            Mockito.verify(schema2, Mockito.times(1)).migrate(Mockito.any());
+            Mockito.verify(schema1, Mockito.times(0)).restart(Mockito.any());
+            Mockito.verify(schema2, Mockito.times(1)).restart(Mockito.any());
         }
 
         /**
@@ -286,12 +289,12 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
         }
 
         @Test
-        @DisplayName("Migration is skipped if previousVersion == currentVersion")
-        void migrateIsSkippedIfVersionsAreTheSame() {
+        @DisplayName("The latest schema is restarted if previousVersion == currentVersion")
+        void restartIsCalledIfVersionsAreTheSame() {
             // Given a schema
             final var schema = Mockito.spy(new TestSchema(versions[1]));
 
-            // When it is registered twice and migrate is called
+            // When it is registered and migrate is called
             schemaRegistry.register(schema);
             schemaRegistry.migrate(
                     merkleTree,
@@ -304,17 +307,17 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     startupNetworks,
                     InitTrigger.RESTART);
 
-            // Then nothing happens
-            Mockito.verify(schema, Mockito.times(0)).migrate(Mockito.any());
+            // Then it is restarted
+            Mockito.verify(schema, Mockito.times(1)).restart(Mockito.any());
         }
 
         @Test
-        @DisplayName("Considered as Restart of schema version is before current software version")
-        void considersAsRestartIfSchemaVersionIsBeforeCurrentVersion() {
+        @DisplayName("The latest schema is restarted if its version is before the current software version")
+        void restartIsCalledIfSchemaVersionIsBeforeCurrentVersion() {
             // Given a schema
             final var schema = Mockito.spy(new TestSchema(versions[1]));
 
-            // When it is registered twice and migrate is called
+            // When it is registered and migrate is called
             schemaRegistry.register(schema);
             schemaRegistry.migrate(
                     merkleTree,
@@ -327,18 +330,17 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     startupNetworks,
                     InitTrigger.RESTART);
 
-            // Then migration doesn't happen but restart is called
-            Mockito.verify(schema, Mockito.times(0)).migrate(Mockito.any());
+            // Then it is restarted
             Mockito.verify(schema, Mockito.times(1)).restart(Mockito.any());
         }
 
         @Test
-        @DisplayName("Considered as Migration if previous version is null")
-        void considersAsMigrationIfPreviousVersionIsNull() {
+        @DisplayName("The latest schema is restarted at genesis")
+        void restartIsCalledAtGenesis() {
             // Given a schema
             final var schema = Mockito.spy(new TestSchema(versions[1]));
 
-            // When it is registered twice and migrate is called
+            // When it is registered and migrate is called with no previous version
             schemaRegistry.register(schema);
             schemaRegistry.migrate(
                     merkleTree,
@@ -351,15 +353,14 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     startupNetworks,
                     InitTrigger.GENESIS);
 
-            // Then migration doesn't happen but restart is called
-            Mockito.verify(schema, Mockito.times(1)).migrate(Mockito.any());
+            // Then it is restarted
             Mockito.verify(schema, Mockito.times(1)).restart(Mockito.any());
         }
 
         @Test
-        @DisplayName("Migration captures all appropriate schemas even when they skip versions")
-        void migrateWhenSchemasSkipVersions() {
-            // We will place into this list each schema as it is called
+        @DisplayName("Only the latest schema is restarted, even when schemas skip versions")
+        void onlyLatestSchemaIsRestarted() {
+            // We will place into this list each schema as it is restarted
             final var called = new LinkedList<SemanticVersion>();
 
             // Given a schema for v1, v4, v6
@@ -383,15 +384,68 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     startupNetworks,
                     InitTrigger.GENESIS);
 
-            // Then each of v1, v4, and v6 are called
-            assertThat(called).hasSize(3);
-            assertThat(called.removeFirst()).isSameAs(versions[1]);
-            assertThat(called.removeFirst()).isSameAs(versions[4]);
-            assertThat(called.removeFirst()).isSameAs(versions[6]);
+            // Then only v6 is restarted
+            assertThat(called).containsExactly(versions[6]);
+        }
+
+        @ParameterizedTest
+        @EnumSource(
+                value = InitTrigger.class,
+                names = {"GENESIS", "RESTART", "RECONNECT"})
+        @DisplayName("Every schema is applied even when its version is later than the software and state versions")
+        void schemasNewerThanSoftwareVersionAreApplied(final InitTrigger trigger) {
+            // Given schemas whose versions are both later than the software version
+            final var softwareVersion = version(0, 1, 0);
+            final var previousVersion = trigger == InitTrigger.GENESIS ? null : softwareVersion;
+            final var restarted = new AtomicBoolean(false);
+            final var schemaV49 = new TestSchema(
+                    version(0, 49, 0),
+                    Set.of(StateDefinition.keyValue(
+                            FRUIT_STATE_ID, FRUIT_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF)),
+                    Set.of(),
+                    () -> {
+                        throw new AssertionError("Only the latest schema should be restarted");
+                    });
+            final var schemaV50 =
+                    new TestSchema(
+                            version(0, 50, 0),
+                            Set.of(StateDefinition.singleton(COUNTRY_STATE_ID, COUNTRY_STATE_KEY, ProtoBytes.PROTOBUF)),
+                            Set.of(),
+                            null) {
+                        @Override
+                        public void restart(@NonNull final MigrationContext ctx) {
+                            restarted.set(true);
+                            assertThat(ctx.previousVersion()).isEqualTo(previousVersion);
+                            assertThat(ctx.isGenesis()).isEqualTo(trigger == InitTrigger.GENESIS);
+                            assertThat(ctx).isInstanceOfSatisfying(HederaMigrationContext.class, hederaContext -> {
+                                assertThat(hederaContext.isReconnect()).isEqualTo(trigger == InitTrigger.RECONNECT);
+                            });
+                        }
+                    };
+            schemaRegistry.register(schemaV49);
+            schemaRegistry.register(schemaV50);
+
+            // When the node initializes with software version 0.1.0
+            schemaRegistry.migrate(
+                    merkleTree,
+                    previousVersion,
+                    softwareVersion,
+                    config,
+                    config,
+                    new HashMap<>(),
+                    migrationStateChanges,
+                    startupNetworks,
+                    trigger);
+
+            // Then both schemas' states are defined, and only the latest schema is restarted
+            final var readableStates = merkleTree.getReadableStates(FIRST_SERVICE);
+            assertThat(readableStates.stateIds()).containsExactlyInAnyOrder(FRUIT_STATE_ID, COUNTRY_STATE_ID);
+            assertThat(restarted).isTrue();
         }
 
         /**
-         * In these tests, each migration will apply some kind of state change to the tree.
+         * In these tests, each release's latest schema will apply some kind of state change to the
+         * tree from its restart hook, as a state is created at genesis and then upgraded.
          */
         @Nested
         @DisplayName("Migration State Impact Tests")
@@ -408,7 +462,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     }
 
                     @Override
-                    public void migrate(@NonNull final MigrationContext ctx) {
+                    public void restart(@NonNull final MigrationContext ctx) {
                         assertThat(ctx).isNotNull();
                         assertThat(ctx.previousVersion()).isNull();
                         assertThat(ctx.newStates().size()).isEqualTo(1);
@@ -435,7 +489,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     }
 
                     @Override
-                    public void migrate(@NonNull final MigrationContext ctx) {
+                    public void restart(@NonNull final MigrationContext ctx) {
                         assertThat(ctx).isNotNull();
                         final var previousStates = ctx.previousStates();
                         final var newStates = ctx.newStates();
@@ -490,7 +544,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     }
 
                     @Override
-                    public void migrate(@NonNull MigrationContext ctx) {
+                    public void restart(@NonNull MigrationContext ctx) {
                         assertThat(ctx).isNotNull();
                         final var previousStates = ctx.previousStates();
                         final var newStates = ctx.newStates();
@@ -506,8 +560,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                         assertThat(oldLearning.get(A_KEY)).isEqualTo(ART);
                         assertThat(oldLearning.get(B_KEY)).isEqualTo(BIOLOGY);
 
-                        // Now check that the new states contains both states as well (since I am
-                        // not adding any)
+                        // Now check that the new states contains only the state not being removed
                         assertThat(newStates.size()).isEqualTo(1);
                         assertThat(newStates.contains(STEAM_STATE_ID)).isTrue();
 
@@ -529,51 +582,53 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                 };
             }
 
-            @Test
-            @DisplayName("Migration from genesis sees nothing in oldStates but can insert into new" + " states")
-            void genesis() {
-                // Given a schema that adds the FRUIT state with k/v for A, B, and C
-                final var schemaV1 = createV1Schema();
-
-                // When we migrate
-                schemaRegistry.register(schemaV1);
-                schemaRegistry.migrate(
+            /**
+             * Applies the given schemas as the complete set registered by a release, just as a node
+             * running that release would at startup.
+             */
+            void applyRelease(
+                    final SemanticVersion previousVersion,
+                    final SemanticVersion currentVersion,
+                    final Schema... releaseSchemas) {
+                final var releaseRegistry = new MerkleSchemaRegistry(FIRST_SERVICE, new SchemaApplications());
+                for (final var schema : releaseSchemas) {
+                    releaseRegistry.register(schema);
+                }
+                releaseRegistry.migrate(
                         merkleTree,
-                        versions[0],
-                        versions[1],
+                        previousVersion,
+                        currentVersion,
                         config,
                         config,
                         new HashMap<>(),
                         migrationStateChanges,
                         startupNetworks,
-                        InitTrigger.RESTART);
+                        previousVersion == null ? InitTrigger.GENESIS : InitTrigger.RESTART);
+            }
+
+            @Test
+            @DisplayName("Restart at genesis sees nothing in oldStates but can insert into new states")
+            void genesis() {
+                // Given a release whose only schema adds the FRUIT state with k/v for A, B, and C
+                applyRelease(versions[0], versions[1], createV1Schema());
 
                 // Then we see that the values for A, B, and C are available
                 final var readableStates = merkleTree.getReadableStates(FIRST_SERVICE);
                 assertThat(readableStates.size()).isEqualTo(1);
                 final ReadableKVState<ProtoBytes, ProtoBytes> fruitV1 = readableStates.get(FRUIT_STATE_ID);
+                assertThat(fruitV1.get(A_KEY)).isEqualTo(APPLE);
+                assertThat(fruitV1.get(B_KEY)).isEqualTo(BANANA);
+                assertThat(fruitV1.get(C_KEY)).isEqualTo(CHERRY);
             }
 
             @Test
-            @DisplayName("Migration from a former version and add a new state")
+            @DisplayName("Upgrade from a former release and add a new state")
             void upgradeAndAddAState() {
-                // Given a schema that adds the FRUIT state with k/v for A, B, and C
-                final var schemaV1 = createV1Schema();
-                final var schemaV2 = createV2Schema();
+                // Given a genesis state created by a release with only the v1 schema
+                applyRelease(versions[0], versions[1], createV1Schema());
 
-                // When we migrate
-                schemaRegistry.register(schemaV1);
-                schemaRegistry.register(schemaV2);
-                schemaRegistry.migrate(
-                        merkleTree,
-                        versions[0],
-                        versions[2],
-                        config,
-                        config,
-                        new HashMap<>(),
-                        migrationStateChanges,
-                        startupNetworks,
-                        InitTrigger.RESTART);
+                // When we upgrade to a release with both schemas
+                applyRelease(versions[1], versions[2], createV1Schema(), createV2Schema());
 
                 // We should see the v2 state (the delta from v2 after applied atop v1)
                 final var readableStates = merkleTree.getReadableStates(FIRST_SERVICE);
@@ -591,27 +646,14 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
             }
 
             @Test
-            @DisplayName("Migration from a former version and remove a state")
+            @DisplayName("Upgrade from a former release and remove a state")
             void upgradeWithARemoveStep() {
-                // Given a schema that adds the FRUIT state with k/v for A, B, and C
-                final var schemaV1 = createV1Schema();
-                final var schemaV2 = createV2Schema();
-                final var schemaV3 = createV3Schema();
+                // Given a state created at genesis by the v1 release and upgraded to the v2 release
+                applyRelease(versions[0], versions[1], createV1Schema());
+                applyRelease(versions[1], versions[2], createV1Schema(), createV2Schema());
 
-                // When we migrate
-                schemaRegistry.register(schemaV1);
-                schemaRegistry.register(schemaV2);
-                schemaRegistry.register(schemaV3);
-                schemaRegistry.migrate(
-                        merkleTree,
-                        versions[0],
-                        versions[3],
-                        config,
-                        config,
-                        new HashMap<>(),
-                        migrationStateChanges,
-                        startupNetworks,
-                        InitTrigger.RESTART);
+                // When we upgrade to a release with all three schemas
+                applyRelease(versions[2], versions[3], createV1Schema(), createV2Schema(), createV3Schema());
 
                 // We should see the v3 state (the delta from v3 after applied atop v2 and v1)
                 final var readableStates = merkleTree.getReadableStates(FIRST_SERVICE);
@@ -632,14 +674,13 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
             }
 
             @Test
-            @DisplayName("If a schema migration fails, all migrations stop")
+            @DisplayName("If the latest schema's restart fails, the failure propagates")
             void badSchema() {
-                // Given a bad schema followed by a good one
-                final var schemaV2Called = new AtomicBoolean(false);
-                final var schemaV1 = new TestSchema(versions[1], () -> {
+                // Given a good schema followed by a bad one
+                final var schemaV1 = createV1Schema();
+                final var schemaV2 = new TestSchema(versions[2], () -> {
                     throw new RuntimeException("Bad");
                 });
-                final var schemaV2 = new TestSchema(versions[2], () -> schemaV2Called.set(true));
 
                 // When we migrate
                 schemaRegistry.register(schemaV1);
@@ -648,7 +689,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                 // We should see that the migration failed
                 assertThatThrownBy(() -> schemaRegistry.migrate(
                                 merkleTree,
-                                versions[0],
+                                versions[1],
                                 versions[2],
                                 config,
                                 config,
@@ -658,33 +699,33 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                                 InitTrigger.RESTART))
                         .isInstanceOf(RuntimeException.class)
                         .hasMessage("Bad");
-
-                // And we should see that schemaV2Called is false because it was never called
-                assertThat(schemaV2Called).isFalse();
             }
 
             @Test
-            @DisplayName("State should be skipped if removed by later schema already in state")
-            void skipStateIfRemovedByLaterSchema() {
+            @DisplayName("A state removed by a later schema is visible to its restart, and then removed")
+            void stateRemovedByLaterSchemaIsVisibleToItsRestart() {
                 // Given a schema V1 that adds FRUIT_STATE_ID
                 final var schemaV1 = createV1Schema();
                 // And a schema V2 that removes FRUIT_STATE_ID
+                final var sawFruit = new AtomicBoolean(false);
                 final var schemaV2 = new TestSchema(versions[2]) {
                     @NonNull
                     @Override
                     public Set<Integer> statesToRemove() {
                         return Set.of(FRUIT_STATE_ID);
                     }
+
+                    @Override
+                    public void restart(@NonNull final MigrationContext ctx) {
+                        sawFruit.set(ctx.previousStates().contains(FRUIT_STATE_ID));
+                        assertThat(ctx.newStates().contains(FRUIT_STATE_ID)).isFalse();
+                    }
                 };
 
                 schemaRegistry.register(schemaV1);
                 schemaRegistry.register(schemaV2);
 
-                // When we migrate from versions[2] to versions[2]
-                // The registry will see that versions[2] is already in state.
-                // It should apply definitions for schemaV1 because versions[2] >= versions[1].
-                // BUT it should skip definitions for schemaV1 because schemaV2 (which is also already in state)
-                // removes FRUIT_STATE_ID.
+                // When we migrate from versions[2] to versions[2] (so the state "already includes" v2)
                 schemaRegistry.migrate(
                         merkleTree,
                         versions[2],
@@ -696,9 +737,9 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                         startupNetworks,
                         InitTrigger.RESTART);
 
-                // We expect that FRUIT_STATE_ID was NOT initialized in the merkleTree
-                // because it should have been skipped.
-                // If it wasn't skipped, it would have been initialized.
+                // Then the removing schema's restart could still see the state it removes
+                assertThat(sawFruit).isTrue();
+                // But it is no longer part of the service's states
                 final var readableStates = merkleTree.getReadableStates(FIRST_SERVICE);
                 assertThat(readableStates.contains(FRUIT_STATE_ID)).isFalse();
             }

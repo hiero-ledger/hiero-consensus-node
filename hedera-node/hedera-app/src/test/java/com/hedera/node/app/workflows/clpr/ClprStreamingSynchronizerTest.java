@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.clpr;
 
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.MESSAGE_QUEUE_STATE_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
@@ -12,12 +14,14 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
+import com.hedera.hapi.block.stream.MerklePath;
+import com.hedera.hapi.block.stream.StateProof;
+import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.clpr.ClprBundleRequest;
 import com.hedera.hapi.node.state.clpr.ClprBundleResponse;
 import com.hedera.hapi.node.state.clpr.ClprChannel;
@@ -27,17 +31,30 @@ import com.hedera.hapi.node.state.clpr.ClprServiceEndpoint;
 import com.hedera.hapi.node.state.clpr.ClprStreamingSyncPayload;
 import com.hedera.hapi.node.state.clpr.ClprSyncPayload;
 import com.hedera.hapi.node.state.clpr.ClprThrottles;
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
+import com.hedera.hapi.platform.state.StateItem;
+import com.hedera.hapi.platform.state.StateKey;
+import com.hedera.hapi.platform.state.StateValue;
+import com.hedera.node.app.hapi.utils.blocks.TssVerifier;
 import com.hedera.node.app.service.clpr.impl.ClprStateProofManager;
+import com.hedera.node.app.spi.state.BlockProvenSnapshot;
+import com.hedera.node.app.spi.state.BlockProvenSnapshotProvider;
 import com.hedera.node.app.workflows.clpr.ClprEndpointClient.ClprSyncException;
 import com.hedera.node.app.workflows.clpr.ClprEndpointClientImpl.ClientException;
 import com.hedera.node.app.workflows.clpr.ClprPeerSelector.SelectedPeer;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfiguration;
+import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.ClprConfig;
 import com.hedera.node.config.testfixtures.ClprConfigBuilder;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.state.BinaryState;
+import com.swirlds.state.State;
+import com.swirlds.state.binary.MerkleProof;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -78,9 +95,6 @@ class ClprStreamingSynchronizerTest {
     private ClprStateProofManager stateProofManager;
 
     @Mock
-    private ClprLeafCertManager leafCertManager;
-
-    @Mock
     private ClprEndpointClientCache clientCache;
 
     @Mock
@@ -103,13 +117,17 @@ class ClprStreamingSynchronizerTest {
                         .enabled(true)
                         .syncPeerExclusionEnabled(true)
                         .build());
+        // Simulate the configured digest type
+        lenient()
+                .when(versionedConfig.getConfigData(BlockStreamConfig.class))
+                .thenReturn(HederaTestConfigBuilder.createConfig().getConfigData(BlockStreamConfig.class));
         // Peer selection is covered by ClprPeerSelectorTest; here it just hands back the one peer.
         lenient().when(peerSelector.selectEndpoint(any(), any())).thenReturn(new SelectedPeer(PEER_ID, endpoint()));
-        lenient().when(clientCache.clientFor(any(), anyInt(), any(), any())).thenReturn(client);
-        lenient().when(client.streamingSync(any())).thenReturn(streamingCall);
+        lenient().when(clientCache.clientFor(any(), anyInt(), anyBoolean())).thenReturn(client);
+        lenient().when(client.sync(any())).thenReturn(streamingCall);
         lenient().when(bundleSubmitter.submitBundle(any())).thenReturn(true);
         subject = new ClprStreamingSynchronizer(
-                configProvider, bundleSubmitter, stateProofManager, leafCertManager, clientCache, peerSelector);
+                configProvider, bundleSubmitter, stateProofManager, clientCache, peerSelector);
     }
 
     @Test
@@ -147,6 +165,102 @@ class ClprStreamingSynchronizerTest {
                         .bundlePayload(INBOUND_BUNDLE)
                         .build());
         thenSuccessIsRecorded();
+    }
+
+    @Nested
+    @DisplayName("empty outbound queue with the real proof builder")
+    class EmptyQueueProofs {
+        @Mock
+        private BlockProvenSnapshotProvider snapshotProvider;
+
+        @Mock
+        private BlockProvenSnapshot snapshot;
+
+        @Mock(extraInterfaces = BinaryState.class)
+        private State provenState;
+
+        @Mock
+        private TssVerifier tssVerifier;
+
+        @BeforeEach
+        void useRealProofBuilder() {
+            subject = new ClprStreamingSynchronizer(
+                    configProvider,
+                    bundleSubmitter,
+                    new ClprStateProofManager(snapshotProvider, tssVerifier, configProvider),
+                    clientCache,
+                    peerSelector,
+                    3);
+        }
+
+        @ParameterizedTest(name = "{0}")
+        @EnumSource(
+                value = ClprChannelStatus.class,
+                names = {"CLOSING", "DRAINED"})
+        @DisplayName("shutdown sends exactly one channel-only proof even when the peer's manifest is current")
+        void sendsClosingStatusProofWithEmptyQueue(final ClprChannelStatus status) throws Exception {
+            final var channel = channel(1L, 0L, 0L).copyBuilder().status(status).build();
+            givenEmptyQueueSnapshot(channel);
+            given(tssVerifier.verifyTss(any(), any(), any())).willReturn(true);
+            givenPeerMessages(payload(currentManifestRequest(), null), payload(null, null));
+
+            subject.synchronize(channel, List.of(endpoint()), 5L, 5L);
+
+            final var writes = captureWrites(2);
+            assertThat(writes.getFirst().bundleResponse()).isNull();
+            final var bundle = writes.get(1).bundleResponseOrThrow().bundlePayload();
+            final var proof = StateProof.PROTOBUF.parse(bundle.toReadableSequentialData());
+            assertThat(proof.paths()).hasSize(1);
+            assertThat(proof.signedBlockProofOrThrow().blockSignature()).isEqualTo(Bytes.wrap("block-signature"));
+            final var item = StateItem.PROTOBUF.parse(
+                    proof.paths().getFirst().stateItemLeafOrThrow().toReadableSequentialData());
+            assertThat(item.keyOrThrow().clprServiceIChannelsOrThrow()).isEqualTo(new ProtoBytes(CHANNEL_ID));
+            assertThat(item.valueOrThrow().clprServiceIChannelsOrThrow()).isEqualTo(channel);
+            verify(tssVerifier).verifyTss(eq(Bytes.wrap("ledger-id")), eq(Bytes.wrap("block-signature")), any());
+            verify(snapshotProvider).latestSnapshot();
+            verify(snapshot).close();
+            verify(streamingCall).halfClose();
+            thenSuccessIsRecorded();
+        }
+
+        @Test
+        @DisplayName("an ACTIVE channel with an empty queue and current manifest still sends no pure ACK")
+        void skipsActiveChannelProofWithEmptyQueue() throws Exception {
+            final var channel = channel(1L, 0L, 0L);
+            givenEmptyQueueSnapshot(channel);
+            givenPeerMessages(payload(currentManifestRequest(), null));
+
+            subject.synchronize(channel, List.of(endpoint()), 5L, 5L);
+
+            assertThat(captureWrites(1).getFirst().bundleResponse()).isNull();
+            verifyNoInteractions(tssVerifier);
+            verify(snapshot).close();
+            verify(streamingCall).halfClose();
+            thenSuccessIsRecorded();
+        }
+
+        private void givenEmptyQueueSnapshot(final ClprChannel channel) {
+            final var binaryState = (BinaryState) provenState;
+            final var key = new ProtoBytes(CHANNEL_ID);
+            final var leaf = new StateItem(
+                    StateKey.newBuilder().clprServiceIChannels(key).build(),
+                    StateValue.newBuilder().clprServiceIChannels(channel).build());
+            given(snapshotProvider.latestSnapshot()).willReturn(Optional.of(snapshot));
+            given(snapshot.state()).willReturn(provenState);
+            given(snapshot.blockTimestamp()).willReturn(new Timestamp(1L, 0));
+            given(snapshot.path()).willReturn(MerklePath.DEFAULT);
+            given(snapshot.tssSignature()).willReturn(Bytes.wrap("block-signature"));
+            lenient().when(snapshot.ledgerId()).thenReturn(Bytes.wrap("ledger-id"));
+            given(binaryState.getKvPath(CHANNELS_STATE_ID, ProtoBytes.PROTOBUF.toBytes(key)))
+                    .willReturn(1L);
+            given(binaryState.getMerkleProof(1L))
+                    .willReturn(new MerkleProof(StateItem.PROTOBUF.toBytes(leaf), List.of(), List.of()));
+            given(binaryState.getKvPath(eq(MESSAGE_QUEUE_STATE_ID), any())).willReturn(-1L);
+        }
+
+        private ClprBundleRequest currentManifestRequest() {
+            return request(0L).copyBuilder().currentEndpointManifestVersion(5L).build();
+        }
     }
 
     @Nested
@@ -241,18 +355,29 @@ class ClprStreamingSynchronizerTest {
     }
 
     @Test
-    @DisplayName(
-            "given mTLS is enabled and the peer has a certificate, then the stream is opened with our leaf credentials")
-    void givenMtlsWithPeerCertificate_thenStreamIsOpenedWithLeafCredentials() throws Exception {
+    @DisplayName("given the peer advertises a TLS certificate, then the stream is opened over TLS")
+    void givenPeerAdvertisesTlsCertificate_thenStreamIsOpenedOverTls() throws Exception {
         givenMessageQueueIsEmpty();
-        final var leafCredentials = mock(ClprLeafCredentials.class);
-        given(leafCertManager.isMtlsEnabled()).willReturn(true);
-        given(leafCertManager.leafCredentials()).willReturn(leafCredentials);
         givenPeerMessages(payload(request(0L), null));
 
         synchronize(channel(1L, 0L, 0L));
 
-        verify(clientCache).clientFor(PEER_HOST, PEER_PORT, endpoint().tlsCertificate(), leafCredentials);
+        verify(clientCache).clientFor(PEER_HOST, PEER_PORT, true);
+        verify(streamingCall).halfClose();
+    }
+
+    @Test
+    @DisplayName("given the peer advertises no TLS certificate, then the stream is opened in plaintext")
+    void givenPeerAdvertisesNoTlsCertificate_thenStreamIsOpenedInPlaintext() throws Exception {
+        givenMessageQueueIsEmpty();
+        givenPeerMessages(payload(request(0L), null));
+        final var plaintextEndpoint =
+                endpoint().copyBuilder().tlsCertificate(Bytes.EMPTY).build();
+        given(peerSelector.selectEndpoint(any(), any())).willReturn(new SelectedPeer(PEER_ID, plaintextEndpoint));
+
+        synchronize(channel(1L, 0L, 0L));
+
+        verify(clientCache).clientFor(PEER_HOST, PEER_PORT, false);
         verify(streamingCall).halfClose();
     }
 
@@ -375,10 +500,10 @@ class ClprStreamingSynchronizerTest {
         }
 
         @Test
-        @DisplayName("given the mTLS client cannot be built, then the peer is penalized")
+        @DisplayName("given the TLS client cannot be built, then the peer is penalized")
         void givenClientCannotBeBuilt_thenPeerIsPenalized() {
-            given(clientCache.clientFor(any(), anyInt(), any(), any()))
-                    .willThrow(new ClientException("bad cert", new IllegalArgumentException()));
+            given(clientCache.clientFor(any(), anyInt(), anyBoolean()))
+                    .willThrow(new ClientException("bad TLS context", new IllegalArgumentException()));
 
             synchronize(channel(6L, 0L, 0L));
 
@@ -422,31 +547,11 @@ class ClprStreamingSynchronizerTest {
             verifyNoInteractions(clientCache, stateProofManager, bundleSubmitter);
             thenNoOutcomeIsRecorded();
         }
-
-        @Test
-        @DisplayName("given mTLS is enabled and the peer has no certificate, then no stream is opened")
-        void givenMtlsWithoutPeerCertificate_thenNoStreamIsOpened() {
-            given(leafCertManager.isMtlsEnabled()).willReturn(true);
-            final var endpoint =
-                    endpoint().copyBuilder().tlsCertificate(Bytes.EMPTY).build();
-            given(peerSelector.selectEndpoint(any(), any())).willReturn(new SelectedPeer(PEER_ID, endpoint));
-
-            synchronize(channel(6L, 0L, 0L));
-
-            verifyNoInteractions(clientCache, stateProofManager, bundleSubmitter);
-            thenNoOutcomeIsRecorded();
-        }
     }
 
     private ClprStreamingSynchronizer newSubject(final int maxBundlesPerCycle) {
         return new ClprStreamingSynchronizer(
-                configProvider,
-                bundleSubmitter,
-                stateProofManager,
-                leafCertManager,
-                clientCache,
-                peerSelector,
-                maxBundlesPerCycle);
+                configProvider, bundleSubmitter, stateProofManager, clientCache, peerSelector, maxBundlesPerCycle);
     }
 
     private void synchronize(final ClprChannel channel) {
