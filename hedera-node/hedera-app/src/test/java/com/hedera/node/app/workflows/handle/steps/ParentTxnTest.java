@@ -3,8 +3,13 @@ package com.hedera.node.app.workflows.handle.steps;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
 import static com.hedera.hapi.node.base.HederaFunctionality.STATE_SIGNATURE_TRANSACTION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
 import static com.hedera.node.app.service.token.impl.api.TokenServiceApiProvider.TOKEN_SERVICE_API_PROVIDER;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_LABEL;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.INTERNAL_SYSTEM_TRANSACTION;
+import static com.hedera.node.app.workflows.handle.TransactionType.ORDINARY_TRANSACTION;
+import static com.hedera.node.app.workflows.prehandle.PreHandleResult.Status.PRE_HANDLE_FAILURE;
 import static java.util.Collections.emptyMap;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -13,15 +18,21 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.state.token.Account;
+import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -35,6 +46,7 @@ import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
+import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.services.ServiceScopeLookup;
 import com.hedera.node.app.spi.authorization.Authorizer;
@@ -43,6 +55,7 @@ import com.hedera.node.app.spi.fees.NodeFeeAccumulator;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
+import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.throttle.NetworkUtilizationManager;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
@@ -59,6 +72,8 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
+import com.swirlds.state.spi.WritableStates;
+import com.swirlds.state.test.fixtures.MapWritableKVState;
 import java.time.Instant;
 import java.util.Map;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
@@ -405,6 +420,34 @@ class ParentTxnTest {
                         BLOCKS_CONFIG,
                         null))
                 .isInstanceOf(NullPointerException.class);
+    }
+
+    @Test
+    void systemTxnWhosePreHandleFailsUnexpectedlyIsCreatedAsFailInvalid() throws Exception {
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(BLOCKS_CONFIG, 1));
+        // The payer must exist with a key for the pre-handle context to be built
+        final var accounts = new MapWritableKVState<AccountID, Account>(ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL);
+        accounts.put(
+                PAYER_ID,
+                Account.newBuilder().accountId(PAYER_ID).key(Key.DEFAULT).build());
+        final var tokenStates = mock(WritableStates.class);
+        given(tokenStates.<AccountID, Account>get(anyInt())).willReturn(accounts);
+        given(state.getWritableStates(TokenService.NAME)).willReturn(tokenStates);
+        final var body = TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder().accountID(PAYER_ID))
+                .cryptoTransfer(CryptoTransferTransactionBody.DEFAULT)
+                .build();
+        willThrow(new IllegalStateException("unexpected"))
+                .given(dispatcher)
+                .dispatchPreHandle(any(PreHandleContext.class));
+
+        final var factory = createUserTxnFactory();
+        final var subject =
+                factory.createSystemTxn(state, creatorInfo, CONSENSUS_NOW, ORDINARY_TRANSACTION, PAYER_ID, body);
+
+        verify(dispatcher).dispatchPreHandle(any(PreHandleContext.class));
+        assertEquals(PRE_HANDLE_FAILURE, subject.preHandleResult().status());
+        assertEquals(FAIL_INVALID, subject.preHandleResult().responseCode());
     }
 
     private ParentTxnFactory createUserTxnFactory() {
