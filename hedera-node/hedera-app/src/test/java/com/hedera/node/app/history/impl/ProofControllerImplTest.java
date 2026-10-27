@@ -1844,6 +1844,64 @@ class ProofControllerImplTest {
         verify(prover).advance(any(), any(), eq(METADATA), eq(accepted), any(), any(), eq(true));
     }
 
+    @Test
+    void usesAKeyAdoptedInTheRoundAssemblyStartedLikeAControllerRebuiltFromState() {
+        // Before the block signer is ready, assembly starts with the end of its round as cutoff, before that
+        // round's transactions are handled; so a key adopted in the round reaches the controller after assembly
+        final var cutoff = Instant.EPOCH.plusSeconds(20);
+        final var secondKey = Bytes.wrap("second");
+        final var first = new ProofKeyPublication(SELF_ID, PROOF_KEY_1, Instant.EPOCH);
+        final var sameRound = new ProofKeyPublication(OTHER_NODE_ID, secondKey, cutoff.minusNanos(1));
+        final var late = new ProofKeyPublication(99L, Bytes.wrap("late"), cutoff.plusNanos(1));
+        given(weights.targetIncludes(anyLong())).willReturn(true);
+        given(weights.numTargetNodesInSource()).willReturn(3);
+        given(weights.targetWeightOf(anyLong())).willReturn(1L);
+        given(weights.targetWeightThreshold()).willReturn(1L);
+        final var assembled = construction
+                .copyBuilder()
+                .assemblyStartTime(asTimestamp(cutoff))
+                .proofKeyCutoffTime(asTimestamp(cutoff))
+                .build();
+        given(writableHistoryStore.setAssemblyTime(CONSTRUCTION_ID, cutoff)).willReturn(assembled);
+        subject.addProofKeyPublication(first);
+        subject.advanceConstruction(cutoff, METADATA, writableHistoryStore, true, DEFAULT_TSS_CONFIG);
+        subject.addProofKeyPublication(sameRound);
+        subject.addProofKeyPublication(late);
+        given(prover.advance(any(), any(), any(), any(), any(), any(), anyBoolean()))
+                .willReturn(HistoryProver.Outcome.InProgress.INSTANCE);
+        given(writableHistoryStore.getConstructionOrThrow(CONSTRUCTION_ID)).willReturn(assembled);
+
+        subject.advanceConstruction(cutoff.plusSeconds(1), METADATA, writableHistoryStore, true, DEFAULT_TSS_CONFIG);
+        final var rebuilt = new ProofControllerImpl(
+                SELF_ID,
+                keyPair,
+                assembled,
+                weights,
+                executor,
+                submissions,
+                machine,
+                List.of(first, sameRound, late),
+                List.of(),
+                Map.of(),
+                historyService,
+                historyLibrary,
+                proverFactory,
+                null,
+                historyProofMetrics,
+                DEFAULT_TSS_CONFIG);
+        rebuilt.advanceConstruction(cutoff.plusSeconds(1), METADATA, writableHistoryStore, true, DEFAULT_TSS_CONFIG);
+
+        verify(prover, times(2))
+                .advance(
+                        any(),
+                        any(),
+                        eq(METADATA),
+                        eq(Map.of(SELF_ID, PROOF_KEY_1, OTHER_NODE_ID, secondKey)),
+                        any(),
+                        any(),
+                        eq(true));
+    }
+
     private void givenGroundingSubject() {
         construction = HistoryProofConstruction.newBuilder()
                 .constructionId(CONSTRUCTION_ID)

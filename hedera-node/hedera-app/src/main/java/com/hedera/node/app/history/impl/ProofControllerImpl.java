@@ -290,8 +290,11 @@ public class ProofControllerImpl implements ProofController {
     @Override
     public void addProofKeyPublication(@NonNull final ProofKeyPublication publication) {
         requireNonNull(publication);
-        // Once the assembly start time (or proof) is known, the proof keys are fixed
-        if (!construction.hasGracePeriodEndTime()) {
+        // Once assembly starts, only keys adopted by its cutoff count, as for a controller rebuilt from state; the
+        // cutoff can be the end of the round assembly started in, so keys adopted in that round arrive after it starts
+        if (!construction.hasGracePeriodEndTime()
+                && (!construction.hasProofKeyCutoffTime()
+                        || publication.adoptionTime().isAfter(asInstant(construction.proofKeyCutoffTimeOrThrow())))) {
             return;
         }
         maybeUpdateForProofKey(publication);
