@@ -47,7 +47,7 @@ public final class Ed25519 {
                 message.length,
                 MemorySegment.ofArray(secretKey));
         if (ret != 0) {
-            throw new RuntimeException("LIBSODIUM.cryptoSignDetached returned non-zero " + ret);
+            throw new Ed25519Exception("LIBSODIUM.cryptoSignDetached returned non-zero " + ret);
         }
     }
 }
