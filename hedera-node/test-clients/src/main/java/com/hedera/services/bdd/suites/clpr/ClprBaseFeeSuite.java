@@ -28,7 +28,7 @@ import org.junit.jupiter.api.Tag;
  * HapiTests that close the unit-test ↔ live-HAPI gap on CLPR base-fee charging.
  *
  * <p>The genesis fee schedule prices CLPR transactions per the draft CLPR fee proposal: $100 to
- * register a Channel, $10 to register a Connector, and $0.01 plus bundle bytes and verifier gas
+ * register a Channel, $10 to register a Connector, and $0.01 plus bundle bytes
  * for a bundle. {@code ClprFeeCalculatorTest} and {@code ClprGenesisFeeScheduleTest} verify the
  * calculator and schedule independently. These tests exercise the wire and confirm the USD
  * actually charged matches the configured price.
@@ -76,14 +76,8 @@ public class ClprBaseFeeSuite {
 
     private static final String PAYER = "feePayer";
 
-    /** USD per unit of gas, from the GAS extra in genesis simpleFeesSchedules.json (852 tinycents). */
-    private static final double GAS_FEE_USD = 852e-10;
-
-    /** The default {@code clpr.verifierGasLimit}, charged as the bundle's verifier gas. */
-    private static final long VERIFIER_GAS_LIMIT = 2_000_000L;
-
-    /** A one-byte bundle: $0.01 base, $0.00001 for its byte, and the verifier gas limit. */
-    private static final double SUBMIT_BUNDLE_SERVICE_FEE_USD = 0.01 + 0.00001 + VERIFIER_GAS_LIMIT * GAS_FEE_USD;
+    /** A one-byte bundle: $0.01 base and $0.00001 for its byte. */
+    private static final double SUBMIT_BUNDLE_SERVICE_FEE_USD = 0.01 + 0.00001;
 
     private static final double REGISTER_CHANNEL_SERVICE_FEE_USD = 100.0;
     private static final double REGISTER_CONNECTOR_SERVICE_FEE_USD = 10.0;

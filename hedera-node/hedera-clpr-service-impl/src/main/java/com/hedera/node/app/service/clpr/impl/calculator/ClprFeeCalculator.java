@@ -18,10 +18,10 @@ import org.hiero.hapi.support.fees.ServiceFeeDefinition;
  * A single fee calculator for all CLPR transaction types. Each instance is parameterized
  * by the {@link HederaFunctionality} and {@link TransactionBody.DataOneOfType} it handles.
  *
- * <p>The two transactions that dispatch to a Channel's verifier contract, {@code ClprCompleteChannel} and
- * {@code ClprSubmitBundle}, are also charged for that call at the verifier gas limit ({@link Extra#GAS}). A
- * {@code ClprCompleteChannel} is charged for the proof bytes it may write into state ({@link Extra#STATE_BYTES}), and a
- * {@code ClprSubmitBundle} for its bundle bytes ({@link Extra#CLPR_BUNDLE_BYTES}). Each extra applies only once the fee
+ * <p>A {@code ClprCompleteChannel} is charged for its verifier call at the verifier gas limit ({@link Extra#GAS})
+ * and for its proof bytes ({@link Extra#STATE_BYTES}). A {@code ClprSubmitBundle} is charged for its bundle bytes
+ * ({@link Extra#CLPR_BUNDLE_BYTES}); verifier gas is throttled separately and is not a bundle fee extra.
+ * Each extra applies only once the fee
  * schedule lists it for the transaction. A bundle's fee is what its submitter recovers from the bundle's Connectors at
  * settlement.
  *
@@ -59,7 +59,7 @@ public record ClprFeeCalculator(
             addExtraFee(feeResult, serviceDef, Extra.STATE_BYTES, feeSchedule, proofBytes);
         }
         // The verifier gas limit is configuration, which is unavailable when computing fees without state
-        if (isScheduled(serviceDef, Extra.GAS) && simpleFeeContext.feeContext() != null) {
+        if (isCompleteChannel && isScheduled(serviceDef, Extra.GAS) && simpleFeeContext.feeContext() != null) {
             final var verifierGasLimit = simpleFeeContext
                     .configuration()
                     .getConfigData(ClprConfig.class)

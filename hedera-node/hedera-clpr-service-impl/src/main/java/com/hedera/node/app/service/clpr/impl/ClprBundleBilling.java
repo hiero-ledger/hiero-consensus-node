@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
+import static com.hedera.hapi.node.base.SubType.DEFAULT;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.hapi.utils.CommonUtils.clampedAdd;
 import static com.hedera.node.app.hapi.utils.CommonUtils.clampedMultiply;
@@ -35,7 +37,7 @@ import org.apache.logging.log4j.Logger;
  *     {@code M} billable messages pays the submitter {@code (M_i / M) * (Tm + X * Y)}. {@code X} counts the bundle
  *     items that made progress and {@code Y} is {@link ClprConfig#progressRewardTinycents()}. On Hedera the shared
  *     verification and maintenance cost {@code Tm} is the {@code ClprSubmitBundle} fee the submitter was charged,
- *     which prices the bundle's bytes and its verifier call.</li>
+ *     which prices the bundle's bytes.</li>
  * </ol>
  * A bundle with no billable messages is paid for entirely by its submitter, and a Connector that cannot cover its
  * share pays what it can.
@@ -68,7 +70,10 @@ public final class ClprBundleBilling {
         this.accountStore = storeFactory.readableStore(ReadableAccountStore.class);
         this.submitterId = context.payer();
         this.exchangeRate = context.exchangeRateInfo().activeRate(context.consensusNow());
-        this.gasPriceTinycents = context.getGasPriceInTinycents();
+        // Application callbacks are CONTRACT_CALL dispatches, so apply the same congestion multiplier as the EVM.
+        final var callbackPrices = context.resourcePriceCalculator().resourcePricesFor(CONTRACT_CALL, DEFAULT);
+        this.gasPriceTinycents =
+                clampedMultiply(context.getGasPriceInTinycents(), callbackPrices.congestionMultiplier());
         this.bundleFeeTinybars = bundleFeeTinybars;
         this.progressRewardTinycents =
                 context.configuration().getConfigData(ClprConfig.class).progressRewardTinycents();

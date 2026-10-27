@@ -38,8 +38,10 @@ message ClprLedgerConfiguration {
     bytes service_address = 3;
 
     /**
-     * Consensus timestamp of the transaction that last modified this
-     * configuration. Monotonically increasing.
+     * Monotonically increasing timestamp of this configuration. Normally the
+     * consensus timestamp of the transaction that last modified it. A startup
+     * migration MAY advance the prior timestamp deterministically before the
+     * next consensus transaction.
      */
     proto.Timestamp timestamp = 4;
 

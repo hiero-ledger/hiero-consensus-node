@@ -821,7 +821,7 @@
         {
           "name": "ClprSubmitBundle",
           "baseFee": 100000000,
-          "extras": [ {"name": "CLPR_BUNDLE_BYTES", "includedCount": 0 }, {"name": "GAS", "includedCount": 0 } ]
+          "extras": [ {"name": "CLPR_BUNDLE_BYTES", "includedCount": 0 } ]
         },
         {
           "name": "ClprRegisterConnector",

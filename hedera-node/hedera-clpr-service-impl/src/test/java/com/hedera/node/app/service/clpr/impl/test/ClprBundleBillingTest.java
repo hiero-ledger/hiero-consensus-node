@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.test;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
+import static com.hedera.hapi.node.base.SubType.DEFAULT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -10,13 +12,16 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.FeeData;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.node.app.service.clpr.impl.ClprBundleBilling;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.spi.fees.ExchangeRateInfo;
+import com.hedera.node.app.spi.fees.ResourcePriceCalculator;
 import com.hedera.node.app.spi.store.StoreFactory;
+import com.hedera.node.app.spi.workflows.FunctionalityResourcePrices;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import java.time.Instant;
@@ -61,6 +66,9 @@ class ClprBundleBillingTest {
     @Mock
     private ExchangeRateInfo exchangeRateInfo;
 
+    @Mock
+    private ResourcePriceCalculator resourcePriceCalculator;
+
     private ClprBundleBilling subject;
 
     @BeforeEach
@@ -73,6 +81,9 @@ class ClprBundleBillingTest {
         given(context.exchangeRateInfo()).willReturn(exchangeRateInfo);
         given(exchangeRateInfo.activeRate(NOW)).willReturn(RATE);
         given(context.getGasPriceInTinycents()).willReturn(GAS_PRICE_TINYCENTS);
+        given(context.resourcePriceCalculator()).willReturn(resourcePriceCalculator);
+        given(resourcePriceCalculator.resourcePricesFor(CONTRACT_CALL, DEFAULT))
+                .willReturn(new FunctionalityResourcePrices(FeeData.DEFAULT, 1L));
         given(context.configuration())
                 .willReturn(HederaTestConfigBuilder.create()
                         .withValue("clpr.progressRewardTinycents", PROGRESS_REWARD_TINYCENTS)
@@ -85,6 +96,22 @@ class ClprBundleBillingTest {
     void gasCostConvertsAtActiveRate() {
         // 1_000 gas * 24 tinycents / 12 tinycents per tinybar
         assertThat(subject.gasCost(1_000L)).isEqualTo(2_000L);
+    }
+
+    @Test
+    @DisplayName("callback gas is escrowed and charged at the congested contract gas price")
+    void gasCostIncludesCallbackCongestion() {
+        given(resourcePriceCalculator.resourcePricesFor(CONTRACT_CALL, DEFAULT))
+                .willReturn(new FunctionalityResourcePrices(FeeData.DEFAULT, 10L));
+        subject = new ClprBundleBilling(context, BUNDLE_FEE);
+
+        final long escrowed = subject.escrowGas(account(CONNECTOR_A, 50_000L), subject.gasCost(1_000L));
+        assertThat(escrowed).isEqualTo(20_000L);
+        assertThat(subject.chargeGas(CONNECTOR_A, escrowed, 600L)).isEqualTo(12_000L);
+
+        verify(tokenServiceApi).transferFromTo(CONNECTOR_A, SUBMITTER, 20_000L);
+        verify(tokenServiceApi).transferFromTo(SUBMITTER, CONNECTOR_A, 8_000L);
+        verify(context).tryToCharge(SUBMITTER, 12_000L);
     }
 
     @Test

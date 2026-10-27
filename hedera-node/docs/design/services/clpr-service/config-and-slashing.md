@@ -81,6 +81,11 @@ and gauges `syncSlotsBusy` and `syncsWaiting`.
 
 A Channel's verifier is chosen by whoever completes the Channel, so everything it returns is untrusted.
 
+The first upgrade from software before 0.80 also caps existing ledger configuration at 100 messages per bundle,
+1,000 queued messages, 4,096 payload bytes, and 10 peer endpoints, preserving tighter custom limits. The startup
+migration advances the configuration's logical timestamp by one nanosecond so channels propagate the updated
+configuration. Later restarts and upgrades preserve admin changes.
+
 |              Key              | Default  | Network? |                                                    Purpose                                                    |
 |-------------------------------|----------|----------|---------------------------------------------------------------------------------------------------------------|
 | `allowNonPublicPeerEndpoints` | `false`  | yes      | Allow loopback, private, and other non-public peer endpoint addresses. On only in `configuration/dev`.        |
@@ -186,8 +191,8 @@ Connectors pay for the bundles that deliver their messages, and the submitting e
 is reimbursed, per clpr-spec PR #65 §3.2 (implemented by `ClprBundleBilling`):
 
 1. **Callback gas, per message.** Before each `onClprMessage` / `onClprResponse`
-   dispatch, the worst-case gas cost (`max_gas_per_message` at the network gas price) is
-   escrowed from the connector's account to the submitter. Afterwards the unused part is
+   dispatch, the worst-case gas cost (`max_gas_per_message` at the network gas price,
+   including congestion) is escrowed from the connector's account to the submitter. Afterwards the unused part is
    returned and the used part (`gasUsed × gasPrice`) is charged to the network fee
    accounts, since on Hedera the submitter does not pay for callback gas.
 2. **Shared cost, at settlement.** After every message is handled, each connector pays

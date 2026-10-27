@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.clpr;
 
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_STATE_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.awaitility.Awaitility.await;
@@ -11,6 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willAnswer;
@@ -34,7 +37,9 @@ import com.hedera.hapi.node.state.clpr.ClprPeerEndpoints;
 import com.hedera.hapi.node.state.clpr.ClprPeerEndpointsEntry;
 import com.hedera.hapi.node.state.clpr.ClprServiceEndpoint;
 import com.hedera.hapi.node.state.clpr.ClprThrottles;
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
+import com.hedera.node.app.service.clpr.ClprService;
 import com.hedera.node.app.service.clpr.ReadableChannelStore;
 import com.hedera.node.app.service.clpr.ReadableLedgerConfigurationStore;
 import com.hedera.node.app.store.ReadableStoreFactoryImpl;
@@ -47,15 +52,23 @@ import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.state.State;
+import com.swirlds.state.spi.ReadableKVState;
+import com.swirlds.state.spi.ReadableSingletonState;
+import com.swirlds.state.spi.ReadableStates;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import org.junit.jupiter.api.AfterEach;
@@ -65,6 +78,8 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
 import org.mockito.MockedConstruction;
 import org.mockito.Mockito;
@@ -74,6 +89,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class ClprChannelManagerTest {
     private static final Bytes CHANNEL_ID_1 = Bytes.wrap("test_channel_1");
     private static final Bytes CHANNEL_ID_2 = Bytes.wrap("test_channel_2");
+    private static final Bytes CHANNEL_ID_3 = Bytes.wrap("test_channel_3");
 
     @Mock
     private ConfigProvider configProvider;
@@ -94,6 +110,7 @@ class ClprChannelManagerTest {
     private Path tempDir;
 
     private ClprChannelManager subject;
+    private final AtomicInteger stateReservations = new AtomicInteger();
 
     @BeforeEach
     void setUp() {
@@ -326,6 +343,7 @@ class ClprChannelManagerTest {
         @DisplayName("channel has an ongoing sync")
         void channelHasOngoingSyncNoActionOnSyncTick() {
             final var conn = makeActiveChannelWithPendingMessages(CHANNEL_ID_1);
+            givenCommittedChannels(conn);
             final var callsCount = new AtomicInteger(0);
             final var longSyncEmulator = new CountDownLatch(1);
 
@@ -367,6 +385,7 @@ class ClprChannelManagerTest {
             final List<ClprChannel> channels = IntStream.range(0, maxConcurrentSyncs + 1)
                     .mapToObj((id) -> makeActiveChannelWithPendingMessages(Bytes.wrap("channel_" + id)))
                     .toList();
+            givenCommittedChannels(channels.toArray(ClprChannel[]::new));
 
             final var syncCallsCount = new AtomicInteger(0);
             final var longSyncEmulator = new CountDownLatch(1);
@@ -396,6 +415,7 @@ class ClprChannelManagerTest {
             final var first = makeActiveChannelWithPendingMessages(CHANNEL_ID_1);
             final var second = makeActiveChannelWithPendingMessages(CHANNEL_ID_2);
             final var third = makeActiveChannelWithPendingMessages(Bytes.wrap("test_channel_3"));
+            givenCommittedChannels(first, second, third);
             final var release = new CountDownLatch(1);
             final var order = new java.util.concurrent.CopyOnWriteArrayList<Bytes>();
             willAnswer(invocation -> {
@@ -419,6 +439,160 @@ class ClprChannelManagerTest {
             assertThat(order).containsExactly(CHANNEL_ID_1, CHANNEL_ID_2, third.channelId());
         }
 
+        @ParameterizedTest
+        @EnumSource(
+                value = ClprChannelStatus.class,
+                names = {"CLOSED", "PENDING"})
+        @DisplayName("a queued channel that becomes ineligible is skipped when its slot opens")
+        void queuedChannelStatusIsRechecked(final ClprChannelStatus status) {
+            final var queued = runQueuedSyncAfterChange(channels -> {
+                channels.computeIfPresent(
+                        CHANNEL_ID_2,
+                        (_, channel) -> channel.copyBuilder().status(status).build());
+                if (status == ClprChannelStatus.CLOSED) {
+                    subject.onChannelClosed(CHANNEL_ID_2);
+                }
+            });
+
+            verify(synchronizer, never())
+                    .synchronize(
+                            argThat(channel -> channel.channelId().equals(queued.channelId())),
+                            any(),
+                            anyLong(),
+                            anyLong());
+        }
+
+        @Test
+        @DisplayName("a queued channel removed from committed state is skipped")
+        void queuedMissingChannelIsSkipped() {
+            final var queued = runQueuedSyncAfterChange(channels -> channels.remove(CHANNEL_ID_2));
+
+            verify(synchronizer, never())
+                    .synchronize(
+                            argThat(channel -> channel.channelId().equals(queued.channelId())),
+                            any(),
+                            anyLong(),
+                            anyLong());
+        }
+
+        @Test
+        @DisplayName("an endpoint evicted while its channel waits is never dialed")
+        void queuedEvictedEndpointIsNotDialed() {
+            final var queued = runQueuedSyncAfterChange(channels -> {
+                channels.computeIfPresent(CHANNEL_ID_2, (_, channel) -> channel.copyBuilder()
+                        .endpointManifest(channel.endpointManifestOrThrow()
+                                .copyBuilder()
+                                .endpoints(List.of())
+                                .build())
+                        .build());
+                subject.seedPeerEndpoints(CHANNEL_ID_2, List.of());
+            });
+
+            verify(synchronizer, never())
+                    .synchronize(
+                            argThat(channel -> channel.channelId().equals(queued.channelId())),
+                            any(),
+                            anyLong(),
+                            anyLong());
+        }
+
+        @Test
+        @DisplayName("a channel denied by the operator while queued is skipped")
+        void queuedChannelDenyIsRechecked() {
+            final var queued = runQueuedSyncAfterChange(_ -> given(versionedConfig.getConfigData(ClprConfig.class))
+                    .willReturn(defaultClprConfig()
+                            .maxConcurrentSyncs(1)
+                            .deniedChannelIds(Set.of(CHANNEL_ID_2.toHex()))
+                            .build()));
+
+            verify(synchronizer, never())
+                    .synchronize(
+                            argThat(channel -> channel.channelId().equals(queued.channelId())),
+                            any(),
+                            anyLong(),
+                            anyLong());
+        }
+
+        @Test
+        @DisplayName("an endpoint denied by the operator while queued is never dialed")
+        void queuedEndpointDenyIsRechecked() {
+            final var queued = runQueuedSyncAfterChange(_ -> given(versionedConfig.getConfigData(ClprConfig.class))
+                    .willReturn(defaultClprConfig()
+                            .maxConcurrentSyncs(1)
+                            .deniedPeerEndpoints(Set.of("203.0.113.2"))
+                            .build()));
+
+            verify(synchronizer, never())
+                    .synchronize(
+                            argThat(channel -> channel.channelId().equals(queued.channelId())),
+                            any(),
+                            anyLong(),
+                            anyLong());
+        }
+
+        @Test
+        @DisplayName("a queued sync uses the latest channel and replacement endpoint without reserving state")
+        void queuedSyncUsesCurrentChannelAndEndpoints() {
+            final var replacementEndpoint = makeEndpoint("203.0.113.3", 50211);
+            final var current = new AtomicReference<ClprChannel>();
+            runQueuedSyncAfterChange(channels -> {
+                final var updated = channels.get(CHANNEL_ID_2)
+                        .copyBuilder()
+                        .nextMessageId(3L)
+                        .endpointManifest(ClprEndpointManifest.newBuilder()
+                                .version(2L)
+                                .endpoints(List.of(replacementEndpoint))
+                                .build())
+                        .build();
+                channels.put(CHANNEL_ID_2, updated);
+                current.set(updated);
+            });
+
+            verify(synchronizer).synchronize(eq(current.get()), eq(List.of(replacementEndpoint)), anyLong(), anyLong());
+        }
+
+        /** Keeps one slot occupied while the second Channel changes, then waits for a third Channel as a barrier. */
+        private ClprChannel runQueuedSyncAfterChange(final Consumer<Map<Bytes, ClprChannel>> change) {
+            given(versionedConfig.getConfigData(ClprConfig.class))
+                    .willReturn(defaultClprConfig().maxConcurrentSyncs(1).build());
+            subject = new ClprChannelManager(configProvider, stateAccessor, synchronizer, clientCache);
+            final var first = makeActiveChannelWithPendingMessages(CHANNEL_ID_1);
+            final var second = makeActiveChannelWithPendingMessages(CHANNEL_ID_2)
+                    .copyBuilder()
+                    .endpointManifest(ClprEndpointManifest.newBuilder()
+                            .version(1L)
+                            .endpoints(List.of(makeEndpoint("203.0.113.2", 50211)))
+                            .build())
+                    .build();
+            final var third = makeActiveChannelWithPendingMessages(CHANNEL_ID_3);
+            final var channels = givenCommittedChannels(first, second, third);
+            final var started = new CountDownLatch(1);
+            final var release = new CountDownLatch(1);
+            willAnswer(invocation -> {
+                        assertThat(stateReservations.get())
+                                .as("state reservations during sync")
+                                .isZero();
+                        if (invocation.getArgument(0).equals(first)) {
+                            started.countDown();
+                            release.await();
+                        }
+                        return SyncOutcome.IDLE;
+                    })
+                    .given(synchronizer)
+                    .synchronize(any(), any(), anyLong(), anyLong());
+            subject.initiateSync(first);
+            try {
+                await().atMost(Duration.ofSeconds(1)).until(() -> started.getCount() == 0);
+                subject.initiateSync(second);
+                subject.initiateSync(third);
+                change.accept(channels);
+            } finally {
+                release.countDown();
+            }
+            verify(synchronizer, timeout(1_000)).synchronize(eq(third), any(), anyLong(), anyLong());
+            return second;
+        }
+
         @Test
         @DisplayName("a channel whose sync failed backs off until its delay passes")
         void failedChannelBacksOff() {
@@ -432,6 +606,8 @@ class ClprChannelManagerTest {
                     configProvider, stateAccessor, synchronizer, clientCache, ClprSyncMetrics.noop(), clock::get);
             given(synchronizer.synchronize(any(), any(), anyLong(), anyLong())).willReturn(SyncOutcome.FAILURE);
             final var conn = makeActiveChannelWithPendingMessages(CHANNEL_ID_1);
+
+            givenCommittedChannels(conn);
 
             subject.initiateSync(conn);
             verify(synchronizer, timeout(200)).synchronize(eq(conn), any(), anyLong(), anyLong());
@@ -479,6 +655,7 @@ class ClprChannelManagerTest {
                             .endpoints(List.of(makeEndpoint("203.0.113.1", 50211), allowed))
                             .build())
                     .build();
+            givenCommittedChannels(conn);
             given(versionedConfig.getConfigData(ClprConfig.class))
                     .willReturn(defaultClprConfig()
                             .deniedPeerEndpoints(java.util.Set.of("203.0.113.1"))
@@ -504,6 +681,7 @@ class ClprChannelManagerTest {
         @DisplayName("sync is performed, channel is removed from ongoing syncs and semaphore is released")
         void syncPerformed() {
             final var conn = makeActiveChannelWithPendingMessages(CHANNEL_ID_1);
+            givenCommittedChannels(conn);
 
             subject.initiateSync(conn);
 
@@ -527,6 +705,7 @@ class ClprChannelManagerTest {
                                     makeEndpoint("127.0.0.1", 50211), publicEndpoint, makeEndpoint("10.0.0.1", 50211)))
                             .build())
                     .build();
+            givenCommittedChannels(conn);
 
             subject.initiateSync(conn);
 
@@ -554,6 +733,7 @@ class ClprChannelManagerTest {
         void syncPerformedConcurrently() {
             final var conn1 = makeActiveChannelWithPendingMessages(CHANNEL_ID_1);
             final var conn2 = makeActiveChannelWithPendingMessages(CHANNEL_ID_2);
+            givenCommittedChannels(conn1, conn2);
 
             // configure the synchronizer with a small delay to simulate some blocking behavior.
             doAnswer(_ -> {
@@ -612,6 +792,33 @@ class ClprChannelManagerTest {
         return ClprConfigBuilder.newBuilder()
                 .enabled(true)
                 .peerEndpointsFile(tempDir.resolve("clpr-peer-endpoints.json").toString());
+    }
+
+    /** Provides actual readable state to sync workers; construction mocking does not cross worker threads. */
+    @SuppressWarnings("unchecked")
+    private Map<Bytes, ClprChannel> givenCommittedChannels(final ClprChannel... channels) {
+        final Map<Bytes, ClprChannel> committed = new ConcurrentHashMap<>();
+        for (final var channel : channels) {
+            committed.put(channel.channelId(), channel);
+        }
+        final var state = mock(State.class);
+        final var states = mock(ReadableStates.class);
+        final ReadableKVState<ProtoBytes, ClprChannel> channelState = mock(ReadableKVState.class);
+        final ReadableSingletonState<ClprEndpointManifest> manifestState = mock(ReadableSingletonState.class);
+        lenient().when(state.getReadableStates(ClprService.NAME)).thenReturn(states);
+        lenient().when(states.<ProtoBytes, ClprChannel>get(CHANNELS_STATE_ID)).thenReturn(channelState);
+        lenient()
+                .when(channelState.get(any()))
+                .thenAnswer(invocation -> committed.get(((ProtoBytes) invocation.getArgument(0)).value()));
+        lenient()
+                .when(states.<ClprEndpointManifest>getSingleton(ENDPOINT_MANIFEST_STATE_ID))
+                .thenReturn(manifestState);
+        lenient().when(manifestState.get()).thenReturn(ClprEndpointManifest.DEFAULT);
+        lenient().when(stateAccessor.get()).thenAnswer(_ -> {
+            stateReservations.incrementAndGet();
+            return new AutoCloseableWrapper<>(state, stateReservations::decrementAndGet);
+        });
+        return committed;
     }
 
     /** Builds a {@link ReadableNodeStore} mock whose {@code sizeOfState()} returns {@code size}. */

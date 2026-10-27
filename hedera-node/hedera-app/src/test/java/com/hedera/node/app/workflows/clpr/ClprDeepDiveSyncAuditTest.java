@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.clpr;
 
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_STATE_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.awaitility.Awaitility.await;
@@ -33,7 +35,9 @@ import com.hedera.hapi.node.state.clpr.ClprPeerEndpoints;
 import com.hedera.hapi.node.state.clpr.ClprPeerEndpointsEntry;
 import com.hedera.hapi.node.state.clpr.ClprServiceEndpoint;
 import com.hedera.hapi.node.state.clpr.ClprThrottles;
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
+import com.hedera.node.app.service.clpr.ClprService;
 import com.hedera.node.app.service.clpr.ReadableChannelStore;
 import com.hedera.node.app.service.clpr.ReadableLedgerConfigurationStore;
 import com.hedera.node.app.store.ReadableStoreFactoryImpl;
@@ -46,10 +50,14 @@ import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.state.State;
+import com.swirlds.state.spi.ReadableKVState;
+import com.swirlds.state.spi.ReadableSingletonState;
+import com.swirlds.state.spi.ReadableStates;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -324,6 +332,7 @@ class ClprDeepDiveSyncAuditTest {
         @DisplayName("channel has an ongoing sync")
         void channelHasOngoingSyncNoActionOnSyncTick() {
             final var conn = makeActiveChannelWithPendingMessages(CHANNEL_ID_1);
+            givenCommittedChannels(conn);
             final var callsCount = new AtomicInteger(0);
             final var longSyncEmulator = new CountDownLatch(1);
 
@@ -365,6 +374,7 @@ class ClprDeepDiveSyncAuditTest {
             final List<ClprChannel> channels = IntStream.range(0, maxConcurrentSyncs + 1)
                     .mapToObj((id) -> makeActiveChannelWithPendingMessages(Bytes.wrap("channel_" + id)))
                     .toList();
+            givenCommittedChannels(channels.toArray(ClprChannel[]::new));
 
             final var syncCallsCount = new AtomicInteger(0);
             final var longSyncEmulator = new CountDownLatch(1);
@@ -389,6 +399,7 @@ class ClprDeepDiveSyncAuditTest {
         @DisplayName("sync is performed, channel is removed from ongoing syncs and semaphore is released")
         void syncPerformed() {
             final var conn = makeActiveChannelWithPendingMessages(CHANNEL_ID_1);
+            givenCommittedChannels(conn);
 
             subject.initiateSync(conn);
 
@@ -396,8 +407,10 @@ class ClprDeepDiveSyncAuditTest {
 
             // After completion, the slot must be released so a follow-up sync for the same
             // channel can run — confirms semaphore release and ongoingChannelSyncs cleanup.
-            subject.initiateSync(conn);
-            verify(synchronizer, timeout(200).times(2)).synchronize(eq(conn), any(), anyLong(), anyLong());
+            await().atMost(Duration.ofMillis(500)).untilAsserted(() -> {
+                subject.initiateSync(conn);
+                verify(synchronizer, Mockito.times(2)).synchronize(eq(conn), any(), anyLong(), anyLong());
+            });
         }
 
         @Test
@@ -405,6 +418,7 @@ class ClprDeepDiveSyncAuditTest {
         void syncPerformedConcurrently() {
             final var conn1 = makeActiveChannelWithPendingMessages(CHANNEL_ID_1);
             final var conn2 = makeActiveChannelWithPendingMessages(CHANNEL_ID_2);
+            givenCommittedChannels(conn1, conn2);
 
             // configure the synchronizer with a small delay to simulate some blocking behavior.
             doAnswer(_ -> {
@@ -459,6 +473,29 @@ class ClprDeepDiveSyncAuditTest {
         return ClprConfigBuilder.newBuilder()
                 .enabled(true)
                 .peerEndpointsFile(tempDir.resolve("clpr-peer-endpoints.json").toString());
+    }
+
+    /** Provides committed state to workers, where construction mocks from the test thread do not apply. */
+    @SuppressWarnings("unchecked")
+    private void givenCommittedChannels(final ClprChannel... channels) {
+        final var committed = new HashMap<Bytes, ClprChannel>();
+        for (final var channel : channels) {
+            committed.put(channel.channelId(), channel);
+        }
+        final var state = mock(State.class);
+        final var states = mock(ReadableStates.class);
+        final ReadableKVState<ProtoBytes, ClprChannel> channelState = mock(ReadableKVState.class);
+        final ReadableSingletonState<ClprEndpointManifest> manifestState = mock(ReadableSingletonState.class);
+        lenient().when(state.getReadableStates(ClprService.NAME)).thenReturn(states);
+        lenient().when(states.<ProtoBytes, ClprChannel>get(CHANNELS_STATE_ID)).thenReturn(channelState);
+        lenient()
+                .when(channelState.get(any()))
+                .thenAnswer(invocation -> committed.get(((ProtoBytes) invocation.getArgument(0)).value()));
+        lenient()
+                .when(states.<ClprEndpointManifest>getSingleton(ENDPOINT_MANIFEST_STATE_ID))
+                .thenReturn(manifestState);
+        lenient().when(manifestState.get()).thenReturn(ClprEndpointManifest.DEFAULT);
+        lenient().when(stateAccessor.get()).thenAnswer(_ -> new AutoCloseableWrapper<>(state, () -> {}));
     }
 
     /** Builds a {@link ReadableNodeStore} mock whose {@code sizeOfState()} returns {@code size}. */
@@ -706,6 +743,7 @@ class ClprDeepDiveSyncAuditTest {
                 .nextMessageId(1)
                 .ackedMessageId(0)
                 .build();
+        givenCommittedChannels(closing);
         subject.initiateSync(closing);
         verify(synchronizer, timeout(500)).synchronize(eq(closing), any(), anyLong(), anyLong());
     }
@@ -718,6 +756,7 @@ class ClprDeepDiveSyncAuditTest {
                 .nextMessageId(1)
                 .ackedMessageId(0)
                 .build();
+        givenCommittedChannels(drained);
         subject.initiateSync(drained);
         verify(synchronizer, timeout(500)).synchronize(eq(drained), any(), anyLong(), anyLong());
     }

@@ -839,8 +839,9 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                 context.payer(),
                                 worstCaseCharge);
                         final var escrowed = billing.escrowGas(connectorAccount, worstCaseCharge);
-                        // Unknown until the dispatch reports it; a dispatch that throws is charged the full budget
-                        long gasUsed = maxGasPerMessage;
+                        // A dispatch can be rejected before the EVM runs (for example, at the child-record limit).
+                        // Charge only gas reported by a contract result, including an executed failure.
+                        long gasUsed = 0L;
 
                         final var callData = encodeOnClprMessage(channelId, dataMsg.sender(), dataMsg.messageData());
                         // Use EntityIdFactory so shard/realm match this network
@@ -1088,8 +1089,8 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                         final var escrowed = payingConnectorAccount == null
                                 ? 0L
                                 : billing.escrowGas(payingConnectorAccount, worstCaseGasCost);
-                        // Unknown until the dispatch reports it; a dispatch that throws is charged the full budget
-                        long gasUsed = maxGasPerMessage;
+                        // Rejections before execution use no gas; executed failures report gas in their result.
+                        long gasUsed = 0L;
                         try {
                             final var result = context.dispatch(stepDispatch(
                                     systemAdminAccountId,

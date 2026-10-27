@@ -298,8 +298,8 @@ Connectors pay for the bundles that deliver their messages in two phases
 
 Before each `onClprMessage` / `onClprResponse` dispatch, the worst-case gas cost —
 `max_gas_per_message` at the network gas price (the `GAS` extra of the simple fee
-schedule) — is escrowed from the connector's account to the submitter, so a reentrant
-callback cannot spend it.
+schedule with the contract-call congestion multiplier) — is escrowed from the connector's
+account to the submitter, so a reentrant callback cannot spend it.
 
 - A destination connector that cannot cover the escrow gets `CONNECTOR_UNDERFUNDED`.
 - A source connector's response is delivered anyway; its connector pays what it can.
@@ -307,6 +307,9 @@ callback cannot spend it.
 After the dispatch, the unused part is returned to the connector and the used part
 (`gasUsed × gasPrice`) is charged to the network fee accounts, since on Hedera the
 submitter never pays for callback gas.
+
+A callback rejected before EVM execution uses no gas and receives its entire gas escrow
+back. An executed callback that fails still pays for the gas recorded in its contract result.
 
 ### Shared cost, at settlement
 
@@ -318,8 +321,8 @@ B_i = (M_i / M) × (Tm + X × Y)
 ```
 
 - `Tm` — the `ClprSubmitBundle` fee charged to the submitter. On Hedera this is the
-  shared verification and maintenance cost; the fee schedule can price the bundle's bytes
-  (`PROCESSING_BYTES`) and its verifier call (`GAS` at `clpr.verifierGasLimit`).
+  shared verification and maintenance cost; the fee schedule prices the bundle's bytes
+  (`CLPR_BUNDLE_BYTES`). Verifier gas is reserved from the gas throttle separately.
 - `X` — the bundle items that made progress: each new message, plus one each for an ack
   advance, a trust-anchor advance, a manifest advance, and a channel status change.
 - `Y` — `clpr.progressRewardTinycents`.

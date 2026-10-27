@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.test.handlers;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_DECODE_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_CHANNEL_NOT_FOUND;
@@ -29,7 +30,9 @@ import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.FeeData;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
+import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.clpr.ClprSubmitBundleTransactionBody;
@@ -75,9 +78,11 @@ import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.spi.fees.ExchangeRateInfo;
 import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.fees.ResourcePriceCalculator;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.DispatchOptions;
+import com.hedera.node.app.spi.workflows.FunctionalityResourcePrices;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -181,6 +186,9 @@ class ClprDeepDiveBundleAuditTest {
 
     @Mock
     private ExchangeRateInfo exchangeRateInfo;
+
+    @Mock
+    private ResourcePriceCalculator resourcePriceCalculator;
 
     @Mock
     private HandleContext.SavepointStack savepointStack;
@@ -2168,26 +2176,22 @@ class ClprDeepDiveBundleAuditTest {
     }
 
     @Test
-    @DisplayName("CEI: dispatch exception does not prevent debit — charge was already applied")
-    void dispatchExceptionAfterDebitDoesNotRevertCharge() {
-        // When dispatch throws, the debit has already occurred.
-        // The prior behavior would do: validate balance → dispatch (throws) → charge fails.
-        // New behavior: charge first → dispatch (throws) → charge already done, no transfer attempt.
+    @DisplayName("dispatch rejected before execution refunds all escrow and charges no gas")
+    void dispatchRejectedBeforeExecutionRefundsAllGasEscrow() {
         putChannel(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH);
         final var bundle = buildBundle(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH, List.of(dataPayload()));
         setupHandleContext(bundle, true);
         putConnector();
 
         given(handleContext.dispatch(any(DispatchOptions.class)))
-                .willThrow(new HandleException(ResponseCodeEnum.CONTRACT_REVERT_EXECUTED));
+                .willThrow(new HandleException(ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED));
 
         subject.handle(handleContext);
 
-        // Transfer still called — debit is pre-dispatch (no second transfer after exception). Gas use is
-        // unknown when the dispatch throws, so the whole escrow is charged and nothing is returned.
-        verify(tokenServiceApi, times(1)).transferFromTo(CONNECTOR_CONTRACT_ACCOUNT, PAYER_ID, WORST_CASE_CHARGE);
-        verify(tokenServiceApi, never()).transferFromTo(eq(PAYER_ID), eq(CONNECTOR_CONTRACT_ACCOUNT), anyLong());
-        verify(handleContext).tryToCharge(PAYER_ID, WORST_CASE_CHARGE);
+        // Child-record exhaustion occurs after escrow, before invoking the EVM.
+        verify(tokenServiceApi).transferFromTo(CONNECTOR_CONTRACT_ACCOUNT, PAYER_ID, WORST_CASE_CHARGE);
+        verify(tokenServiceApi).transferFromTo(PAYER_ID, CONNECTOR_CONTRACT_ACCOUNT, WORST_CASE_CHARGE);
+        verify(handleContext, never()).tryToCharge(any(), anyLong());
         // Reply is APPLICATION_ERROR
         final var response = messageQueueStore.getMessage(CHANNEL_ID, 0);
         assertThat(response.payload().messageReplyOrThrow().status())
@@ -3041,6 +3045,10 @@ class ClprDeepDiveBundleAuditTest {
         lenient().when(handleContext.consensusNow()).thenReturn(Instant.ofEpochSecond(1_700_000_000L));
         // Bundle billing: gas price, exchange rate, and the ClprSubmitBundle fee already charged (Tm)
         lenient().when(handleContext.getGasPriceInTinycents()).thenReturn(TEST_GAS_PRICE_TINYCENTS);
+        lenient().when(handleContext.resourcePriceCalculator()).thenReturn(resourcePriceCalculator);
+        lenient()
+                .when(resourcePriceCalculator.resourcePricesFor(CONTRACT_CALL, SubType.DEFAULT))
+                .thenReturn(new FunctionalityResourcePrices(FeeData.DEFAULT, 1L));
         lenient().when(handleContext.exchangeRateInfo()).thenReturn(exchangeRateInfo);
         lenient()
                 .when(exchangeRateInfo.activeRate(any()))

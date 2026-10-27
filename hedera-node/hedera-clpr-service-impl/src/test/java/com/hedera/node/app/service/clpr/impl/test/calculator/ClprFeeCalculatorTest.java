@@ -98,8 +98,8 @@ class ClprFeeCalculatorTest {
     }
 
     @Test
-    @DisplayName("ClprSubmitBundle adds the bundle-byte and verifier-gas extras its schedule entry lists")
-    void submitBundleAddsScheduledExtras() {
+    @DisplayName("ClprSubmitBundle charges bundle bytes and ignores a legacy verifier-gas extra")
+    void submitBundleChargesBytesWithoutVerifierGas() {
         final var feeResult = new FeeResult();
         final var simpleFeeContext = simpleFeeContextWithVerifierGasLimit(1_000L);
 
@@ -109,8 +109,7 @@ class ClprFeeCalculatorTest {
                 feeResult,
                 scheduleWithExtras(Extra.CLPR_BUNDLE_BYTES, Extra.GAS));
 
-        assertThat(feeResult.getServiceTotalTinycents())
-                .isEqualTo(SUBMIT_BUNDLE_BASE_FEE + 50 * BYTE_FEE + 1_000 * GAS_FEE);
+        assertThat(feeResult.getServiceTotalTinycents()).isEqualTo(SUBMIT_BUNDLE_BASE_FEE + 50 * BYTE_FEE);
     }
 
     @Test

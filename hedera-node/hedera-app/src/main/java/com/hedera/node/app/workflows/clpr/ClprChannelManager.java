@@ -13,6 +13,7 @@ import com.hedera.node.app.service.clpr.ClprChannelLifecycle;
 import com.hedera.node.app.service.clpr.ClprService;
 import com.hedera.node.app.service.clpr.ReadableChannelStore;
 import com.hedera.node.app.service.clpr.impl.ClprPeerEndpointPolicy;
+import com.hedera.node.app.service.clpr.impl.ReadableChannelStoreImpl;
 import com.hedera.node.app.service.clpr.impl.ReadableEndpointManifestStoreImpl;
 import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.config.ConfigProvider;
@@ -96,7 +97,7 @@ public class ClprChannelManager implements ClprChannelLifecycle {
     private final Object syncSlotLock = new Object();
 
     /** Syncs waiting for a slot, oldest first. */
-    private final Deque<PendingSync> readySyncs = new ArrayDeque<>();
+    private final Deque<Bytes> readySyncs = new ArrayDeque<>();
 
     /** Sync slots not in use. */
     private int freeSyncSlots;
@@ -105,9 +106,10 @@ public class ClprChannelManager implements ClprChannelLifecycle {
     private final Map<Bytes, SyncBackoff> syncBackoffs = new ConcurrentHashMap<>();
 
     /**
-     * A sync waiting for a slot.
+     * A sync snapshot read after a slot becomes available, so queued work reflects any channel closure, endpoint
+     * eviction, or operator deny-list change that happened while it waited.
      *
-     * @param channel the Channel, as of its tick
+     * @param channel the current Channel
      * @param endpoints the dial targets
      * @param peerObservedManifestVersion the peer's last-reported view of our manifest version
      */
@@ -549,7 +551,7 @@ public class ClprChannelManager implements ClprChannelLifecycle {
             if (freeSyncSlots == 0) {
                 metrics.syncQueued();
             }
-            readySyncs.addLast(new PendingSync(channel, providedEndpoints, peerObservedManifestVersion));
+            readySyncs.addLast(channel.channelId());
         }
         dispatchReadySyncs();
     }
@@ -564,33 +566,65 @@ public class ClprChannelManager implements ClprChannelLifecycle {
                     workers.execute(() -> runSync(next));
                 } catch (final RejectedExecutionException shuttingDown) {
                     freeSyncSlots++;
-                    ongoingChannelSyncs.remove(next.channel().channelId().toHex());
+                    ongoingChannelSyncs.remove(next.toHex());
                 }
             }
         }
     }
 
     /** Runs one sync on a worker, then frees its slot for the next waiting sync. */
-    private void runSync(@NonNull final PendingSync pending) {
-        final var channel = pending.channel();
+    private void runSync(@NonNull final Bytes channelId) {
         SyncOutcome outcome = SyncOutcome.FAILURE;
         try {
-            // Hand the dial targets to the synchronizer, along with the local ClprEndpointManifest.version()
-            // so it can decide whether to embed a manifest proof in the outbound bundle (see #335).
-            final long localManifestVersion = readLocalManifestVersion();
-            outcome = synchronizer.synchronize(
-                    channel, pending.endpoints(), localManifestVersion, pending.peerObservedManifestVersion());
+            final var pending = readCurrentSync(channelId);
+            if (pending == null) {
+                outcome = SyncOutcome.SKIPPED;
+            } else {
+                // No immutable state reservation is held during the network exchange.
+                final long localManifestVersion = readLocalManifestVersion();
+                outcome = synchronizer.synchronize(
+                        pending.channel(),
+                        pending.endpoints(),
+                        localManifestVersion,
+                        pending.peerObservedManifestVersion());
+            }
         } catch (final Exception e) {
-            logger.error("Sync failed for channel {}", channel.channelId().toHex(), e);
+            logger.error("Sync failed for channel {}", channelId.toHex(), e);
         } finally {
             // Record the backoff before the Channel can be queued again
-            recordOutcome(channel.channelId(), outcome);
+            recordOutcome(channelId, outcome);
             synchronized (syncSlotLock) {
                 freeSyncSlots++;
             }
-            ongoingChannelSyncs.remove(channel.channelId().toHex());
+            ongoingChannelSyncs.remove(channelId.toHex());
         }
         dispatchReadySyncs();
+    }
+
+    /** Reloads the dial targets and eligibility after a sync has waited for a slot. */
+    @Nullable
+    private PendingSync readCurrentSync(@NonNull final Bytes channelId) {
+        final var clprConfig = configProvider.getConfiguration().getConfigData(ClprConfig.class);
+        if (!clprConfig.enabled() || ClprOperatorDenyList.isChannelDenied(clprConfig, channelId)) {
+            return null;
+        }
+        try (final var wrappedState = stateAccessor.get()) {
+            final var state = wrappedState == null ? null : wrappedState.get();
+            if (state == null) {
+                return null;
+            }
+            final var channelStore = new ReadableChannelStoreImpl(state.getReadableStates(ClprService.NAME));
+            final var channel = channelStore.getChannel(channelId);
+            if (channel == null
+                    || channel.status() == ClprChannelStatus.CLOSED
+                    || channel.status() == ClprChannelStatus.PENDING) {
+                return null;
+            }
+            final var endpoints = resolveDialTargets(channel);
+            return endpoints.isEmpty()
+                    ? null
+                    : new PendingSync(channel, endpoints, peerObservedManifestVersions.getOrDefault(channelId, 0L));
+        }
     }
 
     /**

@@ -7,6 +7,7 @@ import com.hedera.hapi.node.state.clpr.ClprEndpoint;
 import com.hedera.node.config.data.ClprConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.net.InetAddress;
 import java.util.Locale;
 
 /**
@@ -50,13 +51,40 @@ final class ClprOperatorDenyList {
         if (denied.isEmpty() || serviceEndpoint == null) {
             return false;
         }
-        final var address = serviceEndpoint.ipAddress();
+        final InetAddress address;
+        try {
+            address = InetAddress.ofLiteral(serviceEndpoint.ipAddress());
+        } catch (final IllegalArgumentException invalidAddress) {
+            return false;
+        }
         final var port = serviceEndpoint.port();
-        return denied.stream()
-                .map(String::trim)
-                .anyMatch(entry -> entry.equalsIgnoreCase(address)
-                        || entry.equalsIgnoreCase(address + ":" + port)
-                        || entry.equalsIgnoreCase("[" + address + "]:" + port));
+        return denied.stream().anyMatch(entry -> matchesEndpoint(entry.trim(), address, port));
+    }
+
+    private static boolean matchesEndpoint(final String entry, final InetAddress address, final int port) {
+        try {
+            // A whole IP literal always means any port. In particular, unbracketed IPv6 must not have its final
+            // component mistaken for a port; IPv6 entries with a port use [address]:port.
+            return InetAddress.ofLiteral(entry).equals(address);
+        } catch (final IllegalArgumentException notAnAddressOnlyEntry) {
+            final int separator = entry.lastIndexOf(':');
+            if (separator < 0) {
+                return false;
+            }
+            final var addressPart = entry.substring(0, separator);
+            if (addressPart.indexOf(':') >= 0 && !(addressPart.startsWith("[") && addressPart.endsWith("]"))) {
+                return false;
+            }
+            try {
+                final int deniedPort = Integer.parseInt(entry.substring(separator + 1));
+                return deniedPort >= 1
+                        && deniedPort <= 65_535
+                        && deniedPort == port
+                        && InetAddress.ofLiteral(addressPart).equals(address);
+            } catch (final IllegalArgumentException invalidEntry) {
+                return false;
+            }
+        }
     }
 
     @NonNull

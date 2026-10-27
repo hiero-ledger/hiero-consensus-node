@@ -32,7 +32,7 @@ import org.junit.jupiter.params.provider.ValueSource;
  * previewnet upgrade schedules — which replace the genesis schedule after an upgrade — carry the same CLPR entries.
  *
  * <p>The prices are the draft CLPR fee proposal's: $100 to register or complete a Channel, $10 / $25 / $10 to register,
- * complete, or deregister a Connector, $1 for the admin operations (including evicting a peer endpoint), and $0.01 plus bundle bytes and verifier gas for a
+ * complete, or deregister a Connector, $1 for the admin operations (including evicting a peer endpoint), and $0.01 plus bundle bytes for a
  * bundle. Every CLPR transaction is charged node and network fees ({@code nodeNetworkFeeExempt} is false, spec §8.10).
  *
  * <p>Structural validity of the JSON is already covered by {@code hedera-file-service-impl}'s
@@ -79,12 +79,12 @@ class ClprGenesisFeeScheduleTest {
     }
 
     @Test
-    @DisplayName("Bundles pay per byte and for verifier gas; Channel completion pays for state bytes and verifier gas")
+    @DisplayName("Bundles pay per byte; Channel completion pays for state bytes and verifier gas")
     void verifierOpsCarryTheirExtras() throws Exception {
         final FeeSchedule schedule = load(GENESIS_SCHEDULE_PATH);
 
         assertThat(lookupServiceFee(schedule, CLPR_SUBMIT_BUNDLE).extras())
-                .containsExactlyInAnyOrder(included(Extra.CLPR_BUNDLE_BYTES, 0), included(Extra.GAS, 0));
+                .containsExactly(included(Extra.CLPR_BUNDLE_BYTES, 0));
         assertThat(lookupServiceFee(schedule, CLPR_COMPLETE_CHANNEL).extras())
                 .containsExactlyInAnyOrder(included(Extra.STATE_BYTES, 8_192), included(Extra.GAS, 0));
         // $0.00001 per bundle byte
