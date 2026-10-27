@@ -56,6 +56,7 @@ import com.hedera.node.app.hapi.utils.throttles.LeakyBucketDeterministicThrottle
 import com.hedera.node.app.hapi.utils.throttles.OpsDurationDeterministicThrottle;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.impl.ReadableEntityIdStoreImpl;
+import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.schedule.impl.ReadableScheduleStoreImpl;
 import com.hedera.node.app.service.token.ReadableAccountStore;
@@ -605,10 +606,17 @@ public class ThrottleAccumulator {
         }
 
         if (isJumboTransactionsEnabled) {
-            final var allowedHederaFunctionalities =
-                    configuration.getConfigData(JumboTransactionsConfig.class).allowedHederaFunctionalities();
-            if (allowedHederaFunctionalities.contains(fromPbj(txnInfo.functionality()))) {
-                final var bytesUsage = txnInfo.signedTx().protobufSize();
+            final var jumboConfig = configuration.getConfigData(JumboTransactionsConfig.class);
+            if (jumboConfig.allowedHederaFunctionalities().contains(fromPbj(txnInfo.functionality()))) {
+                long bytesUsage = txnInfo.signedTx().protobufSize();
+                // Count the decoded size of file-referenced callData so a file-delivered payload is metered
+                // by size like an inline one, rather than only by its (small) on-wire size.
+                if (jumboConfig.chargeHydratedCallDataSize()) {
+                    final var fileStore = new ReadableStoreFactoryImpl(state).readableStore(ReadableFileStore.class);
+                    final var firstUserEntity =
+                            configuration.getConfigData(HederaConfig.class).firstUserEntity();
+                    bytesUsage += HydratedCallDataSize.fileReferencedCallDataBytes(txBody, fileStore, firstUserEntity);
+                }
                 final var maxRegularTxnSize =
                         configuration.getConfigData(HederaConfig.class).transactionMaxBytes();
 
