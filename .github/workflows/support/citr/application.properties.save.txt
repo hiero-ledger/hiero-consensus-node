@@ -1,0 +1,17 @@
+# SOLO_ENABLE_OVERWRITE=true
+
+contracts.chainId=298
+ledger.id=0x03
+entities.unlimitedAutoAssociationsEnabled=true
+bootstrap.throttleJsonDef.resource=genesis/throttles-dev.json
+networkAdmin.exportCandidateRoster=true
+addressBook.useRosterLifecycle=true
+nodes.gossipFqdnRestricted=false
+
+blockStream.blockNodeConnectionFileDir=/opt/hgcapp/services-hedera/HapiApp2.0/data/config
+
+staking.periodMins=360
+
+tss.forceMockSignatures=false
+
+blockStream.maxBlockSizeBytes=314572800
