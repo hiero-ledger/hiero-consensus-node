@@ -115,6 +115,7 @@ jobs:
     uses: ./.github/workflows/855-call-extract-citr-vars.yaml
     with:
       ref: ${{ github.ref }}
+      env-file: ".github/workflows/support/citr/.citr-env.save"
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 

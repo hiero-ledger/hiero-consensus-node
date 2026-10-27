@@ -8,6 +8,11 @@ on:
         description: "The git ref to read .github/workflows/support/citr/.citr-env from (branch, tag, or commit SHA)."
         type: string
         default: ""
+      env-file:
+        type: string
+        default: ".github/workflows/support/citr/.citr-env"
+        required: false
+
     secrets:
       github-token:
         required: true
@@ -77,7 +82,7 @@ jobs:
           echo "::group::Extract CITR variables from .citr-env"
 
           # Ensure the environment file is present
-          ENV_FILE=".github/workflows/support/citr/.citr-env"
+          ENV_FILE="${{ inputs.env-file }}"
           if [[ ! -f "${ENV_FILE}" ]]; then
             echo "::error::CITR environment file not found at ${ENV_FILE}"
             exit 1
