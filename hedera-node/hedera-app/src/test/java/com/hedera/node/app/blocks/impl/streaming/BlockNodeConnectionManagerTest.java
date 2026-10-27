@@ -22,6 +22,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+import com.hedera.node.app.blocks.impl.streaming.BlockBufferSaturationInfo.SaturationDetail;
 import com.hedera.node.app.blocks.impl.streaming.BlockNode.BlockNodeOutOfRange;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager.AnyCriteria;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager.GroupSelectionOutcome;
@@ -103,7 +104,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
             activeConfigRefHandle = lookup.findVarHandle(cls, "activeConfigRef", AtomicReference.class);
             globalCoolDownTimestampRefHandle =
                     lookup.findVarHandle(cls, "globalCoolDownTimestampRef", AtomicReference.class);
-            bufferStatusRefHandle = lookup.findVarHandle(cls, "bufferStatusRef", AtomicReference.class);
+            bufferStatusRefHandle = lookup.findVarHandle(cls, "bufferSaturationRef", AtomicReference.class);
             connectionMonitorThreadRefHandle =
                     lookup.findVarHandle(cls, "connectionMonitorThreadRef", AtomicReference.class);
 
@@ -334,60 +335,189 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testIsBufferUnhealthy_latestStatusNull() throws Throwable {
-        when(bufferService.latestBufferStatus()).thenReturn(null);
+        when(bufferService.latestBufferSaturationInfo()).thenReturn(null);
 
         final boolean isBufferUnhealthy = invoke_isBufferUnhealthy();
 
         assertThat(isBufferUnhealthy).isFalse();
 
-        verify(bufferService).latestBufferStatus();
+        verify(bufferService).latestBufferSaturationInfo();
         verifyNoMoreInteractions(bufferService);
     }
 
     @Test
     void testIsBufferUnhealthy_sameStatus() throws Throwable {
-        final BlockBufferStatus status = new BlockBufferStatus(Instant.now(), 5.00D, false);
-        when(bufferService.latestBufferStatus()).thenReturn(status);
+        final BlockBufferSaturationInfo status = buildSaturationInfo(Instant.now(), 5.00D, false);
+        when(bufferService.latestBufferSaturationInfo()).thenReturn(status);
         bufferStatusRef().set(status);
 
         final boolean isUnhealthy = invoke_isBufferUnhealthy();
 
         assertThat(isUnhealthy).isFalse();
 
-        verify(bufferService).latestBufferStatus();
+        verify(bufferService).latestBufferSaturationInfo();
         verifyNoMoreInteractions(bufferService);
     }
 
     @Test
     void testIsBufferUnhealthy_false() throws Throwable {
         final Instant now = Instant.now();
-        final BlockBufferStatus latestStatus = new BlockBufferStatus(now, 5.00D, false);
-        when(bufferService.latestBufferStatus()).thenReturn(latestStatus);
-        bufferStatusRef().set(new BlockBufferStatus(now.minusSeconds(1), 0.0D, false));
+        final BlockBufferSaturationInfo latestStatus = buildSaturationInfo(now, 5.00D, false);
+        when(bufferService.latestBufferSaturationInfo()).thenReturn(latestStatus);
+        bufferStatusRef().set(buildSaturationInfo(now.minusSeconds(1), 0.0D, false));
 
         final boolean isUnhealthy = invoke_isBufferUnhealthy();
 
         assertThat(isUnhealthy).isFalse();
         assertThat(bufferStatusRef()).hasValue(latestStatus);
 
-        verify(bufferService).latestBufferStatus();
+        verify(bufferService).latestBufferSaturationInfo();
         verifyNoMoreInteractions(bufferService);
     }
 
     @Test
     void testIsBufferUnhealthy_true() throws Throwable {
         final Instant now = Instant.now();
-        final BlockBufferStatus latestStatus = new BlockBufferStatus(now, 80.00D, true);
-        when(bufferService.latestBufferStatus()).thenReturn(latestStatus);
-        bufferStatusRef().set(new BlockBufferStatus(now.minusSeconds(1), 0.0D, false));
+        final BlockBufferSaturationInfo latestStatus = buildSaturationInfo(now, 80.00D, true);
+        when(bufferService.latestBufferSaturationInfo()).thenReturn(latestStatus);
+        bufferStatusRef().set(buildSaturationInfo(now.minusSeconds(1), 0.0D, false));
 
         final boolean isUnhealthy = invoke_isBufferUnhealthy();
 
         assertThat(isUnhealthy).isTrue();
         assertThat(bufferStatusRef()).hasValue(latestStatus);
 
-        verify(bufferService).latestBufferStatus();
+        verify(bufferService).latestBufferSaturationInfo();
         verifyNoMoreInteractions(bufferService);
+    }
+
+    @Test
+    void testIsBufferUnhealthy_unackedBlocks() throws Throwable {
+        final BlockBufferSaturationInfo saturationInfoA = new BlockBufferSaturationInfo(
+                Instant.now(),
+                new SaturationDetail(25.0D, false, 25, 100),
+                new SaturationDetail(0.0D, false, 0, 100),
+                new SaturationDetail(0.0D, false, 0, 5));
+        when(bufferService.latestBufferSaturationInfo()).thenReturn(saturationInfoA);
+        bufferStatusRef().set(BlockBufferSaturationInfo.NIL);
+
+        final boolean isUnhealthyA = invoke_isBufferUnhealthy();
+        assertThat(isUnhealthyA).isFalse();
+
+        // transition from healthy to action stage
+        final BlockBufferSaturationInfo saturationInfoB = new BlockBufferSaturationInfo(
+                Instant.now(),
+                new SaturationDetail(80.0D, true, 80, 100),
+                new SaturationDetail(0.0D, false, 0, 100),
+                new SaturationDetail(0.0D, false, 0, 5));
+        when(bufferService.latestBufferSaturationInfo()).thenReturn(saturationInfoB);
+
+        final boolean isUnhealthyB = invoke_isBufferUnhealthy();
+        assertThat(isUnhealthyB).isTrue();
+
+        // transition to higher saturation
+        final BlockBufferSaturationInfo saturationInfoC = new BlockBufferSaturationInfo(
+                Instant.now(),
+                new SaturationDetail(85.0D, true, 85, 100),
+                new SaturationDetail(0.0D, false, 0, 100),
+                new SaturationDetail(0.0D, false, 0, 5));
+        when(bufferService.latestBufferSaturationInfo()).thenReturn(saturationInfoC);
+
+        final boolean isUnhealthyC = invoke_isBufferUnhealthy();
+        assertThat(isUnhealthyC).isTrue();
+
+        // transition from action stage to below action stage
+        final BlockBufferSaturationInfo saturationInfoD = new BlockBufferSaturationInfo(
+                Instant.now(),
+                new SaturationDetail(10.0D, false, 10, 100),
+                new SaturationDetail(0.0D, false, 0, 100),
+                new SaturationDetail(0.0D, false, 0, 5));
+        when(bufferService.latestBufferSaturationInfo()).thenReturn(saturationInfoD);
+
+        final boolean isUnhealthyD = invoke_isBufferUnhealthy();
+        assertThat(isUnhealthyD).isFalse();
+
+        // transition to higher saturation but still below action stage
+        final BlockBufferSaturationInfo saturationInfoE = new BlockBufferSaturationInfo(
+                Instant.now(),
+                new SaturationDetail(20.0D, false, 20, 100),
+                new SaturationDetail(0.0D, false, 0, 100),
+                new SaturationDetail(0.0D, false, 0, 5));
+        when(bufferService.latestBufferSaturationInfo()).thenReturn(saturationInfoE);
+
+        final boolean isUnhealthyE = invoke_isBufferUnhealthy();
+        assertThat(isUnhealthyE).isFalse();
+    }
+
+    @Test
+    void testIsBufferUnhealthy_unackedBytes() throws Throwable {
+        final BlockBufferSaturationInfo saturationInfoA = new BlockBufferSaturationInfo(
+                Instant.now(),
+                new SaturationDetail(0.0D, false, 0, 100),
+                new SaturationDetail(25.0D, false, 25, 100),
+                new SaturationDetail(0.0D, false, 0, 5));
+        when(bufferService.latestBufferSaturationInfo()).thenReturn(saturationInfoA);
+        bufferStatusRef().set(BlockBufferSaturationInfo.NIL);
+
+        final boolean isUnhealthyA = invoke_isBufferUnhealthy();
+        assertThat(isUnhealthyA).isFalse();
+
+        // transition from healthy to action stage
+        final BlockBufferSaturationInfo saturationInfoB = new BlockBufferSaturationInfo(
+                Instant.now(),
+                new SaturationDetail(0.0D, false, 0, 100),
+                new SaturationDetail(80.0D, true, 80, 100),
+                new SaturationDetail(0.0D, false, 0, 5));
+        when(bufferService.latestBufferSaturationInfo()).thenReturn(saturationInfoB);
+
+        final boolean isUnhealthyB = invoke_isBufferUnhealthy();
+        assertThat(isUnhealthyB).isTrue();
+
+        // transition to higher saturation
+        final BlockBufferSaturationInfo saturationInfoC = new BlockBufferSaturationInfo(
+                Instant.now(),
+                new SaturationDetail(0.0D, false, 0, 100),
+                new SaturationDetail(85.0D, true, 85, 100),
+                new SaturationDetail(0.0D, false, 0, 5));
+        when(bufferService.latestBufferSaturationInfo()).thenReturn(saturationInfoC);
+
+        final boolean isUnhealthyC = invoke_isBufferUnhealthy();
+        assertThat(isUnhealthyC).isTrue();
+
+        // transition from action stage to below action stage
+        final BlockBufferSaturationInfo saturationInfoD = new BlockBufferSaturationInfo(
+                Instant.now(),
+                new SaturationDetail(0.0D, false, 0, 100),
+                new SaturationDetail(10.0D, false, 10, 100),
+                new SaturationDetail(0.0D, false, 0, 5));
+        when(bufferService.latestBufferSaturationInfo()).thenReturn(saturationInfoD);
+
+        final boolean isUnhealthyD = invoke_isBufferUnhealthy();
+        assertThat(isUnhealthyD).isFalse();
+
+        // transition to higher saturation but still below action stage
+        final BlockBufferSaturationInfo saturationInfoE = new BlockBufferSaturationInfo(
+                Instant.now(),
+                new SaturationDetail(0.0D, false, 0, 100),
+                new SaturationDetail(20.0D, false, 20, 100),
+                new SaturationDetail(0.0D, false, 0, 5));
+        when(bufferService.latestBufferSaturationInfo()).thenReturn(saturationInfoE);
+
+        final boolean isUnhealthyE = invoke_isBufferUnhealthy();
+        assertThat(isUnhealthyE).isFalse();
+    }
+
+    @Test
+    void testIsBufferUnhealthy_inProgressBlocksDoesNothing() throws Throwable {
+        final BlockBufferSaturationInfo saturationInfo = new BlockBufferSaturationInfo(
+                Instant.now(),
+                new SaturationDetail(0.0D, false, 0, 100),
+                new SaturationDetail(0.0D, false, 0, 100),
+                new SaturationDetail(100.0D, true, 5, 5));
+        when(bufferService.latestBufferSaturationInfo()).thenReturn(saturationInfo);
+
+        final boolean isUnhealthy = invoke_isBufferUnhealthy();
+        assertThat(isUnhealthy).isFalse();
     }
 
     @Test
@@ -1435,7 +1565,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         activeConfigRef().set(config);
         when(blockNodeConfigService.latestConfiguration()).thenReturn(config);
         // indicate the buffer is healthy
-        when(bufferService.latestBufferStatus()).thenReturn(new BlockBufferStatus(Instant.now(), 0.0D, false));
+        when(bufferService.latestBufferSaturationInfo()).thenReturn(buildSaturationInfo(Instant.now(), 0.0D, false));
         // higher priority connection, stalled connection, and auto reset checks will be false since no active
         // connection exists
 
@@ -1484,7 +1614,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         when(activeConnection.ipV4AddressAsInt()).thenReturn(3232235777L);
         activeConnectionRef().set(activeConnection);
         // healthy buffer and no configuration changes so the active connection is left in place
-        when(bufferService.latestBufferStatus()).thenReturn(new BlockBufferStatus(Instant.now(), 0.0D, false));
+        when(bufferService.latestBufferSaturationInfo()).thenReturn(buildSaturationInfo(Instant.now(), 0.0D, false));
 
         invoke_updateConnectionIfNeeded();
 
@@ -1497,7 +1627,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         // no active connection exists
         activeConnectionRef().set(null);
         // healthy buffer and no configured block nodes so no new connection is selected
-        when(bufferService.latestBufferStatus()).thenReturn(new BlockBufferStatus(Instant.now(), 0.0D, false));
+        when(bufferService.latestBufferSaturationInfo()).thenReturn(buildSaturationInfo(Instant.now(), 0.0D, false));
 
         invoke_updateConnectionIfNeeded();
 
@@ -1533,7 +1663,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         blockNodes().put(nodeConfig.streamingEndpoint(), node);
         // the active configuration currently has a single block node
         activeConfigRef().set(new VersionedBlockNodeConfigurationSet(1, List.of(nodeConfig)));
-        when(bufferService.latestBufferStatus()).thenReturn(new BlockBufferStatus(Instant.now(), 0.0D, false));
+        when(bufferService.latestBufferSaturationInfo()).thenReturn(buildSaturationInfo(Instant.now(), 0.0D, false));
         // the whole block-nodes.json is removed -> the config service publishes an empty, version-bumped set
         when(blockNodeConfigService.latestConfiguration())
                 .thenReturn(new VersionedBlockNodeConfigurationSet(2, List.of()));
@@ -1575,7 +1705,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                 new VersionedBlockNodeConfigurationSet(1, List.of(nodeConfig));
         activeConfigRef().set(configSet);
         when(blockNodeConfigService.latestConfiguration()).thenReturn(configSet);
-        when(bufferService.latestBufferStatus()).thenReturn(new BlockBufferStatus(Instant.now(), 0.0D, false));
+        when(bufferService.latestBufferSaturationInfo()).thenReturn(buildSaturationInfo(Instant.now(), 0.0D, false));
 
         // tick 1: the connection is still active and healthy, so the gauge reports its IP address
         invoke_updateConnectionIfNeeded();
@@ -1623,7 +1753,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                 new VersionedBlockNodeConfigurationSet(1, List.of(nodeConfig, lowerPriorityConfig));
         activeConfigRef().set(currentConfigSet);
         // mark buffer healthy
-        when(bufferService.latestBufferStatus()).thenReturn(new BlockBufferStatus(Instant.now(), 0.0D, false));
+        when(bufferService.latestBufferSaturationInfo()).thenReturn(buildSaturationInfo(Instant.now(), 0.0D, false));
         // create new config that removes everything
         when(blockNodeConfigService.latestConfiguration())
                 .thenReturn(new VersionedBlockNodeConfigurationSet(2, List.of()));
@@ -1662,7 +1792,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         activeConfigRef().set(configSet);
         when(blockNodeConfigService.latestConfiguration()).thenReturn(configSet);
         // mark the buffer as unhealthy
-        when(bufferService.latestBufferStatus()).thenReturn(new BlockBufferStatus(Instant.now(), 80.0D, true));
+        when(bufferService.latestBufferSaturationInfo()).thenReturn(buildSaturationInfo(Instant.now(), 80.0D, true));
 
         blockNodes().put(nodeConfig.streamingEndpoint(), node);
 
@@ -1700,7 +1830,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         activeConfigRef().set(config);
         when(blockNodeConfigService.latestConfiguration()).thenReturn(config);
         // indicate the buffer is healthy
-        when(bufferService.latestBufferStatus()).thenReturn(new BlockBufferStatus(Instant.now(), 0.0D, false));
+        when(bufferService.latestBufferSaturationInfo()).thenReturn(buildSaturationInfo(Instant.now(), 0.0D, false));
 
         // the following setup is to allow for the following node to be selected as the new active connection
         final BlockNode node = mock(BlockNode.class);
@@ -1755,7 +1885,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         when(node.isStreamingCandidate()).thenReturn(true); // an auto reset does not make a node non-streamable
         activeConnectionRef().set(existingActiveConnection);
         // mark the buffer as healthy
-        when(bufferService.latestBufferStatus()).thenReturn(new BlockBufferStatus(Instant.now(), 0.0D, false));
+        when(bufferService.latestBufferSaturationInfo()).thenReturn(buildSaturationInfo(Instant.now(), 0.0D, false));
         // we will attempt to re-connect to the same node, so make sure the setup accounts for this
         final Future<Object> nodeFuture = mock(Future.class);
         when(nodeFuture.state()).thenReturn(State.SUCCESS);
@@ -1812,7 +1942,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         activeConfigRef().set(configSet);
         when(blockNodeConfigService.latestConfiguration()).thenReturn(configSet);
         // mark the buffer as unhealthy
-        when(bufferService.latestBufferStatus()).thenReturn(new BlockBufferStatus(Instant.now(), 0.0D, false));
+        when(bufferService.latestBufferSaturationInfo()).thenReturn(buildSaturationInfo(Instant.now(), 0.0D, false));
 
         blockNodes().put(nodeConfig.streamingEndpoint(), node);
 
@@ -1972,6 +2102,16 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     // Utilities
 
+    BlockBufferSaturationInfo buildSaturationInfo(
+            final Instant timestamp, final double saturationPercent, final boolean isAtActionStage) {
+        final int count = (int) saturationPercent;
+        return new BlockBufferSaturationInfo(
+                timestamp,
+                new SaturationDetail(saturationPercent, isAtActionStage, count, 100),
+                new SaturationDetail(0.0D, false, 5, 100_000),
+                new SaturationDetail(0.0D, false, 0, 5));
+    }
+
     void invoke_updateConnectionIfNeeded() throws Throwable {
         updateConnectionIfNeededHandle.invoke(connectionManager);
     }
@@ -2034,8 +2174,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @SuppressWarnings("unchecked")
-    AtomicReference<BlockBufferStatus> bufferStatusRef() {
-        return (AtomicReference<BlockBufferStatus>) bufferStatusRefHandle.get(connectionManager);
+    AtomicReference<BlockBufferSaturationInfo> bufferStatusRef() {
+        return (AtomicReference<BlockBufferSaturationInfo>) bufferStatusRefHandle.get(connectionManager);
     }
 
     @SuppressWarnings("unchecked")

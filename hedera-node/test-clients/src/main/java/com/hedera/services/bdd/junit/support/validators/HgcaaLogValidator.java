@@ -111,8 +111,8 @@ public class HgcaaLogValidator {
                 // the streamMode=BOTH block size circuit breaker (blockStream.maxBlockSizeBytes)
                 List.of("BlockStreamManagerImpl", "suppressing savepoint output for the rest of the block"),
                 List.of("QueryWorkflowImpl", "Unexpected ParseException while parsing protobuf"),
-                // HAPI networks run with CLPR enabled but without a CA, so CLPR sync runs without mTLS
-                List.of("ClprCaCertManager", "CLPR CA cert/key not configured"),
+                // HAPI networks run with CLPR enabled but without a HAPI TLS cert, so CLPR sync runs plaintext
+                List.of("ClprHapiTlsEndpoint", "HAPI TLS cert/key not found"),
                 List.of("Timed out waiting for pending block proofs"),
                 // CLPR queries verify their own state proofs before returning them, which cannot succeed
                 // when a CLPR task runs with tss.forceMockSignatures=true
@@ -123,7 +123,7 @@ public class HgcaaLogValidator {
                 List.of("WRAPS enabled but this node cannot build recursive proofs", "TSS_LIB_WRAPS_ARTIFACTS_PATH=''"),
                 // When warm-started, the WRAPS artifacts dir mapped for cold bootstraps is never provisioned
                 List.of("WRAPS enabled but this node cannot build recursive proofs", "contents=<path does not exist>"),
-                // Multi-network tests restart CLPR peer networks and rotate their mTLS ports, so syncs to a peer
+                // Multi-network tests restart CLPR peer networks and rotate their HAPI TLS ports, so syncs to a peer
                 // fail as UNAVAILABLE while it is unreachable; any other sync failure (e.g. TLS or protocol) is
                 // still a problem
                 List.of("ClprStreamingSynchronizer", "Streaming sync failed for channel", "with status UNAVAILABLE"),

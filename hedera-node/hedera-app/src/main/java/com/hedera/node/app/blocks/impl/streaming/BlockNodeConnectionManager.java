@@ -113,10 +113,10 @@ public class BlockNodeConnectionManager {
      */
     private final AtomicReference<Instant> globalCoolDownTimestampRef = new AtomicReference<>();
     /**
-     * Most recent block buffer status.
+     * Most recent block buffer saturation status.
      */
-    private final AtomicReference<BlockBufferStatus> bufferStatusRef =
-            new AtomicReference<>(new BlockBufferStatus(Instant.MIN, 0.0D, false));
+    private final AtomicReference<BlockBufferSaturationInfo> bufferSaturationRef =
+            new AtomicReference<>(BlockBufferSaturationInfo.NIL);
     /**
      * Reference to the connection monitor thread.
      */
@@ -856,21 +856,44 @@ public class BlockNodeConnectionManager {
      * @return true if the buffer is unhealthy, else false
      */
     private boolean isBufferUnhealthy() {
-        final BlockBufferStatus latestBufferStatus = blockBufferService.latestBufferStatus();
-        final BlockBufferStatus previousBufferStatus = bufferStatusRef.getAndSet(latestBufferStatus);
+        final BlockBufferSaturationInfo latestSaturationInfo = blockBufferService.latestBufferSaturationInfo();
+        final BlockBufferSaturationInfo previousSaturationInfo = bufferSaturationRef.getAndSet(latestSaturationInfo);
 
-        if (latestBufferStatus != null && latestBufferStatus.isActionStage()) {
-            // the latest status indicates we are above the action stage and thus should take some action
-            // but, if the saturation is decreasing since the last check, don't switch connections yet and
-            // hope we are able to recover
-            if (previousBufferStatus == null
-                    || latestBufferStatus.saturationPercent() >= previousBufferStatus.saturationPercent()) {
-                // saturation has stayed the same or increased, we need to attempt switching connections
+        /*
+        There are multiple facets that can influence whether the block buffer is unhealthy, but not all of those facets
+        can be aided in switching connections. For example, if saturation is high due to in-progress blocks, switching
+        to another block node will have no impact since the issue is local to the consensus node and is not the result
+        of a block node. So, we need to check the cause of the saturation to know if we need to take action or not.
+         */
+
+        if (latestSaturationInfo == null) {
+            return false;
+        }
+
+        /*
+        If the most recent saturation information indicates that we are currently at or above the action stage, it will
+        typically imply that we want to take some sort of action such as switching to a different block node. However,
+        we only want to take action if the saturation action is steady or growing. If the saturation is going down, it
+        likely means we are recovering, and therefore we don't want to take action such as switching block nodes.
+         */
+
+        if (latestSaturationInfo.unackedBlocksSaturation().isAtActionStage()) {
+            if (previousSaturationInfo == null
+                    || latestSaturationInfo.unackedBlocksSaturation().percentage()
+                            >= previousSaturationInfo.unackedBlocksSaturation().percentage()) {
                 return true;
             }
         }
 
-        return false;
+        if (latestSaturationInfo.unackedBytesSaturation().isAtActionStage()) {
+            if (previousSaturationInfo == null
+                    || latestSaturationInfo.unackedBytesSaturation().percentage()
+                            >= previousSaturationInfo.unackedBytesSaturation().percentage()) {
+                return true;
+            }
+        }
+
+        return false; // no action needed at this time
     }
 
     /**

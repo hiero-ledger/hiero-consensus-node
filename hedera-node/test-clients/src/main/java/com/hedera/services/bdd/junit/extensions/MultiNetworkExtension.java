@@ -126,28 +126,25 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
     /** Sibling dir (of the per-network {@code <scope>-test/} dirs) for the multi-network driver log. */
     private static final String MULTINETWORK_LOG_DIR = "multinetwork-test-clients";
 
-    static final String CLPR_MTLS_PORT_KEY = "clpr.mtlsPort";
-    static final String CLPR_CA_CRT_PATH_KEY = "clpr.caCrtPath";
-    static final String CLPR_CA_KEY_PATH_KEY = "clpr.caKeyPath";
+    static final String GRPC_TLS_PORT_KEY = "grpc.tlsPort";
 
     /**
-     * Relative path (from a node's working dir) where {@link #provisionClprMtls} drops the CA PEMs when
-     * {@code enableClprMtls = true}; also the value auto-seeded for {@code clpr.caCrtPath} /
-     * {@code clpr.caKeyPath}, so the write location and the advertised config value share one definition.
+     * Paths (relative to a node's working dir, which is its CWD) where {@link #provisionHapiTls} drops the
+     * HAPI TLS certificate and key when {@code enableHapiTls = true} — the defaults of
+     * {@code netty.tlsCrt.path} / {@code netty.tlsKey.path}, so no path override is needed.
      */
-    private static final String CLPR_CA_CRT_PATH = "data/clpr/ca.crt";
+    private static final String HAPI_TLS_CRT_PATH = "hedera.crt";
 
-    private static final String CLPR_CA_KEY_PATH = "data/clpr/ca.key";
+    private static final String HAPI_TLS_KEY_PATH = "hedera.key";
 
     /**
      * Setup-override keys that are node-local and read ONLY at JVM startup (not dynamically reloadable):
-     * the CLPR mTLS cert paths and per-node mTLS listener port. These are seeded per node into
-     * {@code application.properties} by {@link #seedPerNodeApplicationOverrides}; applying them via the
-     * runtime 0.0.121 network override (see {@link #applySetupOverrides}) is a no-op at runtime and would
-     * shadow a later per-node {@code application.properties} change on restart (breaking mtlsPort rotation).
+     * the per-node HAPI TLS listener port. It is seeded per node into {@code application.properties} by
+     * {@link #seedPerNodeApplicationOverrides}; applying it via the runtime 0.0.121 network override (see
+     * {@link #applySetupOverrides}) is a no-op at runtime and would shadow a later per-node
+     * {@code application.properties} change on restart (breaking tlsPort rotation).
      */
-    private static final Set<String> STARTUP_ONLY_NODE_KEYS =
-            Set.of(CLPR_MTLS_PORT_KEY, CLPR_CA_CRT_PATH_KEY, CLPR_CA_KEY_PATH_KEY);
+    private static final Set<String> STARTUP_ONLY_NODE_KEYS = Set.of(GRPC_TLS_PORT_KEY);
 
     /**
      * Deterministic port allocation for multi-network tests.
@@ -242,27 +239,6 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
      */
     public static boolean wasTssBootstrapHandled(@NonNull final SubProcessNetwork network) {
         return TSS_BOOTSTRAP_HANDLED.contains(network);
-    }
-
-    /**
-     * Per-network-name CLPR mTLS CA material, provisioned in {@link #provisionClprMtls} when a
-     * {@link Network#enableClprMtls()} network starts (or restarts warm). Keyed by name so it survives the
-     * cold-path {@link #restartWithFixture} that swaps the {@link SubProcessNetwork} instance.
-     */
-    private static final Map<String, ClprMtlsCa> CLPR_MTLS_CAS = new ConcurrentHashMap<>();
-
-    /**
-     * @return the DER-encoded CA cert to advertise in {@code ClprEndpoint.tls_certificate} for the
-     * given network.
-     * @throws IllegalStateException if no CA was provisioned for {@code networkName}
-     */
-    public static byte[] clprMtlsCaDer(@NonNull final String networkName) {
-        final var ca = CLPR_MTLS_CAS.get(networkName);
-        if (ca == null) {
-            throw new IllegalStateException("No CLPR mTLS CA provisioned for network '" + networkName
-                    + "' — set enableClprMtls = true on its @Network");
-        }
-        return ca.caCertDer();
     }
 
     @Override
@@ -445,7 +421,6 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
         }
         for (final var n : networks) {
             TSS_BOOTSTRAP_HANDLED.remove(n);
-            CLPR_MTLS_CAS.remove(n.name());
             safeTerminate(n);
         }
         HapiClients.removeChannelsFor(uris);
@@ -474,7 +449,7 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
     }
 
     /**
-     * Reserves the gRPC/mTLS port window for each declared network WITHOUT starting any nodes. Called
+     * Reserves the gRPC port window for each declared network WITHOUT starting any nodes. Called
      * once up front by the launcher-session listener (with explicit-port networks sorted first) so that
      * shared networks starting lazily and out of order can't land on each other's ports.
      */
@@ -604,15 +579,11 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
             for (final var o : cfg.setupOverrides()) {
                 overrides.put(o.key(), o.value());
             }
-            // Typed mTLS config derived from @Network attributes, set last so it wins over anything a
-            // test left in setupOverrides. firstMtlsPort is a base (seedPerNodeApplicationOverrides
-            // offsets it per node); enableClprMtls provisions the CA at the paths seeded here.
-            if (cfg.firstMtlsPort() > 0) {
-                overrides.put(CLPR_MTLS_PORT_KEY, Integer.toString(cfg.firstMtlsPort()));
-            }
-            if (cfg.enableClprMtls()) {
-                overrides.put(CLPR_CA_CRT_PATH_KEY, CLPR_CA_CRT_PATH);
-                overrides.put(CLPR_CA_KEY_PATH_KEY, CLPR_CA_KEY_PATH);
+            // Typed HAPI TLS port derived from @Network attributes, set last so it wins over anything a
+            // test left in setupOverrides. firstHapiTlsPort is a base (seedPerNodeApplicationOverrides
+            // offsets it per node).
+            if (cfg.firstHapiTlsPort() > 0) {
+                overrides.put(GRPC_TLS_PORT_KEY, Integer.toString(cfg.firstHapiTlsPort()));
             }
             final boolean cacheHit = cfg.tssPreload() && fixturePresent(resolveName(cfg));
             if (cfg.tssPreload() && !cacheHit) {
@@ -651,10 +622,10 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
                         CACHE_DIR);
             }
 
-            // Provision the per-network CLPR mTLS CA (cert/key PEMs into the working dir + DER stashed
-            // for on-chain advertisement) before the node JVM starts and reads clpr.caCrtPath/caKeyPath.
-            if (cfg.enableClprMtls()) {
-                provisionClprMtls(cfg, network);
+            // Provision the per-network HAPI TLS certificate (cert/key PEMs into the working dir) before
+            // the node JVM starts and looks for them to start its HAPI TLS listener.
+            if (cfg.enableHapiTls()) {
+                provisionHapiTls(cfg, network);
             }
 
             networks.add(network);
@@ -1109,13 +1080,9 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
         for (final var o : cfg.setupOverrides()) {
             overrides.put(o.key(), o.value());
         }
-        // Carry the typed mTLS config across the warm restart too (see @Network.firstMtlsPort / enableClprMtls).
-        if (cfg.firstMtlsPort() > 0) {
-            overrides.put(CLPR_MTLS_PORT_KEY, Integer.toString(cfg.firstMtlsPort()));
-        }
-        if (cfg.enableClprMtls()) {
-            overrides.put(CLPR_CA_CRT_PATH_KEY, CLPR_CA_CRT_PATH);
-            overrides.put(CLPR_CA_KEY_PATH_KEY, CLPR_CA_KEY_PATH);
+        // Carry the typed HAPI TLS port across the warm restart too (see @Network.firstHapiTlsPort).
+        if (cfg.firstHapiTlsPort() > 0) {
+            overrides.put(GRPC_TLS_PORT_KEY, Integer.toString(cfg.firstHapiTlsPort()));
         }
         seedPerNodeApplicationOverrides(fresh, overrides, cfg.size());
         // Preload each node's OWN fixture via the same postInitWorkingDirAction the warm-cache hit uses.
@@ -1130,11 +1097,11 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
                         "Failed to install just-cached TSS fixture into restarted '" + resolveName(cfg) + "'", e);
             }
         });
-        // Re-provision the CLPR mTLS CA on the fresh node: the old instance's post-init action is
-        // gone, so without this the restarted (actually-tested) node would come up without a CA and
-        // silently fall back to plaintext.
-        if (cfg.enableClprMtls()) {
-            provisionClprMtls(cfg, fresh);
+        // Re-provision the HAPI TLS certificate on the fresh node: the old instance's post-init action is
+        // gone, so without this the restarted (actually-tested) node would come up without its HAPI TLS
+        // listener and silently fall back to plaintext.
+        if (cfg.enableHapiTls()) {
+            provisionHapiTls(cfg, fresh);
         }
         log.info(
                 "[CLPR-FIXTURE] '{}' restarting with just-cached per-node fixtures preloaded ({} nodes)",
@@ -1147,9 +1114,9 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
 
     /**
      * Seeds every node's {@code application.properties} overrides from {@code overrides}, but assigns
-     * the node-local {@code clpr.mtlsPort} a <b>per-node</b> value ({@code base + nodeId}). Subprocess
-     * nodes all share {@code 127.0.0.1}, so a single fixed {@code mtlsPort} would collide when more
-     * than one node tries to bind its mTLS listener; {@code clpr.mtlsPort} is a {@code @NodeProperty}
+     * the node-local {@code grpc.tlsPort} a <b>per-node</b> value ({@code base + nodeId}). Subprocess
+     * nodes all share {@code 127.0.0.1}, so a single fixed {@code tlsPort} would collide when more
+     * than one node tries to bind its HAPI TLS listener; {@code grpc.tlsPort} is a {@code @NodeProperty}
      * (node-local, not consensus state), so a distinct per-node value is legitimate. All other keys are
      * applied uniformly.
      */
@@ -1163,7 +1130,7 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
             final List<String> flat = new ArrayList<>();
             overrides.forEach((k, v) -> {
                 flat.add(k);
-                if (CLPR_MTLS_PORT_KEY.equals(k)) {
+                if (GRPC_TLS_PORT_KEY.equals(k)) {
                     flat.add(Integer.toString(Integer.parseInt(v.trim()) + (int) nodeId));
                 } else {
                     flat.add(v);
@@ -1171,10 +1138,10 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
             });
             network.getApplicationPropertyOverrides().put(id, List.copyOf(flat));
         }
-        // Make the per-node mtlsPort offset visible: the single base expands to base..base+size-1.
-        final var mtlsBase = overrides.get(CLPR_MTLS_PORT_KEY);
-        if (mtlsBase != null) {
-            final int base = Integer.parseInt(mtlsBase.trim());
+        // Make the per-node tlsPort offset visible: the single base expands to base..base+size-1.
+        final var tlsBase = overrides.get(GRPC_TLS_PORT_KEY);
+        if (tlsBase != null) {
+            final int base = Integer.parseInt(tlsBase.trim());
             final var assignments = new StringBuilder();
             for (int id = 0; id < size; id++) {
                 assignments
@@ -1184,7 +1151,7 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
                         .append('=')
                         .append(base + id);
             }
-            log.info("[CLPR-MTLS] '{}' per-node clpr.mtlsPort: {}", network.name(), assignments);
+            log.info("[CLPR-TLS] '{}' per-node grpc.tlsPort: {}", network.name(), assignments);
         }
     }
 
@@ -1289,33 +1256,28 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
     }
 
     /**
-     * Generates a per-network ECDSA P-384 CLPR CA and registers a post-init working-dir action that
-     * drops its cert + PKCS#8 key PEMs into each node's working dir at {@code data/clpr/ca.crt} /
-     * {@code data/clpr/ca.key} — the relative paths the suite advertises via {@code clpr.caCrtPath} /
-     * {@code clpr.caKeyPath}, resolved against the node's CWD (which is its working dir). The CA cert
-     * DER is stashed by name so the suite can advertise it on-chain via {@link #clprMtlsCaDer(String)}.
+     * Generates a per-network self-signed HAPI TLS certificate and registers a post-init working-dir action
+     * that drops its cert + PKCS#8 key PEMs into each node's working dir at {@code hedera.crt} /
+     * {@code hedera.key} — the default {@code netty.tlsCrt.path} / {@code netty.tlsKey.path}, resolved against
+     * the node's CWD (which is its working dir).
      *
      * <p>Called both from the primary start loop and from {@link #restartWithFixture} so a cold-path
-     * restart re-provisions the fresh node (and refreshes the stashed CA to match the files on disk).
+     * restart re-provisions the fresh node.
      */
-    private static void provisionClprMtls(@NonNull final Network cfg, @NonNull final SubProcessNetwork network) {
-        final ClprMtlsCa ca;
+    private static void provisionHapiTls(@NonNull final Network cfg, @NonNull final SubProcessNetwork network) {
+        final HapiTlsCertificate certificate;
         try {
-            ca = new ClprMtlsCa("clpr-ca-" + cfg.name());
+            certificate = new HapiTlsCertificate("hapi-tls-" + cfg.name());
         } catch (final Exception e) {
-            throw new IllegalStateException("Failed to generate CLPR mTLS CA for '" + cfg.name() + "'", e);
+            throw new IllegalStateException("Failed to generate HAPI TLS certificate for '" + cfg.name() + "'", e);
         }
-        CLPR_MTLS_CAS.put(cfg.name(), ca);
         network.getPostInitWorkingDirActions().add(node -> {
             try {
                 final var workingDir = node.getExternalPath(WORKING_DIR);
-                final var crtPath = workingDir.resolve(CLPR_CA_CRT_PATH);
-                final var keyPath = workingDir.resolve(CLPR_CA_KEY_PATH);
-                Files.createDirectories(crtPath.getParent());
-                ca.writePem(crtPath, keyPath);
+                certificate.writePem(workingDir.resolve(HAPI_TLS_CRT_PATH), workingDir.resolve(HAPI_TLS_KEY_PATH));
             } catch (final Exception e) {
                 throw new UncheckedIOException(
-                        new IOException("Failed to write CLPR mTLS CA PEMs for '" + cfg.name() + "'", e));
+                        new IOException("Failed to write HAPI TLS PEMs for '" + cfg.name() + "'", e));
             }
         });
     }
@@ -1377,7 +1339,7 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
                 // Node-local, STARTUP-only config (read once at JVM boot from application.properties,
                 // where seedPerNodeApplicationOverrides seeds it PER NODE). Applying it via the 0.0.121
                 // network override does nothing at runtime and — worse — the network value would shadow a
-                // later per-node application.properties change across a restart (e.g. an mtlsPort rotation).
+                // later per-node application.properties change across a restart (e.g. a tlsPort rotation).
                 if (STARTUP_ONLY_NODE_KEYS.contains(override.key())) {
                     continue;
                 }

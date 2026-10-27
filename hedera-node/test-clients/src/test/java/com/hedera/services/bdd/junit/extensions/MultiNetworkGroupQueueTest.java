@@ -31,7 +31,7 @@ class MultiNetworkGroupQueueTest {
     private final List<CompletableFuture<ReadyGroup>> takers = new ArrayList<>();
 
     private static final NetworkGroup SMALL = NetworkGroup.of(Map.of("a", 1, "b", 1));
-    private static final NetworkGroup MTLS = NetworkGroup.of(Map.of("a_mtls", 1, "b_mtls", 1));
+    private static final NetworkGroup TLS = NetworkGroup.of(Map.of("a_tls", 1, "b_tls", 1));
     private static final NetworkGroup MANIFEST = NetworkGroup.of(Map.of("a_manifest", 2, "b_manifest", 1));
 
     private final MultiNetworkGroupQueue queue = new MultiNetworkGroupQueue(4);
@@ -76,10 +76,10 @@ class MultiNetworkGroupQueueTest {
     @DisplayName("Groups that fit the budget together get slots together")
     void groupsThatFitRunTogether() {
         queue.register("small-1", SMALL);
-        queue.register("mtls-1", MTLS);
+        queue.register("tls-1", TLS);
 
         queue.awaitSlot(SMALL);
-        queue.awaitSlot(MTLS);
+        queue.awaitSlot(TLS);
     }
 
     @Test
@@ -242,15 +242,15 @@ class MultiNetworkGroupQueueTest {
     @DisplayName("A validation test that starts first lets the groups' tests run and takes the groups as they finish")
     void validationStartedFirstDoesNotBlockTests() throws Exception {
         queue.register("small-1", SMALL);
-        queue.register("mtls-1", MTLS);
+        queue.register("tls-1", TLS);
         queue.setValidationEnabled(true);
         final var first = takeAsync();
         assertThrows(TimeoutException.class, () -> first.get(SHORT.toMillis(), TimeUnit.MILLISECONDS));
 
-        queue.awaitSlot(MTLS);
+        queue.awaitSlot(TLS);
         queue.awaitSlot(SMALL);
-        queue.testsFinished("mtls-1");
-        assertEquals(MTLS, taken(first).group());
+        queue.testsFinished("tls-1");
+        assertEquals(TLS, taken(first).group());
         queue.testsFinished("small-1");
         assertEquals(SMALL, taken(takeAsync()).group());
     }
@@ -267,12 +267,12 @@ class MultiNetworkGroupQueueTest {
         assertTrue(neverRan.notValidatedReason().contains("ran"), neverRan.notValidatedReason());
         assertFalse(queue.validationFinished(SMALL), "holds no nodes, nothing to tear down");
 
-        queue.register("mtls-1", MTLS);
-        queue.awaitSlot(MTLS);
-        queue.bootFailed(MTLS);
-        queue.testsFinished("mtls-1");
+        queue.register("tls-1", TLS);
+        queue.awaitSlot(TLS);
+        queue.bootFailed(TLS);
+        queue.testsFinished("tls-1");
         final var failed = taken(takeAsync());
-        assertEquals(MTLS, failed.group());
+        assertEquals(TLS, failed.group());
         assertTrue(failed.notValidatedReason().contains("failed to start"), failed.notValidatedReason());
     }
 

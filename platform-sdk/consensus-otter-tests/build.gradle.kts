@@ -60,6 +60,10 @@ testing {
     }
 }
 
+testFixturesModuleInfo {
+    runtimeOnly("org.hiero.consensus.event.creator.instrumented.test.fixtures")
+}
+
 testModuleInfo {
     requires("com.swirlds.base")
     requires("com.swirlds.base.test.fixtures")
