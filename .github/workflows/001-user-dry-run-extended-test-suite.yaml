@@ -32,10 +32,13 @@ on:
         type: boolean
         description: "Run Chaos Otter Test Suite"
         default: true
+      # Enabling the JRS panel should only occur on the cron schedule and
+      # on release branches ONCE just prior to creating a release.
+      # It does not and should not run on every adhoc execution of XTS.
       enable-hedera-node-jrs-panel:
         required: true
         type: boolean
-        default: true
+        default: false
         description: "Run Hedera Node JRS Panel"
       enable-sdk-tck-regression-panel:
         required: true
