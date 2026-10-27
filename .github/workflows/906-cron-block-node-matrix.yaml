@@ -4,13 +4,15 @@ on:
   workflow_dispatch:
     inputs:
       cn-refs:
-        description: "Comma-separated branches, tags or SHAs of hiero-consensus-node to test. Each ref is tested with its own pinned Solo, Java, TCK, JS SDK and mirror node versions."
+        description: "Comma-separated branches, tags or SHAs of hiero-consensus-node to test; each is tested with its own pinned Solo, Java, TCK, JS SDK and mirror node versions. Empty: main and the newest release branch."
         type: string
-        required: true
+        required: false
+        default: ""
       bn-versions:
-        description: "Comma-separated Block Node versions to test (e.g. v0.44.0,v0.45.0-alpha1)."
+        description: "Comma-separated Block Node versions to test with every consensus node ref (e.g. v0.44.0,v0.45.0-alpha1). Empty: each ref's own pinned version plus the newest stable release."
         type: string
-        required: true
+        required: false
+        default: ""
       dry-run:
         description: "Dry run: report the result in the job summary only, do not post to Slack."
         type: boolean
@@ -56,30 +58,33 @@ jobs:
         env:
           CN_REFS: ${{ inputs.cn-refs }}
           BN_VERSIONS: ${{ inputs.bn-versions }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # per-ref Solo/Java/TCK/JS SDK/mirror node versions; also enforces Solo >= 0.44.0 for every ref
+          # nothing given: main and the newest release branch
+          if [[ -z "${CN_REFS//[[:space:],]/}" ]]; then
+            CN_REFS=$(bash .github/workflows/support/scripts/discover-cn-refs.sh)
+            echo "No consensus node refs given, testing: ${CN_REFS}"
+          fi
+          export CN_REFS
+
+          # per-ref Solo/Java/TCK/JS SDK/mirror node/pinned BN versions; also enforces Solo >= 0.44.0 for every ref
           CONFIGS=$(bash .github/workflows/support/scripts/resolve-cn-configs.sh)
           echo "Consensus node configs: ${CONFIGS}"
 
-          # trimmed, normalised to vX.Y.Z[-suffix] and de-duplicated; fails on anything else
-          VERSIONS=$(bash .github/workflows/support/scripts/resolve-bn-versions.sh)
-          echo "Block Node versions under test: ${VERSIONS}"
+          if [[ -n "${BN_VERSIONS//[[:space:],]/}" ]]; then
+            # trimmed, normalised to vX.Y.Z[-suffix] and de-duplicated; fails on anything else
+            BN_VERSIONS=$(bash .github/workflows/support/scripts/resolve-bn-versions.sh)
+            echo "Block Node versions under test: ${BN_VERSIONS}"
+          else
+            BN_VERSIONS=""
+            LATEST_STABLE=$(gh api "repos/hiero-ledger/hiero-block-node/releases?per_page=100" \
+              | bash .github/workflows/support/scripts/resolve-latest-bn-release.sh)
+            echo "No Block Node versions given, testing each ref's pinned version and ${LATEST_STABLE}"
+            export LATEST_STABLE
+          fi
 
-          # BN Comms downloads plugin jars of the requested version from Maven Central; tag-only alpha/rc builds may
-          # not publish them, so fail here rather than after the legs have taken runners
-          while IFS= read -r v; do
-            for artifact in health roster-bootstrap-tss; do
-              url="https://repo1.maven.org/maven2/org/hiero/block-node/${artifact}/${v#v}/${artifact}-${v#v}.jar"
-              if ! curl -fsSI --retry 3 -o /dev/null "${url}"; then
-                echo "::error::Block Node ${v} has no published plugin jar ${url}; the BN Comms suite cannot run it"
-                exit 1
-              fi
-            done
-          done < <(echo "${VERSIONS}" | jq -r '.[]')
-
-          # full cross product: every CN ref x every BN version
-          MATRIX=$(jq -nc --argjson cfgs "${CONFIGS}" --argjson bns "${VERSIONS}" \
-            '[$cfgs[] as $c | $bns[] | . as $b | $c + {"bn-version": $b}]')
+          # explicit versions: every CN ref x every BN version; otherwise each ref's pinned version + the newest stable
+          MATRIX=$(CONFIGS="${CONFIGS}" BN_VERSIONS="${BN_VERSIONS}" bash .github/workflows/support/scripts/build-bn-matrix.sh)
           echo "matrix=${MATRIX}" >> "${GITHUB_OUTPUT}"
           echo "cn-matrix=${CONFIGS}" >> "${GITHUB_OUTPUT}"
 
@@ -92,6 +97,18 @@ jobs:
             echo "### BN Comms skipped (ref lacks the BLOCK_NODE_VERSION override): ${SKIPPED}" >> "${GITHUB_STEP_SUMMARY}"
           fi
           echo "comms-matrix=${COMMS_MATRIX}" >> "${GITHUB_OUTPUT}"
+
+          # BN Comms downloads plugin jars of the requested version from Maven Central; tag-only alpha/rc builds may
+          # not publish them, so fail here rather than after the legs have taken runners
+          while IFS= read -r v; do
+            for artifact in health roster-bootstrap-tss; do
+              url="https://repo1.maven.org/maven2/org/hiero/block-node/${artifact}/${v#v}/${artifact}-${v#v}.jar"
+              if ! curl -fsSI --retry 3 -o /dev/null "${url}"; then
+                echo "::error::Block Node ${v} has no published plugin jar ${url}; the BN Comms suite cannot run it"
+                exit 1
+              fi
+            done
+          done < <(echo "${COMMS_MATRIX}" | jq -r '[.[] | ."bn-version"] | unique | .[]')
           {
             echo "### Block Node regression legs"
             echo "${MATRIX}" | jq -r '.[] | "- CN `" + ."cn-ref" + "` x BN `" + ."bn-version" + "`"'

@@ -65,6 +65,7 @@ commit_ref main v0.91.0 25.0.2 v0.44.1
 BN_OVERRIDE=0 commit_ref release/0.72 v0.60.0 21.0.1 v0.43.0
 commit_ref old-solo v0.43.0 21.0.1 v0.43.0
 commit_ref no-tck v0.91.0 25.0.2 v0.44.1 tck-version
+commit_ref no-bn v0.91.0 25.0.2 v0.44.1 block-node-version
 commit_ref release-0.72 v0.60.0 21.0.1 v0.43.0
 git clone -q "${WORK}/origin" "${WORK}/clone"
 cd "${WORK}/clone"
@@ -79,9 +80,12 @@ check "other pinned versions are read" 'v0.165.0 v0.14.0 v0.91.0 v2.90.1' \
 check "override flag detected per ref" 'true|false' \
   "$(echo "${out}" | jq -r '[.[] | ."bn-version-override"] | join("|")')"
 
+check "each ref's pinned BN version is read" 'v0.44.1|v0.43.0' "$(echo "${out}" | jq -r '[.[] | ."bn-pinned-version"] | join("|")')"
+
 check_fails "solo < 0.44.0" env CN_REFS=old-solo "${RESOLVE}"
 check_fails "missing key in .citr-env" env CN_REFS=no-tck "${RESOLVE}"
 check_fails "refs with the same slug" env CN_REFS="release/0.72,release-0.72" "${RESOLVE}"
+check_fails "missing block-node-version" env CN_REFS=no-bn "${RESOLVE}"
 check_fails "unknown ref" env CN_REFS=does-not-exist "${RESOLVE}"
 check_fails "empty refs" env CN_REFS=" , " "${RESOLVE}"
 check_fails "unset refs" env -u CN_REFS "${RESOLVE}"
