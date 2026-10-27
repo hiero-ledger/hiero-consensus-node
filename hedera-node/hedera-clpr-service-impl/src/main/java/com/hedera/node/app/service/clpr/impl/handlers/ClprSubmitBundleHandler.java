@@ -511,9 +511,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                             continue;
                         }
                         // Endpoint compensation remains separate from the network fee for EVM work.
-                        final var executionCost = clprConfig.messageExecutionCost();
-                        final var margin = Math.multiplyExact(executionCost, clprConfig.endpointMarginPercent()) / 100;
-                        final var endpointCharge = Math.addExact(executionCost, margin);
+                        final var endpointCharge = endpointCompensation(clprConfig);
                         final var worstCaseCharge = Math.addExact(endpointCharge, gasAccounting.costForGas(gasLimit));
 
                         // Validate the connector has sufficient balance before dispatching.
@@ -782,9 +780,9 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                         continue;
                     }
 
-                    // Deliver response to the originating application (best-effort). The response might even be
-                    // CONNECTOR_NOT_FOUND or some other error, or that the remote side is CLOSED. Whatever it is,
-                    // we must inform the originating application so it can do proper bookkeeping.
+                    // Response callbacks prepay the same endpoint compensation and network gas as data delivery,
+                    // including error responses. Only unused gas is refunded; endpoint compensation is retained.
+                    // Missing or underfunded connectors skip the callback, but the terminal reply is still consumed.
                     final var senderAddress = origDataMsg.sender();
                     final var callbackConnector =
                             connectorStore.getConnector(new ClprConnectorKey(channelId, origDataMsg.connectorId()));
@@ -793,10 +791,15 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                             ? null
                             : callbackAccounts.getContractById(callbackConnector.connectorContractOrThrow());
                     final long gasLimit = callbackGasLimit;
-                    if (senderAddress.length() > 0
-                            && callbackAccount != null
+                    final long callbackCharge = gasLimit > 0
+                            ? Math.addExact(endpointCompensation(clprConfig), gasAccounting.costForGas(gasLimit))
+                            : 0;
+                    // Exhausted bundle capacity and empty senders require no callback funding or local slash.
+                    final boolean responseUnderfunded = senderAddress.length() > 0
+                            && callbackConnector != null
                             && gasLimit > 0
-                            && callbackAccount.tinybarBalance() >= gasAccounting.costForGas(gasLimit)) {
+                            && (callbackAccount == null || callbackAccount.tinybarBalance() < callbackCharge);
+                    if (senderAddress.length() > 0 && callbackAccount != null && gasLimit > 0 && !responseUnderfunded) {
                         final var callData = encodeOnClprResponse(
                                 channelId, replyTargetId, reply.status(), reply.messageReplyData());
                         // Use EntityIdFactory so shard/realm match this network
@@ -824,8 +827,8 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                         final var callbackGasPayer = callbackAccount.accountIdOrThrow();
                         final var callbackTokenApi = storeFactory.serviceApi(TokenServiceApi.class);
                         final long callbackGasFee = gasAccounting.costForGas(gasLimit);
-                        if (callbackGasFee > 0) {
-                            callbackTokenApi.transferFromTo(callbackGasPayer, context.payer(), callbackGasFee);
+                        if (callbackCharge > 0) {
+                            callbackTokenApi.transferFromTo(callbackGasPayer, context.payer(), callbackCharge);
                         }
                         if (!gasAccounting.prepay(callbackGasPayer, gasLimit)) {
                             throw new HandleException(CLPR_BUNDLE_VERIFICATION_FAILED);
@@ -863,15 +866,18 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                         // (e.g. PingPong's bounce) are observed automatically on the next enqueue.
                     } else {
                         log.debug(
-                                "[ClprSubmitBundle] skipping onClprResponse dispatch — originating msg has no sender "
-                                        + "(replyTargetId={} status={})",
+                                "[ClprSubmitBundle] skipping onClprResponse dispatch replyTargetId={} "
+                                        + "status={} hasSender={} connectorPresent={} gasLimit={} underfunded={}",
                                 replyTargetId,
-                                reply.status());
+                                reply.status(),
+                                senderAddress.length() > 0,
+                                callbackConnector != null,
+                                gasLimit,
+                                responseUnderfunded);
                     }
 
-                    // Source-side slashing on failure responses. That is, if we sent a message to the remote ledger
-                    // and it replied indicating the connector on our side was at fault, then we will punish the
-                    // connector on our side accordingly.
+                    // Reload after the callback to preserve nested sends' in-flight increments. Slash at most once
+                    // for local underfunding or a remote connector failure, separately from callback compensation.
                     final var replyStatus = reply.status();
                     final var sourceConnectorKey = new ClprConnectorKey(channelId, origDataMsg.connectorId());
                     var sourceConnector = connectorStore.getConnector(sourceConnectorKey);
@@ -893,7 +899,8 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                     current - 1);
                         }
 
-                        if (replyStatus == ClprMessageReplyStatus.CONNECTOR_NOT_FOUND
+                        if (responseUnderfunded
+                                || replyStatus == ClprMessageReplyStatus.CONNECTOR_NOT_FOUND
                                 || replyStatus == ClprMessageReplyStatus.CONNECTOR_UNDERFUNDED) {
                             final var slashResult =
                                     ClprSlashingUtils.applySlash(sourceConnector, clprConfig, connectorStore);
@@ -1208,6 +1215,13 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
             return hex;
         }
         return hex.substring(0, 64) + "...";
+    }
+
+    /** Flat endpoint compensation for either callback, separate from actual network gas reimbursement. */
+    private static long endpointCompensation(@NonNull final ClprConfig config) {
+        final long executionCost = config.messageExecutionCost();
+        final long margin = Math.multiplyExact(executionCost, config.endpointMarginPercent()) / 100;
+        return Math.addExact(executionCost, margin);
     }
 
     /**
