@@ -7,6 +7,7 @@ import static com.hedera.node.app.service.clpr.impl.verifier.sei.SeiProto.messag
 import static com.hedera.node.app.service.clpr.impl.verifier.sei.SeiProto.varint;
 import static com.hedera.node.app.service.clpr.impl.verifier.sei.SeiProto.varintField;
 
+import com.hedera.cryptography.libsodium.Libsodium;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.clpr.SeiBlockRef;
 import com.hedera.hapi.node.state.clpr.SeiCommit;
@@ -20,12 +21,12 @@ import com.hedera.hapi.node.state.clpr.SeiValidatorSet;
 import com.hedera.hapi.node.state.clpr.SeiValidatorSetUpdate;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.lang.foreign.MemorySegment;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import org.bouncycastle.crypto.params.Ed25519PrivateKeyParameters;
-import org.bouncycastle.crypto.signers.Ed25519Signer;
 
 /**
  * Builds a fully synthetic but cryptographically consistent CometBFT chain for verifier tests:
@@ -35,6 +36,8 @@ import org.bouncycastle.crypto.signers.Ed25519Signer;
  * produce targeted invalid variants for negative tests.
  */
 final class SyntheticSeiChain {
+    /// libsodium is used for Ed25519 signatures.
+    private static final Libsodium LIBSODIUM = Libsodium.getInstance();
 
     static final String CHAIN_ID = "clpr-sei-test";
     static final long HEIGHT = 1000;
@@ -268,12 +271,26 @@ final class SyntheticSeiChain {
             final var timestamp =
                     Timestamp.newBuilder().seconds(seconds).nanos(nanos).build();
             final byte[] signBytes = SeiHashing.precommitSignBytes(CHAIN_ID, height, 0, blockId, timestamp);
-            final var signer = new Ed25519Signer();
-            signer.init(true, validator.privateKey());
-            signer.update(signBytes, 0, signBytes.length);
+
+            // Construct the actual native Ed25519 64-bytes private key from seed and public key.
+            // FUTURE WORK: we'll revisit this once we support Libsodium.crypto_sign_seed_keypair().
+            final byte[] privateKey = Arrays.copyOf(validator.privateKey().getEncoded(), 64);
+            System.arraycopy(validator.privateKey().generatePublicKey().getEncoded(), 0, privateKey, 32, 32);
+
+            final byte[] signature = new byte[64];
+            final long[] sigLen = new long[] {signature.length};
+            int ret = LIBSODIUM.cryptoSignDetached(
+                    MemorySegment.ofArray(signature),
+                    MemorySegment.ofArray(sigLen),
+                    MemorySegment.ofArray(signBytes),
+                    signBytes.length,
+                    MemorySegment.ofArray(privateKey));
+            if (ret != 0) {
+                throw new RuntimeException("Libsodium.cryptoSignDetached() returned non-zero " + ret);
+            }
             signatures.add(SeiCommitSig.newBuilder()
                     .timestamp(timestamp)
-                    .signature(Bytes.wrap(signer.generateSignature()))
+                    .signature(Bytes.wrap(signature))
                     .build());
         }
         return SeiCommit.newBuilder()

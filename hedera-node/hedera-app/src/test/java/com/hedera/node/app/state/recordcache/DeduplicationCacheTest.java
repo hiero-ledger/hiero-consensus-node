@@ -76,17 +76,16 @@ final class DeduplicationCacheTest {
         final var now = Instant.now();
         final var txId = TransactionID.newBuilder()
                 .transactionValidStart(Timestamp.newBuilder()
-                        .seconds(now.getEpochSecond() + MAX_TXN_DURATION + 1)
+                        .seconds(now.getEpochSecond() + 2 * MAX_TXN_DURATION)
                         .build())
                 .build();
 
         // When we add it to the cache
         cache.add(txId);
 
-        // We allow it to be added. The TransactionChecker is responsible for filtering out future transactions,
-        // not this cache.
-        assertThat(internalSet()).containsExactly(txId);
-        assertThat(cache.contains(txId)).isTrue();
+        // Then it is not added, since it would not be pruned until its valid start
+        assertThat(internalSet()).isEmpty();
+        assertThat(cache.contains(txId)).isFalse();
     }
 
     @Test

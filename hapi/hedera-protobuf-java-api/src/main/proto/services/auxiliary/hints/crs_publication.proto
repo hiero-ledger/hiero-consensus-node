@@ -31,4 +31,10 @@ message CrsPublicationTransactionBody {
      * The party's proof of the CRS update.
      */
     bytes proof = 2;
+    /** The CRS generation to which this contribution belongs. */
+    uint64 ceremony_id = 3;
+    /** The attempt within that generation. */
+    uint64 attempt = 4;
+    /** SHA-384 hash of the CRS updated by this contribution. */
+    bytes previous_crs_hash = 5;
 }

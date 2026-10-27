@@ -13,18 +13,10 @@ import edu.umd.cs.findbugs.annotations.Nullable;
  * to verify if a given host and port correspond to the current node.
  *
  * @param grpcConfig The gRPC configuration for the node.
- * @param clprMtlsPort The node's dedicated CLPR mTLS port ({@code clpr.mtlsPort}), which a loopback host
- *                     also identifies as self when mTLS is enabled; {@code -1} disables it.
  * @param self Information about the current node, such as its endpoints.
  */
 record NodeIdentity(
-        @NonNull GrpcConfig grpcConfig,
-        int clprMtlsPort,
-        @Nullable NodeInfo self) {
-    /** Delegating constructor for callers that don't advertise a CLPR mTLS port (sentinel {@code -1}). */
-    NodeIdentity(@NonNull final GrpcConfig grpcConfig, @Nullable final NodeInfo self) {
-        this(grpcConfig, -1, self);
-    }
+        @NonNull GrpcConfig grpcConfig, @Nullable NodeInfo self) {
     /**
      * Returns true if the given host/port matches one of this node's own endpoints, so we
      * never attempt to sync with ourselves. CLPR's gRPC service shares the local gRPC
@@ -38,7 +30,7 @@ record NodeIdentity(
      * either side (FQDN form).
      */
     public boolean isSelf(@NonNull final String host, final int port) {
-        if (isLoopback(host) && (port == grpcConfig.port() || port == grpcConfig.tlsPort() || port == clprMtlsPort)) {
+        if (isLoopback(host) && (port == grpcConfig.port() || port == grpcConfig.tlsPort())) {
             return true;
         }
         if (self == null) {

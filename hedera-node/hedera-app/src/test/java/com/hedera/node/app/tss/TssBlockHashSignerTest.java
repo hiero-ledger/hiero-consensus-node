@@ -315,6 +315,8 @@ class TssBlockHashSignerTest {
                 .withValue("tss.historyEnabled", "" + (historyEnabled == HistoryEnabled.YES))
                 .withValue("tss.forceMockSignatures", "" + (forceMockSignatures == ForceMockSignatures.YES))
                 .withValue("blockStream.streamMode", streamMode.name())
+                // FAKE_HINTS_SIGNATURE is a SHA-384 hash; mockSignatureHashLengthFollowsDigestType covers SHA-256
+                .withValue("blockStream.digestType", DigestType.SHA_384.name())
                 .getOrCreateConfig();
     }
 }

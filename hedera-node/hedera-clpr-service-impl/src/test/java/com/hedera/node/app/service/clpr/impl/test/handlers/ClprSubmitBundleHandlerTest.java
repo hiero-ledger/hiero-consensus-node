@@ -1779,8 +1779,8 @@ class ClprSubmitBundleHandlerTest {
     @Test
     @DisplayName("manifest advance in a bundle rejected by a later check does not reseed peer endpoint cache")
     void rejectedBundleDoesNotReseedPeerEndpointCache() {
-        // The Step 1b channel write is rolled back with the failed transaction, so the node-local cache (the inbound
-        // mTLS trust set) must not pick up the unapplied manifest's endpoints either.
+        // The Step 1b channel write is rolled back with the failed transaction, so the node-local cache must not pick
+        // up the unapplied manifest's endpoints either.
         putChannel(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH);
         final var newManifest = buildManifest(3L, "10.0.0.5");
         final var valid = buildBundleWithManifest(newManifest, List.of(dataPayload()));

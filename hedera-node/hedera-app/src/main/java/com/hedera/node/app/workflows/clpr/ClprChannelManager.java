@@ -22,19 +22,13 @@ import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.security.cert.CertificateException;
-import java.security.cert.CertificateFactory;
-import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -48,7 +42,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import javax.security.auth.x500.X500Principal;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -78,7 +71,6 @@ public class ClprChannelManager implements ClprChannelLifecycle {
     private final Semaphore syncSemaphore;
     private final Set<String> ongoingChannelSyncs = ConcurrentHashMap.newKeySet();
     private final ClprSynchronizer synchronizer;
-    private final ClprLeafCertManager leafCertManager;
     private final ClprEndpointClientCache clientCache;
 
     private volatile boolean started = false;
@@ -94,20 +86,10 @@ public class ClprChannelManager implements ClprChannelLifecycle {
 
     /**
      * Per-channel cache of known peer endpoints: a node-local mirror of each channel's cached peer
-     * endpoint manifest (seeded at channel completion and on manifest updates), which is what the inbound
-     * mTLS trust set is derived from. Dial targets are read from {@code Channel.endpoint_manifest}, not from
-     * here.
+     * endpoint manifest (seeded at channel completion and on manifest updates). Dial targets are read from
+     * {@code Channel.endpoint_manifest}, not from here.
      */
     private final Map<Bytes, List<ClprEndpoint>> peerEndpointCache = new ConcurrentHashMap<>();
-
-    /**
-     * Prebuilt peer-CA trust index for the inbound mTLS listener, keyed by the Distinguished Name (DN) of the CA
-     * certificate. It is a pure function of {@link #peerEndpointCache} and recomputed eagerly whenever that cache
-     * changes. The value is a list because distinct ledgers may share a CA subject DN; it is normally a single
-     * element.
-     * <b>Invariant:</b> every mutation of {@link #peerEndpointCache} must call {@link #rebuildPeerCaCache()}.
-     */
-    private volatile Map<X500Principal, List<X509Certificate>> cachedPeerCaCertificatesByIssuer = Map.of();
 
     /**
      * Per-channel cache of the peer's most recently reported view of <em>this</em> ledger's
@@ -145,12 +127,10 @@ public class ClprChannelManager implements ClprChannelLifecycle {
             @NonNull final ConfigProvider configProvider,
             @NonNull final Supplier<AutoCloseableWrapper<State>> stateAccessor,
             @NonNull final ClprSynchronizer synchronizer,
-            @NonNull final ClprLeafCertManager leafCertManager,
             @NonNull final ClprEndpointClientCache clientCache) {
         this.configProvider = requireNonNull(configProvider);
         this.stateAccessor = requireNonNull(stateAccessor);
         this.synchronizer = requireNonNull(synchronizer);
-        this.leafCertManager = requireNonNull(leafCertManager);
         this.clientCache = requireNonNull(clientCache);
         final var clprConfig = configProvider.getConfiguration().getConfigData(ClprConfig.class);
         this.peerEndpointsPath = Paths.get(clprConfig.peerEndpointsFile());
@@ -178,8 +158,7 @@ public class ClprChannelManager implements ClprChannelLifecycle {
         started = true;
         // Rebuild the in-memory registry and peer endpoint cache from the node-local disk cache.
         // After a restart the loaded state already has these channels ACTIVE, so
-        // onChannelActivated never fires for them; without this they would never tick again,
-        // and the inbound mTLS trust set would be empty until the next manifest update.
+        // onChannelActivated never fires for them; without this they would never tick again.
         rehydrateFromDisk();
         // Schedule ticks for any channels that activated before the orchestrator started;
         // they would otherwise never tick and never exchange messages.
@@ -247,7 +226,6 @@ public class ClprChannelManager implements ClprChannelLifecycle {
                 }
                 rehydrated++;
             }
-            rebuildPeerCaCache();
             logger.info("CLPR rehydration registered {} channel(s) from disk cache {}", rehydrated, peerEndpointsPath);
         } catch (final Exception e) {
             logger.error("Error during CLPR channel rehydration from disk cache {}", peerEndpointsPath, e);
@@ -263,16 +241,6 @@ public class ClprChannelManager implements ClprChannelLifecycle {
      */
     private void markPeerEndpointsDirty() {
         peerEndpointsDirty.set(true);
-    }
-
-    /**
-     * Recomputes and publishes {@link #cachedPeerCaCertificatesByIssuer} from the current
-     * {@link #peerEndpointCache}. Must be invoked after every write to {@link #peerEndpointCache}.
-     * {@code synchronized} so concurrent writers serialize their rebuild+publish (each mutates before
-     * calling this, so the last publish reflects all mutations); readers never take the lock.
-     */
-    private synchronized void rebuildPeerCaCache() {
-        cachedPeerCaCertificatesByIssuer = buildPeerCaCertificates();
     }
 
     /**
@@ -581,7 +549,6 @@ public class ClprChannelManager implements ClprChannelLifecycle {
         }
         if (knownChannelIds.remove(channelId)) {
             peerEndpointCache.remove(channelId);
-            rebuildPeerCaCache();
             peerObservedManifestVersions.remove(channelId);
             logger.debug("Removed channel {} from local registry", channelId.toHex());
             markPeerEndpointsDirty();
@@ -615,8 +582,7 @@ public class ClprChannelManager implements ClprChannelLifecycle {
      * the list to this ledger's {@code max_peer_endpoints} limit (spec §3.10.5). Replaces any
      * pre-existing entry so the first sync tick sees the freshly verified set rather than stale
      * cached data. An empty {@code endpoints} removes the channel's cached entry instead of
-     * being a no-op, so a replacement manifest that drops all endpoints also drops this
-     * channel's contribution to the inbound mTLS CA trust index and is reflected in the
+     * being a no-op, so a replacement manifest that drops all endpoints is reflected in the
      * on-disk cache.
      */
     @Override
@@ -628,7 +594,6 @@ public class ClprChannelManager implements ClprChannelLifecycle {
         } else {
             peerEndpointCache.put(channelId, new ArrayList<>(endpoints));
         }
-        rebuildPeerCaCache();
         markPeerEndpointsDirty();
     }
 
@@ -643,68 +608,6 @@ public class ClprChannelManager implements ClprChannelLifecycle {
     List<ClprEndpoint> getKnownEndpoints(@NonNull final Bytes channelId) {
         final var endpoints = peerEndpointCache.get(channelId);
         return endpoints != null ? Collections.unmodifiableList(endpoints) : List.of();
-    }
-
-    /**
-     * Returns the peer CA certificates this node currently trusts for inbound mTLS sync, indexed by each
-     * CA's subject DN — the {@code tls_certificate} of every {@link ClprEndpoint} known across all
-     * channels, parsed as an X.509 certificate. Empty or unparseable certificates are skipped. The
-     * dedicated mTLS sync listener looks up a connecting client's leaf by its issuer DN (which equals the
-     * signing CA's subject DN) and verifies against the matching CA(s).
-     *
-     * @return the current trusted peer CA certificates keyed by subject DN (possibly empty)
-     */
-    @NonNull
-    public Map<X500Principal, List<X509Certificate>> knownPeerCaCertificatesByIssuer() {
-        return cachedPeerCaCertificatesByIssuer;
-    }
-
-    /**
-     * Parses the {@code tls_certificate} of every known endpoint into an immutable trust index keyed by
-     * the CA's subject DN. Distinct CAs sharing a subject DN are grouped in the same bucket (deduplicated).
-     *
-     * <p>Skipped entirely when this node has mTLS disabled.
-     */
-    private Map<X500Principal, List<X509Certificate>> buildPeerCaCertificates() {
-        if (!leafCertManager.isMtlsEnabled()) {
-            return Map.of();
-        }
-        final var result = new HashMap<X500Principal, List<X509Certificate>>();
-        for (final var endpoints : peerEndpointCache.values()) {
-            for (final var endpoint : endpoints) {
-                final var certBytes = endpoint.tlsCertificate();
-                if (certBytes == null || certBytes.length() == 0) {
-                    continue;
-                }
-                final var cert = parsePeerCaCert(certBytes);
-                if (cert != null) {
-                    final var bucket = result.computeIfAbsent(cert.getSubjectX500Principal(), k -> new ArrayList<>());
-                    if (!bucket.contains(cert)) {
-                        bucket.add(cert);
-                    }
-                }
-            }
-        }
-        return Map.copyOf(result);
-    }
-
-    /** Parses a DER/PEM {@code tls_certificate} into an X.509 cert, or {@code null} (logged) if unparseable. */
-    private static X509Certificate parsePeerCaCert(@NonNull final Bytes certBytes) {
-        try (final var in = new ByteArrayInputStream(certBytes.toByteArray())) {
-            return (X509Certificate) x509Factory().generateCertificate(in);
-        } catch (final CertificateException | IOException e) {
-            logger.error("Skipping unparseable peer CA certificate", e);
-            return null;
-        }
-    }
-
-    private static CertificateFactory x509Factory() {
-        try {
-            return CertificateFactory.getInstance("X.509");
-        } catch (final CertificateException e) {
-            // X.509 is guaranteed to be available on every conformant JRE.
-            throw new IllegalStateException("X.509 CertificateFactory unavailable", e);
-        }
     }
 
     /**
