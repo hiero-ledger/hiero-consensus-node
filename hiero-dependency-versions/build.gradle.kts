@@ -8,7 +8,7 @@ dependencies {
     }
 }
 
-val besu = "26.2.0"
+val besu = "26.7.1"
 val bouncycastle = "1.85"
 val dagger = "2.59.2"
 val eclipseCollections = "13.0.0"
@@ -104,9 +104,9 @@ dependencies.constraints {
     }
     api("org.hyperledger.besu:besu-datatypes:$besu") { because("org.hyperledger.besu.datatypes") }
     api("org.hyperledger.besu:besu-evm:$besu") { because("org.hyperledger.besu.evm") }
-    api("org.hyperledger.besu:gnark:1.4.2")
-    api("org.hyperledger.besu:secp256r1:1.4.2")
-    api("org.hyperledger.besu:arithmetic:1.4.2")
+    api("org.hyperledger.besu:gnark:2.0.0")
+    api("org.hyperledger.besu:secp256r1:2.0.0")
+    api("org.hyperledger.besu:arithmetic:2.0.0")
     api("org.jetbrains:annotations:26.1.0") { because("org.jetbrains.annotations") }
     api("org.json:json:20250517") { because("org.json") }
     api("org.junit.jupiter:junit-jupiter-api:$junit5") { because("org.junit.jupiter.api") }

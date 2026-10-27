@@ -212,8 +212,7 @@ val prCheckPropOverrides =
         "hapiTestCryptoSerial" to
             "tss.hintsEnabled=true,tss.historyEnabled=true,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,block.stateproof.verification.enabled=true",
         "hapiTestSmartContract" to
-            "blockStream.writerMode=FILE_AND_GRPC,blockStream.streamWrappedRecordBlocks=true,tss.historyEnabled=false,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
-        "hapiTestSmartContractSerial" to "tss.historyEnabled=false",
+            "blockStream.writerMode=FILE_AND_GRPC,blockStream.streamWrappedRecordBlocks=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         // hapiTestRestart exercises repeated freeze/upgrade/restart cycles. On main this ran with
         // tss.historyEnabled=false by config default; with the new branch default of true the
         // genesis chain-of-trust proof (and its real-crypto signatures, since this test sets

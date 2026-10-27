@@ -12,6 +12,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.HashMap;
+import org.hiero.base.crypto.DigestType;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -26,8 +27,8 @@ class CommittedTssFixturesTest {
             strings = {
                 "ledgerA",
                 "ledgerB",
-                "ledgerA_mtls",
-                "ledgerB_mtls",
+                "ledgerA_tls",
+                "ledgerB_tls",
                 "ledgerA_manifest",
                 "ledgerB_manifest",
                 "ledgerA_restart",
@@ -35,7 +36,10 @@ class CommittedTssFixturesTest {
             })
     void everyNodeCanSignAndTheAggregateHasAValidChainOfTrust(final String name) throws Exception {
         final var destination = tempDir.resolve("genesis-network.json");
-        TssFixtures.installFixture(TssFixtures.resolveCachedFixturePath(name), destination);
+        // Only the SHA-384 fixtures are committed, and nothing checked here depends on the default digest type
+        final var fixture =
+                TssFixtures.CACHE_DIR.resolve(TssFixtures.fixtureFileName(name, DigestType.SHA_384) + ".gz");
+        TssFixtures.installFixture(fixture, destination);
         final var network = DiskStartupNetworks.loadNetworkFrom(destination).orElseThrow();
         final var metadata = network.tssMetadataOrThrow();
         final var scheme = metadata.activeHintsConstructionOrThrow().hintsSchemeOrThrow();

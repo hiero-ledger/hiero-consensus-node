@@ -122,9 +122,9 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
 
     @Override
     protected void doHandle(@NonNull final HandleContext context) throws HandleException {
-        // Step 1b refreshes the node-local peer endpoint cache, and with it the inbound mTLS trust set. That cache is
-        // in-memory, so the full-stack rollback of a later penalizing HandleException would not undo it; the refresh
-        // is therefore applied only once the bundle has been handled without an exception.
+        // Step 1b refreshes the node-local peer endpoint cache. That cache is in-memory, so the full-stack rollback
+        // of a later penalizing HandleException would not undo it; the refresh is therefore applied only once the
+        // bundle has been handled without an exception.
         final var deferredPeerEndpoints = new DeferredPeerEndpoints();
         handleBundle(context, deferredPeerEndpoints);
         deferredPeerEndpoints.seedInto(channelLifecycle);
@@ -286,9 +286,8 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                 updatedBuilder = updatedBuilder
                         .endpointManifest(storedManifest)
                         .endpointManifestVersion(storedManifest.version());
-                // Refresh the orchestrator's node-local peer endpoint cache, so the inbound mTLS trust set
-                // (ClprChannelManager.knownPeerCaCertificatesByIssuer) picks up any new CA certificate —
-                // deferred until the bundle is handled without an exception (see doHandle).
+                // Refresh the orchestrator's node-local peer endpoint cache — deferred until the bundle is
+                // handled without an exception (see doHandle).
                 deferredPeerEndpoints.set(channelId, truncatedEndpoints);
             }
             if (shouldUpdateTrustAnchor) {
