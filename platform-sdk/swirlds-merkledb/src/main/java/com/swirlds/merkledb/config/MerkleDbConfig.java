@@ -79,7 +79,9 @@ import com.swirlds.config.api.validation.annotation.Positive;
  *      Minimum number of small files at a level before consolidation triggers. Prevents
  *      pointless runs when only a few small files exist.
  * @param longListWriteThreads
- *      Number of threads used to write each LongList snapshot file.
+ *      Number of threads shared by all LongList snapshot file writes of a snapshot.
+ * @param maxLongListWriteThreadsPerFile
+ *      Maximum number of threads writing one LongList snapshot file at the same time.
  */
 // spotless:off
 @ConfigData("merkleDb")
@@ -110,7 +112,8 @@ public record MerkleDbConfig(
         @ConfigProperty(defaultValue = "false") boolean useDiskIndices,
         @Min(0) @ConfigProperty(defaultValue = "50") long consolidationMaxInputFileSizeMB,
         @Min(2) @ConfigProperty(defaultValue = "10") int consolidationMinFileCount,
-        @Min(1) @ConfigProperty(defaultValue = "4") int longListWriteThreads) {
+        @Min(1) @ConfigProperty(defaultValue = "12") int longListWriteThreads,
+        @Min(1) @ConfigProperty(defaultValue = "4") int maxLongListWriteThreadsPerFile) {
 
     // spotless:on
 

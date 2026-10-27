@@ -50,10 +50,12 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.Future;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -208,7 +210,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     /// Thread group for this data source's snapshot threads.
     private final ThreadGroup threadGroup;
 
-    /// Runs the four snapshot groups. Index writers use separate snapshot-scoped pools, one per index.
+    /// Runs the four snapshot groups. Index writers use a separate snapshot-scoped pool.
     private final ExecutorService snapshotExecutor;
 
     /** Flag for if a snapshot is in progress */
@@ -958,31 +960,43 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             final AtomicReference<Throwable> snapshotFailure = new AtomicReference<>();
             InterruptedException snapshotInterrupted = null;
             try {
-                // One writer pool per LongList file; its size limits how many chunks of that file are written at once.
-                try (final ExecutorService hashIndexWriterPool = createIndexWriterPool("Snapshot hash index writer");
-                        final ExecutorService leafIndexWriterPool =
-                                createIndexWriterPool("Snapshot leaf index writer");
-                        final ExecutorService bucketIndexWriterPool =
-                                createIndexWriterPool("Snapshot bucket index writer")) {
+                // LongLists sharing the writer pool: pathToDiskLocationLeafNodes, idToDiskLocationHashChunks,
+                // and keyToPath's bucketIndexToBucketLocation.
+                try (final ExecutorService longListSnapshotExecutor = Executors.newFixedThreadPool(
+                        merkleDbConfig.longListWriteThreads(),
+                        new ThreadConfiguration(getStaticThreadManager())
+                                .setThreadGroup(threadGroup)
+                                .setThreadNameProvider(CompositeThreadNameProvider.createNumbered(
+                                        MERKLEDB_COMPONENT, "Snapshot index writer"))
+                                .buildFactory())) {
+                    // Each file writes through its own limited view of the pool, so no file takes all writer threads.
+                    final int maxThreadsPerFile = merkleDbConfig.maxLongListWriteThreadsPerFile();
                     final CountDownLatch countDownLatch = new CountDownLatch(4);
                     // The groups run independently. Only the hash group waits for the hash-cache flush.
                     runWithSnapshotExecutor(countDownLatch, snapshotFailure, "hashes", () -> {
                         flushHashChunkCache();
                         idToDiskLocationHashChunks.writeToFile(
-                                snapshotDbPaths.idToDiskLocationHashChunksFile, hashIndexWriterPool, snapshotFailure);
+                                snapshotDbPaths.idToDiskLocationHashChunksFile,
+                                limitConcurrency(longListSnapshotExecutor, maxThreadsPerFile),
+                                snapshotFailure);
                         hashChunkStore.snapshot(snapshotDbPaths.hashChunkDirectory);
                     });
                     runWithSnapshotExecutor(countDownLatch, snapshotFailure, "leaves", () -> {
                         pathToDiskLocationLeafNodes.writeToFile(
-                                snapshotDbPaths.pathToDiskLocationLeafNodesFile, leafIndexWriterPool, snapshotFailure);
+                                snapshotDbPaths.pathToDiskLocationLeafNodesFile,
+                                limitConcurrency(longListSnapshotExecutor, maxThreadsPerFile),
+                                snapshotFailure);
                         keyValueStore.snapshot(snapshotDbPaths.pathToKeyValueDirectory);
                     });
                     runWithSnapshotExecutor(countDownLatch, snapshotFailure, "keyToPath", () -> {
-                        keyToPath.snapshot(snapshotDbPaths.keyToPathDirectory, bucketIndexWriterPool, snapshotFailure);
+                        keyToPath.snapshot(
+                                snapshotDbPaths.keyToPathDirectory,
+                                limitConcurrency(longListSnapshotExecutor, maxThreadsPerFile),
+                                snapshotFailure);
                     });
                     runWithSnapshotExecutor(
                             countDownLatch, snapshotFailure, "metadata", () -> saveMetadata(snapshotDbPaths));
-                    // Finish started tasks before closing the writer pools or returning ownership of the directory.
+                    // Finish started tasks before closing the writer pool or returning ownership of the directory.
                     awaitSnapshotTasks(countDownLatch);
                 }
             } catch (final InterruptedException e) {
@@ -1139,18 +1153,30 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     // ==================================================================================================================
     // private methods
 
-    /// Creates a snapshot-scoped pool that writes the chunks of one LongList file.
+    /// Returns a view of `executor` that keeps at most `maxTasks` of its tasks queued or running.
+    /// Submitting waits until one of those tasks finishes, so the executor's threads never wait for a permit.
     ///
-    /// @param threadName name of the pool threads
-    /// @return a pool with [MerkleDbConfig#longListWriteThreads()] threads
-    private ExecutorService createIndexWriterPool(final String threadName) {
-        return Executors.newFixedThreadPool(
-                merkleDbConfig.longListWriteThreads(),
-                new ThreadConfiguration(getStaticThreadManager())
-                        .setThreadGroup(threadGroup)
-                        .setThreadNameProvider(
-                                CompositeThreadNameProvider.createNumbered(MERKLEDB_COMPONENT, threadName))
-                        .buildFactory());
+    /// @param executor executor that runs the tasks
+    /// @param maxTasks maximum number of tasks queued or running at once
+    /// @return the limited view of the executor
+    private static Executor limitConcurrency(final Executor executor, final int maxTasks) {
+        final Semaphore permits = new Semaphore(maxTasks);
+        return task -> {
+            permits.acquireUninterruptibly();
+            try {
+                executor.execute(() -> {
+                    try {
+                        task.run();
+                    } finally {
+                        permits.release();
+                    }
+                });
+            } catch (final RuntimeException | Error e) {
+                // A rejected task never runs, so release its permit here.
+                permits.release();
+                throw e;
+            }
+        };
     }
 
     /// Even after a failure or interruption, finish waiting so no task keeps writing after the
