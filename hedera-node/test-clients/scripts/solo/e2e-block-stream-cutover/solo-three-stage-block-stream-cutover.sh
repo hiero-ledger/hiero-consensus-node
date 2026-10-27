@@ -29,6 +29,10 @@ CN_BASELINE_RELEASE_TAG="${CN_BASELINE_RELEASE_TAG:-${DEPLOY_RELEASE_TAG:-v0.78.
 BLOCK_NODE_TOOLS_REF="${BLOCK_NODE_TOOLS_REF:-v0.45.0-rc2}"
 # Block Node chart/image deployed after the stage 2 upgrade and kept through cutover.
 BLOCK_NODE_CHART_VERSION="${BLOCK_NODE_CHART_VERSION:-v0.45.0-rc4}"
+# Mirror node deployed before stage 2 and kept through cutover. Must support the CN's TSS library:
+# 0.165.2+ loads the WRAPS verification key from the crypto library (TSS 3.19+) instead of the
+# ledger id publication, which no longer carries it.
+MIRROR_NODE_VERSION="${MIRROR_NODE_VERSION:-v0.165.2-rc1}"
 # ---------------------------------------------------------------------------------------------
 
 SOLO_CLUSTER_NAME="${SOLO_CLUSTER_NAME:-solo-three-stage-cutover}"
@@ -122,7 +126,6 @@ EXPLORER_INGRESS_SERVICE_NAME="${EXPLORER_INGRESS_SERVICE_NAME:-hiero-explorer-1
 SOLO_MIRROR_DEPLOY_TIMEOUT_SECS="${SOLO_MIRROR_DEPLOY_TIMEOUT_SECS:-900}"
 SOLO_EXPLORER_DEPLOY_TIMEOUT_SECS="${SOLO_EXPLORER_DEPLOY_TIMEOUT_SECS:-600}"
 
-MIRROR_NODE_VERSION="${MIRROR_NODE_VERSION:-v0.165.0-rc1}"
 MIRROR_BLOCK_CUTOVER_HAPIVERSION="${MIRROR_BLOCK_CUTOVER_HAPIVERSION:-0.79.0}"
 
 # Explicit ingestion checks supplement SDK TCK and run even when TCK is disabled.

@@ -9,11 +9,12 @@ increases from 0 to 1 to 2 so the same binary exercises upgrade initialization a
 
 All pinned versions sit together at the top of the script:
 
-|          Variable          |   Default   |                                Purpose                                 |
-|----------------------------|-------------|------------------------------------------------------------------------|
-| `CN_BASELINE_RELEASE_TAG`  | v0.78.1     | Published CN release deployed at genesis (alias: `DEPLOY_RELEASE_TAG`) |
-| `BLOCK_NODE_TOOLS_REF`     | v0.45.0-rc2 | `hiero-block-node` tag for the offline `blocks wrap` CLI and BN protos |
-| `BLOCK_NODE_CHART_VERSION` | v0.45.0-rc4 | Block Node chart/image deployed after stage 2 and kept through cutover |
+|          Variable          |   Default    |                                Purpose                                 |
+|----------------------------|--------------|------------------------------------------------------------------------|
+| `CN_BASELINE_RELEASE_TAG`  | v0.78.1      | Published CN release deployed at genesis (alias: `DEPLOY_RELEASE_TAG`) |
+| `BLOCK_NODE_TOOLS_REF`     | v0.45.0-rc2  | `hiero-block-node` tag for the offline `blocks wrap` CLI and BN protos |
+| `BLOCK_NODE_CHART_VERSION` | v0.45.0-rc4  | Block Node chart/image deployed after stage 2 and kept through cutover |
+| `MIRROR_NODE_VERSION`      | v0.165.2-rc1 | Mirror node deployed before stage 2 and kept through cutover           |
 
 Every stage explicitly preserves Solo's local-network settings: `contracts.chainId=298` and
 `nodes.gossipFqdnRestricted=false`. An upgrade replaces `application.properties`; omitting these
@@ -38,10 +39,14 @@ block and verifies the previous root, subtree hashes, and leaf count on every no
 (`BLOCK_NODE_CHART_VERSION`) is deployed only after the jumpstart + TSS upgrade and remains at that version through cutover
 unless `BLOCK_NODE_UPGRADE_VERSION` explicitly requests a different version.
 
-MN is deployed once at **v0.165.0-rc1** and stays at that version through all three stages.
-This release uses protobuf 0.80.0-alpha.2, which preserves the CN's platform-state field
-ordering when hashing native blocks. MN v0.164.2 reorders an unknown field and fails TSS
-verification after cutover.
+MN is deployed once at **v0.165.2-rc1** and stays at that version through all three stages.
+The CN's TSS library (3.19+) no longer publishes the WRAPS verification key in
+`LedgerIdPublicationTransactionBody`; the key ships inside the cryptography library. MN
+v0.165.0-rc1 (TSS 3.15) still reads the key from the publication and rejects every block-stream
+block with `The WRAPS verification key must be 1768 bytes, instead got 0`. v0.165.0 and v0.165.1
+use TSS 3.22 but omit the key resource from the importer native image; v0.165.2-rc1 includes it.
+MN v0.164.2 and older also reorder an unknown platform-state field and fail TSS verification
+after cutover.
 Its initial importer configuration enables record downloading and automatic cutover, with
 `block.enabled=false`, `block.sourceType=BLOCK_NODE`, and the future BN address under
 `block.nodes[0].endpoints[0]`. Before BN exists, records continue to arrive through MinIO.
@@ -134,7 +139,7 @@ processing: the importer uses a 512 MiB request and 1 GiB limit (2 CPUs); gRPC a
 use a 256 MiB request and 512 MiB limit (1 CPU). Override memory with
 `MIRROR_IMPORTER_MEMORY_REQUEST` / `MIRROR_IMPORTER_MEMORY_LIMIT`,
 `MIRROR_GRPC_MEMORY_REQUEST` / `MIRROR_GRPC_MEMORY_LIMIT`, and
-`MIRROR_WEB3_MEMORY_REQUEST` / `MIRROR_WEB3_MEMORY_LIMIT`. MN remains v0.165.0-rc1.
+`MIRROR_WEB3_MEMORY_REQUEST` / `MIRROR_WEB3_MEMORY_LIMIT`. MN remains v0.165.2-rc1.
 The REST service uses a 256 MiB / 100m request and a 512 MiB / 2 CPU limit, configurable with
 `MIRROR_REST_MEMORY_REQUEST` / `MIRROR_REST_MEMORY_LIMIT`. Failure diagnostics retain
 both current and previous REST logs and its pod description to distinguish restart causes.
