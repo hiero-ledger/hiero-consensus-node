@@ -4,6 +4,7 @@ package com.hedera.node.app.service.file.impl.handlers;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FILE_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_FILE_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNAUTHORIZED;
+import static com.hedera.node.app.service.file.impl.utils.FileServiceUtils.isMutable;
 import static com.hedera.node.app.service.file.impl.utils.FileServiceUtils.preValidate;
 import static com.hedera.node.app.service.file.impl.utils.FileServiceUtils.validateAndAddRequiredKeys;
 import static com.hedera.node.app.service.file.impl.utils.FileServiceUtils.validateContent;
@@ -118,7 +119,7 @@ public class FileAppendHandler implements TransactionHandler {
         final var file = optionalFile.get();
 
         // First validate this file is mutable; and the pending mutations are allowed
-        validateTrue(file.hasKeys() && !file.keys().keys().isEmpty(), UNAUTHORIZED);
+        validateTrue(isMutable(file), UNAUTHORIZED);
 
         if (file.deleted()) {
             throw new HandleException(FILE_DELETED);
