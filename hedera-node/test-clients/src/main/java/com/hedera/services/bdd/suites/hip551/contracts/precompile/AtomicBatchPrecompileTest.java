@@ -99,7 +99,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_A
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_AMOUNTS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_ID;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_WIPING_AMOUNT;
@@ -1988,8 +1987,7 @@ class AtomicBatchPrecompileTest {
                                                 .gas(GAS_TO_OFFER)
                                                 .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                                 .hasKnownStatus(INNER_TRANSACTION_FAILED))),
-                validatedHtsPrecompileResult(
-                        wrongPauseKeyTxn, CONTRACT_REVERT_EXECUTED, INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE),
+                validatedHtsPrecompileResult(wrongPauseKeyTxn, CONTRACT_REVERT_EXECUTED, INVALID_SIGNATURE),
                 validatedHtsPrecompileResult(tokenDeletedTxn, CONTRACT_REVERT_EXECUTED, TOKEN_WAS_DELETED));
     }
 
@@ -2144,7 +2142,7 @@ class AtomicBatchPrecompileTest {
                 childRecordsCheck(
                         firstCreateTxn,
                         CONTRACT_REVERT_EXECUTED,
-                        TransactionRecordAsserts.recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)),
+                        TransactionRecordAsserts.recordWith().status(INVALID_SIGNATURE)),
                 sourcing(() -> getTokenInfo(asTokenString(createdToken.get())).hasAutoRenewAccount(autoRenew)));
     }
 

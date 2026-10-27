@@ -49,7 +49,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_FROZEN
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_IS_TREASURY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_STILL_OWNS_NFTS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
@@ -227,11 +227,11 @@ public class ContractKeysHTSSuite {
                         DELEGATE_BURN_CALL_WITH_CONTRACT_KEY_TXN,
                         CONTRACT_REVERT_EXECUTED,
                         recordWith()
-                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .status(INVALID_SIGNATURE)
                                 .contractCallResult(resultWith()
                                         .contractCallResult(htsPrecompileResult()
                                                 .forFunction(FunctionType.HAPI_BURN)
-                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
+                                                .withStatus(INVALID_SIGNATURE)))),
                 getAccountBalance(TOKEN_TREASURY).hasTokenBalance(VANILLA_TOKEN, 2));
     }
 
@@ -270,11 +270,11 @@ public class ContractKeysHTSSuite {
                         DELEGATE_BURN_CALL_WITH_CONTRACT_KEY_TXN,
                         CONTRACT_REVERT_EXECUTED,
                         recordWith()
-                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .status(INVALID_SIGNATURE)
                                 .contractCallResult(resultWith()
                                         .contractCallResult(htsPrecompileResult()
                                                 .forFunction(FunctionType.HAPI_MINT)
-                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                                .withStatus(INVALID_SIGNATURE)
                                                 .withSerialNumbers()))),
                 getAccountBalance(TOKEN_TREASURY).hasTokenBalance(VANILLA_TOKEN, 50));
     }
@@ -1213,10 +1213,10 @@ public class ContractKeysHTSSuite {
                         "kycNFTAssociateFailsTxn",
                         CONTRACT_REVERT_EXECUTED,
                         recordWith()
-                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .status(INVALID_SIGNATURE)
                                 .contractCallResult(resultWith()
-                                        .contractCallResult(htsPrecompileResult()
-                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(INVALID_SIGNATURE)))),
                 childRecordsCheck(
                         "kycNFTAssociateTxn",
                         SUCCESS,
@@ -1734,10 +1734,10 @@ public class ContractKeysHTSSuite {
                         "frozenNFTAssociateFailsTxn",
                         CONTRACT_REVERT_EXECUTED,
                         recordWith()
-                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .status(INVALID_SIGNATURE)
                                 .contractCallResult(resultWith()
-                                        .contractCallResult(htsPrecompileResult()
-                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(INVALID_SIGNATURE)))),
                 childRecordsCheck(
                         "frozenNFTAssociateTxn",
                         SUCCESS,
@@ -1809,10 +1809,10 @@ public class ContractKeysHTSSuite {
                         "vanillaNFTAssociateFailsTxn",
                         CONTRACT_REVERT_EXECUTED,
                         recordWith()
-                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .status(INVALID_SIGNATURE)
                                 .contractCallResult(resultWith()
-                                        .contractCallResult(htsPrecompileResult()
-                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(INVALID_SIGNATURE)))),
                 childRecordsCheck(
                         "vanillaNFTAssociateTxn",
                         SUCCESS,
@@ -1884,10 +1884,10 @@ public class ContractKeysHTSSuite {
                         "kycTokenAssociateFailsTxn",
                         CONTRACT_REVERT_EXECUTED,
                         recordWith()
-                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .status(INVALID_SIGNATURE)
                                 .contractCallResult(resultWith()
-                                        .contractCallResult(htsPrecompileResult()
-                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(INVALID_SIGNATURE)))),
                 childRecordsCheck(
                         "kycTokenAssociateTxn",
                         SUCCESS,
@@ -1961,10 +1961,10 @@ public class ContractKeysHTSSuite {
                         "frozenTokenAssociateFailsTxn",
                         CONTRACT_REVERT_EXECUTED,
                         recordWith()
-                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .status(INVALID_SIGNATURE)
                                 .contractCallResult(resultWith()
-                                        .contractCallResult(htsPrecompileResult()
-                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(INVALID_SIGNATURE)))),
                 childRecordsCheck(
                         "frozenTokenAssociateTxn",
                         SUCCESS,
@@ -2034,10 +2034,10 @@ public class ContractKeysHTSSuite {
                         "vanillaTokenAssociateFailsTxn",
                         CONTRACT_REVERT_EXECUTED,
                         recordWith()
-                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .status(INVALID_SIGNATURE)
                                 .contractCallResult(resultWith()
-                                        .contractCallResult(htsPrecompileResult()
-                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(INVALID_SIGNATURE)))),
                 childRecordsCheck(
                         VANILLA_TOKEN_ASSOCIATE_TXN,
                         SUCCESS,
@@ -2092,10 +2092,10 @@ public class ContractKeysHTSSuite {
                         "delegateAssociateCallWithContractKeyTxn",
                         CONTRACT_REVERT_EXECUTED,
                         recordWith()
-                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .status(INVALID_SIGNATURE)
                                 .contractCallResult(resultWith()
-                                        .contractCallResult(htsPrecompileResult()
-                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(INVALID_SIGNATURE)))),
                 getAccountInfo(ACCOUNT).hasNoTokenRelationship(VANILLA_TOKEN));
     }
 
@@ -2135,10 +2135,10 @@ public class ContractKeysHTSSuite {
                         "delegateDissociateCallWithContractKeyTxn",
                         CONTRACT_REVERT_EXECUTED,
                         recordWith()
-                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .status(INVALID_SIGNATURE)
                                 .contractCallResult(resultWith()
-                                        .contractCallResult(htsPrecompileResult()
-                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(INVALID_SIGNATURE)))),
                 getAccountInfo(ACCOUNT).hasToken(relationshipWith(VANILLA_TOKEN)));
     }
 

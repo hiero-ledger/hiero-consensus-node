@@ -8,7 +8,6 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.Ful
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasOnly;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.DispatchForResponseCodeHtsCall.OutputFn.STANDARD_OUTPUT_FN;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.encodedRc;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.standardized;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.contractsConfigOf;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -35,15 +34,6 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
  * an encoded {@link com.hedera.hapi.node.base.ResponseCodeEnum}.
  */
 public class DispatchForResponseCodeHtsCall extends AbstractCall {
-    /**
-     * The "standard" failure customizer that replaces {@link ResponseCodeEnum#INVALID_SIGNATURE} with
-     * {@link ResponseCodeEnum#INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE}. (Note this code no longer
-     * makes sense after the security model change that revoked use of top-level signatures; but for
-     * now it is retained for backwards compatibility.)
-     */
-    private static final FailureCustomizer STANDARD_FAILURE_CUSTOMIZER =
-            (body, code, enhancement) -> standardized(code);
-
     private final AccountID senderId;
 
     @Nullable
@@ -132,7 +122,7 @@ public class DispatchForResponseCodeHtsCall extends AbstractCall {
                 syntheticBody,
                 attempt.defaultVerificationStrategy(),
                 dispatchGasCalculator,
-                STANDARD_FAILURE_CUSTOMIZER,
+                FailureCustomizer.NOOP_CUSTOMIZER,
                 SuccessProcessor.NOOP_PROCESSOR,
                 STANDARD_OUTPUT_FN);
     }
@@ -157,7 +147,7 @@ public class DispatchForResponseCodeHtsCall extends AbstractCall {
                 syntheticBody,
                 attempt.defaultVerificationStrategy(),
                 dispatchGasCalculator,
-                STANDARD_FAILURE_CUSTOMIZER,
+                FailureCustomizer.NOOP_CUSTOMIZER,
                 successProcessor,
                 STANDARD_OUTPUT_FN);
     }
@@ -207,7 +197,7 @@ public class DispatchForResponseCodeHtsCall extends AbstractCall {
                 syntheticBody,
                 attempt.defaultVerificationStrategy(),
                 dispatchGasCalculator,
-                STANDARD_FAILURE_CUSTOMIZER,
+                FailureCustomizer.NOOP_CUSTOMIZER,
                 SuccessProcessor.NOOP_PROCESSOR,
                 outputFn);
     }

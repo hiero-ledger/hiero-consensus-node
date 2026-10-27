@@ -49,7 +49,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_IS_TRE
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_STILL_OWNS_NFTS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
@@ -248,11 +248,11 @@ class AtomicBatchContractKeysHtsTest {
                         DELEGATE_BURN_CALL_WITH_CONTRACT_KEY_TXN,
                         CONTRACT_REVERT_EXECUTED,
                         recordWith()
-                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .status(INVALID_SIGNATURE)
                                 .contractCallResult(resultWith()
                                         .contractCallResult(htsPrecompileResult()
                                                 .forFunction(ParsingConstants.FunctionType.HAPI_BURN)
-                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
+                                                .withStatus(INVALID_SIGNATURE)))),
                 getAccountBalance(TOKEN_TREASURY).hasTokenBalance(VANILLA_TOKEN, 2));
     }
 
@@ -287,11 +287,11 @@ class AtomicBatchContractKeysHtsTest {
                         DELEGATE_BURN_CALL_WITH_CONTRACT_KEY_TXN,
                         CONTRACT_REVERT_EXECUTED,
                         recordWith()
-                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .status(INVALID_SIGNATURE)
                                 .contractCallResult(resultWith()
                                         .contractCallResult(htsPrecompileResult()
                                                 .forFunction(ParsingConstants.FunctionType.HAPI_MINT)
-                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                                .withStatus(INVALID_SIGNATURE)
                                                 .withSerialNumbers()))),
                 getAccountBalance(TOKEN_TREASURY).hasTokenBalance(VANILLA_TOKEN, 50));
     }
@@ -1075,10 +1075,10 @@ class AtomicBatchContractKeysHtsTest {
                         "kycNFTAssociateFailsTxn",
                         CONTRACT_REVERT_EXECUTED,
                         recordWith()
-                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .status(INVALID_SIGNATURE)
                                 .contractCallResult(resultWith()
-                                        .contractCallResult(htsPrecompileResult()
-                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(INVALID_SIGNATURE)))),
                 childRecordsCheck(
                         "kycNFTAssociateTxn",
                         SUCCESS,
@@ -1557,10 +1557,10 @@ class AtomicBatchContractKeysHtsTest {
                         "frozenNFTAssociateFailsTxn",
                         CONTRACT_REVERT_EXECUTED,
                         recordWith()
-                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .status(INVALID_SIGNATURE)
                                 .contractCallResult(resultWith()
-                                        .contractCallResult(htsPrecompileResult()
-                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(INVALID_SIGNATURE)))),
                 childRecordsCheck(
                         "frozenNFTAssociateTxn",
                         SUCCESS,
@@ -1627,10 +1627,10 @@ class AtomicBatchContractKeysHtsTest {
                         "vanillaNFTAssociateFailsTxn",
                         CONTRACT_REVERT_EXECUTED,
                         recordWith()
-                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .status(INVALID_SIGNATURE)
                                 .contractCallResult(resultWith()
-                                        .contractCallResult(htsPrecompileResult()
-                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(INVALID_SIGNATURE)))),
                 childRecordsCheck(
                         "vanillaNFTAssociateTxn",
                         SUCCESS,
@@ -1696,10 +1696,10 @@ class AtomicBatchContractKeysHtsTest {
                         "kycTokenAssociateFailsTxn",
                         CONTRACT_REVERT_EXECUTED,
                         recordWith()
-                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .status(INVALID_SIGNATURE)
                                 .contractCallResult(resultWith()
-                                        .contractCallResult(htsPrecompileResult()
-                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(INVALID_SIGNATURE)))),
                 childRecordsCheck(
                         "kycTokenAssociateTxn",
                         SUCCESS,
@@ -1767,10 +1767,10 @@ class AtomicBatchContractKeysHtsTest {
                         "frozenTokenAssociateFailsTxn",
                         CONTRACT_REVERT_EXECUTED,
                         recordWith()
-                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .status(INVALID_SIGNATURE)
                                 .contractCallResult(resultWith()
-                                        .contractCallResult(htsPrecompileResult()
-                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(INVALID_SIGNATURE)))),
                 childRecordsCheck(
                         "frozenTokenAssociateTxn",
                         SUCCESS,
@@ -1835,10 +1835,10 @@ class AtomicBatchContractKeysHtsTest {
                         "vanillaTokenAssociateFailsTxn",
                         CONTRACT_REVERT_EXECUTED,
                         recordWith()
-                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .status(INVALID_SIGNATURE)
                                 .contractCallResult(resultWith()
-                                        .contractCallResult(htsPrecompileResult()
-                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(INVALID_SIGNATURE)))),
                 childRecordsCheck(
                         VANILLA_TOKEN_ASSOCIATE_TXN,
                         SUCCESS,
@@ -1886,10 +1886,10 @@ class AtomicBatchContractKeysHtsTest {
                         "delegateAssociateCallWithContractKeyTxn",
                         CONTRACT_REVERT_EXECUTED,
                         recordWith()
-                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .status(INVALID_SIGNATURE)
                                 .contractCallResult(resultWith()
-                                        .contractCallResult(htsPrecompileResult()
-                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(INVALID_SIGNATURE)))),
                 getAccountInfo(ACCOUNT).hasNoTokenRelationship(VANILLA_TOKEN));
     }
 
@@ -1922,10 +1922,10 @@ class AtomicBatchContractKeysHtsTest {
                         "delegateDissociateCallWithContractKeyTxn",
                         CONTRACT_REVERT_EXECUTED,
                         recordWith()
-                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .status(INVALID_SIGNATURE)
                                 .contractCallResult(resultWith()
-                                        .contractCallResult(htsPrecompileResult()
-                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(INVALID_SIGNATURE)))),
                 getAccountInfo(ACCOUNT).hasToken(relationshipWith(VANILLA_TOKEN)));
     }
 

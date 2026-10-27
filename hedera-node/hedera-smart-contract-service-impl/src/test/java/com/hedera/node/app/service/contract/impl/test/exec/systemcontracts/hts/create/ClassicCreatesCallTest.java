@@ -3,6 +3,8 @@ package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.
 
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_CREATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_SUPPLY_KEY;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x16c.CreateTranslator.CREATE_FUNGIBLE_TOKEN_WITH_METADATA;
@@ -24,6 +26,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.esaulpaugh.headlong.abi.Tuple;
@@ -367,6 +371,19 @@ public class ClassicCreatesCallTest extends CallTestBase {
 
         assertEquals(MessageFrame.State.REVERT, result.state());
         assertEquals(readableRevertReason(recordBuilder.status()), result.output());
+    }
+
+    @Test
+    void createFungibleTokenWithMissingSignatureRevertsWithInvalidSignatureNotRemapped() {
+        commonGivens();
+        given(recordBuilder.status()).willReturn(INVALID_SIGNATURE);
+
+        final var result = subject.execute(frame).fullResult().result();
+
+        assertEquals(MessageFrame.State.REVERT, result.state());
+        assertEquals(readableRevertReason(INVALID_SIGNATURE), result.output());
+        // recordBuilder is a mock, so assert on the writes: the status must never be rewritten to 326
+        verify(recordBuilder, never()).status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE);
     }
 
     @Test

@@ -357,13 +357,13 @@ public class ContractBurnHTSV2SecurityModelSuite {
                 // Verify that the child records fail with the expected status
                 getTxnRecord(SIGNER_AND_TOKEN_HAVE_NO_UPDATED_KEYS)
                         .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)),
+                        .hasChildRecords(recordWith().status(INVALID_SIGNATURE)),
                 getTxnRecord(SIGNER_MINTS_WITH_SIGNER_PUBLIC_KEY_AND_WRONG_CONTRACT_ID)
                         .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)),
+                        .hasChildRecords(recordWith().status(INVALID_SIGNATURE)),
                 getTxnRecord(TOKEN_HAS_NO_UPDATED_KEY)
                         .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)));
+                        .hasChildRecords(recordWith().status(INVALID_SIGNATURE)));
     }
 
     @HapiTest
@@ -461,13 +461,13 @@ public class ContractBurnHTSV2SecurityModelSuite {
                 // Verify that the child records fail with the expected status
                 getTxnRecord(SIGNER_AND_TOKEN_HAVE_NO_UPDATED_KEYS)
                         .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)),
+                        .hasChildRecords(recordWith().status(INVALID_SIGNATURE)),
                 getTxnRecord(SIGNER_MINTS_WITH_SIGNER_PUBLIC_KEY_AND_WRONG_CONTRACT_ID)
                         .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)),
+                        .hasChildRecords(recordWith().status(INVALID_SIGNATURE)),
                 getTxnRecord(TOKEN_HAS_NO_UPDATED_KEY)
                         .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)));
+                        .hasChildRecords(recordWith().status(INVALID_SIGNATURE)));
     }
 
     @HapiTest
@@ -691,11 +691,11 @@ public class ContractBurnHTSV2SecurityModelSuite {
                         firstBurnTxn,
                         SUCCESS,
                         recordWith()
-                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .status(INVALID_SIGNATURE)
                                 .contractCallResult(resultWith()
                                         .contractCallResult(htsPrecompileResult()
                                                 .forFunction(ParsingConstants.FunctionType.HAPI_BURN)
-                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
+                                                .withStatus(INVALID_SIGNATURE)))),
                 childRecordsCheck(
                         secondBurnTxn,
                         SUCCESS,

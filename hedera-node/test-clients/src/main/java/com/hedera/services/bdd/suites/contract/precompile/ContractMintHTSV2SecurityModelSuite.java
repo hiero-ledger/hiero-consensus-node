@@ -33,7 +33,7 @@ import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.getNestedContractAddress;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.mint.MintTranslator;
@@ -469,13 +469,13 @@ public class ContractMintHTSV2SecurityModelSuite {
                 // Verify that each test case has 1 child record with the correct error message
                 getTxnRecord(SIGNER_AND_TOKEN_HAVE_NO_UPDATED_KEYS)
                         .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)),
+                        .hasChildRecords(recordWith().status(INVALID_SIGNATURE)),
                 getTxnRecord(SIGNER_MINTS_WITH_SIGNER_PUBLIC_KEY_AND_WRONG_CONTRACT_ID)
                         .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)),
+                        .hasChildRecords(recordWith().status(INVALID_SIGNATURE)),
                 getTxnRecord(TOKEN_HAS_NO_UPDATED_KEY)
                         .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)));
+                        .hasChildRecords(recordWith().status(INVALID_SIGNATURE)));
     }
 
     @HapiTest
@@ -581,13 +581,13 @@ public class ContractMintHTSV2SecurityModelSuite {
                 // Verify that each test case has 1 child record with the correct error message
                 getTxnRecord(SIGNER_AND_TOKEN_HAVE_NO_UPDATED_KEYS)
                         .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)),
+                        .hasChildRecords(recordWith().status(INVALID_SIGNATURE)),
                 getTxnRecord(SIGNER_MINTS_WITH_SIGNER_PUBLIC_KEY_AND_WRONG_CONTRACT_ID)
                         .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)),
+                        .hasChildRecords(recordWith().status(INVALID_SIGNATURE)),
                 getTxnRecord(TOKEN_HAS_NO_UPDATED_KEY)
                         .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)));
+                        .hasChildRecords(recordWith().status(INVALID_SIGNATURE)));
     }
 
     @HapiTest

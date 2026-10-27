@@ -4,6 +4,7 @@ package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NFT_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.CallStatusStandardizer.CALL_STATUS_STANDARDIZER;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CONFIG_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
@@ -58,6 +59,14 @@ class CallStatusStandardizerTest {
                 INVALID_ACCOUNT_ID, frame, CryptoTransferTransactionBody.DEFAULT);
 
         assertEquals(INVALID_ACCOUNT_ID, standardCode);
+    }
+
+    @Test
+    void doesNotRemapInvalidSignature() {
+        final var standardCode = CALL_STATUS_STANDARDIZER.codeForFailure(
+                INVALID_SIGNATURE, frame, CryptoTransferTransactionBody.DEFAULT);
+
+        assertEquals(INVALID_SIGNATURE, standardCode);
     }
 
     @Test

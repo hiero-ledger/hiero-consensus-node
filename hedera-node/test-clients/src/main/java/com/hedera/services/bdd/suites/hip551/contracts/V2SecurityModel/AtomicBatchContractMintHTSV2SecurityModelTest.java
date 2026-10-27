@@ -33,7 +33,7 @@ import static com.hedera.services.bdd.suites.contract.Utils.getNestedContractAdd
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
@@ -436,7 +436,7 @@ class AtomicBatchContractMintHTSV2SecurityModelTest {
                 // Verify that each test case has 1 child record with the correct error message
                 getTxnRecord(SIGNER_AND_TOKEN_HAVE_NO_UPDATED_KEYS)
                         .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)));
+                        .hasChildRecords(recordWith().status(INVALID_SIGNATURE)));
     }
 
     @HapiTest
@@ -477,7 +477,7 @@ class AtomicBatchContractMintHTSV2SecurityModelTest {
                 getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, 0L),
                 getTxnRecord(SIGNER_MINTS_WITH_SIGNER_PUBLIC_KEY_AND_WRONG_CONTRACT_ID)
                         .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)));
+                        .hasChildRecords(recordWith().status(INVALID_SIGNATURE)));
     }
 
     @HapiTest
@@ -513,7 +513,7 @@ class AtomicBatchContractMintHTSV2SecurityModelTest {
                 getAccountBalance(TOKEN_TREASURY).hasTokenBalance(FUNGIBLE_TOKEN, 0L),
                 getTxnRecord(TOKEN_HAS_NO_UPDATED_KEY)
                         .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)));
+                        .hasChildRecords(recordWith().status(INVALID_SIGNATURE)));
     }
 
     @HapiTest
@@ -544,7 +544,7 @@ class AtomicBatchContractMintHTSV2SecurityModelTest {
                 getTxnRecord(SIGNER_AND_TOKEN_HAVE_NO_UPDATED_KEYS)
                         .logged()
                         .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)));
+                        .hasChildRecords(recordWith().status(INVALID_SIGNATURE)));
     }
 
     @HapiTest
@@ -583,7 +583,7 @@ class AtomicBatchContractMintHTSV2SecurityModelTest {
                 getAccountBalance(TOKEN_TREASURY).hasTokenBalance(NON_FUNGIBLE_TOKEN, 0L),
                 getTxnRecord(SIGNER_MINTS_WITH_SIGNER_PUBLIC_KEY_AND_WRONG_CONTRACT_ID)
                         .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)));
+                        .hasChildRecords(recordWith().status(INVALID_SIGNATURE)));
     }
 
     @HapiTest
@@ -615,7 +615,7 @@ class AtomicBatchContractMintHTSV2SecurityModelTest {
                 getAccountBalance(TOKEN_TREASURY).hasTokenBalance(NON_FUNGIBLE_TOKEN, 0L),
                 getTxnRecord(TOKEN_HAS_NO_UPDATED_KEY)
                         .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)));
+                        .hasChildRecords(recordWith().status(INVALID_SIGNATURE)));
     }
 
     @HapiTest

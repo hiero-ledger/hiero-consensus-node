@@ -50,7 +50,7 @@ import static com.hedera.services.bdd.suites.contract.precompile.ContractBurnHTS
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.HTSPrecompileResult.htsPrecompileResult;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REVERTED_SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SPENDER_DOES_NOT_HAVE_ALLOWANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -373,7 +373,7 @@ class AtomicBatchContractBurnHTSV2SecurityModelTest {
                 getTxnRecord(SIGNER_AND_TOKEN_HAVE_NO_UPDATED_KEYS)
                         .andAllChildRecords()
                         .hasPriority(recordWith().status(CONTRACT_REVERT_EXECUTED))
-                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)));
+                        .hasChildRecords(recordWith().status(INVALID_SIGNATURE)));
     }
 
     @HapiTest
@@ -418,7 +418,7 @@ class AtomicBatchContractBurnHTSV2SecurityModelTest {
                 getTxnRecord(SIGNER_MINTS_WITH_SIGNER_PUBLIC_KEY_AND_WRONG_CONTRACT_ID)
                         .andAllChildRecords()
                         .hasPriority(recordWith().status(CONTRACT_REVERT_EXECUTED))
-                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)));
+                        .hasChildRecords(recordWith().status(INVALID_SIGNATURE)));
     }
 
     @HapiTest
@@ -460,7 +460,7 @@ class AtomicBatchContractBurnHTSV2SecurityModelTest {
                 getTxnRecord(TOKEN_HAS_NO_UPDATED_KEY)
                         .hasPriority(recordWith().status(CONTRACT_REVERT_EXECUTED))
                         .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)));
+                        .hasChildRecords(recordWith().status(INVALID_SIGNATURE)));
     }
 
     @HapiTest
@@ -486,7 +486,7 @@ class AtomicBatchContractBurnHTSV2SecurityModelTest {
                 getTxnRecord(SIGNER_AND_TOKEN_HAVE_NO_UPDATED_KEYS)
                         .andAllChildRecords()
                         .hasPriority(recordWith().status(CONTRACT_REVERT_EXECUTED))
-                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)));
+                        .hasChildRecords(recordWith().status(INVALID_SIGNATURE)));
     }
 
     @HapiTest
@@ -526,7 +526,7 @@ class AtomicBatchContractBurnHTSV2SecurityModelTest {
                 getTxnRecord(SIGNER_MINTS_WITH_SIGNER_PUBLIC_KEY_AND_WRONG_CONTRACT_ID)
                         .andAllChildRecords()
                         .hasPriority(recordWith().status(CONTRACT_REVERT_EXECUTED))
-                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)));
+                        .hasChildRecords(recordWith().status(INVALID_SIGNATURE)));
     }
 
     @HapiTest
@@ -563,7 +563,7 @@ class AtomicBatchContractBurnHTSV2SecurityModelTest {
                 getTxnRecord(TOKEN_HAS_NO_UPDATED_KEY)
                         .andAllChildRecords()
                         .hasPriority(recordWith().status(CONTRACT_REVERT_EXECUTED))
-                        .hasChildRecords(recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)));
+                        .hasChildRecords(recordWith().status(INVALID_SIGNATURE)));
     }
 
     @HapiTest
@@ -740,11 +740,11 @@ class AtomicBatchContractBurnHTSV2SecurityModelTest {
                         firstBurnTxn,
                         SUCCESS,
                         recordWith()
-                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .status(INVALID_SIGNATURE)
                                 .contractCallResult(resultWith()
                                         .contractCallResult(htsPrecompileResult()
                                                 .forFunction(ParsingConstants.FunctionType.HAPI_BURN)
-                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))),
+                                                .withStatus(INVALID_SIGNATURE)))),
                 childRecordsCheck(
                         secondBurnTxn,
                         SUCCESS,

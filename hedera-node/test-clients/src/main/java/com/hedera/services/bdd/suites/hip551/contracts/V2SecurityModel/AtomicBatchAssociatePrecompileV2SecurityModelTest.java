@@ -37,7 +37,7 @@ import static com.hedera.services.bdd.suites.contract.Utils.getNestedContractAdd
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.HTSPrecompileResult.htsPrecompileResult;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenFreezeStatus.FreezeNotApplicable;
 import static com.hederahashgraph.api.proto.java.TokenFreezeStatus.Frozen;
@@ -222,10 +222,10 @@ class AtomicBatchAssociatePrecompileV2SecurityModelTest {
                         "fungibleTokenAssociate",
                         CONTRACT_REVERT_EXECUTED,
                         recordWith()
-                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .status(INVALID_SIGNATURE)
                                 .contractCallResult(resultWith()
-                                        .contractCallResult(htsPrecompileResult()
-                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))));
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(INVALID_SIGNATURE)))));
     }
 
     @HapiTest
@@ -249,10 +249,10 @@ class AtomicBatchAssociatePrecompileV2SecurityModelTest {
                         "nonFungibleTokenAssociate",
                         CONTRACT_REVERT_EXECUTED,
                         recordWith()
-                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .status(INVALID_SIGNATURE)
                                 .contractCallResult(resultWith()
-                                        .contractCallResult(htsPrecompileResult()
-                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))));
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(INVALID_SIGNATURE)))));
     }
 
     @HapiTest
@@ -284,10 +284,10 @@ class AtomicBatchAssociatePrecompileV2SecurityModelTest {
                         "multipleTokensAssociate",
                         CONTRACT_REVERT_EXECUTED,
                         recordWith()
-                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .status(INVALID_SIGNATURE)
                                 .contractCallResult(resultWith()
-                                        .contractCallResult(htsPrecompileResult()
-                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))));
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(INVALID_SIGNATURE)))));
     }
 
     @HapiTest
@@ -320,10 +320,10 @@ class AtomicBatchAssociatePrecompileV2SecurityModelTest {
                         "nestedAssociateFungibleTxn",
                         CONTRACT_REVERT_EXECUTED,
                         recordWith()
-                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .status(INVALID_SIGNATURE)
                                 .contractCallResult(resultWith()
-                                        .contractCallResult(htsPrecompileResult()
-                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))));
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(INVALID_SIGNATURE)))));
     }
 
     @HapiTest
@@ -356,10 +356,10 @@ class AtomicBatchAssociatePrecompileV2SecurityModelTest {
                         "associateTokenToContractFails",
                         CONTRACT_REVERT_EXECUTED,
                         recordWith()
-                                .status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)
+                                .status(INVALID_SIGNATURE)
                                 .contractCallResult(resultWith()
-                                        .contractCallResult(htsPrecompileResult()
-                                                .withStatus(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)))));
+                                        .contractCallResult(
+                                                htsPrecompileResult().withStatus(INVALID_SIGNATURE)))));
     }
 
     @HapiTest

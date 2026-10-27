@@ -45,7 +45,6 @@ import static com.hedera.services.bdd.suites.contract.Utils.asToken;
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.updateSpecFor;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -155,7 +154,7 @@ class AtomicBatchEthereumCallKeysTest {
                 childRecordsCheck(
                         "creationWithoutTopLevelSig",
                         CONTRACT_REVERT_EXECUTED,
-                        recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)),
+                        recordWith().status(INVALID_SIGNATURE)),
                 getTxnRecord("creationActivatingAdminKeyViaSigMap")
                         .exposingTokenCreationsTo(
                                 createdIds -> assertFalse(createdIds.isEmpty(), "Top-level sig map creation failed")),
@@ -209,9 +208,7 @@ class AtomicBatchEthereumCallKeysTest {
                                         .ethereumHash(ByteString.copyFrom(
                                                 spec.registry().getBytes(ETH_HASH_KEY)))))),
                 childRecordsCheck(
-                        mintTxn,
-                        CONTRACT_REVERT_EXECUTED,
-                        recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)));
+                        mintTxn, CONTRACT_REVERT_EXECUTED, recordWith().status(INVALID_SIGNATURE)));
     }
 
     private HapiAtomicBatch atomicBatchDefaultOperator(final HapiTxnOp<?>... ops) {
