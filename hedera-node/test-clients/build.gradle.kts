@@ -197,15 +197,15 @@ val prCheckStartPorts =
 val prCheckPropOverrides =
     mapOf(
         "hapiTestAdhoc" to
-            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.forceMockSignatures=false,block.stateproof.verification.enabled=true",
+            "tss.hintsEnabled=false,tss.historyEnabled=false,block.stateproof.verification.enabled=false,tss.forceMockSignatures=false",
         "hapiTestToken" to
-            "hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
+            "tss.hintsEnabled=false,tss.historyEnabled=false,block.stateproof.verification.enabled=false,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
         "hapiTestCrypto" to
-            "tss.forceMockSignatures=false,blockStream.blockPeriod=1s,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
+            "tss.hintsEnabled=false,tss.historyEnabled=false,block.stateproof.verification.enabled=false,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
         "hapiTestCryptoSerial" to
-            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,block.stateproof.verification.enabled=true",
+            "tss.hintsEnabled=false,tss.historyEnabled=false,block.stateproof.verification.enabled=false,tss.forceMockSignatures=false,blockStream.blockPeriod=1s",
         "hapiTestSmartContract" to
-            "blockStream.writerMode=FILE_AND_GRPC,blockStream.streamWrappedRecordBlocks=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+            "tss.hintsEnabled=false,tss.historyEnabled=false,block.stateproof.verification.enabled=false,blockStream.writerMode=FILE_AND_GRPC,blockStream.streamWrappedRecordBlocks=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         // hapiTestRestart exercises repeated freeze/upgrade/restart cycles. On main this ran with
         // tss.historyEnabled=false by config default; with the new branch default of true the
         // genesis chain-of-trust proof (and its real-crypto signatures, since this test sets
@@ -214,42 +214,42 @@ val prCheckPropOverrides =
         // start timing out as the network falls behind. Pin historyEnabled to its main-branch
         // value here to preserve the test's original (hints-only) TSS surface.
         "hapiTestRestart" to
-            "blockStream.writerMode=FILE,tss.hintsEnabled=true,tss.historyEnabled=false,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
+            "tss.hintsEnabled=false,tss.historyEnabled=false,block.stateproof.verification.enabled=false,blockStream.writerMode=FILE,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
         "hapiTestMisc" to
-            "blockStream.writerMode=FILE_AND_GRPC,blockStream.streamWrappedRecordBlocks=true,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
+            "tss.hintsEnabled=false,tss.historyEnabled=false,block.stateproof.verification.enabled=false,blockStream.writerMode=FILE_AND_GRPC,blockStream.streamWrappedRecordBlocks=true,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
         "hapiTestMiscSerial" to
-            "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true",
+            "tss.hintsEnabled=false,tss.historyEnabled=false,block.stateproof.verification.enabled=false,nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
         "hapiTestTimeConsuming" to
-            "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+            "tss.hintsEnabled=false,tss.historyEnabled=false,block.stateproof.verification.enabled=false,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestWraps" to
-            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.forceMockSignatures=false,staking.periodMins=25,blockStream.maxBlockSizeBytes=0",
+            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.forceMockSignatures=false,staking.periodMins=25,blockStream.maxBlockSizeBytes=0,block.stateproof.verification.enabled=true",
         "hapiTestCutover" to
-            "blockStream.writerMode=FILE_AND_GRPC,tss.hintsEnabled=false,tss.historyEnabled=false,tss.forceMockSignatures=false,tss.initialCrsParties=8,staking.periodMins=25,blockStream.maxBlockSizeBytes=0",
-        "hapiTestTimeConsumingSerial" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
-        "hapiTestStateThrottling" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
+            "blockStream.writerMode=FILE_AND_GRPC,tss.hintsEnabled=false,tss.historyEnabled=false,tss.forceMockSignatures=false,tss.initialCrsParties=8,staking.periodMins=25,blockStream.maxBlockSizeBytes=0,block.stateproof.verification.enabled=true",
+        "hapiTestTimeConsumingSerial" to "tss.hintsEnabled=false,tss.historyEnabled=false,block.stateproof.verification.enabled=false,nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
+        "hapiTestStateThrottling" to "tss.hintsEnabled=false,tss.historyEnabled=false,block.stateproof.verification.enabled=false,nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
         "hapiTestMiscRecords" to
-            "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
+            "tss.hintsEnabled=false,tss.historyEnabled=false,block.stateproof.verification.enabled=false,blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
         "hapiTestMiscRecordsSerial" to
-            "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true",
+            "tss.hintsEnabled=false,tss.historyEnabled=false,block.stateproof.verification.enabled=false,blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
         "hapiTestSimpleFees" to
-            "fees.simpleFeesEnabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,hooks.hooksEnabled=true",
-        "hapiTestSimpleFeesSerial" to "fees.simpleFeesEnabled=true",
-        "hapiTestIss" to "blockStream.writerMode=FILE",
+            "tss.hintsEnabled=false,tss.historyEnabled=false,block.stateproof.verification.enabled=false,fees.simpleFeesEnabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,hooks.hooksEnabled=true",
+        "hapiTestSimpleFeesSerial" to "tss.hintsEnabled=false,tss.historyEnabled=false,block.stateproof.verification.enabled=false,fees.simpleFeesEnabled=true",
+        "hapiTestIss" to "tss.hintsEnabled=false,tss.historyEnabled=false,block.stateproof.verification.enabled=false,blockStream.writerMode=FILE",
         "hapiTestBlockHashingSha256" to
-            "blockStream.digestType=SHA_256,blockStream.streamWrappedRecordBlocks=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+            "tss.hintsEnabled=false,tss.historyEnabled=false,block.stateproof.verification.enabled=false,blockStream.digestType=SHA_256,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestNodeStaking" to
-            "blockStream.writerMode=FILE,nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
+            "tss.hintsEnabled=false,tss.historyEnabled=false,block.stateproof.verification.enabled=false,blockStream.writerMode=FILE,nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
         "hapiTestNodeStakingSerial" to
-            "blockStream.writerMode=FILE,nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
-        "hapiTestNDReconnect" to "block.stateproof.verification.enabled=true",
+            "tss.hintsEnabled=false,tss.historyEnabled=false,block.stateproof.verification.enabled=false,blockStream.writerMode=FILE,nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
+        "hapiTestNDReconnect" to "tss.hintsEnabled=false,tss.historyEnabled=false,block.stateproof.verification.enabled=false",
         "hapiTestAtomicBatch" to
-            "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
-        "hapiTestAtomicBatchSerial" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
+            "tss.hintsEnabled=false,tss.historyEnabled=false,block.stateproof.verification.enabled=false,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+        "hapiTestAtomicBatchSerial" to "tss.hintsEnabled=false,tss.historyEnabled=false,block.stateproof.verification.enabled=false,nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
         "hapiTestClpr" to
             "tss.forceMockSignatures=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestClprEmbedded" to "tss.forceMockSignatures=true",
         "hapiTestClprMultinetwork" to
-            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.forceMockSignatures=false",
+            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.forceMockSignatures=false,block.stateproof.verification.enabled=true",
     )
 
 // Overridable per-task DEFAULTS. Unlike prCheckPropOverrides (delivered as node environment
