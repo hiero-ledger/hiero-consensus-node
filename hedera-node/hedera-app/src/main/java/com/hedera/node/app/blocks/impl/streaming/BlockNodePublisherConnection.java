@@ -248,6 +248,7 @@ public class BlockNodePublisherConnection extends AbstractBlockNodeConnection
             observeAtNextBlockBoundary.set(true);
         } else {
             connectionModeRef.set(newConnectionMode);
+            observeAtNextBlockBoundary.set(false);
         }
     }
 
@@ -1233,16 +1234,37 @@ public class BlockNodePublisherConnection extends AbstractBlockNodeConnection
             return;
         }
 
-        // Process the response
+        /*
+        Handling of responses depends on the type of connection this is. For observing connections, we only care about
+        acknowledgements and end stream responses, ignoring all other responses. For streaming connections, we care
+        about everything.
+         */
+
         if (response.hasAcknowledgement()) {
             blockStreamMetrics.recordResponseReceived(response.response().kind());
             handleAcknowledgement(response.acknowledgement());
+            return;
         } else if (response.hasEndStream()) {
+            blockStreamMetrics.recordResponseReceived(response.response().kind());
             blockStreamMetrics.recordResponseEndOfStreamReceived(
                     response.endStream().status());
             blockStreamMetrics.recordLatestBlockEndOfStream(response.endStream().blockNumber());
             handleEndOfStream(response.endStream());
-        } else if (response.hasSkipBlock()) {
+            return;
+        }
+
+        final ConnectionMode mode = connectionModeRef.get();
+
+        if (ConnectionMode.OBSERVING == mode) {
+            logger.debug(
+                    "{} Connection is in observer mode; ignoring received response: {}",
+                    this,
+                    response.response().kind());
+            return;
+        }
+
+        // this is a streaming connection so handle all the other responses
+        if (response.hasSkipBlock()) {
             blockStreamMetrics.recordResponseReceived(response.response().kind());
             blockStreamMetrics.recordLatestBlockSkipBlock(response.skipBlock().blockNumber());
             handleSkipBlock(response.skipBlock());
@@ -1465,13 +1487,12 @@ public class BlockNodePublisherConnection extends AbstractBlockNodeConnection
          * @return true (to trigger the worker to sleep)
          */
         private boolean doObservingWork() {
+            connStats.recordHeartbeat(System.currentTimeMillis());
+
             final long blockPeriodMillis = bsConfig().blockPeriod().toMillis();
             final long millisSinceLastRequest = System.currentTimeMillis() - observerLastRequestMillis;
 
             if (millisSinceLastRequest < blockPeriodMillis) {
-                logger.trace(
-                        "{} Not enough time elapsed since last AckOnly send; skipping",
-                        BlockNodePublisherConnection.this);
                 // not enough time has elapsed since the last request was sent; signal the worker to sleep
                 return true;
             }
@@ -1545,7 +1566,9 @@ public class BlockNodePublisherConnection extends AbstractBlockNodeConnection
                     final CloseReason closeReason = pendingCloseReason.get();
                     close(closeReason != null ? closeReason : CloseReason.UNKNOWN, true);
                 } else if (observeAtNextBlockBoundary.get() && observeAtNextBlockBoundary.compareAndSet(true, false)) {
-                    connectionModeRef.set(ConnectionMode.OBSERVING);
+                    if (connectionModeRef.compareAndSet(ConnectionMode.STREAMING, ConnectionMode.OBSERVING)) {
+                        resetForObserving();
+                    }
                 }
 
                 return true;
@@ -1792,7 +1815,9 @@ public class BlockNodePublisherConnection extends AbstractBlockNodeConnection
                 final CloseReason closeReason = pendingCloseReason.get();
                 close(closeReason != null ? closeReason : CloseReason.UNKNOWN, true);
             } else if (observeAtNextBlockBoundary.get() && observeAtNextBlockBoundary.compareAndSet(true, false)) {
-                connectionModeRef.set(ConnectionMode.OBSERVING);
+                if (connectionModeRef.compareAndSet(ConnectionMode.STREAMING, ConnectionMode.OBSERVING)) {
+                    resetForObserving();
+                }
             } else {
                 // the connection manager hasn't informed us to close this connection, so we are now free to advance to
                 // the next block
@@ -2024,6 +2049,22 @@ public class BlockNodePublisherConnection extends AbstractBlockNodeConnection
             } else {
                 blockAttemptNumber = 1;
             }
+        }
+
+        /**
+         * Resets internal state when transitioning from streaming to observing.
+         */
+        private void resetForObserving() {
+            streamingBlockNumber.set(-1L);
+            block = null;
+            itemIndex = 0;
+            pendingRequestItems.clear();
+            pendingRequestBytes = requestBasePaddingBytes;
+            requestCtr.set(1);
+            pendingRequestHasBlockHeader = false;
+            pendingRequestHasBlockProof = false;
+            blockAttemptNumber = 1;
+            lastSendTimeMillis = -1;
         }
 
         /**

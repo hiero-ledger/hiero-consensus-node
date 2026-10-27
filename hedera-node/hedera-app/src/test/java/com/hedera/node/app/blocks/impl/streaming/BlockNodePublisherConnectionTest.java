@@ -71,6 +71,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 import org.hiero.block.api.BlockEnd;
 import org.hiero.block.api.PublishStreamRequest.EndStream;
 import org.hiero.block.api.PublishStreamResponse;
@@ -82,7 +83,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -649,6 +652,7 @@ class BlockNodePublisherConnectionTest extends BlockNodeCommunicationTestBase {
 
         verify(metrics).recordLatestBlockEndOfStream(10L);
         verify(metrics).recordResponseEndOfStreamReceived(responseCode);
+        verify(metrics).recordResponseReceived(ResponseOneOfType.END_STREAM);
         verify(metrics).recordConnectionClosed(CloseReason.END_STREAM_RECEIVED);
         verify(requestCall).completeRequests();
         verifyNoMoreInteractions(metrics);
@@ -669,6 +673,7 @@ class BlockNodePublisherConnectionTest extends BlockNodeCommunicationTestBase {
 
         verify(metrics).recordLatestBlockEndOfStream(10L);
         verify(metrics).recordResponseEndOfStreamReceived(responseCode);
+        verify(metrics).recordResponseReceived(ResponseOneOfType.END_STREAM);
         verify(metrics).recordConnectionClosed(CloseReason.TRANSIENT_END_STREAM_RECEIVED);
         verify(requestCall).completeRequests();
         verifyNoMoreInteractions(metrics);
@@ -687,6 +692,7 @@ class BlockNodePublisherConnectionTest extends BlockNodeCommunicationTestBase {
 
         verify(metrics).recordLatestBlockEndOfStream(10L);
         verify(metrics).recordResponseEndOfStreamReceived(Code.SUCCESS);
+        verify(metrics).recordResponseReceived(ResponseOneOfType.END_STREAM);
         verify(metrics).recordConnectionClosed(CloseReason.END_STREAM_RECEIVED);
         verify(requestCall).completeRequests();
         verifyNoMoreInteractions(metrics);
@@ -803,6 +809,7 @@ class BlockNodePublisherConnectionTest extends BlockNodeCommunicationTestBase {
 
         verify(metrics).recordLatestBlockEndOfStream(10L);
         verify(metrics).recordResponseEndOfStreamReceived(Code.UNKNOWN);
+        verify(metrics).recordResponseReceived(ResponseOneOfType.END_STREAM);
         verify(metrics).recordConnectionClosed(CloseReason.END_STREAM_RECEIVED);
         verify(requestCall).completeRequests();
         verifyNoMoreInteractions(metrics);
@@ -936,6 +943,149 @@ class BlockNodePublisherConnectionTest extends BlockNodeCommunicationTestBase {
         verifyNoInteractions(requestCall);
         verifyNoInteractions(connectionManager);
         verifyNoInteractions(bufferService);
+    }
+
+    @ParameterizedTest
+    @MethodSource("testOnNextHandling_acknowledgementArgs")
+    void testOnNextHandling_acknowledgement(final ConnectionMode mode, final boolean shouldHandle) {
+        if (ConnectionMode.STREAMING == mode) {
+            activateConnection();
+        } else if (ConnectionMode.OBSERVING == mode) {
+            createAndActivateObserverConnection();
+        }
+
+        when(stats.recordAcknowledgementAndEvaluate(anyLong(), any(Instant.class), any(Duration.class), anyInt()))
+                .thenReturn(latencyResult);
+        when(latencyResult.shouldSwitch()).thenReturn(false);
+
+        final PublishStreamResponse response = createBlockAckResponse(10L);
+        connection.onNext(response);
+
+        if (shouldHandle) {
+            verify(metrics).recordResponseReceived(ResponseOneOfType.ACKNOWLEDGEMENT);
+        } else {
+            verify(metrics, times(0)).recordResponseReceived(any(ResponseOneOfType.class));
+        }
+    }
+
+    static Stream<Arguments> testOnNextHandling_acknowledgementArgs() {
+        return Stream.of(Arguments.of(ConnectionMode.OBSERVING, true), Arguments.of(ConnectionMode.STREAMING, true));
+    }
+
+    @ParameterizedTest
+    @MethodSource("testOnNextHandling_endStreamArgs")
+    void testOnNextHandling_endStream(final ConnectionMode mode, final boolean shouldHandle) {
+        if (ConnectionMode.STREAMING == mode) {
+            activateConnection();
+        } else if (ConnectionMode.OBSERVING == mode) {
+            createAndActivateObserverConnection();
+        }
+
+        final PublishStreamResponse response = createEndOfStreamResponse(EndOfStream.Code.BAD_BLOCK_PROOF, 10L);
+        connection.onNext(response);
+
+        if (shouldHandle) {
+            verify(metrics).recordResponseReceived(ResponseOneOfType.END_STREAM);
+        } else {
+            verify(metrics, times(0)).recordResponseReceived(any(ResponseOneOfType.class));
+        }
+    }
+
+    static Stream<Arguments> testOnNextHandling_endStreamArgs() {
+        return Stream.of(Arguments.of(ConnectionMode.OBSERVING, true), Arguments.of(ConnectionMode.STREAMING, true));
+    }
+
+    @ParameterizedTest
+    @MethodSource("testOnNextHandling_skipBlockArgs")
+    void testOnNextHandling_skipBlock(final ConnectionMode mode, final boolean shouldHandle) {
+        if (ConnectionMode.STREAMING == mode) {
+            activateConnection();
+        } else if (ConnectionMode.OBSERVING == mode) {
+            createAndActivateObserverConnection();
+        }
+
+        final PublishStreamResponse response = createSkipBlock(10L);
+        connection.onNext(response);
+
+        if (shouldHandle) {
+            verify(metrics).recordResponseReceived(ResponseOneOfType.SKIP_BLOCK);
+        } else {
+            verify(metrics, times(0)).recordResponseReceived(any(ResponseOneOfType.class));
+        }
+    }
+
+    static Stream<Arguments> testOnNextHandling_skipBlockArgs() {
+        return Stream.of(Arguments.of(ConnectionMode.OBSERVING, false), Arguments.of(ConnectionMode.STREAMING, true));
+    }
+
+    @ParameterizedTest
+    @MethodSource("testOnNextHandling_resendBlockArgs")
+    void testOnNextHandling_resendBlock(final ConnectionMode mode, final boolean shouldHandle) {
+        if (ConnectionMode.STREAMING == mode) {
+            activateConnection();
+        } else if (ConnectionMode.OBSERVING == mode) {
+            createAndActivateObserverConnection();
+        }
+
+        final PublishStreamResponse response = createResendBlock(10L);
+        connection.onNext(response);
+
+        if (shouldHandle) {
+            verify(metrics).recordResponseReceived(ResponseOneOfType.RESEND_BLOCK);
+        } else {
+            verify(metrics, times(0)).recordResponseReceived(any(ResponseOneOfType.class));
+        }
+    }
+
+    static Stream<Arguments> testOnNextHandling_resendBlockArgs() {
+        return Stream.of(Arguments.of(ConnectionMode.OBSERVING, false), Arguments.of(ConnectionMode.STREAMING, true));
+    }
+
+    @ParameterizedTest
+    @MethodSource("testOnNextHandling_nodeBehindPublisherArgs")
+    void testOnNextHandling_nodeBehindPublisherBlock(final ConnectionMode mode, final boolean shouldHandle) {
+        if (ConnectionMode.STREAMING == mode) {
+            activateConnection();
+        } else if (ConnectionMode.OBSERVING == mode) {
+            createAndActivateObserverConnection();
+        }
+
+        final PublishStreamResponse response = createBlockNodeBehindResponse(10L);
+        connection.onNext(response);
+
+        if (shouldHandle) {
+            verify(metrics).recordResponseReceived(ResponseOneOfType.NODE_BEHIND_PUBLISHER);
+        } else {
+            verify(metrics, times(0)).recordResponseReceived(any(ResponseOneOfType.class));
+        }
+    }
+
+    static Stream<Arguments> testOnNextHandling_nodeBehindPublisherArgs() {
+        return Stream.of(Arguments.of(ConnectionMode.OBSERVING, false), Arguments.of(ConnectionMode.STREAMING, true));
+    }
+
+    @ParameterizedTest
+    @MethodSource("testOnNextHandling_unknownArgs")
+    void testOnNextHandling_unknownBlock(final ConnectionMode mode, final boolean shouldHandle) {
+        if (ConnectionMode.STREAMING == mode) {
+            activateConnection();
+        } else if (ConnectionMode.OBSERVING == mode) {
+            createAndActivateObserverConnection();
+        }
+
+        final PublishStreamResponse response = new PublishStreamResponse(new OneOf<>(ResponseOneOfType.UNSET, null));
+        connection.onNext(response);
+
+        if (shouldHandle) {
+            verify(metrics).recordUnknownResponseReceived();
+        } else {
+            verify(metrics, times(0)).recordResponseReceived(any(ResponseOneOfType.class));
+            verify(metrics, times(0)).recordUnknownResponseReceived();
+        }
+    }
+
+    static Stream<Arguments> testOnNextHandling_unknownArgs() {
+        return Stream.of(Arguments.of(ConnectionMode.OBSERVING, false), Arguments.of(ConnectionMode.STREAMING, true));
     }
 
     @Test
@@ -1753,6 +1903,7 @@ class BlockNodePublisherConnectionTest extends BlockNodeCommunicationTestBase {
 
         verify(metrics).recordLatestBlockEndOfStream(10L);
         verify(metrics).recordResponseEndOfStreamReceived(Code.ERROR);
+        verify(metrics).recordResponseReceived(ResponseOneOfType.END_STREAM);
         verify(metrics).recordEndOfStreamLimitExceeded();
         verify(metrics).recordConnectionClosed(CloseReason.TOO_MANY_END_STREAM_RESPONSES);
         // Verify EndStream request metrics
@@ -1784,6 +1935,7 @@ class BlockNodePublisherConnectionTest extends BlockNodeCommunicationTestBase {
 
         verify(metrics).recordLatestBlockEndOfStream(Long.MAX_VALUE);
         verify(metrics).recordResponseEndOfStreamReceived(responseCode);
+        verify(metrics).recordResponseReceived(ResponseOneOfType.END_STREAM);
         verify(metrics).recordConnectionClosed(CloseReason.TRANSIENT_END_STREAM_RECEIVED);
         verify(requestCall).completeRequests();
 
