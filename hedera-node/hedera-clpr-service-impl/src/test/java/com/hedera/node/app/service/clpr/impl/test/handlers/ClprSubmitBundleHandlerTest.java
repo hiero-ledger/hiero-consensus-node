@@ -23,6 +23,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.notNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.lenient;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -93,6 +94,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -812,6 +815,7 @@ class ClprSubmitBundleHandlerTest {
             putChannel(ClprChannelStatus.ACTIVE, 2, 0, ZERO_HASH);
             final var bundle = buildBundle(ClprChannelStatus.ACTIVE, 0, 1, ZERO_HASH, List.of(replyPayload(1)));
             setupHandleContext(bundle, true);
+            putConnector();
 
             subject.handle(handleContext);
 
@@ -1185,6 +1189,7 @@ class ClprSubmitBundleHandlerTest {
         putChannel(ClprChannelStatus.ACTIVE, 2, 0, ZERO_HASH);
         final var bundle = buildBundle(ClprChannelStatus.ACTIVE, 0, 1, ZERO_HASH, List.of(replyPayload(1)));
         setupHandleContext(bundle, true);
+        putConnector();
 
         subject.handle(handleContext);
 
@@ -1199,6 +1204,7 @@ class ClprSubmitBundleHandlerTest {
         putChannel(ClprChannelStatus.ACTIVE, 2, 0, ZERO_HASH);
         final var bundle = buildBundle(ClprChannelStatus.ACTIVE, 0, 1, ZERO_HASH, List.of(replyPayload(1)));
         setupHandleContext(bundle, true);
+        putConnector();
 
         // Make dispatch throw — callback is best-effort
         given(handleContext.dispatch(any(DispatchOptions.class)))
@@ -2094,7 +2100,8 @@ class ClprSubmitBundleHandlerTest {
         assertThat(conn.lockedStake()).isEqualTo(100_000_000L);
         assertThat(conn.slashCount()).isEqualTo(0);
 
-        verify(tokenServiceApi, never()).transferFromTo(any(), any(), anyLong());
+        verify(tokenServiceApi).transferFromTo(CONNECTOR_CONTRACT_ACCOUNT, PAYER_ID, WORST_CASE_CHARGE);
+        verify(tokenServiceApi, never()).transferFromTo(eq(STAKING_ACCOUNT), any(), anyLong());
     }
 
     @Test
@@ -2114,7 +2121,8 @@ class ClprSubmitBundleHandlerTest {
         assertThat(conn).isNotNull();
         assertThat(conn.lockedStake()).isEqualTo(100_000_000L);
 
-        verify(tokenServiceApi, never()).transferFromTo(any(), any(), anyLong());
+        verify(tokenServiceApi).transferFromTo(CONNECTOR_CONTRACT_ACCOUNT, PAYER_ID, WORST_CASE_CHARGE);
+        verify(tokenServiceApi, never()).transferFromTo(eq(STAKING_ACCOUNT), any(), anyLong());
     }
 
     @Test
@@ -2189,6 +2197,291 @@ class ClprSubmitBundleHandlerTest {
         final var updatedConnector = connectorStore.getConnector(new ClprConnectorKey(CHANNEL_ID, CONNECTOR_ADDRESS));
         assertThat(updatedConnector).isNotNull();
         assertThat(updatedConnector.inFlightMessageCount()).isEqualTo(1L);
+    }
+
+    @Nested
+    @DisplayName("Response delivery charging")
+    class ResponseCharging {
+        private final ClprConnectorKey connectorKey = new ClprConnectorKey(CHANNEL_ID, CONNECTOR_ADDRESS);
+
+        private TransactionBody setUpResponse(final ClprMessageReplyStatus status) {
+            putChannel(ClprChannelStatus.ACTIVE, 2, 0, ZERO_HASH);
+            putOutboundDataMessage(1);
+            putConnector();
+            connectorStore.put(connectorStore
+                    .getConnector(connectorKey)
+                    .copyBuilder()
+                    .inFlightMessageCount(1)
+                    .build());
+            final var bundle =
+                    buildBundle(ClprChannelStatus.ACTIVE, 0, 1, ZERO_HASH, List.of(replyPayloadWithStatus(1, status)));
+            setupHandleContext(bundle, true);
+            return bundle;
+        }
+
+        private void assertReplyConsumed() {
+            assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1)).isNull();
+            assertThat(messageQueueStore.getMessage(CHANNEL_ID, 2)).isNull();
+            assertThat(connectorStore.getConnector(connectorKey).inFlightMessageCount())
+                    .isZero();
+            final var channel = channelStore.getChannel(CHANNEL_ID);
+            assertThat(channel.status()).isEqualTo(ClprChannelStatus.ACTIVE);
+            assertThat(channel.ackedMessageId()).isEqualTo(1);
+            assertThat(channel.receivedMessageId()).isEqualTo(1);
+            assertThat(channel.receivedRunningHash()).isNotEqualTo(ZERO_HASH);
+        }
+
+        @ParameterizedTest
+        @EnumSource(
+                value = ClprMessageReplyStatus.class,
+                names = {"SUCCESS", "APPLICATION_ERROR"})
+        void debitsBeforeCallbackWithoutSlashing(final ClprMessageReplyStatus status) {
+            setUpResponse(status);
+
+            subject.handle(handleContext);
+
+            final var order = inOrder(tokenServiceApi, handleContext);
+            order.verify(tokenServiceApi).transferFromTo(CONNECTOR_CONTRACT_ACCOUNT, PAYER_ID, WORST_CASE_CHARGE);
+            order.verify(handleContext).dispatch(any(DispatchOptions.class));
+            verify(tokenServiceApi, never()).transferFromTo(eq(STAKING_ACCOUNT), any(), anyLong());
+            assertThat(connectorStore.getConnector(connectorKey).slashCount()).isZero();
+            assertReplyConsumed();
+        }
+
+        @ParameterizedTest
+        @EnumSource(
+                value = ResponseCodeEnum.class,
+                names = {"CONTRACT_REVERT_EXECUTED", "INSUFFICIENT_GAS"})
+        void callbackFailureRetainsChargeAndConsumesReply(final ResponseCodeEnum status) {
+            setUpResponse(ClprMessageReplyStatus.SUCCESS);
+            lenient().when(dispatchResult.status()).thenReturn(status);
+
+            subject.handle(handleContext);
+
+            verify(tokenServiceApi).transferFromTo(CONNECTOR_CONTRACT_ACCOUNT, PAYER_ID, WORST_CASE_CHARGE);
+            verify(handleContext).dispatch(any(DispatchOptions.class));
+            assertThat(connectorStore.getConnector(connectorKey).slashCount()).isZero();
+            assertReplyConsumed();
+        }
+
+        @Test
+        void callbackExceptionRetainsChargeAndConsumesReply() {
+            setUpResponse(ClprMessageReplyStatus.SUCCESS);
+            given(handleContext.dispatch(any(DispatchOptions.class)))
+                    .willThrow(new HandleException(ResponseCodeEnum.CONTRACT_REVERT_EXECUTED));
+
+            subject.handle(handleContext);
+
+            verify(tokenServiceApi).transferFromTo(CONNECTOR_CONTRACT_ACCOUNT, PAYER_ID, WORST_CASE_CHARGE);
+            assertThat(connectorStore.getConnector(connectorKey).slashCount()).isZero();
+            assertReplyConsumed();
+        }
+
+        @ParameterizedTest
+        @EnumSource(
+                value = ClprMessageReplyStatus.class,
+                names = {"CONNECTOR_NOT_FOUND", "CONNECTOR_UNDERFUNDED"})
+        void failureResponseChargesExecutionAndSlashesSeparately(final ClprMessageReplyStatus status) {
+            setUpResponse(status);
+
+            subject.handle(handleContext);
+
+            verify(tokenServiceApi).transferFromTo(CONNECTOR_CONTRACT_ACCOUNT, PAYER_ID, WORST_CASE_CHARGE);
+            verify(tokenServiceApi).transferFromTo(STAKING_ACCOUNT, PAYER_ID, 10_000_000L);
+            assertThat(connectorStore.getConnector(connectorKey).slashCount()).isEqualTo(1);
+            assertReplyConsumed();
+        }
+
+        @ParameterizedTest
+        @EnumSource(
+                value = ClprMessageReplyStatus.class,
+                names = {"SUCCESS", "CONNECTOR_UNDERFUNDED"})
+        void underfundedResponseSkipsCallbackAndSlashesOnlyOnce(final ClprMessageReplyStatus status) {
+            setUpResponse(status);
+            given(accountStore.getContractById(CONNECTOR_CONTRACT_ID))
+                    .willReturn(Account.newBuilder()
+                            .accountId(CONNECTOR_CONTRACT_ACCOUNT)
+                            .tinybarBalance(WORST_CASE_CHARGE - 1)
+                            .build());
+
+            subject.handle(handleContext);
+
+            verify(handleContext, never()).dispatch(any(DispatchOptions.class));
+            verify(tokenServiceApi, never()).transferFromTo(eq(CONNECTOR_CONTRACT_ACCOUNT), any(), anyLong());
+            verify(tokenServiceApi).transferFromTo(STAKING_ACCOUNT, PAYER_ID, 10_000_000L);
+            assertThat(connectorStore.getConnector(connectorKey).slashCount()).isEqualTo(1);
+            assertReplyConsumed();
+        }
+
+        @Test
+        void missingConnectorAccountIsUnderfunded() {
+            setUpResponse(ClprMessageReplyStatus.SUCCESS);
+            given(accountStore.getContractById(CONNECTOR_CONTRACT_ID)).willReturn(null);
+
+            subject.handle(handleContext);
+
+            verify(handleContext, never()).dispatch(any(DispatchOptions.class));
+            verify(tokenServiceApi).transferFromTo(STAKING_ACCOUNT, PAYER_ID, 10_000_000L);
+            assertReplyConsumed();
+        }
+
+        @Test
+        void missingConnectorSkipsCallbackAndConsumesReply() {
+            setUpResponse(ClprMessageReplyStatus.SUCCESS);
+            connectorStore.remove(connectorKey);
+
+            subject.handle(handleContext);
+
+            verify(handleContext, never()).dispatch(any(DispatchOptions.class));
+            verify(tokenServiceApi, never()).transferFromTo(any(), any(), anyLong());
+            assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1)).isNull();
+            assertThat(channelStore.getChannel(CHANNEL_ID).receivedMessageId()).isEqualTo(1);
+            assertThat(channelStore.getChannel(CHANNEL_ID).status()).isEqualTo(ClprChannelStatus.ACTIVE);
+        }
+
+        @Test
+        void noSenderConsumesReplyWithoutExecutionCharge() {
+            setUpResponse(ClprMessageReplyStatus.SUCCESS);
+            putOutboundSlot(
+                    1,
+                    ClprMessagePayload.newBuilder()
+                            .message(dataPayload()
+                                    .messageOrThrow()
+                                    .copyBuilder()
+                                    .sender(Bytes.EMPTY)
+                                    .build())
+                            .build());
+
+            subject.handle(handleContext);
+
+            verify(handleContext, never()).dispatch(any(DispatchOptions.class));
+            verify(tokenServiceApi, never()).transferFromTo(any(), any(), anyLong());
+            assertReplyConsumed();
+        }
+
+        @Test
+        void mixedBundleChargesBothDeliveriesDespiteResponseCallbackFailure() {
+            setUpResponse(ClprMessageReplyStatus.SUCCESS);
+            setupHandleContext(
+                    buildBundle(ClprChannelStatus.ACTIVE, 0, 1, ZERO_HASH, List.of(replyPayload(1), dataPayload())),
+                    true);
+            given(handleContext.dispatch(any(DispatchOptions.class)))
+                    .willThrow(new HandleException(ResponseCodeEnum.CONTRACT_REVERT_EXECUTED))
+                    .willReturn(dispatchResult);
+
+            subject.handle(handleContext);
+
+            verify(tokenServiceApi, times(2)).transferFromTo(CONNECTOR_CONTRACT_ACCOUNT, PAYER_ID, WORST_CASE_CHARGE);
+            verify(handleContext, times(2)).dispatch(any(DispatchOptions.class));
+            assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1)).isNull();
+            assertThat(messageQueueStore
+                            .getMessage(CHANNEL_ID, 2)
+                            .payload()
+                            .messageReplyOrThrow()
+                            .status())
+                    .isEqualTo(ClprMessageReplyStatus.SUCCESS);
+            assertThat(channelStore.getChannel(CHANNEL_ID).receivedMessageId()).isEqualTo(2);
+        }
+
+        @Test
+        void underfundedResponseDoesNotBlockAnotherConnectorsData() {
+            setUpResponse(ClprMessageReplyStatus.SUCCESS);
+            given(accountStore.getContractById(CONNECTOR_CONTRACT_ID))
+                    .willReturn(Account.newBuilder()
+                            .accountId(CONNECTOR_CONTRACT_ACCOUNT)
+                            .tinybarBalance(0)
+                            .build());
+            final var otherConnectorId = Bytes.wrap(new byte[] {90});
+            final var otherContractId =
+                    ContractID.newBuilder().contractNum(8889).build();
+            final var otherAccountId = AccountID.newBuilder().accountNum(8889).build();
+            connectorStore.put(ClprConnector.newBuilder()
+                    .channelId(CHANNEL_ID)
+                    .connectorId(otherConnectorId)
+                    .connectorContract(otherContractId)
+                    .build());
+            given(accountStore.getContractById(otherContractId))
+                    .willReturn(Account.newBuilder()
+                            .accountId(otherAccountId)
+                            .tinybarBalance(WORST_CASE_CHARGE)
+                            .build());
+            final var otherData = ClprMessagePayload.newBuilder()
+                    .message(dataPayload()
+                            .messageOrThrow()
+                            .copyBuilder()
+                            .connectorId(otherConnectorId)
+                            .build())
+                    .build();
+            setupHandleContext(
+                    buildBundle(ClprChannelStatus.ACTIVE, 0, 1, ZERO_HASH, List.of(replyPayload(1), otherData)), true);
+
+            subject.handle(handleContext);
+
+            verify(handleContext).dispatch(any(DispatchOptions.class));
+            verify(tokenServiceApi).transferFromTo(otherAccountId, PAYER_ID, WORST_CASE_CHARGE);
+            verify(tokenServiceApi).transferFromTo(STAKING_ACCOUNT, PAYER_ID, 10_000_000L);
+            verify(tokenServiceApi, never()).transferFromTo(eq(CONNECTOR_CONTRACT_ACCOUNT), any(), anyLong());
+            assertThat(connectorStore.getConnector(connectorKey).inFlightMessageCount())
+                    .isZero();
+            assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1)).isNull();
+            assertThat(messageQueueStore
+                            .getMessage(CHANNEL_ID, 2)
+                            .payload()
+                            .messageReplyOrThrow()
+                            .status())
+                    .isEqualTo(ClprMessageReplyStatus.SUCCESS);
+            assertThat(channelStore.getChannel(CHANNEL_ID).receivedMessageId()).isEqualTo(2);
+        }
+
+        @Test
+        void rechecksBalanceForEachResponseAndPreservesCallbackStateChanges() {
+            setUpResponse(ClprMessageReplyStatus.SUCCESS);
+            putOutboundDataMessage(2);
+            putChannel(ClprChannelStatus.ACTIVE, 3, 0, ZERO_HASH);
+            setupHandleContext(
+                    buildBundle(ClprChannelStatus.ACTIVE, 0, 2, ZERO_HASH, List.of(replyPayload(1), replyPayload(2))),
+                    true);
+            given(accountStore.getContractById(CONNECTOR_CONTRACT_ID))
+                    .willReturn(Account.newBuilder()
+                            .accountId(CONNECTOR_CONTRACT_ACCOUNT)
+                            .tinybarBalance(WORST_CASE_CHARGE)
+                            .build())
+                    .willReturn(Account.newBuilder()
+                            .accountId(CONNECTOR_CONTRACT_ACCOUNT)
+                            .tinybarBalance(0)
+                            .build());
+            given(handleContext.dispatch(any(DispatchOptions.class))).willAnswer(invocation -> {
+                // Model a nested send: the first callback leaves three messages in flight.
+                verify(tokenServiceApi).transferFromTo(CONNECTOR_CONTRACT_ACCOUNT, PAYER_ID, WORST_CASE_CHARGE);
+                connectorStore.put(connectorStore
+                        .getConnector(connectorKey)
+                        .copyBuilder()
+                        .inFlightMessageCount(3)
+                        .build());
+                return dispatchResult;
+            });
+
+            subject.handle(handleContext);
+
+            verify(handleContext).dispatch(any(DispatchOptions.class));
+            verify(tokenServiceApi).transferFromTo(CONNECTOR_CONTRACT_ACCOUNT, PAYER_ID, WORST_CASE_CHARGE);
+            assertThat(connectorStore.getConnector(connectorKey).inFlightMessageCount())
+                    .isEqualTo(1);
+            assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1)).isNull();
+            assertThat(messageQueueStore.getMessage(CHANNEL_ID, 2)).isNull();
+            assertThat(channelStore.getChannel(CHANNEL_ID).receivedMessageId()).isEqualTo(2);
+        }
+
+        @Test
+        void replayDoesNotChargeOrDispatchAgain() {
+            setUpResponse(ClprMessageReplyStatus.SUCCESS);
+            subject.handle(handleContext);
+
+            subject.handle(handleContext);
+
+            verify(tokenServiceApi).transferFromTo(CONNECTOR_CONTRACT_ACCOUNT, PAYER_ID, WORST_CASE_CHARGE);
+            verify(handleContext).dispatch(any(DispatchOptions.class));
+        }
     }
 
     // ========== C-2: CEI ordering — connector debit before dispatch ==========
