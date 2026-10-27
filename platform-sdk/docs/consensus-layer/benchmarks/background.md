@@ -6,11 +6,11 @@ last_reviewed: TBD
 
 # Background for Benchmarks
 
-The terms, mechanics, and tools that the other files of this guide and the developer scripts in
-[`consensus-benchmark-tools/scripts/`](../../../consensus-benchmark-tools/scripts) take for granted, for a Java
-developer who has not used JMH, the JIT compiler, or a profiler. Each section says what a thing is, why it matters for
-a benchmark, and where the guide uses it. The rules are in [writing.md](writing.md), [calibration.md](calibration.md),
-and [operations.md](operations.md).
+This file explains the terms, mechanics, and tools that the other files of this guide and the developer scripts in
+[`consensus-benchmark-tools/scripts/`](../../../consensus-benchmark-tools/scripts) take for granted. It is written for
+a Java developer who has not used JMH, the JIT compiler, or a profiler. Each section says what a thing is, why it
+matters for a benchmark, and where the guide uses it. The rules are in [writing.md](writing.md),
+[calibration.md](calibration.md), and [operations.md](operations.md).
 
 Facts about this repository link to its classes and scripts. Facts about JMH and the HotSpot JVM link to their own
 documentation: the [JMH samples](https://github.com/openjdk/jmh/tree/1.37/jmh-samples/src/main/java/org/openjdk/jmh/samples)
@@ -19,8 +19,8 @@ and JMH's Javadoc, and the JDK 25 documentation, mainly of the
 there is a source, not a request to set the option.
 
 This file does not explain Gradle, GitHub Actions, Kubernetes, or Grafana. The parts of
-[operations.md](operations.md) on the machine's setup, the build logic, and the workflows assume them;
-[the infrastructure](#the-infrastructure) names only what a benchmark author meets.
+[operations.md](operations.md) on the machine's setup, the build logic, and the workflows assume them. The section
+[The infrastructure](#the-infrastructure) names only what a benchmark author meets.
 
 ## JMH
 
@@ -36,7 +36,7 @@ results.
 - **JMH calls it on threads of its own, the benchmark threads:** one by default, more with `@Threads` or `-t`
   ([`Defaults`](https://github.com/openjdk/jmh/blob/1.37/jmh-core/src/main/java/org/openjdk/jmh/runner/Defaults.java),
   `THREADS`).
-- **An operation is the unit that JMH's results are per.** By default, it is one invocation.
+- **JMH reports its results per operation.** By default, an operation is one invocation.
   `@OperationsPerInvocation(n)` says that one invocation performs n operations, and JMH divides the time by n
   ([`OperationsPerInvocation`](https://github.com/openjdk/jmh/blob/1.37/jmh-core/src/main/java/org/openjdk/jmh/annotations/OperationsPerInvocation.java)).
 - In [`ConsensusImplBenchmark`](../../../consensus-hashgraph-impl/src/jmh/java/org/hiero/consensus/hashgraph/ConsensusImplBenchmark.java),
@@ -44,8 +44,8 @@ results.
   `ConsensusImpl#addEvent`. The guide calls such an invocation a pass
   ([writing.md](writing.md#inputs-and-the-measured-region)).
 - **The code under test** is the production code that the benchmark method calls; everything else in the benchmark is
-  there to feed it and to measure it. In this guide, a call is a call of the code under test, one operation; a call of
-  the benchmark method is an invocation.
+  there to feed it and to measure it. In this guide, "a call" means one call of the code under test, that is, one
+  operation; a call of the benchmark method is an invocation.
 
 ### State and setup levels
 
@@ -62,14 +62,14 @@ results.
   [JMHSample_06](https://github.com/openjdk/jmh/blob/1.37/jmh-samples/src/main/java/org/openjdk/jmh/samples/JMHSample_06_FixtureLevel.java)).
 - **The level says how often they run**
   ([`Level`](https://github.com/openjdk/jmh/blob/1.37/jmh-core/src/main/java/org/openjdk/jmh/annotations/Level.java)):
-  - `Level.Trial`: once per trial. A trial is every iteration of one benchmark method with one parameter set in one
+  - `Level.Trial`: once per trial. A trial is all iterations of one benchmark method with one parameter set in one
     fork ([below](#forks-and-iterations)).
   - `Level.Iteration`: before or after every iteration.
   - `Level.Invocation`: before or after every invocation. JMH then has to read the clock around every invocation to
     leave the setup out. Its Javadoc allows this level only for invocations that take more than a millisecond; the
     longer the invocation, the smaller the share of this overhead.
-- **A parameter** is a field annotated with `@Param` and a list of values. JMH runs every combination of the values, a
-  parameter set, as trials of its own; `-p name=value` chooses the values on the command line
+- **A parameter** is a field annotated with `@Param` and a list of values. Each combination of the values is a
+  parameter set, which JMH runs in trials of its own; `-p name=value` chooses the values on the command line
   ([JMHSample_27](https://github.com/openjdk/jmh/blob/1.37/jmh-samples/src/main/java/org/openjdk/jmh/samples/JMHSample_27_Params.java)).
 - **Why it matters:** the level decides what the measured calls see. Data made in a trial setup is the same in every
   iteration of a fork; data that the code under test changes needs fresh copies for every invocation
@@ -142,8 +142,8 @@ results.
 - **The JIT compiler removes computations whose results nobody uses** (dead-code elimination), so a benchmark can end
   up measuring nothing
   ([JMHSample_08](https://github.com/openjdk/jmh/blob/1.37/jmh-samples/src/main/java/org/openjdk/jmh/samples/JMHSample_08_DeadCode.java)).
-- **A `Blackhole` uses a value in a way the compiler cannot see through.** The benchmark method returns its result, or
-  passes it to `Blackhole#consume`
+- **A `Blackhole` uses a value in a way the compiler cannot see through.** The benchmark method either returns its
+  result, which JMH then passes to a blackhole, or passes the result to `Blackhole#consume` itself
   ([JMHSample_09](https://github.com/openjdk/jmh/blob/1.37/jmh-samples/src/main/java/org/openjdk/jmh/samples/JMHSample_09_Blackholes.java)).
   `ConsensusImplBenchmark#calculateConsensus` consumes the rounds of every call.
 - **The output check is a different guard:** it catches code under test that does nothing because of a bug, which no
@@ -151,10 +151,12 @@ results.
 
 ### Profilers
 
-- **A JMH profiler runs next to the benchmark and adds results** below the primary score, its secondary results.
-  `-prof <name>` turns one on, `-lprof` lists them, and `-prof <name>:help` shows their options
+- **A JMH profiler runs next to the benchmark and adds results of its own,** the secondary results, which JMH prints
+  below the primary score. `-prof <name>` turns one on, `-lprof` lists them, and `-prof <name>:help` shows their
+  options
   ([JMHSample_35](https://github.com/openjdk/jmh/blob/1.37/jmh-samples/src/main/java/org/openjdk/jmh/samples/JMHSample_35_Profilers.java)).
-  - `-prof gc` adds the allocation per operation (`gc.alloc.rate.norm`) and the garbage collections. It counts all
+  - `-prof gc` adds the allocation per operation (`gc.alloc.rate.norm`) and the number and time of the garbage
+    collections. It counts all
     allocation of the iteration, the setup included ([writing.md](writing.md#allocation-and-garbage-collection)).
   - `-prof async` runs [async-profiler](#async-profiler).
 - **`@AuxCounters` is JMH's other way to add results:** it marks a state class whose public fields JMH reports as
@@ -164,7 +166,7 @@ results.
 - **A custom profiler is a class that implements JMH's `InternalProfiler`,** passed with
   `-prof <fully qualified class name>`. JMH calls it before and after every iteration.
   [`LatencyProfiler`](../../../consensus-benchmark-tools/src/main/java/org/hiero/consensus/benchmark/tools/histogram/LatencyProfiler.java)
-  is one; its Javadoc describes how it works, and [writing.md](writing.md#custom-profilers) the rules for such
+  is one; its Javadoc describes how it works, and [writing.md](writing.md#custom-profilers) gives the rules for such
   profilers.
 
 ### The results
@@ -174,13 +176,13 @@ results.
   - `primaryMetric`: the primary score, its `scoreError`, and `rawData`, one list per fork with the value of every
     measurement iteration;
   - `secondaryMetrics`: the profilers' results in the same shape, `latency.mean` and `alloc.norm` among them.
-- **JMH combines a secondary result by its aggregation policy:** it averages one with `AggregationPolicy.AVG` and gives
-  it an error margin; it adds up one with `AggregationPolicy.SUM`. The Javadoc of `LatencyProfiler` says which of its
-  results are which.
+- **JMH combines a secondary result over iterations and forks by the result's aggregation policy:** it averages a
+  result with `AggregationPolicy.AVG` and gives it an error margin, and it adds up a result with
+  `AggregationPolicy.SUM`. The Javadoc of `LatencyProfiler` says which of its results use which policy.
 - **On the console,** JMH prints its progress with an estimate of the time left (`# Run progress: … ETA …`), and at
   the end the time the run took (`# Run complete. Total time: …`)
   ([`BaseRunner`](https://github.com/openjdk/jmh/blob/1.37/jmh-core/src/main/java/org/openjdk/jmh/runner/BaseRunner.java)).
-- **Who reads it:** the CI scripts of the nightly run and of calibration
+- **Who reads the JSON:** the CI scripts of the nightly run and of calibration
   ([`run_benchmarks.py`](../../../../.github/workflows/support/scripts/benchmarks/run_benchmarks.py),
   [`analyze_calibration.py`](../../../../.github/workflows/support/scripts/benchmarks/analyze_calibration.py),
   [`publish_results.py`](../../../../.github/workflows/support/scripts/benchmarks/publish_results.py)), and the
@@ -191,15 +193,15 @@ results.
 - **`alloc.norm` is the number of bytes that the measured calls allocate, per operation.**
   [`LatencyRecorder`](../../../consensus-benchmark-tools/src/main/java/org/hiero/consensus/benchmark/tools/histogram/LatencyRecorder.java)
   reads the bytes the benchmark thread has allocated before and after the calls, and `LatencyProfiler` reports them.
-  The counter is `com.sun.management.ThreadMXBean`, in the JDK module `jdk.management`, which the tooling's
+  It reads them from `com.sun.management.ThreadMXBean`, in the JDK module `jdk.management`, which the tooling's
   [`module-info.java`](../../../consensus-benchmark-tools/src/main/java/module-info.java) requires. It is not JMH's
   `gc.alloc.rate.norm`.
 - **Why it matters:** with inputs that are the same in every run, the same compiled code allocates the same bytes per
   call. So, once the warmup is over, `alloc.norm` is the same to the byte in every iteration of a fork, and between
   forks and runs it changes only if the code changed, or the way the JIT compiler compiled it ([below](#fork-modes)).
-- **Where:** [writing.md](writing.md#allocation-and-garbage-collection) measures it,
-  [calibration.md](calibration.md#fork-modes) detects fork modes by it, and [operations.md](operations.md#alerts)
-  alerts on it.
+- **Where:** [writing.md](writing.md#allocation-and-garbage-collection) says how to measure it,
+  [calibration.md](calibration.md#fork-modes) how to detect fork modes by it, and [operations.md](operations.md#alerts)
+  how to alert on it.
 
 ## The JVM at run time
 
@@ -230,7 +232,8 @@ JVM options of the form `-XX:+Name` turn an option on, `-XX:-Name` turn it off, 
 - **Why it matters:** the first seconds of a fork run slower code, which is why a fork needs a warmup
   ([calibration.md](calibration.md#the-analysis)). What the measurement times is mostly C2 code. The speed can keep
   changing after the hot methods have C2 code: compilations are discarded and redone ([below](#discarded-compilations)),
-  and G1 adapts its young generation ([below](#allocation-and-garbage-collection)). Calibration finds where it stops.
+  and G1 adapts its young generation ([below](#allocation-and-garbage-collection)). Calibration finds when the
+  changes stop.
 
 ### Inlining and its limits
 
@@ -257,7 +260,7 @@ JVM options of the form `-XX:+Name` turn an option on, `-XX:-Name` turn it off, 
     `c2_globals.hpp`). Each level copies the whole body, so a large recursive method brings its compilation close to
     the cutoff. A method that holds only a small part of the work, such as a cache lookup, stays small when inlined
     into itself; the rest, in a method of its own, is called instead of copied once it has big C2 code.
-- **The compile log gives the reason of every decision** ([below](#the-compile-log)), for example "too big", "hot
+- **The compile log gives the reason for every decision** ([below](#the-compile-log)), for example "too big", "hot
   method too big", "already compiled into a big method", or "NodeCountInliningCutoff".
 - **Why it matters:** one inlining decision can decide whether an allocation stays, and how fast the code runs.
   [calibration.md](calibration.md#fork-modes) traces fork modes to such decisions.
@@ -296,16 +299,16 @@ JVM options of the form `-XX:+Name` turn an option on, `-XX:-Name` turn it off, 
   in every fork with the same inputs. But compilation runs in the background, so some decisions depend on timing: for
   example, whether a called method already has C2 code larger than `InlineSmallCode` depends on which compiler thread
   finished first.
-- **A fork mode is one such outcome.** Forks in different modes allocate a different `alloc.norm` and run at different
-  speeds. [calibration.md](calibration.md#fork-modes) describes how to detect, explain, and handle them; the scripts
-  `fork-modes.sh`, `alloc-sites.py`, and `inline-tree.py` do the work ([below](#which-script-reads-what)).
+- **A fork mode is one such outcome.** Forks in different modes have different `alloc.norm` values and run at
+  different speeds. [calibration.md](calibration.md#fork-modes) describes how to detect, explain, and handle them;
+  the scripts `fork-modes.sh`, `alloc-sites.py`, and `inline-tree.py` do the work ([below](#which-script-reads-what)).
 - **Two benchmarks in one JVM can also change each other's compiled code,** which is why JMH forks
   ([JMHSample_12](https://github.com/openjdk/jmh/blob/1.37/jmh-samples/src/main/java/org/openjdk/jmh/samples/JMHSample_12_Forking.java)).
 - **How many forks show a mode:** a mode that a share p of the forks get is missing from n forks with the probability
   (1 − p)ⁿ. For p = 0.2, that is 11% with 10 forks and 1% with 20.
-- **How much a mode mix adds to the noise:** whether a fork lands in a mode is a yes-or-no outcome with the share p,
-  whose standard deviation is √(p(1 − p)). Times the speed difference between the modes, that is what the mix adds to
-  the CV of a fork ([below](#the-coefficient-of-variation)).
+- **How much a mode mix adds to the noise:** whether a fork lands in a mode is a yes-or-no outcome with probability
+  p, whose standard deviation is √(p(1 − p)). The mix adds this standard deviation, times the speed difference between
+  the modes, to the CV of a fork ([below](#the-coefficient-of-variation)).
 
 ### Allocation and garbage collection
 
@@ -328,8 +331,8 @@ JVM options of the form `-XX:+Name` turn an option on, `-XX:-Name` turn it off, 
   `-Xms` is the initial heap size, `-Xmx` the maximum; `-XX:+AlwaysPreTouch` makes the JVM touch every page of the heap
   at start, instead of on first use. Between `-Xms` and `-Xmx`, G1 grows and shrinks the heap while the program runs
   ([Java heap sizing](https://docs.oracle.com/en/java/javase/25/gctuning/garbage-first-g1-garbage-collector1.html#GUID-3F6AE9BA-32AF-4C36-B8C0-721EE45D17A7));
-  with both equal, the heap has a fixed size. With both options, neither a resize of the heap nor the first use of a
-  page falls into the measured calls.
+  with both equal, the heap has a fixed size. With `-Xms` equal to `-Xmx` and `-XX:+AlwaysPreTouch`, neither a resize
+  of the heap nor the first use of a page falls into the measured calls.
 - **`System.gc()` asks the JVM to collect now**
   ([`System#gc`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/System.html#gc%28%29)). By
   default, the JVM processes every such call (the entry for `-XX:+DisableExplicitGC` in the GC options).
@@ -364,7 +367,7 @@ JVM options of the form `-XX:+Name` turn an option on, `-XX:-Name` turn it off, 
 - **The count of calls above a percentile varies from run to run by about its square root,** like any count of rare
   events: about ±10 for 100 calls, about ±1 for one call. With 100 calls above it, the estimate is stable; with one, it
   is chance.
-- **`LatencyProfiler` computes the percentiles of each iteration separately,** so the calls needed are per iteration.
+- **`LatencyProfiler` computes the percentiles of each iteration separately,** so every iteration needs these calls.
   It skips a percentile with too few calls above it ([writing.md](writing.md#reporting)), and calibration sets the
   iteration length for it ([calibration.md](calibration.md#iterations-and-samples)).
 
@@ -386,7 +389,7 @@ JVM options of the form `-XX:+Name` turn an option on, `-XX:-Name` turn it off, 
 - **The components add up as variances,** the squares of their standard deviations, each divided by the count that
   averages it out; a longer iteration averages out more of its own noise. The docstring of `analyze_calibration.py`
   has the formula that predicts the noise of a run this way.
-- **A noise measured from a few values is itself uncertain:** from three or four runs, the noise between runs can come
+- **Noise measured from a few values is itself uncertain:** from three or four runs, the noise between runs can come
   out far too small. Forks and iterations come by the dozen, so their noise is measured much better.
 - **Why it matters:** a regression smaller than the noise cannot be told from chance. The noise sets how many forks
   and iterations a benchmark needs and how small a regression an alert can detect
@@ -404,9 +407,9 @@ JVM options of the form `-XX:+Name` turn an option on, `-XX:-Name` turn it off, 
   interval) it contains the true value. If the noise follows the normal distribution, the 95% interval reaches 1.96
   standard deviations to each side of the value; that reach is its half-width. JMH's `scoreError` is the half-width of
   a 99.9% interval.
-- **How often noise alone goes far:** with normal noise, a value lies more than 2 standard deviations from the mean in
-  about 5% of cases, and more than 3 in about 0.3%, counting both sides. For n independent values in a row, the chance
-  is that share to the power of n.
+- **How often noise alone causes a large deviation:** with normal noise, a value lies more than 2 standard deviations
+  from the mean in about 5% of cases, and more than 3 in about 0.3%, counting both sides. For n independent values in
+  a row, the chance is that share to the power of n.
 - **The calibration block's "expected detectable regression"** is 1.96 times the predicted CV of one run's result: the
   half-width of that result's 95% confidence interval. The difference of two runs, each with its own noise, varies √2
   times as much as one run; the block's number does not include that factor.
@@ -419,8 +422,7 @@ JVM options of the form `-XX:+Name` turn an option on, `-XX:-Name` turn it off, 
 - **Other work on the machine slows a benchmark, even on other cores.** A core can run two threads at once (SMT,
   simultaneous multithreading), which share its execution units and caches; the operating system counts each as a
   CPU. Many cores share the L3 cache, a fast memory on the processor that holds recently used data, and all share the
-  main memory. [operations.md](operations.md#the-benchmark-machine)
-  says what slowed the benchmark machine most.
+  main memory. [operations.md](operations.md#the-benchmark-machine) says what slowed the benchmark machine most.
 - **The benchmark machine is shared,** not dedicated to the benchmarks, so a result counts only if it was measured
   while the machine was quiet ([operations.md](operations.md#quiet-slots)).
 - **Load is counted in CPUs:** one CPU busy all the time is a load of 1 CPU; 0.5 CPU is one CPU busy half the time,
@@ -429,8 +431,8 @@ JVM options of the form `-XX:+Name` turn an option on, `-XX:-Name` turn it off, 
   compiler threads (the entries for `-XX:ActiveProcessorCount` in the
   [runtime options](https://docs.oracle.com/en/java/javase/25/docs/specs/man/java.html#advanced-runtime-options-for-java)
   and for `-XX:CICompilerCount` in the JIT compiler options). In a container, the JVM takes that number from the
-  container (container support, `UseContainerSupport`, on by default, in the runtime options), so it follows the size
-  of the runner's pod ([below](#the-infrastructure)).
+  container (`UseContainerSupport`, on by default, in the runtime options), so it follows the size of the runner's pod
+  ([below](#the-infrastructure)).
 - **So the driver pins the processor count** ([operations.md](operations.md#the-processor-count)). Otherwise a larger
   pod would give the forks more compiler threads, a different timing of their compilations, and possibly different fork
   modes ([above](#fork-modes)).
@@ -442,9 +444,9 @@ JVM options of the form `-XX:+Name` turn an option on, `-XX:-Name` turn it off, 
 - **async-profiler is a sampling profiler for the JVM:** many times a second, it records the call stack of each
   running thread, Java, JVM, and native frames alike
   ([CPU profiling](https://github.com/async-profiler/async-profiler/blob/v4.2/docs/ProfilingModes.md#cpu-profiling)).
-  A method's share of the samples is its share of the CPU time: its own time in the samples where it is the innermost
-  frame, its total time, its callees included, in all samples whose stack contains it. The garbage collector's and the
-  JIT compiler's threads show up too. Download a release from its
+  A method's share of the samples is its share of the CPU time. Its own time is its share of the samples in which it is
+  the innermost frame; its total time, its callees included, is its share of the samples whose stack contains it. The
+  garbage collector's and the JIT compiler's threads show up too. Download a release from its
   [GitHub page](https://github.com/async-profiler/async-profiler).
 - **Two modes matter here** (`event=` in JMH's `-prof async`):
   - `cpu`: where the CPU time goes;
@@ -458,8 +460,8 @@ JVM options of the form `-XX:+Name` turn an option on, `-XX:-Name` turn it off, 
   passes options to async-profiler itself. `-prof async:help` lists them all
   ([`AsyncProfiler`](https://github.com/openjdk/jmh/blob/1.37/jmh-core/src/main/java/org/openjdk/jmh/profile/AsyncProfiler.java)).
 - **A CPU profile shows little of waiting.** A thread that waits uses no CPU, so the profile shows only the CPU time
-  around the wait, in frames such as `Unsafe.park` or a lock's; `profile-regions.sh` counts those frames. Wall-clock
-  mode (`event=wall`) samples every thread, running or waiting
+  around the wait, in frames such as `Unsafe.park` or those of a lock; `profile-regions.sh` counts those frames.
+  Wall-clock mode (`event=wall`) samples every thread, running or waiting
   ([wall-clock profiling](https://github.com/async-profiler/async-profiler/blob/v4.2/docs/ProfilingModes.md#wall-clock-profiling)).
 - **`-XX:+DebugNonSafepoints` makes the stacks accurate.** Without it, small inlined methods are often missing from the
   profile
@@ -528,7 +530,7 @@ script's header gives its usage, and the
 
 ## The infrastructure
 
-The pieces of the pipeline ([README.md](README.md#the-pipeline)) that a benchmark author meets.
+This section names the pieces of the pipeline ([README.md](README.md#the-pipeline)) that a benchmark author meets.
 
 - **The benchmark jar,** `<module>-<version>-jmh-merged.jar` in the module's `build/libs`, holds the benchmarks, the
   classes they need, and JMH as its main class, so that `java -jar` runs it alone. Its task,
