@@ -1,12 +1,14 @@
 # Benchmarks
 
 Conventions for the JMH benchmarks of the consensus layer's modules: how to write one, calibrate it on the benchmark
-machine, and track it every night. They apply to every benchmark in a module's `src/jmh` source set.
+machine, and track it every night. They apply to every benchmark in a module's `src/jmh` source set. Readers new to
+JMH, the JIT compiler, or profiling start with [background.md](background.md).
 
 ## Index
 
 |               File               |    Topic    |                                          Summary                                          |
 |----------------------------------|-------------|-------------------------------------------------------------------------------------------|
+| [background.md](background.md)   | Background  | JMH, the JIT compiler, latency statistics, and the profilers that the other files assume. |
 | [writing.md](writing.md)         | Writing     | Module setup, inputs, latency and allocation measurement, profilers, profiling.           |
 | [calibration.md](calibration.md) | Calibration | The calibration run and its analysis, forks and iterations, fork modes, heap, the record. |
 | [operations.md](operations.md)   | Operations  | Tracking, the smoke run, the nightly run, the benchmark machine, publishing, alerts.      |
@@ -15,6 +17,8 @@ The shared Java tooling is described in the [`consensus-benchmark-tools` README]
 which also lists the developer scripts.
 
 ## The pipeline
+
+The workflows, the driver, and the stores are introduced in [background.md](background.md#the-infrastructure).
 
 ```
 writing.md       benchmark class in src/jmh

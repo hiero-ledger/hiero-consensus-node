@@ -23,9 +23,9 @@ the benchmark machine, the results in Grafana, and an alert.
   `-PjmhTests=<pattern>` with `includes.add(...)`. With `convention`, the pattern replaces the module's list; with
   `add`, both would run.
 - **Commands,** from the repository root:
-  - `./gradlew :<module>:jmh` runs the tracked benchmarks with JSON output and the profilers; `-PjmhTests=<pattern>`
-    runs others instead. Name the module: without a module path, `-PjmhTests` fails in every module that has no
-    matching benchmark.
+  - `./gradlew :<module>:jmh` runs the tracked benchmarks with [JSON output](background.md#the-results) and the
+    [profilers](background.md#profilers); `-PjmhTests=<pattern>` runs others instead. Name the module: without a
+    module path, `-PjmhTests` fails in every module that has no matching benchmark.
   - `./gradlew :<module>:jmhSmoke` is the smoke run.
   - `./gradlew jmhTracked` builds the jars and writes the manifests that the nightly run reads.
 
@@ -35,8 +35,9 @@ Compiling the jmh source sets catches compile errors only. It does not catch han
 in packaging the benchmark jar, such as missing service registrations, or a benchmark whose output no longer passes its
 check.
 
-- **`jmhSmoke` runs every benchmark of the module once, briefly, from the packaged jar:** one fork, no warmup, one
-  short iteration. Running the jar catches packaging problems too.
+- **`jmhSmoke` runs every benchmark of the module once, briefly, from the packaged jar:** one
+  [fork](background.md#forks-and-iterations), no warmup, one short iteration. Running the jar catches packaging
+  problems too.
 - **One heap for all benchmarks.** `benchmarkTracking { smokeJvmArgs }` replaces every benchmark's `jvmArgsAppend`, so
   one value limits the memory of all benchmarks in the jar.
 - **One parameter set for an expensive setup.** `benchmarkTracking { smokeArgs }` passes, for example, `-p` with one
@@ -98,8 +99,8 @@ tracked benchmark on the benchmark machine and publishes the results.
 - **Set the time limit from measured times.** The job summary shows the minutes per attempt and in total, and
   `publish_results.py` publishes `jmh_run_seconds`. The job's `timeout-minutes` covers the run times of all benchmarks
   with their repeats, the driver's deadline, and the build.
-- **Code that reads the JSON must accept `"NaN"`.** JMH writes `scoreError` as the string `"NaN"` when there are too
-  few iterations for an error margin, as in a smoke run.
+- **Code that reads the JSON must accept `"NaN"`.** JMH writes [`scoreError`](background.md#modes-and-the-primary-score)
+  as the string `"NaN"` when there are too few iterations for an error margin, as in a smoke run.
 
 ## The benchmark machine
 
@@ -112,8 +113,8 @@ tracked benchmark on the benchmark machine and publishes the results.
   time a run waits for a running calibration counts toward the 24 hours.
 - **Kubernetes' "Guaranteed" class reserves CPU time, not cores.** A pod whose CPU requests equal its limits gets its
   share of CPU time without being slowed down, but it can still run on any CPU of the machine. Other pods then run on
-  the second hardware thread (SMT) of its cores and share its L3 cache. `cpuset.cpus.effective` shows which CPUs a pod
-  may use; cores of its own need Kubernetes' static CPU manager policy.
+  the second hardware thread ([SMT](background.md#the-benchmark-machine)) of its cores and share its L3 cache.
+  `cpuset.cpus.effective` shows which CPUs a pod may use; cores of its own need Kubernetes' static CPU manager policy.
 - **Cores of its own are not enough on a busy machine.** Other work on the second hardware thread of the benchmark's
   core or on its L3 cache slows the benchmark most, but work anywhere on the machine still slows it, probably through
   the shared memory. A benchmark that follows references through more data than the L3 cache holds needs a quiet
@@ -149,16 +150,16 @@ tracked benchmark on the benchmark machine and publishes the results.
 ### The processor count
 
 - **The driver fixes the number of processors that the forked JVMs see** (`--active-processors`, passed as
-  `-XX:ActiveProcessorCount` with `-jvmArgsPrepend`). Otherwise the JVMs size their garbage collector and compiler
-  threads by the size of the runner's pod.
+  `-XX:ActiveProcessorCount` with `-jvmArgsPrepend`). Otherwise the JVMs size their garbage collector and
+  [compiler threads](background.md#interpreter-c1-and-c2) by the size of the runner's pod.
 - **`-XX:ActiveProcessorCount` changes only the JVM's own threads; no thread pool of the consensus layer depends on
   it.** The wiring framework's default pool has `defaultPoolMultiplier` × processors + `defaultPoolConstant` threads
   ([`WiringConfig`](../../../consensus-wiring-framework/src/main/java/org/hiero/consensus/wiring/framework/WiringConfig.java)),
   which is 8 with the defaults on any machine. The benchmarks set the size of their pools themselves.
 - **The number is 12.** It is enough for the most parallel benchmarks expected, event intake and the pipeline of a
-  single node, with about 12 busy threads. On JDK 25 the JVM then starts 4 C2 compiler threads, as with 8 to 12
-  processors; with 16 processors it starts 12, with 44 it starts 15. The timing of the compiler threads can decide a
-  fork's mode ([calibration.md](calibration.md#fork-modes)).
+  single node, with about 12 busy threads. On JDK 25 the JVM then starts 4 compiler threads (1 C1 and 3 C2), as with
+  8 to 15 processors; with 16 processors it starts 12, with 44 it starts 15. The timing of the compiler threads can
+  decide a fork's mode ([calibration.md](calibration.md#fork-modes)).
 - **A benchmark that needs more processors says so.** The number then changes for all benchmarks, which is a baseline
   break.
 
@@ -201,20 +202,22 @@ run.
 
 **Not set up yet.** The alert rule follows once the nightly history is long enough. These principles hold for it:
 
-- **Every regression is a mistake, so only the noise sets the threshold.** The threshold is the smallest change that
-  stands out from the differences between the benchmark's nightly runs without frequent false alerts.
+- **Every regression is a mistake, so only the [noise](background.md#noise-and-its-three-components) sets the
+  threshold.** The threshold is the smallest change that stands out from the differences between the benchmark's
+  nightly runs without frequent false alerts.
 - **The noise comes from the nightly history on the benchmark machine,** not from calibration
   ([calibration.md](calibration.md#the-noise-between-runs)). Each benchmark gets its own threshold.
 - **Plan the rate of false alerts for all benchmarks together.** Many series that each raise a false alert rarely
   still add up to frequent false alerts.
 - **Requiring several nights to agree lowers the noise** and allows a tighter threshold, but detects a regression a few
-  nights later. Options: a Grafana alert on "N nights in a row more than k standard deviations off", or change-point
-  detection in the nightly job, which finds the night where a series shifts (for example
-  [Apache Otava](https://otava.apache.org/)) and publishes a metric that a plain Grafana threshold watches.
-- **Alerts start with the values that vary least:** `latency.mean`, p50, and p90. p99.99 and max stay on the dashboard
-  only, until the history shows them stable.
-- **`alloc.norm` hardly varies,** and a rise in it is an early sign that garbage collection will make the slow calls
-  slower.
+  nights later. Options: a Grafana alert on "N nights in a row more than k
+  [standard deviations](background.md#the-coefficient-of-variation) off", or change-point detection in the nightly
+  job, which finds the night where a series shifts (for example [Apache Otava](https://otava.apache.org/)) and
+  publishes a metric that a plain Grafana threshold watches.
+- **Alerts start with the values that vary least:** `latency.mean`, [p50, and p90](background.md#mean-and-percentiles).
+  p99.99 and max stay on the dashboard only, until the history shows them stable.
+- **[`alloc.norm`](background.md#allocnorm) hardly varies,** and a rise in it is an early sign that garbage collection
+  will make the slow calls slower.
 - **If a threshold is too loose, reduce the noise:** more forks, longer measurement, a quieter machine, or a job that
   measures the previous and the current commit alternately.
 - **A baseline break restarts the history** ([above](#baseline-breaks)).

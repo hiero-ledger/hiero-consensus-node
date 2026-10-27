@@ -6,8 +6,9 @@ last_reviewed: TBD
 
 # Calibrating a Benchmark
 
-How to choose a benchmark's number of forks (`@Fork`), warmup (`@Warmup`), measurement iterations (`@Measurement`),
-and heap, and how to record the choice. Choose them on the benchmark machine: values found elsewhere, such as on a
+How to choose a benchmark's number of [forks](background.md#forks-and-iterations) (`@Fork`), warmup (`@Warmup`),
+measurement iterations (`@Measurement`), and [heap](background.md#allocation-and-garbage-collection), and how to record
+the choice. Choose them on the benchmark machine: values found elsewhere, such as on a
 laptop, do not carry over.
 
 The examples come from
@@ -44,11 +45,11 @@ docstring describes the method.
 - **The warmup ends where the scores stop drifting in one direction.** The script looks for this point over all forks
   of all runs together: in a single run, a change in the machine's load can look like a warmup that has not finished.
   `--warmup` overrides a detected value that looks wrong.
-- **The script splits the noise into three parts:** how much the iterations of one fork differ, how much the forks of
-  one run differ, and how much whole runs differ. No number of forks or iterations reduces the differences between
-  whole runs.
+- **The script splits the [noise](background.md#noise-and-its-three-components) into three parts:** how much the
+  iterations of one fork differ, how much the forks of one run differ, and how much whole runs differ. No number of
+  forks or iterations reduces the differences between whole runs.
 - **From these parts, it predicts the noise of a run** for any number of forks, iterations, and iteration length, and
-  recommends the cheapest configuration that reaches the target, with a margin.
+  recommends the cheapest configuration that reaches the target noise (`--target`), with a margin.
 - **Analyze results measured in different ways in separate calls:** calibration runs, nightly runs, and laptop runs.
 
 ## Choosing the configuration
@@ -56,7 +57,8 @@ docstring describes the method.
 ### Iterations and samples
 
 - **Each iteration records enough calls for the highest reported percentile.** p99.99 is the time that only 0.01% of
-  the calls exceed. With about 10⁶ calls per iteration, it rests on the 100 slowest calls (the script's `--samples`).
+  the calls exceed. With about 10⁶ calls per iteration (the script's `--samples`), it
+  [rests on the 100 slowest calls](background.md#why-p9999-needs-about-a-million-samples).
   If that makes the run too long, `LatencyProfiler` skips p99.99 ([writing.md](writing.md#reporting)).
 - **Make the iterations longer rather than combining the histograms of several iterations.** Longer iterations need no
   change to `LatencyProfiler`.
@@ -82,29 +84,33 @@ docstring describes the method.
 - **Take it from the nightly history, not from calibration.** A few calibration runs on a quiet machine can agree with
   each other where nightly runs differ. Calibration is reliable for choosing forks and iterations, because those rest on
   dozens of forks.
-- **The calibration block's "expected detectable regression" is therefore the best case.** The real value can be
-  larger, until the nightly history replaces it.
+- **The calibration block's
+  ["expected detectable regression"](background.md#the-coefficient-of-variation) is therefore the best case.** The
+  real value can be larger, until the nightly history replaces it.
 
 ## Fork modes
 
-Each fork is a new JVM, in which the JIT compiler compiles the code anew. It does not always reach the same result:
-some forks get one version of the compiled code, others another, and the versions run at different speeds. Each such
-outcome is a fork mode. A benchmark with fork modes gives results that jump between forks.
+Each fork is a new JVM, in which the [JIT compiler](background.md#interpreter-c1-and-c2) compiles the code anew
+([background](background.md#fork-modes)). It does not always reach the same result: some forks get one version of the
+compiled code, others another, and the versions run at different speeds. Each such outcome is a fork mode. A benchmark
+with fork modes gives results that jump between forks.
 
-- **Detect modes by `alloc.norm`.** With inputs that are the same in every run, the bytes allocated per call are the
-  same to the byte in every iteration of a fork. If they differ between forks, the forks run differently compiled code;
-  nothing else causes that. `analyze_calibration.py` groups the forks into modes by `alloc.norm` and reports how much
-  their latency differs.
-- **Find the code whose allocation differs.** Profile a few single-fork runs of each mode with async-profiler in
-  allocation mode with byte totals; [`fork-modes.sh`](../../../consensus-benchmark-tools/scripts/fork-modes.sh) records
-  them. [`alloc-sites.py`](../../../consensus-benchmark-tools/scripts/alloc-sites.py)
-  shows, side by side and in bytes per call, which code allocates in each run.
-- **Find out why the compiled code differs with `-XX:+LogCompilation`, not `-XX:+PrintInlining`.** Several compiler
-  threads write `PrintInlining` output at the same time, which mixes it up beyond use.
-  [`inline-tree.py`](../../../consensus-benchmark-tools/scripts/inline-tree.py) reads the XML log of
-  `-XX:+LogCompilation`: for each C2 compilation, which calls it inlined and why, which allocations it removed, and
-  when the JVM discarded it. Compare the compilations of two forks that the JVM never discarded; the discarded ones do
-  not matter.
+- **Detect modes by [`alloc.norm`](background.md#allocnorm).** With inputs that are the same in every run, the bytes
+  allocated per call are the same to the byte in every iteration of a fork once the warmup is over. If they differ
+  between forks, the forks run differently compiled code; nothing else causes that. `analyze_calibration.py` groups
+  the forks into modes by `alloc.norm` and reports how much their latency differs.
+- **Find the code whose allocation differs.** Profile a few single-fork runs of each mode with
+  [async-profiler](background.md#async-profiler) in allocation mode with byte totals;
+  [`fork-modes.sh`](../../../consensus-benchmark-tools/scripts/fork-modes.sh) records them.
+  [`alloc-sites.py`](../../../consensus-benchmark-tools/scripts/alloc-sites.py) shows, side by side and in bytes per
+  call, which code allocates in each run.
+- **Find out why the compiled code differs with [`-XX:+LogCompilation`](background.md#the-compile-log), not
+  `-XX:+PrintInlining`.** Several compiler threads write `PrintInlining` output at the same time, which mixes it up
+  beyond use. [`inline-tree.py`](../../../consensus-benchmark-tools/scripts/inline-tree.py) reads the XML log of
+  `-XX:+LogCompilation`: for each C2 compilation, which calls it [inlined](background.md#inlining-and-its-limits) and
+  why, which allocations it [removed](background.md#escape-analysis), and when the JVM
+  [discarded](background.md#discarded-compilations) it. Compare the compilations of two forks that the JVM never
+  discarded; the discarded ones do not matter.
 - **The first iteration does not show what the optimizations remove.** With `-wi 0`, the code runs unoptimized
   (interpreted or compiled by C1) for only a small part of an iteration that lasts seconds. Profile the modes instead.
 - **The compiled code can depend on timing, not only on how the code ran so far.**
@@ -121,8 +127,8 @@ outcome is a fork mode. A benchmark with fork modes gives results that jump betw
 - **Do not remove modes with JVM flags that change what is measured.** `-Xbatch` makes all forks the same, but with
   compiled code that normal forks never get. `CompileCommand` inlining directives force a choice that production does
   not make. Both help to find the cause: a flag that makes the modes disappear proves it.
-- **Fix the modes in the code under test when their latency effect matters** (the script's "mode effect"); this is
-  often cheap.
+- **Fix the modes in the code under test when their latency effect matters** (the script's "mode effect": the
+  difference in latency between the modes); this is often cheap.
   - A recursive method that caches its results, with the cache check and the computation in one method, makes C2
     inline the computation into its own recursion. Splitting the check from the computation keeps what C2 inlines
     small. In the example,

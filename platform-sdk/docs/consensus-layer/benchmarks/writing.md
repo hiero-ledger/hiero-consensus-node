@@ -6,10 +6,10 @@ last_reviewed: TBD
 
 # Writing a Benchmark
 
-How to write a JMH benchmark for a consensus-layer module so that it measures the code under test and reports how
-long its calls take, the slow ones included. [calibration.md](calibration.md) sets how long it runs;
-[operations.md](operations.md) tracks it. The [definition of done](README.md#definition-of-done) lists what a finished
-benchmark has.
+How to write a [JMH](background.md#jmh) benchmark for a consensus-layer module so that it measures the
+[code under test](background.md#the-benchmark-method-and-the-operation) and reports how long its calls take, the slow
+ones included. [calibration.md](calibration.md) sets how long it runs; [operations.md](operations.md) tracks it. The
+[definition of done](README.md#definition-of-done) lists what a finished benchmark has.
 
 The examples come from
 [`ConsensusImplBenchmark`](../../../consensus-hashgraph-impl/src/jmh/java/org/hiero/consensus/hashgraph/ConsensusImplBenchmark.java),
@@ -40,7 +40,8 @@ The measured region is the part of the benchmark method that is timed: the calls
 
 - **The inputs are the same in every run.** Seed every random generator, and generate the data outside the measured
   region.
-- **Generate the data once per trial** (per fork and parameter set) in `@Setup(Level.Trial)`. The example generates its
+- **Generate the data once per [trial](background.md#state-and-setup-levels)** (per
+  [fork](background.md#forks-and-iterations) and parameter set) in `@Setup(Level.Trial)`. The example generates its
   event graph in
   [`ConsensusImplBenchmark#generateEvents`](../../../consensus-hashgraph-impl/src/jmh/java/org/hiero/consensus/hashgraph/ConsensusImplBenchmark.java#generateEvents).
 - **If the code under test changes its input, every call of the benchmark method gets fresh copies,** prepared in
@@ -56,8 +57,8 @@ The measured region is the part of the benchmark method that is timed: the calls
   - The check also catches a change to shared test fixtures that changes the benchmark's work: the expected value
     then has to change in the same diff. Results before and after such a change are not comparable
     ([operations.md](operations.md#baseline-breaks)).
-- **Keep the setup's garbage out of the measured region.** If the per-invocation setup allocates, end it with
-  `System.gc()`.
+- **Keep the setup's [garbage](background.md#allocation-and-garbage-collection) out of the measured region.** If the
+  per-invocation setup allocates, end it with `System.gc()`.
 - **Give the code under test its production collaborators,** such as the metrics provider and the intake counter, not
   no-op or fake ones: a no-op hides a cost that a later change adds to the measured path. Turn off only output to the
   outside, such as a Prometheus port or CSV files.
@@ -66,7 +67,7 @@ The measured region is the part of the benchmark method that is timed: the calls
 
 ### A single call
 
-Record the time of every call in a histogram with
+Record the time of every call in a [histogram](background.md#mean-and-percentiles) with
 [`LatencyRecorder`](../../../consensus-benchmark-tools/src/main/java/org/hiero/consensus/benchmark/tools/histogram/LatencyRecorder.java).
 Its Javadoc shows the pattern: `startMeasurement()`, `lap()` after each call, `stopMeasurement()`.
 
@@ -76,13 +77,15 @@ Its Javadoc shows the pattern: `startMeasurement()`, `lap()` after each call, `s
 - **Pause the recorder around work that must not count,** such as calls of the code under test that another benchmark
   method measures: `pause()` right after a `lap()`, `resume()` right before the next measured call. The paused work
   counts neither in a latency nor in `alloc.norm`, but JMH's primary score includes it.
-- **Do not use JMH's `Mode.SampleTime`.** It gets the slow calls wrong, and they matter most:
+- **Do not use JMH's [`Mode.SampleTime`](background.md#modes-and-the-primary-score).** It gets the slow calls wrong,
+  and they matter most:
   - it times at most about 20 calls per millisecond, a random selection, which adds noise to the slow end;
   - when its buffer is full, it halves every count but keeps counts of 1, so rare slow calls weigh too much, and p99.99
     and max come out too high.
-- **JMH's own result, the primary score,** uses `Mode.AverageTime` with `@OperationsPerInvocation` set to the number of
-  calls per pass, so that it is the mean time per call. In the example, `calculateConsensus` sets it to the number of
-  events in the graph.
+- **JMH's own result, the primary score,** uses `Mode.AverageTime` with
+  [`@OperationsPerInvocation`](background.md#the-benchmark-method-and-the-operation) set to the number of calls per
+  pass, so that it is the mean time per call. In the example, `calculateConsensus` sets it to the number of events in
+  the graph.
 
 ### A pipeline
 
@@ -100,26 +103,28 @@ one per thread.
 [`LatencyProfiler`](../../../consensus-benchmark-tools/src/main/java/org/hiero/consensus/benchmark/tools/histogram/LatencyProfiler.java)
 turns the recorded times into JMH results. Its Javadoc lists them and how JMH combines them over iterations and forks.
 
-- **Report percentiles through a JMH profiler (`InternalProfiler`), never through `@AuxCounters`.** JMH adds up
-  `@AuxCounters` values over all iterations and forks and gives no error margin, so a percentile reported that way is
-  meaningless. JMH averages a profiler's results with `AggregationPolicy.AVG`, gives them an error margin, and writes
-  them to the JSON under `secondaryMetrics`, with the value of every iteration in `rawData`. `AggregationPolicy.SUM` is
-  right for totals, such as the number of recorded calls.
+- **Report percentiles through a [JMH profiler](background.md#profilers) (`InternalProfiler`), never through
+  `@AuxCounters`.** JMH adds up `@AuxCounters` values over all iterations and forks and gives no error margin, so a
+  percentile reported that way is meaningless. JMH averages a profiler's results with `AggregationPolicy.AVG`, gives
+  them an error margin, and writes them to the [JSON](background.md#the-results) under `secondaryMetrics`, with the
+  value of every iteration in `rawData`. `AggregationPolicy.SUM` is right for totals, such as the number of recorded
+  calls.
 - **Reported percentiles:** p50, p90, p99, p99.9, p99.99, and max.
   - The slow calls matter: a node handles thousands of events per second, so even the p99.9 time is exceeded several
     times per second. A round waits for all of its events, so one slow event delays the whole round.
   - Nothing beyond p99.99: the rarest slow calls mostly come from the JVM and the operating system, not from our code.
-  - p99.99 needs about 10⁶ recorded calls per iteration, because `LatencyProfiler` computes the percentiles of each
-    iteration separately. Calibration sets the iteration length for it
-    ([calibration.md](calibration.md#iterations-and-samples)).
+  - p99.99 [needs about 10⁶ recorded calls](background.md#why-p9999-needs-about-a-million-samples) per iteration,
+    because `LatencyProfiler` computes the percentiles of each iteration separately. Calibration sets the iteration
+    length for it ([calibration.md](calibration.md#iterations-and-samples)).
   - `LatencyProfiler` skips a percentile in an iteration with fewer than 100 calls above it, and `latency.skipped`
     names the percentile and the calls it needs.
 - **Track `latency.mean`, not the primary score.** The primary score also includes the passes discarded because a
   garbage collection ran in them (see below).
   - The median (p50) does not replace the mean: when most calls are fast and a few are slow, the median shows only the
     fast ones. The mean is the total cost divided by the number of calls.
-- **Report a metric only if someone acts on it.** Each metric is either tracked (`latency.*`, `alloc.norm`) or helps to
-  find a problem (`measured.gc.discardedPasses`). JMH's `-prof gc` shows more about garbage collection when needed.
+- **Report a metric only if someone acts on it.** Each metric is either tracked (`latency.*`,
+  [`alloc.norm`](background.md#allocnorm)) or helps to find a problem (`measured.gc.discardedPasses`). JMH's `-prof gc`
+  shows more about garbage collection when needed.
 
 ## Allocation and garbage collection
 
@@ -167,7 +172,8 @@ turns the recorded times into JMH results. Its Javadoc lists them and how JMH co
 
 A profiled run proves that the benchmark measures the code under test.
 
-1. **Record** a CPU profile with async-profiler, in collapsed format and with `-XX:+DebugNonSafepoints`. The header of
+1. **Record** a CPU profile with [async-profiler](background.md#async-profiler), in collapsed format and with
+   `-XX:+DebugNonSafepoints`. The header of
    [`profile-regions.sh`](../../../consensus-benchmark-tools/scripts/profile-regions.sh) has the JMH arguments.
 2. **Split the profile** with `profile-regions.sh`: how much time goes to the code under test, to the benchmark's own
    code, to each setup method, and to other threads.
@@ -182,8 +188,9 @@ A profiled run proves that the benchmark measures the code under test.
    [`ConsensusImpl#timedStronglySeeP`](../../../consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/consensus/ConsensusImpl.java#timedStronglySeeP)
    is such a cost.
 
-If `alloc.norm` takes a few distinct values that differ between forks, the JIT compiler compiled the code differently
-in different forks; [calibration.md](calibration.md#fork-modes) explains how to find out why.
+If `alloc.norm` takes a few distinct values that differ between forks, the
+[JIT compiler](background.md#interpreter-c1-and-c2) compiled the code differently in different forks;
+[calibration.md](calibration.md#fork-modes) explains how to find out why.
 
 ## Measuring locally
 

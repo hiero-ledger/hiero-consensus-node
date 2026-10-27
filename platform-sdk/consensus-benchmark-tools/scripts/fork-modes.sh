@@ -9,6 +9,7 @@
 # "Fork modes"). This script runs a benchmark in single forks, one JVM each, and records in every fork an allocation
 # profile and the JIT compiler's log. It prints each fork's alloc.norm and groups the forks by it. alloc-sites.py then
 # compares the allocation profiles of forks from different modes, and inline-tree.py their compile logs.
+# docs/consensus-layer/benchmarks/background.md, section "Fork modes", explains why forks can compile differently.
 #
 # Usage: fork-modes.sh <out> <forks> <jar> <benchmark> [JMH arguments...]
 #

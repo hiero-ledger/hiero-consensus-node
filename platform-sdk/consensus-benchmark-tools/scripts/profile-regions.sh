@@ -14,6 +14,8 @@
 # The profile comes from async-profiler (https://github.com/async-profiler/async-profiler), a sampling profiler: many
 # times a second, it records the call stack of each running thread. In its "collapsed" format, each line is one call
 # stack and the number of samples taken in it. A method's share of the samples is its share of the CPU time.
+# docs/consensus-layer/benchmarks/background.md, section "async-profiler", says more about the profiler, its modes,
+# and flame graphs.
 #
 # Usage: profile-regions.sh <collapsed-cpu.csv> <Benchmark.method> <CodeUnderTest.method> [setupMethod...]
 #

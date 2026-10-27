@@ -97,6 +97,7 @@ platform-sdk/docs/consensus-layer/
 │
 ├── benchmarks/                            conventions for the JMH benchmarks; narrative, no IDs
 │   ├── README.md                          index, the pipeline, the definition of done
+│   ├── background.md                      JMH, the JIT compiler, latency statistics, the profilers
 │   ├── writing.md
 │   ├── calibration.md
 │   └── operations.md
@@ -187,6 +188,8 @@ Per-topic status of "current code vs. proposed design": done / partial / not-sta
 
 The conventions guide for the JMH benchmarks of the consensus-layer modules: how to write a benchmark (`writing.md`), calibrate it on the benchmark machine (`calibration.md`), and track it in CI (`operations.md`). `README.md` is the index and holds the pipeline overview and the definition of done. Narrative files without IDs, anchored to the benchmark tooling (`consensus-benchmark-tools`, the `benchmark-tracking` Gradle plugin, the benchmark workflows and their scripts) rather than to consensus-layer topics. The README of every module with a `src/jmh` source set links here; module-specific facts stay in the module.
 
+`background.md` explains the terms, mechanics, and tools that the other files assume — JMH, the HotSpot JIT compiler, garbage collection, latency statistics, and the profilers — for readers new to them. It holds no conventions; those stay in the other files, which link each term to its section. **Anchoring exception:** its facts about this repository are anchored to the code like the rest of the KB, but its facts about JMH, the HotSpot JVM, and the profilers are anchored to their own documentation — the JMH samples and Javadoc, the JDK documentation and the HotSpot glossary, the async-profiler documentation — and, where a fact has no documentation, to the JDK source at a release tag. It is the home of these terms; `glossary.md` stays the home of the consensus vocabulary.
+
 ### `tutor/`
 
 Curriculum content for the Tutor tool. Internal organization deferred — left to the Tutor implementation.
@@ -259,6 +262,7 @@ Canonical homes, by kind of fact:
 | Property true under any correct impl   | `invariants/` (`INV-NNN`)                                        |
 | Property true of the code as it is     | `rules/` (`RUL-NNN`)                                             |
 | Benchmark convention                   | `benchmarks/`                                                    |
+| JMH, JIT, and profiling term           | `benchmarks/background.md`                                       |
 | Catalog entry title + one-line summary | the entry file (mirrored into its `README.md` index — see below) |
 
 ### Narrative restatement vs. duplicated source of truth

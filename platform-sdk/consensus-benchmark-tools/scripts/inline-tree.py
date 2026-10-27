@@ -9,7 +9,9 @@ of an object only if every method the object is passed to is inlined. C2 limits 
 and some of its decisions depend on timing, so two runs of the same benchmark can compile the same method differently
 and run at different speeds. When alloc-sites.py has found code that allocates in some runs but not in others, this
 script shows why: it lists the compilations of a method and prints each one's inlining decisions with the compiler's
-reasons. See docs/consensus-layer/benchmarks/calibration.md, section "Fork modes".
+reasons. See docs/consensus-layer/benchmarks/calibration.md, section "Fork modes";
+docs/consensus-layer/benchmarks/background.md, sections "Inlining and its limits" and "Discarded compilations", says
+more about C2's limits and its traps.
 
 Usage:
   inline-tree.py <comp.log> list <method>     the C2 compilations of <method> and of the methods that inline it: when

@@ -9,7 +9,9 @@ removes the allocation of an object that never leaves the compiled code, such as
 the optimization allocates fewer bytes per call than a run without it. JMH reports the bytes allocated per call as
 alloc.norm. When the runs of a benchmark fall into groups with different alloc.norm values, this script finds the
 code whose allocation differs between the groups. inline-tree.py then shows why the JIT compiler treated that code
-differently. See docs/consensus-layer/benchmarks/calibration.md, section "Fork modes".
+differently. See docs/consensus-layer/benchmarks/calibration.md, section "Fork modes";
+docs/consensus-layer/benchmarks/background.md says more about the JIT compiler, escape analysis, and async-profiler's
+allocation mode.
 
 Usage: alloc-sites.py [--depth N] [--width N] [--min B] <benchmark method> <run>...
 
