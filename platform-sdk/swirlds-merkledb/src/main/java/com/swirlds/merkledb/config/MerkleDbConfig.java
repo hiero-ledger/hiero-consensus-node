@@ -79,7 +79,7 @@ import com.swirlds.config.api.validation.annotation.Positive;
  *      Minimum number of small files at a level before consolidation triggers. Prevents
  *      pointless runs when only a few small files exist.
  * @param longListWriteThreads
- *      Number of threads shared by all LongList snapshot file writes of a snapshot.
+ *      Number of threads used to write each LongList snapshot file.
  */
 // spotless:off
 @ConfigData("merkleDb")
