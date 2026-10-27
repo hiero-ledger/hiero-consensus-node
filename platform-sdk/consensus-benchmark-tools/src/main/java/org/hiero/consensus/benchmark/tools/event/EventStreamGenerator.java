@@ -49,6 +49,12 @@ import org.hiero.consensus.model.roster.RosterWrapper;
  *       the intake hashes it.</li>
  * </ul>
  *
+ * <p>A benchmark whose code under test leaves state in an event verifies fresh copies in every pass:
+ * {@link #receive(List)} receives the generated events again, as another node receives them, with new lists and byte
+ * buffers. For example, a PBJ {@code Bytes} caches the memory segment that the Ed25519 verifier creates from it
+ * ({@code Bytes#toMemorySegment}); a node creates it once for every event it receives, but a benchmark that verifies the
+ * same objects in every pass would create it in the first pass only.
+ *
  * <p>A benchmark generates fixed shapes, one parameter set each, for example at chosen quantiles of a production table
  * ({@link EmpiricalDistribution#quantile(double)}). With a mix, the upper percentiles would measure the heaviest events
  * instead of how the time of one kind of call varies.
@@ -127,6 +133,23 @@ public final class EventStreamGenerator {
         return generateEvents(shape, roster, signers, count, seed);
     }
 
+    /**
+     * Receives events again, as another node receives them through gossip: as each generated event is received (see the
+     * class description), but with new lists and byte buffers, which no code has used yet.
+     *
+     * @param events the events, for example generated ones
+     * @return the received events, equal to the given ones, in the same order
+     */
+    @NonNull
+    public static List<PlatformEvent> receive(@NonNull final List<PlatformEvent> events) {
+        final PbjStreamHasher hasher = new PbjStreamHasher();
+        final List<PlatformEvent> received = new ArrayList<>(events.size());
+        for (final PlatformEvent event : events) {
+            received.add(receive(event, hasher));
+        }
+        return Collections.unmodifiableList(received);
+    }
+
     /** Generates the events, signed if there are signers. */
     @NonNull
     private static List<PlatformEvent> generateEvents(
@@ -163,32 +186,32 @@ public final class EventStreamGenerator {
                     ? Bytes.EMPTY
                     : signers.get(creator).sign(unsignedEvent.getHash().getBytes());
             final PlatformEvent created = new PlatformEvent(unsignedEvent, signature, EventOrigin.RUNTIME);
-
-            // Another node receives it through gossip and hashes it in its intake.
-            final PlatformEvent received = new PlatformEvent(receive(created.getGossipEvent()), EventOrigin.GOSSIP);
-            hasher.hashEvent(received);
-            events.add(received);
+            events.add(receive(created, hasher));
         }
         return Collections.unmodifiableList(events);
     }
 
     /**
-     * Sends an event through the streams that the gossip protocol writes and reads events with, and returns the copy
-     * that the receiving side parses.
+     * Receives an event as another node receives it through gossip: sends it through the streams that the gossip
+     * protocol writes and reads events with, builds the event from the gossip event that the receiving side parses, and
+     * hashes it as the intake does.
      */
     @NonNull
-    private static GossipEvent receive(@NonNull final GossipEvent event) {
+    private static PlatformEvent receive(@NonNull final PlatformEvent event, @NonNull final PbjStreamHasher hasher) {
         try {
             final ByteArrayOutputStream sent = new ByteArrayOutputStream();
             try (final SerializableDataOutputStream out = new SerializableDataOutputStream(sent)) {
-                out.writePbjRecord(event, GossipEvent.PROTOBUF);
+                out.writePbjRecord(event.getGossipEvent(), GossipEvent.PROTOBUF);
             }
             try (final SerializableDataInputStream in =
                     new SerializableDataInputStream(new ByteArrayInputStream(sent.toByteArray()))) {
-                return in.readPbjRecord(GossipEvent.PROTOBUF);
+                final GossipEvent gossipEvent = in.readPbjRecord(GossipEvent.PROTOBUF);
+                final PlatformEvent received = new PlatformEvent(gossipEvent, EventOrigin.GOSSIP);
+                hasher.hashEvent(received);
+                return received;
             }
         } catch (final IOException e) {
-            throw new UncheckedIOException("Failed to send a generated event through the gossip streams", e);
+            throw new UncheckedIOException("Failed to send an event through the gossip streams", e);
         }
     }
 
