@@ -50,9 +50,11 @@ import org.openjdk.jmh.infra.Blackhole;
  * <p>{@link EventStreamGenerator} generates and signs the events once per trial, from fixed seeds. Each has the shape of
  * the median mainnet event ({@link EventShape#MAINNET}), four other parents and no transactions, and is hashed with
  * SHA-256, as in production after the event cutover. Only the hash is signed, so the shape of the events does not
- * change the validator's work, and one shape is enough. The validator does not change
- * the events, so every invocation verifies the same events. All signatures are valid, as they are in
- * production, and the validator uses the production verifier, {@link CryptoUtils#verifySignature}, which creates a new
+ * change the validator's work, and one shape is enough. Every invocation verifies the events as received anew
+ * ({@link EventStreamGenerator#receive(List)}), with new buffers for their signatures and hashes: PBJ's {@code Bytes}
+ * caches the memory segment that the Ed25519 verifier creates from it ({@code Bytes#toMemorySegment}), so verifying the
+ * same objects again would skip work that a node does for every event it receives. All signatures are valid, as they are in production, and the validator uses the
+ * production verifier, {@link CryptoUtils#verifySignature}, which creates a new
  * verifier for the creator's public key on every call. The validator's other collaborators are the production ones as
  * well: the platform metrics of {@link DefaultMetricsProvider}, started as on a node, and a
  * {@link DefaultIntakeEventCounter}. Only the metrics output is disabled, so that the benchmark opens no Prometheus port
@@ -116,6 +118,9 @@ public class EventSignatureValidatorBenchmark {
     public SigningSchema signingSchema;
 
     /** The generated, signed events. */
+    private List<PlatformEvent> generatedEvents;
+
+    /** Fresh copies of the generated events, verified in the current invocation. */
     private List<PlatformEvent> events;
 
     /** The provider of the validator's metrics, running for the whole trial. */
@@ -140,7 +145,7 @@ public class EventSignatureValidatorBenchmark {
         final RosterWithKeys rosterWithKeys =
                 randomRosterWithKeys(new Random(SEED), NUMBER_OF_NODES, GAUSSIAN, signingSchema);
         final RosterWrapper roster = rosterWithKeys.roster();
-        events = EventStreamGenerator.generateSignedEvents(
+        generatedEvents = EventStreamGenerator.generateSignedEvents(
                 SHAPE, roster, NUMBER_OF_EVENTS, SEED, rosterWithKeys.privateKeys());
 
         final Configuration configuration = new TestConfigBuilder()
@@ -169,10 +174,12 @@ public class EventSignatureValidatorBenchmark {
      */
     @Setup(Level.Invocation)
     public void prepareInvocation() {
+        events = EventStreamGenerator.receive(generatedEvents);
         acceptedEvents = 0;
         recorder = LatencyProfiler.recorder();
 
-        // Collect the garbage of the previous invocation now, so that it is not collected during the measured calls.
+        // Collect the garbage of the setup and of the previous invocation now, so that it is not collected during the
+        // measured calls.
         System.gc();
     }
 
@@ -185,6 +192,7 @@ public class EventSignatureValidatorBenchmark {
             throw new IllegalStateException(
                     "Expected " + NUMBER_OF_EVENTS + " accepted events, but got " + acceptedEvents);
         }
+        events = null;
         recorder = null;
     }
 
