@@ -7,6 +7,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CHANNE
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CONNECTOR;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_DEREGISTER_CONNECTOR;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_ENDPOINT_PUBLICATION;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_EVICT_PEER_ENDPOINT;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_MAINTENANCE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_REGISTER_CHANNEL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_REGISTER_CONNECTOR;
@@ -124,6 +125,7 @@ public final class IngestChecker {
             CLPR_REGISTER_CHANNEL,
             CLPR_COMPLETE_CHANNEL,
             CLPR_CLOSE_CHANNEL,
+            CLPR_EVICT_PEER_ENDPOINT,
             CLPR_REGISTER_CONNECTOR,
             CLPR_COMPLETE_CONNECTOR,
             CLPR_DEREGISTER_CONNECTOR,

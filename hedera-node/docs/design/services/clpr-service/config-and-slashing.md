@@ -62,6 +62,10 @@ others are node-local.
 |--------------------|-------------|----------|---------------------------------------------------------------------------|
 | `verifierGasLimit` | `2 000 000` | yes      | Gas for `ClprVerifier.verifyBundle` / `verifyConfig` (`EvmClprVerifier`). |
 
+> `ClprCompleteChannel` and `ClprSubmitBundle` each reserve `verifierGasLimit` from the network gas throttle
+> (`contracts.maxGasPerSec` / `maxGasPerSecBackend`), the same way a contract call reserves its gas limit, so verifier
+> execution can't run unthrottled.
+>
 > The dispatched verifier call must carry at least the EIP-7623 calldata floor for its input, about 40 gas per byte
 > of (mostly non-zero) proof data. A Hiero state proof carries a ~13.7 KB TSS signature, so a `verifyConfig` call
 > needs ~0.6M gas, a `verifyConfig` with an endpoint manifest proof ~1.2M, and a `verifyBundle` ~0.6M plus ~60K per
