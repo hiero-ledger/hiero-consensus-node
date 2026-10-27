@@ -415,6 +415,11 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                     // All new control updates were validated together before mutations began.
                     final var peerConfig =
                             payload.controlOrThrow().configUpdateOrThrow().configuration();
+                    log.debug(
+                            "[ClprSubmitBundle]bCONTROL configUpdate conn={} receivedMsgId={} peerTimestamp={}",
+                            channelId,
+                            receivedMessageId,
+                            peerConfig == null ? null : peerConfig.timestamp());
                     if (peerConfig != null) {
                         peerConfigTimestamp = peerConfig.timestamp();
                         if (peerConfig.throttles() != null) {
