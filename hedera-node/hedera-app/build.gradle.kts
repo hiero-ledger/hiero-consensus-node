@@ -45,6 +45,7 @@ testModuleInfo {
     requires("com.google.protobuf")
     requires("io.helidon.builder.api")
     requires("org.assertj.core")
+    requires("org.bouncycastle.provider")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
     requires("org.mockito")
