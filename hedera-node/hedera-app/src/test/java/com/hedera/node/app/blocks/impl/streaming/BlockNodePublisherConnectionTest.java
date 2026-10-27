@@ -250,8 +250,22 @@ class BlockNodePublisherConnectionTest extends BlockNodeCommunicationTestBase {
                 .createStreamingClient(
                         any(BlockNodeConfiguration.class),
                         any(Duration.class),
-                        anyString(),
+                        eq(connection.connectionId().toString()),
                         any(BlockStreamGrpcCompressionType.class));
+        assertThat(connection.connectionId().toString()).matches("N\\d+-STR\\d+-JVM[0-9a-z]{8}");
+    }
+
+    @Test
+    void testOnActiveStateTransition_workerThreadNameIncludesJvmId() {
+        // remove the fake worker thread so a real one is created when the connection becomes active
+        workerThreadRef().set(null);
+        activateConnection();
+
+        final Thread workerThread = workerThreadRef().get();
+        assertThat(workerThread).isNotNull();
+        assertThat(workerThread.getName())
+                .isEqualTo("bn-conn-worker-" + connection.connectionId().toString())
+                .matches("bn-conn-worker-N\\d+-STR\\d+-JVM[0-9a-z]{8}");
     }
 
     @Test
