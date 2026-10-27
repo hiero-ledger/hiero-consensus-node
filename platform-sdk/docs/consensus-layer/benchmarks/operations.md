@@ -211,7 +211,7 @@ run.
   still add up to frequent false alerts.
 - **Requiring several nights to agree lowers the noise** and allows a tighter threshold, but detects a regression a few
   nights later. Options: a Grafana alert on "N nights in a row more than k
-  [standard deviations](background.md#the-coefficient-of-variation) off", or change-point detection in the nightly
+  [standard deviations](background.md#confidence-intervals-and-correlation) off", or change-point detection in the nightly
   job, which finds the night where a series shifts (for example [Apache Otava](https://otava.apache.org/)) and
   publishes a metric that a plain Grafana threshold watches.
 - **Alerts start with the values that vary least:** `latency.mean`, [p50, and p90](background.md#mean-and-percentiles).

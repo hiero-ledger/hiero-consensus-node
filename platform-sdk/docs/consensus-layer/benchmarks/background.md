@@ -30,9 +30,12 @@ results.
 
 ### The benchmark method and the operation
 
-- **The benchmark method** is a public method annotated with `@Benchmark`. JMH calls it again and again and times the
-  calls ([JMHSample_01](https://github.com/openjdk/jmh/blob/1.37/jmh-samples/src/main/java/org/openjdk/jmh/samples/JMHSample_01_HelloWorld.java)).
-  One call of it is an invocation.
+- **The benchmark method** is a public method annotated with `@Benchmark`. JMH calls it again and again for a fixed
+  time
+  ([JMHSample_01](https://github.com/openjdk/jmh/blob/1.37/jmh-samples/src/main/java/org/openjdk/jmh/samples/JMHSample_01_HelloWorld.java)).
+  One call of it is an invocation. In `Mode.Throughput` and `Mode.AverageTime` ([below](#modes-and-the-primary-score)),
+  JMH reads the clock only before the first and after the last invocation, and divides by their number
+  ([`BenchmarkGenerator`](https://github.com/openjdk/jmh/blob/1.37/jmh-core/src/main/java/org/openjdk/jmh/generators/core/BenchmarkGenerator.java)).
 - **JMH calls it on threads of its own, the benchmark threads:** one by default, more with `@Threads` or `-t`
   ([`Defaults`](https://github.com/openjdk/jmh/blob/1.37/jmh-core/src/main/java/org/openjdk/jmh/runner/Defaults.java),
   `THREADS`).
@@ -93,8 +96,11 @@ results.
   ([`BenchmarkGenerator`](https://github.com/openjdk/jmh/blob/1.37/jmh-core/src/main/java/org/openjdk/jmh/generators/core/BenchmarkGenerator.java):
   `while(!control.isDone)`). During the warmup, the JIT compiler compiles the code
   ([below](#interpreter-c1-and-c2)); JMH discards the warmup's results.
-- **A parameter set takes about forks × (warmup time + measurement time),** plus a few seconds per fork to start the
-  JVM.
+- **A parameter set takes about forks × (warmup time + measurement time),** plus, in every fork, a few seconds to start
+  the JVM and the time of the trial setup, such as generating the inputs.
+- **A per-invocation setup runs within the iteration's time.** It does not count in the score, but it leaves time for
+  fewer invocations: in the generated code, it runs inside the loop that `control.isDone` ends (`BenchmarkGenerator`).
+  [writing.md](writing.md#allocation-and-garbage-collection) counts this price.
 - **Why it matters:** calibration chooses these numbers ([calibration.md](calibration.md#choosing-the-configuration)),
   and the smoke run uses the smallest ones ([operations.md](operations.md#the-smoke-run)).
 - **A fork's JVM options come from three lists,** in this order: `jvmArgsPrepend`, `jvmArgs`, and `jvmArgsAppend`.
@@ -134,8 +140,8 @@ results.
   averages it over the measurement iterations of all forks and gives an error margin, `scoreError`: the half-width of a
   99.9% confidence interval
   ([`Result#getScoreError`](https://github.com/openjdk/jmh/blob/1.37/jmh-core/src/main/java/org/openjdk/jmh/results/Result.java)).
-- **Why it matters:** the consensus benchmarks use `Mode.AverageTime`, and take the percentiles from
-  `LatencyProfiler` instead of `Mode.SampleTime` ([writing.md](writing.md#a-single-call)).
+- **Why it matters:** a benchmark that follows this guide uses `Mode.AverageTime` and takes its percentiles from
+  `LatencyProfiler`, not from `Mode.SampleTime` ([writing.md](writing.md#a-single-call)).
 
 ### The Blackhole
 
@@ -156,8 +162,8 @@ results.
   options
   ([JMHSample_35](https://github.com/openjdk/jmh/blob/1.37/jmh-samples/src/main/java/org/openjdk/jmh/samples/JMHSample_35_Profilers.java)).
   - `-prof gc` adds the allocation per operation (`gc.alloc.rate.norm`) and the number and time of the garbage
-    collections. It counts all
-    allocation of the iteration, the setup included ([writing.md](writing.md#allocation-and-garbage-collection)).
+    collections. It counts all allocation of the iteration, the setup included
+    ([writing.md](writing.md#allocation-and-garbage-collection)).
   - `-prof async` runs [async-profiler](#async-profiler).
 - **`@AuxCounters` is JMH's other way to add results:** it marks a state class whose public fields JMH reports as
   results of their own, meant for counting events
@@ -190,18 +196,11 @@ results.
 
 ### alloc.norm
 
-- **`alloc.norm` is the number of bytes that the measured calls allocate, per operation.**
-  [`LatencyRecorder`](../../../consensus-benchmark-tools/src/main/java/org/hiero/consensus/benchmark/tools/histogram/LatencyRecorder.java)
-  reads the bytes the benchmark thread has allocated before and after the calls, and `LatencyProfiler` reports them.
-  It reads them from `com.sun.management.ThreadMXBean`, in the JDK module `jdk.management`, which the tooling's
-  [`module-info.java`](../../../consensus-benchmark-tools/src/main/java/module-info.java) requires. It is not JMH's
-  `gc.alloc.rate.norm`.
-- **Why it matters:** with inputs that are the same in every run, the same compiled code allocates the same bytes per
-  call. So, once the warmup is over, `alloc.norm` is the same to the byte in every iteration of a fork, and between
-  forks and runs it changes only if the code changed, or the way the JIT compiler compiled it ([below](#fork-modes)).
-- **Where:** [writing.md](writing.md#allocation-and-garbage-collection) says how to measure it,
-  [calibration.md](calibration.md#fork-modes) how to detect fork modes by it, and [operations.md](operations.md#alerts)
-  how to alert on it.
+- **`alloc.norm` is the number of bytes that the measured calls allocate, per operation,** as `LatencyProfiler`
+  reports it. It is not JMH's `gc.alloc.rate.norm`.
+- **Where:** [writing.md](writing.md#allocation-and-garbage-collection) says how it is measured and what it shows,
+  [calibration.md](calibration.md#fork-modes) why it detects fork modes, and [operations.md](operations.md#alerts) how
+  alerts use it.
 
 ## The JVM at run time
 
@@ -239,9 +238,8 @@ JVM options of the form `-XX:+Name` turn an option on, `-XX:-Name` turn it off, 
 
 - **Inlining copies the body of a called method into the caller,** so that the compiler optimizes both as one: the
   compiled code of a method includes the methods inlined into it
-  ([nmethod](https://openjdk.org/groups/hotspot/docs/HotSpotGlossary.html#nmethod)). Later optimizations build on it:
-  escape analysis, for example, removes an object only if every method it is passed to is inlined (the header of
-  [`inline-tree.py`](../../../consensus-benchmark-tools/scripts/inline-tree.py)).
+  ([nmethod](https://openjdk.org/groups/hotspot/docs/HotSpotGlossary.html#nmethod)). Later optimizations build on it,
+  escape analysis among them ([below](#escape-analysis)).
 - **C2 limits what it inlines**
   ([JIT compiler options](https://docs.oracle.com/en/java/javase/25/docs/specs/man/java.html#advanced-jit-compiler-options-for-java)):
   - A method larger than `MaxInlineSize` bytes of bytecode is inlined only where it is called often ("hot"), and then
@@ -258,8 +256,7 @@ JVM options of the form `-XX:+Name` turn an option on, `-XX:-Name` turn it off, 
     bytecode, so everything inlined counts toward it.
   - A recursive method is inlined into itself one level deep by default (`MaxRecursiveInlineLevel` in
     `c2_globals.hpp`). Each level copies the whole body, so a large recursive method brings its compilation close to
-    the cutoff. A method that holds only a small part of the work, such as a cache lookup, stays small when inlined
-    into itself; the rest, in a method of its own, is called instead of copied once it has big C2 code.
+    the cutoff.
 - **The compile log gives the reason for every decision** ([below](#the-compile-log)), for example "too big", "hot
   method too big", "already compiled into a big method", or "NodeCountInliningCutoff".
 - **Why it matters:** one inlining decision can decide whether an allocation stays, and how fast the code runs.
@@ -268,12 +265,13 @@ JVM options of the form `-XX:+Name` turn an option on, `-XX:-Name` turn it off, 
 ### Escape analysis
 
 - **C2 checks whether a new object escapes the compiled code:** whether it is stored in a field, returned, or passed
-  to a method that is not inlined. An object that does not escape is never allocated; its fields live in registers
-  (scalar replacement)
+  to a method that is not inlined. For an object that does not escape, C2 can remove the allocation and keep the
+  object's fields in registers (scalar replacement)
   ([escape analysis](https://docs.oracle.com/en/java/javase/25/vm/java-hotspot-virtual-machine-performance-enhancements.html#GUID-6BD8FCB5-995B-4AE9-BFAA-B2C7DE2BA5CD)).
-- **A typical case is the iterator of a for-each loop.** If C2 inlines its `hasNext` and `next`, the iterator does not
-  escape. In `ConsensusImpl#stronglySeeP`, before the split that [calibration.md](calibration.md#fork-modes)
-  describes, the iterator was removed in some forks and allocated in others.
+- **A typical case is the iterator of a for-each loop.** If C2 inlines `iterator()`, which allocates it, and its
+  `hasNext` and `next`, the iterator does not escape, and C2 can remove its allocation. In `ConsensusImpl#stronglySeeP`,
+  before the split that [calibration.md](calibration.md#fork-modes) describes, the iterator was removed in some forks
+  and allocated in others.
 - **Why it matters:** escape analysis changes `alloc.norm`, and with it the work of the garbage collector. A lost
   inlining decision shows as more bytes per call.
 
@@ -295,20 +293,21 @@ JVM options of the form `-XX:+Name` turn an option on, `-XX:-Name` turn it off, 
 
 ### Fork modes
 
-- **Each fork compiles the code anew, and the result can differ.** Most decisions follow the profile, which is the same
-  in every fork with the same inputs. But compilation runs in the background, so some decisions depend on timing: for
-  example, whether a called method already has C2 code larger than `InlineSmallCode` depends on which compiler thread
-  finished first.
+- **Each fork compiles the code anew, and the result can differ.** Most decisions follow the profile, which is nearly
+  the same in every fork with the same inputs. But compilation runs in the background, so some decisions depend on
+  timing. C2 reads the profile when the compilation runs, so a branch first taken just before or just after that
+  moment changes what it sees, and can cause an early `unstable_if` trap ([above](#discarded-compilations)). And
+  whether a called method already has C2 code larger than `InlineSmallCode` depends on which compiler thread finished
+  first.
 - **A fork mode is one such outcome.** Forks in different modes have different `alloc.norm` values and run at
   different speeds. [calibration.md](calibration.md#fork-modes) describes how to detect, explain, and handle them;
   the scripts `fork-modes.sh`, `alloc-sites.py`, and `inline-tree.py` do the work ([below](#which-script-reads-what)).
-- **Two benchmarks in one JVM can also change each other's compiled code,** which is why JMH forks
-  ([JMHSample_12](https://github.com/openjdk/jmh/blob/1.37/jmh-samples/src/main/java/org/openjdk/jmh/samples/JMHSample_12_Forking.java)).
 - **How many forks show a mode:** a mode that a share p of the forks get is missing from n forks with the probability
   (1 − p)ⁿ. For p = 0.2, that is 11% with 10 forks and 1% with 20.
 - **How much a mode mix adds to the noise:** whether a fork lands in a mode is a yes-or-no outcome with probability
-  p, whose standard deviation is √(p(1 − p)). The mix adds this standard deviation, times the speed difference between
-  the modes, to the CV of a fork ([below](#the-coefficient-of-variation)).
+  p, whose standard deviation is √(p(1 − p)). So two modes whose speeds differ by a share Δ add a CV of about
+  Δ × √(p(1 − p)) to a fork ([below](#the-coefficient-of-variation)), which combines with the fork's other noise as a
+  variance ([below](#noise-and-its-three-components)).
 
 ### Allocation and garbage collection
 
@@ -354,6 +353,9 @@ JVM options of the form `-XX:+Name` turn an option on, `-XX:-Name` turn it off, 
   number of calls.
 - **A percentile is the latency that a share of the calls stays at or below:** 50% for p50 (the median), 99% for p99,
   99.99% for p99.99, which only one call in 10,000 exceeds. The max is the slowest call.
+- **A sample, in the latency results, is one recorded call:** `latency.samples` counts them, and the calibration
+  block's "samples per iteration" and the `--samples` of `analyze_calibration.py` count the same. In a profile, a
+  sample is one recorded call stack ([below](#async-profiler)).
 - **A histogram records latencies as counts in buckets,** so that it can compute percentiles without keeping every
   value
   ([`LatencyHistogram`](../../../consensus-benchmark-tools/src/main/java/org/hiero/consensus/benchmark/tools/histogram/LatencyHistogram.java)).
@@ -367,9 +369,8 @@ JVM options of the form `-XX:+Name` turn an option on, `-XX:-Name` turn it off, 
 - **The count of calls above a percentile varies from run to run by about its square root,** like any count of rare
   events: about ±10 for 100 calls, about ±1 for one call. With 100 calls above it, the estimate is stable; with one, it
   is chance.
-- **`LatencyProfiler` computes the percentiles of each iteration separately,** so every iteration needs these calls.
-  It skips a percentile with too few calls above it ([writing.md](writing.md#reporting)), and calibration sets the
-  iteration length for it ([calibration.md](calibration.md#iterations-and-samples)).
+- **Where:** [writing.md](writing.md#reporting) says how many calls an iteration needs for each percentile, and
+  [calibration.md](calibration.md#iterations-and-samples) how calibration sets the iteration length for them.
 
 ### Noise and its three components
 
@@ -384,13 +385,14 @@ JVM options of the form `-XX:+Name` turn an option on, `-XX:-Name` turn it off, 
   - **between whole runs:** the state of the machine, its other workloads, or another machine.
 - **Averaging lowers noise by the square root of the count:** the mean of n independent values varies √n times less
   than one value. More iterations average out only the first component; more forks the first two; nothing in one run
-  averages out the third. That is why the guide takes the noise between runs from the nightly history
-  ([calibration.md](calibration.md#the-noise-between-runs)).
+  averages out the third.
 - **The components add up as variances,** the squares of their standard deviations, each divided by the count that
   averages it out; a longer iteration averages out more of its own noise. The docstring of `analyze_calibration.py`
   has the formula that predicts the noise of a run this way.
 - **Noise measured from a few values is itself uncertain:** from three or four runs, the noise between runs can come
-  out far too small. Forks and iterations come by the dozen, so their noise is measured much better.
+  out far too small. Forks and iterations come by the dozen, so their noise is measured much better. That is why the
+  guide takes the noise between runs from the nightly history, which has many runs
+  ([calibration.md](calibration.md#the-noise-between-runs)).
 - **Why it matters:** a regression smaller than the noise cannot be told from chance. The noise sets how many forks
   and iterations a benchmark needs and how small a regression an alert can detect
   ([operations.md](operations.md#alerts)).
@@ -401,30 +403,38 @@ JVM options of the form `-XX:+Name` turn an option on, `-XX:-Name` turn it off, 
   standard deviation is the typical distance of a value from the mean; a CV of 0.5% means that values typically lie
   about 0.5% from the mean. As a share of the mean, it compares benchmarks of very different speeds.
 - **`analyze_calibration.py` reports each noise component as a CV.** It computes on the natural logarithms of the
-  scores, so that a standard deviation of 0.01 is about 1% of the value (its docstring): a change of the logarithm by
-  0.01 is a change of the value by about 1%.
+  scores, so that a standard deviation of 0.01 is about 1% of the value (its docstring).
+
+### Confidence intervals and correlation
+
 - **A confidence interval** is a range around a measured value, computed so that in 95 of 100 repetitions (for a 95%
   interval) it contains the true value. If the noise follows the normal distribution, the 95% interval reaches 1.96
-  standard deviations to each side of the value; that reach is its half-width. JMH's `scoreError` is the half-width of
-  a 99.9% interval.
+  standard deviations to each side of the value; that reach is its half-width. JMH's `scoreError` is such a
+  half-width ([above](#modes-and-the-primary-score)).
 - **How often noise alone causes a large deviation:** with normal noise, a value lies more than 2 standard deviations
-  from the mean in about 5% of cases, and more than 3 in about 0.3%, counting both sides. For n independent values in
-  a row, the chance is that share to the power of n.
+  above the mean in about 2.3% of cases, and more than 3 above it in about 0.13%; counting both sides doubles these
+  shares. An alert on regressions looks at one side only. For n independent values in a row on that side, the chance
+  is the one-sided share to the power of n.
 - **The calibration block's "expected detectable regression"** is 1.96 times the predicted CV of one run's result: the
-  half-width of that result's 95% confidence interval. The difference of two runs, each with its own noise, varies √2
-  times as much as one run; the block's number does not include that factor.
+  half-width of that result's 95% confidence interval
+  ([`analyze_calibration.py`](../../../../.github/workflows/support/scripts/benchmarks/analyze_calibration.py#calibration_block)).
+  - A threshold at that size catches a regression of exactly that size in only about half of the runs. It is the size
+    that stands out from the noise, not one that is reliably caught.
+  - The difference of two single runs, each with its own noise, varies √2 times as much as one run. That applies when
+    two runs are compared, as in an A/B test; the block's number does not include it. Against the mean of many
+    nights, which has little noise of its own, the factor nearly disappears.
 - **A correlation** says how closely two quantities move together along a straight line, from −1 to 1. Near 1, one
   rises almost exactly in step with the other, as the latency did with the load in
   [operations.md](operations.md#quiet-slots).
 
 ### The benchmark machine
 
-- **Other work on the machine slows a benchmark, even on other cores.** A core can run two threads at once (SMT,
-  simultaneous multithreading), which share its execution units and caches; the operating system counts each as a
-  CPU. Many cores share the L3 cache, a fast memory on the processor that holds recently used data, and all share the
-  main memory. [operations.md](operations.md#the-benchmark-machine) says what slowed the benchmark machine most.
-- **The benchmark machine is shared,** not dedicated to the benchmarks, so a result counts only if it was measured
-  while the machine was quiet ([operations.md](operations.md#quiet-slots)).
+- **Other work on the machine slows a benchmark, on its own core and on others.** A core can run two threads at once
+  (SMT, simultaneous multithreading), which share its execution units and caches; the operating system counts each as
+  a CPU. Many cores share the L3 cache, a fast memory on the processor that holds recently used data, and all share
+  the main memory. [operations.md](operations.md#the-benchmark-machine) says what slowed the benchmark machine most.
+- **The benchmark machine is shared,** not dedicated to the benchmarks; [operations.md](operations.md#quiet-slots) says
+  which results count.
 - **Load is counted in CPUs:** one CPU busy all the time is a load of 1 CPU; 0.5 CPU is one CPU busy half the time,
   or two CPUs a quarter of the time.
 - **The JVM sizes its own threads by the number of processors it sees:** its garbage collector threads and its
@@ -519,14 +529,15 @@ The developer scripts are in [`consensus-benchmark-tools/scripts/`](../../../con
 script's header gives its usage, and the
 [module README](../../../consensus-benchmark-tools/README.md#scripts) lists them.
 
-|        Script        |                  Input                   |                       Made with                        |                                            Answers                                             |
-|----------------------|------------------------------------------|--------------------------------------------------------|------------------------------------------------------------------------------------------------|
-| `profile-regions.sh` | collapsed CPU stacks                     | async-profiler, `event=cpu`                            | Is the time spent in the code under test?                                                      |
-| `fork-modes.sh`      | the benchmark jar                        |                                                        | Which forks fall into which mode? Records the inputs of `alloc-sites.py` and `inline-tree.py`. |
-| `alloc-sites.py`     | JMH JSON and collapsed allocation stacks | `-rf json`; async-profiler, `event=alloc` with `total` | Which code allocates how many bytes per call?                                                  |
-| `inline-tree.py`     | the compile log                          | `-XX:+LogCompilation`                                  | What did C2 inline, and why?                                                                   |
-| `jfr-components.sh`  | JFR recordings of running nodes          | JFR, for example in a Sloth run                        | Which component of a node takes the CPU time?                                                  |
-| `sloth-stages.sh`    | the metrics of a Sloth run               | the nodes of the run                                   | How long do events take through each stage of a node?                                          |
+|                                        Script                                         |                  Input                   |                       Made with                        |                                            Answers                                             |
+|---------------------------------------------------------------------------------------|------------------------------------------|--------------------------------------------------------|------------------------------------------------------------------------------------------------|
+| [`profile-regions.sh`](../../../consensus-benchmark-tools/scripts/profile-regions.sh) | collapsed CPU stacks                     | async-profiler, `event=cpu`                            | Is the time spent in the code under test?                                                      |
+| [`fork-modes.sh`](../../../consensus-benchmark-tools/scripts/fork-modes.sh)           | the benchmark jar                        |                                                        | Which forks fall into which mode? Records the inputs of `alloc-sites.py` and `inline-tree.py`. |
+| [`alloc-sites.py`](../../../consensus-benchmark-tools/scripts/alloc-sites.py)         | JMH JSON and collapsed allocation stacks | `-rf json`; async-profiler, `event=alloc` with `total` | Which code allocates how many bytes per call?                                                  |
+| [`inline-tree.py`](../../../consensus-benchmark-tools/scripts/inline-tree.py)         | the compile log                          | `-XX:+LogCompilation`                                  | What did C2 inline, and why?                                                                   |
+| [`jfr-components.sh`](../../../consensus-benchmark-tools/scripts/jfr-components.sh)   | JFR recordings of running nodes          | JFR, for example in a Sloth run                        | Which component of a node takes the CPU time?                                                  |
+| [`sloth-stages.sh`](../../../consensus-benchmark-tools/scripts/sloth-stages.sh)       | the metrics of a Sloth run               | the nodes of the run                                   | How long do events take through each stage of a node?                                          |
+| [`event-shapes.py`](../../../consensus-benchmark-tools/scripts/event-shapes.py)       | the block files of one mainnet node      | mainnet's block stream                                 | What shape do mainnet events have, as `EventShape.MAINNET` holds it?                           |
 
 ## The infrastructure
 

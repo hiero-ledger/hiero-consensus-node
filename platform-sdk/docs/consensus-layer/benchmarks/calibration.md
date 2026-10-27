@@ -85,7 +85,7 @@ docstring describes the method.
   each other where nightly runs differ. Calibration is reliable for choosing forks and iterations, because those rest on
   dozens of forks.
 - **The calibration block's
-  ["expected detectable regression"](background.md#the-coefficient-of-variation) is therefore the best case.** The
+  ["expected detectable regression"](background.md#confidence-intervals-and-correlation) is therefore the best case.** The
   real value can be larger, until the nightly history replaces it.
 
 ## Fork modes

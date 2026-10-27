@@ -130,8 +130,9 @@ turns the recorded times into JMH results. Its Javadoc lists them and how JMH co
 
 - **Measure allocation around the measured calls, not with `-prof gc`.** `-prof gc` counts everything the iteration
   allocates, the setup included. `LatencyRecorder` reads the bytes the thread has allocated
-  (`com.sun.management.ThreadMXBean.getCurrentThreadAllocatedBytes()`, which requires `jdk.management`) before and
-  after the calls, and `LatencyProfiler` reports the bytes per call as `alloc.norm`.
+  (`com.sun.management.ThreadMXBean.getCurrentThreadAllocatedBytes()`, from the JDK module `jdk.management`, which
+  the tooling's module requires) before and after the calls, and `LatencyProfiler` reports the bytes per call as
+  `alloc.norm`.
 - **The bytes allocated per call hardly vary between runs.** They show the work the code makes for the garbage
   collector, which the latency leaves out (see the next point). A rise in allocation is the earliest sign that garbage
   collection will make the slow calls slower.
