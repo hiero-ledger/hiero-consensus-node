@@ -178,7 +178,7 @@ jobs:
       custom-job-label: "XTS (Optional):"
       enable-migration-testing-panel: "true"
       # (FUTURE) Move to 815/xts-execution once the panel proves stable, so failures block build-candidate promotion.
-      enable-078-to-079-cutover-panel: "true"
+      enable-three-stage-block-stream-cutover-panel: true
       java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
     secrets:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}

@@ -49,11 +49,10 @@ See [`../README.md`](../README.md) § *Block Node Testing*.
 
 ## TSS (`wraps` / hinTS / history)
 
-|               Property                |                        Read in                        |      Values      |              Default               |                                  Set by                                  |
-|---------------------------------------|-------------------------------------------------------|------------------|------------------------------------|--------------------------------------------------------------------------|
-| `hapi.spec.assertAtLeastOneWraps`     | `StateChangesValidator`                               | `true` / `false` | `false`                            | `hapiTestWraps`, `hapiTestCutover`                                       |
-| `hapi.spec.tssLibWrapsArtifactsPath`  | `ProcessUtils`, `WrapsHandoffsTest`, `TssCutoverTest` | filesystem path  | empty                              | per-task; exported into subprocess env as `TSS_LIB_WRAPS_ARTIFACTS_PATH` |
-| `hapi.spec.hintsThresholdDenominator` | `StateChangesValidator`                               | integer          | `3` (or `4` for `hapiTestRestart`) | per-task                                                                 |
+|               Property                |         Read in         |      Values      |              Default               |               Set by               |
+|---------------------------------------|-------------------------|------------------|------------------------------------|------------------------------------|
+| `hapi.spec.assertAtLeastOneWraps`     | `StateChangesValidator` | `true` / `false` | `false`                            | `hapiTestWraps`, `hapiTestCutover` |
+| `hapi.spec.hintsThresholdDenominator` | `StateChangesValidator` | integer          | `3` (or `4` for `hapiTestRestart`) | per-task                           |
 
 ## Lifecycle / upgrade scheduling
 

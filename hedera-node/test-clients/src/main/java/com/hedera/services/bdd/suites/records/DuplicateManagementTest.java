@@ -3,6 +3,7 @@ package com.hedera.services.bdd.suites.records;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.SYSTEM_ACCOUNT_BALANCES;
 import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
+import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.reducedFromSnapshot;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -32,13 +33,18 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRAN
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_GOSSIP_CA_CERTIFICATE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_START;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECEIPT_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.services.bdd.junit.EmbeddedHapiTest;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
+import com.hedera.services.bdd.junit.RepeatableHapiTest;
+import com.hedera.services.bdd.junit.RepeatableReason;
 import java.nio.charset.StandardCharsets;
 import java.security.cert.CertificateEncodingException;
+import java.time.Duration;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
@@ -243,5 +249,26 @@ public class DuplicateManagementTest {
                         .andAnyDuplicates()
                         .hasPriority(recordWith().status(SUCCESS))
                         .hasDuplicates(inOrder(recordWith().status(INVALID_PAYER_SIGNATURE))));
+    }
+
+    @RepeatableHapiTest({NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, RepeatableReason.MUST_SKIP_INGEST})
+    @DisplayName("a far-future valid start submitted by a node does not stop later receipts from being purged")
+    final Stream<DynamicTest> farFutureValidStartFromNodeDoesNotStopReceiptPurging() {
+        return hapiTest(
+                cryptoTransfer(tinyBarsFromTo(GENESIS, "4", ONE_HBAR)),
+                usableTxnIdNamed(TXN_ID)
+                        .modifyValidStart(Duration.ofDays(100 * 365L).toSeconds())
+                        .payerId(GENESIS),
+                cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L))
+                        .txnId(TXN_ID)
+                        .setNode("4") // for skipping ingest
+                        .hasKnownStatus(INVALID_TRANSACTION_START),
+                cryptoCreate("misc").via("success"),
+                // Reach consensus more than 180 seconds after the valid start of the "success" transaction
+                sleepFor(179_000L),
+                cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L)),
+                getReceipt("success").hasAnswerOnlyPrecheck(RECEIPT_NOT_FOUND),
+                // The far-future id is not kept in the deduplication cache either
+                getReceipt(TXN_ID).hasAnswerOnlyPrecheck(RECEIPT_NOT_FOUND));
     }
 }

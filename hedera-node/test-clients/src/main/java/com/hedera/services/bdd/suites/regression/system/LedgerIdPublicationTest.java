@@ -87,10 +87,8 @@ public class LedgerIdPublicationTest {
             assertTrue(body.hasLedgerIdPublication(), "Selected item is not a LedgerIdPublication");
             assertEquals("Ledger id", body.memo(), "Unexpected memo on ledger id publication");
             final var publication = body.ledgerIdPublicationOrThrow();
-            assertTrue(publication.ledgerId().length() > 0, "Ledger id must not be empty");
-            assertTrue(
-                    publication.historyProofVerificationKey().length() > 0,
-                    "History proof verification key must not be empty");
+            // The hash of the genesis address book followed by the hash of its hinTS verification key
+            assertEquals(64, publication.ledgerId().length(), "Ledger id must be 64 bytes");
             assertEquals(
                     NETWORK_SIZE,
                     publication.nodeContributions().size(),

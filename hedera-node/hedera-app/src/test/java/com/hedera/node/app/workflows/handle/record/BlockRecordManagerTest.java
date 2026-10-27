@@ -52,6 +52,7 @@ import com.hedera.node.app.records.impl.producers.formats.BlockRecordWriterFacto
 import com.hedera.node.app.records.impl.producers.formats.SelfNodeAccountIdManagerImpl;
 import com.hedera.node.app.records.impl.producers.formats.v6.BlockRecordFormatV6;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
+import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
@@ -639,6 +640,19 @@ final class BlockRecordManagerTest extends AppTestBase {
                     theApp, state, mock(WrappedRecordFileBlockHashesDiskWriter.class), InitTrigger.GENESIS);
         }
 
+        /**
+         * The wrapped record block root hash follows the configured {@code blockStream.digestType} (the outer
+         * wrapping may use a different digest than the inner SHA-384 record hashes), so its length tracks that
+         * digest — 48 bytes under SHA-384, 32 under SHA-256 — rather than being fixed.
+         */
+        private int configuredWrappedRootHashSize() {
+            return liveApp.configProvider()
+                    .getConfiguration()
+                    .getConfigData(BlockStreamConfig.class)
+                    .digestType()
+                    .digestLength();
+        }
+
         private BlockRecordManagerImpl createManager(
                 App theApp, State state, WrappedRecordFileBlockHashesDiskWriter diskWriter, InitTrigger trigger) {
             final var writerFactory =
@@ -686,7 +700,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                 final var blockInfo = readBlockInfo(state);
                 assertThat(blockInfo.previousWrappedRecordBlockRootHash()).isNotEqualTo(Bytes.EMPTY);
                 assertThat(blockInfo.previousWrappedRecordBlockRootHash().length())
-                        .isEqualTo(SHA_384_HASH_SIZE);
+                        .isEqualTo(configuredWrappedRootHashSize());
             }
         }
 
@@ -754,7 +768,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                 assertThat(blockInfo.wrappedIntermediateBlockRootsLeafCount()).isEqualTo(leafCountFromGenesis + 1);
                 assertThat(blockInfo.previousWrappedRecordBlockRootHash()).isNotEqualTo(rootHashFromGenesis);
                 assertThat(blockInfo.previousWrappedRecordBlockRootHash().length())
-                        .isEqualTo(SHA_384_HASH_SIZE);
+                        .isEqualTo(configuredWrappedRootHashSize());
             }
         }
 
