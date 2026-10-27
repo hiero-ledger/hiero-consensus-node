@@ -14,7 +14,14 @@ The examples come from
 [`ConsensusImplBenchmark`](../../../consensus-hashgraph-impl/src/jmh/java/org/hiero/consensus/hashgraph/ConsensusImplBenchmark.java),
 which measures the consensus algorithm, `ConsensusImpl#addEvent`, and follows these conventions.
 
-## The calibration run
+## The calibration runs
+
+Calibration has two parts, one run of the calibration workflow each:
+
+1. **The probe** finds where the warmup ends and how many calls an iteration records: `-f 10 -wi 0 -i 6 -r 5s`, the
+   workflow's default. From these, the analysis derives the warmup and the iteration length.
+2. **The configuration run** measures that configuration as the nightly run will, with 10 forks, for example
+   `-f 10 -wi 1 -w 10s -i 2 -r 35s`. It decides the number of forks and gives the noise of the nightly result.
 
 - **Run the calibration workflow**
   [`007-user-benchmark-calibration.yaml`](../../../../.github/workflows/007-user-benchmark-calibration.yaml). It runs
@@ -22,34 +29,51 @@ which measures the consensus algorithm, `ConsensusImpl#addEvent`, and follows th
   [`run_benchmarks.py`](../../../../.github/workflows/support/scripts/benchmarks/run_benchmarks.py), writes the
   analysis to the job summary, and keeps the results as an artifact. Its inputs name the module, the benchmark, and the
   JMH arguments.
-- **Measure generously and without warmup iterations:** many forks, many measurement iterations, and `-wi 0`. JMH
-  leaves warmup iterations out of its JSON results and, for profiler results, out of its log too. With `-wi 0`, the
-  analysis sees every iteration and finds out itself how long the warmup takes.
+- **The probe runs without warmup iterations (`-wi 0`).** JMH leaves warmup iterations out of its JSON results and, for
+  profiler results, out of its log too. With `-wi 0`, the analysis sees every iteration and finds out itself how long
+  the warmup takes.
+- **The probe's forks are short.** In every benchmark calibrated so far, the warmup took at most 5 s, and one run with
+  forks of 30 s found the same warmup as three runs with forks of 100 s together. Longer forks only give a random
+  excursion of a noisy benchmark more chances to look like a warmup that has not finished.
+- **The configuration run measures what the nightly run measures, only with more forks.** The noise of a fork's result
+  then needs no model; only the division by the number of forks remains, and forks are independent JVMs. Short
+  iterations do not show how noisy long ones are: the noise within a fork is correlated over tens of seconds.
+- **The configuration run starts after the probe's analysis,** which prints its arguments and estimates its runtime:
+  10 / (nightly forks) times the nightly run's time.
+- **One run of each part is usually enough.** A second configuration run adds 10 forks to a result that sits at a
+  decision, such as between one and two forks. The noise between runs comes from the nightly history
+  ([below](#the-noise-between-runs)).
 - **Only results from a quiet machine count**, in calibration as in the nightly run. The driver repeats a parameter set
   that was measured while other workloads kept the machine busy, and the analysis leaves such results out
   ([operations.md](operations.md#quiet-slots)).
 - **Start a new workflow run for every repetition, not a GitHub rerun.** After a rerun, the GitHub API lists only the
   artifacts of the latest attempt. A rerun also measures the same code only if the checkout uses `github.sha`, not the
   branch.
-- **Start all repetitions at once.** The workflow never runs two calibrations at the same time: it queues up to 100
-  runs, of any benchmark, and runs them one after another. GitHub starts them in the order they began to wait, but does
-  not guarantee it.
+- **The workflow never runs two calibrations at the same time:** it queues up to 100 runs, of any benchmark, and runs
+  them one after another. GitHub starts them in the order they began to wait, but does not guarantee it.
 
 ## The analysis
 
 [`analyze_calibration.py`](../../../../.github/workflows/support/scripts/benchmarks/analyze_calibration.py) analyzes
-one or more calibration runs together and prints the calibration block ([below](#the-calibration-record)). Its
-docstring describes the method.
+the runs of both parts in one call and prints the calibration block ([below](#the-calibration-record)). It tells the
+parts apart by their arguments: a run with `-wi 0` and at least 4 iterations is a probe. Its docstring describes the
+method.
 
-- **The warmup ends where the scores stop drifting in one direction.** The script looks for this point over all forks
-  of all runs together: in a single run, a change in the machine's load can look like a warmup that has not finished.
-  `--warmup` overrides a detected value that looks wrong.
-- **The script splits the noise into three parts:** how much the iterations of one fork differ, how much the forks of
-  one run differ, and how much whole runs differ. No number of forks or iterations reduces the differences between
-  whole runs.
-- **From these parts, it predicts the noise of a run** for any number of forks, iterations, and iteration length, and
-  recommends the cheapest configuration that reaches the target, with a margin.
+- **The warmup ends where the scores stop drifting in one direction.** The script looks for this point in the probe,
+  over all its forks together. `--warmup` overrides a detected value that looks wrong.
+- **A probe alone gives the configuration run:** its arguments, the percentiles that its iterations report, and its
+  runtime. The workflow's job summary shows the same for a probe.
+- **The script splits the configuration run's noise into three parts:** how much the iterations of one fork differ,
+  how much the forks of one run differ, and how much whole runs differ. No number of forks reduces the differences
+  between whole runs.
+- **From these parts, it predicts the noise of one run's result for any number of forks,** and recommends the fewest
+  that reach the target, with a margin.
+- **It checks the warmup:** a first measured iteration that is slower than the second means that the warmup is too
+  short.
+- **A percentile that some iteration does not report is unmeasured.** `LatencyProfiler` skips it in an iteration with
+  too few calls, and the block lists it apart from the percentiles that are not stable.
 - **Analyze results measured in different ways in separate calls:** calibration runs, nightly runs, and laptop runs.
+  The script refuses probes, or configuration runs, measured with different arguments.
 
 ## Choosing the configuration
 
@@ -57,21 +81,22 @@ docstring describes the method.
 
 - **Each iteration records enough calls for the highest reported percentile.** p99.99 is the time that only 0.01% of
   the calls exceed. With about 10⁶ calls per iteration, it rests on the 100 slowest calls (the script's `--samples`).
-  If that makes the run too long, `LatencyProfiler` skips p99.99 ([writing.md](writing.md#reporting)).
+  If that makes the run too long, choose a shorter iteration with `--length`: `LatencyProfiler` then skips p99.99
+  ([writing.md](writing.md#reporting)), and the probe's analysis shows which percentiles a length reports.
 - **Make the iterations longer rather than combining the histograms of several iterations.** Longer iterations need no
   change to `LatencyProfiler`.
-- **More iterations help only if the iterations of a fork differ more than the forks do.** If the forks differ more,
-  only more forks help.
-- **At least two measurement iterations,** so that the script can still measure how much the iterations of a fork
-  differ.
+- **Two measurement iterations,** the fewest with which the script can still measure how much the iterations of a fork
+  differ. More iterations change the configuration, and only another configuration run measures its noise.
+- **The warmup is one iteration of the probe's warmup time with a margin** (`--warmup-buffer`), rounded up to 5 s, or
+  none if the probe's first iteration is already steady. A warmup iteration needs no particular number of calls.
 
 ### Forks
 
-- **If the forks differ more than their iterations, keep each fork short.** A fork costs its warmup, its iterations,
-  and a few seconds to start the JVM. An iteration that does not lower the predicted noise is wasted time.
-- **Choose the cheapest configuration that gives good results.** Start from two iterations and the forks the predicted
-  noise needs; add forks, iterations, or seconds only where the predicted noise drops noticeably. About 10 minutes per
-  benchmark on average is an orientation, not a budget to fill.
+- **Choose the cheapest number of forks that gives good results.** The configuration run's analysis predicts the noise
+  for any number of forks; add forks only where the predicted noise drops noticeably. About 10 minutes per benchmark on
+  average is an orientation, not a budget to fill.
+- **Only the number of forks may change after the configuration run.** Another iteration length, warmup, or number of
+  iterations needs another configuration run.
 - **If whole runs differ a lot, use fewer forks and average over several nights instead.** More forks do not reduce the
   differences between runs.
 - **Check for fork modes before choosing the number of forks** ([below](#fork-modes)). With fork modes, a benchmark
@@ -80,8 +105,8 @@ docstring describes the method.
 ### The noise between runs
 
 - **Take it from the nightly history, not from calibration.** A few calibration runs on a quiet machine can agree with
-  each other where nightly runs differ. Calibration is reliable for choosing forks and iterations, because those rest on
-  dozens of forks.
+  each other where nightly runs differ. Calibration is reliable for choosing the number of forks, because it rests on
+  the differences between the forks of the configuration run.
 - **The calibration block's "expected detectable regression" is therefore the best case.** The real value can be
   larger, until the nightly history replaces it.
 
@@ -93,8 +118,8 @@ outcome is a fork mode. A benchmark with fork modes gives results that jump betw
 
 - **Detect modes by `alloc.norm`.** With inputs that are the same in every run, the bytes allocated per call are the
   same to the byte in every iteration of a fork. If they differ between forks, the forks run differently compiled code;
-  nothing else causes that. `analyze_calibration.py` groups the forks into modes by `alloc.norm` and reports how much
-  their latency differs.
+  nothing else causes that. `analyze_calibration.py` groups the forks of both parts into modes by `alloc.norm` and
+  reports how much their latency differs in the configuration run.
 - **Find the code whose allocation differs.** Profile a few single-fork runs of each mode with async-profiler in
   allocation mode with byte totals; [`fork-modes.sh`](../../../consensus-benchmark-tools/scripts/fork-modes.sh) records
   them. [`alloc-sites.py`](../../../consensus-benchmark-tools/scripts/alloc-sites.py)
@@ -153,7 +178,7 @@ outcome is a fork mode. A benchmark with fork modes gives results that jump betw
 - **The runner needs about the heap plus a few hundred MB per forked JVM,** plus the JVM of JMH itself and, if the same
   job builds, Gradle.
 - **Measure memory use on Linux.** On macOS, the peak resident memory (RSS) shows less than a pre-touched heap uses.
-- **The calibration run checks the heap again:** it discards no pass.
+- **The configuration run checks the heap again:** it discards no pass.
 
 ## The calibration record
 
@@ -161,12 +186,12 @@ outcome is a fork mode. A benchmark with fork modes gives results that jump betw
   them, and nothing else repeats them. The `jmh` task and the nightly run take their configuration from them.
 - **A block in a fixed format in the class Javadoc records how the values were found.** It sits next to the
   annotations, so that a change to the values and to their reasons lands in the same diff.
-  - `analyze_calibration.py` prints it (`calibration_block`). For a configuration other than the recommended one, pass
-    it with `--forks`, `--iterations`, `--length`, and `--warmup-iterations`.
+  - `analyze_calibration.py` prints it (`calibration_block`) from the runs of both parts. For another number of forks
+    than the recommended one, pass it with `--forks`.
   - The example's block is in the Javadoc of `ConsensusImplBenchmark`.
   - The block holds the values and the numbers behind them only; this file and the script describe the method.
-- **The raw data is not committed.** The block links the calibration runs, whose artifacts hold the data. GitHub
-  deletes artifacts after their retention period; download them to keep them.
+- **The raw data is not committed.** The block links the calibration runs of both parts, whose artifacts hold the data.
+  GitHub deletes artifacts after their retention period; download them to keep them.
 - **Calibration does not set alert thresholds.** They come from the nightly history
   ([operations.md](operations.md#alerts)).
 

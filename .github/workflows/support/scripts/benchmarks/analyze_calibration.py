@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""Calibration analysis of a JMH benchmark: where warmup ends, how the noise splits into iterations, forks, and runs,
-which run configuration reaches the noise floor, and the Javadoc calibration block for it.
+"""Calibration analysis of a JMH benchmark in two parts. The probe finds where warmup ends and how many calls an
+iteration records, and from that the configuration to measure. The configuration run measures that configuration with
+many forks: the noise of one run's result, the fork count, and the Javadoc calibration block.
 
 Usage: analyze_calibration.py [options] <results>...
 
@@ -13,33 +14,41 @@ mode, and JMH's output with a time stamp before every line. All results given in
 population; analyze results measured in different ways (nightly through Gradle, calibration runs, laptop) in separate
 calls.
 
+A result without warmup iterations and with at least 4 measurement iterations is a probe; any other result measures a
+configuration. One call takes at most one configuration of each kind. With only a probe, the analysis prints the
+configuration run to start; with both, it prints the calibration block.
+
 Method:
 - A unit is one measurement of one parameter set: one JMH invocation of run_benchmarks.py, or one parameter set of an
   older results.json. Only quiet units count: the other workloads on the node used fewer than --max-load CPUs on
   average over the unit's measurement iterations. Units without a monitor (a laptop) count as quiet.
 - Scores are analyzed as logarithms, so variances are relative and a standard deviation of 0.01 is about 1%.
-- Warmup: each iteration's score divided by the mean of the last half of its fork, then the median over all forks per
-  iteration index. Warmup ends at the first index after which this median stays within --tolerance of 1. JMH writes
-  only measurement iterations to the JSON, so calibration runs use -wi 0 to see the whole trend.
-- Variance components (method of moments, nested): within a fork (iterations), between the forks of a unit, and between
-  units. Each component is reported as a coefficient of variation (CV). The component between forks excludes what the
-  iterations' noise contributes to the fork means, and likewise for units. The component between units is the floor
-  that no fork or iteration count lowers.
-- alloc.norm modes: forks whose allocation per operation differs by more than 3% fall into separate modes, usually
-  because the JIT compiled the code differently. The mode effect is the latency difference between modes within units.
-- Prediction: the CV of one run's result with f forks and i iterations of length r is
-  sqrt(unit^2 + fork^2 / f + iteration^2 * r0 / (r * f * i)), where r0 is the measured iteration length; an iteration's
-  noise is assumed to average out with its length.
-- Recommendation, from --metric (latency.mean by default):
-  - iteration length: the shortest multiple of 5 s that collects --samples samples per iteration, so that the highest
-    percentile can be estimated from one iteration;
-  - warmup: the detected warmup time times --warmup-buffer, rounded up to whole iterations;
-  - iterations: the fewest whose noise is at most a tenth of the fork noise in a fork's mean, at least 2, so that the
-    noise within forks stays measurable; fewer if one fork already reaches --target, or if doubling the iterations
-    would lower a fork's CV by less than --gain;
-  - forks: the fewest that reach a predicted CV of --target, or after which doubling them would lower the predicted
-    CV by less than --gain, whichever is fewer; times --fork-buffer. In quiet slots the unit component is small, so
-    the target usually decides: it is the trade between noise and CI time.
+- A metric counts only in forks that report it in every iteration. LatencyProfiler skips a percentile in an iteration
+  with too few calls, and JMH's rawData leaves such iterations out without saying which ones.
+- Probe:
+  - warmup: each iteration's score divided by the mean of the last half of its fork, then the median over all forks
+    per iteration index. Warmup ends at the first index after which this median stays within --tolerance of 1. JMH
+    writes only measurement iterations to the JSON, so the probe uses -wi 0 to see the whole trend.
+  - iteration length of the configuration: the shortest multiple of 5 s that collects --samples calls per iteration at
+    the probe's rate, so that the highest percentile can be estimated from one iteration;
+  - warmup of the configuration: one iteration of the detected warmup time times --warmup-buffer, rounded up to 5 s;
+  - measurement iterations: --iterations, at least 2, so that the noise within forks stays measurable.
+- Configuration run: the configuration of the nightly run with more forks, so that the noise of a fork's result is
+  measured at the length and iteration count the nightly run uses, not predicted from others. The noise within a fork
+  is correlated over tens of seconds, so it does not shrink in proportion to a longer iteration.
+  - variance components (method of moments, nested): within a fork (iterations), between the forks of a unit, and
+    between units, each as a coefficient of variation (CV). A fork's result varies as much as the fork means within a
+    unit; the component between units excludes what that contributes to the unit means. It is the floor that no fork
+    count lowers.
+  - prediction: the CV of one run's result with f forks is sqrt(unit^2 + fork result^2 / f). Only the fork count
+    changes, and forks are independent JVMs.
+  - forks: the fewest that reach a predicted CV of --target, or after which doubling them would lower the predicted CV
+    by less than --gain, whichever is fewer; times --fork-buffer, at least 2. In quiet slots the unit component is
+    small, so the target usually decides: it is the trade between noise and CI time.
+  - warmup check: the first measured iteration of every fork against its second.
+  - alloc.norm modes, over the forks of both parts: forks whose allocation per operation differs by more than 3% fall
+    into separate modes, usually because the JIT compiled the code differently. The mode effect is the latency
+    difference between modes within units.
 """
 import argparse
 import glob
@@ -57,6 +66,12 @@ from benchmark_runs import (bench_key, monitor_mean, read_environment, read_iter
 DEFAULT_METRICS = ["latency.mean", "latency.p50", "latency.p90", "latency.p99", "latency.p99.9", "latency.p99.99",
                    "latency.max"]
 ALLOC_MODE_GAP = 0.03
+# a result without warmup iterations and with at least this many measurement iterations is a probe
+PROBE_ITERATIONS = 4
+CONFIGURATION_FORKS = 10
+# LatencyProfiler reports a percentile only from iterations with at least this many calls above it
+MIN_CALLS_ABOVE = 100
+PERCENTILES = [("p50", 50), ("p90", 90), ("p99", 99), ("p99.9", 99.9), ("p99.99", 99.99)]
 
 
 def pct(x):
@@ -74,6 +89,11 @@ def seconds(text):
     return float(value) * {"ns": 1e-9, "us": 1e-6, "ms": 1e-3, "s": 1.0, "min": 60.0}[unit]
 
 
+def calls_needed(percentile):
+    """the fewest calls an iteration must record for LatencyProfiler to report the percentile"""
+    return round(MIN_CALLS_ABOVE * 100 / (100 - percentile))
+
+
 class Unit:
     """one measurement of one parameter set, with the environment of the run it belongs to"""
 
@@ -88,6 +108,13 @@ class Unit:
         self.output = output
         self.times, _ = read_iteration_times(output) if output else ({}, {})
         self.iteration_s = seconds(benchmark.get("measurementTime", "5 s"))
+        warmups = benchmark.get("warmupIterations", 0)
+        # warmup iterations, their length, measurement iterations, their length
+        self.config = (warmups, seconds(benchmark.get("warmupTime", "0 s")) if warmups else 0.0,
+                       benchmark.get("measurementIterations", 0), self.iteration_s)
+        self.probe = warmups == 0 and self.config[2] >= PROBE_ITERATIONS
+        # the first iteration of the steady state; for a probe, the analysis sets it after finding the warmup
+        self.first = warmups + 1
         windows = [(end - self.iteration_s, end) for (k, _, _), end in self.times.items() if k == key]
         self.others = monitor_mean(monitor, "others", windows) if monitor and windows else None
         self.quiet = self.others is None or self.others < max_load
@@ -194,13 +221,22 @@ def load_units(path, max_load):
 
 
 def iterations(unit, metric):
-    """{fork: [(iteration index, score)]} with iteration indices counted from the first warmup iteration"""
+    """{fork: [(iteration index, score)]} with iteration indices counted from the first warmup iteration, without the
+    forks that lack the metric in some iterations: rawData leaves those out without saying which ones"""
     b = unit.b
     raw = b["primaryMetric"]["rawData"] if metric == "primary" else b["secondaryMetrics"].get(metric, {}).get("rawData")
     if not raw:
         return {}
+    counts = [len(scores) for scores in b["primaryMetric"]["rawData"]]
     offset = b.get("warmupIterations", 0)
-    return {fork + 1: [(offset + i + 1, s) for i, s in enumerate(scores)] for fork, scores in enumerate(raw)}
+    return {fork + 1: [(offset + i + 1, s) for i, s in enumerate(scores)] for fork, scores in enumerate(raw)
+            if fork < len(counts) and len(scores) == counts[fork]}
+
+
+def coverage(units, metric):
+    """(forks that report the metric in every iteration, all forks)"""
+    return (sum(len(iterations(u, metric)) for u in units),
+            sum(len(u.b["primaryMetric"]["rawData"]) for u in units))
 
 
 def warmup_trend(units, metric):
@@ -225,12 +261,12 @@ def warmup_end(ratios, tolerance):
     return end
 
 
-def alloc_modes(units, first):
+def alloc_modes(units):
     """{(unit label, fork): mode index}, mode centers"""
     per_fork = {}
     for unit in units:
         for fork, scores in iterations(unit, "alloc.norm").items():
-            steady = [s for i, s in scores if i >= first]
+            steady = [s for i, s in scores if i >= unit.first]
             if steady:
                 per_fork[(unit.label, fork)] = st.mean(steady)
     if not per_fork:
@@ -242,22 +278,22 @@ def alloc_modes(units, first):
     return mode_of, centers
 
 
-def fork_logs(unit, metric, first, mode_of=None, mode_effect=None):
+def fork_logs(unit, metric, mode_of=None, mode_effect=None):
     """{fork: [log score of each steady-state iteration]}, optionally adjusted by the effect of the fork's mode"""
     logs = {}
     for fork, scores in iterations(unit, metric).items():
-        steady = [math.log(s) for i, s in scores if i >= first and s > 0]
+        steady = [math.log(s) for i, s in scores if i >= unit.first and s > 0]
         if steady:
             adjust = mode_effect.get(mode_of.get((unit.label, fork)), 0.0) if mode_effect else 0.0
             logs[fork] = [x - adjust for x in steady]
     return logs
 
 
-def components(units, metric, first, mode_of=None, mode_effect=None):
+def components(units, metric, mode_of=None, mode_effect=None):
     """variance components of log scores; returns per-unit rows and the pooled components"""
     rows = []
     for unit in units:
-        logs = fork_logs(unit, metric, first, mode_of, mode_effect)
+        logs = fork_logs(unit, metric, mode_of, mode_effect)
         if not logs:
             continue
         n_iter = st.mean(len(v) for v in logs.values())
@@ -265,27 +301,28 @@ def components(units, metric, first, mode_of=None, mode_effect=None):
         means = [st.mean(v) for v in logs.values()]
         v_forks = var(means)
         between = max(0.0, v_forks - within / n_iter) if not math.isnan(v_forks) else float("nan")
-        rows.append({"unit": unit, "mean": st.mean(means), "within": within, "between": between, "forks": len(means),
-                     "iterations": n_iter})
+        rows.append({"unit": unit, "mean": st.mean(means), "within": within, "between": between, "v_forks": v_forks,
+                     "forks": len(means), "iterations": n_iter})
     if not rows:
         return rows, None
     within = st.mean(r["within"] for r in rows)
     between = st.mean(r["between"] for r in rows)
+    # how much the result of one fork varies: the variance of the fork means, iterations' noise included
+    fork_result = st.mean(r["v_forks"] for r in rows)
     n_forks = st.mean(r["forks"] for r in rows)
-    n_iter = st.mean(r["iterations"] for r in rows)
     v_units = var([r["mean"] for r in rows])
-    unit = max(0.0, v_units - between / n_forks - within / (n_forks * n_iter)) if not math.isnan(v_units) \
-        else float("nan")
-    return rows, {"within": within, "between": between, "unit": unit, "v_units": v_units, "forks": n_forks,
-                  "iterations": n_iter, "mean": st.mean(r["mean"] for r in rows), "units": len(rows)}
+    unit = max(0.0, v_units - fork_result / n_forks) if not math.isnan(v_units) else float("nan")
+    return rows, {"within": within, "between": between, "fork_result": fork_result, "unit": unit, "v_units": v_units,
+                  "forks": n_forks, "iterations": st.mean(r["iterations"] for r in rows),
+                  "mean": st.mean(r["mean"] for r in rows), "units": len(rows)}
 
 
-def mode_effects(units, metric, first, mode_of):
+def mode_effects(units, metric, mode_of):
     """log latency difference of every mode from the unit's mean, estimated from units that have several modes"""
     deviations = defaultdict(list)
     for unit in units:
         fork_means = {fork: (mode_of[(unit.label, fork)], st.mean(v))
-                      for fork, v in fork_logs(unit, metric, first).items() if (unit.label, fork) in mode_of}
+                      for fork, v in fork_logs(unit, metric).items() if (unit.label, fork) in mode_of}
         modes = {m for m, _ in fork_means.values()}
         if len(modes) < 2:
             continue
@@ -297,11 +334,10 @@ def mode_effects(units, metric, first, mode_of):
     return {m: st.mean(d) for m, d in deviations.items()}
 
 
-def predicted_cv(c, forks, iterations_, length, measured_length):
-    """CV of one run's result, as a standard deviation of logarithms"""
+def predicted_cv(c, forks):
+    """CV of one run's result with the given number of forks, as a standard deviation of logarithms"""
     unit = 0.0 if math.isnan(c["unit"]) else c["unit"]
-    within = 0.0 if math.isnan(c["within"]) else c["within"] * measured_length / length
-    return math.sqrt(unit + c["between"] / forks + within / (forks * iterations_))
+    return math.sqrt(unit + c["fork_result"] / forks)
 
 
 FEATURES = [
@@ -318,7 +354,7 @@ FEATURES = [
 ]
 
 
-def iteration_features(units, metric, first):
+def iteration_features(units, metric):
     """per steady-state iteration: (fork id, log score, {feature: value}) for units with a monitor and time stamps"""
     points = []
     for unit in units:
@@ -327,7 +363,7 @@ def iteration_features(units, metric, first):
         for fork, scores in iterations(unit, metric).items():
             for i, s in scores:
                 end_ts = unit.times.get((unit.key, fork, i))
-                if i < first or not end_ts or s <= 0:
+                if i < unit.first or not end_ts or s <= 0:
                     continue
                 means = {f: unit.monitor_mean(f, end_ts - unit.iteration_s, end_ts)
                          for f in ("others", "hot_mhz", "sibling", "l3", "migrated")}
@@ -354,9 +390,9 @@ def solve(a, b):
     return [m[i][n] / m[i][i] for i in range(n)]
 
 
-def print_mechanisms(units, metric, first):
+def print_mechanisms(units, metric):
     """relates each iteration's score to the load around the benchmark thread, within forks"""
-    points = iteration_features(units, metric, first)
+    points = iteration_features(units, metric)
     if len(points) < 10:
         return
     names = [name for name, _, _, _ in FEATURES if sum(p[2][name] is not None for p in points) > len(points) / 2]
@@ -409,7 +445,7 @@ def print_mechanisms(units, metric, first):
             print("Jointly (least squares, within forks): "
                   + ", ".join(f"{joint[j]} {100 * c:+.2f}%" for j, c in enumerate(coefficients))
                   + f"; R² = {1 - ss_res / ss_tot:.2f}.\n")
-    unit_points = [(r["unit"].others, r["mean"]) for r in components(units, metric, first)[0]
+    unit_points = [(r["unit"].others, r["mean"]) for r in components(units, metric)[0]
                    if r["unit"].others is not None]
     if len(unit_points) > 2 and len({p[0] for p in unit_points}) > 1:
         x = [p[0] for p in unit_points]
@@ -431,62 +467,57 @@ def fmt(x, digits=0):
     return "-" if x is None or (isinstance(x, float) and math.isnan(x)) else f"{x:,.{digits}f}"
 
 
-def recommend(units, c, first, measured_length, args):
-    """the recommended configuration and what it is expected to give, from the pooled components of --metric"""
-    samples = [s / measured_length for u in units for f in iterations(u, "latency.samples").values()
-               for i, s in f if i >= first]
-    rate = st.median(samples) if samples else None
-    length = max(5, 5 * math.ceil(args.samples / rate / 5)) if rate else measured_length
-    warmup_s = (first - 1) * measured_length
-    warmup = max(1, math.ceil(warmup_s * args.warmup_buffer / length)) if warmup_s > 0 else 0
-    if math.isnan(c["between"]):
-        print("WARNING: fewer than two forks per unit, so the noise between forks is unknown and the fork count"
-              " below is meaningless.\n")
-    fork_var = 0.0 if math.isnan(c["between"]) else c["between"]
-    iteration_var = 0.0 if math.isnan(c["within"]) else c["within"] * measured_length / length
-    unit_var = 0.0 if math.isnan(c["unit"]) else c["unit"]
-    target = math.log(1 + args.target) ** 2
-    count = 2
-    iteration_reason = "whose noise is at most a tenth of the fork noise"
-    while fork_var > 0 and iteration_var / count > fork_var / 10 and count < 50:
-        # with forks that barely differ, the tenth above asks for dozens of iterations that lower no noise that matters
-        if unit_var + fork_var + iteration_var / count <= target:
-            iteration_reason = f"with which one fork reaches the target CV of {100 * args.target:.2f}%"
-            break
-        if fork_var + iteration_var / (2 * count) > (1 - args.gain) ** 2 * (fork_var + iteration_var / count):
-            iteration_reason = f"after which doubling them would lower a fork's CV by less than {100 * args.gain:.0f}%"
-            break
-        count += 1
-    per_fork = fork_var + iteration_var / count
-    # where doubling the forks lowers the CV by less than the gain: forks >= per_fork * (1/2 - g) / (g * unit), with
-    # g = 1 - (1 - gain)^2; without a unit component there is no such point
-    g = 1 - (1 - args.gain) ** 2
-    gain_forks = per_fork * (0.5 - g) / (g * unit_var) if unit_var > 0 and g < 0.5 else math.inf
-    # where the predicted CV reaches the target; unreachable if the unit component alone exceeds it
-    target_forks = per_fork / (target - unit_var) if target > unit_var else math.inf
-    if gain_forks <= target_forks:
-        floor_forks = gain_forks
-        reason = f"doubling them would lower the predicted CV by less than {100 * args.gain:.0f}%"
-    else:
-        floor_forks = target_forks
-        reason = f"they reach the target CV of {100 * args.target:.2f}%"
-    if math.isinf(floor_forks):
-        floor_forks = 1
-        reason = "the target CV is below the floor between runs, which no fork count lowers"
-    forks = max(2, math.ceil(math.ceil(floor_forks) * args.fork_buffer))
+def fmt_count(x):
+    """a number of calls: 1.3 M, 13 k, 1,825"""
+    if x is None:
+        return "-"
+    return f"{x / 1e6:.1f} M" if x >= 1e6 else f"{x / 1e3:.0f} k" if x >= 1e4 else fmt(x)
+
+
+def print_units(all_units, mode_of, centers):
+    print("### Units\n")
+    rows = []
+    for unit in all_units:
+        samples = [s for f in iterations(unit, "latency.samples").values() for i, s in f if i >= unit.first]
+        discarded = sum(s for f in iterations(unit, "measured.gc.discardedPasses").values() for _, s in f)
+        modes = defaultdict(int)
+        for (label, _), m in mode_of.items():
+            if label == unit.label:
+                modes[m] += 1
+        throttled_s = unit.counter_delta("cgroup_throttled_usec")
+        rows.append([
+            unit.label, unit.info.get("started", "")[5:16], unit.node() or "-", unit.env("cpu_model")[:28] or "-",
+            fmt(unit.counter_delta("cgroup_nr_throttled")),
+            fmt(throttled_s / 1e6, 1) if throttled_s is not None else "-",
+            fmt(unit.others, 2), "yes" if unit.quiet else "no",
+            fmt(st.mean(samples) / 1e3 if samples else None) + "k", fmt(discarded),
+            "/".join(str(modes[m]) for m in range(len(centers))) if unit.quiet else "-",
+            fmt(unit.b["primaryMetric"]["score"], 3),
+        ])
+    print_table(["unit", "started", "node", "CPU", "throttled", "throttled s", "others' CPUs", "quiet",
+                 "samples/iter", "discarded", "alloc modes", "primary"], rows)
+    if centers:
+        print("alloc.norm modes (B/op): " + ", ".join(f"{m}: {c:,.0f}" for m, c in enumerate(centers)) + "\n")
+
+
+def fork_costs(units):
+    """median seconds per fork outside its measured iterations, and per iteration beyond its length"""
     overheads = [o for u in units for o in [u.fork_timing()[0]] if o is not None]
     overshoots = [o for u in units for o in [u.fork_timing()[1]] if o is not None]
-    overhead = st.median(overheads) if overheads else None
-    overshoot = st.median(overshoots) if overshoots else 0.0
-    runtime = forks * (overhead + (warmup + count) * (length + overshoot)) if overhead is not None else None
-    return {"length": length, "rate": rate, "warmup": warmup, "warmup_s": warmup_s, "iterations": count,
-            "iteration_reason": iteration_reason, "forks": forks, "floor_forks": floor_forks, "reason": reason,
-            "overhead": overhead, "overshoot": overshoot, "runtime": runtime}
+    return (st.median(overheads) if overheads else None), (st.median(overshoots) if overshoots else 0.0)
 
 
-def analyze(units, key, args):
-    """prints the analysis of one parameter set and returns its summary for the calibration block"""
-    print(f"## {key}\n")
+def reported(calls):
+    """the percentiles that LatencyProfiler reports from iterations with this many calls, and the first one it skips"""
+    labels = [label for label, p in PERCENTILES if calls >= calls_needed(p)]
+    skipped = next(((label, p) for label, p in PERCENTILES if calls < calls_needed(p)), None)
+    return labels, skipped
+
+
+def probe(units, key, args):
+    """prints the probe of one parameter set: its warmup and its calls per second, and the configuration they ask
+    for; returns its summary"""
+    print(f"## {key}: probe\n")
     all_units = units
     units = [u for u in units if u.quiet]
     print(f"{len(units)} quiet units of {len(all_units)} (other workloads below {args.max_load} CPUs during the"
@@ -494,7 +525,6 @@ def analyze(units, key, args):
     if not units:
         return None
 
-    # warmup
     print("### Warmup trend\n")
     print(f"Median score per iteration relative to the steady state of its fork ({args.metric}, and"
           f" latency.p99.9). Warmup ends where the median stays within {100 * args.tolerance:.1f}%.\n")
@@ -513,87 +543,174 @@ def analyze(units, key, args):
     print_table(["iteration", "forks", "median", "p10", "p90", "p99.9 median"], rows)
     end = warmup_end(trend, args.tolerance)
     first = args.warmup + 1 if args.warmup is not None else end
+    for unit in all_units:
+        unit.first = first
     print(f"Warmup ends after iteration {end - 1}. Steady-state analysis uses iterations from {first} on.\n")
     if args.warmup is None and end > (min(trend) + max(trend)) / 2:
-        print("WARNING: the detected warmup covers more than half of the iterations. Changing load or too few units can"
-              " hide where warmup ends; pass --warmup with the value from pooled units.\n")
+        print("WARNING: the detected warmup covers more than half of the iterations. The warmup may be longer than the"
+              " probe's forks, or the forks too noisy; run a probe with more iterations, or pass --warmup.\n")
     tail_off = {i: st.median(r) - 1 for i, r in trend_tail.items() if i >= first}
     later = [abs(d) for i, d in tail_off.items() if i > first]
     if first in tail_off and later and abs(tail_off[first]) > 2 * max(later):
         print(f"WARNING: latency.p99.9 of iteration {first}, the first one analyzed, is"
               f" {100 * tail_off[first]:+.1f}% off its steady state, more than twice as far as any later iteration."
-              " The warmup detection looks at"
-              f" {args.metric} only; a short warmup iteration (--warmup-iterations, --warmup-length) keeps these slow"
-              " calls out of the measurement.\n")
+              f" The warmup detection looks at {args.metric} only; a longer warmup (--warmup-length) keeps these"
+              " slow calls out of the measurement.\n")
 
-    # units
-    print("### Units\n")
-    mode_of, centers = alloc_modes(units, first)
+    mode_of, centers = alloc_modes(units)
+    print_units(all_units, mode_of, centers)
+    print_mechanisms(all_units, args.metric)
+
+    probe_length = units[0].iteration_s
+    overhead, overshoot = fork_costs(units)
+    # an iteration ends after whole passes, so it records the calls of its length plus the overshoot
+    samples = [s / (probe_length + overshoot) for u in units for f in iterations(u, "latency.samples").values()
+               for i, s in f if i >= first]
+    rate = st.median(samples) if samples else None
+    length = max(5, 5 * math.ceil((args.samples / rate - overshoot) / 5)) if rate else probe_length
+    warmup_s = (first - 1) * probe_length
+    warmup_length = 5 * math.ceil(warmup_s * args.warmup_buffer / 5) if warmup_s > 0 else 0
+    print("### Configuration for this parameter set\n")
+    print(f"- Iteration length: {length:g} s, for {args.samples / 1e6:g} M calls per iteration at"
+          f" {fmt(rate)} calls/s.")
+    print(f"- Warmup: {warmup_length:g} s, for {warmup_s:g} s of measured warmup times {args.warmup_buffer:g} as a"
+          " buffer." if warmup_s > 0 else "- Warmup: none; the first iteration is already steady.")
+    if overhead is not None:
+        print(f"- Each fork costs {overhead:.1f} s besides its iterations, and each iteration runs"
+              f" {overshoot:.2f} s beyond its length (whole passes).")
+    print()
+    return {"key": key, "units": units, "all_units": all_units, "warmup_s": warmup_s, "length": length,
+            "warmup_length": warmup_length, "rate": rate, "overhead": overhead, "overshoot": overshoot,
+            "modes": len(centers)}
+
+
+def print_configuration_run(probes, args):
+    """the configuration that the probes ask for, and the arguments of the run that measures it"""
+    length = args.length if args.length is not None else max(s["length"] for s in probes)
+    warmup_length = args.warmup_length if args.warmup_length is not None else max(s["warmup_length"] for s in probes)
+    warmups = 1 if warmup_length > 0 else 0
+    count = args.iterations
+    print("## Configuration run\n")
+    print((f"@Warmup(iterations = 1, time = {warmup_length:g})" if warmups else "@Warmup(iterations = 0)")
+          + f", @Measurement(iterations = {count}, time = {length:g}), in seconds, for all parameter sets. The"
+          f" configuration run measures it with {CONFIGURATION_FORKS} forks; @Fork follows from that run.\n")
     rows = []
-    for unit in all_units:
-        samples = [s for f in iterations(unit, "latency.samples").values() for i, s in f if i >= first]
-        discarded = sum(s for f in iterations(unit, "measured.gc.discardedPasses").values() for _, s in f)
-        modes = defaultdict(int)
-        for (label, _), m in mode_of.items():
-            if label == unit.label:
-                modes[m] += 1
-        throttled_s = unit.counter_delta("cgroup_throttled_usec")
-        rows.append([
-            unit.label, unit.info.get("started", "")[5:16], unit.node() or "-", unit.env("cpu_model")[:28] or "-",
-            fmt(unit.counter_delta("cgroup_nr_throttled")), fmt(throttled_s / 1e6, 1) if throttled_s is not None else "-",
-            fmt(unit.others, 2), "yes" if unit.quiet else "no",
-            fmt(st.mean(samples) / 1e3 if samples else None) + "k", fmt(discarded),
-            "/".join(str(modes[m]) for m in range(len(centers))) if unit.quiet else "-",
-            fmt(unit.b["primaryMetric"]["score"], 3),
-        ])
-    print_table(["unit", "started", "node", "CPU", "throttled", "throttled s", "others' CPUs", "quiet",
-                 "samples/iter", "discarded", "alloc modes", "primary"], rows)
-    if centers:
-        print("alloc.norm modes (B/op): " + ", ".join(f"{m}: {c:,.0f}" for m, c in enumerate(centers)) + "\n")
-    within_alloc = []
-    for unit in units:
-        for scores in iterations(unit, "alloc.norm").values():
-            steady = [s for i, s in scores if i >= first]
-            if len(steady) > 1 and st.mean(steady) > 0:
-                within_alloc.append(st.stdev(steady) / st.mean(steady))
-    if within_alloc and max(within_alloc) > 0.01:
-        print(f"WARNING: alloc.norm varies within a fork by up to {100 * max(within_alloc):.1f}%\n")
+    total = 0.0
+    for s in probes:
+        calls = s["rate"] * (length + s["overshoot"]) if s["rate"] else None
+        labels, skipped = reported(calls) if calls else ([], None)
+        minutes = None
+        if s["overhead"] is not None:
+            per_fork = (s["overhead"] + warmups * (warmup_length + s["overshoot"])
+                        + count * (length + s["overshoot"]))
+            minutes = CONFIGURATION_FORKS * per_fork / 60
+            total += minutes
+        missing = f"{skipped[0]} needs {fmt(calls_needed(skipped[1]) / s['rate'] - s['overshoot'])} s" \
+            if skipped and calls else "-"
+        rows.append([s["key"], fmt_count(calls), ", ".join(labels) or "-", missing, fmt(minutes, 1)])
+    print_table(["parameter set", "calls/iter", "percentiles reported", "first skipped", "run (min)"], rows)
+    jmh = f"-f {CONFIGURATION_FORKS} -wi {warmups}" + (f" -w {warmup_length:g}s" if warmups else "") \
+        + f" -i {count} -r {length:g}s"
+    print(f"jmh-args: `{jmh}`, about {total:.0f} min for all parameter sets, from the probe's fork costs.\n")
 
-    # variance components
+
+def check_warmup(units, metrics, tolerance):
+    """the first measured iteration of every fork against its second; a slower first one means the warmup is short"""
+    print("### Warmup check\n")
+    print("Each fork's first measured iteration against its second, with the 95% half-width of the mean.\n")
+    rows = []
+    warnings = []
+    for metric in metrics:
+        d = [math.log(scores[0][1] / scores[1][1]) for u in units for scores in iterations(u, metric).values()
+             if len(scores) > 1 and scores[0][1] > 0 and scores[1][1] > 0]
+        if len(d) < 2:
+            continue
+        mean = st.mean(d)
+        half = 1.96 * st.stdev(d) / math.sqrt(len(d))
+        rows.append([metric, len(d), pct(mean), pct(half)])
+        if mean - half > math.log(1 + tolerance):
+            warnings.append(f"WARNING: {metric} of the first measured iteration is {pct(mean)} above the second, more"
+                            f" than the {100 * tolerance:.1f}% tolerance: the warmup is too short. Lengthen it"
+                            " (--warmup-length on the probe) and measure the configuration again.\n")
+    print_table(["metric", "forks", "first vs. second", "95% half-width"], rows)
+    for w in warnings:
+        print(w)
+
+
+def recommend_forks(c, args):
+    """(forks, the fork count before the buffer, why) for the components of --metric"""
+    per_fork = c["fork_result"]
+    if math.isnan(per_fork):
+        return None, None, "one fork per unit: the noise between forks is unknown"
+    unit_var = 0.0 if math.isnan(c["unit"]) else c["unit"]
+    target = math.log(1 + args.target) ** 2
+    # where doubling the forks lowers the CV by less than the gain: forks >= per_fork * (1/2 - g) / (g * unit), with
+    # g = 1 - (1 - gain)^2; without a unit component there is no such point
+    g = 1 - (1 - args.gain) ** 2
+    gain_forks = per_fork * (0.5 - g) / (g * unit_var) if unit_var > 0 and g < 0.5 else math.inf
+    # where the predicted CV reaches the target; unreachable if the unit component alone exceeds it
+    target_forks = per_fork / (target - unit_var) if target > unit_var else math.inf
+    if gain_forks <= target_forks:
+        floor_forks = gain_forks
+        reason = f"doubling them would lower the predicted CV by less than {100 * args.gain:.0f}%"
+    else:
+        floor_forks = target_forks
+        reason = f"they reach the target CV of {100 * args.target:.2f}%"
+    if math.isinf(floor_forks):
+        floor_forks = 1
+        reason = "the target CV is below the floor between runs, which no fork count lowers"
+    return max(2, math.ceil(math.ceil(floor_forks) * args.fork_buffer)), floor_forks, reason
+
+
+def configuration(units, key, args, probe_summary):
+    """prints the analysis of one parameter set's configuration run and returns its summary"""
+    print(f"## {key}: configuration\n")
+    all_units = units
+    units = [u for u in units if u.quiet]
+    print(f"{len(units)} quiet units of {len(all_units)} (other workloads below {args.max_load} CPUs during the"
+          " measurement)\n")
+    if not units:
+        return None
+    warmups, warmup_length, count, length = units[0].config
+    print((f"Warmup 1 × {warmup_length:g} s" if warmups == 1 else f"Warmup {warmups} × {warmup_length:g} s")
+          + f", {count} × {length:g} s measured, {fmt(st.mean(len(u.b['primaryMetric']['rawData']) for u in units))}"
+          " forks per unit.\n")
+    if count < 2:
+        print("WARNING: one measurement iteration per fork: the noise within forks is unknown.\n")
+
+    # the probe's forks count for the modes too: the allocation per call does not depend on the iteration length
+    mode_of, centers = alloc_modes(units + (probe_summary["units"] if probe_summary else []))
+    print_units(all_units, mode_of, centers)
+    check_warmup(units, [args.metric, "latency.p99.9"], args.tolerance)
+
+    measured = []
+    unmeasured = []
+    for metric in args.metrics:
+        full, forks = coverage(units, metric)
+        (measured if full == forks and forks > 0 else unmeasured).append(metric)
+    if unmeasured:
+        print("Not reported in every iteration of every fork, so unmeasured: " + ", ".join(unmeasured)
+              + " (latency.skipped in the JMH output names the calls they need).\n")
+
     print("### Noise\n")
-    print("CV of each component; the unit component is what calibration cannot reduce. \"fork, mode-adjusted\""
-          " removes the latency difference between alloc.norm modes.\n")
+    print(f"CV of each component at {length:g} s iterations. \"fork result\" is how much the result of one fork"
+          " varies, its iterations' noise included; the unit component is what no fork count lowers. \"mode effect\""
+          " is the latency difference between alloc.norm modes.\n")
     rows = []
     pooled = {}
-    for metric in args.metrics:
-        _, c = components(units, metric, first)
+    for metric in measured:
+        _, c = components(units, metric)
         if not c:
             continue
         pooled[metric] = c
-        effects = mode_effects(units, metric, first, mode_of) if len(centers) > 1 else {}
-        _, adjusted = components(units, metric, first, mode_of, effects) if effects else (None, None)
+        effects = mode_effects(units, metric, mode_of) if len(centers) > 1 else {}
         effect = (max(effects.values()) - min(effects.values())) if len(effects) > 1 else None
         rows.append([metric, fmt(math.exp(c["mean"])), pct(math.sqrt(c["within"])), pct(math.sqrt(c["between"])),
-                     pct(math.sqrt(adjusted["between"])) if adjusted else "-", pct(effect),
-                     pct(math.sqrt(c["v_units"])), pct(math.sqrt(c["unit"]))])
-    print_table(["metric", "geo. mean", "iteration", "fork", "fork, mode-adjusted", "mode effect",
-                 "unit means", "unit"], rows)
+                     pct(math.sqrt(c["fork_result"])), pct(effect), pct(math.sqrt(c["v_units"])),
+                     pct(math.sqrt(c["unit"]))])
+    print_table(["metric", "geo. mean", "iteration", "fork", "fork result", "mode effect", "unit means", "unit"], rows)
 
-    print("Per unit, CV within a fork and between forks:\n")
-    shown = args.metrics[:3]
-    per_metric = {m: {r["unit"].label: r for r in components(units, m, first)[0]} for m in shown}
-    rows = []
-    for unit in units:
-        row = [unit.label]
-        for m in shown:
-            r = per_metric[m].get(unit.label)
-            row += [fmt(math.exp(r["mean"])), pct(math.sqrt(r["within"])), pct(math.sqrt(r["between"]))] if r \
-                else ["-", "-", "-"]
-        rows.append(row)
-    print_table(["unit"] + [f"{m.replace('latency.', '')} {h}" for m in shown for h in ("mean", "iter", "fork")],
-                rows)
-
-    # nodes and CPU models
+    shown = [m for m in measured[:3]]
     for env_key, title in (("cpu_model", "CPU model"), ("boot_id", "node")):
         groups = defaultdict(list)
         for unit in units:
@@ -605,83 +722,55 @@ def analyze(units, key, args):
         for name, members in sorted(groups.items()):
             row = [name or "-", len(members)]
             for m in shown:
-                means = [r["mean"] for r in components(members, m, first)[0]]
+                means = [r["mean"] for r in components(members, m)[0]]
                 row += [f"{100 * (math.exp(st.mean(means) - pooled[m]['mean']) - 1):+.2f}%",
                         pct(math.sqrt(var(means))) if len(means) > 1 else "-"]
             rows.append(row)
         print_table([title, "units"] + [f"{m.replace('latency.', '')} {h}" for m in shown
                                         for h in ("vs. all", "CV of units")], rows)
 
-    # load from other workloads, and how it acts
-    print_mechanisms(all_units, args.metric, first)
-
     if args.metric not in pooled:
         return None
-    measured_length = units[0].iteration_s
-    rec = recommend(units, pooled[args.metric], first, measured_length, args)
-    length = rec["length"] if args.length is None else args.length
-    count = rec["iterations"] if args.iterations is None else args.iterations
-
-    # prediction
+    forks, floor_forks, reason = recommend_forks(pooled[args.metric], args)
     print("### Predicted noise of one run's result\n")
-    print(f"CV for f forks and i iterations of {length:g} s, including the unit component.\n")
-    fork_counts = sorted({1, 2, 3, 5, 10, 20, 40, rec["forks"]})
-    rows = []
-    for metric, c in pooled.items():
-        for i in sorted({3, 5, 10, count}):
-            rows.append([metric, i] + [pct(predicted_cv(c, f, i, length, measured_length)) for f in fork_counts])
-    print_table(["metric", "iterations"] + [f"f={f}" for f in fork_counts], rows)
-
+    print("CV for f forks of this configuration, including the unit component.\n")
+    fork_counts = sorted({1, 2, 3, 5, 10, 20} | ({forks} if forks else set()))
+    print_table(["metric"] + [f"f={f}" for f in fork_counts],
+                [[metric] + [pct(predicted_cv(c, f)) for f in fork_counts] for metric, c in pooled.items()])
+    overhead, overshoot = fork_costs(units)
     print("### Recommendation for this parameter set\n")
-    print(f"- Iteration length: {rec['length']:g} s, for {args.samples / 1e6:g} M samples per iteration at"
-          f" {fmt(rec['rate'] / 1e3 if rec['rate'] else None)}k samples/s.")
-    print(f"- Warmup: {rec['warmup']} iteration(s), for {rec['warmup_s']:g} s of measured warmup times"
-          f" {args.warmup_buffer:g} as a buffer.")
-    print(f"- Iterations: {rec['iterations']}, the fewest (at least 2) {rec['iteration_reason']}.")
-    print(f"- Forks: {rec['forks']}, {math.ceil(rec['floor_forks'])} because {rec['reason']}, times"
-          f" {args.fork_buffer:g} as a buffer.")
-    if rec["overhead"] is not None:
-        print(f"- Each fork costs {rec['overhead']:.1f} s besides its iterations, and each iteration runs"
-              f" {rec['overshoot']:.2f} s beyond its length (whole passes).")
+    if forks:
+        print(f"- Forks: {forks}, {math.ceil(floor_forks)} because {reason}, times {args.fork_buffer:g} as a buffer.")
+    else:
+        print(f"- Forks: unknown, {reason}.")
+    if overhead is not None:
+        print(f"- Each fork costs {overhead:.1f} s besides its measured iterations, warmup included, and each"
+              f" iteration runs {overshoot:.2f} s beyond its length (whole passes).")
     print()
-    return {"key": key, "units": units, "all_units": all_units, "pooled": pooled, "rec": rec,
-            "measured_length": measured_length, "modes": len(centers)}
+    samples = [s for u in units for f in iterations(u, "latency.samples").values() for _, s in f]
+    return {"key": key, "units": units, "all_units": all_units, "pooled": pooled, "forks": forks,
+            "config": units[0].config, "unmeasured": unmeasured, "samples": st.mean(samples) if samples else None,
+            "overhead": overhead, "overshoot": overshoot, "modes": len(centers)}
 
 
-def evaluate(s, config, args):
-    """what one parameter set is expected to give with the chosen configuration"""
+def evaluate(s, forks, args):
+    """what one parameter set is expected to give with the chosen fork count"""
     c = s["pooled"][args.metric]
-    rec = s["rec"]
-    ml = s["measured_length"]
-    forks, warmup, count, length = config["forks"], config["warmup"], config["iterations"], config["length"]
-    warmup_length = config["warmup_length"]
+    _, _, count, length = s["config"]
     stable = [m.replace("latency.", "") for m, cm in s["pooled"].items()
-              if predicted_cv(cm, forks, count, length, ml) <= math.log(1 + args.stable_cv)]
+              if predicted_cv(cm, forks) <= math.log(1 + args.stable_cv)]
     return {
-        "cv": predicted_cv(c, forks, count, length, ml), "stable": stable,
-        "runtime": forks * (rec["overhead"] + warmup * (warmup_length + rec["overshoot"])
-                            + count * (length + rec["overshoot"]))
-        if rec["overhead"] is not None else None,
-        "samples": rec["rate"] * length if rec["rate"] else None,
-        "cv_iteration": math.sqrt(c["within"]), "cv_fork": math.sqrt(c["between"]),
+        "cv": predicted_cv(c, forks), "stable": stable,
+        "unmeasured": [m.replace("latency.", "") for m in s["unmeasured"]],
+        "runtime": forks * (s["overhead"] + count * (length + s["overshoot"])) if s["overhead"] is not None else None,
+        "samples": s["samples"], "cv_iteration": math.sqrt(c["within"]), "cv_fork": math.sqrt(c["between"]),
         "cv_unit": math.sqrt(c["unit"]) if not math.isnan(c["unit"]) else None,
     }
 
 
-def choose(summaries, args):
-    """one configuration for all parameter sets, since the annotations hold for the whole class: the largest of
-    their recommendations, unless given on the command line"""
-    def pick(name, given):
-        return given if given is not None else max(s["rec"][name] for s in summaries)
-    length = pick("length", args.length)
-    return {"forks": pick("forks", args.forks), "warmup": pick("warmup", args.warmup_iterations),
-            "iterations": pick("iterations", args.iterations), "length": length,
-            "warmup_length": args.warmup_length if args.warmup_length is not None else length}
-
-
-def calibration_block(summaries, config, args):
+def calibration_block(summaries, probes, forks, args):
     """the calibration record as a Javadoc block (platform-sdk/docs/consensus-layer/benchmarks/calibration.md)"""
-    expected = [evaluate(s, config, args) for s in summaries]
+    expected = [evaluate(s, forks, args) for s in summaries]
     last = summaries[-1]["units"][-1]
     b = last.b
     # the heap from the annotations and the processor count that the driver pins
@@ -691,15 +780,17 @@ def calibration_block(summaries, config, args):
     machine = ", ".join(x for x in (last.info.get("runner_label"), node, last.env("cpu_model")) if x)
     date = (last.info.get("started") or "")[:10]
     commit = (last.info.get("commit") or "")[:10]
-    runs = sorted({u.info["run_id"] for s in summaries for u in s["units"] if "run_id" in u.info})
+    units = [u for s in summaries for u in s["units"]] + [u for p in probes.values() for u in p["units"]]
+    runs = sorted({u.info["run_id"] for u in units if "run_id" in u.info})
     raw_data = ", ".join(f"https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/{r}" for r in runs) or "?"
 
     def each(fn):
         return " / ".join(fn(e) for e in expected)
 
     names = " / ".join(s["key"].split(" ", 1)[1] if " " in s["key"] else s["key"] for s in summaries)
-    warmups = " / ".join(f"{s['rec']['warmup_s']:g} s" for s in summaries)
+    warmups = " / ".join(f"{probes[s['key']]['warmup_s']:g} s" if s["key"] in probes else "?" for s in summaries)
     quiet = " / ".join(f"{len(s['units'])} of {len(s['all_units'])}" for s in summaries)
+    unmeasured = each(lambda e: ", ".join(e["unmeasured"]) or "-")
     lines = [
         "<h2>Calibration</h2>",
         "<ul>",
@@ -707,14 +798,15 @@ def calibration_block(summaries, config, args):
         f"  <li>Machine: {machine or '?'}, JDK {b.get('jdkVersion', '?')}, {heap}</li>",
         f"  <li>Parameter sets: {names}</li>",
         f"  <li>Steady state after: {warmups}</li>",
-        f"  <li>Noise ({args.metric}, CV): {each(lambda e: pct(e['cv_iteration']))} per {summaries[0]['measured_length']:g} s"
+        f"  <li>Noise ({args.metric}, CV): {each(lambda e: pct(e['cv_iteration']))} per {summaries[0]['config'][3]:g} s"
         f" iteration, {each(lambda e: pct(e['cv_fork']))} between forks,"
         f" {each(lambda e: pct(e['cv_unit']) if e['cv_unit'] is not None else '-')} between runs"
         f" ({quiet} runs quiet)</li>",
         f"  <li>Expected detectable regression: {each(lambda e: pct(1.96 * e['cv']))} (95 % CI half-width of one"
         " run)</li>",
-        f"  <li>Samples per iteration: {each(lambda e: fmt(e['samples'] / 1e6, 1) + ' M' if e['samples'] else '-')};"
-        f" expected stable: {each(lambda e: ', '.join(e['stable']) or '-')}</li>",
+        f"  <li>Samples per iteration: {each(lambda e: fmt_count(e['samples']))};"
+        f" expected stable: {each(lambda e: ', '.join(e['stable']) or '-')}"
+        + (f"; unmeasured: {unmeasured}" if any(e["unmeasured"] for e in expected) else "") + "</li>",
         f"  <li>Runtime: {each(lambda e: fmt(e['runtime'] / 60, 1) if e['runtime'] else '-')} min per parameter"
         " set</li>",
         f"  <li>Raw data: {raw_data}</li>",
@@ -730,14 +822,20 @@ def main():
     parser.add_argument("--metric", default="latency.mean", help="metric that the recommendation is based on")
     parser.add_argument("--max-load", type=float, default=0.5,
                         help="most CPUs of other workloads for a quiet unit (default 0.5)")
-    parser.add_argument("--tolerance", type=float, default=0.01, help="warmup tolerance (default 0.01)")
-    parser.add_argument("--warmup", type=int, help="warmup iterations to drop, instead of the detected value")
+    parser.add_argument("--tolerance", type=float, default=0.01,
+                        help="warmup tolerance, in the probe and in the warmup check (default 0.01)")
+    parser.add_argument("--warmup", type=int, help="probe: warmup iterations to drop, instead of the detected value")
     parser.add_argument("--benchmark", help="only parameter sets whose key contains this text")
-    # p99.99 needs 10^6 samples per iteration; the buffer keeps a night that is 20% slower above that
+    # p99.99 needs 10^6 calls per iteration; the buffer keeps a night that is 20% slower above that
     parser.add_argument("--samples", type=float, default=1.25e6,
-                        help="samples per iteration the recommendation aims for (default 1.25 M)")
+                        help="probe: calls per iteration the iteration length aims for (default 1.25 M)")
     parser.add_argument("--warmup-buffer", type=float, default=2.0,
-                        help="factor on the measured warmup time (default 2)")
+                        help="probe: factor on the measured warmup time (default 2)")
+    parser.add_argument("--length", type=float, help="probe: chosen iteration length in seconds")
+    parser.add_argument("--warmup-length", type=float,
+                        help="probe: chosen warmup length in seconds, as one iteration; 0 for none")
+    parser.add_argument("--iterations", type=int, default=2,
+                        help="probe: chosen measurement iterations (default 2)")
     parser.add_argument("--gain", type=float, default=0.10,
                         help="forks stop where doubling them lowers the CV by less than this (default 0.10)")
     parser.add_argument("--target", type=float, default=0.005,
@@ -746,36 +844,65 @@ def main():
     parser.add_argument("--stable-cv", type=float, default=0.02,
                         help="most predicted CV of a percentile expected to be stable (default 0.02)")
     parser.add_argument("--forks", type=int, help="chosen forks, instead of the recommendation")
-    parser.add_argument("--iterations", type=int, help="chosen measurement iterations")
-    parser.add_argument("--length", type=float, help="chosen iteration length in seconds")
-    parser.add_argument("--warmup-iterations", type=int, help="chosen warmup iterations")
-    parser.add_argument("--warmup-length", type=float,
-                        help="chosen warmup iteration length in seconds (default: the iteration length)")
     parser.add_argument("--dump", help="write every iteration's scores to this CSV file")
     args = parser.parse_args()
     args.metrics = args.metrics.split(",")
 
     units = [u for p in args.results for u in load_units(p, args.max_load)]
-    keys = sorted({u.key for u in units if not args.benchmark or args.benchmark in u.key},
-                  key=lambda k: [int(t) if t.isdigit() else t for t in re.split(r"(\d+)", k)])
-    summaries = [s for key in keys for s in [analyze([u for u in units if u.key == key], key, args)] if s]
+    units = [u for u in units if not args.benchmark or args.benchmark in u.key]
+    probe_units = [u for u in units if u.probe]
+    config_units = [u for u in units if not u.probe]
+    for kind, group in (("probe", probe_units), ("configuration", config_units)):
+        configs = sorted({u.config for u in group})
+        if len(configs) > 1:
+            raise SystemExit(f"{kind} results measured in {len(configs)} ways (warmup iterations, warmup length,"
+                             f" iterations, iteration length): {configs}; analyze them in separate calls")
+    keys = sorted({u.key for u in units}, key=lambda k: [int(t) if t.isdigit() else t for t in re.split(r"(\d+)", k)])
+
+    probes = {}
+    for key in keys:
+        members = [u for u in probe_units if u.key == key]
+        s = probe(members, key, args) if members else None
+        if s:
+            probes[key] = s
+    summaries = []
+    for key in keys:
+        members = [u for u in config_units if u.key == key]
+        s = configuration(members, key, args, probes.get(key)) if members else None
+        if s:
+            summaries.append(s)
+
+    if probes and not config_units:
+        print_configuration_run(list(probes.values()), args)
     if summaries:
-        config = choose(summaries, args)
+        recommended = [s["forks"] for s in summaries if s["forks"]]
+        forks = args.forks if args.forks is not None else max(recommended) if recommended else None
+        if forks is None:
+            print("No fork count: pass --forks.\n")
+            return 1
+        warmups, warmup_length, count, length = summaries[0]["config"]
         print("## Configuration for all parameter sets\n")
-        print(f"@Fork({config['forks']}), @Warmup(iterations = {config['warmup']}, time = {config['warmup_length']:g}),"
-              f" @Measurement(iterations = {config['iterations']}, time = {config['length']:g}), in seconds.\n")
+        print(f"@Fork({forks}), " + (f"@Warmup(iterations = {warmups}, time = {warmup_length:g})" if warmups
+                                     else "@Warmup(iterations = 0)")
+              + f", @Measurement(iterations = {count}, time = {length:g}), in seconds.\n")
         rows = []
         for s in summaries:
-            e = evaluate(s, config, args)
+            e = evaluate(s, forks, args)
             rows.append([s["key"], pct(e["cv"]), pct(1.96 * e["cv"]),
-                         fmt(e["samples"] / 1e6, 1) + " M" if e["samples"] else "-", ", ".join(e["stable"]) or "-",
-                         fmt(e["runtime"] / 60, 1) if e["runtime"] else "-"])
+                         fmt_count(e["samples"]), ", ".join(e["stable"]) or "-",
+                         ", ".join(e["unmeasured"]) or "-", fmt(e["runtime"] / 60, 1) if e["runtime"] else "-"])
         print_table(["parameter set", f"CV of {args.metric}", "95% half-width", "samples/iter",
-                     f"stable (CV ≤ {100 * args.stable_cv:g}%)", "runtime (min)"], rows)
-        print("### Calibration block\n")
-        print("```")
-        print(calibration_block(summaries, config, args))
-        print("```\n")
+                     f"stable (CV ≤ {100 * args.stable_cv:g}%)", "unmeasured", "runtime (min)"], rows)
+        commits = {u.info.get("commit") for u in units if u.info.get("commit")}
+        if len(commits) > 1:
+            print(f"WARNING: the runs measured {len(commits)} commits: {', '.join(sorted(c[:10] for c in commits))}.\n")
+        if probes:
+            print("### Calibration block\n")
+            print("```")
+            print(calibration_block(summaries, probes, forks, args))
+            print("```\n")
+        else:
+            print("The calibration block also needs the probe's runs.\n")
 
     if args.dump:
         import csv
@@ -786,8 +913,6 @@ def main():
             out.writerow(["unit", "node", "benchmark", "quiet", "fork", "iteration", "end_epoch"] + monitored
                          + args.metrics + extra)
             for unit in units:
-                if unit.key not in keys:
-                    continue
                 series = {m: iterations(unit, m) for m in args.metrics + extra}
                 for fork, scores in series[args.metrics[0]].items():
                     for n, (i, _) in enumerate(scores):
