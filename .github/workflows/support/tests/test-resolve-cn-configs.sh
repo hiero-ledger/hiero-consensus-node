@@ -36,7 +36,7 @@ WORK="$(mktemp -d)"
 trap 'rm -rf "${WORK}"' EXIT
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
 
-# commit_ref <branch> <solo> <jdk> <bn> [omit-key]
+# commit_ref <branch> <solo> <jdk> <bn> [omit-key]; BN_OVERRIDE=0 writes a BlockNodeContainer without BLOCK_NODE_VERSION
 commit_ref() {
   git -C "${WORK}/origin" checkout -q -B "$1"
   mkdir -p "${WORK}/origin/.github/workflows/support/citr" "${WORK}/origin/gradle"
@@ -48,6 +48,13 @@ commit_ref() {
     echo "block-node-version=$4"
   } | { if [[ -n "$5" ]]; then grep -v "^$5="; else cat; fi; } \
     > "${WORK}/origin/.github/workflows/support/citr/.citr-env"
+  local bn_dir="${WORK}/origin/hedera-node/test-clients/src/main/java/com/hedera/services/bdd/junit/hedera/containers"
+  mkdir -p "${bn_dir}"
+  if [[ "${BN_OVERRIDE:-1}" == "1" ]]; then
+    echo 'String e = "BLOCK_NODE_VERSION";' > "${bn_dir}/BlockNodeContainer.java"
+  else
+    echo 'String v = "0.45.0";' > "${bn_dir}/BlockNodeContainer.java"
+  fi
   echo "jdk=$3" > "${WORK}/origin/gradle/toolchain-versions.properties"
   git -C "${WORK}/origin" add -A
   git -C "${WORK}/origin" commit -q -m "$1"
@@ -55,9 +62,10 @@ commit_ref() {
 
 git init -q "${WORK}/origin"
 commit_ref main v0.91.0 25.0.2 v0.44.1
-commit_ref release/0.72 v0.60.0 21.0.1 v0.43.0
+BN_OVERRIDE=0 commit_ref release/0.72 v0.60.0 21.0.1 v0.43.0
 commit_ref old-solo v0.43.0 21.0.1 v0.43.0
 commit_ref no-tck v0.91.0 25.0.2 v0.44.1 tck-version
+commit_ref release-0.72 v0.60.0 21.0.1 v0.43.0
 git clone -q "${WORK}/origin" "${WORK}/clone"
 cd "${WORK}/clone"
 
@@ -68,13 +76,17 @@ check "each ref gets its own versions" 'v0.91.0/25.0.2|v0.60.0/21.0.1' \
   "$(echo "${out}" | jq -r '[.[] | ."solo-version" + "/" + ."java-version"] | join("|")')"
 check "other pinned versions are read" 'v0.165.0 v0.14.0 v0.91.0 v2.90.1' \
   "$(echo "${out}" | jq -r '.[0] | [."bn-mirror-node-version", ."tck-version", ."solo-version", ."js-sdk-version"] | join(" ")')"
+check "override flag detected per ref" 'true|false' \
+  "$(echo "${out}" | jq -r '[.[] | ."bn-version-override"] | join("|")')"
 
 check_fails "solo < 0.44.0" env CN_REFS=old-solo "${RESOLVE}"
 check_fails "missing key in .citr-env" env CN_REFS=no-tck "${RESOLVE}"
+check_fails "refs with the same slug" env CN_REFS="release/0.72,release-0.72" "${RESOLVE}"
 check_fails "unknown ref" env CN_REFS=does-not-exist "${RESOLVE}"
 check_fails "empty refs" env CN_REFS=" , " "${RESOLVE}"
 check_fails "unset refs" env -u CN_REFS "${RESOLVE}"
-for bad in 'main;id' '$(id)' 'a b' 'main"x'; do
+check_fails "abbreviated SHA" env CN_REFS="$(git rev-parse --short=7 origin/main)" "${RESOLVE}"
+for bad in '--tags' '-x' 'main;id' '$(id)' 'a b' 'main"x'; do
   check_fails "invalid ref '${bad}'" env CN_REFS="${bad}" "${RESOLVE}"
 done
 

@@ -65,6 +65,7 @@ permissions:
   contents: read
 
 env:
+  ARTIFACT_SUFFIX: ${{ inputs.artifact-suffix && format(' {0}', inputs.artifact-suffix) || '' }}
   GRADLE_CACHE_USERNAME: ${{ secrets.gradle-cache-username }}
   GRADLE_CACHE_PASSWORD: ${{ secrets.gradle-cache-password }}
   GRADLE_EXEC: ionice -c 2 -n 2 nice -n 19 ./gradlew
@@ -101,10 +102,25 @@ jobs:
           BLOCK_NODE_VERSION: ${{ inputs.bn-release-version }}
         run: ${GRADLE_EXEC} hapiTestBlockNodeCommunication
 
+      # BlockNodeContainer caches the plugin jars it needs under .../block-node/<version>/; a ref without the
+      # BLOCK_NODE_VERSION override caches them for its pinned version instead, so a missing directory means the
+      # leg did not test the requested Block Node version.
+      - name: Verify Requested Block Node Version Was Used
+        if: ${{ !cancelled() && inputs.bn-release-version != '' }}
+        env:
+          BN_VERSION: ${{ inputs.bn-release-version }}
+        run: |
+          version="${BN_VERSION#v}"
+          if ! find hedera-node/test-clients/build -type d -path "*/block-node/${version}" | grep -q .; then
+            echo "::error::No Block Node ${version} data found; the tests did not run the requested Block Node version"
+            find hedera-node/test-clients/build -type d -path "*/block-node/*" -maxdepth 4 || true
+            exit 1
+          fi
+
       - name: Publish HAPI Test (Block Node Communication) Reports
         uses: step-security/publish-unit-test-result-action@681100d67b09305624c089873f12c545ee7cbc24 # v2.23.0
         with:
-          check_name: "Node: HAPI Test (Block Node Communication) Results"
+          check_name: "Node: HAPI Test (Block Node Communication) Results${{ env.ARTIFACT_SUFFIX }}"
           json_thousands_separator: ","
           junit_files: "**/test-clients/build/test-results/**/TEST-*.xml"
           comment_mode: errors # only comment if we could not find or parse the JUnit XML files
@@ -112,7 +128,7 @@ jobs:
       - name: Upload HAPI Test (Block Node Communication) Report Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: HAPI Test (Block Node Communication) Reports${{ inputs.artifact-suffix && format(' {0}', inputs.artifact-suffix) || '' }}
+          name: HAPI Test (Block Node Communication) Reports${{ env.ARTIFACT_SUFFIX }}
           path: "**/test-clients/build/test-results/**/TEST-*.xml"
           retention-days: 7
 
@@ -120,7 +136,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ !cancelled() && inputs.enable-network-log-capture && steps.gradle-hapi-bn-communication.conclusion == 'failure' }}
         with:
-          name: HAPI Test (Block Node Communication) Network Logs${{ inputs.artifact-suffix && format(' {0}', inputs.artifact-suffix) || '' }}
+          name: HAPI Test (Block Node Communication) Network Logs${{ env.ARTIFACT_SUFFIX }}
           path: |
             hedera-node/test-clients/build/*-test/**/output/**
           retention-days: 7
@@ -129,7 +145,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ !cancelled() && steps.gradle-hapi-bn-communication.conclusion == 'failure' }}
         with:
-          name: HAPI Test (Block Node Communication) Failure Artifacts${{ inputs.artifact-suffix && format(' {0}', inputs.artifact-suffix) || '' }}
+          name: HAPI Test (Block Node Communication) Failure Artifacts${{ env.ARTIFACT_SUFFIX }}
           path: |
             hedera-node/test-clients/build/**/*.blk.gz
             hedera-node/test-clients/build/**/*.rcd.gz
