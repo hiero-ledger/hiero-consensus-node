@@ -43,6 +43,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Function;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -152,18 +153,47 @@ public class EvmClprVerifier implements ClprVerifier {
             @NonNull final Bytes channelContext,
             @NonNull final HandleContext context)
             throws HandleException {
+        requireNonNull(context);
+        return verifyBundleUsing(
+                bundlePayload,
+                trustAnchor,
+                channelContext,
+                callData -> dispatchRaw(callData.toByteArray(), CLPR_BUNDLE_VERIFICATION_FAILED, context));
+    }
+
+    @Override
+    @NonNull
+    public ClprBundleContent verifyBundleLocally(
+            @NonNull final Bytes bundlePayload,
+            @NonNull final Bytes trustAnchor,
+            @NonNull final Bytes channelContext,
+            @NonNull final Function<Bytes, Bytes> contractCall)
+            throws HandleException {
+        return verifyBundleUsing(bundlePayload, trustAnchor, channelContext, contractCall);
+    }
+
+    @NonNull
+    private ClprBundleContent verifyBundleUsing(
+            @NonNull final Bytes bundlePayload,
+            @NonNull final Bytes trustAnchor,
+            @NonNull final Bytes channelContext,
+            @NonNull final Function<Bytes, Bytes> contractCall) {
         requireNonNull(bundlePayload);
         requireNonNull(trustAnchor);
         requireNonNull(channelContext);
-        requireNonNull(context);
+        requireNonNull(contractCall);
         log.debug(
                 "[EvmClprVerifier] verifyBundle ENTER: verifierContract={} bundlePayload={} bytes trustAnchor={} bytes channelContext={} bytes",
                 verifierContract,
                 bundlePayload.length(),
                 trustAnchor.length(),
                 channelContext.length());
-        final var callData = encodeThreeBytesCall(VERIFY_BUNDLE_SELECTOR, bundlePayload, trustAnchor, channelContext);
-        final var rawReturn = dispatchRaw(callData, CLPR_BUNDLE_VERIFICATION_FAILED, context);
+        final var callData =
+                Bytes.wrap(encodeThreeBytesCall(VERIFY_BUNDLE_SELECTOR, bundlePayload, trustAnchor, channelContext));
+        final var rawReturn = contractCall.apply(callData);
+        if (rawReturn == null || rawReturn.length() == 0) {
+            throw new HandleException(CLPR_BUNDLE_VERIFICATION_FAILED);
+        }
         final var content = decodeVerifyBundleWithManifestReturn(rawReturn, CLPR_BUNDLE_VERIFICATION_FAILED);
         log.debug(
                 "[EvmClprVerifier] verifyBundle EXIT: messages={} newTrustAnchorBytes={} newTrustAnchorId={}",

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.clpr;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NO_PROGRESS;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.Duration;
@@ -10,6 +11,7 @@ import com.hedera.hapi.node.clpr.ClprSubmitBundleTransactionBody;
 import com.hedera.hapi.node.state.clpr.ClprSyncPayload;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.AppContext;
+import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.ClprConfig;
 import com.hedera.node.config.data.HederaConfig;
@@ -40,19 +42,24 @@ public class ClprBundleSubmitter {
 
     private final AppContext appContext;
     private final ConfigProvider configProvider;
+    private final ClprBundlePrevalidator prevalidator;
     private final AtomicReference<Instant> lastUsedInstant = new AtomicReference<>(Instant.MIN);
 
     @Inject
-    public ClprBundleSubmitter(@NonNull final AppContext appContext, @NonNull final ConfigProvider configProvider) {
+    public ClprBundleSubmitter(
+            @NonNull final AppContext appContext,
+            @NonNull final ConfigProvider configProvider,
+            @NonNull final ClprBundlePrevalidator prevalidator) {
         this.appContext = requireNonNull(appContext);
         this.configProvider = requireNonNull(configProvider);
+        this.prevalidator = requireNonNull(prevalidator);
     }
 
     /**
      * Submits a received sync payload as a {@code ClprSubmitBundle} HAPI transaction.
      *
      * @param payload the received sync payload from the peer
-     * @return true if submission succeeded, false otherwise
+     * @return true if submission succeeded or the verified bundle needs no transaction, false otherwise
      */
     public boolean submitBundle(@NonNull final ClprSyncPayload payload) {
         requireNonNull(payload);
@@ -73,6 +80,20 @@ public class ClprBundleSubmitter {
 
         if (!appContext.gossip().isAvailable()) {
             logger.warn("Gossip not available, skipping bundle submission");
+            return false;
+        }
+
+        try {
+            prevalidator.validate(payload, configuration);
+        } catch (final PreCheckException e) {
+            logger.debug(
+                    "[CLPR-SUBMIT] rejected inbound bundle conn={} status={}", payload.channelId(), e.responseCode());
+            // Idle peers legitimately send pure acknowledgements. Skip their transaction without
+            // treating the exchange as a peer failure or paying for a NoProgress consensus rejection.
+            return e.responseCode() == CLPR_NO_PROGRESS;
+        } catch (final RuntimeException e) {
+            // Verification must fail closed: no node-paid transaction when local validation is unavailable.
+            logger.warn("[CLPR-SUBMIT] could not validate inbound bundle conn={}", payload.channelId(), e);
             return false;
         }
 

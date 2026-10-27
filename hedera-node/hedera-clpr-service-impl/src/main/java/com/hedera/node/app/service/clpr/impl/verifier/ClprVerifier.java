@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.verifier;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED;
+
 import com.hedera.hapi.node.state.clpr.ClprBundleContent;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
@@ -8,6 +10,7 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.function.Function;
 
 /**
  * Verifies cross-ledger proofs and extracts the attested data.
@@ -79,4 +82,25 @@ public interface ClprVerifier {
             @NonNull Bytes channelContext,
             @NonNull HandleContext context)
             throws HandleException;
+
+    /**
+     * Verifies a received bundle before consensus submission, using a local contract call.
+     * Implementations that do not support local verification reject the bundle.
+     *
+     * @param bundlePayload opaque proof bytes from the peer
+     * @param trustAnchor the Channel's current signing-authority material
+     * @param channelContext opaque channel identity
+     * @param contractCall executes ABI call data against the verifier and returns raw EVM result bytes
+     * @return the verified bundle content
+     * @throws HandleException if verification fails or local verification is unsupported
+     */
+    @NonNull
+    default ClprBundleContent verifyBundleLocally(
+            @NonNull Bytes bundlePayload,
+            @NonNull Bytes trustAnchor,
+            @NonNull Bytes channelContext,
+            @NonNull Function<Bytes, Bytes> contractCall)
+            throws HandleException {
+        throw new HandleException(CLPR_BUNDLE_VERIFICATION_FAILED);
+    }
 }
