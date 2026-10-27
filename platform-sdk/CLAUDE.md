@@ -103,5 +103,6 @@ modules, other modules are expected to depend on them; the implementation stays 
 implementations, deliberately insecure cryptographic entities, and the like. May depend on any
 supporting, functional-api, functional-impl, or self-contained functional module whose API they fake, plus
 `consensus-wiring-framework`. Must not depend on a structural-transitional module.
+- `consensus-event-creator-instrumented` — test-fixture event creator for Otter instrumented nodes; wraps `consensus-event-creator-impl`.
 - `consensus-fakes` — Transitional: also reached from production paths in
 `swirlds-platform-core` (`PlatformContext.create`, `DefaultSwirldMain`, `ConsensusNoOpModules`).

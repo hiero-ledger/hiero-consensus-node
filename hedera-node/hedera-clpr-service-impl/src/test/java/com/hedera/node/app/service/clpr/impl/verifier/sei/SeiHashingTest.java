@@ -4,24 +4,23 @@ package com.hedera.node.app.service.clpr.impl.verifier.sei;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.mockConstruction;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.hedera.cryptography.libsodium.Libsodium;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.clpr.SeiBlockRef;
 import com.hedera.hapi.node.state.clpr.SeiValidatorEntry;
 import com.hedera.hapi.node.state.clpr.SeiValidatorSet;
 import com.hedera.node.app.service.clpr.impl.verifier.ProofException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import java.lang.foreign.MemorySegment;
 import java.nio.charset.StandardCharsets;
-import org.bouncycastle.crypto.CipherParameters;
-import org.bouncycastle.crypto.params.Ed25519PrivateKeyParameters;
-import org.bouncycastle.crypto.signers.Ed25519Signer;
 import org.junit.jupiter.api.Test;
 
 class SeiHashingTest {
+    /// libsodium is used for Ed25519 signatures.
+    private static final Libsodium LIBSODIUM = Libsodium.getInstance();
+
     @Test
     void rejectsEmptyValidatorSet() {
         assertThatThrownBy(() -> SeiHashing.validatorSetHash(SeiValidatorSet.DEFAULT))
@@ -59,28 +58,36 @@ class SeiHashingTest {
     }
 
     @Test
-    void ed25519RuntimeErrorsReturnFalse() {
-        try (final var ignored =
-                mockConstruction(Ed25519Signer.class, (signer, context) -> doThrow(new RuntimeException("boom"))
-                        .when(signer)
-                        .init(eq(false), any(CipherParameters.class)))) {
-            assertThat(SeiHashing.verifyEd25519(new byte[32], new byte[] {1}, new byte[64]))
-                    .isFalse();
-        }
+    void ed25519InvalidRandomInputsReturnFalse() {
+        assertThat(SeiHashing.verifyEd25519(new byte[32], new byte[] {1}, new byte[64]))
+                .isFalse();
     }
 
     @Test
     void verifiesRealEd25519Signature() {
-        final byte[] seed = SeiMerkle.sha256("seed".getBytes(StandardCharsets.UTF_8));
-        final var privateKey = new Ed25519PrivateKeyParameters(seed, 0);
-        final byte[] publicKey = privateKey.generatePublicKey().getEncoded();
-        final byte[] message = "message".getBytes(StandardCharsets.UTF_8);
-        final var signer = new Ed25519Signer();
-        signer.init(true, privateKey);
-        signer.update(message, 0, message.length);
+        // NOTE: this test has previously used an Ed25519Signer from Bouncy Castle, and when the production code
+        // has been migrated to use Libsodium, it was confirmed that a signature produced by Bouncy Castle
+        // verifies successfully using the new production code with Libsodium. Since we're reducing our dependency
+        // on Bouncy Castle, now we've migrated this test to use Libsodium to produce Ed25519 signatures as well.
 
-        assertThat(SeiHashing.verifyEd25519(publicKey, message, signer.generateSignature()))
-                .isTrue();
+        final byte[] publicKey = new byte[32];
+        final byte[] privateKey = new byte[64];
+        assertEquals(
+                0, LIBSODIUM.cryptoSignKeypair(MemorySegment.ofArray(publicKey), MemorySegment.ofArray(privateKey)));
+
+        final byte[] message = "message".getBytes(StandardCharsets.UTF_8);
+        final byte[] signature = new byte[64];
+        final long[] sigLen = new long[] {signature.length};
+        assertEquals(
+                0,
+                LIBSODIUM.cryptoSignDetached(
+                        MemorySegment.ofArray(signature),
+                        MemorySegment.ofArray(sigLen),
+                        MemorySegment.ofArray(message),
+                        message.length,
+                        MemorySegment.ofArray(privateKey)));
+
+        assertThat(SeiHashing.verifyEd25519(publicKey, message, signature)).isTrue();
     }
 
     @Test

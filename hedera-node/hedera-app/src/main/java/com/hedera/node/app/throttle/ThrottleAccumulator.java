@@ -236,7 +236,8 @@ public class ThrottleAccumulator {
     /**
      * Consumes a given amount of ops duration units from the throttle's capacity.
      * Takes into account the amount leaked from the bucket up to the provided time.
-     * If the amount to consume is greater than the available amount then overfills the bucket without an error.
+     * If the amount to consume is greater than the available amount then consumption is capped at the
+     * remaining capacity without an error.
      */
     public void consumeOpsDurationThrottleCapacity(final long opsDurationUnitsToConsume, @NonNull final Instant now) {
         if (throttleType == NOOP_THROTTLE) {
@@ -879,15 +880,20 @@ public class ThrottleAccumulator {
             final boolean useHighVolumeBucket) {
         final boolean unlimitedAutoAssociations =
                 configuration.getConfigData(EntitiesConfig.class).unlimitedAutoAssociationsEnabled();
-        if (implicitCreationsCount > 0) {
-            return shouldThrottleBasedOnImplicitCreations(
-                    manager, implicitCreationsCount, now, throttleUsages, useHighVolumeBucket);
-        } else if (unlimitedAutoAssociations && autoAssociationsCount > 0) {
-            return shouldThrottleBasedOnAutoAssociations(
-                    manager, autoAssociationsCount, now, throttleUsages, useHighVolumeBucket);
-        } else {
+        final boolean hasImplicitCreations = implicitCreationsCount > 0;
+        final boolean hasAutoAssociations = unlimitedAutoAssociations && autoAssociationsCount > 0;
+        if (!hasImplicitCreations && !hasAutoAssociations) {
             return !manager.allReqsMetAt(now, throttleUsages);
         }
+        // The two dimensions are additive, so a transfer doing both must lease from both buckets
+        if (hasImplicitCreations
+                && shouldThrottleBasedOnImplicitCreations(
+                        manager, implicitCreationsCount, now, throttleUsages, useHighVolumeBucket)) {
+            return true;
+        }
+        return hasAutoAssociations
+                && shouldThrottleBasedOnAutoAssociations(
+                        manager, autoAssociationsCount, now, throttleUsages, useHighVolumeBucket);
     }
 
     private boolean shouldThrottleEthTxn(

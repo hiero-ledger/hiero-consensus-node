@@ -5,7 +5,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.function.Supplier;
 import org.hiero.consensus.status.monitor.config.PlatformStatusConfig_;
-import org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle;
+import org.hiero.otter.fixtures.internal.AbstractMiniNode.LifeCycle;
 import org.hiero.otter.fixtures.internal.AbstractNodeConfiguration;
 import org.hiero.otter.fixtures.internal.OverrideProperties;
 

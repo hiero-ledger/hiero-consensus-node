@@ -15,6 +15,7 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.VirtualMapLearner;
 import com.swirlds.virtualmap.sync.LearningSynchronizer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.DataInputStream;
@@ -22,11 +23,17 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.SocketException;
 import java.time.Duration;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.framework.config.CompositeThreadNameProvider;
+import org.hiero.base.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.base.concurrent.manager.ThreadManager;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.consensus.gossip.impl.network.Connection;
+import org.hiero.consensus.reconnect.config.ReconnectConfig;
 import org.hiero.consensus.state.SignedStateFileReader;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SigSet;
@@ -52,7 +59,11 @@ public class ReconnectStateLearner {
     private final ReconnectMetrics statistics;
     private final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
     private final Configuration configuration;
+    private final ThreadManager threadManager;
     private final LearningSynchronizer synchronizer;
+
+    /** Whether to copy the state's data source while waiting for the signatures, see {@link ReconnectConfig}. */
+    private final boolean copyStateEarly;
 
     private SigSet sigSet;
 
@@ -81,10 +92,32 @@ public class ReconnectStateLearner {
             @NonNull final Duration reconnectSocketTimeout,
             @NonNull final ReconnectMetrics statistics,
             @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager) {
+        this(
+                configuration,
+                threadManager,
+                connection,
+                currentState,
+                reconnectSocketTimeout,
+                statistics,
+                stateLifecycleManager,
+                new LearningSynchronizer(threadManager, configuration, requireNonNull(metrics)));
+    }
+
+    /**
+     * Same as the public constructor, with the given synchronizer. Exposed for testing.
+     */
+    ReconnectStateLearner(
+            @NonNull final Configuration configuration,
+            @NonNull final ThreadManager threadManager,
+            @NonNull final Connection connection,
+            @NonNull final VirtualMapState currentState,
+            @NonNull final Duration reconnectSocketTimeout,
+            @NonNull final ReconnectMetrics statistics,
+            @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
+            @NonNull final LearningSynchronizer synchronizer) {
         this.stateLifecycleManager = requireNonNull(stateLifecycleManager);
 
-        requireNonNull(metrics);
-        requireNonNull(threadManager);
+        this.threadManager = requireNonNull(threadManager);
         currentState.throwIfImmutable("Can not perform reconnect with immutable state");
         currentState.throwIfDestroyed("Can not perform reconnect with destroyed state");
 
@@ -93,10 +126,8 @@ public class ReconnectStateLearner {
         this.currentState = requireNonNull(currentState);
         this.reconnectSocketTimeout = requireNonNull(reconnectSocketTimeout);
         this.statistics = requireNonNull(statistics);
-
-        synchronizer = new LearningSynchronizer(threadManager, configuration, metrics);
-
-        // Save some of the current state data for validation
+        this.synchronizer = requireNonNull(synchronizer);
+        this.copyStateEarly = configuration.getConfigData(ReconnectConfig.class).copyLearnerStateEarly();
     }
 
     /**
@@ -160,10 +191,24 @@ public class ReconnectStateLearner {
     @NonNull
     public ReservedSignedState execute() throws ReconnectStateException {
         increaseSocketTimeout();
+        CompletableFuture<VirtualMapLearner> learnerFuture = null;
+        boolean learnerHandedOver = false;
         ReservedSignedState reservedSignedState = null;
         try {
+            // Copying the learner's data source takes long for large states, and it depends only on the learner's
+            // own state, which doesn't change during the reconnect. If enabled, start it now, so that it runs while
+            // the teacher prepares its state and sends the signatures
+            if (copyStateEarly) {
+                learnerFuture = createLearnerAsync();
+            }
             receiveSignatures();
-            reservedSignedState = reconnect();
+            statistics.incrementReceiverStartTimes();
+            connection.getDis().byteCounter().getAndReset();
+            final VirtualMapLearner learner = (learnerFuture != null) ? awaitLearner(learnerFuture) : createLearner();
+            // From here, the synchronizer owns the learner and aborts it if the synchronization fails. Nothing
+            // that can fail runs between this line and the synchronizer taking the learner over
+            learnerHandedOver = true;
+            reservedSignedState = reconnect(learner);
             endReconnectHandshake(connection);
             return reservedSignedState;
         } catch (final IOException | SignedStateInvalidException | ParseException e) {
@@ -173,33 +218,118 @@ public class ReconnectStateLearner {
             }
             throw new ReconnectStateException(e);
         } catch (final InterruptedException e) {
-            // an interrupt can only occur in the reconnect() method, so we don't need to close the reservedSignedState
+            // an interrupt can only occur before the state is received, so we don't need to close the
+            // reservedSignedState
             Thread.currentThread().interrupt();
             throw new ReconnectStateException("interrupted while attempting to reconnect", e);
         } finally {
+            if ((learnerFuture != null) && !learnerHandedOver) {
+                // The reconnect failed before the synchronization started. Disconnect first: the teacher may be
+                // waiting for requests, holding its state and its own data source copy, while this method waits
+                // for the learner's copy to finish
+                connection.disconnect();
+                discardLearner(learnerFuture);
+            }
             resetSocketTimeout();
+        }
+    }
+
+    /**
+     * Starts creating the learner for the current state on a new thread.
+     *
+     * @return the future learner
+     */
+    @NonNull
+    private CompletableFuture<VirtualMapLearner> createLearnerAsync() {
+        final VirtualMap originalMap = currentState.getRoot();
+        final Executor newThread = runnable -> new ThreadConfiguration(threadManager)
+                .setSingleThreadName(CompositeThreadNameProvider.create("platform-core", "reconnectLearnerCopy"))
+                .setRunnable(runnable)
+                .build(true);
+        return CompletableFuture.supplyAsync(
+                () -> {
+                    final long start = System.currentTimeMillis();
+                    final VirtualMapLearner learner = synchronizer.createLearner(originalMap);
+                    logger.info(
+                            RECONNECT.getMarker(),
+                            "Learner took {} seconds to prepare it's state for synchronization",
+                            (System.currentTimeMillis() - start) * MILLISECONDS_TO_SECONDS);
+                    return learner;
+                },
+                newThread);
+    }
+
+    /**
+     * Creates the learner for the current state on the current thread.
+     *
+     * @return the learner
+     * @throws ReconnectStateException if the learner couldn't be created
+     */
+    @NonNull
+    private VirtualMapLearner createLearner() {
+        try {
+            return synchronizer.createLearner(currentState.getRoot());
+        } catch (final RuntimeException e) {
+            throw new ReconnectStateException("Failed to create the learner", e);
+        }
+    }
+
+    /**
+     * Waits for the learner created by {@link #createLearnerAsync()}.
+     *
+     * @param learnerFuture the future learner
+     * @return the learner
+     * @throws InterruptedException if the current thread is interrupted while waiting
+     * @throws ReconnectStateException if the learner couldn't be created
+     */
+    @NonNull
+    private static VirtualMapLearner awaitLearner(@NonNull final CompletableFuture<VirtualMapLearner> learnerFuture)
+            throws InterruptedException {
+        try {
+            return learnerFuture.get();
+        } catch (final ExecutionException e) {
+            throw new ReconnectStateException("Failed to create the learner", e.getCause());
+        }
+    }
+
+    /**
+     * Closes the learner created by {@link #createLearnerAsync()}, if the reconnect fails before the learner is
+     * handed over to the synchronizer. The learner isn't interrupted while it's being created: its data source is
+     * copied while the virtual pipeline is paused, and an interrupt during MerkleDB file I/O can close file
+     * channels the copy needs. Instead, this method waits for the learner, so that a retry doesn't start another
+     * copy while this one still exists. If the current thread is interrupted while waiting, the learner is closed
+     * when it's ready.
+     *
+     * @param learnerFuture the future learner
+     */
+    private static void discardLearner(@NonNull final CompletableFuture<VirtualMapLearner> learnerFuture) {
+        try {
+            learnerFuture.thenAccept(VirtualMapLearner::abortOnException).get();
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (final ExecutionException e) {
+            // There's nothing to close
+            logger.warn(RECONNECT.getMarker(), "Failed to create the learner", e.getCause());
         }
     }
 
     /**
      * Receive and reconstruct the state from the teacher.
      *
+     * @param learner the learner for the current state. This method
+     *     passes it to the synchronizer before anything else can fail, so the synchronizer owns it
      * @return the signed state received from the teacher
      * @throws InterruptedException if the current thread is interrupted
      */
     @NonNull
-    private ReservedSignedState reconnect() throws InterruptedException {
-        statistics.incrementReceiverStartTimes();
-
+    private ReservedSignedState reconnect(@NonNull final VirtualMapLearner learner) throws InterruptedException {
         final DataInputStream in = new DataInputStream(connection.getDis());
         final DataOutputStream out = new DataOutputStream(connection.getDos());
-
-        connection.getDis().byteCounter().getAndReset();
         VirtualMap syncedVirtualMap;
 
         final long syncStartTime = System.currentTimeMillis();
         try {
-            syncedVirtualMap = synchronizer.synchronize(currentState.getRoot(), in, out, connection::disconnect);
+            syncedVirtualMap = synchronizer.synchronize(learner, in, out, connection::disconnect);
         } catch (final InterruptedException e) {
             logger.warn(RECONNECT.getMarker(), "Synchronization interrupted");
             Thread.currentThread().interrupt();

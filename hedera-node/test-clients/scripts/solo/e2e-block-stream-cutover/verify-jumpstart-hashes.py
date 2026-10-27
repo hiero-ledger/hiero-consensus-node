@@ -48,12 +48,26 @@ def fields(data):
         yield number, value
 
 
+def hash_size(jumpstart):
+    """Return the jumpstart hash width: 32 bytes (SHA-256) or 48 bytes (SHA-384)."""
+    sizes = []
+    for size in (32, 48):
+        header = 20 + 3 * size
+        if len(jumpstart) < header:
+            continue
+        count = struct.unpack_from(">i", jumpstart, 8 + 3 * size + 8)[0]
+        if count >= 0 and len(jumpstart) == header + size * count:
+            sizes.append(size)
+    if len(sizes) != 1:
+        raise ValueError("jumpstart length does not identify a SHA-256 or SHA-384 layout")
+    return sizes[0]
+
+
 def verify(jumpstart, log):
-    if len(jumpstart) < 164:
-        raise ValueError("truncated jumpstart header")
+    size = hash_size(jumpstart)
     block = struct.unpack_from(">q", jumpstart)[0]
-    leaf_count, hash_count = struct.unpack_from(">qi", jumpstart, 152)
-    if block < 0 or leaf_count <= 0 or hash_count < 0 or len(jumpstart) != 164 + 48 * hash_count:
+    leaf_count = struct.unpack_from(">q", jumpstart, 8 + 3 * size)[0]
+    if block < 0 or leaf_count <= 0:
         raise ValueError("invalid jumpstart header or subtree hashes")
     entries = []
     for number, value in fields(log):
@@ -62,8 +76,8 @@ def verify(jumpstart, log):
         entry = dict(fields(value))
         # Protobuf omits block_number for block 0.
         entry.setdefault(1, 0)
-        if not isinstance(entry[1], int) or any(len(entry.get(k, b"")) != 48 for k in (2, 3)):
-            raise ValueError("invalid wrapped record hash entry")
+        if not isinstance(entry[1], int) or any(len(entry.get(k, b"")) != size for k in (2, 3)):
+            raise ValueError(f"invalid wrapped record hash entry (expected {size}-byte hashes)")
         entries.append(entry)
     if not entries:
         raise PendingHashes("empty wrapped record hashes log")
@@ -76,8 +90,8 @@ def verify(jumpstart, log):
             raise PendingHashes(f"waiting for wrapped hashes for jumpstart block {block}")
         raise ValueError(f"no wrapped hashes for jumpstart block {block}")
     for name, expected, actual in (
-        ("consensus timestamp", jumpstart[56:104], match[2]),
-        ("output-items root", jumpstart[104:152], match[3]),
+        ("consensus timestamp", jumpstart[8 + size : 8 + 2 * size], match[2]),
+        ("output-items root", jumpstart[8 + 2 * size : 8 + 3 * size], match[3]),
     ):
         if actual != expected:
             raise ValueError(
