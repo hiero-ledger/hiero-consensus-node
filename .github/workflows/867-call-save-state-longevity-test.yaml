@@ -1079,6 +1079,23 @@ jobs:
 
           kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp network-node1-0:/tmp/lastSnapshot.tgz "${{ github.workspace }}"/state/lastSnapshot.tgz
 
+      - name: Copy BN ZSTD files
+        run: |
+          for i in $(seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }})
+          do
+            kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec -it block-node-${i}-0 -c block-node-server -- bash -c \
+              "cd /opt/hiero/block-node/data/; tar cfz /tmp/blockfiles.tgz live"
+
+            kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp block-node-${i}-0:/tmp/blockfiles.tgz "${{ github.workspace }}"/state/blockfiles_${i}.tgz
+          done
+
+      - name: Copy CN block stream files
+        run: |
+          kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec -it network-node1-0 -c root-container -- bash -c \
+            "cd /opt/hgcapp/blockStreams; tar cfz /tmp/block-0.0.3.tgz block-0.0.3"
+
+          kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp network-node1-0:/tmp/block-0.0.3.tgz "${{ github.workspace }}"/state/block-0.0.3.tgz
+
       - name: Copy NLG state
         run: |
           nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')"
