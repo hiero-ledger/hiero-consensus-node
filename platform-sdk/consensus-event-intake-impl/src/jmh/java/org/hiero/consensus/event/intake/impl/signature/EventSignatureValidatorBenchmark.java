@@ -68,22 +68,25 @@ import org.openjdk.jmh.infra.Blackhole;
  * <p>Each invocation's setup ends with {@code System.gc()}, so usually no garbage collection falls into the measured
  * calls. A pass during which one does is discarded and replaced by the next invocation.
  *
- * <p>In the first 5 s of a fork, RSA's mean was about 7% higher than later in every fork, and its p99.9 up to 43%;
- * Ed25519's mean showed no warmup. A warmup iteration of 5 s keeps these slow calls out of the measured iterations.
+ * <p>In the first 5 s of a fork, RSA's mean was about 7% higher than later, in every fork; Ed25519's mean showed no
+ * warmup. A warmup iteration of 5 s keeps these slow calls out of the measured iterations.
+ *
+ * <p>The calibration's iterations of 5 s record too few calls for the highest percentiles, which {@link LatencyProfiler}
+ * then leaves out: the block lists no p99.99, and no p99.9 for RSA, for want of data.
  *
  * <p>Run with {@code -prof org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler}.
  *
  * <h2>Calibration</h2>
  * <ul>
- *   <li>Date / commit: 2026-10-25, 5e030a6707</li>
+ *   <li>Date / commit: 2026-10-27, bf25c42c07</li>
  *   <li>Machine: hl-cn-benchmark-lin, AS-2115GT-HNTR, AMD EPYC 9254 24-Core Processor, JDK 25.0.2, -XX:ActiveProcessorCount=12 -Xms2g -Xmx2g -XX:+AlwaysPreTouch</li>
  *   <li>Parameter sets: signingSchema=ED25519 / signingSchema=RSA</li>
  *   <li>Steady state after: 0 s / 5 s</li>
- *   <li>Noise (latency.mean, CV): 0.19% / 0.09% per 5 s iteration, 0.02% / 0.19% between forks, 0.01% / 0.00% between runs (3 of 3 / 3 of 3 runs quiet)</li>
- *   <li>Expected detectable regression: 0.09% / 0.38% (95 % CI half-width of one run)</li>
- *   <li>Samples per iteration: 1.5 M / 1.3 M; expected stable: mean, p50, p90, p99, p99.9 / mean, p50, p90, p99, p99.9</li>
- *   <li>Runtime: 2.4 / 3.1 min per parameter set</li>
- *   <li>Raw data: https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/40224044083, https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/40224046287, https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/40224048515</li>
+ *   <li>Noise (latency.mean, CV): 0.18% / 0.10% per 5 s iteration, 0.03% / 0.22% between forks, 0.02% / 0.00% between runs (3 of 3 / 3 of 3 runs quiet)</li>
+ *   <li>Expected detectable regression: 0.09% / 0.44% (95 % CI half-width of one run)</li>
+ *   <li>Samples per iteration: 1.8 M / 1.3 M; expected stable: mean, p50, p90, p99, p99.9 / mean, p50, p90, p99</li>
+ *   <li>Runtime: 2.7 / 3.4 min per parameter set</li>
+ *   <li>Raw data: https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/40471021847, https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/40471025600, https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/40471029121</li>
  * </ul>
  */
 @State(Scope.Thread)
@@ -91,7 +94,7 @@ import org.openjdk.jmh.infra.Blackhole;
         value = 1,
         jvmArgsAppend = {"-Xms2g", "-Xmx2g", "-XX:+AlwaysPreTouch"})
 @Warmup(iterations = 1, time = 5)
-@Measurement(iterations = 2, time = 70)
+@Measurement(iterations = 2, time = 80)
 public class EventSignatureValidatorBenchmark {
 
     /** The seed of the random number generators. The same seed produces the same keys and events. */
