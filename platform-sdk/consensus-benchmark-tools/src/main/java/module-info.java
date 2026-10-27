@@ -6,7 +6,9 @@ module org.hiero.consensus.benchmark.tools {
     requires transitive com.hedera.pbj.runtime;
     requires transitive org.hiero.consensus.model;
     requires transitive jmh.core;
+    requires com.hedera.node.hapi;
     requires org.hiero.base.crypto;
+    requires org.hiero.base.utility;
     requires org.hiero.consensus.utility;
     requires java.management;
     requires jdk.management;
