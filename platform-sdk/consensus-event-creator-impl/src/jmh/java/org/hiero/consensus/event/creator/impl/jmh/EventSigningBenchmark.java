@@ -42,8 +42,9 @@ import org.openjdk.jmh.infra.Blackhole;
  * Ed25519, Bouncy Castle (SHA384withRSA, 3072-bit keys) for RSA. The keys come from {@link KeysAndCertsGenerator},
  * which derives them from the node ID, so every run signs with the same key. The hashes are random bytes from a fixed
  * seed, generated once per trial, with the length of an event hash before the event hash cutover (SHA-384, 48 bytes)
- * and after it (SHA-256, 32 bytes). Signing does not change its input, so every invocation signs the same hashes.
- * Building the signed event around the signature is not measured here; the event creation benchmark covers it.
+ * and after it (SHA-256, 32 bytes). Every invocation signs the same hash bytes, wrapped in new {@link Bytes} objects:
+ * the Ed25519 signer keeps a memory view of its input in the {@code Bytes} ({@link Bytes#toMemorySegment()}), and a
+ * node signs each event's hash only once, so production never reuses that view. Building the signed event around the signature is not measured here; the event creation benchmark covers it.
  *
  * <p>Both signature schemes are deterministic: the same key and data give the same signature. After every invocation,
  * the SHA-256 digest of all signatures is compared with a constant, so a signer that does less work, or signs other
@@ -103,7 +104,10 @@ public class EventSigningBenchmark {
     @Param({"SHA_256", "SHA_384"})
     public DigestType digestType;
 
-    /** The hashes to sign. */
+    /** The bytes of the hashes, generated once per trial. */
+    private byte[][] hashBytes;
+
+    /** The hashes to sign in the current invocation: the hash bytes, wrapped in new objects. */
     private Bytes[] hashes;
 
     /** The signer under test. */
@@ -129,12 +133,12 @@ public class EventSigningBenchmark {
         signer = new PlatformSigner(keysAndCerts);
 
         final Random random = new Random(SEED);
-        hashes = new Bytes[NUMBER_OF_HASHES];
+        hashBytes = new byte[NUMBER_OF_HASHES][];
         for (int i = 0; i < NUMBER_OF_HASHES; i++) {
-            final byte[] hash = new byte[digestType.digestLength()];
-            random.nextBytes(hash);
-            hashes[i] = Bytes.wrap(hash);
+            hashBytes[i] = new byte[digestType.digestLength()];
+            random.nextBytes(hashBytes[i]);
         }
+        hashes = new Bytes[NUMBER_OF_HASHES];
         signatures = new Bytes[NUMBER_OF_HASHES];
     }
 
@@ -143,6 +147,10 @@ public class EventSigningBenchmark {
      */
     @Setup(Level.Invocation)
     public void prepareInvocation() {
+        // New objects, so that no memory view kept by a previous invocation's signing is reused.
+        for (int i = 0; i < NUMBER_OF_HASHES; i++) {
+            hashes[i] = Bytes.wrap(hashBytes[i]);
+        }
         Arrays.fill(signatures, null);
         recorder = LatencyProfiler.recorder();
 
