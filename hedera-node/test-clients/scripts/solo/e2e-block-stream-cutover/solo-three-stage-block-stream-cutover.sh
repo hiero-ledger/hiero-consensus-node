@@ -1675,9 +1675,39 @@ upgrade_stage2_jumpstart_and_tss() {
       grep -F 'Successfully loaded jumpstart config: blockNumber=${JUMPSTART_BLOCK_NUMBER},' '${HAPI_PATH}/output/hgcaa.log'
       grep -F 'Computed wrapped record block hash migration result (state write deferred)' '${HAPI_PATH}/output/hgcaa.log'
       grep -F 'Truncated wrapped record hashes file' '${HAPI_PATH}/output/hgcaa.log'
-      grep -F 'Seeded live wrapped-record hash chain from migration result' '${HAPI_PATH}/output/hgcaa.log'
     "
+    # Seeding only happens when state holds no live wrapped chain yet. A network that already
+    # completed an earlier jumpstart vote (e.g. mainnet), or that maintained the chain from
+    # genesis, keeps its existing chain until the finalized vote syncs it; that sync is
+    # asserted per node in verify_stage2_migration_votes.
+    if kubectl -n "${SOLO_NAMESPACE}" exec "network-${node}-0" -c root-container -- \
+        grep -qF 'Seeded live wrapped-record hash chain from migration result' "${HAPI_PATH}/output/hgcaa.log"; then
+      log "${node}: live wrapped chain seeded from migration result"
+    else
+      log "${node}: existing live wrapped chain kept until the finalized vote syncs it"
+    fi
   done
+}
+
+# The finalized vote must replace each node's in-memory wrapped chain with the voted values,
+# whether or not the chain was seeded from the migration result at startup.
+verify_live_chain_synced_to_vote() {
+  local node="$1" line synced_prev synced_leaf
+  line="$(kubectl -n "${SOLO_NAMESPACE}" exec "network-${node}-0" -c root-container -- sh -c \
+    "grep -F 'Synced in-memory wrapped hash state from finalized vote:' '${HAPI_PATH}/output/hgcaa.log' | tail -n 1" \
+    2>/dev/null || true)"
+  if [[ ! "${line}" =~ prevHash=([0-9a-fA-F]+),[[:space:]]*leafCount=([0-9]+) ]]; then
+    echo "${node}: live wrapped chain was not synced from the finalized vote" >&2
+    return 1
+  fi
+  synced_prev="$(echo "${BASH_REMATCH[1]}" | tr '[:upper:]' '[:lower:]')"
+  synced_leaf="${BASH_REMATCH[2]}"
+  if [[ "${synced_prev}" != "${MIGRATION_PREV_HASH}" || "${synced_leaf}" != "${MIGRATION_LEAF_COUNT}" ]]; then
+    echo "${node}: live chain synced to prevHash=${synced_prev}, leafCount=${synced_leaf};" \
+      "finalized vote has prevHash=${MIGRATION_PREV_HASH}, leafCount=${MIGRATION_LEAF_COUNT}" >&2
+    return 1
+  fi
+  log "${node}: live wrapped chain synced to finalized vote (leafCount=${synced_leaf})"
 }
 
 verify_stage2_migration_votes() {
@@ -1691,6 +1721,7 @@ verify_stage2_migration_votes() {
     NODE_ALIASES="${node}" parse_migration_vote_from_hgcaa
     [[ "${MIGRATION_BLOCK_NUMBER}" == "${expected_block}" ]] || { echo "${node}: migration block disagrees" >&2; return 1; }
     MIGRATION_COMPARE_LOG="${GENERATED_DIR}/${node}-migration-compare.log" compare_replay_to_migration_vote
+    verify_live_chain_synced_to_vote "${node}"
   done
 }
 
