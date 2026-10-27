@@ -257,7 +257,8 @@ public class BlockNodeConnectionManager {
             logger.info("Attempted to start block node connection manager, but it is already started");
             return;
         }
-        logger.info("Starting block node connection manager...");
+        final String jvmId = ConnectionId.jvmId();
+        logger.info("Starting block node connection manager (jvmId: {})...", jvmId.isEmpty() ? "unavailable" : jvmId);
 
         if (blockingIoExecutorRef.get() == null) {
             /*
