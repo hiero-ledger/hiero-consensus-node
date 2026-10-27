@@ -26,6 +26,7 @@ import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.fees.context.ChildFeeContext;
 import com.hedera.node.app.history.ReadableHistoryStore;
 import com.hedera.node.app.service.entityid.EntityNumGenerator;
+import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.signature.AppKeyVerifier;
 import com.hedera.node.app.spi.authorization.Authorizer;
@@ -53,6 +54,7 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.TransactionKeys;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.store.StoreFactoryImpl;
+import com.hedera.node.app.throttle.HydratedCallDataSize;
 import com.hedera.node.app.workflows.InnerTransaction;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
@@ -66,6 +68,8 @@ import com.hedera.node.app.workflows.prehandle.PreHandleContextImpl;
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
 import com.hedera.node.app.workflows.prehandle.PreHandleWorkflow;
 import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
+import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -283,10 +287,19 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
     @Override
     public int numTxnBytes() {
         // serialized signed transaction is null for system transaction dispatches
-        return (int)
-                (txnInfo.serializedSignedTx() != null
-                        ? txnInfo.serializedSignedTx().length()
-                        : 0);
+        final long wireBytes = txnInfo.serializedSignedTx() != null
+                ? txnInfo.serializedSignedTx().length()
+                : 0;
+        // Meter file-referenced EthereumTransaction callData by its decoded (hydrated) size, so the per-byte
+        // node fee matches what an equivalent inline payload would incur (0 for every other transaction).
+        long extraCallDataBytes = 0;
+        if (config.getConfigData(JumboTransactionsConfig.class).chargeHydratedCallDataSize()) {
+            extraCallDataBytes = HydratedCallDataSize.fileReferencedCallDataBytes(
+                    txnInfo.txBody(),
+                    storeFactory.readableStore(ReadableFileStore.class),
+                    config.getConfigData(HederaConfig.class).firstUserEntity());
+        }
+        return (int) (wireBytes + extraCallDataBytes);
     }
 
     @Override

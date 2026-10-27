@@ -16,6 +16,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_EXPIRED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_HAS_UNKNOWN_FIELDS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_ID_FIELD_NOT_ALLOWED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_OVERSIZE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_TOO_MANY_LAYERS;
+import static com.hedera.node.app.spi.fixtures.NestedKeys.nestedKeyList;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static java.util.stream.Collectors.toList;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -148,6 +150,20 @@ final class TransactionCheckerTest extends AppTestBase {
     private Transaction.Builder txBuilder(SignedTransaction signedTx) {
         final var signedTransactionBytes = asBytes(SignedTransaction.PROTOBUF, signedTx);
         return Transaction.newBuilder().signedTransactionBytes(signedTransactionBytes);
+    }
+
+    // A ConsensusCreateTopic admin key adds ~2 PBJ frames per KeyList level, so with the transaction/body wrapper the
+    // deepest key that still parses under the default maxProtoMessageDepth (50) is this many levels; one more is
+    // rejected at ingest with TRANSACTION_TOO_MANY_LAYERS.
+    private static final int DEEPEST_PARSEABLE_ADMIN_KEY_LIST_LEVELS = 24;
+
+    private Transaction txWithDeeplyNestedAdminKey(final int keyListLevels) {
+        final var body = bodyBuilder(txIdBuilder())
+                .consensusCreateTopic(ConsensusCreateTopicTransactionBody.newBuilder()
+                        .adminKey(nestedKeyList(keyListLevels))
+                        .build())
+                .build();
+        return txBuilder(signedTxBuilder(body, sigMapBuilder().build())).build();
     }
 
     /**
@@ -365,6 +381,54 @@ final class TransactionCheckerTest extends AppTestBase {
             assertThat(counterMetric("ParseErrUnknownFieldRcv").get()).isZero();
             assertThat(counterMetric("ParseErrBufUnderflowRcv").get()).isZero();
             assertThat(counterMetric("ParseErrStructuralRcv").get()).isZero();
+        }
+
+        @Test
+        @DisplayName("A key nested beyond maxProtoMessageDepth is rejected at ingest with TRANSACTION_TOO_MANY_LAYERS")
+        void parseAndCheckRejectsOverlyDeepKeyWithTooManyLayers() {
+            // A KeyList nested well beyond the default hedera.transaction.maxProtoMessageDepth (50 frames). PBJ parses
+            // the outer Transaction and SignedTransaction, then rejects the TransactionBody parse when the admin key
+            // nests past the configured depth -- keeping such bytes out of the record and block streams.
+            final var deepBuffer = Bytes.wrap(asByteArray(txWithDeeplyNestedAdminKey(40)));
+            assertThatThrownBy(() -> checker.parseAndCheck(deepBuffer))
+                    .isInstanceOf(PreCheckException.class)
+                    .has(responseCode(TRANSACTION_TOO_MANY_LAYERS));
+            assertThat(counterMetric("ParseErrStructuralRcv").get()).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("maxProtoMessageDepth is configurable: the same deep transaction parses when the limit is raised")
+        void parseAndCheckAcceptsDeepKeyWhenMaxProtoMessageDepthRaised() {
+            props = () -> new VersionedConfigImpl(
+                    HederaTestConfigBuilder.create()
+                            .withValue("hedera.transaction.maxProtoMessageDepth", Codec.DEFAULT_MAX_DEPTH)
+                            .getOrCreateConfig(),
+                    1);
+            checker = new TransactionChecker(props, metrics);
+
+            // 40 KeyList levels (~82 frames) is under PBJ's DEFAULT_MAX_DEPTH (128), so raising the limit admits it.
+            final var deepBuffer = Bytes.wrap(asByteArray(txWithDeeplyNestedAdminKey(40)));
+            assertThatNoException().isThrownBy(() -> checker.parseAndCheck(deepBuffer));
+        }
+
+        @Test
+        @DisplayName("A key exactly at maxProtoMessageDepth still parses at ingest")
+        void parseAndCheckAcceptsKeyAtProtoDepthBoundary() {
+            // A ConsensusCreateTopic admin key adds ~2 PBJ frames per KeyList level; at the default
+            // maxProtoMessageDepth (50) DEEPEST_PARSEABLE_ADMIN_KEY_LIST_LEVELS is the deepest that still parses.
+            final var atBoundary =
+                    Bytes.wrap(asByteArray(txWithDeeplyNestedAdminKey(DEEPEST_PARSEABLE_ADMIN_KEY_LIST_LEVELS)));
+            assertThatNoException().isThrownBy(() -> checker.parseAndCheck(atBoundary));
+        }
+
+        @Test
+        @DisplayName("A key one level past maxProtoMessageDepth is rejected with TRANSACTION_TOO_MANY_LAYERS")
+        void parseAndCheckRejectsKeyJustBeyondProtoDepthBoundary() {
+            final var justOver =
+                    Bytes.wrap(asByteArray(txWithDeeplyNestedAdminKey(DEEPEST_PARSEABLE_ADMIN_KEY_LIST_LEVELS + 1)));
+            assertThatThrownBy(() -> checker.parseAndCheck(justOver))
+                    .isInstanceOf(PreCheckException.class)
+                    .has(responseCode(TRANSACTION_TOO_MANY_LAYERS));
         }
 
         /**

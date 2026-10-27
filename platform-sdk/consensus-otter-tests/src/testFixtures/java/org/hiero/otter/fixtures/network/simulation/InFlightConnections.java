@@ -51,12 +51,21 @@ abstract class InFlightConnections<T extends InTransit> {
     private final List<NodeId> sortedNodeIdsView = Collections.unmodifiableList(sortedNodeIds);
 
     /**
+     * The instant every queue measures arrival times from. All the queues share it, so that the heads of different
+     * queues can be compared with each other.
+     */
+    private final Instant start;
+
+    /**
      * Constructor.
      *
      * @param connected reports whether the connection from a sender to a receiver is currently up
+     * @param start     the instant arrival times are measured from, which should be close to the start of the
+     *                  simulation
      */
-    InFlightConnections(@NonNull final BiPredicate<NodeId, NodeId> connected) {
+    InFlightConnections(@NonNull final BiPredicate<NodeId, NodeId> connected, @NonNull final Instant start) {
         this.connected = requireNonNull(connected);
+        this.start = requireNonNull(start);
     }
 
     /**
@@ -67,8 +76,8 @@ abstract class InFlightConnections<T extends InTransit> {
     public void addNode(@NonNull final NodeId newNodeId) {
         final Map<NodeId, InFlightQueue<T>> incomingConnections = new HashMap<>();
         for (final NodeId existingNodeId : sortedNodeIds) {
-            incomingConnections.put(existingNodeId, new InFlightQueue<>());
-            connectionsByReceiver.get(existingNodeId).put(newNodeId, new InFlightQueue<>());
+            incomingConnections.put(existingNodeId, new InFlightQueue<>(start));
+            connectionsByReceiver.get(existingNodeId).put(newNodeId, new InFlightQueue<>(start));
         }
         connectionsByReceiver.put(newNodeId, incomingConnections);
 
@@ -123,6 +132,16 @@ abstract class InFlightConnections<T extends InTransit> {
     @NonNull
     final List<NodeId> sortedNodeIds() {
         return sortedNodeIdsView;
+    }
+
+    /**
+     * Converts an instant to the form the queues compare arrival times in.
+     *
+     * @param time the instant to convert
+     * @return the nanoseconds since the instant the queues measure arrival times from
+     */
+    final long nanosSinceStart(@NonNull final Instant time) {
+        return InFlightQueue.nanosSince(start, time);
     }
 
     /**

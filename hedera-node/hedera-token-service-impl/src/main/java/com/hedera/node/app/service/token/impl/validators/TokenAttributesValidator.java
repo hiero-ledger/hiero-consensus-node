@@ -17,6 +17,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_NAME_TOO_LONG;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_SYMBOL_TOO_LONG;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isValid;
 import static com.hedera.node.app.spi.validation.AttributeValidator.isImmutableKey;
+import static com.hedera.node.app.spi.validation.AttributeValidator.isWithinNestedKeyLimit;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 
 import com.hedera.hapi.node.base.Key;
@@ -140,28 +141,29 @@ public class TokenAttributesValidator {
         // therefore disabled and cannot be re-added later, matching HIP-540's treatment of a removed key.
         // Any non-empty key must still be structurally valid.
         if (hasAdminKey && !isImmutableKey(adminKey)) {
-            validateTrue(isValid(adminKey), INVALID_ADMIN_KEY);
+            validateTrue(isValid(adminKey) && isWithinNestedKeyLimit(adminKey), INVALID_ADMIN_KEY);
         }
         if (hasKycKey && !isImmutableKey(kycKey)) {
-            validateTrue(isValid(kycKey), INVALID_KYC_KEY);
+            validateTrue(isValid(kycKey) && isWithinNestedKeyLimit(kycKey), INVALID_KYC_KEY);
         }
         if (hasWipeKey && !isImmutableKey(wipeKey)) {
-            validateTrue(isValid(wipeKey), INVALID_WIPE_KEY);
+            validateTrue(isValid(wipeKey) && isWithinNestedKeyLimit(wipeKey), INVALID_WIPE_KEY);
         }
         if (hasSupplyKey && !isImmutableKey(supplyKey)) {
-            validateTrue(isValid(supplyKey), INVALID_SUPPLY_KEY);
+            validateTrue(isValid(supplyKey) && isWithinNestedKeyLimit(supplyKey), INVALID_SUPPLY_KEY);
         }
         if (hasFreezeKey && !isImmutableKey(freezeKey)) {
-            validateTrue(isValid(freezeKey), INVALID_FREEZE_KEY);
+            validateTrue(isValid(freezeKey) && isWithinNestedKeyLimit(freezeKey), INVALID_FREEZE_KEY);
         }
         if (hasFeeScheduleKey && !isImmutableKey(feeScheduleKey)) {
-            validateTrue(isValid(feeScheduleKey), INVALID_CUSTOM_FEE_SCHEDULE_KEY);
+            validateTrue(
+                    isValid(feeScheduleKey) && isWithinNestedKeyLimit(feeScheduleKey), INVALID_CUSTOM_FEE_SCHEDULE_KEY);
         }
         if (hasPauseKey && !isImmutableKey(pauseKey)) {
-            validateTrue(isValid(pauseKey), INVALID_PAUSE_KEY);
+            validateTrue(isValid(pauseKey) && isWithinNestedKeyLimit(pauseKey), INVALID_PAUSE_KEY);
         }
         if (hasMetadataKey && !isImmutableKey(metadataKey)) {
-            validateTrue(isValid(metadataKey), INVALID_METADATA_KEY);
+            validateTrue(isValid(metadataKey) && isWithinNestedKeyLimit(metadataKey), INVALID_METADATA_KEY);
         }
     }
 }

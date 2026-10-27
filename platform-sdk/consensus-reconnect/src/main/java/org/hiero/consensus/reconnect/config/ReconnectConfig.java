@@ -21,6 +21,9 @@ import java.time.Duration;
  *                                               intentionally or unintentionally slowing another node down by
  *                                               continuously reconnecting with it. Time is measured starting from when
  *                                               a reconnect attempt is initialized.
+ * @param copyLearnerStateEarly                  If true, the learner starts copying its state's data source when the
+ *                                               reconnect starts, while it waits for the teacher's signatures. If
+ *                                               false, it copies the data source after the signatures are received.
  */
 @ConfigData("reconnect")
 public record ReconnectConfig(
@@ -28,4 +31,5 @@ public record ReconnectConfig(
         @ConfigProperty(defaultValue = "-1") int reconnectWindowSeconds,
         @ConfigProperty(defaultValue = "60s") Duration socketTimeout,
         @ConfigProperty(defaultValue = "10") int maximumReconnectFailuresBeforeShutdown,
-        @ConfigProperty(defaultValue = "10m") Duration minimumTimeBetweenReconnects) {}
+        @ConfigProperty(defaultValue = "10m") Duration minimumTimeBetweenReconnects,
+        @ConfigProperty(defaultValue = "false") boolean copyLearnerStateEarly) {}

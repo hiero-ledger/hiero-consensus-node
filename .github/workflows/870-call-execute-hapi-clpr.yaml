@@ -113,8 +113,8 @@ jobs:
             echo "❌ $t FAILED — expand group above for details"
           }
           # CLPR (cross-ledger) HAPI suites: @Tag(CLPR), @Tag(CLPR)+embedded, and the
-          # @Tag(MULTINETWORK) subprocess suites (the multinetwork task self-installs its
-          # WRAPS proving-key fixtures via the harness, so no CI download step is needed).
+          # @Tag(MULTINETWORK) subprocess suites. The harness installs TSS startup fixtures;
+          # WRAPS parameters are bundled in the 3.20.1 library, so no CI download is needed.
           run_subtask hapiTestClpr
           run_subtask hapiTestClprEmbedded
           run_subtask hapiTestClprMultinetwork

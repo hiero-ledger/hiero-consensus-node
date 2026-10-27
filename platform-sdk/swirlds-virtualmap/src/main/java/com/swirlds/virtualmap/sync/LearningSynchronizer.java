@@ -65,17 +65,30 @@ public class LearningSynchronizer {
         this.metrics = Objects.requireNonNull(metrics, "metrics cannot be null");
     }
 
+    /**
+     * Creates the learner for a reconnect of the given map. This hashes the map, stops its background
+     * compaction, and copies its data source, which takes long for large maps. Since it depends only on the
+     * learner's own map, it can be done before the teacher starts sending.
+     *
+     * @param originalMap original learner virtual map
+     * @return the learner to pass to {@link #synchronize(VirtualMapLearner, DataInputStream, DataOutputStream,
+     *     Runnable)}. If it's never passed, the caller must close it with {@link VirtualMapLearner#abortOnException()}
+     */
     @NonNull
-    private LearnerTreeExchanger buildLearnerExchanger(VirtualMap originalVirtualMap, LearnerSyncMetrics syncMetrics) {
+    public VirtualMapLearner createLearner(@NonNull final VirtualMap originalMap) {
+        Objects.requireNonNull(originalMap, "originalMap cannot be null");
         logger.info(
                 RECONNECT.getMarker(),
                 "Building learner exchanger for map with path range [{}, {}]",
-                originalVirtualMap.getMetadata().getFirstLeafPath(),
-                originalVirtualMap.getMetadata().getLastLeafPath());
+                originalMap.getMetadata().getFirstLeafPath(),
+                originalMap.getMetadata().getLastLeafPath());
+        return new VirtualMapLearner(originalMap, syncConfig.flushInterval());
+    }
 
-        final VirtualMapConfig virtualMapConfig = originalVirtualMap.getVirtualMapConfig();
-        final VirtualMapLearner vmapLearner = new VirtualMapLearner(originalVirtualMap, syncConfig.flushInterval());
-
+    @NonNull
+    private LearnerTreeExchanger buildLearnerExchanger(
+            final VirtualMapLearner vmapLearner, final LearnerSyncMetrics syncMetrics) {
+        final VirtualMapConfig virtualMapConfig = vmapLearner.getVirtualMapConfig();
         return switch (virtualMapConfig.reconnectMode()) {
             case VirtualMapReconnectMode.PULL_TOP_TO_BOTTOM ->
                 new LearnerTreeExchanger(vmapLearner, new TopToBottomTraversalOrder(), syncMetrics);
@@ -109,14 +122,45 @@ public class LearningSynchronizer {
             @NonNull final DataOutputStream out,
             @NonNull final Runnable breakConnection)
             throws InterruptedException {
+        // Checked before the learner is created, so that invalid arguments don't cost a data source copy
+        requireConnection(in, out, breakConnection);
+        return synchronize(createLearner(originalMap), in, out, breakConnection);
+    }
 
-        Objects.requireNonNull(originalMap, "originalMap cannot be null");
-        Objects.requireNonNull(in, "input stream cannot be null");
-        Objects.requireNonNull(out, "output stream cannot be null");
-        Objects.requireNonNull(breakConnection, "break connection action cannot be null");
+    /**
+     * Perform reconnect in the role of the learner blocking until it's finished, with a learner created by
+     * {@link #createLearner(VirtualMap)}. This method takes ownership of the learner: if the synchronization
+     * fails, it aborts the learner.
+     *
+     * @param vmapLearner the learner created for the original learner virtual map
+     * @param in data input stream for reading requests from the teacher
+     * @param out data output stream for sending responses to the teacher
+     * @param breakConnection action to break the connection, which should be called if a reconnect-related exception is encountered and the connection should be closed.
+     *
+     * @return the synchronized virtual map
+     * @throws InterruptedException if the synchronization is interrupted
+     * @throws MerkleSynchronizationException if the synchronization fails due to an exception
+     */
+    public VirtualMap synchronize(
+            @NonNull final VirtualMapLearner vmapLearner,
+            @NonNull final DataInputStream in,
+            @NonNull final DataOutputStream out,
+            @NonNull final Runnable breakConnection)
+            throws InterruptedException {
 
-        final LearnerSyncMetrics syncMetrics = new LearnerSyncMetrics(metrics);
-        final LearnerTreeExchanger exchanger = buildLearnerExchanger(originalMap, syncMetrics);
+        Objects.requireNonNull(vmapLearner, "vmapLearner cannot be null");
+        requireConnection(in, out, breakConnection);
+
+        final LearnerSyncMetrics syncMetrics;
+        final LearnerTreeExchanger exchanger;
+        try {
+            syncMetrics = new LearnerSyncMetrics(metrics);
+            exchanger = buildLearnerExchanger(vmapLearner, syncMetrics);
+        } catch (final Throwable t) {
+            // E.g. an unsupported reconnect mode. Close the learner's data source copy, or every attempt leaks one
+            vmapLearner.abortOnException();
+            throw t;
+        }
 
         try (final StandardWorkGroup workGroup = createStandardWorkGroup(threadManager, breakConnection)) {
             logger.info(RECONNECT.getMarker(), "learner start synchronizing");
@@ -196,6 +240,13 @@ public class LearningSynchronizer {
             exchanger.abortOnException();
             throw new MerkleSynchronizationException("Failed to finish synchronization", t);
         }
+    }
+
+    private static void requireConnection(
+            final DataInputStream in, final DataOutputStream out, final Runnable breakConnection) {
+        Objects.requireNonNull(in, "input stream cannot be null");
+        Objects.requireNonNull(out, "output stream cannot be null");
+        Objects.requireNonNull(breakConnection, "break connection action cannot be null");
     }
 
     private void throwCause(Throwable ex) throws MerkleSynchronizationException {
