@@ -3,7 +3,7 @@ package com.hedera.node.app.service.clpr.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CLPR_CONFIGURATION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
-import static com.hedera.node.app.service.clpr.impl.ClprLedgerConfigurationFile.areValidThrottles;
+import static com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator.areValidThrottles;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CLPR_SERVICE_ADDRESS;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
@@ -57,8 +57,7 @@ public class ClprUpdateLedgerConfigurationHandler extends AbstractClprHandler {
                 INVALID_CLPR_CONFIGURATION);
 
         // Validate throttles — all fields must be positive and max_sync_bytes must leave room for one
-        // max-sized message plus its proof overhead (shared with the ledger configuration file loader,
-        // whose synthetic dispatches skip pureChecks)
+        // max-sized message plus its proof overhead
         validateTruePreCheck(
                 areValidThrottles(config.throttlesOrElse(ClprThrottles.DEFAULT)), INVALID_CLPR_CONFIGURATION);
     }

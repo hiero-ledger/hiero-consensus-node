@@ -18,7 +18,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import com.hedera.node.app.hapi.utils.forensics.RecordStreamEntry;
-import com.hedera.services.bdd.junit.ConfigOverride;
 import com.hedera.services.bdd.junit.GenesisHapiTest;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
@@ -61,7 +60,7 @@ public class ClprLedgerConfigurationUpgradeTest {
             }
             """;
 
-    @GenesisHapiTest(bootstrapOverrides = {@ConfigOverride(key = "clpr.enabled", value = "true")})
+    @GenesisHapiTest
     final Stream<DynamicTest> changedLedgerConfigurationFileIsAppliedAtUpgradeBoundary() {
         return hapiTest(
                 streamMustIncludePassFrom(selectedItems(

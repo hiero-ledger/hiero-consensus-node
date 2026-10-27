@@ -703,18 +703,36 @@ public class SystemTransactions {
             log.info("CLPR ledger configuration not yet initialized, not applying its upgrade file");
             return;
         }
-        new AutoEntityUpdate<ClprThrottles>(
-                        (ctx, throttles) -> ClprLedgerConfigurationFile.upgradeConfiguration(
-                                        existing, throttles, config)
-                                .ifPresentOrElse(
-                                        update -> ctx.dispatchAdmin(b -> b.clprUpdateLedgerConfiguration(
-                                                ClprUpdateLedgerConfigurationTransactionBody.newBuilder()
-                                                        .configuration(update)
-                                                        .build())),
-                                        () -> log.info("CLPR ledger configuration throttles unchanged, not updating")),
-                        clprConfig.upgradeLedgerConfigurationFile(),
-                        ClprLedgerConfigurationFile::parse)
-                .tryIfPresent(upgradeSysFilesLoc, systemContext);
+        final var autoClprLedgerConfigurationUpdate = new AutoEntityUpdate<ClprThrottles>(
+                (ctx, throttles) -> applyClprThrottles(ctx, existing, throttles, config),
+                clprConfig.upgradeLedgerConfigurationFile(),
+                ClprLedgerConfigurationFile::parse);
+        autoClprLedgerConfigurationUpdate.tryIfPresent(upgradeSysFilesLoc, systemContext);
+    }
+
+    /**
+     * Dispatches a synthetic {@code ClprUpdateLedgerConfiguration} with the given throttles from the upgrade
+     * file, unless they match the existing ones.
+     *
+     * @param systemContext the system context to dispatch in
+     * @param existing the existing ledger configuration
+     * @param throttles the validated throttles from the upgrade file
+     * @param config the current configuration
+     */
+    private static void applyClprThrottles(
+            @NonNull final SystemContext systemContext,
+            @NonNull final ClprLedgerConfiguration existing,
+            @NonNull final ClprThrottles throttles,
+            @NonNull final Configuration config) {
+        final var maybeUpdate = ClprLedgerConfigurationFile.upgradeConfiguration(existing, throttles, config);
+        if (maybeUpdate.isEmpty()) {
+            log.info("CLPR ledger configuration throttles unchanged, not updating");
+            return;
+        }
+        final var body = ClprUpdateLedgerConfigurationTransactionBody.newBuilder()
+                .configuration(maybeUpdate.get())
+                .build();
+        systemContext.dispatchAdmin(b -> b.clprUpdateLedgerConfiguration(body));
     }
 
     private void createClprStakingAccount(

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.test;
 
-import static com.hedera.node.app.service.clpr.impl.ClprLedgerConfigurationFile.MIN_PROOF_OVERHEAD_BYTES;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -107,29 +106,6 @@ class ClprLedgerConfigurationFileTest {
         assertThatThrownBy(() -> ClprLedgerConfigurationFile.parse(streamOf(jsonOf(zeroQueueDepth))))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Invalid CLPR throttles");
-    }
-
-    @Test
-    void validatesThrottles() {
-        assertThat(ClprLedgerConfigurationFile.areValidThrottles(BUNDLED_THROTTLES))
-                .isTrue();
-        assertThat(ClprLedgerConfigurationFile.areValidThrottles(ClprThrottles.DEFAULT))
-                .isFalse();
-        assertThat(ClprLedgerConfigurationFile.areValidThrottles(
-                        BUNDLED_THROTTLES.copyBuilder().maxGasPerMessage(0).build()))
-                .isFalse();
-        // max_sync_bytes must leave room for one max-sized message plus its proof overhead
-        final var payload = BUNDLED_THROTTLES.maxMessagePayloadBytes();
-        assertThat(ClprLedgerConfigurationFile.areValidThrottles(BUNDLED_THROTTLES
-                        .copyBuilder()
-                        .maxSyncBytes(payload + MIN_PROOF_OVERHEAD_BYTES)
-                        .build()))
-                .isTrue();
-        assertThat(ClprLedgerConfigurationFile.areValidThrottles(BUNDLED_THROTTLES
-                        .copyBuilder()
-                        .maxSyncBytes(payload + MIN_PROOF_OVERHEAD_BYTES - 1)
-                        .build()))
-                .isFalse();
     }
 
     @Test
