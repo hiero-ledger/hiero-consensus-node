@@ -53,3 +53,31 @@ jobs:
 
       - name: Test Consensus Node Config Resolution
         run: bash ./.github/workflows/support/tests/test-resolve-cn-configs.sh
+
+  test-summarize-bn-matrix:
+    name: Validate Block Node Matrix Summary
+    runs-on: hl-cn-default-lin-sm
+    steps:
+      - name: Initialize GitHub Job
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+        with:
+          checkout: "true"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+          setup-jq: "true"
+
+      - name: Test Block Node Matrix Summary
+        run: bash ./.github/workflows/support/tests/test-summarize-bn-matrix.sh
+
+  test-resolve-bn-versions:
+    name: Validate Block Node Version Resolution
+    runs-on: hl-cn-default-lin-sm
+    steps:
+      - name: Initialize GitHub Job
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+        with:
+          checkout: "true"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+          setup-jq: "true"
+
+      - name: Test Block Node Version Resolution
+        run: bash ./.github/workflows/support/tests/test-resolve-bn-versions.sh

@@ -29,6 +29,16 @@ on:
         required: false
         type: string
         default: ""
+      build-artifact:
+        description: "Name of an artifact holding the prebuilt hedera-node/data of the consensus node ref; when set, the ref is not built again:"
+        required: false
+        type: string
+        default: ""
+      enable-slack-report:
+        description: "Post this run's own Slack report; turn off when a caller reports the result itself:"
+        required: false
+        type: boolean
+        default: true
       bn-release-version:
         description: "The version of the block node to use in the tests:"
         required: false
@@ -71,6 +81,7 @@ permissions:
   id-token: write
 
 env:
+  ARTIFACT_SUFFIX: ${{ inputs.bn-release-version || 'latest' }}${{ inputs.cn-label && format('-CN-{0}', inputs.cn-label) }}
   SOLO_CLUSTER_NAME: "solo-block-node-e2e"
   SOLO_NAMESPACE: "solo-block-node-e2e"
   SOLO_DEPLOYMENT: "solo-block-node-deployment"
@@ -224,9 +235,17 @@ jobs:
         run: |
           npm install -g pnpm@10.11.0
 
-      # Build the hiero-consensus-node artifacts
+      # Build the hiero-consensus-node artifacts (or take the ones a caller built once for all its legs)
       - name: Build hiero-consensus-node
+        if: ${{ inputs.build-artifact == '' }}
         run: ${GRADLE_EXEC} assemble
+
+      - name: Download Prebuilt hiero-consensus-node
+        if: ${{ inputs.build-artifact != '' }}
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ${{ inputs.build-artifact }}
+          path: hedera-node/data
 
       # Set up the npm dependencies and cache on the tck-client
       - name: Set up the tck-client
@@ -488,7 +507,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ !cancelled() }}
         with:
-          name: SDK TCK Regression Test Report for BN-${{ inputs.bn-release-version || 'latest' }}${{ inputs.cn-label && format('-CN-{0}', inputs.cn-label) }}
+          name: SDK TCK Regression Test Report for BN-${{ env.ARTIFACT_SUFFIX }}
           path: "**/sdk-tck/regression/mochawesome-report/mochawesome.*"
           retention-days: 7
 
@@ -525,7 +544,7 @@ jobs:
         id: update_bn_mn_logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: bn-mn-log-${{ inputs.bn-release-version || 'latest' }}${{ inputs.cn-label && format('-CN-{0}', inputs.cn-label) }}
+          name: bn-mn-log-${{ env.ARTIFACT_SUFFIX }}
           path: |
             bn0-logs.log
             mn0-logs.log
@@ -535,7 +554,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: cn-logs-${{ inputs.bn-release-version || 'latest' }}${{ inputs.cn-label && format('-CN-{0}', inputs.cn-label) }}
+          name: cn-logs-${{ env.ARTIFACT_SUFFIX }}
           path: ${{ env.CN_LOG_FOLDER }}/*.zip
 
       - name: Add Logs to Summary
@@ -576,7 +595,7 @@ jobs:
     runs-on: hl-cn-bn-regression-lin-sm
     needs:
       - block-node-regression
-    if: ${{ !cancelled() && always() }}
+    if: ${{ !cancelled() && always() && inputs.enable-slack-report }}
     outputs:
       slack_payload: ${{ steps.build-payload.outputs.slack_payload }}
     steps:
@@ -608,7 +627,7 @@ jobs:
     runs-on: hl-cn-bn-regression-lin-sm
     needs:
       - build-slack-payload
-    if: ${{ !cancelled() && always() }}
+    if: ${{ !cancelled() && always() && inputs.enable-slack-report }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4

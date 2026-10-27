@@ -202,7 +202,11 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
                 Files.writeString(marker, "ok\n");
                 return pluginsDir;
             } catch (final IOException e) {
-                throw new RuntimeException("Failed to prepare block node plugins in " + pluginsDir, e);
+                throw new RuntimeException(
+                        "Failed to prepare plugins for Block Node " + BLOCK_NODE_VERSION + " in " + pluginsDir
+                                + " (its plugin jars must be published on Maven Central, and the plugin list and extra"
+                                + " jars here must match what that version needs): " + e.getMessage(),
+                        e);
             }
         }
     }

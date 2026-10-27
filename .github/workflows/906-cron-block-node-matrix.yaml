@@ -11,6 +11,10 @@ on:
         description: "Comma-separated Block Node versions to test (e.g. v0.44.0,v0.45.0-alpha1)."
         type: string
         required: true
+      dry-run:
+        description: "Dry run: report the result in the job summary only, do not post to Slack."
+        type: boolean
+        default: false
 
 defaults:
   run:
@@ -36,6 +40,8 @@ jobs:
     if: ${{ github.event.repository.visibility == 'public' }}
     outputs:
       matrix: ${{ steps.resolve.outputs.matrix }}
+      comms-matrix: ${{ steps.resolve.outputs.comms-matrix }}
+      cn-matrix: ${{ steps.resolve.outputs.cn-matrix }}
     steps:
       - name: Initialize GitHub Job
         uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
@@ -55,38 +61,88 @@ jobs:
           CONFIGS=$(bash .github/workflows/support/scripts/resolve-cn-configs.sh)
           echo "Consensus node configs: ${CONFIGS}"
 
-          # trimmed, de-duplicated; every entry must look like vX.Y.Z[-suffix] since it ends up in scripts and artifact names
-          BN_LIST=$(echo "${BN_VERSIONS}" | tr ',' '\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | awk 'NF && !seen[$0]++')
-          if [[ -z "${BN_LIST}" ]]; then
-            echo "::error::No Block Node versions given"
-            exit 1
-          fi
-          while IFS= read -r v; do
-            if [[ ! "${v}" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$ ]]; then
-              echo "::error::Invalid Block Node version '${v}' (expected vX.Y.Z or vX.Y.Z-suffix)"
-              exit 1
-            fi
-          done <<< "${BN_LIST}"
-          VERSIONS=$(echo "${BN_LIST}" | jq -R . | jq -sc .)
+          # trimmed, normalised to vX.Y.Z[-suffix] and de-duplicated; fails on anything else
+          VERSIONS=$(bash .github/workflows/support/scripts/resolve-bn-versions.sh)
           echo "Block Node versions under test: ${VERSIONS}"
+
+          # BN Comms downloads plugin jars of the requested version from Maven Central; tag-only alpha/rc builds may
+          # not publish them, so fail here rather than after the legs have taken runners
+          while IFS= read -r v; do
+            for artifact in health roster-bootstrap-tss; do
+              url="https://repo1.maven.org/maven2/org/hiero/block-node/${artifact}/${v#v}/${artifact}-${v#v}.jar"
+              if ! curl -fsSI --retry 3 -o /dev/null "${url}"; then
+                echo "::error::Block Node ${v} has no published plugin jar ${url}; the BN Comms suite cannot run it"
+                exit 1
+              fi
+            done
+          done < <(echo "${VERSIONS}" | jq -r '.[]')
 
           # full cross product: every CN ref x every BN version
           MATRIX=$(jq -nc --argjson cfgs "${CONFIGS}" --argjson bns "${VERSIONS}" \
             '[$cfgs[] as $c | $bns[] | . as $b | $c + {"bn-version": $b}]')
           echo "matrix=${MATRIX}" >> "${GITHUB_OUTPUT}"
+          echo "cn-matrix=${CONFIGS}" >> "${GITHUB_OUTPUT}"
+
+          # The BN communication suite picks its BN version via BLOCK_NODE_VERSION, which only refs containing the
+          # BlockNodeContainer override honour; others would run the pinned image under a different version label.
+          COMMS_MATRIX=$(echo "${MATRIX}" | jq -c '[.[] | select(."bn-version-override")]')
+          SKIPPED=$(echo "${MATRIX}" | jq -r '[.[] | select(."bn-version-override" | not) | ."cn-ref"] | unique | join(", ")')
+          if [[ -n "${SKIPPED}" ]]; then
+            echo "::warning::BN Comms legs skipped for CN refs without BLOCK_NODE_VERSION support: ${SKIPPED}"
+            echo "### BN Comms skipped (ref lacks the BLOCK_NODE_VERSION override): ${SKIPPED}" >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          echo "comms-matrix=${COMMS_MATRIX}" >> "${GITHUB_OUTPUT}"
           {
             echo "### Block Node regression legs"
             echo "${MATRIX}" | jq -r '.[] | "- CN `" + ."cn-ref" + "` x BN `" + ."bn-version" + "`"'
           } >> "${GITHUB_STEP_SUMMARY}"
 
+  # Every leg of a CN ref needs the same CN build, so build each ref once and hand it to its legs as an artifact.
+  build-consensus-node:
+    name: Build CN ${{ matrix.cn-ref }}
+    runs-on: hl-cn-bn-regression-lin-lg
+    timeout-minutes: 60
+    needs:
+      - resolve-versions
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include: ${{ fromJSON(needs.resolve-versions.outputs.cn-matrix) }}
+    steps:
+      - name: Prepare Runner
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+        with:
+          checkout: "true"
+          checkout-ref: "${{ matrix.cn-ref }}"
+          checkout-fetch-depth: "0"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+          setup-java: "true"
+          java-version: "${{ matrix.java-version }}"
+          setup-gradle: "true"
+          gradle-cache-read-only: "false"
+
+      - name: Build hiero-consensus-node
+        run: ionice -c 2 -n 2 nice -n 19 ./gradlew assemble
+
+      - name: Upload Build
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: cn-build-${{ matrix.cn-slug }}
+          path: hedera-node/data
+          retention-days: 1
+          if-no-files-found: error
+
+  # max-parallel is 2 here and 1 for BN communication below: at most 3 heavy legs run at once across both matrices.
   # One full 821 Block Node regression per CN ref x BN version; a failing leg must not hide the others.
   block-node-regression:
     name: CN ${{ matrix.cn-ref }} / BN ${{ matrix.bn-version }}
     needs:
       - resolve-versions
+      - build-consensus-node
     strategy:
       fail-fast: false
-      max-parallel: 3
+      max-parallel: 2
       matrix:
         include: ${{ fromJSON(needs.resolve-versions.outputs.matrix) }}
     uses: ./.github/workflows/821-call-block-node-regression.yaml
@@ -100,6 +156,8 @@ jobs:
       bn-mirror-node-version: ${{ matrix.bn-mirror-node-version }}
       tck-version: ${{ matrix.tck-version }}
       js-sdk-version: ${{ matrix.js-sdk-version }}
+      build-artifact: cn-build-${{ matrix.cn-slug }}
+      enable-slack-report: false # reported once for all legs by the summary job
     secrets:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       slack-detailed-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
@@ -109,11 +167,13 @@ jobs:
     name: BN Comms CN ${{ matrix.cn-ref }} / BN ${{ matrix.bn-version }}
     needs:
       - resolve-versions
+    # an empty matrix is an error; it is empty when no requested ref supports the BLOCK_NODE_VERSION override
+    if: ${{ needs.resolve-versions.outputs.comms-matrix != '[]' }}
     strategy:
       fail-fast: false
-      max-parallel: 3
+      max-parallel: 1
       matrix:
-        include: ${{ fromJSON(needs.resolve-versions.outputs.matrix) }}
+        include: ${{ fromJSON(needs.resolve-versions.outputs.comms-matrix) }}
     uses: ./.github/workflows/844-call-execute-hapi-bn-communication.yaml
     with:
       ref: ${{ matrix.cn-ref }}
@@ -124,3 +184,54 @@ jobs:
       access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+
+  # One report for the whole matrix instead of one Slack message per leg.
+  summary:
+    name: Summary and Slack Report
+    runs-on: hl-cn-default-lin-sm
+    needs:
+      - resolve-versions
+      - build-consensus-node
+      - block-node-regression
+      - block-node-communication
+    if: ${{ !cancelled() && needs.resolve-versions.result == 'success' }}
+    steps:
+      - name: Initialize GitHub Job
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+        with:
+          checkout: "true"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+          checkout-fetch-depth: "1"
+          setup-jq: "true"
+
+      - name: Summarize Legs
+        id: summarize
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MATRIX: ${{ needs.resolve-versions.outputs.matrix }}
+          BUILD_RESULT: ${{ needs.build-consensus-node.result }}
+        run: |
+          JOBS=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/jobs?per_page=100" --jq '.jobs[]' | jq -sc .)
+          export JOBS
+          # legs of a ref whose build failed never start, so there are no leg jobs to summarize
+          if [[ "${BUILD_RESULT}" != "success" ]]; then
+            LEGS="- :x: Consensus node build ${BUILD_RESULT}; its legs did not run (see the build jobs)"
+          else
+            LEGS=$(bash .github/workflows/support/scripts/summarize-bn-matrix.sh)
+          fi
+          if grep -q ':x:' <<< "${LEGS}"; then HEADER=":x: Block Node version matrix has failures"; else HEADER=":white_check_mark: Block Node version matrix passed"; fi
+          {
+            echo "### ${HEADER}"
+            echo "${LEGS}"
+          } | tee -a "${GITHUB_STEP_SUMMARY}" > summary.md
+          jq -Rsc --arg url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            '{text: (. + "\n<" + $url + "|View run>")}' summary.md > payload.json
+          echo "payload=$(cat payload.json)" >> "${GITHUB_OUTPUT}"
+
+      - name: Report Matrix Result to Detailed Test Reports Channel
+        if: ${{ !inputs.dry-run }}
+        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc # v3.0.5
+        with:
+          webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload: ${{ steps.summarize.outputs.payload }}
