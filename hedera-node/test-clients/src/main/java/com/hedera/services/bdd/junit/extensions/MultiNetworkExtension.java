@@ -3,7 +3,6 @@ package com.hedera.services.bdd.junit.extensions;
 
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.WORKING_DIR;
-import static com.hedera.services.bdd.junit.hedera.subprocess.ClprWrapsProvingKeyInstaller.ensureProvisioned;
 import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.awaitStatus;
 import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.prCheckOverrides;
 import static com.hedera.services.bdd.junit.hedera.subprocess.TssFixtures.CACHE_DIR;
@@ -24,10 +23,14 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.runBackgroundTraffi
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForFrozenNetwork;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 
+import com.hedera.hapi.node.base.ServiceEndpoint;
+import com.hedera.node.app.info.DiskStartupNetworks;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.ConfigOverride;
 import com.hedera.services.bdd.junit.MultiNetworkHapiTest;
 import com.hedera.services.bdd.junit.MultiNetworkHapiTest.Network;
 import com.hedera.services.bdd.junit.hedera.HederaNetwork;
+import com.hedera.services.bdd.junit.hedera.NodeMetadata;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.spec.infrastructure.HapiClients;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -60,6 +63,7 @@ import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.config.Configurator;
+import org.hiero.consensus.roster.RosterUtils;
 import org.junit.jupiter.api.extension.AfterEachCallback;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
@@ -122,28 +126,25 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
     /** Sibling dir (of the per-network {@code <scope>-test/} dirs) for the multi-network driver log. */
     private static final String MULTINETWORK_LOG_DIR = "multinetwork-test-clients";
 
-    static final String CLPR_MTLS_PORT_KEY = "clpr.mtlsPort";
-    static final String CLPR_CA_CRT_PATH_KEY = "clpr.caCrtPath";
-    static final String CLPR_CA_KEY_PATH_KEY = "clpr.caKeyPath";
+    static final String GRPC_TLS_PORT_KEY = "grpc.tlsPort";
 
     /**
-     * Relative path (from a node's working dir) where {@link #provisionClprMtls} drops the CA PEMs when
-     * {@code enableClprMtls = true}; also the value auto-seeded for {@code clpr.caCrtPath} /
-     * {@code clpr.caKeyPath}, so the write location and the advertised config value share one definition.
+     * Paths (relative to a node's working dir, which is its CWD) where {@link #provisionHapiTls} drops the
+     * HAPI TLS certificate and key when {@code enableHapiTls = true} — the defaults of
+     * {@code netty.tlsCrt.path} / {@code netty.tlsKey.path}, so no path override is needed.
      */
-    private static final String CLPR_CA_CRT_PATH = "data/clpr/ca.crt";
+    private static final String HAPI_TLS_CRT_PATH = "hedera.crt";
 
-    private static final String CLPR_CA_KEY_PATH = "data/clpr/ca.key";
+    private static final String HAPI_TLS_KEY_PATH = "hedera.key";
 
     /**
      * Setup-override keys that are node-local and read ONLY at JVM startup (not dynamically reloadable):
-     * the CLPR mTLS cert paths and per-node mTLS listener port. These are seeded per node into
-     * {@code application.properties} by {@link #seedPerNodeApplicationOverrides}; applying them via the
-     * runtime 0.0.121 network override (see {@link #applySetupOverrides}) is a no-op at runtime and would
-     * shadow a later per-node {@code application.properties} change on restart (breaking mtlsPort rotation).
+     * the per-node HAPI TLS listener port. It is seeded per node into {@code application.properties} by
+     * {@link #seedPerNodeApplicationOverrides}; applying it via the runtime 0.0.121 network override (see
+     * {@link #applySetupOverrides}) is a no-op at runtime and would shadow a later per-node
+     * {@code application.properties} change on restart (breaking tlsPort rotation).
      */
-    private static final Set<String> STARTUP_ONLY_NODE_KEYS =
-            Set.of(CLPR_MTLS_PORT_KEY, CLPR_CA_CRT_PATH_KEY, CLPR_CA_KEY_PATH_KEY);
+    private static final Set<String> STARTUP_ONLY_NODE_KEYS = Set.of(GRPC_TLS_PORT_KEY);
 
     /**
      * Deterministic port allocation for multi-network tests.
@@ -199,7 +200,7 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
     private static final Pattern WRAPS_SYNC_POINT_PATTERN =
             Pattern.compile("\\[CLPR-SYNC-POINT\\] block #\\d+ is the first to embed the WRAPS recursive proof");
 
-    private static final Duration WRAPS_EXTENSIBLE_TIMEOUT = Duration.ofMinutes(25);
+    private static final Duration WRAPS_EXTENSIBLE_TIMEOUT = Duration.ofMinutes(10);
     /**
      * Upper bound on how long we'll wait between {@code WRAPS-extensible? true} and the
      * {@code [CLPR-SYNC-POINT]} log line. Typically fires within seconds (1-2 block-times after
@@ -238,27 +239,6 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
      */
     public static boolean wasTssBootstrapHandled(@NonNull final SubProcessNetwork network) {
         return TSS_BOOTSTRAP_HANDLED.contains(network);
-    }
-
-    /**
-     * Per-network-name CLPR mTLS CA material, provisioned in {@link #provisionClprMtls} when a
-     * {@link Network#enableClprMtls()} network starts (or restarts warm). Keyed by name so it survives the
-     * cold-path {@link #restartWithFixture} that swaps the {@link SubProcessNetwork} instance.
-     */
-    private static final Map<String, ClprMtlsCa> CLPR_MTLS_CAS = new ConcurrentHashMap<>();
-
-    /**
-     * @return the DER-encoded CA cert to advertise in {@code ClprEndpoint.tls_certificate} for the
-     * given network.
-     * @throws IllegalStateException if no CA was provisioned for {@code networkName}
-     */
-    public static byte[] clprMtlsCaDer(@NonNull final String networkName) {
-        final var ca = CLPR_MTLS_CAS.get(networkName);
-        if (ca == null) {
-            throw new IllegalStateException("No CLPR mTLS CA provisioned for network '" + networkName
-                    + "' — set enableClprMtls = true on its @Network");
-        }
-        return ca.caCertDer();
     }
 
     @Override
@@ -418,7 +398,6 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
         }
         for (final var n : networks) {
             TSS_BOOTSTRAP_HANDLED.remove(n);
-            CLPR_MTLS_CAS.remove(n.name());
             safeTerminate(n);
         }
         HapiClients.removeChannelsFor(uris);
@@ -447,7 +426,7 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
     }
 
     /**
-     * Reserves the gRPC/mTLS port window for each declared network WITHOUT starting any nodes. Called
+     * Reserves the gRPC port window for each declared network WITHOUT starting any nodes. Called
      * once up front by the launcher-session listener (with explicit-port networks sorted first) so that
      * shared networks starting lazily and out of order can't land on each other's ports.
      */
@@ -573,33 +552,15 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
             // Collect setup overrides (defaults + annotation-declared + tssPreload-injected) into
             // one map so duplicates are merged predictably. Defaults are seeded first so a per-test
             // setupOverrides entry with the same key wins.
-            final var overrides = new LinkedHashMap<String, String>();
-            // Multi-network tests register connectors as part of setup; the prod default
-            // clpr.minLockedStake (100M tinybars) requires a hbar transfer to register, which the
-            // tests don't fund. Lower the threshold so simple test connectors succeed without
-            // forcing every test annotation to repeat this override.
-            overrides.put("clpr.minLockedStake", "100");
-            overrides.put("clpr.nodeSubmitBundleMaxFee", "10000000000");
-            overrides.put("clpr.verifierGasLimit", "5000000");
-            // Apply the per-task build.gradle.kts overrides (hapi.spec.test.overrides) so ANY network
-            // property can be set from the build file for the multi-network tasks — e.g. the CLPR
-            // tasks set clpr.enabled=true. These are seeded into each node's application.properties
-            // (via seedPerNodeApplicationOverrides below), the reliable path that takes effect at
-            // genesis. Layered above the infra defaults but below the test's own setupOverrides, so a
-            // per-test @ConfigOverride still wins.
-            overrides.putAll(prCheckOverrides());
+            final var overrides = defaultSetupOverrides();
             for (final var o : cfg.setupOverrides()) {
                 overrides.put(o.key(), o.value());
             }
-            // Typed mTLS config derived from @Network attributes, set last so it wins over anything a
-            // test left in setupOverrides. firstMtlsPort is a base (seedPerNodeApplicationOverrides
-            // offsets it per node); enableClprMtls provisions the CA at the paths seeded here.
-            if (cfg.firstMtlsPort() > 0) {
-                overrides.put(CLPR_MTLS_PORT_KEY, Integer.toString(cfg.firstMtlsPort()));
-            }
-            if (cfg.enableClprMtls()) {
-                overrides.put(CLPR_CA_CRT_PATH_KEY, CLPR_CA_CRT_PATH);
-                overrides.put(CLPR_CA_KEY_PATH_KEY, CLPR_CA_KEY_PATH);
+            // Typed HAPI TLS port derived from @Network attributes, set last so it wins over anything a
+            // test left in setupOverrides. firstHapiTlsPort is a base (seedPerNodeApplicationOverrides
+            // offsets it per node).
+            if (cfg.firstHapiTlsPort() > 0) {
+                overrides.put(GRPC_TLS_PORT_KEY, Integer.toString(cfg.firstHapiTlsPort()));
             }
             final boolean cacheHit = cfg.tssPreload() && fixturePresent(resolveName(cfg));
             if (cfg.tssPreload() && !cacheHit) {
@@ -623,6 +584,7 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
                         final var src = resolveCachedFixturePath(resolveName(cfg));
                         final var dst = node.getExternalPath(DATA_CONFIG_DIR).resolve(GENESIS_NETWORK_JSON);
                         installFixture(src, dst);
+                        rewriteFixturePortsToRuntime(dst, network);
                     } catch (final IOException e) {
                         throw new UncheckedIOException(
                                 "Failed to install TSS preload fixture for '" + resolveName(cfg) + "'", e);
@@ -635,22 +597,12 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
                         resolveName(cfg),
                         cfg.size(),
                         CACHE_DIR);
-                // Cold path: ensure the WRAPS proving-key artifacts (extracted *.bin + wraps.sha384) are
-                // in place before the node JVM starts, so the recursive prover can become ready. Use the
-                // same path build.gradle.kts resolved and forwards to the node as
-                // TSS_LIB_WRAPS_ARTIFACTS_PATH, so the artifacts version lives in one place and provisioning
-                // always targets exactly what the node reads. No-op if already provisioned; runs once per
-                // dir in this (single) parent JVM.
-                final var wrapsArtifactsPath = System.getProperty("hapi.spec.tssLibWrapsArtifactsPath", "");
-                if (!wrapsArtifactsPath.isBlank()) {
-                    ensureProvisioned(Path.of(wrapsArtifactsPath));
-                }
             }
 
-            // Provision the per-network CLPR mTLS CA (cert/key PEMs into the working dir + DER stashed
-            // for on-chain advertisement) before the node JVM starts and reads clpr.caCrtPath/caKeyPath.
-            if (cfg.enableClprMtls()) {
-                provisionClprMtls(cfg, network);
+            // Provision the per-network HAPI TLS certificate (cert/key PEMs into the working dir) before
+            // the node JVM starts and looks for them to start its HAPI TLS listener.
+            if (cfg.enableHapiTls()) {
+                provisionHapiTls(cfg, network);
             }
 
             networks.add(network);
@@ -678,7 +630,7 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
             //
             // Warm path (cached fixture preloaded at JVM start): returns ~immediately once the
             // preload log fires + first signed block arrives. Cold path (no fixture): waits up to
-            // 25 min for the runtime WRAPS-extensible event (~14 min on a 1-node subprocess),
+            // 10 min for the runtime WRAPS-extensible event (a few minutes on a 1-node subprocess),
             // polls for [CLPR-SYNC-POINT] (first WRAPS-carrying block, ~seconds later), settles
             // POST_SYNC_POINT_SETTLE so a few WRAPS-carrying blocks accumulate, triggers a
             // freezeOnly to fire ONLY_FREEZE_BLOCK export of a TSS-enriched output/network.json,
@@ -1061,6 +1013,25 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
     }
 
     /**
+     * Returns the setup overrides every multi-network test network starts with, before any test-declared
+     * {@code setupOverrides}; shared by the primary start path and {@link #restartWithFixture} so a network
+     * restarted warm after a cold bootstrap runs with the same configuration as one that started warm.
+     */
+    private static LinkedHashMap<String, String> defaultSetupOverrides() {
+        final var overrides = new LinkedHashMap<String, String>();
+        // Multi-network tests register connectors as part of setup; the prod default
+        // clpr.minLockedStake (100M tinybars) requires a hbar transfer to register, which the
+        // tests don't fund. Lower the threshold so simple test connectors succeed without
+        // forcing every test annotation to repeat this override.
+        overrides.put("clpr.minLockedStake", "100");
+        overrides.put("clpr.nodeSubmitBundleMaxFee", "10000000000");
+        overrides.put("clpr.verifierGasLimit", "5000000");
+        // Task defaults apply at genesis and fixture restart, while per-test setup overrides win.
+        overrides.putAll(prCheckOverrides());
+        return overrides;
+    }
+
+    /**
      * Terminates the cold-bootstrapped network and brings up a fresh {@link SubProcessNetwork}
      * with the just-cached fixture preloaded, so the upcoming test sees a warm-loaded network
      * (the warm-path code path, byte-for-byte identical to second-and-later runs). Reuses the
@@ -1082,21 +1053,13 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
         // re-inject the ONLY_FREEZE_BLOCK export overrides: with a cached fixture in place this
         // is now a warm run, and the test isn't expected to issue another freeze.
         // Same defaults shape as the primary path above.
-        final var overrides = new LinkedHashMap<String, String>();
-        overrides.put("clpr.minLockedStake", "100");
-        // Same build.gradle.kts override pass as the primary path (see there) so the warm restart
-        // brings the network back up with the identical property set.
-        overrides.putAll(prCheckOverrides());
+        final var overrides = defaultSetupOverrides();
         for (final var o : cfg.setupOverrides()) {
             overrides.put(o.key(), o.value());
         }
-        // Carry the typed mTLS config across the warm restart too (see @Network.firstMtlsPort / enableClprMtls).
-        if (cfg.firstMtlsPort() > 0) {
-            overrides.put(CLPR_MTLS_PORT_KEY, Integer.toString(cfg.firstMtlsPort()));
-        }
-        if (cfg.enableClprMtls()) {
-            overrides.put(CLPR_CA_CRT_PATH_KEY, CLPR_CA_CRT_PATH);
-            overrides.put(CLPR_CA_KEY_PATH_KEY, CLPR_CA_KEY_PATH);
+        // Carry the typed HAPI TLS port across the warm restart too (see @Network.firstHapiTlsPort).
+        if (cfg.firstHapiTlsPort() > 0) {
+            overrides.put(GRPC_TLS_PORT_KEY, Integer.toString(cfg.firstHapiTlsPort()));
         }
         seedPerNodeApplicationOverrides(fresh, overrides, cfg.size());
         // Preload each node's OWN fixture via the same postInitWorkingDirAction the warm-cache hit uses.
@@ -1105,16 +1068,17 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
                 final var src = resolveCachedFixturePath(resolveName(cfg));
                 final var dst = node.getExternalPath(DATA_CONFIG_DIR).resolve(GENESIS_NETWORK_JSON);
                 installFixture(src, dst);
+                rewriteFixturePortsToRuntime(dst, fresh);
             } catch (final IOException e) {
                 throw new UncheckedIOException(
                         "Failed to install just-cached TSS fixture into restarted '" + resolveName(cfg) + "'", e);
             }
         });
-        // Re-provision the CLPR mTLS CA on the fresh node: the old instance's post-init action is
-        // gone, so without this the restarted (actually-tested) node would come up without a CA and
-        // silently fall back to plaintext.
-        if (cfg.enableClprMtls()) {
-            provisionClprMtls(cfg, fresh);
+        // Re-provision the HAPI TLS certificate on the fresh node: the old instance's post-init action is
+        // gone, so without this the restarted (actually-tested) node would come up without its HAPI TLS
+        // listener and silently fall back to plaintext.
+        if (cfg.enableHapiTls()) {
+            provisionHapiTls(cfg, fresh);
         }
         log.info(
                 "[CLPR-FIXTURE] '{}' restarting with just-cached per-node fixtures preloaded ({} nodes)",
@@ -1127,9 +1091,9 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
 
     /**
      * Seeds every node's {@code application.properties} overrides from {@code overrides}, but assigns
-     * the node-local {@code clpr.mtlsPort} a <b>per-node</b> value ({@code base + nodeId}). Subprocess
-     * nodes all share {@code 127.0.0.1}, so a single fixed {@code mtlsPort} would collide when more
-     * than one node tries to bind its mTLS listener; {@code clpr.mtlsPort} is a {@code @NodeProperty}
+     * the node-local {@code grpc.tlsPort} a <b>per-node</b> value ({@code base + nodeId}). Subprocess
+     * nodes all share {@code 127.0.0.1}, so a single fixed {@code tlsPort} would collide when more
+     * than one node tries to bind its HAPI TLS listener; {@code grpc.tlsPort} is a {@code @NodeProperty}
      * (node-local, not consensus state), so a distinct per-node value is legitimate. All other keys are
      * applied uniformly.
      */
@@ -1143,7 +1107,7 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
             final List<String> flat = new ArrayList<>();
             overrides.forEach((k, v) -> {
                 flat.add(k);
-                if (CLPR_MTLS_PORT_KEY.equals(k)) {
+                if (GRPC_TLS_PORT_KEY.equals(k)) {
                     flat.add(Integer.toString(Integer.parseInt(v.trim()) + (int) nodeId));
                 } else {
                     flat.add(v);
@@ -1151,10 +1115,10 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
             });
             network.getApplicationPropertyOverrides().put(id, List.copyOf(flat));
         }
-        // Make the per-node mtlsPort offset visible: the single base expands to base..base+size-1.
-        final var mtlsBase = overrides.get(CLPR_MTLS_PORT_KEY);
-        if (mtlsBase != null) {
-            final int base = Integer.parseInt(mtlsBase.trim());
+        // Make the per-node tlsPort offset visible: the single base expands to base..base+size-1.
+        final var tlsBase = overrides.get(GRPC_TLS_PORT_KEY);
+        if (tlsBase != null) {
+            final int base = Integer.parseInt(tlsBase.trim());
             final var assignments = new StringBuilder();
             for (int id = 0; id < size; id++) {
                 assignments
@@ -1164,38 +1128,133 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
                         .append('=')
                         .append(base + id);
             }
-            log.info("[CLPR-MTLS] '{}' per-node clpr.mtlsPort: {}", network.name(), assignments);
+            log.info("[CLPR-TLS] '{}' per-node grpc.tlsPort: {}", network.name(), assignments);
         }
     }
 
     /**
-     * Generates a per-network ECDSA P-384 CLPR CA and registers a post-init working-dir action that
-     * drops its cert + PKCS#8 key PEMs into each node's working dir at {@code data/clpr/ca.crt} /
-     * {@code data/clpr/ca.key} — the relative paths the suite advertises via {@code clpr.caCrtPath} /
-     * {@code clpr.caKeyPath}, resolved against the node's CWD (which is its working dir). The CA cert
-     * DER is stashed by name so the suite can advertise it on-chain via {@link #clprMtlsCaDer(String)}.
+     * Rewrite the port fields of every {@code nodeMetadata} entry in a just-installed fixture at
+     * {@code fixturePath} so they match the runtime ports of {@code subNet} (random-allocated per
+     * run). Rebinds construction references to the changed roster while preserving TSS keys,
+     * proofs, weights, and gossip CA certificates so the fixture still skips WRAPS bootstrap.
+     *
+     * <p>Patches, per node: {@code node.serviceEndpoint[0]}, {@code node.gossipEndpoint[0..1]},
+     * and {@code rosterEntry.gossipEndpoint[0..1]}. IP address is reset to loopback (fixtures are
+     * captured on loopback and warm runs always come up on loopback too).
+     */
+    private static void rewriteFixturePortsToRuntime(
+            @NonNull final Path fixturePath, @NonNull final SubProcessNetwork subNet) throws IOException {
+        final var loaded = DiskStartupNetworks.loadNetworkFrom(fixturePath)
+                .orElseThrow(() ->
+                        new IllegalStateException("Failed to reload freshly-installed fixture at " + fixturePath));
+        final Map<Long, NodeMetadata> byId = new LinkedHashMap<>();
+        for (final var n : subNet.nodes()) {
+            byId.put(n.getNodeId(), n.metadata());
+        }
+        final var patched = withRuntimePorts(loaded, byId);
+        // FQN: `Network` is already imported as the `MultiNetworkHapiTest.Network` annotation,
+        // so the internal-network PBJ type must be spelled out inline for the JSON codec.
+        Files.writeString(fixturePath, com.hedera.node.internal.network.Network.JSON.toJSON(patched));
+    }
+
+    /** Applies transport-only fixture changes and keeps construction roster references consistent. */
+    static com.hedera.node.internal.network.Network withRuntimePorts(
+            @NonNull final com.hedera.node.internal.network.Network loaded,
+            @NonNull final Map<Long, NodeMetadata> byId) {
+        final var localhost = Bytes.wrap(new byte[] {127, 0, 0, 1});
+        final var patched = loaded.copyBuilder()
+                .nodeMetadata(loaded.nodeMetadata().stream()
+                        .map(md -> {
+                            final long id = md.rosterEntryOrThrow().nodeId();
+                            final var meta = byId.get(id);
+                            if (meta == null) {
+                                throw new IllegalStateException("Fixture references unknown runtime nodeId=" + id);
+                            }
+                            final var internal = ServiceEndpoint.newBuilder()
+                                    .ipAddressV4(localhost)
+                                    .port(meta.internalGossipPort())
+                                    .build();
+                            final var external = ServiceEndpoint.newBuilder()
+                                    .ipAddressV4(localhost)
+                                    .port(meta.externalGossipPort())
+                                    .build();
+                            final var service = ServiceEndpoint.newBuilder()
+                                    .ipAddressV4(localhost)
+                                    .port(meta.grpcPort())
+                                    .build();
+                            return md.copyBuilder()
+                                    .rosterEntry(md.rosterEntryOrThrow()
+                                            .copyBuilder()
+                                            .gossipEndpoint(List.of(internal, external))
+                                            .build())
+                                    .node(md.nodeOrThrow()
+                                            .copyBuilder()
+                                            .gossipEndpoint(List.of(internal, external))
+                                            .serviceEndpoint(List.of(service))
+                                            .build())
+                                    .build();
+                        })
+                        .toList())
+                .build();
+        if (!loaded.hasTssMetadata()) {
+            return patched;
+        }
+        final var oldRosterHash =
+                RosterUtils.hash(RosterUtils.rosterFrom(loaded)).getBytes();
+        final var newRosterHash =
+                RosterUtils.hash(RosterUtils.rosterFrom(patched)).getBytes();
+        if (oldRosterHash.equals(newRosterHash)) {
+            return patched;
+        }
+        final var metadata = loaded.tssMetadataOrThrow();
+        final var updatedMetadata = metadata.copyBuilder();
+        // Genesis reconciliation matches both source and target to the loaded platform roster.
+        // These references are bookkeeping: hinTS and WRAPS commit to keys, node IDs and weights,
+        // not transport ports. Preserve references to any different, historical roster.
+        if (metadata.hasActiveHintsConstruction()) {
+            final var hints = metadata.activeHintsConstructionOrThrow();
+            updatedMetadata.activeHintsConstruction(hints.copyBuilder()
+                    .sourceRosterHash(rebindFixtureHash(hints.sourceRosterHash(), oldRosterHash, newRosterHash))
+                    .targetRosterHash(rebindFixtureHash(hints.targetRosterHash(), oldRosterHash, newRosterHash))
+                    .build());
+        }
+        if (metadata.hasActiveProofConstruction()) {
+            final var history = metadata.activeProofConstructionOrThrow();
+            updatedMetadata.activeProofConstruction(history.copyBuilder()
+                    .sourceRosterHash(rebindFixtureHash(history.sourceRosterHash(), oldRosterHash, newRosterHash))
+                    .targetRosterHash(rebindFixtureHash(history.targetRosterHash(), oldRosterHash, newRosterHash))
+                    .build());
+        }
+        return patched.copyBuilder().tssMetadata(updatedMetadata).build();
+    }
+
+    private static Bytes rebindFixtureHash(final Bytes hash, final Bytes oldRosterHash, final Bytes newRosterHash) {
+        return hash.equals(oldRosterHash) ? newRosterHash : hash;
+    }
+
+    /**
+     * Generates a per-network self-signed HAPI TLS certificate and registers a post-init working-dir action
+     * that drops its cert + PKCS#8 key PEMs into each node's working dir at {@code hedera.crt} /
+     * {@code hedera.key} — the default {@code netty.tlsCrt.path} / {@code netty.tlsKey.path}, resolved against
+     * the node's CWD (which is its working dir).
      *
      * <p>Called both from the primary start loop and from {@link #restartWithFixture} so a cold-path
-     * restart re-provisions the fresh node (and refreshes the stashed CA to match the files on disk).
+     * restart re-provisions the fresh node.
      */
-    private static void provisionClprMtls(@NonNull final Network cfg, @NonNull final SubProcessNetwork network) {
-        final ClprMtlsCa ca;
+    private static void provisionHapiTls(@NonNull final Network cfg, @NonNull final SubProcessNetwork network) {
+        final HapiTlsCertificate certificate;
         try {
-            ca = new ClprMtlsCa("clpr-ca-" + cfg.name());
+            certificate = new HapiTlsCertificate("hapi-tls-" + cfg.name());
         } catch (final Exception e) {
-            throw new IllegalStateException("Failed to generate CLPR mTLS CA for '" + cfg.name() + "'", e);
+            throw new IllegalStateException("Failed to generate HAPI TLS certificate for '" + cfg.name() + "'", e);
         }
-        CLPR_MTLS_CAS.put(cfg.name(), ca);
         network.getPostInitWorkingDirActions().add(node -> {
             try {
                 final var workingDir = node.getExternalPath(WORKING_DIR);
-                final var crtPath = workingDir.resolve(CLPR_CA_CRT_PATH);
-                final var keyPath = workingDir.resolve(CLPR_CA_KEY_PATH);
-                Files.createDirectories(crtPath.getParent());
-                ca.writePem(crtPath, keyPath);
+                certificate.writePem(workingDir.resolve(HAPI_TLS_CRT_PATH), workingDir.resolve(HAPI_TLS_KEY_PATH));
             } catch (final Exception e) {
                 throw new UncheckedIOException(
-                        new IOException("Failed to write CLPR mTLS CA PEMs for '" + cfg.name() + "'", e));
+                        new IOException("Failed to write HAPI TLS PEMs for '" + cfg.name() + "'", e));
             }
         });
     }
@@ -1257,7 +1316,7 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
                 // Node-local, STARTUP-only config (read once at JVM boot from application.properties,
                 // where seedPerNodeApplicationOverrides seeds it PER NODE). Applying it via the 0.0.121
                 // network override does nothing at runtime and — worse — the network value would shadow a
-                // later per-node application.properties change across a restart (e.g. an mtlsPort rotation).
+                // later per-node application.properties change across a restart (e.g. a tlsPort rotation).
                 if (STARTUP_ONLY_NODE_KEYS.contains(override.key())) {
                     continue;
                 }

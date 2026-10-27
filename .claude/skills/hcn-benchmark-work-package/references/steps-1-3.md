@@ -8,16 +8,21 @@ MODULE=consensus-hashgraph-impl
 BENCH=ConsensusImplBenchmark
 PROFILER=org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler
 OUT=build/benchmark-work       # any scratch directory outside the source tree
-./gradlew ":$MODULE:jmhJarWithMergedServiceFiles"
-JAR=$(ls platform-sdk/$MODULE/build/libs/$MODULE-*-jmh-merged.jar)
+PARAMS="-p numNodes=4"         # one parameter set of the benchmark
+./gradlew ":${MODULE}:jmhJarWithMergedServiceFiles"
+JAR=$(ls platform-sdk/${MODULE}/build/libs/${MODULE}-*-jmh-merged.jar)
 ```
 
-Rebuild the jar after every change. Run the jar directly, not Gradle's `jmh` task: only the jar takes `-foe true`
+Write `${MODULE}` with braces: in zsh, `$MODULE:s` is a substitution modifier. Rebuild the jar after every change. Run
+the jar directly, not Gradle's `jmh` task: only the jar takes `-foe true`
 ([failing on errors](/platform-sdk/docs/consensus-layer/benchmarks/operations.md#failing-on-errors)). Each run below
-takes about a minute for the example's two parameter sets; `-p numNodes=4` runs one.
+takes about a minute for the example's two parameter sets; `$PARAMS` runs one.
 
 ## Before step 1
 
+- **Create the work package's worktree** from `origin/main`, with a branch named after the issue:
+  `git worktree add --no-track -b <issue>-<slug> <path> origin/main`. All work happens there; the developer commits
+  and pushes it.
 - **Read the benchmark and the code under test.** For a benchmark that is replaced, read the old one for what it got
   wrong, then write the new one from the guide.
 - **Resolve every "thing to check" of the issue:** confirmed, refuted, or harmless, each with the line of code or the
@@ -62,7 +67,7 @@ Apply [latency](/platform-sdk/docs/consensus-layer/benchmarks/writing.md#latency
 ```bash
 jq -r '.[] | "\(.params) " + (.secondaryMetrics | to_entries | map("\(.key)=\(.value.score)") | join(" "))' \
   "$OUT/step1.json"
-java -jar "$JAR" "$BENCH" -foe true -f 1 -wi 0 -i 1 -r 100ms -p numNodes=4 > "$OUT/no-profiler.txt"
+java -jar "$JAR" "$BENCH" -foe true -f 1 -wi 0 -i 1 -r 100ms $PARAMS > "$OUT/no-profiler.txt"
 echo "exit $?"     # 1
 ```
 
@@ -83,7 +88,7 @@ directory. The library is `lib/libasyncProfiler.dylib` on macOS and `lib/libasyn
 
 ```bash
 java -jar "$JAR" "$BENCH" -foe true -prof "$PROFILER" \
-  -prof "async:libPath=$AP/lib/libasyncProfiler.dylib;output=collapsed;dir=$OUT/profile;event=cpu" \
+  -prof "async:libPath=$AP/lib/libasyncProfiler.dylib;output=collapsed;dir=$OUT/profile;event=cpu;threads=true" \
   -jvmArgsAppend "-Xms2g -Xmx2g -XX:+AlwaysPreTouch -XX:+UnlockDiagnosticVMOptions -XX:+DebugNonSafepoints" \
   -f 1 -wi 2 -i 3 -r 5s
 for csv in "$OUT"/profile/*/collapsed-cpu.csv; do
@@ -102,11 +107,10 @@ and teardown methods.
   for 4 and 10 nodes);
 - the timing, `LatencyRecorder.lap`, and the benchmark's other frames take under 1% (the example: 0.8% and 0.5%, from
   about 1,000 samples each, so about 0.1% per sample);
-- the hot frames of the code under test are the methods the benchmark is meant to measure, with no lock, park, or
-  wait frames and no work handed to another thread;
-- clock reads, logging, or locks inside the code under test are production cost, measured rightly; mention them in the
-  suggested description.
+- the hot frames of the code under test are the methods the benchmark is meant to measure; "waiting" is 0% and no
+  thread under "other" does the work instead;
+- clock reads, logging, or locks inside the code under test are production cost, measured rightly; tell the developer.
 
 If `alloc.norm` takes a few distinct values that differ between forks, the forks run differently compiled code:
-[fork modes](/platform-sdk/docs/consensus-layer/benchmarks/calibration.md#fork-modes). Stop and tell the developer;
-the benchmark then needs a production fix or many more forks.
+[fork modes](/platform-sdk/docs/consensus-layer/benchmarks/calibration.md#fork-modes). Tell the developer and go on:
+calibration (step 6) measures how much the modes differ in latency.

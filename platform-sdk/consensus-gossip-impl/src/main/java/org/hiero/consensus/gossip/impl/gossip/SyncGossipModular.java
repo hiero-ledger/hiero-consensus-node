@@ -105,13 +105,14 @@ public class SyncGossipModular implements Gossip {
         } else {
             peers = Utilities.createPeerInfoList(roster, selfId);
         }
-        final PeerInfo selfPeer = Utilities.toPeerInfo(selfEntry);
+        // Assume that the first ServiceEndpoint describes the external endpoint, as Utilities.toPeerInfo() does.
+        final int selfPort = selfEntry.gossipEndpoint().getFirst().port();
 
         // shared by everything reporting socket exceptions, so that the same problem is logged in full only once
         final StackTraceDeduplicator socketExceptionDeduplicator = new StackTraceDeduplicator();
 
         this.network = new PeerCommunication(
-                configuration, metrics, time, peers, selfPeer, ownKeysAndCerts, socketExceptionDeduplicator);
+                configuration, metrics, time, peers, selfId, selfPort, ownKeysAndCerts, socketExceptionDeduplicator);
 
         this.fallenBehindMonitor = fallenBehindMonitor;
 

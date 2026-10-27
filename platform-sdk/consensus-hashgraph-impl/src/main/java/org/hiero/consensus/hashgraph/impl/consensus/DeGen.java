@@ -3,6 +3,7 @@ package org.hiero.consensus.hashgraph.impl.consensus;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.List;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 
@@ -24,11 +25,15 @@ public class DeGen {
      * Calculates and sets the DeGen value for the event.
      * @param event the event to set the DeGen value for
      */
+    @SuppressWarnings("ForLoopReplaceableByForEach")
     public static void calculateDeGen(@NonNull final EventImpl event) {
-        final int maxParentDeGen = event.getAllParents().stream()
-                .mapToInt(DeGen::parentDeGen)
-                .max()
-                .orElse(GENERATION_UNDEFINED);
+        int maxParentDeGen = GENERATION_UNDEFINED;
+        final List<EventImpl> allParents = event.getAllParents();
+        // an index loop, so that no iterator is allocated on this hot path
+        for (int i = 0, allParentsSize = allParents.size(); i < allParentsSize; i++) {
+            final EventImpl parent = allParents.get(i);
+            maxParentDeGen = Math.max(maxParentDeGen, parentDeGen(parent));
+        }
         if (maxParentDeGen == GENERATION_UNDEFINED) {
             event.setDeGen(FIRST_GENERATION);
         } else {

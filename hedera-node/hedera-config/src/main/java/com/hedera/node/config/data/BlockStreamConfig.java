@@ -77,7 +77,7 @@ public record BlockStreamConfig(
         @ConfigProperty(defaultValue = "false") @NetworkProperty
         boolean enableCutover,
 
-        @ConfigProperty(defaultValue = "SHA_384") @NetworkProperty
+        @ConfigProperty(defaultValue = "SHA_256") @NetworkProperty
         DigestType digestType,
 
         @ConfigProperty(defaultValue = "true") @NetworkProperty

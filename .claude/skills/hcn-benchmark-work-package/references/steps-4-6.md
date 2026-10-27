@@ -32,10 +32,10 @@ jmh {
 **Check:** the manifest names the benchmark, and the nightly driver runs every parameter set from it.
 
 ```bash
-./gradlew ":$MODULE:jmhTracked"
-cat "platform-sdk/$MODULE/build/jmh/tracked.properties"      # includes=... names the benchmark
+./gradlew ":${MODULE}:jmhTracked"
+cat "platform-sdk/${MODULE}/build/jmh/tracked.properties"      # includes=... names the benchmark
 python3 .github/workflows/support/scripts/benchmarks/run_benchmarks.py \
-  --manifest "platform-sdk/$MODULE/build/jmh/tracked.properties" --out "$OUT/driver" -- -f 1 -wi 0 -i 1 -r 1s
+  --manifest "platform-sdk/${MODULE}/build/jmh/tracked.properties" --out "$OUT/driver" -- -f 1 -wi 0 -i 1 -r 1s
 jq -r '.attempts[] | "\(.benchmark) \(.params) exit=\(.exit_code)"' "$OUT/driver/runs.json"
 ```
 
@@ -51,12 +51,12 @@ Apply [the smoke run](/platform-sdk/docs/consensus-layer/benchmarks/operations.m
 first run execute even when the cache already holds a result for the same jar.
 
 ```bash
-./gradlew ":$MODULE:jmhSmoke" --rerun --console=plain | grep -E "jmhSmoke|BUILD"   # executes, BUILD SUCCESSFUL
-./gradlew ":$MODULE:jmhSmoke" --console=plain | grep jmhSmoke                     # UP-TO-DATE
-rm -rf "platform-sdk/$MODULE/build/results/jmh-smoke"
-./gradlew ":$MODULE:jmhSmoke" --console=plain | grep jmhSmoke                     # FROM-CACHE
+./gradlew ":${MODULE}:jmhSmoke" --rerun --console=plain | grep -E "jmhSmoke|BUILD"   # executes, BUILD SUCCESSFUL
+./gradlew ":${MODULE}:jmhSmoke" --console=plain | grep jmhSmoke                     # UP-TO-DATE
+rm -rf "platform-sdk/${MODULE}/build/results/jmh-smoke"
+./gradlew ":${MODULE}:jmhSmoke" --console=plain | grep jmhSmoke                     # FROM-CACHE
 jq -r '.[] | "\(.benchmark) \(.params) " + (.secondaryMetrics | keys | join(","))' \
-  "platform-sdk/$MODULE/build/results/jmh-smoke/results.json"
+  "platform-sdk/${MODULE}/build/results/jmh-smoke/results.json"
 ```
 
 The results hold the benchmark's metrics for every parameter set it ran with. A smoke run checks only what the output
@@ -66,8 +66,7 @@ check of step 1 checks.
 
 Apply [the calibration run](/platform-sdk/docs/consensus-layer/benchmarks/calibration.md#the-calibration-run). The
 workflow checks out `ref` and takes its scripts from there too. So the developer pushes the work package's branch
-first, named after the issue and created from `origin/main` (`git switch --no-track -c <issue>-<slug> origin/main`);
-no pull request yet.
+first (created [before step 1](steps-1-3.md#before-step-1)); no pull request yet.
 
 The benchmark machine is one shared machine, `hl-cn-benchmark-lin`. A run can wait in GitHub's queue for hours, and
 the nightly job runs there from 17:00 UTC. Ask the developer before starting a run.
@@ -80,6 +79,8 @@ gh run list --workflow 007-user-benchmark-calibration.yaml --limit 4     # the r
 gh run download <run id> -n benchmark-calibration -D "$OUT/calibration/<run id>"   # once the run is done
 ```
 
+- **`--ref main` selects the workflow's definition; the `ref` input selects the code** that the run builds and
+  measures. GitHub therefore lists the run under `main`; the measured commit is in its `run-info.properties`.
 - **The default arguments** take about 40 minutes for the example's two parameter sets, after the queue. The other
   inputs (`profilers`, `max-load`, `attempts`, `deadline-minutes`) rarely change.
 - **Repeat with a new workflow run,** never `gh run rerun`. Analyze several runs together; the pilot used three to four
@@ -99,16 +100,21 @@ The output has, per parameter set, the warmup, the noise of iterations, forks, a
 recommendation; then one configuration for all parameter sets with its runtime and the calibration block.
 
 - **Choose the configuration** with the developer
-  ([choosing the configuration](/platform-sdk/docs/consensus-layer/benchmarks/calibration.md#choosing-the-configuration)).
-  The recommendation trades noise for nightly time; the time agreed for the issue sets the limit. Argue for fewer or
-  more forks with the predicted noise and the runtime only.
-- **Fork modes** (more than one alloc.norm mode): stop and tell the developer
-  ([fork modes](/platform-sdk/docs/consensus-layer/benchmarks/calibration.md#fork-modes)).
+  ([choosing the configuration](/platform-sdk/docs/consensus-layer/benchmarks/calibration.md#choosing-the-configuration)):
+  the cheapest one whose predicted noise is good enough. Justify every fork, iteration, or second beyond it with the
+  predicted noise. The nightly time agreed for the issue is an orientation, not a budget to fill. `--forks`,
+  `--iterations`, `--length`, `--warmup-iterations`, and `--warmup-length` print the noise and runtime of any
+  configuration.
+- **Fork modes** (more than one alloc.norm mode): the table's "mode effect" is their difference in latency. Tell the
+  developer. Find their cause ([fork modes](/platform-sdk/docs/consensus-layer/benchmarks/calibration.md#fork-modes);
+  `fork-modes.sh` records the allocation profiles and compile logs) only if the effect is comparable to the expected
+  detectable regression.
 - **Discarded passes:** raise the heap and calibrate again
   ([heap](/platform-sdk/docs/consensus-layer/benchmarks/calibration.md#heap)).
 
 **Record** the choice ([the calibration record](/platform-sdk/docs/consensus-layer/benchmarks/calibration.md#the-calibration-record)):
-print the block for it and paste it unchanged into the class Javadoc; set the annotations to the same values.
+print the block for it and paste it unchanged into the class Javadoc; set the annotations to the same values. A warmup
+iteration shorter than the measurement iterations takes `--warmup-length`.
 
 ```bash
 python3 .github/workflows/support/scripts/benchmarks/analyze_calibration.py \

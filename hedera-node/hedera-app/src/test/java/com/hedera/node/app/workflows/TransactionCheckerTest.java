@@ -16,6 +16,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_EXPIRED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_HAS_UNKNOWN_FIELDS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_ID_FIELD_NOT_ALLOWED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_OVERSIZE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_TOO_MANY_LAYERS;
+import static com.hedera.node.app.spi.fixtures.NestedKeys.nestedKeyList;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static java.util.stream.Collectors.toList;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -148,6 +150,20 @@ final class TransactionCheckerTest extends AppTestBase {
     private Transaction.Builder txBuilder(SignedTransaction signedTx) {
         final var signedTransactionBytes = asBytes(SignedTransaction.PROTOBUF, signedTx);
         return Transaction.newBuilder().signedTransactionBytes(signedTransactionBytes);
+    }
+
+    // A ConsensusCreateTopic admin key adds ~2 PBJ frames per KeyList level, so with the transaction/body wrapper the
+    // deepest key that still parses under the default maxProtoMessageDepth (50) is this many levels; one more is
+    // rejected at ingest with TRANSACTION_TOO_MANY_LAYERS.
+    private static final int DEEPEST_PARSEABLE_ADMIN_KEY_LIST_LEVELS = 24;
+
+    private Transaction txWithDeeplyNestedAdminKey(final int keyListLevels) {
+        final var body = bodyBuilder(txIdBuilder())
+                .consensusCreateTopic(ConsensusCreateTopicTransactionBody.newBuilder()
+                        .adminKey(nestedKeyList(keyListLevels))
+                        .build())
+                .build();
+        return txBuilder(signedTxBuilder(body, sigMapBuilder().build())).build();
     }
 
     /**
@@ -365,6 +381,54 @@ final class TransactionCheckerTest extends AppTestBase {
             assertThat(counterMetric("ParseErrUnknownFieldRcv").get()).isZero();
             assertThat(counterMetric("ParseErrBufUnderflowRcv").get()).isZero();
             assertThat(counterMetric("ParseErrStructuralRcv").get()).isZero();
+        }
+
+        @Test
+        @DisplayName("A key nested beyond maxProtoMessageDepth is rejected at ingest with TRANSACTION_TOO_MANY_LAYERS")
+        void parseAndCheckRejectsOverlyDeepKeyWithTooManyLayers() {
+            // A KeyList nested well beyond the default hedera.transaction.maxProtoMessageDepth (50 frames). PBJ parses
+            // the outer Transaction and SignedTransaction, then rejects the TransactionBody parse when the admin key
+            // nests past the configured depth -- keeping such bytes out of the record and block streams.
+            final var deepBuffer = Bytes.wrap(asByteArray(txWithDeeplyNestedAdminKey(40)));
+            assertThatThrownBy(() -> checker.parseAndCheck(deepBuffer))
+                    .isInstanceOf(PreCheckException.class)
+                    .has(responseCode(TRANSACTION_TOO_MANY_LAYERS));
+            assertThat(counterMetric("ParseErrStructuralRcv").get()).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("maxProtoMessageDepth is configurable: the same deep transaction parses when the limit is raised")
+        void parseAndCheckAcceptsDeepKeyWhenMaxProtoMessageDepthRaised() {
+            props = () -> new VersionedConfigImpl(
+                    HederaTestConfigBuilder.create()
+                            .withValue("hedera.transaction.maxProtoMessageDepth", Codec.DEFAULT_MAX_DEPTH)
+                            .getOrCreateConfig(),
+                    1);
+            checker = new TransactionChecker(props, metrics);
+
+            // 40 KeyList levels (~82 frames) is under PBJ's DEFAULT_MAX_DEPTH (128), so raising the limit admits it.
+            final var deepBuffer = Bytes.wrap(asByteArray(txWithDeeplyNestedAdminKey(40)));
+            assertThatNoException().isThrownBy(() -> checker.parseAndCheck(deepBuffer));
+        }
+
+        @Test
+        @DisplayName("A key exactly at maxProtoMessageDepth still parses at ingest")
+        void parseAndCheckAcceptsKeyAtProtoDepthBoundary() {
+            // A ConsensusCreateTopic admin key adds ~2 PBJ frames per KeyList level; at the default
+            // maxProtoMessageDepth (50) DEEPEST_PARSEABLE_ADMIN_KEY_LIST_LEVELS is the deepest that still parses.
+            final var atBoundary =
+                    Bytes.wrap(asByteArray(txWithDeeplyNestedAdminKey(DEEPEST_PARSEABLE_ADMIN_KEY_LIST_LEVELS)));
+            assertThatNoException().isThrownBy(() -> checker.parseAndCheck(atBoundary));
+        }
+
+        @Test
+        @DisplayName("A key one level past maxProtoMessageDepth is rejected with TRANSACTION_TOO_MANY_LAYERS")
+        void parseAndCheckRejectsKeyJustBeyondProtoDepthBoundary() {
+            final var justOver =
+                    Bytes.wrap(asByteArray(txWithDeeplyNestedAdminKey(DEEPEST_PARSEABLE_ADMIN_KEY_LIST_LEVELS + 1)));
+            assertThatThrownBy(() -> checker.parseAndCheck(justOver))
+                    .isInstanceOf(PreCheckException.class)
+                    .has(responseCode(TRANSACTION_TOO_MANY_LAYERS));
         }
 
         /**
@@ -627,10 +691,7 @@ final class TransactionCheckerTest extends AppTestBase {
                     .ethereumMaxCallDataSize();
 
             TransactionInfo txInfo = mock(TransactionInfo.class);
-            when(txInfo.signedTx())
-                    .thenReturn(SignedTransaction.newBuilder()
-                            .bodyBytes(Bytes.wrap(new byte[maxJumboEthereumCallDataSize]))
-                            .build());
+            when(txInfo.wireSize()).thenReturn(maxJumboEthereumCallDataSize);
             when(txInfo.functionality()).thenReturn(HederaFunctionality.ETHEREUM_TRANSACTION);
 
             var transactionBodyMock = mock(TransactionBody.class);
@@ -657,10 +718,7 @@ final class TransactionCheckerTest extends AppTestBase {
             checker = new TransactionChecker(props, metrics);
 
             TransactionInfo txInfo = mock(TransactionInfo.class);
-            when(txInfo.signedTx())
-                    .thenReturn(SignedTransaction.newBuilder()
-                            .bodyBytes(Bytes.wrap(new byte[1024 * 7]))
-                            .build()); // 7 KB
+            when(txInfo.wireSize()).thenReturn(1024 * 7); // 7 KB
             when(txInfo.functionality()).thenReturn(HederaFunctionality.TOKEN_MINT);
 
             assertThrows(PreCheckException.class, () -> checker.checkTransactionSize(txInfo));
@@ -680,10 +738,7 @@ final class TransactionCheckerTest extends AppTestBase {
             checker = new TransactionChecker(props, metrics);
 
             TransactionInfo txInfo = mock(TransactionInfo.class);
-            when(txInfo.signedTx())
-                    .thenReturn(SignedTransaction.newBuilder()
-                            .bodyBytes(Bytes.wrap(new byte[1024 * 7]))
-                            .build()); // 7 KB
+            when(txInfo.wireSize()).thenReturn(1024 * 7); // 7 KB
             when(txInfo.functionality()).thenReturn(HederaFunctionality.TOKEN_MINT);
 
             assertDoesNotThrow(() -> checker.checkTransactionSize(txInfo));
@@ -1287,10 +1342,7 @@ final class TransactionCheckerTest extends AppTestBase {
 
             checker = new TransactionChecker(props, metrics);
             final var txInfo = mock(TransactionInfo.class);
-            when(txInfo.signedTx())
-                    .thenReturn(SignedTransaction.newBuilder()
-                            .bodyBytes(Bytes.wrap(new byte[1024 * 131])) // 131 KB transaction
-                            .build());
+            when(txInfo.wireSize()).thenReturn(1024 * 131); // 131 KB transaction
             when(txInfo.functionality()).thenReturn(CRYPTO_TRANSFER);
 
             // When checking transaction size even before the payer is known, it fails early validation
@@ -1315,10 +1367,7 @@ final class TransactionCheckerTest extends AppTestBase {
 
             checker = new TransactionChecker(props, metrics);
             final var txInfo = mock(TransactionInfo.class);
-            when(txInfo.signedTx())
-                    .thenReturn(SignedTransaction.newBuilder()
-                            .bodyBytes(Bytes.wrap(new byte[1024 * 7])) // 7 KB transaction
-                            .build());
+            when(txInfo.wireSize()).thenReturn(1024 * 7); // 7 KB transaction
             when(txInfo.functionality()).thenReturn(CRYPTO_TRANSFER); // Not exempt from size limits
 
             final var nonGovernanceAccountId = AccountID.newBuilder()
@@ -1423,10 +1472,7 @@ final class TransactionCheckerTest extends AppTestBase {
 
             checker = new TransactionChecker(props, metrics);
             final var txInfo = mock(TransactionInfo.class);
-            when(txInfo.signedTx())
-                    .thenReturn(SignedTransaction.newBuilder()
-                            .bodyBytes(Bytes.wrap(new byte[1024 * 100])) // 100 KB transaction
-                            .build());
+            when(txInfo.wireSize()).thenReturn(1024 * 100); // 100 KB transaction
             when(txInfo.functionality()).thenReturn(CRYPTO_TRANSFER);
 
             final var governanceAccountId =
@@ -1438,6 +1484,130 @@ final class TransactionCheckerTest extends AppTestBase {
             // When checking transaction size limit based on payer, it passes for governance payer
             assertDoesNotThrow(() -> checker.checkTransactionSizeLimitBasedOnPayer(txInfo, governanceAccountId));
             assertThat(counterMetric("NonGovernanceOversizedTxnsRcv").get()).isZero();
+        }
+    }
+
+    /**
+     * Size checks must bound the retained wire length, not the re-serialized size of the parsed transaction; for a
+     * non-canonical encoding the two differ. These tests drive real wire bytes through the checker to confirm that.
+     */
+    @Nested
+    @DisplayName("Size checks use retained wire length, not parsed size")
+    class RetainedWireSizeTests {
+        private static final int JUNK_LENGTH = 8 * 1024;
+
+        private final AccountID nonGovernancePayer =
+                AccountID.newBuilder().accountNum(1000).build();
+        private final AccountID governancePayer =
+                AccountID.newBuilder().accountNum(50).build();
+
+        @BeforeEach
+        void enableGovernanceSizing() {
+            props = () -> new VersionedConfigImpl(
+                    HederaTestConfigBuilder.create()
+                            .withValue("governanceTransactions.isEnabled", true)
+                            .withValue("governanceTransactions.maxTxnSize", MAX_LARGE_TX_SIZE)
+                            .withValue("governanceTransactions.accountsRange", GOVERNANCE_ACCOUNTS_RANGE)
+                            .withValue("hedera.transaction.maxBytes", MAX_TX_SIZE)
+                            .getOrCreateConfig(),
+                    1);
+            checker = new TransactionChecker(props, metrics);
+        }
+
+        @Test
+        @DisplayName("Wire length over the limit is rejected for a non-canonical encoding")
+        void nonCanonicalEncodingCountsAgainstPayerLimit() throws PreCheckException {
+            final var txInfo = checker.parseAndCheck(withLeadingDuplicateBodyBytes());
+
+            // The parsed body is unchanged; only the retained wire length is larger
+            assertThat(txInfo.txBody()).isEqualTo(txBody);
+            assertThat(txInfo.wireSize()).isGreaterThan(JUNK_LENGTH);
+            assertThat(txInfo.wireSize()).isGreaterThan(txInfo.signedTx().protobufSize());
+            assertThat(counterMetric("NonCanonicalTxnEncodingRcv").get()).isEqualTo(1L);
+
+            // The preliminary gate stays permissive by design while the payer is unknown
+            checker.checkTransactionSize(txInfo);
+            assertThatThrownBy(() -> checker.checkTransactionSizeLimitBasedOnPayer(txInfo, nonGovernancePayer))
+                    .isInstanceOf(PreCheckException.class)
+                    .has(responseCode(TRANSACTION_OVERSIZE));
+            assertThat(counterMetric("NonGovernanceOversizedTxnsRcv").get()).isEqualTo(1L);
+        }
+
+        @Test
+        @DisplayName("A second non-canonical shape is bounded the same way")
+        void secondNonCanonicalShapeIsBounded() throws PreCheckException {
+            final var txInfo = checker.parseAndCheck(withTrailingScalarPadding());
+
+            assertThat(txInfo.txBody()).isEqualTo(txBody);
+            assertThatThrownBy(() -> checker.checkTransactionSizeLimitBasedOnPayer(txInfo, nonGovernancePayer))
+                    .isInstanceOf(PreCheckException.class)
+                    .has(responseCode(TRANSACTION_OVERSIZE));
+        }
+
+        @Test
+        @DisplayName("A governance payer keeps its larger allowance for the same bytes")
+        void governancePayerKeepsTheLargerAllowance() throws PreCheckException {
+            final var txInfo = checker.parseAndCheck(withLeadingDuplicateBodyBytes());
+
+            assertDoesNotThrow(() -> checker.checkTransactionSizeLimitBasedOnPayer(txInfo, governancePayer));
+        }
+
+        @Test
+        @DisplayName("A canonically encoded transaction is unaffected and trips no counter")
+        void canonicalTransactionIsUnaffected() throws PreCheckException {
+            final var txInfo = checker.parseAndCheck(inputBuffer);
+
+            assertThat(txInfo.wireSize()).isEqualTo(txInfo.signedTx().protobufSize());
+            assertThat(counterMetric("NonCanonicalTxnEncodingRcv").get()).isZero();
+            checker.checkTransactionSize(txInfo);
+            assertDoesNotThrow(() -> checker.checkTransactionSizeLimitBasedOnPayer(txInfo, nonGovernancePayer));
+        }
+
+        @Test
+        @DisplayName("parseSignedAndCheck bounds the retained wire length for a non-canonical SignedTransaction")
+        void parseSignedAndCheckUsesRetainedWireLength() throws PreCheckException {
+            final var discarded = asByteArray(SignedTransaction.newBuilder()
+                    .bodyBytes(randomBytes(JUNK_LENGTH))
+                    .build());
+
+            // Pre-handle uses this entry point for transactions gossiped in other nodes' events.
+            final var paddedSignedTx = Bytes.wrap(concat(discarded, asByteArray(signedTx)));
+            final var txInfo = checker.parseSignedAndCheck(paddedSignedTx, MAX_LARGE_TX_SIZE);
+
+            assertThat(txInfo.txBody()).isEqualTo(txBody);
+            assertThat((long) txInfo.wireSize()).isEqualTo(paddedSignedTx.length());
+            assertThatThrownBy(() -> checker.checkTransactionSizeLimitBasedOnPayer(txInfo, nonGovernancePayer))
+                    .isInstanceOf(PreCheckException.class)
+                    .has(responseCode(TRANSACTION_OVERSIZE));
+        }
+
+        /** Prepends an occurrence of `bodyBytes` that the parser overwrites with the real one that follows. */
+        private Bytes withLeadingDuplicateBodyBytes() {
+            final var discarded = asByteArray(SignedTransaction.newBuilder()
+                    .bodyBytes(randomBytes(JUNK_LENGTH))
+                    .build());
+            return rewrap(concat(discarded, asByteArray(signedTx)));
+        }
+
+        /** Appends occurrences of the `false`-valued scalar at field 3, two bytes each on the wire. */
+        private Bytes withTrailingScalarPadding() {
+            final var padding = new byte[2 * JUNK_LENGTH];
+            for (int i = 0; i < padding.length; i += 2) {
+                padding[i] = 0x18; // field 3, varint wire type; the following zero byte is the value
+            }
+            return rewrap(concat(asByteArray(signedTx), padding));
+        }
+
+        private Bytes rewrap(final byte[] serializedSignedTx) {
+            return Bytes.wrap(asByteArray(Transaction.newBuilder()
+                    .signedTransactionBytes(Bytes.wrap(serializedSignedTx))
+                    .build()));
+        }
+
+        private byte[] concat(final byte[] first, final byte[] second) {
+            final var out = Arrays.copyOf(first, first.length + second.length);
+            System.arraycopy(second, 0, out, first.length, second.length);
+            return out;
         }
     }
 
