@@ -20,6 +20,7 @@ import com.hedera.node.app.service.clpr.impl.handlers.ClprCompleteChannelHandler
 import com.hedera.node.app.service.clpr.impl.handlers.ClprCompleteConnectorHandler;
 import com.hedera.node.app.service.clpr.impl.handlers.ClprDeregisterConnectorHandler;
 import com.hedera.node.app.service.clpr.impl.handlers.ClprEndpointPublicationHandler;
+import com.hedera.node.app.service.clpr.impl.handlers.ClprEvictPeerEndpointHandler;
 import com.hedera.node.app.service.clpr.impl.handlers.ClprRegisterChannelHandler;
 import com.hedera.node.app.service.clpr.impl.handlers.ClprRegisterConnectorHandler;
 import com.hedera.node.app.service.clpr.impl.handlers.ClprSubmitBundleHandler;
@@ -159,4 +160,5 @@ public record TransactionHandlers(
         @NonNull ClprRegisterConnectorHandler clprRegisterConnectorHandler,
         @NonNull ClprCompleteConnectorHandler clprCompleteConnectorHandler,
         @NonNull ClprDeregisterConnectorHandler clprDeregisterConnectorHandler,
-        @NonNull ClprEndpointPublicationHandler clprEndpointPublicationHandler) {}
+        @NonNull ClprEndpointPublicationHandler clprEndpointPublicationHandler,
+        @NonNull ClprEvictPeerEndpointHandler clprEvictPeerEndpointHandler) {}

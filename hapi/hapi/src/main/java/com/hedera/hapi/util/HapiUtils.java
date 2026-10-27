@@ -268,6 +268,7 @@ public class HapiUtils {
             case CLPR_UPDATE_LEDGER_CONFIGURATION -> HederaFunctionality.CLPR_UPDATE_LEDGER_CONFIGURATION;
             case CLPR_REGISTER_CHANNEL -> HederaFunctionality.CLPR_REGISTER_CHANNEL;
             case CLPR_CLOSE_CHANNEL -> HederaFunctionality.CLPR_CLOSE_CHANNEL;
+            case CLPR_EVICT_PEER_ENDPOINT -> HederaFunctionality.CLPR_EVICT_PEER_ENDPOINT;
             case CLPR_COMPLETE_CHANNEL -> HederaFunctionality.CLPR_COMPLETE_CHANNEL;
             case CLPR_SUBMIT_BUNDLE -> HederaFunctionality.CLPR_SUBMIT_BUNDLE;
             case CLPR_REGISTER_CONNECTOR -> HederaFunctionality.CLPR_REGISTER_CONNECTOR;

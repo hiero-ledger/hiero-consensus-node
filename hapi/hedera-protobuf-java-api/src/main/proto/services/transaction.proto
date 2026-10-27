@@ -96,6 +96,7 @@ import "services/clpr_register_connector.proto";
 import "services/clpr_deregister_connector.proto";
 import "services/clpr_complete_connector.proto";
 import "services/clpr_submit_bundle.proto";
+import "services/clpr_evict_peer_endpoint.proto";
 import "platform/event/state_signature_transaction.proto";
 
 import "services/auxiliary/hints/hints_key_publication.proto";
@@ -765,6 +766,12 @@ message TransactionBody {
          * maintenance done outside of transaction handling.
          */
         com.hedera.hapi.services.auxiliary.clpr.ClprMaintenanceTransactionBody clpr_maintenance = 92;
+
+        /**
+         * Remove a peer endpoint from a CLPR Channel's cached endpoint manifest.
+         * Requires the CLPR admin key.
+         */
+        com.hedera.hapi.node.clpr.ClprEvictPeerEndpointTransactionBody clprEvictPeerEndpoint = 93;
     }
 
     /**

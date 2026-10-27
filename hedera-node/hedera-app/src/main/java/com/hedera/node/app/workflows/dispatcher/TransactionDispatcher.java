@@ -280,6 +280,7 @@ public class TransactionDispatcher {
             case CLPR_COMPLETE_CONNECTOR -> handlers.clprCompleteConnectorHandler();
             case CLPR_DEREGISTER_CONNECTOR -> handlers.clprDeregisterConnectorHandler();
             case CLPR_ENDPOINT_PUBLICATION -> handlers.clprEndpointPublicationHandler();
+            case CLPR_EVICT_PEER_ENDPOINT -> handlers.clprEvictPeerEndpointHandler();
 
             case SYSTEM_DELETE ->
                 switch (txBody.systemDeleteOrThrow().id().kind()) {
