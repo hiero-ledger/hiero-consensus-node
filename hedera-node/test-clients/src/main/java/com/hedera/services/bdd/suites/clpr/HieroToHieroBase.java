@@ -77,7 +77,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.bouncycastle.math.ec.rfc8032.Ed25519;
+import org.hiero.base.crypto.Ed25519;
 import org.junit.jupiter.api.DynamicTest;
 
 /**
@@ -1473,7 +1473,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
 
     static final class ClprCrypto {
         // Fixed test private key — deterministic across runs
-        private static final byte[] TEST_PRIVATE_KEY = {
+        private static final byte[] TEST_PRIVATE_KEY_SEED = {
             0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
             0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10,
             0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
@@ -1488,17 +1488,18 @@ public abstract class HieroToHieroBase implements LifecycleTest {
         // (and connectorId) to avoid CLPR_CHANNEL_ALREADY_EXISTS on re-registration.
         private static final AtomicLong INSTANCE_COUNTER = new AtomicLong();
 
-        final byte[] publicKey = new byte[32];
+        final byte[] publicKey = new byte[Ed25519.PUBLIC_KEY_BYTES];
+        final byte[] secretKey = new byte[Ed25519.SECRET_KEY_BYTES];
         final byte[] channelId;
         final byte[] channelCommitment;
-        final byte[] channelSignature = new byte[Ed25519.SIGNATURE_SIZE];
+        final byte[] channelSignature = new byte[Ed25519.SIGNATURE_BYTES];
         final byte[] connectorSalt = new byte[32]; // all zeros
         final byte[] connectorId;
         final byte[] connectorCommitment;
-        final byte[] connectorSignature = new byte[Ed25519.SIGNATURE_SIZE];
+        final byte[] connectorSignature = new byte[Ed25519.SIGNATURE_BYTES];
 
         ClprCrypto() {
-            Ed25519.generatePublicKey(TEST_PRIVATE_KEY, 0, publicKey, 0);
+            Ed25519.newKeypair(publicKey, secretKey, TEST_PRIVATE_KEY_SEED);
 
             final var seed = "hiero-e2e-test-conn-v1-" + INSTANCE_COUNTER.incrementAndGet();
             channelId = MiscCryptoUtils.keccak256DigestOf(seed.getBytes(StandardCharsets.UTF_8));
@@ -1508,7 +1509,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
 
             // Channel signature: Ed25519 over keccak256(channelId)
             final var connSigMsg = MiscCryptoUtils.keccak256DigestOf(channelId);
-            Ed25519.sign(TEST_PRIVATE_KEY, 0, connSigMsg, 0, connSigMsg.length, channelSignature, 0);
+            Ed25519.sign(channelSignature, connSigMsg, secretKey);
 
             // connectorId = keccak256(channelId || pubKey || connectorSalt)
             connectorId = MiscCryptoUtils.keccak256DigestOf(concat(channelId, concat(publicKey, connectorSalt)));
@@ -1518,7 +1519,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
 
             // Connector signature: Ed25519 over keccak256(connectorId || CLPR_SERVICE_ADDRESS)
             final var connectorSigMsg = MiscCryptoUtils.keccak256DigestOf(concat(connectorId, CLPR_SERVICE_ADDRESS));
-            Ed25519.sign(TEST_PRIVATE_KEY, 0, connectorSigMsg, 0, connectorSigMsg.length, connectorSignature, 0);
+            Ed25519.sign(connectorSignature, connectorSigMsg, secretKey);
         }
 
         private static byte[] concat(final byte[] a, final byte[] b) {
