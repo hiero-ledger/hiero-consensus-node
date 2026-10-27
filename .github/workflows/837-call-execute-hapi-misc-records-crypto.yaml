@@ -104,7 +104,7 @@ jobs:
           run_subtask() {
             local t=$1
             echo "::group::$t"
-            if ${GRADLE_EXEC} "$t" --no-daemon; then
+            if ${GRADLE_EXEC} "$t" --rerun --no-daemon; then
               echo "::endgroup::"
               return 0
             fi
