@@ -79,12 +79,9 @@ public class ContextQueryProcessor implements Callable<CallOutcome> {
             return CallOutcome.fromResultsWithoutSidecars(
                     result.asQueryResult(worldUpdater), result.asEvmQueryResult(), null, null, null, result);
         } catch (final HandleException e) {
-            final var op = context.query().contractCallLocalOrThrow();
-            final var senderId = op.hasSenderId() ? op.senderIdOrThrow() : requireNonNull(context.payer());
-
             final var hevmTransaction = hevmStaticTransactionFactory.fromHapiQueryException(context.query(), e);
             final var result = HederaEvmTransactionResult.fromAborted(
-                    senderId,
+                    hevmTransaction.senderId(),
                     hevmTransaction.contractId(),
                     requireNonNull(hevmTransaction.exception()).getStatus());
             return CallOutcome.fromResultsWithoutSidecars(
