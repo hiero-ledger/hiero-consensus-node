@@ -113,20 +113,34 @@ jobs:
             echo "::error::$t failed"
             echo "❌ $t FAILED — expand group above for details"
           }
-          # TEMP debug: thread-dump all nodes when TransactionHandler backlog grows
+          # TEMP debug: measure CPU starvation when TransactionHandler stalls
           (
+            set +e +o pipefail
             D=hedera-node/test-clients/build/hapi-test/hapiTestMiscRecords
-            n=0
-            while [ $n -lt 8 ]; do
-              sleep 2
-              if grep -qE 'TransactionHandler.*unhealthy' $D/node0/output/swirlds.log 2>/dev/null \
-                && [ "$(grep -cE 'TransactionHandler.*unhealthy' $D/node0/output/swirlds.log)" -gt "$n" ]; then
-                n=$((n+1))
-                for p in $(pgrep -f ServicesMain); do
-                  "${JAVA_HOME}/bin/jcmd" "$p" Thread.print -l > "$D/node0/output/threaddump-$n-$p.txt" 2>&1
-                done
-                sleep 5
-              fi
+            L=$D/node0/output/swirlds.log
+            P() { echo "[probe $(date +%T)] $*"; }
+            P "nproc=$(nproc) cpu.max=$(cat /sys/fs/cgroup/cpu.max 2>/dev/null)"
+            n=0; i=0
+            while [ $i -lt 2400 ]; do
+              sleep 1; i=$((i+1))
+              [ $((i % 15)) -eq 0 ] && P "load=$(cut -d' ' -f1-4 /proc/loadavg) psi_cpu=$(head -1 /proc/pressure/cpu 2>/dev/null)"
+              c=$(grep -cE 'TransactionHandler.*unhealthy' $L 2>/dev/null); c=${c:-0}
+              [ "$c" -gt "$n" ] || continue
+              n=$c
+              P "STALL #$n psi_cpu: $(tr '\n' ' ' < /proc/pressure/cpu) psi_mem: $(head -1 /proc/pressure/memory) psi_io: $(head -1 /proc/pressure/io)"
+              ps -eo pid,pcpu,rss,etimes,args --sort=-pcpu | head -12 | cut -c1-180 | sed 's/^/[probe] ps /'
+              : > /tmp/tids
+              for p in $(pgrep -f ServicesMain); do
+                "${JAVA_HOME}/bin/jcmd" "$p" Thread.print -l > "$D/node0/output/threaddump-$n-$p.txt" 2>&1
+                t=$(grep -m1 '"<scheduler TransactionHandler>"' "$D/node0/output/threaddump-$n-$p.txt" | grep -oE '\[[0-9]+\]' | tr -d '[]')
+                [ -n "$t" ] && echo "$p $t $(grep -A2 -m1 '"<scheduler TransactionHandler>"' "$D/node0/output/threaddump-$n-$p.txt" | tail -1 | sed -E 's/^\s+at //; s/\(.*//')" >> /tmp/tids
+              done
+              while read -r p t f; do echo "$p $t $(cat /proc/$p/task/$t/schedstat 2>/dev/null)"; done < /tmp/tids > /tmp/s1
+              sleep 5
+              while read -r p t f; do echo "$p $t $(cat /proc/$p/task/$t/schedstat 2>/dev/null)"; done < /tmp/tids > /tmp/s2
+              # schedstat = ns on cpu, ns waiting in run queue, timeslices
+              awk 'NR==FNR{c[$1]=$3; w[$1]=$4; next} {printf "[probe] node pid %s handle thread over 5s: on_cpu %d ms, runq_wait %d ms\n", $1, ($3-c[$1])/1e6, ($4-w[$1])/1e6}' /tmp/s1 /tmp/s2
+              sed 's/^/[probe] top frame: /' /tmp/tids
             done
           ) &
           run_subtask hapiTestMiscRecords
