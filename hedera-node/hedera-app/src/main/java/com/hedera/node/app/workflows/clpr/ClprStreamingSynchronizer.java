@@ -208,8 +208,8 @@ public final class ClprStreamingSynchronizer implements ClprSynchronizer {
          * Drives the whole cycle.
          *
          * @return {@code true} when the exchange ran to a clean close and every inbound bundle was accepted for
-         * submission; {@code false} when the peer closed early, exceeded the inbound message limit, or a submission was
-         * refused
+         * submission; {@code false} when the peer closed early, sent another channel's payload, exceeded the inbound
+         * message limit, or a submission was refused
          * @throws ClprSyncException if a write or read on the stream fails
          */
         private boolean run(final long localEndpointManifestVersion, final long peerObservedManifestVersion)
@@ -230,7 +230,7 @@ public final class ClprStreamingSynchronizer implements ClprSynchronizer {
          * Messages 1 and 2: writes our one-shot request — no bundle yet, ours can only be shaped once the peer's
          * request is known — then reads the peer's request plus its bundle for us, and submits that bundle.
          *
-         * @return the peer's opening message, or {@code null} when it closed the stream instead of replying
+         * @return the peer's opening message, or {@code null} when it closed the stream or sent an invalid reply
          */
         @Nullable
         private ClprStreamingSyncPayload open() throws ClprSyncException {
@@ -247,9 +247,7 @@ public final class ClprStreamingSynchronizer implements ClprSynchronizer {
                         peerId);
                 return null;
             }
-            inboundMessages++;
-            submitInbound(opening);
-            return opening;
+            return receive(opening) ? opening : null;
         }
 
         /**
@@ -339,11 +337,21 @@ public final class ClprStreamingSynchronizer implements ClprSynchronizer {
         }
 
         /**
-         * Counts one message from the peer and submits the bundle it carries.
+         * Checks and counts one message from the peer, then submits the bundle it carries.
          *
-         * @return {@code false} when the message exceeds the inbound limit; the stream should then be abandoned
+         * @return {@code false} when the message belongs to another channel or exceeds the inbound limit; the stream
+         * should then be abandoned
          */
         private boolean receive(@NonNull final ClprStreamingSyncPayload message) {
+            if (!channelIdBytes.equals(message.channelId())) {
+                logger.warn(
+                        "[CLPR-SYNC-OUTBOUND] peer sent payload for another channel conn={} peer={} "
+                                + "receivedChannel={}; abandoning the stream",
+                        channelId,
+                        peerId,
+                        message.channelId());
+                return false;
+            }
             inboundMessages++;
             if (inboundMessages > ClprStreamingSyncSession.MAX_INBOUND_MESSAGES) {
                 logger.warn(
