@@ -35,27 +35,27 @@ import org.junit.jupiter.api.Tag;
 public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
 
     // Network names as constants so the (typo-prone) fixture keys are defined once. Every test in this
-    // suite shares the size-2 mTLS ledgerA_manifest / ledgerB_manifest fixtures. Reusing them (rather
+    // suite shares the size-2 HAPI TLS ledgerA_manifest / ledgerB_manifest fixtures. Reusing them (rather
     // than a plain manifest-enabled ledgerA/ledgerB) keeps the endpoint-manifest feature isolated to
     // this suite, so its boot-time flag can never leak into the networks the non-manifest suites share.
     private static final String LEDGER_A_MANIFEST = "ledgerA_manifest";
     private static final String LEDGER_B_MANIFEST = "ledgerB_manifest";
 
-    // Dedicated mTLS listener ports for the rotation test. Distinct from ClprHieroToHieroMtlsSuite's
-    // 41450/42450 so the two suites' hard-coded mtlsPorts never collide if scheduled together.
-    private static final int MTLS_PORT_A = 43450;
-    private static final int MTLS_PORT_B = 44450;
-    /** A's new mtlsPort after the rotation restart — a genuinely reachable listener B can dial. */
-    private static final int MTLS_PORT_A_ROTATED = 43460;
-    /** B's new base mtlsPort after a rotation (8.1.3 both-sides turnover). */
-    private static final int MTLS_PORT_B_ROTATED = 44460;
+    // HAPI TLS listener ports for the rotation test. Distinct from ClprHieroToHieroTlsSuite's
+    // 41450/42450 so the two suites' hard-coded tlsPorts never collide if scheduled together.
+    private static final int HAPI_TLS_PORT_A = 43450;
+    private static final int HAPI_TLS_PORT_B = 44450;
+    /** A's new tlsPort after the rotation restart — a genuinely reachable listener B can dial. */
+    private static final int HAPI_TLS_PORT_A_ROTATED = 43460;
+    /** B's new base tlsPort after a rotation (8.1.3 both-sides turnover). */
+    private static final int HAPI_TLS_PORT_B_ROTATED = 44460;
 
     @MultiNetworkHapiTest({
         @Network(
                 name = LEDGER_A_MANIFEST,
                 size = 2,
-                enableClprMtls = true,
-                firstMtlsPort = MTLS_PORT_A,
+                enableHapiTls = true,
+                firstHapiTlsPort = HAPI_TLS_PORT_A,
                 setupOverrides = {
                     // Let the circuit breaker exclude peers it can't reach so port rotations don't
                     // spam sync failures against dead old endpoints (see ClprSynchronizerImpl.selectPeer).
@@ -63,26 +63,26 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
                 }),
         @Network(
                 name = LEDGER_B_MANIFEST,
-                enableClprMtls = true,
-                firstMtlsPort = MTLS_PORT_B,
+                enableHapiTls = true,
+                firstHapiTlsPort = HAPI_TLS_PORT_B,
                 setupOverrides = {
                     // Let the circuit breaker exclude peers it can't reach so port rotations don't
                     // spam sync failures against dead old endpoints (see ClprSynchronizerImpl.selectPeer).
                     @ConfigOverride(key = "clpr.syncPeerExclusionEnabled", value = "true")
                 })
     })
-    @DisplayName("Manifest-enabled round-trip (mTLS): both ledgers self-derive manifests, complete an "
-            + "mTLS channel, and exchange messages both ways")
+    @DisplayName("Manifest-enabled round-trip (HAPI TLS): both ledgers self-derive manifests, complete a "
+            + "TLS channel, and exchange messages both ways")
     Stream<DynamicTest> manifestEnabledRoundTrip(final SubProcessNetwork ledgerA, final SubProcessNetwork ledgerB) {
         final var crypto = new ClprCrypto();
-        // Reuse the shared size-2 mTLS ledgerA_manifest / ledgerB_manifest fixtures (the same @Network
+        // Reuse the shared size-2 HAPI TLS ledgerA_manifest / ledgerB_manifest fixtures (the same @Network
         // definition the rotation tests use), so the endpoint-manifest feature is enabled at boot on
         // networks that no non-manifest suite shares — the boot-time flag cannot leak across suites.
 
         return multiNetworkHapiTest(
                 "manifestEnabledRoundTrip",
                 Stream.concat(
-                        setupBothNetworksWithManifestProof(ledgerA, ledgerB, MTLS_PORT_A, MTLS_PORT_B, crypto),
+                        setupBothNetworksWithManifestProof(ledgerA, ledgerB, HAPI_TLS_PORT_A, HAPI_TLS_PORT_B, crypto),
                         Stream.of(
                                 // A → B: send 2 messages, then verify both delivery and ack complete.
                                 networkHapiTest(
@@ -148,8 +148,8 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
         @Network(
                 name = LEDGER_A_MANIFEST,
                 size = 2,
-                enableClprMtls = true,
-                firstMtlsPort = MTLS_PORT_A,
+                enableHapiTls = true,
+                firstHapiTlsPort = HAPI_TLS_PORT_A,
                 setupOverrides = {
                     // Let the circuit breaker exclude peers it can't reach so port rotations don't
                     // spam sync failures against dead old endpoints (see ClprSynchronizerImpl.selectPeer).
@@ -157,22 +157,22 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
                 }),
         @Network(
                 name = LEDGER_B_MANIFEST,
-                enableClprMtls = true,
-                firstMtlsPort = MTLS_PORT_B,
+                enableHapiTls = true,
+                firstHapiTlsPort = HAPI_TLS_PORT_B,
                 setupOverrides = {
                     // Let the circuit breaker exclude peers it can't reach so port rotations don't
                     // spam sync failures against dead old endpoints (see ClprSynchronizerImpl.selectPeer).
                     @ConfigOverride(key = "clpr.syncPeerExclusionEnabled", value = "true")
                 })
     })
-    @DisplayName("8.1.1 partial rotation (mTLS, 3-node): A's node0 rotates its clpr.mtlsPort; the advanced "
+    @DisplayName("8.1.1 partial rotation (HAPI TLS, 3-node): A's node0 rotates its grpc.tlsPort; the advanced "
             + "manifest propagates to B via a bundle state proof, B dials A's new listener, and no messages are lost")
     Stream<DynamicTest> partialRotationPropagatesToPeer(
             final SubProcessNetwork ledgerA, final SubProcessNetwork ledgerB) {
         final var crypto = new ClprCrypto();
-        // Each network's real ECDSA CLPR CA cert (advertised on-chain in tls_certificate). The endpoint
-        // ports are each network's clpr.mtlsPort, so the channel completes over — and syncs across —
-        // the dedicated mutual-TLS listener rather than the plaintext path.
+        // Each node's HAPI TLS certificate is advertised on-chain in tls_certificate and the endpoint ports
+        // are each network's grpc.tlsPort, so the channel completes over — and syncs across — the HAPI TLS
+        // listener rather than the plaintext path.
         // A's finalized manifest version captured just before the rotation; the propagation
         // assertions are all expressed relative to it (versionBeforeRotation -> +1).
         final AtomicLong versionBeforeRotation = new AtomicLong();
@@ -180,29 +180,31 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
         return multiNetworkHapiTest(
                 "partialRotationPropagatesToPeer",
                 Stream.concat(
-                        setupBothNetworksWithManifestProof(ledgerA, ledgerB, MTLS_PORT_A, MTLS_PORT_B, crypto),
+                        setupBothNetworksWithManifestProof(ledgerA, ledgerB, HAPI_TLS_PORT_A, HAPI_TLS_PORT_B, crypto),
                         Stream.of(
                                 // Baseline: A's cold-start-derived manifest (version >= 2, three endpoints).
                                 captureManifestVersion(ledgerA, versionBeforeRotation),
-                                // Rotate ONLY node 0 of A: kill it, change its node-local clpr.mtlsPort, restart just
+                                // Rotate ONLY node 0 of A: kill it, change its node-local grpc.tlsPort, restart just
                                 // that node (ReassignPorts.NO, no freeze, no roster/TSS change). The other 3 nodes stay
                                 // up and keep their in-memory #335 peerObservedManifestVersions, so the ledger still
                                 // detects B's stale view and drives the manifest proof; B stays reachable via them
-                                // while node 0 returns on its new, genuinely reachable mTLS port. Node 0's re-publish
+                                // while node 0 returns on its new, genuinely reachable HAPI TLS port. Node 0's
+                                // re-publish
                                 // opens a construction; nodes 1-3 publish their own endpoints into it (all-hands
                                 // snapshot, no carry-over) and it fast-closes, advancing the manifest by exactly one.
-                                rotateNodeMtlsPort(ledgerA, 0L, MTLS_PORT_A_ROTATED),
-                                // Node 0 actually bound its mTLS sync listener to the rotated port (proves the endpoint
+                                rotateNodeHapiTlsPort(ledgerA, 0L, HAPI_TLS_PORT_A_ROTATED),
+                                // Node 0 actually bound its HAPI TLS listener to the rotated port (proves the endpoint
                                 // change is real and reachable, not merely an advertised value). awaitLogLine scans
                                 // node 0's hgcaa.log — the node that rotated.
                                 networkHapiTest(
-                                                "Assert A node0 restarted its mTLS listener on " + MTLS_PORT_A_ROTATED,
+                                                "Assert A node0 restarted its HAPI TLS listener on "
+                                                        + HAPI_TLS_PORT_A_ROTATED,
                                                 ledgerA,
                                                 withOpContext((spec, opLog) -> awaitLogLine(
                                                         ledgerA,
                                                         Pattern.compile(
-                                                                "Starting CLPR mTLS sync gRPC server on port "
-                                                                        + MTLS_PORT_A_ROTATED),
+                                                                "TLS gRPC server listening on port "
+                                                                        + HAPI_TLS_PORT_A_ROTATED),
                                                         Duration.ofSeconds(60))))
                                         .findFirst()
                                         .orElseThrow(),
@@ -235,7 +237,7 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
                                 // port. (The apply log lists the endpoints; assert the new port is present.)
                                 networkHapiTest(
                                                 "Assert B's applied manifest carries A node0's new port "
-                                                        + MTLS_PORT_A_ROTATED,
+                                                        + HAPI_TLS_PORT_A_ROTATED,
                                                 ledgerB,
                                                 withOpContext((spec, opLog) -> {
                                                     final long from = versionBeforeRotation.get();
@@ -244,20 +246,20 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
                                                             Pattern.compile(
                                                                     "applying new endpoint manifest.*version=" + from
                                                                             + "->" + (from + 1) + ".*:"
-                                                                            + MTLS_PORT_A_ROTATED),
+                                                                            + HAPI_TLS_PORT_A_ROTATED),
                                                             MANIFEST_APPEAR_TIMEOUT);
                                                     opLog.info(
                                                             "Peer B's applied manifest (v{}) includes A node0's rotated "
                                                                     + "endpoint :{} — B will dial the new port",
                                                             from + 1,
-                                                            MTLS_PORT_A_ROTATED);
+                                                            HAPI_TLS_PORT_A_ROTATED);
                                                 }))
                                         .findFirst()
                                         .orElseThrow(),
                                 // A -> B on the new manifest: delivered to B and acked back to A.
                                 awaitReceivedMessage(ledgerB, crypto.channelId, 1),
                                 awaitAckedMessage(ledgerA, crypto.channelId, 1),
-                                // B -> A on the new manifest: B dials A's rotated mTLS listener (the whole point of
+                                // B -> A on the new manifest: B dials A's rotated HAPI TLS listener (the whole point of
                                 // rotating a real, reachable port). Delivered to A and acked back to B.
                                 networkHapiTest(
                                                 "Send a message from B after rotation",
@@ -284,8 +286,8 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
         @Network(
                 name = LEDGER_A_MANIFEST,
                 size = 2,
-                enableClprMtls = true,
-                firstMtlsPort = MTLS_PORT_A,
+                enableHapiTls = true,
+                firstHapiTlsPort = HAPI_TLS_PORT_A,
                 setupOverrides = {
                     // Let the circuit breaker exclude peers it can't reach so port rotations don't
                     // spam sync failures against dead old endpoints (see ClprSynchronizerImpl.selectPeer).
@@ -293,15 +295,15 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
                 }),
         @Network(
                 name = LEDGER_B_MANIFEST,
-                enableClprMtls = true,
-                firstMtlsPort = MTLS_PORT_B,
+                enableHapiTls = true,
+                firstHapiTlsPort = HAPI_TLS_PORT_B,
                 setupOverrides = {
                     // Let the circuit breaker exclude peers it can't reach so port rotations don't
                     // spam sync failures against dead old endpoints (see ClprSynchronizerImpl.selectPeer).
                     @ConfigOverride(key = "clpr.syncPeerExclusionEnabled", value = "true")
                 })
     })
-    @DisplayName("8.1.2 complete turnover (one side): A rotates all its mTLS ports; B recovers A's advanced "
+    @DisplayName("8.1.2 complete turnover (one side): A rotates all its HAPI TLS ports; B recovers A's advanced "
             + "manifest out-of-band via clprGetEndpointManifest + clprSubmitBundle, with no gRPC to A's old endpoints")
     Stream<DynamicTest> completeTurnoverOneSideRecoversViaSubmitBundle(
             final SubProcessNetwork ledgerA, final SubProcessNetwork ledgerB) {
@@ -313,7 +315,7 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
         return multiNetworkHapiTest(
                 "completeTurnoverOneSideRecoversViaSubmitBundle",
                 Stream.concat(
-                        setupBothNetworksWithManifestProof(ledgerA, ledgerB, MTLS_PORT_A, MTLS_PORT_B, crypto),
+                        setupBothNetworksWithManifestProof(ledgerA, ledgerB, HAPI_TLS_PORT_A, HAPI_TLS_PORT_B, crypto),
                         Stream.of(
                                 // Baseline: A's manifest version B cached at connect (captured dynamically, so the
                                 // scenario is order-independent even on the shared, possibly already-rotated network).
@@ -321,7 +323,7 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
                                 // Complete turnover of A: replace ALL of A's endpoints at once (single simultaneous
                                 // restart). A's manifest advances by exactly one and B's entire cached A-endpoint set
                                 // becomes unreachable simultaneously.
-                                rotateAllNodesMtlsPorts(ledgerA, MTLS_PORT_A_ROTATED + 10),
+                                rotateAllNodesHapiTlsPorts(ledgerA, HAPI_TLS_PORT_A_ROTATED + 10),
                                 awaitManifestVersionAtLeast(ledgerA, aVersionBaseline),
                                 // Out-of-band recovery: read-only query of A's advanced manifest + real state proof...
                                 captureManifestProof(ledgerA, aManifestProof),
@@ -343,8 +345,8 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
         @Network(
                 name = LEDGER_A_MANIFEST,
                 size = 2,
-                enableClprMtls = true,
-                firstMtlsPort = MTLS_PORT_A,
+                enableHapiTls = true,
+                firstHapiTlsPort = HAPI_TLS_PORT_A,
                 setupOverrides = {
                     // Let the circuit breaker exclude peers it can't reach so port rotations don't
                     // spam sync failures against dead old endpoints (see ClprSynchronizerImpl.selectPeer).
@@ -352,15 +354,15 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
                 }),
         @Network(
                 name = LEDGER_B_MANIFEST,
-                enableClprMtls = true,
-                firstMtlsPort = MTLS_PORT_B,
+                enableHapiTls = true,
+                firstHapiTlsPort = HAPI_TLS_PORT_B,
                 setupOverrides = {
                     // Let the circuit breaker exclude peers it can't reach so port rotations don't
                     // spam sync failures against dead old endpoints (see ClprSynchronizerImpl.selectPeer).
                     @ConfigOverride(key = "clpr.syncPeerExclusionEnabled", value = "true")
                 })
     })
-    @DisplayName("8.1.3 simultaneous turnover (both sides): A and B both rotate mTLS ports; each side "
+    @DisplayName("8.1.3 simultaneous turnover (both sides): A and B both rotate HAPI TLS ports; each side "
             + "independently recovers the other's advanced manifest via clprGetEndpointManifest + clprSubmitBundle")
     Stream<DynamicTest> simultaneousTurnoverBothSidesRecoverIndependently(
             final SubProcessNetwork ledgerA, final SubProcessNetwork ledgerB) {
@@ -373,7 +375,7 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
         return multiNetworkHapiTest(
                 "simultaneousTurnoverBothSidesRecoverIndependently",
                 Stream.concat(
-                        setupBothNetworksWithManifestProof(ledgerA, ledgerB, MTLS_PORT_A, MTLS_PORT_B, crypto),
+                        setupBothNetworksWithManifestProof(ledgerA, ledgerB, HAPI_TLS_PORT_A, HAPI_TLS_PORT_B, crypto),
                         Stream.of(
                                 captureManifestVersion(ledgerA, aVersionBaseline),
                                 captureManifestVersion(ledgerB, bVersionBaseline),
@@ -382,8 +384,8 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
                                 // either manifest. Each manifest advances by exactly one. The two turnovers run in
                                 // parallel (one ParallelSpecOps worker per ledger) so both endpoint sets go down in the
                                 // same window rather than A fully recovering before B starts.
-                                rotateBothNetworksMtlsPortsInParallel(
-                                        ledgerA, MTLS_PORT_A_ROTATED + 20, ledgerB, MTLS_PORT_B_ROTATED),
+                                rotateBothNetworksHapiTlsPortsInParallel(
+                                        ledgerA, HAPI_TLS_PORT_A_ROTATED + 20, ledgerB, HAPI_TLS_PORT_B_ROTATED),
                                 awaitManifestVersionAtLeast(ledgerA, aVersionBaseline),
                                 awaitManifestVersionAtLeast(ledgerB, bVersionBaseline),
                                 // Each side independently recovers the other's new manifest out-of-band (order does

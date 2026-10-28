@@ -101,6 +101,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -110,6 +111,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
@@ -2632,6 +2634,7 @@ class BlockStreamManagerImplTest {
                 .withConfigDataType(BlockStreamConfig.class)
                 .withValue("blockStream.roundsPerBlock", 1)
                 .withValue("blockStream.enableCutover", true)
+                .withValue("blockStream.digestType", digestTypeFromCrypto().name())
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1L));
         subject = new BlockStreamManagerImpl(
@@ -2682,7 +2685,7 @@ class BlockStreamManagerImplTest {
 
         // init with a non-genesis hash — cutover should be skipped since BSI has advanced, and init takes the
         // normal path (reconstructing the last block hash from the advanced BlockStreamInfo).
-        subject.init(state, HASH_OF_ZERO_384, true);
+        subject.init(state, hashOfZero(digestTypeFromCrypto()), true);
     }
 
     @Test
@@ -3958,5 +3961,11 @@ class BlockStreamManagerImplTest {
         return BlockItem.newBuilder()
                 .transactionResult(TransactionResult.newBuilder().consensusTimestamp(asTimestamp(consensusTimestamp)))
                 .build();
+    }
+
+    private DigestType digestTypeFromCrypto() {
+        return Objects.equals(Cryptography.DEFAULT_DIGEST_TYPE, DigestType.SHA_256)
+                ? DigestType.SHA_256
+                : DigestType.SHA_384;
     }
 }
