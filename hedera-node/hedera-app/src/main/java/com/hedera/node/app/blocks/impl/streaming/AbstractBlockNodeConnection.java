@@ -178,23 +178,27 @@ public abstract class AbstractBlockNodeConnection implements AutoCloseable {
     }
 
     /**
-     * Builds a correlation ID for the specified connection request.
+     * Builds a correlation ID for the specified connection request. The ID starts with the connection-level correlation
+     * ID so that searching logs for a connection also finds its requests. Request-level correlation IDs are only used
+     * in logs; the correlation ID header sent to block nodes is always the connection-level correlation ID.
      *
      * @param connectionRequestNumber the connection-level request number
-     * @return correlation ID in the format of N#-[STR|SVC]#-CRN#
+     * @return correlation ID in the format of {@code N#-[STR|SVC]#-JVM<token>-CRN#}
      */
     final @NonNull String buildRequestCorrelationId(final long connectionRequestNumber) {
         return connectionId + "-CRN" + connectionRequestNumber;
     }
 
     /**
-     * Builds a correlation ID for the specified block-level request.
+     * Builds a correlation ID for the specified block-level request. The ID starts with the connection-level correlation
+     * ID so that searching logs for a connection also finds its requests. Request-level correlation IDs are only used
+     * in logs; the correlation ID header sent to block nodes is always the connection-level correlation ID.
      *
      * @param connectionRequestNumber the connection-level request number
      * @param blockNumber the block number
      * @param blockRequestNumber the block-level request number
      * @param blockAttemptNumber number of times this block has been attempted on this connection
-     * @return correlation ID in the format of N#-[STR|SVC]#-BLK#-BAN#-REQ#-CRN#
+     * @return correlation ID in the format of {@code N#-[STR|SVC]#-JVM<token>-BLK#-BAN#-REQ#-CRN#}
      */
     final @NonNull String buildRequestCorrelationId(
             final long connectionRequestNumber,
@@ -208,7 +212,7 @@ public abstract class AbstractBlockNodeConnection implements AutoCloseable {
     /**
      * Formats a connection context string using either a supplied correlation ID or this connection's base ID.
      *
-     * @param correlationId correlation ID to display in the context, or null to use base connection ID
+     * @param correlationId correlation ID to display in the context, or null to use the connection-level correlation ID
      * @return formatted context string in the form {@code [ID/host:port/STATE]}
      */
     final @NonNull String connectionContext(@Nullable final String correlationId) {

@@ -10,8 +10,6 @@ plugins {
 
 description = "Hedera Services Test Clients for End to End Tests (EET)"
 
-testModuleInfo { requires("org.junit.jupiter.params") }
-
 // Detect available resources and scale JVM settings accordingly
 class TestResourceArgumentsProvider : CommandLineArgumentProvider {
     override fun asArguments(): Iterable<String> {
