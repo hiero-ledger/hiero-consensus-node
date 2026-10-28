@@ -992,7 +992,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
      * binds the necessary material into the captured snapshot. Warm path already loads a
      * fully-baked fixture so no settle is needed there.
      */
-    private static DynamicTest captureConfigProof(
+    public static DynamicTest captureConfigProof(
             final SubProcessNetwork network,
             final AtomicReference<ByteString> sink,
             final int expectedMaxMessagesPerBundle,
