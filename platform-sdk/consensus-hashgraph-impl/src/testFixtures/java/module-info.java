@@ -31,7 +31,9 @@ open module org.hiero.consensus.hashgraph.impl.test.fixtures {
     exports org.hiero.consensus.hashgraph.impl.test.fixtures.event.emitter;
     exports org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator;
     exports org.hiero.consensus.hashgraph.impl.test.fixtures.event.source;
-    exports org.hiero.consensus.hashgraph.impl.test.fixtures.flicker;
+    // Qualified because FlickerIntake.event() returns EventImpl, which rule 4 forbids test fixtures from re-exporting.
+    exports org.hiero.consensus.hashgraph.impl.test.fixtures.flicker to
+            org.hiero.consensus.hashgraph.impl;
     exports org.hiero.consensus.hashgraph.impl.test.fixtures.graph;
     exports org.hiero.consensus.hashgraph.impl.test.fixtures.graph.internal to
             org.hiero.consensus.hashgraph.impl;

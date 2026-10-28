@@ -36,7 +36,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
  * {@code round(event)} — which assigns {@code roundCreated} — before it calls {@code setWitness(true)}, so the round
  * is already correct when the override fires.
  */
-public class RecordingEventImpl extends EventImpl {
+class RecordingEventImpl extends EventImpl {
 
     private final String name;
     private final ChangeSink sink;
@@ -49,7 +49,7 @@ public class RecordingEventImpl extends EventImpl {
      * @param name          the name the test knows this event by
      * @param sink          where changes are reported
      */
-    public RecordingEventImpl(
+    RecordingEventImpl(
             @NonNull final PlatformEvent platformEvent,
             @NonNull final List<EventImpl> allParents,
             @NonNull final String name,
