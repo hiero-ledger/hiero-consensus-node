@@ -9,6 +9,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BOD
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_SERVICE_ACCOUNT_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
@@ -21,6 +22,7 @@ import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.service.clpr.ClprChannelLifecycle;
+import com.hedera.node.app.service.clpr.ClprService;
 import com.hedera.node.app.service.clpr.ReadableChannelStore;
 import com.hedera.node.app.service.clpr.ReadableLedgerConfigurationStore;
 import com.hedera.node.app.service.clpr.ReadableMessageQueueStore;
@@ -40,6 +42,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
+import com.swirlds.state.spi.ReadableKVStateBase;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Supplier;
 import javax.inject.Inject;
@@ -141,6 +144,7 @@ public class ClprBundlePrevalidator {
         validateTruePreCheck(payload.channelId().length() == 32, INVALID_TRANSACTION_BODY);
         try (final var stateWrapper = stateAccessor.get()) {
             final var state = requireNonNull(stateWrapper.get());
+            resetCachedChannelReads(state);
             final var stores = new ReadableStoreFactoryImpl(state);
             final var channel = stores.readableStore(ReadableChannelStore.class).getChannel(payload.channelId());
             validateTruePreCheck(channel != null, CLPR_CHANNEL_NOT_FOUND);
@@ -173,6 +177,25 @@ public class ClprBundlePrevalidator {
                     !(replies instanceof ReplyValidation.OrderingViolated), CLPR_BUNDLE_VERIFICATION_FAILED);
         } catch (final HandleException e) {
             throw new PreCheckException(e.getStatus());
+        }
+    }
+
+    /**
+     * Clears the working state's cached channel reads, so this validation reads every channel from the live state.
+     *
+     * <p>The working state caches each value it reads until the round ends, and the handle thread commits to the state
+     * without updating that cache. A channel cached before the handle thread applied an acknowledgement would then be
+     * read with its old {@code acked_message_id}, while the queue slots that acknowledgement deleted are read live as
+     * missing, and {@link ClprBundleValidator#validateReplies} would report {@code CLPR_INTERNAL_STATE_CORRUPTION}.
+     * A live channel read only asks for queue slots past its current acknowledgement, so stale cached slots are never
+     * consulted.
+     *
+     * @param state the working state
+     */
+    private static void resetCachedChannelReads(@NonNull final State state) {
+        if (state.getReadableStates(ClprService.NAME).get(CHANNELS_STATE_ID)
+                instanceof ReadableKVStateBase<?, ?> channels) {
+            channels.reset();
         }
     }
 
