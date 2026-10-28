@@ -629,6 +629,10 @@ jobs:
           sed -e "s@%PVC_SIZE%@100Mi@g" -e "s@%PVC_NAME%@sentinel-data-solo-shared-resources-redis-node-0@g" "${{ github.workspace }}"/.github/workflows/support/citr/mirror-node-pvc.yaml > mirror-node-pvc-sentinel.yaml
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" create -f mirror-node-pvc-sentinel.yaml
 
+          #redis-master-0
+          sed -e "s@%PVC_SIZE%@100Mi@g" -e "s@%PVC_NAME%@redis-data-solo-shared-resources-redis-master-0@g" "${{ github.workspace }}"/.github/workflows/support/citr/mirror-node-pvc.yaml > mirror-node-pvc-master.yaml
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" create -f mirror-node-pvc-master.yaml
+
       - name: Add Mirror Node
         run: |
           set +x
@@ -1219,6 +1223,12 @@ jobs:
 
           gcloud --no-user-output-enabled storage cp --recursive ${gs_path}/NLG_state.tgz "${{ github.workspace }}"/state/NLG_state.tgz
           gcloud --no-user-output-enabled storage cp --recursive ${gs_path}/lastSnapshot.tgz "${{ github.workspace }}"/state/lastSnapshot.tgz
+          gcloud --no-user-output-enabled storage cp --recursive ${gs_path}/block-0.0.3.tgz "${{ github.workspace }}"/state/block-0.0.3.tgz
+
+          for i in $(seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }})
+          do
+            gcloud --no-user-output-enabled storage cp --recursive ${gs_path}/blockfiles_${i}.tgz "${{ github.workspace }}"/state/blockfiles_${i}.tgz
+          done
 
       - name: Re-calculate keys with ansible-playbook
         if: ${{ !cancelled() }}
@@ -1295,6 +1305,31 @@ jobs:
             echo "Status code: $?"
           done
 
+      - name: Copy block-streams files to CN nodes
+        if: ${{ !cancelled() }}
+        run: |
+          set +x
+          set +e
+          NofNodes=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep 'network-node' | wc -l)
+
+          for i in $(seq 1 1 ${NofNodes})
+          do
+            node_id=$(expr ${i} - 1)
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp "${{ github.workspace }}"/state/block-0.0.3.tgz network-node${i}-0:/tmp/block-0.0.3.tgz
+            echo "Status code: $?"
+          done
+
+      - name: Copy ZSTD files to BN nodes
+        if: ${{ !cancelled() }}
+        run: |
+          set +x
+          set +e
+
+          for i in $(seq 1 1 1)
+          do
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp "${{ github.workspace }}"/state/blockfiles_${i}.tgz block-node-${i}-0:/tmp/blockfiles_${i}.tgz
+          done
+
       - name: Clean restarted state
         if: ${{ !cancelled() }}
         run: |
@@ -1331,6 +1366,21 @@ jobs:
             node_id=$(expr ${i} - 1)
             sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec network-node${i}-0 -- su - hedera -c bash -c \
               "cd ${{ env.APP_ROOT }}/data/saved/com.hedera.services.ServicesMain/${node_id}/123/; tar xfz /tmp/round.tgz; ls -lt; du -sk *"
+            echo "Status code: $?"
+          done
+
+      - name: Unarchive BN files in all CN pods
+        if: ${{ !cancelled() }}
+        run: |
+          set +x
+          set +e
+          NofNodes=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep 'network-node' | wc -l)
+
+          for i in $(seq 1 1 1)
+          do
+            node_id=$(expr ${i} - 1)
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec network-node${i}-0 -- su - hedera -c bash -c \
+              "cd /opt/hgcapp/blockStreams/; rm -rf block-0.0.3/*; tar xfz /tmp/block-0.0.3.tgz; ls -lt; du -sk *"
             echo "Status code: $?"
           done
 
@@ -1371,6 +1421,38 @@ jobs:
 
             sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec network-node${i}-0 -- su - hedera -c bash -c \
               "echo -e \"\nhedera.config.version=1\" >> ${{ env.APP_ROOT }}/data/config/application.properties"
+          done
+
+      - name: Temp down BlockNodes
+        run: |
+          for pod in $(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep 'block-node' | awk '{print $1}')
+          do
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${pod} -- bash -c "ps -aef | grep java | grep -v grep | awk '{print \$2}' | xargs kill -9"
+          done
+
+      - name: Unarchive ZSTD files to BN nodes
+        if: ${{ !cancelled() }}
+        run: |
+          set +x
+          set +e
+
+          for i in $(seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }})
+          do
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec block-node-${i}-0 -- bash -c \
+              "cd /opt/hiero/block-node/data/; rm -rf historic/* live/*; tar --overwrite -xvzf /tmp/blockfiles_${i}.tgz"
+          done
+
+      - name: Start BlockNodes
+        run: |
+
+          for pod in $(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep 'block-node' | awk '{print $1}')
+          do
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${pod} -- \
+              bash -c "rm -rf /opt/hiero/block-node/logs/blocknode.log*" >/dev/null 2>&1
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${pod} -- \
+              bash -c ". /tmp/env.sh; export BLOCK_NODE_SERVER_MAX_MESSAGE_SIZE_BYTES=300000000; export JAVA_OPTS='-Xms48G -Xmx52G -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath="/tmp/dump.hprof"'; \
+                       JAVA_TOOL_OPTIONS='-Djava.util.logging.config.file=/opt/hiero/block-node/logs/config/logging.properties -Dmetrics.exporter.openmetrics.http.hostname=0.0.0.0 -Dmetrics.exporter.openmetrics.http.port=16007 -Dmetrics.exporter.openmetrics.http.path=/metrics'; \
+                       nohup bash /opt/hiero/block-node/*/bin/app > /opt/hiero/block-node/logs/log.txt 2>&1 &"
           done
 
       - name: Start CNs with new state
