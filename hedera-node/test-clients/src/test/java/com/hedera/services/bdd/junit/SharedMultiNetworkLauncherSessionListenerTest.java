@@ -27,10 +27,10 @@ class SharedMultiNetworkLauncherSessionListenerTest {
     void classLockingTwoGroupsFailsBothGroups() throws Exception {
         final var plain = groupOf(CrossGroupLocks.class, "plain");
         final var manifest = groupOf(CrossGroupLocks.class, "manifest");
-        final var mtls = groupOf(OneGroupLocks.class, "mtls");
+        final var tls = groupOf(OneGroupLocks.class, "tls");
         queue.register("plain", plain);
         queue.register("manifest", manifest);
-        queue.register("mtls", mtls);
+        queue.register("tls", tls);
 
         SharedMultiNetworkLauncherSessionListener.validateOneGroupPerClass(
                 List.of(CrossGroupLocks.class, OneGroupLocks.class), queue);
@@ -39,7 +39,7 @@ class SharedMultiNetworkLauncherSessionListenerTest {
             final var e = assertThrows(IllegalStateException.class, () -> queue.awaitTurn(testId));
             assertTrue(e.getMessage().contains(CrossGroupLocks.class.getName()), e.getMessage());
         }
-        assertEquals(mtls, queue.awaitTurn("mtls"));
+        assertEquals(tls, queue.awaitTurn("tls"));
     }
 
     private static NetworkGroup groupOf(final Class<?> clazz, final String methodName) throws Exception {
@@ -64,12 +64,12 @@ class SharedMultiNetworkLauncherSessionListenerTest {
     }
 
     @Disabled("Fixture for validateOneGroupPerClass")
-    @ResourceLock("ledgerA_mtls")
-    @ResourceLock("ledgerB_mtls")
+    @ResourceLock("ledgerA_tls")
+    @ResourceLock("ledgerB_tls")
     @ResourceLock("NETWORK")
     static class OneGroupLocks {
-        @MultiNetworkHapiTest({@Network("ledgerA_mtls"), @Network("ledgerB_mtls")})
-        Stream<DynamicTest> mtls() {
+        @MultiNetworkHapiTest({@Network("ledgerA_tls"), @Network("ledgerB_tls")})
+        Stream<DynamicTest> tls() {
             return Stream.empty();
         }
     }

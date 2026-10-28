@@ -13,12 +13,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
+import com.hedera.hapi.block.stream.output.StateIdentifier;
 import com.hedera.hapi.node.base.BlockHashAlgorithm;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
 import com.hedera.node.app.blocks.impl.BlockImplUtils;
 import com.hedera.node.app.blocks.impl.BlockRootTreeHasher;
+import com.hedera.node.app.blocks.impl.BlockStreamManagerImpl;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
 import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
@@ -27,6 +29,7 @@ import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.utilops.UtilOp;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
@@ -227,12 +230,94 @@ public class VerifyCutoverBlockStreamOp extends UtilOp {
             final var computedRootHash = computeBlockRootHash(block, prevBlockHash, prevBlockHashesTree, digestType);
             log.info("Block #{}: computed root hash {}", blockNum, computedRootHash.toHex());
 
+            if (i == 0) {
+                // The first post-cutover block's parent was the wrapped record block root, not the trailing-window
+                // record hash. Reconstructing it via firstPostCutoverParentHash (reading the block's own BlockInfo
+                // delta) must therefore yield the block's true root, while the window-only reconstruction must not.
+                final var firstBlockInfo = BlockStreamAccess.computeSingletonValueFromUpdates(
+                        List.of(firstPostCutover),
+                        SingletonUpdateChange::blockInfoValue,
+                        StateIdentifier.STATE_ID_BLOCKS.protoOrdinal());
+                assertNotNull(firstBlockInfo, "First post-cutover block should contain a BlockInfo state change");
+
+                // Ground truth: block 0's true root is block 1's footer.previousBlockRootHash. Only enforce when a
+                // following block exists to supply it.
+                if (postCutoverBlocks.size() > 1) {
+                    final var trueRoot = postCutoverBlocks.get(1).items().stream()
+                            .filter(BlockItem::hasBlockFooter)
+                            .findFirst()
+                            .orElseThrow()
+                            .blockFooterOrThrow()
+                            .previousBlockRootHash();
+                    final var providedParent =
+                            BlockStreamManagerImpl.firstPostCutoverParentHash(firstBlockInfo, blockStreamInfo);
+                    final var reconstructWithWrappedParent = BlockStreamManagerImpl.reconstructLastBlockHash(
+                            blockStreamInfo, digestType, providedParent);
+                    final var reconstructWithWindow =
+                            BlockStreamManagerImpl.reconstructLastBlockHash(blockStreamInfo, digestType, null);
+                    assertEquals(
+                            trueRoot,
+                            reconstructWithWrappedParent,
+                            "First post-cutover block root reconstructed via firstPostCutoverParentHash should equal the"
+                                    + " true root (block 1's footer.previousBlockRootHash)");
+                    assertNotEquals(
+                            trueRoot,
+                            reconstructWithWindow,
+                            "Window-only reconstruction (null parent) must NOT match the true root for the first"
+                                    + " post-cutover block");
+                }
+            }
+
             prevBlockHash = computedRootHash;
             prevBlockHashesTree.addNodeByHash(computedRootHash.toByteArray());
         }
 
         log.info("Hash chain verified for {} post-cutover blocks", postCutoverBlocks.size());
+        verifyRestartReconstructions(postCutoverBlocks, digestType);
         return false;
+    }
+
+    /**
+     * Checks that a restart right after any post-cutover block would rebuild that block's hash, i.e. the next block's
+     * footer {@code previousBlockRootHash}. Each block is reconstructed from its persisted {@code BlockStreamInfo} and
+     * the {@code BlockInfo} as it stood at the end of that block, the same inputs {@code init()} reads on restart.
+     */
+    private static void verifyRestartReconstructions(
+            @NonNull final List<Block> postCutoverBlocks, @NonNull final DigestType digestType) {
+        BlockInfo blockInfo = null;
+        final List<Long> mismatches = new ArrayList<>();
+        for (int i = 0; i < postCutoverBlocks.size() - 1; i++) {
+            final var block = postCutoverBlocks.get(i);
+            final var blockInfoUpdate = BlockStreamAccess.computeSingletonValueFromUpdates(
+                    List.of(block),
+                    SingletonUpdateChange::blockInfoValue,
+                    StateIdentifier.STATE_ID_BLOCKS.protoOrdinal());
+            if (blockInfoUpdate != null) {
+                blockInfo = blockInfoUpdate;
+            }
+            final var blockStreamInfo = BlockStreamAccess.computeSingletonValueFromUpdates(
+                    List.of(block), SingletonUpdateChange::blockStreamInfoValue, BLOCK_STREAM_INFO_STATE_ID);
+            if (blockStreamInfo == null) {
+                continue;
+            }
+            final var reconstructed = BlockStreamManagerImpl.reconstructLastBlockHash(
+                    blockStreamInfo,
+                    digestType,
+                    BlockStreamManagerImpl.firstPostCutoverParentHash(blockInfo, blockStreamInfo));
+            final var nextParent = postCutoverBlocks.get(i + 1).items().stream()
+                    .filter(BlockItem::hasBlockFooter)
+                    .findFirst()
+                    .orElseThrow()
+                    .blockFooterOrThrow()
+                    .previousBlockRootHash();
+            if (!nextParent.equals(reconstructed)) {
+                mismatches.add(blockStreamInfo.blockNumber());
+            }
+        }
+        assertTrue(
+                mismatches.isEmpty(),
+                "Reconstructing these post-cutover blocks on restart doesn't match the next block's parent hash: "
+                        + mismatches);
     }
 
     private static Bytes computeBlockRootHash(

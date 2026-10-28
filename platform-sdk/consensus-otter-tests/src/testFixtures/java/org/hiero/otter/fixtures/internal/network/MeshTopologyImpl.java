@@ -13,10 +13,10 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import org.assertj.core.data.Percentage;
 import org.hiero.otter.fixtures.InstrumentedNode;
+import org.hiero.otter.fixtures.MiniNode;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.network.MeshTopology;
 import org.hiero.otter.fixtures.network.MeshTopologyConfiguration;
-import org.hiero.otter.fixtures.network.Topology.ConnectionState;
 
 /**
  * An implementation of {@link MeshTopology}.
@@ -27,22 +27,26 @@ public class MeshTopologyImpl implements MeshTopology {
     private static final ConnectionState DEFAULT =
             new ConnectionState(true, AVERAGE_NETWORK_DELAY, Percentage.withPercentage(5), UNLIMITED_BANDWIDTH);
 
-    private final Function<Integer, List<? extends Node>> nodeFactory;
+    private final Function<Integer, List<Node>> nodeFactory;
     private final Supplier<InstrumentedNode> instrumentedNodeFactory;
+    private final Function<Integer, List<MiniNode>> miniNodeFactory;
     private final List<Node> nodes = new ArrayList<>();
+    private final List<MiniNode> allNodes = new ArrayList<>();
     private final ConnectionState connectionData;
 
     /**
-     * Constructor for the {@link MeshTopologyImpl} class with default configuration.
+     * Constructor for the {@link MeshTopologyImpl} class with the default configuration.
      *
      * @param nodeFactory a function that creates a list of nodes given the count
      * @param instrumentedNodeFactory a supplier that creates an instrumented node
-     * @throws NullPointerException if {@code nodeFactory} or {@code instrumentedNodeFactory} is {@code null}
+     * @param miniNodeFactory a function that creates a list of mini nodes given the count
+     * @throws NullPointerException if any parameter is {@code null}
      */
     public MeshTopologyImpl(
-            @NonNull final Function<Integer, List<? extends Node>> nodeFactory,
-            @NonNull final Supplier<InstrumentedNode> instrumentedNodeFactory) {
-        this(MeshTopologyConfiguration.DEFAULT, nodeFactory, instrumentedNodeFactory);
+            @NonNull final Function<Integer, List<Node>> nodeFactory,
+            @NonNull final Supplier<InstrumentedNode> instrumentedNodeFactory,
+            @NonNull final Function<Integer, List<MiniNode>> miniNodeFactory) {
+        this(MeshTopologyConfiguration.DEFAULT, nodeFactory, instrumentedNodeFactory, miniNodeFactory);
     }
 
     /**
@@ -51,14 +55,17 @@ public class MeshTopologyImpl implements MeshTopology {
      * @param configuration the mesh topology configuration
      * @param nodeFactory a function that creates a list of nodes given the count
      * @param instrumentedNodeFactory a supplier that creates an instrumented node
+     * @param miniNodeFactory a function that creates a list of mini nodes given the count
      * @throws NullPointerException if any parameter is {@code null}
      */
     public MeshTopologyImpl(
             @NonNull final MeshTopologyConfiguration configuration,
-            @NonNull final Function<Integer, List<? extends Node>> nodeFactory,
-            @NonNull final Supplier<InstrumentedNode> instrumentedNodeFactory) {
+            @NonNull final Function<Integer, List<Node>> nodeFactory,
+            @NonNull final Supplier<InstrumentedNode> instrumentedNodeFactory,
+            @NonNull final Function<Integer, List<MiniNode>> miniNodeFactory) {
         this.nodeFactory = requireNonNull(nodeFactory);
         this.instrumentedNodeFactory = requireNonNull(instrumentedNodeFactory);
+        this.miniNodeFactory = requireNonNull(miniNodeFactory);
         requireNonNull(configuration);
         this.connectionData = new ConnectionState(
                 true, configuration.averageLatency(), configuration.jitter(), configuration.bandwidth());
@@ -70,8 +77,9 @@ public class MeshTopologyImpl implements MeshTopology {
     @Override
     @NonNull
     public List<Node> addNodes(final int count) {
-        final List<? extends Node> newNodes = nodeFactory.apply(count);
+        final List<Node> newNodes = nodeFactory.apply(count);
         nodes.addAll(newNodes);
+        allNodes.addAll(newNodes);
         return Collections.unmodifiableList(newNodes);
     }
 
@@ -83,7 +91,19 @@ public class MeshTopologyImpl implements MeshTopology {
     public InstrumentedNode addInstrumentedNode() {
         final InstrumentedNode instrumentedNode = instrumentedNodeFactory.get();
         nodes.add(instrumentedNode);
+        allNodes.add(instrumentedNode);
         return instrumentedNode;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public List<MiniNode> addMiniNodes(final int count) {
+        final List<MiniNode> newMiniNodes = miniNodeFactory.apply(count);
+        allNodes.addAll(newMiniNodes);
+        return Collections.unmodifiableList(newMiniNodes);
     }
 
     /**
@@ -100,7 +120,16 @@ public class MeshTopologyImpl implements MeshTopology {
      */
     @Override
     @NonNull
-    public ConnectionState getConnectionData(@NonNull final Node sender, @NonNull final Node receiver) {
+    public List<MiniNode> allNodes() {
+        return Collections.unmodifiableList(allNodes);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public ConnectionState getConnectionData(@NonNull final MiniNode sender, @NonNull final MiniNode receiver) {
         return connectionData;
     }
 }

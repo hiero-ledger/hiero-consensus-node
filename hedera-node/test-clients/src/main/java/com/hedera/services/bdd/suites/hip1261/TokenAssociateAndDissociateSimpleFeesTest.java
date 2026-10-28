@@ -56,6 +56,7 @@ import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
 import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 import static org.hiero.hapi.support.fees.Extra.TOKEN_ASSOCIATE;
+import static org.hiero.hapi.support.fees.Extra.TOKEN_DISSOCIATE;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.services.bdd.junit.HapiTest;
@@ -268,7 +269,7 @@ public class TokenAssociateAndDissociateSimpleFeesTest {
                             tokenDissociateTxn,
                             txnSize -> expectedTokenDissociateFullFeeUsd(Map.of(
                                     SIGNATURES, 1L,
-                                    TOKEN_ASSOCIATE, 1L,
+                                    TOKEN_DISSOCIATE, 1L,
                                     PROCESSING_BYTES, (long) txnSize)),
                             0.1),
                     validateChargedAccount(tokenDissociateTxn, ACCOUNT));
@@ -292,7 +293,7 @@ public class TokenAssociateAndDissociateSimpleFeesTest {
                             tokenDissociateTxn,
                             txnSize -> expectedTokenDissociateFullFeeUsd(Map.of(
                                     SIGNATURES, 1L,
-                                    TOKEN_ASSOCIATE, 3L,
+                                    TOKEN_DISSOCIATE, 3L,
                                     PROCESSING_BYTES, (long) txnSize)),
                             0.1),
                     validateChargedAccount(tokenDissociateTxn, ACCOUNT));
@@ -319,7 +320,7 @@ public class TokenAssociateAndDissociateSimpleFeesTest {
                             tokenDissociateTxn,
                             txnSize -> expectedTokenDissociateFullFeeUsd(Map.of(
                                     SIGNATURES, 2L,
-                                    TOKEN_ASSOCIATE, 1L,
+                                    TOKEN_DISSOCIATE, 1L,
                                     PROCESSING_BYTES, (long) txnSize)),
                             0.1),
                     validateChargedAccount(tokenDissociateTxn, ACCOUNT));

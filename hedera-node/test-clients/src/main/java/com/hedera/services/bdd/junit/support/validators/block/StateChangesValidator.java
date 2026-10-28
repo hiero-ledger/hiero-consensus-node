@@ -114,9 +114,6 @@ public class StateChangesValidator implements BlockStreamValidator {
     private static final SplittableRandom RANDOM = new SplittableRandom(System.currentTimeMillis());
     public static final AtomicBoolean AT_LEAST_ONE_WRAPS_ASSERTION_ENABLED = new AtomicBoolean(true);
     public static final AtomicBoolean ADAPTIVE_SIGNATURE_CHECKS_ENABLED = new AtomicBoolean(false);
-    /** Length of a mock block signature, which is a SHA-384 hash of the block hash. */
-    private static final int MOCK_SIGNATURE_LENGTH = 48;
-
     // The saved-state root hash in the state-metadata file is the platform signed-state Merkle root, hashed with the
     // platform digest Cryptography.DEFAULT_DIGEST_TYPE. That is a distinct knob from the block-stream digest
     // (BlockStreamConfig.digestType): the SHA-384 -> SHA-256 cutover flips BOTH together in production (two coupled
@@ -126,22 +123,20 @@ public class StateChangesValidator implements BlockStreamValidator {
     // field correctly follows the platform/state digest regardless, since it sizes the state-metadata hash, not a
     // block hash.
     private static final int HASH_SIZE = Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
-    private static final int HINTS_VERIFICATION_KEY_LENGTH = 1096;
-    private static final int AGGREGATE_SCHNORR_SIGNATURE_LENGTH = 192;
+
+    private static final int HINTS_VERIFICATION_KEY_LENGTH = HintsLibraryImpl.VK_LENGTH;
 
     /**
      * The probability that the validator will verify an intermediate block proof; we always verify the first and
      * the last one that has an available block proof. (The blocks immediately preceding a freeze will not have proofs.)
      */
     private static final double PROOF_VERIFICATION_PROB = 0.05;
+
+    private static final int HINTS_SIGNATURE_LENGTH = HintsLibraryImpl.SIGNATURE_LENGTH;
     /**
      * Must match the private constant in {@code com.hedera.cryptography.tss.TSS}.
      */
-    private static final int HINTS_SIGNATURE_LENGTH = 1632;
-    /**
-     * Must match the private constant in {@code com.hedera.cryptography.tss.TSS}.
-     */
-    private static final int COMPRESSED_WRAPS_PROOF_LENGTH = 704;
+    private static final int COMPRESSED_WRAPS_PROOF_LENGTH = 11368;
 
     private static final Pattern NUMBER_PATTERN = Pattern.compile("\\d+");
 
@@ -193,7 +188,6 @@ public class StateChangesValidator implements BlockStreamValidator {
 
     private final Map<Bytes, Set<Long>> signers = new HashMap<>();
     private final Map<Bytes, Long> blockNumbers = new HashMap<>();
-    private final boolean wrapsEnabled;
 
     private boolean observedCompressedWrapsProof;
 
@@ -240,7 +234,6 @@ public class StateChangesValidator implements BlockStreamValidator {
                 node0Dir.resolve("data/config"),
                 HintsEnabled.YES,
                 HistoryEnabled.YES,
-                false,
                 hintsThresholdDenominator,
                 false,
                 StateProofsEnabled.NO,
@@ -291,8 +284,8 @@ public class StateChangesValidator implements BlockStreamValidator {
 
         final var node0 = subProcessNetwork.getRequiredNode(byNodeId(0));
         // Read TSS config from the node's actual application.properties so that properties written
-        // by copyBootstrapAssets() (e.g. tss.wrapsEnabled=false from configuration/dev) are
-        // respected. Fall back to spec.startupProperties() for anything not explicitly in the file
+        // by copyBootstrapAssets() (e.g. from configuration/dev) are respected. Fall back to
+        // spec.startupProperties() for anything not explicitly in the file
         // (e.g. @ConfigProperty annotation defaults such as tss.forceMockSignatures=true).
         final var nodeStartupProperties = inPriorityOrder(
                 new JutilPropertySource(node0.getExternalPath(APPLICATION_PROPERTIES)), spec.startupProperties());
@@ -300,9 +293,9 @@ public class StateChangesValidator implements BlockStreamValidator {
         final boolean isHistoryEnabled = nodeStartupProperties.getBoolean("tss.historyEnabled");
         final boolean stateProofsEnabled = nodeStartupProperties.getBoolean("block.stateproof.verification.enabled");
         final boolean adaptiveChecksEnabled = ADAPTIVE_SIGNATURE_CHECKS_ENABLED.get();
-        // When forceMockSignatures=true, nodes emit SHA-384 hashes instead of real TSS signatures;
-        // the TSS libraries cannot verify these, so skip them unless adaptive checks are enabled
-        // (which detects and handles 48-byte mock signatures via assertMockSignature())
+        // When forceMockSignatures=true, nodes hash with the block-stream digest instead of signing with TSS.
+        // The TSS libraries cannot verify these hashes, so skip them unless adaptive checks are enabled
+        // (which detect and handle digest-sized mock signatures via assertMockSignature()).
         final boolean isForceMockSignatures = nodeStartupProperties.getBoolean("tss.forceMockSignatures");
         final boolean useTssLibraries = !isForceMockSignatures || adaptiveChecksEnabled;
         // Detect if cutover executed by checking for preserved preview blocks on disk
@@ -317,7 +310,6 @@ public class StateChangesValidator implements BlockStreamValidator {
                 (useTssLibraries && (adaptiveChecksEnabled || isHistoryEnabled))
                         ? HistoryEnabled.YES
                         : HistoryEnabled.NO,
-                useTssLibraries && (adaptiveChecksEnabled || nodeStartupProperties.getBoolean("tss.wrapsEnabled")),
                 Optional.ofNullable(System.getProperty("hapi.spec.hintsThresholdDenominator"))
                         .map(Long::parseLong)
                         .orElse(DEFAULT_HINTS_THRESHOLD_DENOMINATOR),
@@ -339,7 +331,6 @@ public class StateChangesValidator implements BlockStreamValidator {
             @NonNull final Path pathToUpgradeSysFilesLoc,
             @NonNull final HintsEnabled hintsEnabled,
             @NonNull final HistoryEnabled historyEnabled,
-            final boolean wrapsEnabled,
             final long hintsThresholdDenominator,
             final boolean assertAtLeastOneWraps,
             @NonNull final StateProofsEnabled stateProofsEnabled,
@@ -389,7 +380,6 @@ public class StateChangesValidator implements BlockStreamValidator {
         logger.info("Genesis state hash was empty - {}", genesisStateHash);
         this.hintsLibrary = (hintsEnabled == HintsEnabled.YES) ? new HintsLibraryImpl() : null;
         this.historyLibrary = (historyEnabled == HistoryEnabled.YES) ? new HistoryLibraryImpl() : null;
-        this.wrapsEnabled = wrapsEnabled;
         this.proofSeqFactory = (stateProofsEnabled == StateProofsEnabled.YES)
                 ? () -> new IndirectProofSequenceValidator(this.digestType)
                 : () -> null;
@@ -556,7 +546,6 @@ public class StateChangesValidator implements BlockStreamValidator {
                     || RANDOM.nextDouble() < PROOF_VERIFICATION_PROB
                     // Don't leave the at-least-one-WRAPS assertion to sampling what may be a short window of blocks
                     || (!observedCompressedWrapsProof
-                            && wrapsEnabled
                             && hintsLibrary != null
                             && historyLibrary != null
                             && carriesCompressedWrapsProof(block));
@@ -1008,10 +997,10 @@ public class StateChangesValidator implements BlockStreamValidator {
 
     /**
      * Whether a signature on block {@code blockNumber} is verified by the hinTS library alone, rather than with
-     * {@code TSS.verifyTSS()} (which assumes the target address book hash is always the ledger id).
+     * {@code TSS.verifyTSS()} (which requires a chain of trust from the ledger id).
      */
     private boolean verifiesWithHintsOnly(final long blockNumber) {
-        return historyLibrary == null || (!wrapsEnabled && blockNumber > 0);
+        return historyLibrary == null;
     }
 
     /**
@@ -1086,7 +1075,7 @@ public class StateChangesValidator implements BlockStreamValidator {
         // If hints are enabled, verify the signature using the hints library
         if (hintsLibrary != null) {
             final var signature = proof.signedBlockProofOrThrow().blockSignature();
-            if (ADAPTIVE_SIGNATURE_CHECKS_ENABLED.get() && signature.length() == MOCK_SIGNATURE_LENGTH) {
+            if (ADAPTIVE_SIGNATURE_CHECKS_ENABLED.get() && signature.length() == digestType.digestLength()) {
                 assertMockSignature(proof, expectedBlockHash);
                 return;
             }
@@ -1098,6 +1087,8 @@ public class StateChangesValidator implements BlockStreamValidator {
                     logger.info("Verified signature on #{}", proof.block());
                 }
             } else {
+                // Every block proof's chain of trust from the ledger id is a WRAPS proof; even block zero's
+                requireNonNull(ledgerIdFromState);
                 final var usedCompressedWrapsProof = hasCompressedWrapsProof(signature);
                 if (!valid) {
                     final var details = invalidSigDetails(
@@ -1120,7 +1111,7 @@ public class StateChangesValidator implements BlockStreamValidator {
             // mock signature can be checked here; asserting one against a TSS signature just reports
             // a spurious mismatch.
             final var signature = proof.signedBlockProofOrThrow().blockSignature();
-            if (signature.length() == MOCK_SIGNATURE_LENGTH) {
+            if (signature.length() == digestType.digestLength()) {
                 assertMockSignature(proof, expectedBlockHash);
             } else {
                 logger.warn(
@@ -1128,7 +1119,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                                 + "proof carries a {}-byte signature, not a {}-byte mock",
                         proof.block(),
                         signature.length(),
-                        MOCK_SIGNATURE_LENGTH);
+                        digestType.digestLength());
             }
         }
     }
@@ -1148,18 +1139,6 @@ public class StateChangesValidator implements BlockStreamValidator {
             }
         } else if (parts.function() == LEDGER_ID_PUBLICATION) {
             ledgerIdPublication = parts.body().ledgerIdPublicationOrThrow();
-            final int k = ledgerIdPublication.nodeContributions().size();
-            final long[] nodeIds = new long[k];
-            final long[] weights = new long[k];
-            final byte[][] publicKeys = new byte[k][];
-            for (int j = 0; j < k; j++) {
-                final var contribution = ledgerIdPublication.nodeContributions().get(j);
-                nodeIds[j] = contribution.nodeId();
-                weights[j] = contribution.weight();
-                publicKeys[j] = contribution.historyProofKey().toByteArray();
-            }
-            // Set the relevant public keys for later verification
-            TSS.setAddressBook(publicKeys, weights, nodeIds);
         }
     }
 
@@ -1454,25 +1433,18 @@ public class StateChangesValidator implements BlockStreamValidator {
         final byte[] hintsVerificationKey = Arrays.copyOfRange(tssSignature, 0, HINTS_VERIFICATION_KEY_LENGTH);
         final byte[] abProof = Arrays.copyOfRange(
                 tssSignature, HINTS_VERIFICATION_KEY_LENGTH + HINTS_SIGNATURE_LENGTH, tssSignature.length);
-        if (abProof.length == COMPRESSED_WRAPS_PROOF_LENGTH) {
-            if (!WRAPS.verifyCompressedProof(abProof, ledgerId, hintsVerificationKey)) {
-                return "invalid compressed proof";
-            }
-        } else if (abProof.length == AGGREGATE_SCHNORR_SIGNATURE_LENGTH) {
-            final byte[] hintsSignature = Arrays.copyOfRange(
-                    tssSignature,
-                    HINTS_VERIFICATION_KEY_LENGTH,
-                    HINTS_VERIFICATION_KEY_LENGTH + HINTS_SIGNATURE_LENGTH);
-            final var hintsValid =
-                    HintsLibraryBridge.getInstance().verifyAggregate(hintsSignature, message, hintsVerificationKey);
-            if (!hintsValid) {
-                return "invalid hinTS signature";
-            }
-            final byte[] hintsKeyHash = WRAPS.hashArray(hintsVerificationKey);
-            final byte[] rotationMessage = Arrays.copyOf(ledgerId, ledgerId.length + hintsKeyHash.length);
-            System.arraycopy(hintsKeyHash, 0, rotationMessage, ledgerId.length, hintsKeyHash.length);
-            return "invalid signature over rotation message " + Bytes.wrap(rotationMessage);
+        if (abProof.length != COMPRESSED_WRAPS_PROOF_LENGTH) {
+            return "chain-of-trust proof has " + abProof.length + " bytes, not the " + COMPRESSED_WRAPS_PROOF_LENGTH
+                    + " bytes of a compressed WRAPS proof";
         }
-        return "<N/A";
+        if (!WRAPS.verifyCompressedProof(abProof, ledgerId, hintsVerificationKey)) {
+            return "invalid compressed proof for ledger id " + Bytes.wrap(ledgerId);
+        }
+        final byte[] hintsSignature = Arrays.copyOfRange(
+                tssSignature, HINTS_VERIFICATION_KEY_LENGTH, HINTS_VERIFICATION_KEY_LENGTH + HINTS_SIGNATURE_LENGTH);
+        if (!HintsLibraryBridge.getInstance().verifyAggregate(hintsSignature, message, hintsVerificationKey)) {
+            return "invalid hinTS signature";
+        }
+        return "<N/A>";
     }
 }

@@ -250,37 +250,6 @@ public class BlockImplUtils {
     }
 
     /**
-     * Decodes the per-entry native byte sizes of a {@code trailingOutputHashes} window. The window holds at most
-     * four running hashes; normally all are in the active digest's units, but across a block-stream cutover it
-     * transiently mixes leading full 48-byte SHA-384 seeds with {@code activeSize}-byte hashes. A length beyond
-     * {@code 4 * activeSize} encodes a leading run of {@code a = (len - 4*activeSize) / (48 - activeSize)} 48-byte
-     * entries followed by {@code 4 - a} {@code activeSize}-byte entries; any shorter length is a uniform
-     * {@code activeSize} window. Mirrors the decode in {@code RunningHashManager.startBlock}.
-     *
-     * @param length the byte length of the stored output window
-     * @param activeSize the byte length of the active digest's hashes
-     * @return the native byte size of each entry, oldest first
-     */
-    public static int[] outputEntrySizes(final long length, final int activeSize) {
-        if (length == 0) {
-            return new int[0];
-        }
-        final int sha384 = RECORD_HASH_SIZE;
-        if (length > 4L * activeSize) {
-            final int a = (int) ((length - 4L * activeSize) / (sha384 - activeSize));
-            final int[] sizes = new int[4];
-            for (int i = 0; i < 4; i++) {
-                sizes[i] = i < a ? sha384 : activeSize;
-            }
-            return sizes;
-        }
-        final int n = (int) (length / activeSize);
-        final int[] sizes = new int[n];
-        java.util.Arrays.fill(sizes, activeSize);
-        return sizes;
-    }
-
-    /**
      * Renders both trailing-hash windows in a semi-human-readable form: per field, the entry count and
      * stride/sizes, then one real (unpadded) hash per line. Used to log a decoded snapshot of the windows at the
      * digest transition and the block-stream cutover, so the exact values on both sides are inspectable without a

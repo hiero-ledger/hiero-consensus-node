@@ -2,7 +2,6 @@
 package com.hedera.node.app.hints.impl;
 
 import static com.hedera.node.app.hints.HintsService.maybeWeightsFrom;
-import static com.hedera.node.app.hints.HintsService.partySizeForRosterNodeCount;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
 
@@ -114,16 +113,6 @@ public class HintsControllers {
     /**
      * Returns the in-progress controller for the hinTS construction with the given party size.
      *
-     * @param m the number of parties
-     * @return the controller, if it exists
-     */
-    public Optional<HintsController> getInProgressForNumParties(final int m) {
-        return Optional.ofNullable(controller).filter(c -> c.hasNumParties(m));
-    }
-
-    /**
-     * Returns the in-progress controller for the hinTS construction with the given party size.
-     *
      * @return the controller, if it exists
      */
     public Optional<HintsController> getAnyInProgress() {
@@ -158,14 +147,15 @@ public class HintsControllers {
         if (!weights.sourceNodesHaveTargetThreshold()) {
             return new InertHintsController(construction.constructionId());
         } else {
-            final int numParties = partySizeForRosterNodeCount(weights.targetRosterSize());
+            final int numParties = construction.numParties();
             log.info(
                     "Creating controller for construction #{} from nodes {} to {} with {} hinTS parties",
                     construction.constructionId(),
                     weights.sourceNodeIds(),
                     weights.targetNodeIds(),
                     numParties);
-            final var publications = hintsStore.getHintsKeyPublications(weights.targetNodeIds(), numParties);
+            final var publications =
+                    hintsStore.getHintsKeyPublications(weights.targetNodeIds(), numParties, construction.crsId());
             log.info(
                     "Construction #{} already has {} relevant keys published [{}]",
                     construction.constructionId(),

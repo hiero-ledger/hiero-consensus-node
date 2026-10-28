@@ -157,7 +157,7 @@ public class ClprDisabledSuite {
     }
 
     @LeakyEmbeddedHapiTest(reason = {MUST_SKIP_INGEST, NEEDS_STATE_ACCESS})
-    @DisplayName("All ten CLPR transaction types are blacklisted in batches at consensus when ingest is bypassed")
+    @DisplayName("All ten CLPR transaction types are not whitelisted in batches at consensus when ingest is bypassed")
     final Stream<DynamicTest> allClprTransactionsInBatchesAreRejectedAtConsensus() {
         return exerciseTransactions(true, true);
     }

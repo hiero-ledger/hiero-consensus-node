@@ -35,6 +35,9 @@ public final class BlockStreamInfoImpl implements BlockRecordInfo {
 
     private final BlockStreamInfo blockStreamInfo;
     private final DigestType digestType;
+    // The wrapped parent root to use for the first post-cutover block, or null to derive the parent from the window.
+    @Nullable
+    private final Bytes firstPostCutoverParentHash;
 
     /**
      * The configured maximum number of trailing block hashes the state retains
@@ -64,7 +67,11 @@ public final class BlockStreamInfoImpl implements BlockRecordInfo {
         final var blockStreamInfo = requireNonNull(state.getReadableStates(BlockStreamService.NAME)
                 .<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID)
                 .get());
-        return new BlockStreamInfoImpl(blockStreamInfo, digestType, numTrailingBlocks);
+        // For the first post-cutover block the window holds the record hash, not the wrapped parent the block used;
+        // provide the wrapped parent (from BlockInfo) so snapshot-query reconstruction links to the correct parent.
+        final var firstPostCutoverParentHash =
+                BlockStreamManagerImpl.firstPostCutoverParentHash(state, blockStreamInfo);
+        return new BlockStreamInfoImpl(blockStreamInfo, digestType, numTrailingBlocks, firstPostCutoverParentHash);
     }
 
     /**
@@ -80,9 +87,18 @@ public final class BlockStreamInfoImpl implements BlockRecordInfo {
             @NonNull final BlockStreamInfo blockStreamInfo,
             @NonNull final DigestType digestType,
             final int numTrailingBlocks) {
+        this(blockStreamInfo, digestType, numTrailingBlocks, null);
+    }
+
+    public BlockStreamInfoImpl(
+            @NonNull final BlockStreamInfo blockStreamInfo,
+            @NonNull final DigestType digestType,
+            final int numTrailingBlocks,
+            @Nullable final Bytes firstPostCutoverParentHash) {
         this.blockStreamInfo = requireNonNull(blockStreamInfo);
         this.digestType = requireNonNull(digestType);
         this.numTrailingBlocks = numTrailingBlocks;
+        this.firstPostCutoverParentHash = firstPostCutoverParentHash;
     }
 
     /**
@@ -152,7 +168,8 @@ public final class BlockStreamInfoImpl implements BlockRecordInfo {
 
     private Bytes extendedBlockHashes() {
         if (extendedBlockHashes == null) {
-            final var lastBlockHash = BlockStreamManagerImpl.reconstructLastBlockHash(blockStreamInfo, digestType);
+            final var lastBlockHash = BlockStreamManagerImpl.reconstructLastBlockHash(
+                    blockStreamInfo, digestType, firstPostCutoverParentHash);
             // Append the reconstructed last hash at the window's CURRENT stride (48 padded or 32 native) without
             // compacting — this is a read-only extension for queries, never persisted. The persisted
             // trailing_block_hashes_compacted flag gives the stride directly.

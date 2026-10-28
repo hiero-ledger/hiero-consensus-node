@@ -41,7 +41,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
-import com.hedera.services.bdd.junit.extensions.MultiNetworkExtension;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -78,7 +77,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.bouncycastle.math.ec.rfc8032.Ed25519;
+import org.hiero.base.crypto.Ed25519;
 import org.junit.jupiter.api.DynamicTest;
 
 /**
@@ -127,25 +126,13 @@ public abstract class HieroToHieroBase implements LifecycleTest {
 
     /**
      * How long {@link #awaitWrapsExtensible} waits for the first WRAPS-extensible recursive proof.
-     * Empirically a single-node subprocess network finishes the first extensible construction
-     * roughly 12–18 minutes after startup; 25 minutes leaves slack.
+     * Since the WRAPS library computes a proof in seconds, a single-node subprocess network should
+     * finish the first extensible construction within a few minutes of startup; 10 minutes leaves slack.
      */
-    static final Duration WRAPS_EXTENSIBLE_TIMEOUT = Duration.ofMinutes(25);
+    static final Duration WRAPS_EXTENSIBLE_TIMEOUT = Duration.ofMinutes(10);
 
     static final Pattern WRAPS_EXTENSIBLE_PATTERN =
             Pattern.compile("History proof constructed \\(#\\d+, WRAPS-extensible\\? true\\)");
-
-    /**
-     * Substring logged by {@code TssStartupNetworks.initializeHistoryState} when the dev-only
-     * history startup state has been preloaded from a captured fixture (warm-cache path).
-     * Equivalent end-state to a runtime-constructed WRAPS-extensible proof, BUT — unlike the
-     * runtime log line — fires at JVM startup, before any block has been signed. So matching
-     * this alone is not enough; {@link #awaitWrapsExtensible} chains {@link #awaitWrapsSyncPoint}
-     * after this match so the warm path doesn't return until a real WRAPS-carrying block proof
-     * has materialized.
-     */
-    static final Pattern WRAPS_PRELOADED_PATTERN = Pattern.compile(
-            "TssStartupNetworks - Initialized dev-only history startup state:.*hasChainOfTrustProof=true");
 
     /**
      * One-shot log line emitted by {@code BlockStreamManagerImpl.finishProofWithSignature} when
@@ -178,39 +165,21 @@ public abstract class HieroToHieroBase implements LifecycleTest {
 
     // ── Shared setup helper ───────────────────────────────────────────────────
 
-    /** Distinguishes how WRAPS-extensible readiness was reached, so callers can settle only when needed. */
-    public enum WrapsReadiness {
-        /** Runtime-constructed at this JVM start (cold path) — proof needs settle to fully bake before peers can verify. */
-        COLD_CONSTRUCTED,
-        /** Loaded from a captured fixture (warm path) — already mature, no settle required. */
-        WARM_PRELOADED
-    }
-
     /**
      * Blocks until this network is ready to produce signatures that cross-network bundle
      * verification will accept. Returns when BOTH conditions hold:
      *
      * <ol>
-     *   <li>The history proof construction is WRAPS-extensible — either freshly built at
-     *       runtime ({@code History proof constructed (#N, WRAPS-extensible? true)} log line,
-     *       cold path) or loaded from a captured fixture ({@code TssStartupNetworks -
-     *       Initialized dev-only history startup state: ... hasChainOfTrustProof=true},
-     *       warm-cache path); AND</li>
+     *   <li>The history proof construction is WRAPS-extensible — freshly built at runtime
+     *       ({@code History proof constructed (#N, WRAPS-extensible? true)} log line); AND</li>
      *   <li>The first block proof embeds the WRAPS recursive material (the one-shot
-     *       {@code [CLPR-SYNC-POINT]} log emitted by {@code BlockStreamManagerImpl}). On
-     *       cold path this fires shortly after the runtime construction event; on warm
-     *       path the preload log fires at JVM startup BEFORE any block is signed, so this
-     *       wait is what keeps the downstream {@link #captureConfigProof} from polling
-     *       against an empty StateProof.</li>
+     *       {@code [CLPR-SYNC-POINT]} log emitted by {@code BlockStreamManagerImpl}), which
+     *       fires shortly after the runtime construction event.</li>
      * </ol>
      *
-     * <p>Returns which readiness path was taken; the caller decides whether to settle.
-     *
-     * <p>Cold-path latency: ~12-18 min (waits for runtime WRAPS construction).
-     * Warm-path latency: ~few seconds (preload log fires immediately, then waits for the
-     * first WRAPS-carrying block — usually within 1-5 sec of network ACTIVE).
+     * <p>Latency: a few minutes (waits for runtime WRAPS construction).
      */
-    public static WrapsReadiness awaitWrapsExtensible(final SubProcessNetwork network) {
+    public static void awaitWrapsExtensible(final SubProcessNetwork network) {
         final Path logPath = network.nodes()
                 .getFirst()
                 .metadata()
@@ -222,28 +191,15 @@ public abstract class HieroToHieroBase implements LifecycleTest {
         while (Instant.now().isBefore(deadline)) {
             if (Files.exists(logPath)) {
                 try (var lines = Files.lines(logPath)) {
-                    // Match either: (a) runtime-constructed WRAPS-extensible proof (cold path,
-                    // implies blocks have been signed), or (b) preloaded WRAPS state from a
-                    // cached fixture (warm path, fires at JVM startup before any block).
-                    final var matched = lines.map(line -> {
-                                if (WRAPS_EXTENSIBLE_PATTERN.matcher(line).find()) {
-                                    return WrapsReadiness.COLD_CONSTRUCTED;
-                                }
-                                if (WRAPS_PRELOADED_PATTERN.matcher(line).find()) {
-                                    return WrapsReadiness.WARM_PRELOADED;
-                                }
-                                return null;
-                            })
-                            .filter(r -> r != null)
-                            .findFirst();
-                    if (matched.isPresent()) {
+                    // Match the runtime-constructed WRAPS-extensible proof (implies blocks have been signed).
+                    final boolean matched = lines.anyMatch(
+                            line -> WRAPS_EXTENSIBLE_PATTERN.matcher(line).find());
+                    if (matched) {
                         // Ensure the first WRAPS-carrying block proof has materialized before
-                        // returning. On warm path this also serves as the "at least one block
-                        // signed" gate — the preload log fires at JVM startup, and
-                        // [CLPR-SYNC-POINT] is the first signal that a real block proof has
-                        // been produced with WRAPS material attached.
+                        // returning — [CLPR-SYNC-POINT] is the first signal that a real block
+                        // proof has been produced with WRAPS material attached.
                         awaitWrapsSyncPoint(network);
-                        return matched.get();
+                        return;
                     }
                 } catch (final IOException ignored) {
                     // log may be mid-rotation; retry
@@ -272,18 +228,10 @@ public abstract class HieroToHieroBase implements LifecycleTest {
      * it fires <b>exactly once per process</b>: on the first signed block whose proof
      * embeds the WRAPS recursive material.
      *
-     * <p>Both bootstrap paths require this gate:
-     * <ul>
-     *   <li><b>Cold (TSS metadata generation)</b> — the runtime
-     *       {@code History proof constructed (..., WRAPS-extensible? true)} log fires once
-     *       the history+TSS state is ready, but it can take an additional block or two
-     *       before that material actually shows up inside a block proof. {@code [CLPR-SYNC-POINT]}
-     *       is the deterministic moment cross-network state proofs become peer-verifiable.</li>
-     *   <li><b>Warm (TSS preload)</b> — the {@code TssStartupNetworks} preload log fires at
-     *       JVM startup, before any block has been signed. {@code [CLPR-SYNC-POINT]} marks
-     *       the first real signed block carrying WRAPS data, which is what downstream
-     *       captures actually need.</li>
-     * </ul>
+     * <p>The runtime {@code History proof constructed (..., WRAPS-extensible? true)} log fires once
+     * the history+TSS state is ready, but it can take an additional block or two before that material
+     * actually shows up inside a block proof. {@code [CLPR-SYNC-POINT]} is the deterministic moment
+     * cross-network state proofs become peer-verifiable.
      *
      * <p>Used in place of a fixed wall-clock settle after {@code WRAPS-extensible? true}.
      */
@@ -529,13 +477,13 @@ public abstract class HieroToHieroBase implements LifecycleTest {
     }
 
     /**
-     * Rotates a <b>single node's</b> {@code clpr.mtlsPort} via a genuine single-node restart, leaving the
+     * Rotates a <b>single node's</b> {@code grpc.tlsPort} via a genuine single-node restart, leaving the
      * rest of the network running the whole time. This models a partial (per-node) endpoint rotation.
      *
-     * <p><b>Why it's ISS-safe.</b> {@code clpr.mtlsPort} is a {@code @NodeProperty} — node-local, not
+     * <p><b>Why it's ISS-safe.</b> {@code grpc.tlsPort} is a {@code @NodeProperty} — node-local, not
      * saved in state, explicitly allowed to differ per node (contrast {@code @NetworkProperty}, which is
      * in state and must match across nodes or ISS). The port only ever feeds node-local runtime (the
-     * mTLS listener bind, the sync client) and the self-publish <em>submit</em> side-effect; the manifest
+     * HAPI TLS listener bind) and the self-publish <em>submit</em> side-effect; the manifest
      * state is rebuilt purely from the gossiped {@code ClprEndpointPublication} at consensus, never from
      * any node's local config. So node {@code nodeId} carrying a different port than its peers does not
      * diverge the state hash.
@@ -549,21 +497,21 @@ public abstract class HieroToHieroBase implements LifecycleTest {
      *
      * <p><b>Mechanism.</b> The new value is written into node {@code nodeId}'s
      * {@code data/config/application.properties} while it is stopped; the single-node start path does not
-     * re-run {@code configureApplicationProperties}, so it sticks and the restarted JVM binds the mTLS
+     * re-run {@code configureApplicationProperties}, so it sticks and the restarted JVM binds the HAPI TLS
      * listener to the new port and self-publishes the changed endpoint. That publication opens a
      * construction; the other (non-restarted) nodes then publish their own current endpoints into it
      * (an all-hands snapshot — no IP-keyed carry-over), so it fast-closes on the full set and advances
      * the manifest by exactly one, with node {@code nodeId} now carrying the new port.
      */
-    DynamicTest rotateNodeMtlsPort(final SubProcessNetwork network, final long nodeId, final int newMtlsPort) {
+    DynamicTest rotateNodeHapiTlsPort(final SubProcessNetwork network, final long nodeId, final int newTlsPort) {
         return networkHapiTest(
-                        "Rotate " + network.name() + " node" + nodeId + " clpr.mtlsPort -> " + newMtlsPort,
+                        "Rotate " + network.name() + " node" + nodeId + " grpc.tlsPort -> " + newTlsPort,
                         network,
                         blockingOrder(
                                 // Kill only this node; nodes 1..n keep running (and keep their #335 state).
                                 FakeNmt.shutdownWithin(byNodeId(nodeId), SHUTDOWN_TIMEOUT),
-                                // Rewrite its per-node mtlsPort while it is stopped.
-                                doAdhoc(() -> setNodeMtlsPort(network, nodeId, newMtlsPort)),
+                                // Rewrite its per-node tlsPort while it is stopped.
+                                doAdhoc(() -> setNodeHapiTlsPort(network, nodeId, newTlsPort)),
                                 // Wait until this node's reused ports (gossip/gRPC/prometheus) are actually
                                 // releasable before it rebinds on restart, instead of a blind fixed sleep.
                                 awaitPortsFree(network.nodes().stream()
@@ -577,7 +525,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
     }
 
     /**
-     * Rotates <b>every</b> node's {@code clpr.mtlsPort} at once — a true simultaneous endpoint turnover:
+     * Rotates <b>every</b> node's {@code grpc.tlsPort} at once — a true simultaneous endpoint turnover:
      * all nodes are stopped together, each node's port is rewritten ({@code basePort + nodeId}), then the
      * whole network is restarted in a single step. Because all nodes re-publish their new endpoints into
      * one construction, the manifest advances by <b>exactly one</b> (contrast rotating nodes one-by-one,
@@ -587,9 +535,9 @@ public abstract class HieroToHieroBase implements LifecycleTest {
      * <p>Used by the complete-turnover scenarios (§8.1.2 / §8.1.3): with every endpoint replaced at once,
      * the peer's entire cached endpoint set becomes unreachable simultaneously.
      */
-    DynamicTest rotateAllNodesMtlsPorts(final SubProcessNetwork network, final int basePort) {
+    DynamicTest rotateAllNodesHapiTlsPorts(final SubProcessNetwork network, final int basePort) {
         return networkHapiTest(
-                        "Rotate ALL " + network.name() + " node mTLS ports simultaneously (base " + basePort + ")",
+                        "Rotate ALL " + network.name() + " node HAPI TLS ports simultaneously (base " + basePort + ")",
                         network,
                         blockingOrder(
                                 // Freeze first so every node writes a signed state at a clean round boundary and
@@ -602,9 +550,9 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                                 waitForFrozenNetwork(FREEZE_TIMEOUT),
                                 // Kill every node at once — the whole endpoint set turns over simultaneously.
                                 FakeNmt.shutdownWithin(allNodes(), SHUTDOWN_TIMEOUT),
-                                // Rewrite each stopped node's mtlsPort (basePort offset by node id).
+                                // Rewrite each stopped node's tlsPort (basePort offset by node id).
                                 doAdhoc(() -> network.nodes()
-                                        .forEach(n -> setNodeMtlsPort(
+                                        .forEach(n -> setNodeHapiTlsPort(
                                                 network, n.getNodeId(), basePort + (int) n.getNodeId()))),
                                 awaitPortsFree(network.nodes()),
                                 // Restart all nodes together (single restart), then await consensus + WRAPS.
@@ -673,39 +621,39 @@ public abstract class HieroToHieroBase implements LifecycleTest {
     }
 
     /**
-     * Rotates ALL mTLS ports on <b>both</b> ledgers at once, running each ledger's
-     * {@link #rotateAllNodesMtlsPorts} on its own {@link ParallelSpecOps} worker (via {@link #asSubOp})
+     * Rotates ALL HAPI TLS ports on <b>both</b> ledgers at once, running each ledger's
+     * {@link #rotateAllNodesHapiTlsPorts} on its own {@link ParallelSpecOps} worker (via {@link #asSubOp})
      * so the two complete turnovers overlap rather than running A-then-B. This is what the §8.1.3
      * simultaneous-turnover scenario requires: both ledgers' entire endpoint sets go unreachable in the
      * same window (no serial gap where one side is already back up), and the wall time is the slower
      * single-ledger turnover, not the sum. {@code failOnErrors()} surfaces either side's failure instead
      * of logging-and-swallowing it. Base ports must stay globally-unique per the
-     * {@link #setNodeMtlsPort} invariant.
+     * {@link #setNodeHapiTlsPort} invariant.
      */
-    DynamicTest rotateBothNetworksMtlsPortsInParallel(
+    DynamicTest rotateBothNetworksHapiTlsPortsInParallel(
             final SubProcessNetwork ledgerA,
             final int basePortA,
             final SubProcessNetwork ledgerB,
             final int basePortB) {
         return networkHapiTest(
-                        "Rotate ALL mTLS ports on both ledgers simultaneously (A base " + basePortA + ", B base "
+                        "Rotate ALL HAPI TLS ports on both ledgers simultaneously (A base " + basePortA + ", B base "
                                 + basePortB + ")",
                         ledgerA,
                         new ParallelSpecOps(
-                                        asSubOp(rotateAllNodesMtlsPorts(ledgerA, basePortA)),
-                                        asSubOp(rotateAllNodesMtlsPorts(ledgerB, basePortB)))
+                                        asSubOp(rotateAllNodesHapiTlsPorts(ledgerA, basePortA)),
+                                        asSubOp(rotateAllNodesHapiTlsPorts(ledgerB, basePortB)))
                                 .failOnErrors())
                 .findFirst()
                 .orElseThrow();
     }
 
     /**
-     * Rewrites {@code clpr.mtlsPort} in node {@code nodeId}'s {@code data/config/application.properties},
-     * dropping any existing {@code clpr.mtlsPort} line so the restarted JVM reads exactly the new value.
+     * Rewrites {@code grpc.tlsPort} in node {@code nodeId}'s {@code data/config/application.properties},
+     * dropping any existing {@code grpc.tlsPort} line so the restarted JVM reads exactly the new value.
      * Call only while that node is stopped (between {@code shutdownWithin} and {@code restartNode}).
      *
      * <p><b>Not restored, intentionally.</b> This writes {@code application.properties} directly (outside
-     * {@code getApplicationPropertyOverrides()}), and {@code clpr.mtlsPort} is a {@code STARTUP_ONLY} key,
+     * {@code getApplicationPropertyOverrides()}), and {@code grpc.tlsPort} is a {@code STARTUP_ONLY} key,
      * so the rotated value is never reverted on the shared {@code ledgerA_manifest} / {@code ledgerB_manifest}
      * networks — reverting it would just cost another rewrite + restart. That is safe only because every
      * rotation targets an <b>absolute, globally-unique</b> port and asserts that exact value, never the
@@ -713,7 +661,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
      * rotations land on the same port, and no assertion depends on execution order. Any new rotation test
      * MUST preserve this invariant — pick a fresh base port (node {@code i} binds {@code base + i}).
      */
-    private static void setNodeMtlsPort(final SubProcessNetwork network, final long nodeId, final int newMtlsPort) {
+    private static void setNodeHapiTlsPort(final SubProcessNetwork network, final long nodeId, final int newTlsPort) {
         final var node = network.nodes().stream()
                 .filter(n -> n.getNodeId() == nodeId)
                 .findFirst()
@@ -727,17 +675,16 @@ public abstract class HieroToHieroBase implements LifecycleTest {
             final var retained = new java.util.ArrayList<String>();
             if (Files.exists(appProps)) {
                 for (final var line : Files.readAllLines(appProps)) {
-                    if (!line.strip().startsWith("clpr.mtlsPort")) {
+                    if (!line.strip().startsWith("grpc.tlsPort")) {
                         retained.add(line);
                     }
                 }
             }
-            retained.add("clpr.mtlsPort=" + newMtlsPort);
+            retained.add("grpc.tlsPort=" + newTlsPort);
             Files.write(appProps, retained);
-            log.info("Rotated {} node{} clpr.mtlsPort -> {} in {}", network.name(), nodeId, newMtlsPort, appProps);
+            log.info("Rotated {} node{} grpc.tlsPort -> {} in {}", network.name(), nodeId, newTlsPort, appProps);
         } catch (final IOException e) {
-            throw new UncheckedIOException(
-                    "Failed to rotate clpr.mtlsPort for " + network.name() + " node" + nodeId, e);
+            throw new UncheckedIOException("Failed to rotate grpc.tlsPort for " + network.name() + " node" + nodeId, e);
         }
     }
 
@@ -806,7 +753,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
         final AtomicReference<ByteString> proofA = new AtomicReference<>();
         final AtomicReference<ByteString> proofB = new AtomicReference<>();
         // Manifest-only mode: completeChannel and the verifyConfig probes both require each
-        // ledger's endpoint-manifest StateProof, so capture and thread them like the mTLS overload.
+        // ledger's endpoint-manifest StateProof, so capture and thread them like the HAPI TLS overload.
         final AtomicReference<ByteString> manifestProofA = new AtomicReference<>();
         final AtomicReference<ByteString> manifestProofB = new AtomicReference<>();
         // Fold install → capture → cross-verify → deployAndConnect per ledger into
@@ -856,12 +803,12 @@ public abstract class HieroToHieroBase implements LifecycleTest {
      * {@code clprGetEndpointManifest} HAPI query and threads it into the peer's
      * {@code ClprCompleteChannel} as {@code endpoint_manifest_proof_bytes} (required, since the
      * manifest-aware verifier ABI rejects an empty manifest proof). Dial targets, including each
-     * network's mTLS port and CA cert, come from the captured manifests.
+     * network's HAPI TLS port and certificate, come from the captured manifests.
      *
-     * <p>Also advertises each network's real ECDSA CLPR CA cert ({@code caDerA}/{@code caDerB}) as the
-     * endpoint {@code tls_certificate}, and expects {@code portA}/{@code portB} to be each network's
-     * {@code clpr.mtlsPort}. This is the combined <b>mTLS + manifest-proof</b> path: the channel completes
-     * over — and syncs across — the dedicated mutual-TLS listener.
+     * <p>On {@code enableHapiTls} networks each node self-publishes its {@code grpc.tlsPort} and HAPI TLS
+     * certificate (as the endpoint {@code tls_certificate}), and {@code portA}/{@code portB} are expected to
+     * be those networks' {@code grpc.tlsPort} bases. This is the combined <b>HAPI TLS + manifest-proof</b>
+     * path: the channel completes over — and syncs across — the HAPI TLS listener.
      *
      * <p>Callers must guarantee the reconciler has finalized a manifest on both networks
      * before this runs (e.g. by preceding it with a manifest-await step); the capture inside
@@ -903,7 +850,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                 DEFAULT_MAX_QUEUE_DEPTH,
                 bothProofsReady);
         return Stream.of(networkHapiTest(
-                        "Install + capture (config + manifest) + verify + deploy on both ledgers (mTLS, parallel)",
+                        "Install + capture (config + manifest) + verify + deploy on both ledgers (HAPI TLS, parallel)",
                         ledgerA,
                         new ParallelSpecOps(chainA, chainB).failOnErrors())
                 .findFirst()
@@ -1043,19 +990,12 @@ public abstract class HieroToHieroBase implements LifecycleTest {
             final int expectedMaxMessagesPerBundle,
             final int expectedMaxQueueDepth) {
         return networkHapiTest("Capture ledger-config StateProof", network, withOpContext((spec, ignored) -> {
-                    final var readiness = awaitWrapsExtensible(network);
-                    if (readiness == WrapsReadiness.COLD_CONSTRUCTED
-                            && !MultiNetworkExtension.wasTssBootstrapHandled(network)) {
-                        // Cold path AND the extension didn't already pay the wait on our
-                        // behalf — poll for the [CLPR-SYNC-POINT] log emitted by
-                        // BlockStreamManagerImpl when the first block proof embeds the
-                        // WRAPS recursive proof, then briefly settle so a few WRAPS-
-                        // carrying blocks accumulate before capture. Skipped when
-                        // tssPreload=true cold first-run (extension paid it in
-                        // startNetworks) and when warm (preload fixture is mature).
-                        awaitWrapsSyncPoint(network);
-                        Thread.sleep(POST_SYNC_POINT_SETTLE.toMillis());
-                    }
+                    awaitWrapsExtensible(network);
+                    // Poll for the [CLPR-SYNC-POINT] log emitted by BlockStreamManagerImpl when the
+                    // first block proof embeds the WRAPS recursive proof, then briefly settle so a few
+                    // WRAPS-carrying blocks accumulate before capture.
+                    awaitWrapsSyncPoint(network);
+                    Thread.sleep(POST_SYNC_POINT_SETTLE.toMillis());
                     final var deadline = Instant.now().plus(MANIFEST_APPEAR_TIMEOUT);
                     while (Instant.now().isBefore(deadline)) {
                         sink.set(ByteString.EMPTY);
@@ -1533,7 +1473,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
 
     static final class ClprCrypto {
         // Fixed test private key — deterministic across runs
-        private static final byte[] TEST_PRIVATE_KEY = {
+        private static final byte[] TEST_PRIVATE_KEY_SEED = {
             0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
             0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10,
             0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
@@ -1548,17 +1488,18 @@ public abstract class HieroToHieroBase implements LifecycleTest {
         // (and connectorId) to avoid CLPR_CHANNEL_ALREADY_EXISTS on re-registration.
         private static final AtomicLong INSTANCE_COUNTER = new AtomicLong();
 
-        final byte[] publicKey = new byte[32];
+        final byte[] publicKey = new byte[Ed25519.PUBLIC_KEY_BYTES];
+        final byte[] secretKey = new byte[Ed25519.SECRET_KEY_BYTES];
         final byte[] channelId;
         final byte[] channelCommitment;
-        final byte[] channelSignature = new byte[Ed25519.SIGNATURE_SIZE];
+        final byte[] channelSignature = new byte[Ed25519.SIGNATURE_BYTES];
         final byte[] connectorSalt = new byte[32]; // all zeros
         final byte[] connectorId;
         final byte[] connectorCommitment;
-        final byte[] connectorSignature = new byte[Ed25519.SIGNATURE_SIZE];
+        final byte[] connectorSignature = new byte[Ed25519.SIGNATURE_BYTES];
 
         ClprCrypto() {
-            Ed25519.generatePublicKey(TEST_PRIVATE_KEY, 0, publicKey, 0);
+            Ed25519.newKeypair(publicKey, secretKey, TEST_PRIVATE_KEY_SEED);
 
             final var seed = "hiero-e2e-test-conn-v1-" + INSTANCE_COUNTER.incrementAndGet();
             channelId = MiscCryptoUtils.keccak256DigestOf(seed.getBytes(StandardCharsets.UTF_8));
@@ -1568,7 +1509,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
 
             // Channel signature: Ed25519 over keccak256(channelId)
             final var connSigMsg = MiscCryptoUtils.keccak256DigestOf(channelId);
-            Ed25519.sign(TEST_PRIVATE_KEY, 0, connSigMsg, 0, connSigMsg.length, channelSignature, 0);
+            Ed25519.sign(channelSignature, connSigMsg, secretKey);
 
             // connectorId = keccak256(channelId || pubKey || connectorSalt)
             connectorId = MiscCryptoUtils.keccak256DigestOf(concat(channelId, concat(publicKey, connectorSalt)));
@@ -1578,7 +1519,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
 
             // Connector signature: Ed25519 over keccak256(connectorId || CLPR_SERVICE_ADDRESS)
             final var connectorSigMsg = MiscCryptoUtils.keccak256DigestOf(concat(connectorId, CLPR_SERVICE_ADDRESS));
-            Ed25519.sign(TEST_PRIVATE_KEY, 0, connectorSigMsg, 0, connectorSigMsg.length, connectorSignature, 0);
+            Ed25519.sign(connectorSignature, connectorSigMsg, secretKey);
         }
 
         private static byte[] concat(final byte[] a, final byte[] b) {

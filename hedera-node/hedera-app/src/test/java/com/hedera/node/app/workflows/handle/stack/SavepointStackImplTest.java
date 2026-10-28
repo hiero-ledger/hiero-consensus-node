@@ -309,23 +309,12 @@ class SavepointStackImplTest extends StateTestBase {
     }
 
     @Test
-    void childDoesNotPermitStakingRewardsIfNotScheduledByUser() {
+    void scheduledChildDoesNotPermitStakingRewards() {
         given(parent.peek()).willReturn(savepoint);
         given(savepoint.followingCapacity()).willReturn(123);
-        given(parent.txnCategory()).willReturn(HandleContext.TransactionCategory.CHILD);
         final var subject = SavepointStackImpl.newChildStack(
                 parent, REVERSIBLE, SCHEDULED, NOOP_SIGNED_TX_CUSTOMIZER, StreamMode.BOTH);
         assertThat(subject.permitsStakingRewards()).isFalse();
-    }
-
-    @Test
-    void scheduledTopLevelIfSchedulingParentIsUser() {
-        given(parent.peek()).willReturn(savepoint);
-        given(savepoint.followingCapacity()).willReturn(123);
-        given(parent.txnCategory()).willReturn(HandleContext.TransactionCategory.USER);
-        final var subject = SavepointStackImpl.newChildStack(
-                parent, REVERSIBLE, SCHEDULED, NOOP_SIGNED_TX_CUSTOMIZER, StreamMode.BOTH);
-        assertThat(subject.permitsStakingRewards()).isTrue();
     }
 
     @Test

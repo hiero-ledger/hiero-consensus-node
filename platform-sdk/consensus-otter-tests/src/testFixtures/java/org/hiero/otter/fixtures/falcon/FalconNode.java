@@ -2,8 +2,8 @@
 package org.hiero.otter.fixtures.falcon;
 
 import static java.util.Objects.requireNonNull;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
+import static org.hiero.otter.fixtures.internal.AbstractMiniNode.LifeCycle.DESTROYED;
+import static org.hiero.otter.fixtures.internal.AbstractMiniNode.LifeCycle.RUNNING;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.base.time.Time;
@@ -16,6 +16,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Random;
+import java.util.function.Consumer;
 import org.hiero.consensus.gossip.impl.gossip.sync.protocol.SyncStatusChecker;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -27,7 +28,6 @@ import org.hiero.consensus.status.monitor.actions.DoneReplayingEventsAction;
 import org.hiero.consensus.status.monitor.actions.StartedReplayingEventsAction;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
-import org.hiero.otter.fixtures.ProfilerEvent;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.internal.AbstractNode;
 import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
@@ -59,6 +59,9 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver, 
 
     @Nullable
     private FalconWiring wiring;
+
+    @NonNull
+    private EventWindow latestEventWindow = EventWindow.getGenesisEventWindow();
 
     /**
      * Constructor for {@code FalconNode}.
@@ -157,15 +160,16 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver, 
         final SecureRandom secureRandom = new SecureRandomBuilder(random.nextLong()).get();
 
         wiring = new FalconWiring(currentConfiguration, time, selfId, roster(), secureRandom);
-        wiring.sentGossipEventsOutputWire().solderTo("EventSubmitter_" + selfId, "event", event -> {
+        final Consumer<PlatformEvent> eventSubmitter = event -> {
             event.setSenderId(selfId);
             networkConnectivity.submitEvent(event);
-        });
-        wiring.eventWindowOutputWire()
-                .solderTo(
-                        "EventWindowSubmitter_" + selfId,
-                        "event window",
-                        eventWindow -> networkConnectivity.updateEventWindow(selfId, eventWindow));
+        };
+        wiring.sentGossipEventsOutputWire().solderTo("EventSubmitter_" + selfId, "event", eventSubmitter);
+        final Consumer<EventWindow> eventWindowSubmitter = eventWindow -> {
+            latestEventWindow = eventWindow;
+            networkConnectivity.updateEventWindow(selfId, eventWindow);
+        };
+        wiring.eventWindowOutputWire().solderTo("EventWindowSubmitter_" + selfId, "event window", eventWindowSubmitter);
         wiring.consensusRoundOutputWire()
                 .solderTo("ResultsCollector", "consensus round", resultsCollector::addConsensusRound);
         wiring.platformStatusOutputWire()
@@ -327,36 +331,9 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver, 
      * {@inheritDoc}
      */
     @Override
-    public boolean isAlive() {
-        return lifeCycle == RUNNING;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void startProfiling(
-            @NonNull final String outputFile,
-            @NonNull final Duration samplingInterval,
-            @NonNull final ProfilerEvent... events) {
-        throw new UnsupportedOperationException("Profiling is not supported in FalconNode.");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void stopProfiling() {
-        throw new UnsupportedOperationException("Profiling is not supported in FalconNode.");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     @NonNull
-    public String dumpThreads() {
-        throw new UnsupportedOperationException("Profiling is not supported in FalconNode.");
+    public EventWindow latestEventWindow() {
+        return latestEventWindow;
     }
 
     /**
