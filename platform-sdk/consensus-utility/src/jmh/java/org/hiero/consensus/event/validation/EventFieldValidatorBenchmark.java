@@ -75,14 +75,14 @@ import org.openjdk.jmh.annotations.Warmup;
  * it, and {@link LatencyProfiler} reports the percentiles and the allocation per validation. JMH's primary score, the
  * mean time per event of the whole pass, includes the receiving; track {@code latency.mean} instead.
  *
- * <p>The first call of a pass, right after the setup, is validated but not timed: it takes several microseconds. On an
- * Apple M4 laptop, timing it put p99.99 at 4.8–5.5 µs, against 1.1–2.7 µs without it, in alternating runs. No such
+ * <p>The first call of a pass, right after the setup, is validated but not timed: it is much slower than the others. On
+ * an Apple M4 laptop, timing it put p99.99 at 0.6–1.0 µs, against 0.17–0.54 µs without it, in alternating runs. No such
  * setup precedes an event in production.
  *
  * <p>Each latency also contains one reading of the clock, which is a noticeable part of a call this short. On an Apple
- * M4 laptop, an empty call, {@code resume()} directly followed by {@code lap()}, took 11.2–11.5 ns on average, about 8%
- * of a validation without transactions; on the benchmark machine it is unmeasured. The share is about constant, so a
- * regression of the validator still shows in full nanoseconds, but as a slightly smaller percentage.
+ * M4 laptop, an empty call, {@code resume()} directly followed by {@code lap()}, took 11.1–11.3 ns on average, about a
+ * fifth of a validation (53–59 ns); on the benchmark machine it is unmeasured. The share is about constant, so a
+ * regression of the validator still shows in full nanoseconds, but as a smaller percentage.
  *
  * <p>Each invocation's setup ends with {@code System.gc()}, so usually no garbage collection falls into the pass, although
  * receiving allocates several kilobytes per event. A pass during which one does is discarded and replaced by the next
