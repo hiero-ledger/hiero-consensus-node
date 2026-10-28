@@ -365,7 +365,7 @@ jobs:
       #   --fork=Prague              all fork directories are executed against the Prague rules
       #   --max-tx-per-batch=1       the relay races on nonces for same-sender transactions in one batch
       #   --default-max-fee-per-blob-gas / gas prices are tinybar-aligned (710 Gwei) for Hedera
-      # Known-unsupported tests are deselected by the fork itself in pytest-execute.ini.
+      # Known-unsupported tests are skipped by the spec tests repository itself (docs/hedera/hedera_skips.toml).
       # All fork directories run at the same time as separate processes, each with its own seed account, report
       # files and log; `--no-sync` keeps the processes from re-syncing the shared virtualenv and
       # `-p no:cacheprovider` from writing the shared .pytest_cache concurrently.
@@ -379,8 +379,7 @@ jobs:
       # tests in one or two files (tangerine_whistle has 724 in one), and with per-file scheduling the extra workers
       # sat idle. An idle worker never asks for its funded sender, so the other workers waited for funding until
       # they timed out. `--worker-funding-timeout` is raised because all forks fund their workers at the same time.
-      # Exit code 5 means pytest collected no tests (e.g. tests/paris/ is fully deselected for Hedera) and is not
-      # counted as a failure.
+      # Exit code 5 means pytest collected no tests and is not counted as a failure.
       - name: Run the tests
         id: run-tests
         timeout-minutes: 95
