@@ -537,6 +537,11 @@ public class WrapsHistoryProver implements HistoryProver {
         if (shouldSkipAfterCancellation(constructionId, phase)) {
             return;
         }
+        // Zero-weight nodes and nodes outside the source scheme normally cannot contribute to this rotation.
+        // Skip their R1 work before generating Schnorr entropy or attempting to sign with a local hinTS key.
+        if (phase == R1 && provenanceSigner != null && !provenanceSigner.isEligibleSigner(selfId)) {
+            return;
+        }
         final boolean isRetry = phase == phaseNeedingRetry;
         if (isRetry) {
             consumerOf(phase).accept(null);

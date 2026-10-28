@@ -99,13 +99,20 @@ public final class KeyProvenanceSigner {
     }
 
     /**
+     * Whether this node has positive weight in the captured source scheme, independent of local key availability.
+     */
+    public boolean isEligibleSigner(final long nodeId) {
+        final var party = parties.get(nodeId);
+        return party != null && party.partyWeight() > 0;
+    }
+
+    /**
      * Signs the exact successor verification-key bytes, or returns null if this node cannot contribute a valid share.
      * Locally verifying the share also catches a missing or mismatched private key before it is gossiped.
      */
     public @Nullable Bytes sign(final long nodeId, @NonNull final Bytes nextVerificationKey) {
         requireNonNull(nextVerificationKey);
-        final var party = parties.get(nodeId);
-        if (nextVerificationKey.length() != VK_LENGTH || party == null || party.partyWeight() == 0) {
+        if (nextVerificationKey.length() != VK_LENGTH || !isEligibleSigner(nodeId)) {
             return null;
         }
         final var signature = keyAccessor.signWithBlsPrivateKey(constructionId, nextVerificationKey);

@@ -140,6 +140,17 @@ class KeyProvenanceSignerTest {
     }
 
     @Test
+    void eligibilityDependsOnlyOnMembershipAndWeightInTheSourceScheme() {
+        subject = new KeyProvenanceSigner(
+                library, keyAccessor, construction(List.of(new NodePartyId(10, 0, 0), new NodePartyId(20, 1, 3))), CRS);
+
+        assertFalse(subject.isEligibleSigner(10));
+        assertTrue(subject.isEligibleSigner(20));
+        assertFalse(subject.isEligibleSigner(30));
+        verifyNoInteractions(library, keyAccessor);
+    }
+
+    @Test
     void zeroWeightPartiesCannotSignOrContribute() {
         subject = new KeyProvenanceSigner(
                 library, keyAccessor, construction(List.of(new NodePartyId(10, 0, 0), new NodePartyId(20, 1, 3))), CRS);

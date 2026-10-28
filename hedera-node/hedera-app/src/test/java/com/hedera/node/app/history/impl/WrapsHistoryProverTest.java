@@ -37,6 +37,7 @@ import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.ReadableHistoryStore.WrapsMessagePublication;
 import com.hedera.node.app.history.WritableHistoryStore;
 import com.hedera.node.app.service.roster.impl.RosterTransitionWeights;
+import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -52,6 +53,7 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import org.apache.logging.log4j.LogManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -1002,6 +1004,7 @@ class WrapsHistoryProverTest {
         subject = newRotationSubject(Runnable::run);
         givenWrapsMessage();
         given(historyLibrary.runWrapsPhaseR1(any(), any(), any())).willReturn(R1_MESSAGE.toByteArray());
+        given(provenanceSigner.isEligibleSigner(SELF_ID)).willReturn(true);
         given(provenanceSigner.sign(SELF_ID, TARGET_METADATA)).willReturn(SELF_PARTIAL);
         given(submissions.submitWrapsSigningMessage(eq(R1), any(), eq(CONSTRUCTION_ID), any()))
                 .willReturn(CompletableFuture.completedFuture(null));
@@ -1019,16 +1022,63 @@ class WrapsHistoryProverTest {
     }
 
     @Test
+    void rotationSkipsR1ForNodesIneligibleInTheSourceScheme() {
+        final var manualExecutor = new ManualExecutor();
+        subject = newRotationSubject(manualExecutor);
+        givenWrapsMessage();
+        final var logs = new LogCaptor(LogManager.getLogger(WrapsHistoryProver.class));
+        try {
+            // Eligibility is fixed by the source scheme, so repeated rounds remain a quiet no-op.
+            for (int round = 0; round < 2; round++) {
+                assertSame(
+                        HistoryProver.Outcome.InProgress.INSTANCE,
+                        subject.advance(
+                                EPOCH.plusSeconds(round),
+                                transitionConstruction(R1, null),
+                                TARGET_METADATA,
+                                targetProofKeys,
+                                tssConfig,
+                                LEDGER_ID,
+                                true));
+            }
+            assertEquals(0, manualExecutor.pendingTasks());
+            verify(provenanceSigner, never()).sign(anyLong(), any());
+            verify(historyLibrary, never()).runWrapsPhaseR1(any(), any(), any());
+            verifyNoInteractions(submissions);
+            assertTrue(logs.warnLogs().isEmpty());
+            assertTrue(logs.errorLogs().isEmpty());
+        } finally {
+            logs.stopCapture();
+        }
+    }
+
+    @Test
     void rotationDoesNotPublishUnpairedR1WhenItsPreviousPrivateKeyIsUnavailable() {
         subject = newRotationSubject(Runnable::run);
         givenWrapsMessage();
         given(historyLibrary.runWrapsPhaseR1(any(), any(), any())).willReturn(R1_MESSAGE.toByteArray());
+        given(provenanceSigner.isEligibleSigner(SELF_ID)).willReturn(true);
         given(provenanceSigner.sign(SELF_ID, TARGET_METADATA)).willReturn(null);
+        final var logs = new LogCaptor(LogManager.getLogger(WrapsHistoryProver.class));
+        try {
+            subject.advance(
+                    EPOCH,
+                    transitionConstruction(R1, null),
+                    TARGET_METADATA,
+                    targetProofKeys,
+                    tssConfig,
+                    LEDGER_ID,
+                    true);
 
-        subject.advance(
-                EPOCH, transitionConstruction(R1, null), TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID, true);
-
-        verifyNoInteractions(submissions);
+            verify(provenanceSigner).sign(SELF_ID, TARGET_METADATA);
+            verifyNoInteractions(submissions);
+            assertEquals(
+                    List.of("Cannot contribute WRAPS R1 without a valid source hinTS share for construction #"
+                            + CONSTRUCTION_ID),
+                    logs.warnLogs());
+        } finally {
+            logs.stopCapture();
+        }
     }
 
     @Test
