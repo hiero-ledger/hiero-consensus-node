@@ -77,11 +77,31 @@ import org.openjdk.jmh.annotations.Warmup;
  * although receiving allocates several kilobytes per event. A pass during which one does is discarded and replaced by
  * the next invocation, so the latency results and {@code latency.mean} exclude garbage collection.
  *
+ * <p>Each fork settles at its own latency level and keeps it. On the benchmark machine, {@code latency.mean} varies by
+ * 1.9% between forks without transactions and by 0.7% with two, against 0.07% and 0.18% between the iterations of one
+ * fork, although every fork allocates the same and the machine was quiet. The difference is about the same in
+ * nanoseconds in both parameter sets. Its cause is unknown
+ * (<a href="https://github.com/hiero-ledger/hiero-consensus-node/issues/27940">#27940</a>), and it sets the number of
+ * forks.
+ *
  * <p>Run with {@code -prof org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler}.
+ *
+ * <h2>Calibration</h2>
+ * <ul>
+ *   <li>Date / commit: 2026-10-28, bf9d6a86f4</li>
+ *   <li>Machine: hl-cn-benchmark-lin, AS-2115GT-HNTR, AMD EPYC 9254 24-Core Processor, JDK 25.0.2, -XX:ActiveProcessorCount=12 -Xms1g -Xmx1g -XX:+AlwaysPreTouch</li>
+ *   <li>Parameter sets: transactionsPerEvent=0 / transactionsPerEvent=2</li>
+ *   <li>Steady state after: 5 s / 0 s</li>
+ *   <li>Noise (latency.mean, CV): 0.07% / 0.18% per 10 s iteration, 1.92% / 0.66% between forks, - / - between runs (1 of 1 / 1 of 1 runs quiet)</li>
+ *   <li>Expected detectable regression: 1.18% / 0.41% (95 % CI half-width of one run)</li>
+ *   <li>Samples per iteration: 2.9 M / 1.7 M; expected stable: mean, p50, p90, p99, p99.99 / mean, p50, p90, p99.9, p99.99</li>
+ *   <li>Runtime: 5.1 / 5.1 min per parameter set</li>
+ *   <li>Raw data: https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/40678159284, https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/40687277605</li>
+ * </ul>
  */
 @State(Scope.Thread)
 @Fork(
-        value = 1,
+        value = 10,
         jvmArgsAppend = {"-Xms1g", "-Xmx1g", "-XX:+AlwaysPreTouch"})
 @Warmup(iterations = 1, time = 10)
 @Measurement(iterations = 2, time = 10)
