@@ -17,6 +17,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Random;
 import org.hiero.base.crypto.BytesSigner;
+import org.hiero.consensus.benchmark.tools.event.EventShape;
+import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.event.creator.config.EventCreationConfig;
 import org.hiero.consensus.event.creator.impl.DefaultEventCreationManager;
 import org.hiero.consensus.event.creator.impl.EventCreationManager;
@@ -36,9 +38,9 @@ import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.internal.AbstractMiniNode;
 import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
 import org.hiero.otter.fixtures.internal.NetworkConfiguration;
-import org.hiero.otter.fixtures.internal.simulator.SecureRandomBuilder;
 import org.hiero.otter.fixtures.network.simulation.EventReceiver;
 import org.hiero.otter.fixtures.network.simulation.SimulatedNetworkConnectivity;
+import org.hiero.otter.fixtures.util.SecureRandomBuilder;
 
 @SuppressWarnings("ForLoopReplaceableByForEach")
 public class FalconMiniNode extends AbstractMiniNode implements MiniNode, TimeTickReceiver, EventReceiver {
@@ -74,13 +76,34 @@ public class FalconMiniNode extends AbstractMiniNode implements MiniNode, TimeTi
     /** The time of the previous event creation attempt in nanoseconds since the epoch. */
     private long previousCreationAttemptNanos;
 
+    /** The shape the transactions of created events are drawn from, or {@code null} for empty events. */
+    @Nullable
+    private final EventShape transactionShape;
+
+    /** Whether this node signs its events with its own key. */
+    private final boolean signEvents;
+
+    /**
+     * Constructor for {@code FalconMiniNode}.
+     *
+     * @param random the random number generator of the network
+     * @param time the time source
+     * @param selfId the ID of this node
+     * @param keysAndCerts the keys and certificates of this node
+     * @param networkConnectivity the simulated network connectivity
+     * @param networkConfiguration the network configuration
+     * @param transactionShape the shape the transactions of created events are drawn from, or {@code null} for empty events
+     * @param signEvents whether this node signs its events with its own key
+     */
     public FalconMiniNode(
             @NonNull final Random random,
             @NonNull final Time time,
             @NonNull final NodeId selfId,
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final SimulatedNetworkConnectivity networkConnectivity,
-            @NonNull final NetworkConfiguration networkConfiguration) {
+            @NonNull final NetworkConfiguration networkConfiguration,
+            @Nullable final EventShape transactionShape,
+            final boolean signEvents) {
         super(selfId, keysAndCerts, networkConfiguration);
 
         this.random = requireNonNull(random);
@@ -88,6 +111,8 @@ public class FalconMiniNode extends AbstractMiniNode implements MiniNode, TimeTi
         this.networkConnectivity = requireNonNull(networkConnectivity);
         this.nodeConfiguration =
                 new FalconNodeConfiguration(() -> lifeCycle, networkConfiguration.overrideProperties());
+        this.transactionShape = transactionShape;
+        this.signEvents = signEvents;
     }
 
     @Override
@@ -146,9 +171,11 @@ public class FalconMiniNode extends AbstractMiniNode implements MiniNode, TimeTi
         final Configuration configuration = nodeConfiguration.current();
         final SignatureTransactionCheck signatureTransactionCheck = () -> false;
         final SecureRandom secureRandom = new SecureRandomBuilder(random.nextLong()).get();
-        final BytesSigner signer = _ -> Bytes.EMPTY;
+        final BytesSigner signer = signEvents ? new PlatformSigner(keysAndCerts) : _ -> Bytes.EMPTY;
         final RosterWrapper roster = RosterWrapper.of(roster());
-        final EventTransactionSupplier transactionSupplier = List::of;
+        final EventTransactionSupplier transactionSupplier = transactionShape == null
+                ? List::of
+                : new ShapedTransactionSupplier(transactionShape, random.nextLong(), time);
 
         final EventCreator eventCreator = new TipsetEventCreator(
                 configuration, metrics, time, secureRandom, signer, roster, selfId, transactionSupplier);

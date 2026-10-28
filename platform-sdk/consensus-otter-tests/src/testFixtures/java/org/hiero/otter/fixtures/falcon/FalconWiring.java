@@ -6,15 +6,16 @@ import static org.hiero.consensus.wiring.framework.wires.SolderType.INJECT;
 import static org.hiero.consensus.wiring.framework.wires.SolderType.OFFER;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.function.Consumer;
 import org.hiero.base.crypto.BytesSigner;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.NoOpIntakeEventCounter;
@@ -51,14 +52,13 @@ import org.hiero.consensus.wiring.framework.model.DeterministicWiringModel;
 import org.hiero.consensus.wiring.framework.model.WiringModelBuilder;
 import org.hiero.consensus.wiring.framework.wires.input.InputWire;
 import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
+import org.hiero.otter.fixtures.falcon.recording.Step;
 import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
 
 /**
  * A wiring configuration for a stripped down consensus layer that is suitable for testing.
  */
 public class FalconWiring implements TimeTickReceiver {
-
-    private static final Bytes DEFAULT_SIGNATURE = Bytes.EMPTY;
 
     private final DeterministicWiringModel model;
     private final ComponentWiring<EventDeduplicator, PlatformEvent> eventDeduplicatorWiring;
@@ -78,13 +78,20 @@ public class FalconWiring implements TimeTickReceiver {
      * @param selfId the ID of the current node
      * @param pbjRoster the roster of nodes
      * @param secureRandom the secure random number generator
+     * @param signer signs the events this node creates
+     * @param transactionSupplier supplies the transactions of the events this node creates
+     * @param stepRecorder receives every call the event creation manager gets as a {@link Step}, or {@code null} if
+     * nothing is recorded
      */
     public FalconWiring(
             @NonNull final Configuration configuration,
             @NonNull final Time time,
             @NonNull final NodeId selfId,
             @NonNull final Roster pbjRoster,
-            @NonNull final SecureRandom secureRandom) {
+            @NonNull final SecureRandom secureRandom,
+            @NonNull final BytesSigner signer,
+            @NonNull final EventTransactionSupplier transactionSupplier,
+            @Nullable final Consumer<Step> stepRecorder) {
 
         final RosterWrapper roster = RosterWrapper.of(pbjRoster);
 
@@ -119,16 +126,17 @@ public class FalconWiring implements TimeTickReceiver {
 
         final EventCreationWiringConfig eventCreationConfig =
                 configuration.getConfigData(EventCreationWiringConfig.class);
-        final BytesSigner byteSigner = _ -> DEFAULT_SIGNATURE;
-        final EventTransactionSupplier transactionSupplier = List::of;
         final EventCreator eventCreator = new TipsetEventCreator(
-                configuration, metrics, time, secureRandom, byteSigner, roster, selfId, transactionSupplier);
+                configuration, metrics, time, secureRandom, signer, roster, selfId, transactionSupplier);
         final SignatureTransactionCheck signatureTransactionCheck = () -> false;
         final EventCreationManager eventCreationManager = new DefaultEventCreationManager(
                 configuration, metrics, time, signatureTransactionCheck, eventCreator, roster, selfId);
         eventCreationManagerWiring =
                 new ComponentWiring<>(model, EventCreationManager.class, eventCreationConfig.eventCreationManager());
-        eventCreationManagerWiring.bind(eventCreationManager);
+        eventCreationManagerWiring.bind(
+                stepRecorder == null
+                        ? eventCreationManager
+                        : new RecordingEventCreationManager(eventCreationManager, time, selfId, stepRecorder));
 
         statusMonitorModule = new StatusMonitorModule(model, configuration, metrics, time, selfId);
 
