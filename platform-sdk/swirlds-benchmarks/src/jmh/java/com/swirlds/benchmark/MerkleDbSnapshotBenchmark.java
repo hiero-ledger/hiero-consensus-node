@@ -49,11 +49,8 @@ public class MerkleDbSnapshotBenchmark extends VirtualMapBaseBench {
     @Param({"false", "true"})
     public boolean useDiskIndices;
 
-    @Param({"1", "12"})
+    @Param({"1", "4"})
     public int longListWriteThreads;
-
-    @Param({"4"})
-    public int maxLongListWriteThreadsPerFile;
 
     private VirtualDataSource source;
     private Path snapshotDirectory;
@@ -69,7 +66,6 @@ public class MerkleDbSnapshotBenchmark extends VirtualMapBaseBench {
         configurationBuilder.withSource(new SimpleConfigSource()
                 .withValue("merkleDb.useDiskIndices", useDiskIndices)
                 .withValue("merkleDb.longListWriteThreads", longListWriteThreads)
-                .withValue("merkleDb.maxLongListWriteThreadsPerFile", maxLongListWriteThreadsPerFile)
                 .withOrdinal(Integer.MAX_VALUE));
     }
 

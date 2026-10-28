@@ -50,12 +50,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.Future;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -969,30 +967,26 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                                 .setThreadNameProvider(CompositeThreadNameProvider.createNumbered(
                                         MERKLEDB_COMPONENT, "Snapshot index writer"))
                                 .buildFactory())) {
-                    // Each file writes through its own limited view of the pool, so no file takes all writer threads.
-                    final int maxThreadsPerFile = merkleDbConfig.maxLongListWriteThreadsPerFile();
                     final CountDownLatch countDownLatch = new CountDownLatch(4);
                     // The groups run independently. Only the hash group waits for the hash-cache flush.
                     runWithSnapshotExecutor(countDownLatch, snapshotFailure, "hashes", () -> {
                         flushHashChunkCache();
                         idToDiskLocationHashChunks.writeToFile(
                                 snapshotDbPaths.idToDiskLocationHashChunksFile,
-                                limitConcurrency(longListSnapshotExecutor, maxThreadsPerFile),
+                                longListSnapshotExecutor,
                                 snapshotFailure);
                         hashChunkStore.snapshot(snapshotDbPaths.hashChunkDirectory);
                     });
                     runWithSnapshotExecutor(countDownLatch, snapshotFailure, "leaves", () -> {
                         pathToDiskLocationLeafNodes.writeToFile(
                                 snapshotDbPaths.pathToDiskLocationLeafNodesFile,
-                                limitConcurrency(longListSnapshotExecutor, maxThreadsPerFile),
+                                longListSnapshotExecutor,
                                 snapshotFailure);
                         keyValueStore.snapshot(snapshotDbPaths.pathToKeyValueDirectory);
                     });
                     runWithSnapshotExecutor(countDownLatch, snapshotFailure, "keyToPath", () -> {
                         keyToPath.snapshot(
-                                snapshotDbPaths.keyToPathDirectory,
-                                limitConcurrency(longListSnapshotExecutor, maxThreadsPerFile),
-                                snapshotFailure);
+                                snapshotDbPaths.keyToPathDirectory, longListSnapshotExecutor, snapshotFailure);
                     });
                     runWithSnapshotExecutor(
                             countDownLatch, snapshotFailure, "metadata", () -> saveMetadata(snapshotDbPaths));
@@ -1152,32 +1146,6 @@ public final class MerkleDbDataSource implements VirtualDataSource {
 
     // ==================================================================================================================
     // private methods
-
-    /// Returns a view of `executor` that keeps at most `maxTasks` of its tasks queued or running.
-    /// Submitting waits until one of those tasks finishes, so the executor's threads never wait for a permit.
-    ///
-    /// @param executor executor that runs the tasks
-    /// @param maxTasks maximum number of tasks queued or running at once
-    /// @return the limited view of the executor
-    private static Executor limitConcurrency(final Executor executor, final int maxTasks) {
-        final Semaphore permits = new Semaphore(maxTasks);
-        return task -> {
-            permits.acquireUninterruptibly();
-            try {
-                executor.execute(() -> {
-                    try {
-                        task.run();
-                    } finally {
-                        permits.release();
-                    }
-                });
-            } catch (final RuntimeException | Error e) {
-                // A rejected task never runs, so release its permit here.
-                permits.release();
-                throw e;
-            }
-        };
-    }
 
     /// Even after a failure or interruption, finish waiting so no task keeps writing after the
     /// caller regains ownership of the snapshot directory.
