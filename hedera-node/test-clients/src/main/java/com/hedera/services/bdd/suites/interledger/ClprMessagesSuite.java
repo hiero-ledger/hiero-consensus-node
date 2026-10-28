@@ -412,7 +412,7 @@ public class ClprMessagesSuite {
      * {@code ClprUpdateLedgerConfigurationHandler} validation). The service address must equal the
      * one in this ledger's endpoint manifest, which the native verifier enforces (spec §4.8). The
      * endpoint is not a dial target — peers dial from the manifest — and its {@code tlsCertificate}
-     * is a single-byte dummy, not used for actual mTLS in test contexts.
+     * is a single-byte dummy, not used for actual TLS in test contexts.
      */
     private static ClprLedgerConfiguration buildLedgerConfig(final String chainId, final int peerPort) {
         return ClprLedgerConfiguration.newBuilder()
