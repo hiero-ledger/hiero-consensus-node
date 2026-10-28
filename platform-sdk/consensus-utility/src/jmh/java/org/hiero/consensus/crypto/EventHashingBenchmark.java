@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.crypto;
 
-import com.hedera.hapi.platform.event.GossipEvent;
-import com.hedera.pbj.runtime.ParseException;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
+import static org.hiero.consensus.benchmark.tools.event.EmpiricalDistribution.constant;
+import static org.hiero.consensus.benchmark.tools.event.EventShape.MAINNET;
+import static org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory.randomRoster;
+
 import java.security.MessageDigest;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
@@ -14,14 +13,13 @@ import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.benchmark.tools.event.EventShape;
+import org.hiero.consensus.benchmark.tools.event.EventStreamGenerator;
 import org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler;
 import org.hiero.consensus.benchmark.tools.histogram.LatencyRecorder;
 import org.hiero.consensus.model.event.EventHashFactory;
-import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.hashgraph.ConsensusConstants;
-import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -43,43 +41,41 @@ import org.openjdk.jmh.annotations.Warmup;
  * every transaction separately with SHA-384, stores that hash on the transaction, and adds it to the event's digest, so
  * that a transaction can be removed later without changing the event's hash.
  *
- * <p>Every event has a self parent and {@value #OTHER_PARENTS} other parents, the most that the default
- * {@code maxOtherParents} of event creation allows. The number of transactions per event is a parameter: on mainnet,
- * events carry fewer than 0.1 transactions on average (metric {@code trans_per_event}), so most carry none. A
- * transaction has {@value #TRANSACTION_SIZE} bytes, the mainnet mean of the metric {@code bytes_per_trans} over the 30
- * days before October 2026.
+ * <p>The cost grows with the number of parents and of transactions and with the size of the transactions. The events
+ * take their shape from mainnet's ({@link EventShape#MAINNET}): a self parent and the median number of other parents,
+ * four, and transactions of the median size, 470 bytes. The number of transactions per event is a parameter, at two
+ * quantiles of mainnet's events: 0, the median (96% of the events carry none), and 2, the 99th percentile.
  *
- * <p>Events hash with SHA-256 since the event cutover, which is enabled by default. The benchmark sets the cutover to the
- * first round, as a network that starts from genesis does, so every event and every parent's hash uses SHA-256.
+ * <p>{@link EventStreamGenerator} generates the events once per trial from a fixed seed. They are unsigned, because the
+ * hash does not cover the signature. Every hash is a SHA-256 hash, as in production after the event cutover.
  *
- * <p>The events are generated once per trial from a fixed seed and serialized. Every invocation parses them again into
- * new events, as gossip receives them, outside the measured region. The parsed records compute their encoded size on
- * first use and keep it, and in production the hasher is the first to use it; hashing the same events again would skip
- * that work.
+ * <p>The intake hashes an event first, right after it has received it, with the event's data still in the CPU caches.
+ * So the benchmark receives every event anew right before it hashes it, as a node receives it through gossip but
+ * unhashed ({@link EventStreamGenerator#receiveUnhashed(List)}). Hashing the same objects in every pass could reuse
+ * what the previous pass left in them, such as the encoded size that a PBJ record keeps after its first use.
  *
  * <p>After every invocation, the SHA-256 digest of the hashes of all events, in order, must equal a constant. It
  * changes when the events or the hashing change.
  *
- * <p>One invocation, a pass, hashes {@value #NUMBER_OF_EVENTS} events. The primary score is the mean time per event. A
- * {@link LatencyRecorder} also times every call but the first, with one timestamp per call
- * ({@link LatencyRecorder#lap()}). {@link LatencyProfiler} reports the percentiles and the allocation per call. The
- * allocation is measured around the timed calls only, because {@code -prof gc} also counts the parsing in the setup.
+ * <p>One invocation, a pass, receives and hashes {@value #NUMBER_OF_EVENTS} events. A {@link LatencyRecorder} is paused
+ * while an event is received, so the receiving counts neither in a latency nor in the allocation. It times each hash
+ * from {@link LatencyRecorder#resume()} right before the call to {@link LatencyRecorder#lap()} right after it, and
+ * {@link LatencyProfiler} reports the percentiles and the allocation per hash. JMH's primary score, the mean time per
+ * event of the whole pass, includes the receiving; track {@code latency.mean} instead.
  *
  * <p>The first call of a pass, right after the setup, is hashed but not timed. On an Apple M4 laptop, its median was
- * 5.8–6.7 µs without transactions and 8.1–9.0 µs with one, against about 0.4 µs and 0.8 µs for the other calls. One
- * call in {@value #NUMBER_OF_EVENTS} is exactly the share above p99.99, so timing it would put the setup into p99.99;
- * without it, p99.99 was 4.0 µs and 4.4 µs. No such setup precedes an event in production.
+ * 3.0–3.3 µs without transactions and 4.1–4.5 µs with two, against about 0.38 µs and 1.0 µs for the other calls.
+ * Without transactions, timing it put p99.99 at 3.1–8.6 µs, against 0.8–1.1 µs without it, in the same run; with two,
+ * other calls already reach that percentile. No such setup precedes an event in production.
  *
- * <p>A hash takes so little time that the timing is a noticeable part of every latency. On an Apple M4 laptop,
- * {@code lap()} added 12.2–14.7 ns to a call without transactions (3.0–3.6% of the timed call) and 14.4–15.8 ns to a
- * call with one (1.8–2.0%), measured with and without laps in chunks interleaved in the same run; on the benchmark
- * machine it is unmeasured. A CPU profile overstates this share, at 6.8–7.8%. The share is about constant, so a
- * regression of the hasher still shows in full nanoseconds, but as a slightly smaller percentage.
+ * <p>Each latency also contains one reading of the clock, which is a noticeable part of a call this short. On an Apple
+ * M4 laptop, an empty call, {@code resume()} directly followed by {@code lap()}, took 11.2–11.3 ns on average, about 3%
+ * of a hash without transactions and 1% of one with two; on the benchmark machine it is unmeasured. The share is about
+ * constant, so a regression of the hasher still shows in full nanoseconds, but as a slightly smaller percentage.
  *
- * <p>Each invocation's setup ends with {@code System.gc()}, so usually no garbage collection falls into the measured
- * calls. A pass during which one does is discarded and replaced by the next invocation, so the latency results and
- * {@code latency.mean} exclude garbage collection. JMH's primary score, measured by JMH itself, still includes
- * discarded passes.
+ * <p>Each invocation's setup ends with {@code System.gc()}, so usually no garbage collection falls into the pass,
+ * although receiving allocates several kilobytes per event. A pass during which one does is discarded and replaced by
+ * the next invocation, so the latency results and {@code latency.mean} exclude garbage collection.
  *
  * <p>Run with {@code -prof org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler}.
  */
@@ -98,129 +94,59 @@ public class EventHashingBenchmark {
     private static final int NUMBER_OF_EVENTS = 10_000;
 
     /** The number of nodes that create the events. It only has to exceed the number of parents of an event. */
-    private static final int NUMBER_OF_NODES = 10;
-
-    /** The number of other parents of every event, the default {@code maxOtherParents} of event creation. */
-    private static final int OTHER_PARENTS = 4;
-
-    /** The size of a transaction in bytes, the mainnet mean. */
-    private static final int TRANSACTION_SIZE = 445;
+    private static final int NUMBER_OF_NODES = 32;
 
     /**
      * The SHA-256 digest of the hashes of all events, in order, by the number of transactions per event. A change to
-     * the event builder or to the hashing changes it.
+     * the generated events or to the hashing changes it.
      */
     private static final Map<Integer, String> EXPECTED_DIGESTS = Map.of(
-            0, "116abb7428503a8644ac763aff5f781bc647356829dcf5df065a13f1ddfad4d9",
-            1, "1e960f80e7eef793182b5a2d15d59f25a84e7d922224b63bf067f38aa3e2ad37");
+            0, "052929850f50a96db68dab2e13b514ee740a1f2b52c13e083c1f4daef62722ec",
+            2, "49ac621ed6d3c6fe77fc685d33a1e0c5ed84c87bb1dccfefc53b52990f5f3712");
 
     /** The number of transactions of every event. */
-    @Param({"0", "1"})
+    @Param({"0", "2"})
     public int transactionsPerEvent;
 
     /** The hasher under test. */
     private EventHasher hasher;
 
-    /** The generated events, serialized as gossip sends them. */
-    private List<Bytes> serializedEvents;
+    /** The generated events, as their creators created them. */
+    private List<PlatformEvent> generatedEvents;
 
-    /** The events that the hasher hashes in one invocation, parsed as gossip receives them. */
-    private List<PlatformEvent> events;
+    /** The events that the hasher hashed in one invocation, kept for the check after it. */
+    private PlatformEvent[] events;
 
     /** The latency recorder for the benchmark. */
     private LatencyRecorder recorder;
 
     /**
-     * Generates and serializes the events and creates the hasher. This method is called once per trial.
+     * Generates the events and creates the hasher. This method is called once per trial.
      */
     @Setup(Level.Trial)
     public void generateEvents() {
-        // Every event is past the cutover: the parents get SHA-256 hashes, and the hasher uses SHA-256.
-        EventHashFactory.initialize(ConsensusConstants.ROUND_FIRST);
-        final Random random = new Random(SEED);
+        final EventShape shape = new EventShape(
+                constant(MAINNET.otherParents().median()),
+                constant(transactionsPerEvent),
+                constant(MAINNET.transactionSize().median()));
 
-        // The first event of every node has no parents. It is a parent only and is not hashed.
-        final PlatformEvent[] latestEvents = new PlatformEvent[NUMBER_OF_NODES];
-        for (int node = 0; node < NUMBER_OF_NODES; node++) {
-            latestEvents[node] = new TestingEventBuilder(random)
-                    .setCreatorId(NodeId.of(node))
-                    .setAppTransactionCount(0)
-                    .build();
-        }
-
-        final List<Integer> otherNodes = new ArrayList<>(NUMBER_OF_NODES - 1);
-        serializedEvents = new ArrayList<>(NUMBER_OF_EVENTS);
-        for (int i = 0; i < NUMBER_OF_EVENTS; i++) {
-            final int creator = i % NUMBER_OF_NODES;
-            otherNodes.clear();
-            for (int node = 0; node < NUMBER_OF_NODES; node++) {
-                if (node != creator) {
-                    otherNodes.add(node);
-                }
-            }
-            Collections.shuffle(otherNodes, random);
-            final List<PlatformEvent> otherParents = new ArrayList<>(OTHER_PARENTS);
-            for (int j = 0; j < OTHER_PARENTS; j++) {
-                otherParents.add(latestEvents[otherNodes.get(j)]);
-            }
-            final PlatformEvent event = new TestingEventBuilder(random)
-                    .setSelfParent(latestEvents[creator])
-                    .setOtherParents(otherParents)
-                    .setAppTransactionCount(transactionsPerEvent)
-                    .setTransactionSize(TRANSACTION_SIZE)
-                    .build();
-            latestEvents[creator] = event;
-            serializedEvents.add(GossipEvent.PROTOBUF.toBytes(event.getGossipEvent()));
-        }
-        verifyInputs();
+        // Every event birth round is past the cutover, so every event is hashed with SHA-256.
+        EventHashFactory.initialize(0);
+        final RosterWrapper roster = randomRoster(new Random(SEED), NUMBER_OF_NODES);
+        generatedEvents = EventStreamGenerator.generateUnsignedEvents(shape, roster, NUMBER_OF_EVENTS, SEED);
 
         hasher = new DefaultEventHasher();
     }
 
     /**
-     * Parses a serialized event, as gossip does.
-     */
-    private static GossipEvent parse(final Bytes serializedEvent) {
-        try {
-            return GossipEvent.PROTOBUF.parse(serializedEvent);
-        } catch (final ParseException e) {
-            throw new IllegalStateException("Failed to parse a generated event", e);
-        }
-    }
-
-    /**
-     * Verifies that every event has the parents and transactions that set the hasher's work, so that a change to the
-     * event builder cannot change the work unnoticed.
-     */
-    private void verifyInputs() {
-        for (final Bytes serializedEvent : serializedEvents) {
-            final GossipEvent event = parse(serializedEvent);
-            final boolean expectedParents = event.parents().size() == 1 + OTHER_PARENTS
-                    && event.parents().stream()
-                            .allMatch(parent -> parent.hash().length() == DigestType.SHA_256.digestLength());
-            final boolean expectedTransactions = event.transactions().size() == transactionsPerEvent
-                    && event.transactions().stream().allMatch(transaction -> transaction.length() == TRANSACTION_SIZE);
-            if (!expectedParents || !expectedTransactions) {
-                throw new IllegalStateException(
-                        "Expected events with %d parents with SHA-256 hashes and %d transactions of %d bytes, but got %s"
-                                .formatted(1 + OTHER_PARENTS, transactionsPerEvent, TRANSACTION_SIZE, event));
-            }
-        }
-    }
-
-    /**
-     * Prepares the benchmark invocation by parsing the serialized events. This method is called once per invocation.
+     * Prepares the benchmark invocation. This method is called once per invocation.
      */
     @Setup(Level.Invocation)
     public void prepareInvocation() {
-        events = new ArrayList<>(NUMBER_OF_EVENTS);
-        for (final Bytes serializedEvent : serializedEvents) {
-            events.add(new PlatformEvent(parse(serializedEvent), EventOrigin.GOSSIP));
-        }
+        events = new PlatformEvent[NUMBER_OF_EVENTS];
         recorder = LatencyProfiler.recorder();
 
-        // Collect the garbage of the setup and of the previous invocation now, so that it is not collected during the
-        // measured calls.
+        // Collect the garbage of the previous invocation now, so that it is not collected during the measured calls.
         System.gc();
     }
 
@@ -248,7 +174,8 @@ public class EventHashingBenchmark {
     }
 
     /**
-     * Hashes all events and records the latency of each call but the first.
+     * Receives every event anew and hashes it right away, as the intake does, and records the latency of each hash but
+     * the first. The recorder is paused while an event is received.
      */
     @Benchmark
     @BenchmarkMode(Mode.AverageTime)
@@ -256,15 +183,23 @@ public class EventHashingBenchmark {
     @OperationsPerInvocation(NUMBER_OF_EVENTS)
     public void hashEvents() {
         recorder.startMeasurement();
-        // The first call follows the setup, which makes it slow; it is hashed but not timed.
         recorder.pause();
-        hasher.hashEvent(events.getFirst());
-        recorder.resume();
+        // The first call follows the setup, which makes it slow; it is hashed but not timed.
+        events[0] = hasher.hashEvent(receiveUnhashed(generatedEvents.getFirst()));
         for (int i = 1; i < NUMBER_OF_EVENTS; i++) {
-            hasher.hashEvent(events.get(i));
-            // One timestamp per call: each latency also contains the loop step to the next event.
+            final PlatformEvent event = receiveUnhashed(generatedEvents.get(i));
+            recorder.resume();
+            hasher.hashEvent(event);
             recorder.lap();
+            recorder.pause();
+            events[i] = event;
         }
+        recorder.resume();
         recorder.stopMeasurement();
+    }
+
+    /** Receives a generated event anew, as the intake receives it: parsed from the gossip streams and built. */
+    private static PlatformEvent receiveUnhashed(final PlatformEvent generatedEvent) {
+        return EventStreamGenerator.receiveUnhashed(List.of(generatedEvent)).getFirst();
     }
 }
