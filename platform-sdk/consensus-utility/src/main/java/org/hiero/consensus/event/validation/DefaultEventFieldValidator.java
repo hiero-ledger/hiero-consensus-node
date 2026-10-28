@@ -124,7 +124,7 @@ public class DefaultEventFieldValidator implements EventFieldValidator {
     }
 
     private static boolean containsNullParent(@NonNull final List<EventDescriptor> parents) {
-        for (int i = 0, n = parents.size(); i < n; i++) {
+        for (int i = 0, parentSize = parents.size(); i < parentSize; i++) {
             if (parents.get(i) == null) {
                 return true;
             }
@@ -133,7 +133,7 @@ public class DefaultEventFieldValidator implements EventFieldValidator {
     }
 
     private static boolean containsNullTransaction(@NonNull final List<Bytes> transactions) {
-        for (int i = 0, n = transactions.size(); i < n; i++) {
+        for (int i = 0, transactionSize = transactions.size(); i < transactionSize; i++) {
             final Bytes transaction = transactions.get(i);
             if (transaction == null || transaction.length() == 0) {
                 return true;
@@ -145,7 +145,7 @@ public class DefaultEventFieldValidator implements EventFieldValidator {
     private boolean areByteFieldsCorrectLength(@NonNull final PlatformEvent event) {
         final GossipEvent gossipEvent = event.getGossipEvent();
         final List<EventDescriptor> parents = gossipEvent.parents();
-        for (int i = 0, n = parents.size(); i < n; i++) {
+        for (int i = 0, parentSize = parents.size(); i < parentSize; i++) {
             final EventDescriptor parent = parents.get(i);
             final DigestType expectedDigestType = EventHashFactory.getTypeForBirthRound(parent.birthRound());
             if (parent.hash().length() != expectedDigestType.digestLength()) {
@@ -165,7 +165,7 @@ public class DefaultEventFieldValidator implements EventFieldValidator {
     private boolean isTransactionByteCountValid(@NonNull final PlatformEvent event) {
         long totalTransactionBytes = 0;
         final List<TransactionWrapper> transactions = event.getTransactions();
-        for (int i = 0, n = transactions.size(); i < n; i++) {
+        for (int i = 0, transactionSize = transactions.size(); i < transactionSize; i++) {
             totalTransactionBytes += transactions.get(i).getSize();
         }
 
@@ -185,12 +185,12 @@ public class DefaultEventFieldValidator implements EventFieldValidator {
         // Checking uniqueness manually as this is slightly faster for small lists.
         final List<EventDescriptorWrapper> parents = event.getAllParents();
         final long[] creators = new long[parents.size()];
-        for (int i = 0, n = creators.length; i < n; i++) {
+        for (int i = 0, creatorsLength = creators.length; i < creatorsLength; i++) {
             creators[i] = parents.get(i).creator().id();
         }
         Arrays.sort(creators);
         boolean unique = true;
-        for (int i = 1, n = creators.length; i < n && unique; i++) {
+        for (int i = 1, creatorsLength = creators.length; i < creatorsLength && unique; i++) {
             unique = creators[i] != creators[i - 1];
         }
 
@@ -211,7 +211,7 @@ public class DefaultEventFieldValidator implements EventFieldValidator {
 
         long maxParentBirthRound = ROUND_NEGATIVE_INFINITY;
         final List<EventDescriptorWrapper> parents = event.getAllParents();
-        for (int i = 0, n = parents.size(); i < n; i++) {
+        for (int i = 0, parentSize = parents.size(); i < parentSize; i++) {
             maxParentBirthRound = Math.max(maxParentBirthRound, parents.get(i).birthRound());
         }
 
