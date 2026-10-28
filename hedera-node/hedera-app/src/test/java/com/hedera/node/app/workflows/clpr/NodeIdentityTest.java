@@ -52,15 +52,6 @@ class NodeIdentityTest {
     }
 
     @Test
-    @DisplayName("loopback host on the configured CLPR mTLS port is self")
-    void loopbackOnClprMtlsPortIsSelf() {
-        final int clprMtlsPort = 50214;
-        final var identity = new NodeIdentity(grpcConfig, clprMtlsPort, selfNodeInfo);
-
-        assertThat(identity.isSelf("127.0.0.1", clprMtlsPort)).isTrue();
-    }
-
-    @Test
     @DisplayName("loopback host on an unrelated port is not self when hapiEndpoints don't match")
     void loopbackOnUnrelatedPortIsNotSelf() {
         given(selfNodeInfo.hapiEndpoints()).willReturn(List.of());

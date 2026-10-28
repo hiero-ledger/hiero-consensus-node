@@ -2228,6 +2228,7 @@ class AtomicBatchPrecompileTest {
                                     MINIMUM_TO_COLLECT,
                                     OptionalLong.of(MAXIMUM_TO_COLLECT),
                                     TOKEN_TREASURY)),
+                    exposeTargetLedgerIdTo(targetLedgerId::set),
                     withOpContext((spec, opLog) -> allRunFor(
                             spec,
                             atomicBatchDefaultOperator(contractCall(
@@ -2242,7 +2243,6 @@ class AtomicBatchPrecompileTest {
                                     GET_INFORMATION_FOR_TOKEN,
                                     HapiParserUtil.asHeadlongAddress(
                                             asAddress(spec.registry().getTokenID(FUNGIBLE_TOKEN)))))),
-                    exposeTargetLedgerIdTo(targetLedgerId::set),
                     withOpContext((spec, opLog) -> {
                         final var getTokenInfoQuery = getTokenInfo(FUNGIBLE_TOKEN);
                         allRunFor(spec, getTokenInfoQuery);

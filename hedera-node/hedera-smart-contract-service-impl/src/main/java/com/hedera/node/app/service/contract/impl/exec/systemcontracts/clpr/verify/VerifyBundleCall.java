@@ -109,10 +109,6 @@ public class VerifyBundleCall extends AbstractCall {
                 bundlePayload.length,
                 GAS_REQUIREMENT);
 
-        final DigestType digestType =
-                configOf(frame).getConfigData(BlockStreamConfig.class).digestType();
-        final MessageDigest digest = CommonUtils.digestOrThrow(digestType);
-
         final StateProof proof;
         try {
             proof = StateProof.PROTOBUF.parseStrict(Bytes.wrap(bundlePayload).toReadableSequentialData());
@@ -120,6 +116,16 @@ public class VerifyBundleCall extends AbstractCall {
             log.error("verifyBundle: failed to parse StateProof for trustAnchor {}", trustAnchorBytes, e);
             return fail();
         }
+
+        // The proving ledger built this proof with its own genesis-pinned digest, which is independent of
+        // this node's configured blockStream.digestType; infer it from the proof's hash lengths so a SHA-384
+        // ledger's proof verifies on a SHA-256 node and vice versa. Fall back to configuration only when the
+        // proof carries no usable length signal.
+        final DigestType inferred = StateProofVerifier.inferDigestType(proof);
+        final DigestType digestType = inferred != null
+                ? inferred
+                : configOf(frame).getConfigData(BlockStreamConfig.class).digestType();
+        final MessageDigest digest = CommonUtils.digestOrThrow(digestType);
 
         // 1. The bundle paths are independent leaf-to-block-root paths, so we cannot use
         //    computeBlockRootHash (which assumes a single connected proof tree). Each path

@@ -58,11 +58,7 @@ public class BlockNodeSimSuite {
                         nodeId = 0,
                         blockNodeIds = {0, 1, 2, 3},
                         blockNodePriorities = {0, 1, 2, 3},
-                        applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC",
-                            "blockStream.buffer.ackedBlocksToRetain", "25"
-                        })
+                        applicationPropertiesOverrides = {"blockStream.buffer.ackedBlocksToRetain", "25"})
             })
     @Order(1)
     final Stream<DynamicTest> node0StreamingBlockNodeConnectionDropsTrickle() {
@@ -162,8 +158,6 @@ public class BlockNodeSimSuite {
                             BLOCK_PERIOD_SECONDS + "s",
                             "blockStream.streamMode",
                             "BLOCKS",
-                            "blockStream.writerMode",
-                            "FILE_AND_GRPC",
                             "blockNode.forcedSwitchRescheduleDelay",
                             "30s",
                             "blockStream.streamWrappedRecordBlocks",
@@ -191,7 +185,7 @@ public class BlockNodeSimSuite {
                         Duration.ofMinutes(2),
                         Duration.ofMinutes(2),
                         // look for the saturation reaching the action stage (50%)
-                        "ByBlockCount: 50.0000%",
+                        "ByBlockCount: 50.0%",
                         // look for the log that shows the monitor detected buffer saturation
                         "Streaming connection update requested",
                         "buffer-unhealthy",
@@ -206,7 +200,7 @@ public class BlockNodeSimSuite {
                         Duration.ofMinutes(2),
                         Duration.ofMinutes(2),
                         // saturation should fall back to low levels after switching to node 1
-                        "ByBlockCount: 0.0000%")));
+                        "ByBlockCount: 0.0%")));
     }
 
     @HapiTest
@@ -221,8 +215,6 @@ public class BlockNodeSimSuite {
                         applicationPropertiesOverrides = {
                             "blockStream.streamMode",
                             "BLOCKS",
-                            "blockStream.writerMode",
-                            "FILE_AND_GRPC",
                             "blockStream.buffer.maxBlocks",
                             "60",
                             "blockStream.buffer.isBufferPersistenceEnabled",
@@ -273,7 +265,7 @@ public class BlockNodeSimSuite {
                         timeRef::get,
                         Duration.ofMinutes(3),
                         Duration.ofMinutes(3),
-                        "ByBlockCount: 0.0000%")));
+                        "ByBlockCount: 0.0%")));
     }
 
     /**
@@ -293,7 +285,6 @@ public class BlockNodeSimSuite {
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
                             "blockStream.streamMode", "BLOCKS",
-                            "blockStream.writerMode", "FILE_AND_GRPC",
                             "blockStream.blockPeriod", BLOCK_PERIOD_SECONDS + "s",
                             "blockStream.streamWrappedRecordBlocks", "false",
                             "blockNode.maxEndOfStreamsAllowed", "50",
@@ -417,7 +408,6 @@ public class BlockNodeSimSuite {
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
                             "blockStream.streamMode", "BLOCKS",
-                            "blockStream.writerMode", "FILE_AND_GRPC",
                             "blockStream.blockPeriod", BLOCK_PERIOD_SECONDS + "s",
                             "blockStream.streamWrappedRecordBlocks", "false",
                             "blockStream.buffer.maxBlocks", "15",
@@ -480,7 +470,6 @@ public class BlockNodeSimSuite {
                         blockNodePriorities = {0, 1},
                         applicationPropertiesOverrides = {
                             "blockStream.streamMode", "BLOCKS",
-                            "blockStream.writerMode", "FILE_AND_GRPC",
                             "blockStream.blockPeriod", BLOCK_PERIOD_SECONDS + "s",
                             "blockStream.streamWrappedRecordBlocks", "false",
                             "blockNode.globalCoolDownSeconds", "0",
@@ -542,7 +531,6 @@ public class BlockNodeSimSuite {
                         blockNodePriorities = {0, 1},
                         applicationPropertiesOverrides = {
                             "blockStream.streamMode", "BLOCKS",
-                            "blockStream.writerMode", "FILE_AND_GRPC",
                             "blockStream.blockPeriod", BLOCK_PERIOD_SECONDS + "s",
                             "blockStream.streamWrappedRecordBlocks", "false",
                             "blockNode.highLatencyThreshold", "1s",

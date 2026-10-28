@@ -136,6 +136,8 @@ public abstract class BlockNodeCommunicationTestBase {
         assertThat(Files.exists(Path.of(configPath))).isTrue();
 
         return HederaTestConfigBuilder.create()
+                .withValue("blockStream.blockPeriod", "2s")
+                .withValue("blockStream.buffer.minAcksRequiredPerBlock", 1)
                 .withValue("blockStream.writerMode", "FILE_AND_GRPC")
                 .withValue("blockNode.blockNodeConnectionFileDir", configPath)
                 .withValue("blockNode.highLatencyEventsBeforeSwitching", 3)

@@ -54,10 +54,12 @@ defaults:
 permissions:
   contents: read
 
-# never two calibration runs at once: they would load each other's node
+# never two calibration runs at once: they would load each other's node. queue: max keeps up to 100 waiting runs and
+# starts them one after another; without it, each new run would cancel the one waiting.
 concurrency:
   group: benchmark-calibration
   cancel-in-progress: false
+  queue: max
 
 env:
   GRADLE_CACHE_USERNAME: ${{ secrets.GRADLE_CACHE_USERNAME }}

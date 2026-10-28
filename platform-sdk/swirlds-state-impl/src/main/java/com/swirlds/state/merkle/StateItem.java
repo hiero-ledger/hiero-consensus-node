@@ -47,7 +47,7 @@ public record StateItem(@NonNull Bytes key, @NonNull Bytes value) {
     /**
      * Protobuf Codec for StateItem model object. Generated based on protobuf schema.
      */
-    public static final class StateItemCodec implements Codec<StateItem> {
+    public static final class StateItemCodec extends Codec<StateItem> {
 
         static final FieldDefinition FIELD_KEY = new FieldDefinition("keyBytes", FieldType.BYTES, false, 2);
         static final FieldDefinition FIELD_VALUE = new FieldDefinition("valueBytes", FieldType.BYTES, false, 3);
@@ -65,7 +65,7 @@ public record StateItem(@NonNull Bytes key, @NonNull Bytes value) {
          * @return Parsed StateItem model object
          * @throws ParseException If parsing fails
          */
-        public @NonNull StateItem parse(
+        protected @NonNull StateItem parseImpl(
                 @NonNull final ReadableSequentialData input,
                 final boolean strictMode,
                 final boolean parseUnknownFields,
@@ -135,19 +135,10 @@ public record StateItem(@NonNull Bytes key, @NonNull Bytes value) {
          * @param out  The output stream to write to
          * @throws IOException If there is a problem writing
          */
-        public void write(@NonNull StateItem data, @NonNull final WritableSequentialData out) throws IOException {
+        protected void writeImpl(@NonNull StateItem data, @NonNull final WritableSequentialData out)
+                throws IOException {
             writeDelimited(out, FIELD_KEY, toIntExact(data.key.length()), v -> v.writeBytes(data.key));
             writeDelimited(out, FIELD_VALUE, toIntExact(data.value.length()), v -> v.writeBytes(data.value));
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        public int measure(@NonNull final ReadableSequentialData input) throws ParseException {
-            final var start = input.position();
-            parse(input);
-            final var end = input.position();
-            return (int) (end - start);
         }
 
         /**
@@ -170,15 +161,6 @@ public record StateItem(@NonNull Bytes key, @NonNull Bytes value) {
             size += toIntExact(item.value.length());
 
             return size;
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public boolean fastEquals(@NonNull StateItem item, @NonNull ReadableSequentialData input)
-                throws ParseException {
-            return item.equals(parse(input));
         }
 
         /**

@@ -3,10 +3,12 @@ package org.hiero.otter.fixtures.junit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.lang.reflect.Method;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import org.hiero.otter.fixtures.FalconTest;
@@ -15,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ConditionEvaluationResult;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.extension.TestTemplateInvocationContext;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /**
  * Tests the {@link FalconTest#failureThreshold()} support of {@link FalconTestExtension}.
@@ -100,6 +103,66 @@ class FalconFailureThresholdTest {
     }
 
     @Test
+    @DisplayName("Every argument set runs a sweep of its own, one argument set after the other")
+    void everyArgumentSetRunsItsOwnSweep() {
+        final List<TestTemplateInvocationContext> contexts = extension
+                .provideTestTemplateInvocationContexts(contextFor("twoArgumentSets"))
+                .toList();
+
+        assertThat(contexts).hasSize(6);
+        assertThat(contexts.subList(0, 3))
+                .allMatch(context -> context.getDisplayName(0).startsWith("[1] "));
+        assertThat(contexts.subList(3, 6))
+                .allMatch(context -> context.getDisplayName(0).startsWith("[2] "));
+    }
+
+    @Test
+    @DisplayName("A failing argument set does not skip the sweeps of the other argument sets")
+    void failingArgumentSetDoesNotSkipOtherArgumentSets() {
+        final List<FalconFailureThresholdExtension> repetitions = repetitionsOf("twoArgumentSets");
+
+        // The first repetition of the first argument set fails, which reaches the default threshold of one.
+        assertThat(isDisabled(repetitions.get(0))).isFalse();
+        fail(repetitions.get(0));
+        assertThat(isDisabled(repetitions.get(1))).isTrue();
+        assertThat(isDisabled(repetitions.get(2))).isTrue();
+
+        // The sweep of the second argument set runs in full.
+        assertThat(isDisabled(repetitions.get(3))).isFalse();
+        assertThat(isDisabled(repetitions.get(4))).isFalse();
+        assertThat(isDisabled(repetitions.get(5))).isFalse();
+    }
+
+    @Test
+    @DisplayName("The failure threshold is counted per argument set")
+    void thresholdIsCountedPerArgumentSet() {
+        final List<FalconFailureThresholdExtension> repetitions = repetitionsOf("twoArgumentSetsWithThresholdOfTwo");
+        assertThat(repetitions).hasSize(10);
+
+        // One repetition fails in each argument set. Together they would reach the threshold of two.
+        fail(repetitions.get(0));
+        fail(repetitions.get(5));
+
+        assertThat(repetitions.subList(1, 5)).noneMatch(FalconFailureThresholdTest::isDisabled);
+        assertThat(repetitions.subList(6, 10)).noneMatch(FalconFailureThresholdTest::isDisabled);
+    }
+
+    @Test
+    @DisplayName("A replay of a pinned seed runs once per argument set, without a failure threshold")
+    void replayRunsOncePerArgumentSet() {
+        final List<TestTemplateInvocationContext> contexts = extension
+                .provideTestTemplateInvocationContexts(contextFor("replayWithArguments"))
+                .toList();
+
+        assertThat(contexts)
+                .extracting(context -> context.getDisplayName(0))
+                .containsExactly("[1] [replay] seed=42L", "[2] [replay] seed=42L");
+        assertThat(contexts)
+                .flatExtracting(TestTemplateInvocationContext::getAdditionalExtensions)
+                .noneMatch(FalconFailureThresholdExtension.class::isInstance);
+    }
+
+    @Test
     @DisplayName("A threshold outside of the valid range is rejected")
     void invalidThresholdIsRejected() {
         for (final String testMethod : List.of("thresholdOfZero", "thresholdEqualToRepetitions", "negativeThreshold")) {
@@ -132,15 +195,14 @@ class FalconFailureThresholdTest {
      * Creates an extension context that reports the given sample method as the test method.
      */
     private static ExtensionContext contextFor(final String testMethod) {
-        final Method method;
-        try {
-            method = Samples.class.getDeclaredMethod(testMethod);
-        } catch (final NoSuchMethodException e) {
-            throw new IllegalArgumentException("No sample method named " + testMethod, e);
-        }
+        final Method method = Arrays.stream(Samples.class.getDeclaredMethods())
+                .filter(candidate -> candidate.getName().equals(testMethod))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("No sample method named " + testMethod));
         final ExtensionContext context = mock(ExtensionContext.class);
         when(context.getElement()).thenReturn(Optional.of(method));
         when(context.getRequiredTestMethod()).thenReturn(method);
+        doReturn(Samples.class).when(context).getRequiredTestClass();
         return context;
     }
 
@@ -185,5 +247,17 @@ class FalconFailureThresholdTest {
 
         @FalconTest(repetitions = 5, failureThreshold = -1)
         void negativeThreshold() {}
+
+        @FalconTest(repetitions = 3)
+        @ValueSource(ints = {1, 2})
+        void twoArgumentSets(final int value) {}
+
+        @FalconTest(repetitions = 5, failureThreshold = 2)
+        @ValueSource(ints = {1, 2})
+        void twoArgumentSetsWithThresholdOfTwo(final int value) {}
+
+        @FalconTest(repetitions = 5, failureThreshold = 2, randomSeed = 42L)
+        @ValueSource(ints = {1, 2})
+        void replayWithArguments(final int value) {}
     }
 }

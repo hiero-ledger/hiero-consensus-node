@@ -4,6 +4,7 @@ plugins {
     id("org.hiero.gradle.feature.publish-artifactregistry")
     id("org.hiero.gradle.feature.test-timing-sensitive")
     id("org.hiero.gradle.feature.benchmark")
+    id("org.hiero.gradle.feature.benchmark-tracking")
 }
 
 description = "Consensus Metrics"
@@ -38,6 +39,12 @@ timingSensitiveModuleInfo {
 
 jmhModuleInfo {
     requires("com.swirlds.config.extensions.test.fixtures")
+    requires("org.hiero.consensus.benchmark.tools")
     requires("org.hiero.consensus.metrics")
     requires("jmh.core")
+}
+
+jmh {
+    // the benchmarks that are tracked; -PjmhTests=<pattern> runs others instead
+    includes.convention(listOf("MetricUpdateBenchmark"))
 }

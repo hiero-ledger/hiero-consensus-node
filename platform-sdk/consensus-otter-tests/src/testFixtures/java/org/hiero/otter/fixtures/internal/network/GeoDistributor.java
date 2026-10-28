@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
-import org.hiero.otter.fixtures.Node;
+import org.hiero.otter.fixtures.MiniNode;
 import org.hiero.otter.fixtures.internal.network.GeoMeshTopologyImpl.Location;
 import org.hiero.otter.fixtures.network.GeoMeshTopologyConfiguration;
 
@@ -53,7 +53,8 @@ public class GeoDistributor {
      * @return the calculated location for the new node
      */
     public static Location calculateNextLocation(
-            @NonNull final GeoMeshTopologyConfiguration configuration, @NonNull final Map<Node, Location> nodes) {
+            @NonNull final GeoMeshTopologyConfiguration configuration,
+            @NonNull final Map<? extends MiniNode, Location> nodes) {
         requireNonNull(configuration);
 
         final List<Continent> continents = extractContinents(nodes);
@@ -102,7 +103,7 @@ public class GeoDistributor {
         return bestOption;
     }
 
-    private static List<Continent> extractContinents(final Map<Node, Location> nodes) {
+    private static List<Continent> extractContinents(final Map<? extends MiniNode, Location> nodes) {
         final Map<String, Map<String, Long>> groups = nodes.values().stream()
                 .collect(groupingBy(
                         Location::continent, TreeMap::new, groupingBy(Location::region, TreeMap::new, counting())));
