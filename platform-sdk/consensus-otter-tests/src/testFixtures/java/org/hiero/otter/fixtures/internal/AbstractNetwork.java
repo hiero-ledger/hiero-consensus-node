@@ -6,7 +6,7 @@ import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.CATASTROPHIC_FAILURE;
 import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
 import static org.hiero.consensus.model.status.PlatformStatus.FREEZE_COMPLETE;
-import static org.hiero.otter.fixtures.internal.AbstractNode.UNSET_WEIGHT;
+import static org.hiero.otter.fixtures.internal.AbstractMiniNode.UNSET_WEIGHT;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -377,7 +377,7 @@ public abstract class AbstractNetwork implements Network {
         lifecycle = Lifecycle.RUNNING;
         updateConnections();
         for (final MiniNode node : allNodes()) {
-            ((AbstractNode) node).roster(roster);
+            ((AbstractMiniNode) node).roster(roster);
             node.start();
         }
 
@@ -413,7 +413,7 @@ public abstract class AbstractNetwork implements Network {
         try {
             final long id = node.selfId().id();
             final byte[] certificate =
-                    ((AbstractNode) node).gossipCaCertificate().getEncoded();
+                    ((AbstractMiniNode) node).gossipCaCertificate().getEncoded();
             return RosterEntry.newBuilder()
                     .nodeId(id)
                     .weight(weight)
