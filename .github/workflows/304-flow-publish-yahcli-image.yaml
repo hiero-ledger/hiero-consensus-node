@@ -62,7 +62,6 @@ jobs:
     name: ${{ inputs.custom-job-name || 'Publish Yahcli Image' }}
     needs:
       - extract-jdk-version
-    if: ${{ github.event.repository.visibility == 'public' }}
     runs-on: hl-cn-default-lin-lg
     outputs:
       docker-image: ${{ steps.set-registry.outputs.docker-tag-base }}/yahcli:${{ steps.resolve-version.outputs.version }}
@@ -83,13 +82,19 @@ jobs:
 
       - name: Resolve Version
         id: resolve-version
+        env:
+          SOURCE_REF: ${{ inputs.ref || github.ref }}
+          TRIGGER_REF: ${{ github.ref }}
+          TRIGGER_SHA: ${{ github.sha }}
         run: |
-          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
-            VERSION="${{ github.ref_name }}"
+          # Strip refs/tags/ so a workflow_dispatch with ref=vX.Y.Z resolves the same as a tag push
+          REF="${SOURCE_REF#refs/tags/}"
+          if [[ "${REF}" == v[0-9]* ]]; then
+            VERSION="${REF}"
             echo "version=${VERSION}" >>"${GITHUB_OUTPUT}"
             echo "Resolved version from tag: ${VERSION}"
-          elif [[ "${{ github.ref }}" == refs/heads/main ]]; then
-            VERSION="build-main-$(echo '${{ github.sha }}' | cut -c1-8)"
+          elif [[ "${TRIGGER_REF}" == refs/heads/main ]]; then
+            VERSION="build-main-$(echo "${TRIGGER_SHA}" | cut -c1-8)"
             echo "version=${VERSION}" >>"${GITHUB_OUTPUT}"
             echo "Resolved version from commit SHA: ${VERSION}"
           else
