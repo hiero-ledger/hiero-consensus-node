@@ -1472,8 +1472,10 @@ class HandleWorkflowTest {
         given(blockStreamManager.hasReachedMaxBlockSize()).willReturn(true);
         final var parent = mock(ParentTxn.class, RETURNS_DEEP_STUBS);
         given(parent.functionality()).willReturn(functionality);
-        given(parent.txnInfo().payerID())
-                .willReturn(AccountID.newBuilder().accountNum(1001L).build());
+        // CLPR bundles are never payer-exempt, so their payer is not consulted
+        lenient()
+                .when(parent.txnInfo().payerID())
+                .thenReturn(AccountID.newBuilder().accountNum(1001L).build());
         given(parent.consensusNow()).willReturn(NOW);
         given(parent.baseBuilder().status()).willReturn(ResponseCodeEnum.THROTTLED_AT_CONSENSUS);
         final var dispatch = mock(Dispatch.class);
@@ -1516,6 +1518,33 @@ class HandleWorkflowTest {
             verify(dispatchProcessor).processDispatch(eq(dispatch), any(), eq(true));
         }
         verify(blockStreamManager).recordSubmittedTransaction(List.of(), false);
+    }
+
+    @Test
+    void fullBlockRejectsClprBundleRelayedByThrottleExemptNodePayer() throws Exception {
+        givenSubjectWith(BLOCKS, BlockStreamWriterMode.FILE, emptyList());
+        given(blockStreamManager.hasReachedMaxBlockSize()).willReturn(true);
+        final var parent = mock(ParentTxn.class, RETURNS_DEEP_STUBS);
+        given(parent.functionality()).willReturn(HederaFunctionality.CLPR_SUBMIT_BUNDLE);
+        // Nodes relay bundles with their own accounts, which are within the default throttle-exempt range
+        lenient()
+                .when(parent.txnInfo().payerID())
+                .thenReturn(AccountID.newBuilder().accountNum(3L).build());
+        given(parent.consensusNow()).willReturn(NOW);
+        given(parent.baseBuilder().status()).willReturn(ResponseCodeEnum.THROTTLED_AT_CONSENSUS);
+        final var dispatch = mock(Dispatch.class);
+        given(parentTxnFactory.createDispatch(eq(parent), any())).willReturn(dispatch);
+        given(parent.stack().buildHandleOutput(any(), any(), any()))
+                .willReturn(new HandleOutput(new BlockRecordSource(List.of()), null, NOW));
+        final var method = HandleWorkflow.class.getDeclaredMethod(
+                "executeSubmittedParent", ParentTxn.class, long.class, State.class);
+        method.setAccessible(true);
+
+        method.invoke(subject, parent, 100L, state);
+
+        verify(dispatchProcessor).processDispatch(eq(dispatch), any(), eq(true));
+        verify(dispatchProcessor, never()).processDispatch(any(), any());
+        verify(blockStreamManager).recordSubmittedTransaction(List.of(), true);
     }
 
     @ParameterizedTest

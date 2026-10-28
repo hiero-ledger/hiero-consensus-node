@@ -936,9 +936,12 @@ public class HandleWorkflow {
                 exchangeRateManager.exchangeRates(), executableTxn.builderType(), executableTxn.builderSpec());
     }
 
-    /** Returns whether this transaction supports network protocols that must progress after the block budget is full. */
-    private static boolean isExecutionBudgetExempt(@NonNull final HederaFunctionality functionality) {
-        return switch (functionality) {
+    /**
+     * Returns whether this transaction may still execute after the block budget is full; that is, whether it supports
+     * a network protocol that must keep progressing, or otherwise has a throttle-exempt payer.
+     */
+    private boolean isExecutionBudgetExempt(@NonNull final ParentTxn parentTxn) {
+        return switch (parentTxn.functionality()) {
             case HINTS_PARTIAL_SIGNATURE,
                     MIGRATION_ROOT_HASH_VOTE,
                     HINTS_KEY_PUBLICATION,
@@ -948,7 +951,10 @@ public class HandleWorkflow {
                     HISTORY_ASSEMBLY_SIGNATURE,
                     HISTORY_PROOF_VOTE,
                     CLPR_ENDPOINT_PUBLICATION -> true;
-            default -> false;
+            // Nodes relay bundles with their own throttle-exempt accounts, but bundles can dispatch application
+            // contract calls; and a rejected bundle is safely re-synced from channel state in a later block
+            case CLPR_SUBMIT_BUNDLE -> false;
+            default -> throttleExempt(parentTxn.txnInfo().payerID(), configProvider.getConfiguration());
         };
     }
 
@@ -974,8 +980,7 @@ public class HandleWorkflow {
             // Non-exempt block-full submissions follow normal consensus throttle fee charging.
             final boolean blockFull = streamMode == BLOCKS
                     && blockStreamManager.hasReachedMaxBlockSize()
-                    && !isExecutionBudgetExempt(parentTxn.functionality())
-                    && !throttleExempt(parentTxn.txnInfo().payerID(), configProvider.getConfiguration());
+                    && !isExecutionBudgetExempt(parentTxn);
             if (this.initTrigger != EVENT_STREAM_RECOVERY
                     && eventBirthRound <= platformStateStore.getLatestFreezeRound()) {
                 if (streamMode != RECORDS) {
