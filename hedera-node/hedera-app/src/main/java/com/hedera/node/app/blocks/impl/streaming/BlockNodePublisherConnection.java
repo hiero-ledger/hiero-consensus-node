@@ -604,7 +604,12 @@ public abstract class BlockNodePublisherConnection extends AbstractBlockNodeConn
         final SendRequestResult result = new SendRequestResult(SendRequestStatus.SUCCESS, ctx);
 
         updateSendMetrics(request, ctx);
-        postSuccessfulRequestSend(request, result);
+
+        try {
+            postSuccessfulRequestSend(request, result);
+        } catch (final Exception _) {
+            // ignore any failure
+        }
 
         return result;
     }
@@ -792,8 +797,16 @@ public abstract class BlockNodePublisherConnection extends AbstractBlockNodeConn
         // spotless:on
     }
 
-    abstract void postSuccessfulRequestSend(
-            @NonNull final PublisherRequest request, @NonNull final SendRequestResult result);
+    /**
+     * Invoked after a request was successfully sent to the block node. Implementations of this class may override this
+     * method if they have special operations they want to do after a request has been successfully sent.
+     *
+     * @param request the request that was sent
+     * @param result the successful outcome of the request being sent
+     */
+    void postSuccessfulRequestSend(@NonNull final PublisherRequest request, @NonNull final SendRequestResult result) {
+        // no-op
+    }
 
     /**
      * Enumeration of possible statuses as a result of a request being sent.
