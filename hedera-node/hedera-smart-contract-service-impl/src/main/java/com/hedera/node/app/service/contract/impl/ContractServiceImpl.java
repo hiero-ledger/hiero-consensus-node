@@ -39,6 +39,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
 import org.hyperledger.besu.evm.operation.Operation;
+import org.hyperledger.besu.evm.precompile.KZGPointEvalPrecompiledContract;
 
 /**
  * Implementation of the {@link ContractService}.
@@ -94,6 +95,8 @@ public class ContractServiceImpl implements ContractService {
                         contractsConfigSupplier,
                         appContext.idFactory(),
                         nativeLibVerifier);
+        // Load the KZG trusted setup at startup, not on the handle thread with the first contract call
+        KZGPointEvalPrecompiledContract.init();
     }
 
     @Override
