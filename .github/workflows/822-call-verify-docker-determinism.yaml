@@ -87,7 +87,7 @@ jobs:
 
       - name: Authenticate to Google Cloud
         id: google-auth
-        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
+        uses: step-security/google-github-auth@775fc4c80760272ef389c9f9f8d98de7db0c170d # v3.0.2
         with:
           workload_identity_provider: "projects/235822363393/locations/global/workloadIdentityPools/hedera-builds-pool/providers/hedera-builds-gh-actions"
           service_account: "swirlds-automation@hedera-registry.iam.gserviceaccount.com"
@@ -312,7 +312,7 @@ jobs:
 
       - name: Authenticate to Google Cloud
         id: google-auth
-        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
+        uses: step-security/google-github-auth@775fc4c80760272ef389c9f9f8d98de7db0c170d # v3.0.2
         with:
           workload_identity_provider: "projects/235822363393/locations/global/workloadIdentityPools/hedera-builds-pool/providers/hedera-builds-gh-actions"
           service_account: "swirlds-automation@hedera-registry.iam.gserviceaccount.com"
