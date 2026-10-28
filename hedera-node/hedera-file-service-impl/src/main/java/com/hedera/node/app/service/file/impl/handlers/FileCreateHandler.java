@@ -8,6 +8,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_FILE_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED;
 import static com.hedera.node.app.service.file.impl.utils.FileServiceUtils.validateAndAddRequiredKeys;
 import static com.hedera.node.app.service.file.impl.utils.FileServiceUtils.validateContent;
+import static com.hedera.node.app.service.file.impl.utils.FileServiceUtils.validateWacl;
 import static com.hedera.node.app.spi.validation.AttributeValidator.isWithinNestedKeyLimit;
 import static com.hedera.node.app.spi.validation.ExpiryMeta.NA;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
@@ -151,6 +152,7 @@ public class FileCreateHandler implements TransactionHandler {
             builder.fileId(fileId);
             validateContent(CommonPbjConverters.asBytes(fileCreateTransactionBody.contents()), fileServiceConfig);
             builder.contents(fileCreateTransactionBody.contents());
+            validateWacl(fileCreateTransactionBody.keys());
 
             final var file = builder.build();
             fileStore.putAndIncrementCount(file);
