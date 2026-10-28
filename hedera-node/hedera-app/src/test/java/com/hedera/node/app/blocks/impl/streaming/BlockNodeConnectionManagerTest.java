@@ -60,6 +60,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import org.hiero.block.api.PublishStreamRequest.EndStream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -634,7 +635,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         connectionManager.notifyConnectionActive(connection);
 
         verify(connection).configuration();
-        verify(connection).close(CloseReason.INTERNAL_ERROR, true);
+        verify(connection).close(CloseReason.INTERNAL_ERROR, true, EndStream.Code.ERROR);
         verifyNoMoreInteractions(connection);
     }
 

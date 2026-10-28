@@ -41,6 +41,7 @@ import javax.inject.Named;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.block.api.PublishStreamRequest.EndStream;
 
 /**
  * Manages connections to block nodes in a Hedera network, handling connection lifecycle, node selection,
@@ -579,9 +580,11 @@ public class BlockNodeConnectionManager {
      *
      * @param connection the connection that has been closed
      */
-    public void notifyConnectionClosed(@NonNull final BlockNodeStreamingConnection connection) {
+    public void notifyConnectionClosed(@NonNull final BlockNodePublisherConnection connection) {
         // Remove from active connection if it is the current active
-        activeConnectionRef.compareAndSet(connection, null);
+        if (connection instanceof final BlockNodeStreamingConnection streamingConnection) {
+            activeConnectionRef.compareAndSet(streamingConnection, null);
+        }
 
         final BlockNodeEndpoint streamingEndpoint = connection.configuration().streamingEndpoint();
         final BlockNode node = nodes.get(streamingEndpoint);
@@ -610,7 +613,7 @@ public class BlockNodeConnectionManager {
             logger.warn(
                     "{} Connection is not associated with a known block node; ignoring open notification and closing connection",
                     connection);
-            connection.close(CloseReason.INTERNAL_ERROR, true);
+            connection.close(CloseReason.INTERNAL_ERROR, true, EndStream.Code.ERROR);
         } else {
             node.onActive(connection);
         }
@@ -1089,7 +1092,7 @@ public class BlockNodeConnectionManager {
             connection.initialize();
         } catch (final Exception e) {
             logger.warn("{} Failed to initialize connection", connection, e);
-            connection.close(CloseReason.INTERNAL_ERROR, true);
+            connection.close(CloseReason.INTERNAL_ERROR, true, null);
             return false; // exit, let the monitor try again at the next invocation
         }
 
