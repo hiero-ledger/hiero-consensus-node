@@ -12,48 +12,41 @@ name: "008: [USER] Ethereum Spec Tests"
 # The command line mirrors the manual runs documented in docs/hedera/*.md of the spec tests repository.
 #
 # Triggers: manually (workflow_dispatch, once this file is on the default branch), or on a pull request that carries
-# the "Run Ethereum Spec Tests" label. Pull request runs use the defaults from the workflow env below.
+# the "Run Ethereum Spec Tests" label. Pull request runs, and blank inputs of manual runs, use the defaults from the
+# workflow env below.
 on:
   workflow_dispatch:
     inputs:
       ref:
-        description: "Consensus-node branch, tag, or SHA to build and deploy. Blank → the branch the workflow runs from."
-        required: false
+        description: "Consensus-node branch, tag, or SHA to build and deploy (e.g. the branch of the PR under test)."
+        required: true
         type: string
-        default: ""
+      # The optional inputs have no default here: a blank input falls back to its DEFAULT_* value in the workflow env
+      # below, the single place where the defaults are kept.
       spec-tests-ref:
-        # Head of hiero-ethereum-execution-spec-tests#6 ("Hedera Skip List", branch forks/amsterdam-hedera-deselect);
-        # switch back to forks/amsterdam-hedera once that PR is merged.
-        description: "hiero-ethereum-execution-spec-tests branch, tag, or SHA to test with."
-        required: true
-        type: string
-        default: "efc9e2582dc4990b842bd9ff039aa755ff157fdc"
-      evm-testing-ref:
-        # Pinned to a commit SHA because hashgraph/hedera-evm-testing has no tags yet.
-        description: "hashgraph/hedera-evm-testing branch, tag, or SHA whose test.sh (spec profile) starts the network."
-        required: true
-        type: string
-        default: "0ddc029bdcac92106c93a1ef0744b4e11dc17f52"
-      forks:
-        description: "Comma-separated spec test directories (tests/<fork>/) to run in parallel against the network."
-        required: true
-        type: string
-        default: "frontier,homestead,tangerine_whistle,byzantium,constantinople,istanbul,berlin,london,paris,shanghai,cancun,prague"
-      workers-scale:
-        description: "Multiplier for the per-fork pytest-xdist worker counts (see the Run the tests step). 1 = default."
-        required: true
-        type: string
-        default: "1"
-      extra-pytest-args:
-        description: "Extra arguments appended to `execute remote` (e.g. `-k test_name`). Optional."
+        description: "hiero-ethereum-execution-spec-tests branch, tag, or SHA to test with. Blank → DEFAULT_SPEC_TESTS_REF."
         required: false
         type: string
-        default: ""
+      evm-testing-ref:
+        description: "hashgraph/hedera-evm-testing branch, tag, or SHA whose test.sh (spec profile) starts the network. Blank → DEFAULT_EVM_TESTING_REF."
+        required: false
+        type: string
+      forks:
+        description: "Comma-separated spec test directories (tests/<fork>/) to run in parallel against the network. Blank → DEFAULT_FORKS (all)."
+        required: false
+        type: string
+      workers-scale:
+        description: "Multiplier for the per-fork pytest-xdist worker counts (see the Run the tests step). Blank → DEFAULT_WORKERS_SCALE (1)."
+        required: false
+        type: string
+      extra-pytest-args:
+        description: "Extra arguments appended to `execute remote` (e.g. `-k test_name`). Blank → none."
+        required: false
+        type: string
       solo-version:
         description: "Solo version to install. Blank → adhoc-solo-version from .citr-env."
         required: false
         type: string
-        default: ""
   pull_request:
     types:
       - opened
@@ -74,9 +67,10 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  # Defaults for pull request runs, where the workflow_dispatch inputs are empty; keep them in sync with the input
-  # defaults above.
-  DEFAULT_SPEC_TESTS_REF: "efc9e2582dc4990b842bd9ff039aa755ff157fdc"
+  # Defaults for every run: used by pull request runs, where the workflow_dispatch inputs are empty, and by manual
+  # runs for each input left blank.
+  # Both test repositories are pinned to commit SHAs because they have no tags yet.
+  DEFAULT_SPEC_TESTS_REF: "aa6c89ff08ff909976e6511fe590a8de11e8f587"
   DEFAULT_EVM_TESTING_REF: "0ddc029bdcac92106c93a1ef0744b4e11dc17f52"
   DEFAULT_FORKS: "frontier,homestead,tangerine_whistle,byzantium,constantinople,istanbul,berlin,london,paris,shanghai,cancun,prague"
   DEFAULT_WORKERS_SCALE: "1"
