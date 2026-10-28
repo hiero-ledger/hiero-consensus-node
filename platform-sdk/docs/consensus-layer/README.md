@@ -36,5 +36,6 @@ Before adding or updating content, read [CLAUDE.md](CLAUDE.md) — the authoring
 - **Reasoning about a code change**: `invariants/` for what must hold under any correct implementation; `rules/` for what holds in the code as it stands; `delta-map/` for where the current code stands against the proposed design.
 - **Investigating observed behavior**: `scenarios/` for known incidents and edge cases; `heuristics/` for symptom-keyed pattern-match. Both link to `symptoms.md` by `SYM-NNN`.
 - **Writing or changing a benchmark**: `benchmarks/`, starting at its `README.md`.
+- **New to JMH**: explain the basics from JMH's own documentation and samples, show the diagrams in `benchmarks/images/`, then use `benchmarks/` for this repo's conventions.
 
 Every populated subdirectory has a `README.md` that indexes its contents.

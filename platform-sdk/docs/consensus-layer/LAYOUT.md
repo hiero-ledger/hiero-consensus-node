@@ -99,7 +99,8 @@ platform-sdk/docs/consensus-layer/
 │   ├── README.md                          index, the pipeline, the definition of done
 │   ├── writing.md
 │   ├── calibration.md
-│   └── operations.md
+│   ├── operations.md
+│   └── images/                            diagrams of JMH's own terms, for readers new to JMH
 │
 └── tutor/                                 curriculum content; internal structure deferred
 ```
@@ -185,7 +186,7 @@ Per-topic status of "current code vs. proposed design": done / partial / not-sta
 
 ### `benchmarks/`
 
-The conventions guide for the JMH benchmarks of the consensus-layer modules: how to write a benchmark (`writing.md`), calibrate it on the benchmark machine (`calibration.md`), and track it in CI (`operations.md`). `README.md` is the index and holds the pipeline overview and the definition of done. Narrative files without IDs, anchored to the benchmark tooling (`consensus-benchmark-tools`, the `benchmark-tracking` Gradle plugin, the benchmark workflows and their scripts) rather than to consensus-layer topics. The README of every module with a `src/jmh` source set links here; module-specific facts stay in the module.
+The conventions guide for the JMH benchmarks of the consensus-layer modules: how to write a benchmark (`writing.md`), calibrate it on the benchmark machine (`calibration.md`), and track it in CI (`operations.md`). `README.md` is the index and holds the pipeline overview and the definition of done. `images/` holds diagrams of JMH's own terms (forks, iterations, invocations, operations) for readers new to JMH; JMH itself is not explained in prose here, since its documentation is the authority. Narrative files without IDs, anchored to the benchmark tooling (`consensus-benchmark-tools`, the `benchmark-tracking` Gradle plugin, the benchmark workflows and their scripts) rather than to consensus-layer topics. The README of every module with a `src/jmh` source set links here; module-specific facts stay in the module.
 
 ### `tutor/`
 
