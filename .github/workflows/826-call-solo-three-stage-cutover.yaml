@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "826: [CALL] Solo 078-079 Cutover"
+name: "826: [CALL] Solo 3-Stage Cutover"
 on:
   workflow_call:
     inputs:
@@ -12,7 +12,7 @@ on:
         required: false
         type: string
       solo-version:
-        description: "The Solo version to install for this cutover (Block Node >= v0.41.0 requires Solo >= v0.84.0)."
+        description: "The Solo version to install for this cutover. Block Node versions are pinned in the scenario script."
         required: true
         type: string
       java-version:
@@ -20,13 +20,13 @@ on:
         required: false
         type: string
       starting-tag:
-        description: "Consensus-node release tag for the initial 0.78 network deploy. The 0.79 cutover always upgrades to the local build from the checked-out ref. Leave blank to default to v0.78.0-rc.5."
+        description: "Optional published CN tag for the stage 0 genesis baseline. Leave blank to use the script default (v0.78.1); all three stages use the checkout local build."
         required: false
         type: string
     outputs:
       failure-mode:
         description: "Failure Mode"
-        value: ${{ jobs.solo-078-to-079-cutover.outputs.failure-mode }}
+        value: ${{ jobs.solo-three-stage-block-stream-cutover.outputs.failure-mode }}
 
 defaults:
   run:
@@ -37,17 +37,18 @@ permissions:
   actions: read
 
 env:
-  SOLO_CLUSTER_NAME: "cutover-078-to-079"
+  SOLO_CLUSTER_NAME: "three-stage-block-stream-cutover"
   SOLO_NAMESPACE: "solo"
   SOLO_DEPLOYMENT: "solo-deployment"
   SOLO_CLUSTER_SETUP_NAMESPACE: "solo-cluster"
   GRADLE_EXEC: ionice -c 2 -n 2 nice -n 19 ./gradlew
 
 jobs:
-  solo-078-to-079-cutover:
-    name: ${{ inputs.custom-job-name || 'Solo 0.78 -> 0.79 BLOCKS Cutover' }}
+  solo-three-stage-block-stream-cutover:
+    name: ${{ inputs.custom-job-name || 'Solo 3-Stage Cutover' }}
     runs-on: hl-cn-rpc-relay-lin-lg
-    timeout-minutes: 120
+    # Includes dependency installation and the final SDK TCK suite (up to one hour).
+    timeout-minutes: 210
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
@@ -76,9 +77,9 @@ jobs:
           # Pinned rather than caller-supplied: this checks out an external repository and the
           # job holds a writable Gradle cache, so a caller-influenced ref is a cache-poisoning
           # vector (CodeQL actions/cache-poisoning/poisonable-step, alert #135). The deployed
-          # Block Node chart version is pinned inside the scenario script, and these sources are
-          # only used for the grpcurl serverStatus/proto diagnostics, so this must track it.
-          ref: v0.41.0
+          # Block Node chart version is pinned separately inside the scenario script; these sources are
+          # used for offline wrapping, jumpstart generation and serverStatus/proto diagnostics.
+          ref: v0.45.0-rc2
           path: hiero-block-node
           fetch-depth: 0
           token: ${{ github.token }}
@@ -125,28 +126,28 @@ jobs:
           grpcurl --version
 
       - name: Build Consensus Node Local Artifacts
-        # The 0.79 cutover always upgrades to the local build, so a build is always required.
+        # All three configuration stages upgrade the published baseline to this local build.
         run: ${GRADLE_EXEC} assemble
 
-      - name: Run 0.78 -> 0.79 BLOCKS Cutover Scenario
+      - name: Run Three-Stage Block Stream Cutover Scenario
         id: run-cutover
         env:
-          DEPLOY_RELEASE_TAG: ${{ inputs.starting-tag || 'v0.78.0-rc.5' }}
+          DEPLOY_RELEASE_TAG: ${{ inputs.starting-tag || '' }}
         run: |
           set -eo pipefail
-          SCRIPT_PATH="hedera-node/test-clients/scripts/solo/e2e-block-stream-cutover/solo-078-to-079-cutover.sh"
+          SCRIPT_PATH="hedera-node/test-clients/scripts/solo/e2e-block-stream-cutover/solo-three-stage-block-stream-cutover.sh"
           chmod +x "${SCRIPT_PATH}"
-          timeout --signal=SIGINT --kill-after=5m 100m \
+          timeout --signal=SIGINT --kill-after=5m 175m \
             env \
               BLOCK_NODE_REPO_PATH="${GITHUB_WORKSPACE}/hiero-block-node" \
               DEPLOY_RELEASE_TAG="${DEPLOY_RELEASE_TAG}" \
-            "${SCRIPT_PATH}" 2>&1 | tee "${RUNNER_TEMP}/078-to-079-cutover-script.log"
+            "${SCRIPT_PATH}" 2>&1 | tee "${RUNNER_TEMP}/three-stage-block-stream-cutover-script.log"
 
       - name: Collect Diagnostics On Failure
         if: ${{ !cancelled() && failure() }}
         run: |
           set +e
-          OUT_DIR="${RUNNER_TEMP}/078-to-079-cutover-diagnostics"
+          OUT_DIR="${RUNNER_TEMP}/three-stage-block-stream-cutover-diagnostics"
           mkdir -p "${OUT_DIR}"
 
           kubectl get pods -A -o wide > "${OUT_DIR}/kubectl-pods.txt" 2>&1
@@ -186,16 +187,25 @@ jobs:
             done
           fi
 
-      - name: Upload 078-to-079 Cutover Failure Artifacts
+      - name: Upload Three-Stage Block Stream Cutover Failure Artifacts
         if: ${{ !cancelled() && failure() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: 078-to-079-Cutover-Failure-Artifacts
+          name: Three-Stage-Block-Stream-Cutover-Failure-Artifacts
           path: |
-            ${{ runner.temp }}/078-to-079-cutover-script.log
-            ${{ runner.temp }}/078-to-079-cutover-diagnostics/**
+            ${{ runner.temp }}/three-stage-block-stream-cutover-script.log
+            ${{ runner.temp }}/three-stage-block-stream-cutover-diagnostics/**
             hedera-node/test-clients/scripts/solo/e2e-block-stream-cutover/generated/**
           if-no-files-found: warn
+          retention-days: 7
+
+      - name: Upload Post-Cutover SDK TCK Reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: Three-Stage-Block-Stream-Cutover-TCK-Reports
+          path: hedera-node/test-clients/scripts/solo/e2e-block-stream-cutover/generated/three-stage-cutover/tck-report/**
+          if-no-files-found: ignore
           retention-days: 7
 
       - name: Always Destroy Kind Cluster
