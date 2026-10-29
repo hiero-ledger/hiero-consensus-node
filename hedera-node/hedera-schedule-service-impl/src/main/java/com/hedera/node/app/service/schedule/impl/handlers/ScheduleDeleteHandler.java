@@ -3,7 +3,6 @@ package com.hedera.node.app.service.schedule.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SCHEDULE_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SCHEDULE_ALREADY_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SCHEDULE_ALREADY_EXECUTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SCHEDULE_IS_IMMUTABLE;
@@ -74,10 +73,6 @@ public class ScheduleDeleteHandler extends AbstractScheduleHandler implements Tr
         final var schedulingConfig = context.configuration().getConfigData(SchedulingConfig.class);
         final boolean isLongTermEnabled = schedulingConfig.longTermEnabled();
         final var schedule = revalidateOrThrow(scheduleId, scheduleStore, isLongTermEnabled);
-        // A schedule's fate is fixed at expiration, so it cannot be deleted while awaiting its (possibly deferred)
-        // expiry processing
-        final var validationResult = validate(schedule, context.consensusNow(), isLongTermEnabled);
-        validateTrue(validationResult == OK, validationResult);
         validateTrue(schedule.hasAdminKey(), SCHEDULE_IS_IMMUTABLE);
         final var verificationResult = context.keyVerifier().verificationFor(schedule.adminKeyOrThrow());
         validateTrue(verificationResult.passed(), UNAUTHORIZED);

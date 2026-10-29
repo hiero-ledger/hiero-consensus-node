@@ -13,8 +13,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TimestampSeconds;
@@ -177,56 +175,6 @@ class TctProbeTest {
         // Then
         assertNotNull(result);
         assertEquals(LAST_HANDLED_TIME, result);
-    }
-
-    @Test
-    void findTctReturnsOverdueScheduledSecondBeforeLastHandleTime() {
-        // Given - a full block deferred a schedule due before the last handled time
-        final var lastIntervalProcessed = LAST_HANDLED_TIME.minusSeconds(3);
-        final var blockStreamInfo = BlockStreamInfo.newBuilder()
-                .lastHandleTime(asTimestamp(LAST_HANDLED_TIME))
-                .lastIntervalProcessTime(asTimestamp(lastIntervalProcessed))
-                .build();
-        given(blockStreamInfoState.get()).willReturn(blockStreamInfo);
-        given(freezeTimeState.get()).willReturn(null);
-        final var overdueSecond = lastIntervalProcessed.plusSeconds(1);
-        final var unprocessedCounts = ScheduledCounts.newBuilder()
-                .numberScheduled(1)
-                .numberProcessed(0)
-                .build();
-        given(scheduledCountsState.get(any())).willAnswer(invocation -> {
-            final TimestampSeconds second = invocation.getArgument(0);
-            return second.seconds() == overdueSecond.getEpochSecond() ? unprocessedCounts : null;
-        });
-
-        subject = new TctProbe(MAX_CONSECUTIVE_SCHEDULE_SECONDS, STAKE_PERIOD_MINS, state);
-
-        // When
-        final var result = subject.findTct();
-
-        // Then - the overdue second is the TCT, so quiescence ends immediately
-        assertEquals(overdueSecond, result);
-        verify(scheduledCountsState).get(new TimestampSeconds(lastIntervalProcessed.getEpochSecond()));
-    }
-
-    @Test
-    void findTctIgnoresUnsetLastIntervalProcessTime() {
-        // Given - no interval process time, as in a state that never streamed blocks
-        final var blockStreamInfo = BlockStreamInfo.newBuilder()
-                .lastHandleTime(asTimestamp(LAST_HANDLED_TIME))
-                .build();
-        given(blockStreamInfoState.get()).willReturn(blockStreamInfo);
-        given(freezeTimeState.get()).willReturn(null);
-        given(scheduledCountsState.get(any())).willReturn(null);
-
-        subject = new TctProbe(MAX_CONSECUTIVE_SCHEDULE_SECONDS, STAKE_PERIOD_MINS, state);
-
-        // When
-        subject.findTct();
-
-        // Then - probing starts from the last handled time, not the epoch
-        verify(scheduledCountsState).get(new TimestampSeconds(LAST_HANDLED_TIME.getEpochSecond()));
-        verify(scheduledCountsState, never()).get(new TimestampSeconds(0L));
     }
 
     @Test

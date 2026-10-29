@@ -4,7 +4,6 @@ package com.hedera.node.app.service.schedule.impl.handlers;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SCHEDULE_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NO_NEW_VALID_SIGNATURES;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.transactionIdForScheduled;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
@@ -70,9 +69,7 @@ public class ScheduleSignHandler extends AbstractScheduleHandler implements Tran
         final var schedulingConfig = context.configuration().getConfigData(SchedulingConfig.class);
         final boolean isLongTermEnabled = schedulingConfig.longTermEnabled();
         final var validationResult = validate(schedule, consensusNow, isLongTermEnabled);
-        // Signature requirements must be met at expiration, so a schedule awaiting its (possibly deferred) expiry
-        // processing cannot gain signatures that would authorize its execution
-        validateTrue(validationResult == OK, validationResult);
+        validateTrue(isMaybeExecutable(validationResult), validationResult);
 
         // With all validations done, we update the signatories on the schedule
         final var transactionKeys = getTransactionKeysOrThrow(schedule, context::allKeysForTransaction);

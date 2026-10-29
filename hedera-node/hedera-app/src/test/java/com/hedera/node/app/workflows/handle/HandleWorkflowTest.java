@@ -37,6 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -193,6 +194,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
@@ -1585,53 +1587,38 @@ class HandleWorkflowTest {
         verify(opWorkflowMetrics, never()).incrementThrottled(any());
     }
 
-    @Test
-    void fullBlockPreservesScheduledWorkUntilNextBlock() throws Exception {
-        assertSchedulesResumeAfterFullBlock(true);
-    }
-
-    @Test
-    void blockFillingDuringScheduledExecutionPreservesRemainingWork() throws Exception {
-        assertSchedulesResumeAfterFullBlock(false);
-    }
-
-    private void assertSchedulesResumeAfterFullBlock(final boolean initiallyFull) throws Exception {
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void fullBlockStillExecutesAllDueSchedules(final boolean initiallyFull) throws Exception {
         givenSubjectWith(BLOCKS, BlockStreamWriterMode.FILE, emptyList(), Map.of("scheduling.longTermEnabled", "true"));
         final var executionStart = NOW.minusSeconds(2);
-        final var creator = mock(NodeInfo.class);
         final var entityIdStates =
                 mock(WritableStates.class, withSettings().extraInterfaces(CommittableWritableStates.class));
         given(state.getWritableStates(EntityIdService.NAME)).willReturn(entityIdStates);
         given(state.getWritableStates(ScheduleService.NAME)).willReturn(mock(WritableStates.class));
         given(blockStreamManager.lastUsedConsensusTime()).willReturn(NOW);
+        // Either the block is already full, or the first scheduled execution's output fills it
         final var full = new AtomicBoolean(initiallyFull);
-        given(blockStreamManager.hasReachedMaxBlockSize()).willAnswer(ignore -> full.get());
+        lenient().when(blockStreamManager.hasReachedMaxBlockSize()).thenAnswer(ignore -> full.get());
+        willAnswer(ignore -> {
+                    full.set(true);
+                    return null;
+                })
+                .given(blockStreamManager)
+                .writeSavepointItems(any(), any());
 
+        // Schedules paid by an account outside the throttle-exempt range
         final var executable = new ExecutableTxn<>(
                 TransactionBody.DEFAULT,
-                AccountID.DEFAULT,
+                AccountID.newBuilder().accountNum(1001L).build(),
                 key -> true,
                 executionStart,
                 StreamBuilder.class,
                 builder -> {});
-        final var remaining = new AtomicInteger(2);
-        final var nextKnown = new AtomicBoolean();
+        final var remaining = new AtomicInteger(3);
         final var iter = mock(ExecutableTxnIterator.class);
-        given(iter.hasNext()).willAnswer(ignore -> {
-            nextKnown.set(true);
-            return remaining.get() > 0;
-        });
-        given(iter.next()).willAnswer(ignore -> {
-            nextKnown.set(false);
-            return executable;
-        });
-        // Like the real iterator, purging is only legal once hasNext() has located the next executable schedule
-        given(iter.purgeUntilNext()).willAnswer(ignore -> {
-            if (!nextKnown.get()) {
-                throw new IllegalStateException("purgeUntilNext() called before hasNext()");
-            }
-            return false;
-        });
+        given(iter.hasNext()).willAnswer(ignore -> remaining.get() > 0);
+        given(iter.next()).willAnswer(ignore -> executable);
         willAnswer(ignore -> {
                     remaining.decrementAndGet();
                     return null;
@@ -1645,73 +1632,24 @@ class HandleWorkflowTest {
                 .willReturn(parent);
         final var dispatch = mock(Dispatch.class);
         given(parentTxnFactory.createDispatch(eq(parent), any(), any(), any())).willReturn(dispatch);
-        final var source = new BlockRecordSource(List.of());
         given(parent.stack().buildHandleOutput(any(), any(), any()))
-                .willReturn(new HandleOutput(source, null, NOW.plusNanos(1)));
-        if (!initiallyFull) {
-            willAnswer(ignore -> {
-                        full.set(true);
-                        return null;
-                    })
-                    .given(blockStreamManager)
-                    .writeSavepointItems(any(), any());
-        }
+                .willReturn(new HandleOutput(new BlockRecordSource(List.of()), null, NOW.plusNanos(1)));
 
         final var method = HandleWorkflow.class.getDeclaredMethod(
                 "executeAsManyScheduled", State.class, Instant.class, Instant.class, NodeInfo.class);
         method.setAccessible(true);
-        assertEquals(!initiallyFull, method.invoke(subject, state, executionStart, NOW, creator));
-        final int executedBeforeFull = initiallyFull ? 0 : 1;
-        verify(dispatchProcessor, times(executedBeforeFull)).processDispatch(dispatch);
-        verify(iter, times(executedBeforeFull)).next();
-        verify(iter, times(executedBeforeFull)).remove();
-        if (initiallyFull) {
-            // Nothing is scanned or purged, and the unprocessed interval is left untouched
-            verify(scheduleService, never()).executableTxns(any(), any(), any());
-            verify(blockStreamManager, never()).setLastIntervalProcessTime(any());
-        } else {
-            verify(iter).purgeUntilNext();
-            verify(blockStreamManager).setLastIntervalProcessTime(executionStart);
-        }
 
-        // A new block clears the limit. The old interval must still be eligible for scanning.
-        full.set(false);
-        willAnswer(ignore -> null).given(blockStreamManager).writeSavepointItems(any(), any());
-        assertTrue((boolean) method.invoke(subject, state, executionStart, NOW, creator));
+        assertTrue((boolean) method.invoke(subject, state, executionStart, NOW, mock(NodeInfo.class)));
+
+        // Every due schedule runs through the ordinary scheduled dispatch path, never the block-full rejection
         assertEquals(0, remaining.get());
-        verify(dispatchProcessor, times(2)).processDispatch(dispatch);
-        verify(iter, times(2)).remove();
+        verify(dispatchProcessor, times(3)).processDispatch(dispatch);
+        verify(dispatchProcessor, never()).processDispatch(any(), any(), anyBoolean());
+        // Scheduled output is still written, so it counts toward the block size
+        verify(blockStreamManager, times(3)).writeSavepointItems(any(), any());
+        // The whole interval is processed, so nothing is left behind for a later block
         verify(blockStreamManager).setLastIntervalProcessTime(NOW);
-    }
-
-    @ParameterizedTest
-    @EnumSource(StreamMode.class)
-    void unprocessedIntervalIsPreservedOnlyInBlocksMode(final StreamMode mode) throws Exception {
-        // txnOffsetNanos=951 makes lastUsableTime precede nextTime, so no due schedule can run
-        givenSubjectWith(
-                mode, BlockStreamWriterMode.FILE, emptyList(), Map.of("scheduling.longTermEnabled", "true"), 951);
-        final var executionStart = NOW.minusSeconds(2);
-        given(state.getWritableStates(EntityIdService.NAME))
-                .willReturn(
-                        mock(WritableStates.class, withSettings().extraInterfaces(CommittableWritableStates.class)));
-        given(state.getWritableStates(ScheduleService.NAME)).willReturn(mock(WritableStates.class));
-        lenient().when(blockStreamManager.lastUsedConsensusTime()).thenReturn(NOW);
-        lenient().when(blockRecordManager.lastUsedConsensusTime()).thenReturn(NOW);
-        final var iter = mock(ExecutableTxnIterator.class);
-        given(iter.hasNext()).willReturn(true);
-        given(scheduleService.executableTxns(any(), any(), any())).willReturn(iter);
-        final var method = HandleWorkflow.class.getDeclaredMethod(
-                "executeAsManyScheduled", State.class, Instant.class, Instant.class, NodeInfo.class);
-        method.setAccessible(true);
-
-        assertEquals(false, method.invoke(subject, state, executionStart, NOW, mock(NodeInfo.class)));
-
-        verify(iter, never()).next();
-        switch (mode) {
-            case RECORDS -> verify(blockRecordManager).setLastIntervalProcessTime(NOW, state);
-            case BOTH -> verify(blockStreamManager).setLastIntervalProcessTime(NOW);
-            case BLOCKS -> verify(blockStreamManager).setLastIntervalProcessTime(executionStart);
-        }
+        assertTrue(full.get());
     }
 
     /**

@@ -98,20 +98,6 @@ class ScheduleSignHandlerTest extends ScheduleHandlerTestBase {
     }
 
     @Test
-    void failsToSignScheduleAwaitingExpiryProcessing() throws PreCheckException {
-        // Past its expiration, but not yet executed or purged (e.g., because a full block deferred its processing)
-        final var expired = scheduleInState
-                .copyBuilder()
-                .calculatedExpirationSecond(testConsensusTime.getEpochSecond() - 1)
-                .build();
-        writableSchedules.put(expired);
-        prepareContextAllPass(scheduleSignTransaction(expired.scheduleId()));
-
-        throwsHandleException(() -> subject.handle(mockContext), ResponseCodeEnum.SCHEDULE_PENDING_EXPIRATION);
-        assertThat(writableSchedules.get(expired.scheduleId()).signatories()).isEmpty();
-    }
-
-    @Test
     void handleExecutesImmediateIfPossible() throws HandleException, PreCheckException {
         int successCount = 0;
         for (final Schedule next : listOfScheduledOptions) {

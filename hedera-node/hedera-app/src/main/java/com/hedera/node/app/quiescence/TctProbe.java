@@ -33,9 +33,7 @@ import java.util.Optional;
  * Suppose the given state has a last-handled consensus time of `T`.
  * <ol>
  *   <li>When the probe was given a non-negative staking period, the start of the next stake period after `T` is a TCT.</li>
- *   <li>Every second after `T` with a transaction scheduled to execute there is a TCT. If the state's last interval
- *   process time `I` is before `T` (as when a full block defers due schedules), probing starts from `I` instead, so an
- *   overdue schedule is a TCT that ends quiescence immediately.</li>
+ *   <li>Every second after `T` with a transaction scheduled to execute there is a TCT.</li>
  *   <li>When the state has a freeze time set, the freeze time is a TCT.</li>
  * </ol>
  */
@@ -89,7 +87,7 @@ public class TctProbe {
         }
         if (nextScheduledSecond == null || nextScheduledSecondCouldBeNewNearestTct()) {
             if (nextScheduledSecond == null) {
-                nextScheduledSecond = firstScheduledSecondToProbe();
+                nextScheduledSecond = lastHandledConsensusTime();
             }
             final var readableScheduleStore = new ReadableScheduleStoreImpl(
                     state.getReadableStates(ScheduleService.NAME),
@@ -136,21 +134,6 @@ public class TctProbe {
                     asInstant(blockStreamInfoFrom(state, true).lastHandleTimeOrElse(EPOCH));
         }
         return lastHandledConsensusTime;
-    }
-
-    /**
-     * Schedules are only processed through the last interval process time, which can trail the last handled
-     * consensus time; for example, while a block that reached its execution budget defers due schedules. Probing
-     * from the earlier of the two finds such overdue schedules. An unset interval process time (as in a state that
-     * never streamed blocks) is ignored.
-     */
-    private @NonNull Instant firstScheduledSecondToProbe() {
-        final var lastHandled = lastHandledConsensusTime();
-        final var lastIntervalProcessed =
-                asInstant(blockStreamInfoFrom(state, true).lastIntervalProcessTimeOrElse(EPOCH));
-        return !lastIntervalProcessed.equals(Instant.EPOCH) && lastIntervalProcessed.isBefore(lastHandled)
-                ? lastIntervalProcessed
-                : lastHandled;
     }
 
     private boolean nextScheduledSecondCouldBeNewNearestTct() {

@@ -15,7 +15,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleSign;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
@@ -36,7 +35,6 @@ import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.exp
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NETWORK_MULTIPLIER;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SCHEDULE_ID;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SCHEDULE_PENDING_EXPIRATION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.THROTTLED_AT_CONSENSUS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -132,7 +130,7 @@ public class RepeatableBlockExecutionBudgetTests {
                 @ConfigOverride(key = "blockStream.maxBlockSizeLimitEnabled", value = "false"),
                 @ConfigOverride(key = "scheduling.longTermEnabled", value = "true")
             })
-    Stream<DynamicTest> dueScheduleRemainsPendingInFullBlockAndExecutesInNextBlock() {
+    Stream<DynamicTest> dueScheduleExecutesInFullBlock() {
         final var receiverBefore = new AtomicLong();
         final var fullBlock = new AtomicLong();
         return hapiTest(
@@ -140,7 +138,9 @@ public class RepeatableBlockExecutionBudgetTests {
                 cryptoCreate(RECEIVER).balance(0L),
                 overriding("blockStream.maxBlockSizeLimitEnabled", "true"),
                 withOpContext((spec, log) -> openNextBlock(spec)),
-                scheduleCreate("deferredSchedule", cryptoTransfer(tinyBarsFromTo(PAYER, RECEIVER, 7)))
+                // Paid by an account outside the throttle-exempt range
+                scheduleCreate("exemptSchedule", cryptoTransfer(tinyBarsFromTo(PAYER, RECEIVER, 7)))
+                        .designatingPayer(PAYER)
                         .alsoSigningWith(PAYER)
                         .waitForExpiry()
                         .expiringIn(2)
@@ -155,33 +155,20 @@ public class RepeatableBlockExecutionBudgetTests {
                 viewAccount(RECEIVER, account -> receiverBefore.set(account.tinybarBalance())),
                 withOpContext((spec, log) -> {
                     spec.embeddedHederaOrThrow().tick(Duration.ofSeconds(3));
+                    // The triggering submission is rejected, but the due schedule still executes after it
                     allRunFor(
                             spec,
-                            cryptoTransfer(tinyBarsFromTo(GENESIS, "98", 1)).payingWith(GENESIS));
-                    assertEquals(
-                            fullBlock.get(),
-                            spec.embeddedHederaOrThrow()
-                                    .hedera()
-                                    .blockStreamManager()
-                                    .blockNo());
-                }),
-                getScheduleInfo("deferredSchedule").isNotExecuted(),
-                viewAccount(RECEIVER, account -> assertEquals(receiverBefore.get(), account.tinybarBalance())),
-                withOpContext((spec, log) -> {
-                    openNextBlock(spec);
-                    assertEquals(
-                            fullBlock.get() + 1,
-                            spec.embeddedHederaOrThrow()
-                                    .hedera()
-                                    .blockStreamManager()
-                                    .blockNo());
+                            cryptoTransfer(tinyBarsFromTo(PAYER, RECEIVER, 1))
+                                    .payingWith(PAYER)
+                                    .hasKnownStatus(THROTTLED_AT_CONSENSUS));
                 }),
                 // Executed expiry schedules are purged; the scheduled record and balance prove execution.
-                getScheduleInfo("deferredSchedule").hasCostAnswerPrecheck(INVALID_SCHEDULE_ID),
+                getScheduleInfo("exemptSchedule").hasCostAnswerPrecheck(INVALID_SCHEDULE_ID),
                 getTxnRecord("scheduleCreation")
                         .scheduled()
                         .hasPriority(recordWith().status(SUCCESS)),
-                viewAccount(RECEIVER, account -> assertEquals(receiverBefore.get() + 7, account.tinybarBalance())));
+                viewAccount(RECEIVER, account -> assertEquals(receiverBefore.get() + 7, account.tinybarBalance())),
+                withOpContext((spec, log) -> assertStillInFullBlock(spec, fullBlock.get())));
     }
 
     @RestartHapiTest(
@@ -305,7 +292,7 @@ public class RepeatableBlockExecutionBudgetTests {
                 @ConfigOverride(key = "scheduling.longTermEnabled", value = "true"),
                 @ConfigOverride(key = "scheduling.maxExecutionsPerUserTxn", value = "2")
             })
-    Stream<DynamicTest> deferredScheduleBacklogDrainsInOrderWithinExecutionLimit() {
+    Stream<DynamicTest> scheduleBacklogDrainsInFullBlockWithinExecutionLimit() {
         final var receiverBefore = new AtomicLong();
         final var fullBlock = new AtomicLong();
         final List<Instant> executionTimes = new ArrayList<>();
@@ -320,12 +307,12 @@ public class RepeatableBlockExecutionBudgetTests {
                         .waitForExpiry()
                         .expiringIn(2)
                         .via("firstCreation"),
-                // Paid by a throttle-exempt account, yet deferred like any other schedule
-                scheduleCreate("exemptPaidSchedule", cryptoTransfer(tinyBarsFromTo(GENESIS, RECEIVER, 10)))
-                        .designatingPayer(GENESIS)
+                scheduleCreate("secondSchedule", cryptoTransfer(tinyBarsFromTo(PAYER, RECEIVER, 10)))
+                        .designatingPayer(PAYER)
+                        .alsoSigningWith(PAYER)
                         .waitForExpiry()
                         .expiringIn(2)
-                        .via("exemptPaidCreation"),
+                        .via("secondCreation"),
                 scheduleCreate("thirdSchedule", cryptoTransfer(tinyBarsFromTo(PAYER, RECEIVER, 100)))
                         .designatingPayer(PAYER)
                         .alsoSigningWith(PAYER)
@@ -344,30 +331,24 @@ public class RepeatableBlockExecutionBudgetTests {
                     spec.embeddedHederaOrThrow().tick(Duration.ofSeconds(3));
                     allRunFor(
                             spec,
-                            cryptoTransfer(tinyBarsFromTo(GENESIS, "98", 1)).payingWith(GENESIS));
-                    assertEquals(
-                            fullBlock.get(),
-                            spec.embeddedHederaOrThrow()
-                                    .hedera()
-                                    .blockStreamManager()
-                                    .blockNo());
+                            cryptoTransfer(tinyBarsFromTo(PAYER, RECEIVER, 1))
+                                    .payingWith(PAYER)
+                                    .hasKnownStatus(THROTTLED_AT_CONSENSUS));
                 }),
-                getScheduleInfo("firstSchedule").isNotExecuted(),
-                getScheduleInfo("exemptPaidSchedule").isNotExecuted(),
-                getScheduleInfo("thirdSchedule").isNotExecuted(),
-                viewAccount(RECEIVER, account -> assertEquals(receiverBefore.get(), account.tinybarBalance())),
-                // Only one submission runs in the new block, so it drains at most maxExecutionsPerUserTxn=2
-                withOpContext((spec, log) -> openNextBlock(spec)),
+                // The exemption does not lift the normal limit of maxExecutionsPerUserTxn=2 per submission
                 getScheduleInfo("firstSchedule").hasCostAnswerPrecheck(INVALID_SCHEDULE_ID),
-                getScheduleInfo("exemptPaidSchedule").hasCostAnswerPrecheck(INVALID_SCHEDULE_ID),
+                getScheduleInfo("secondSchedule").hasCostAnswerPrecheck(INVALID_SCHEDULE_ID),
                 getScheduleInfo("thirdSchedule").isNotExecuted(),
                 viewAccount(RECEIVER, account -> assertEquals(receiverBefore.get() + 11, account.tinybarBalance())),
-                cryptoTransfer(tinyBarsFromTo(GENESIS, "98", 1)).payingWith(GENESIS),
+                cryptoTransfer(tinyBarsFromTo(PAYER, RECEIVER, 1))
+                        .payingWith(PAYER)
+                        .hasKnownStatus(THROTTLED_AT_CONSENSUS),
                 getScheduleInfo("thirdSchedule").hasCostAnswerPrecheck(INVALID_SCHEDULE_ID),
                 viewAccount(RECEIVER, account -> assertEquals(receiverBefore.get() + 111, account.tinybarBalance())),
+                withOpContext((spec, log) -> assertStillInFullBlock(spec, fullBlock.get())),
                 // The backlog executes in creation (expiry) order
                 withOpContext((spec, log) -> {
-                    for (final var creation : List.of("firstCreation", "exemptPaidCreation", "thirdCreation")) {
+                    for (final var creation : List.of("firstCreation", "secondCreation", "thirdCreation")) {
                         allRunFor(
                                 spec,
                                 getTxnRecord(creation)
@@ -382,106 +363,10 @@ public class RepeatableBlockExecutionBudgetTests {
                 }));
     }
 
-    @RestartHapiTest(
-            restartOverrides = {
-                @ConfigOverride(key = "blockStream.streamMode", value = "BLOCKS"),
-                @ConfigOverride(key = "blockStream.blockPeriod", value = "60s"),
-                @ConfigOverride(key = "blockStream.maxBlockExecutionSizeBytes", value = "16384"),
-                @ConfigOverride(key = "blockStream.maxBlockSizeLimitEnabled", value = "false"),
-                @ConfigOverride(key = "scheduling.longTermEnabled", value = "true")
-            })
-    Stream<DynamicTest> expiredUnexecutableScheduleIsPurgedOnlyAfterBlockReopens() {
-        final var receiverBefore = new AtomicLong();
-        return hapiTest(
-                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                cryptoCreate(RECEIVER).balance(0L),
-                overriding("blockStream.maxBlockSizeLimitEnabled", "true"),
-                withOpContext((spec, log) -> openNextBlock(spec)),
-                // Lacks the payer's signature, so it can never execute and is purged once its expiry is processed
-                scheduleCreate("unexecutableSchedule", cryptoTransfer(tinyBarsFromTo(PAYER, RECEIVER, 3)))
-                        .designatingPayer(PAYER)
-                        .waitForExpiry(false)
-                        .expiringIn(2),
-                scheduleCreate("deferredSchedule", cryptoTransfer(tinyBarsFromTo(PAYER, RECEIVER, 7)))
-                        .alsoSigningWith(PAYER)
-                        .waitForExpiry()
-                        .expiringIn(2),
-                withOpContext((spec, log) -> fillBlock(spec)),
-                viewAccount(RECEIVER, account -> receiverBefore.set(account.tinybarBalance())),
-                withOpContext((spec, log) -> {
-                    spec.embeddedHederaOrThrow().tick(Duration.ofSeconds(3));
-                    allRunFor(
-                            spec,
-                            cryptoTransfer(tinyBarsFromTo(GENESIS, "98", 1)).payingWith(GENESIS));
-                }),
-                // Nothing in the expired interval is executed or purged while the block is full
-                getScheduleInfo("unexecutableSchedule").isNotExecuted(),
-                getScheduleInfo("deferredSchedule").isNotExecuted(),
-                withOpContext((spec, log) -> openNextBlock(spec)),
-                getScheduleInfo("unexecutableSchedule").hasCostAnswerPrecheck(INVALID_SCHEDULE_ID),
-                getScheduleInfo("deferredSchedule").hasCostAnswerPrecheck(INVALID_SCHEDULE_ID),
-                viewAccount(RECEIVER, account -> assertEquals(receiverBefore.get() + 7, account.tinybarBalance())));
-    }
-
-    @RestartHapiTest(
-            restartOverrides = {
-                @ConfigOverride(key = "blockStream.streamMode", value = "BLOCKS"),
-                @ConfigOverride(key = "blockStream.blockPeriod", value = "60s"),
-                @ConfigOverride(key = "blockStream.maxBlockExecutionSizeBytes", value = "16384"),
-                @ConfigOverride(key = "blockStream.maxBlockSizeLimitEnabled", value = "false"),
-                @ConfigOverride(key = "scheduling.longTermEnabled", value = "true")
-            })
-    Stream<DynamicTest> signatureAfterDeferredExpiryCannotAuthorizeExecution() {
-        final var receiverBefore = new AtomicLong();
-        final var fullBlock = new AtomicLong();
-        return hapiTest(
-                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                cryptoCreate(RECEIVER).balance(0L),
-                overriding("blockStream.maxBlockSizeLimitEnabled", "true"),
-                withOpContext((spec, log) -> openNextBlock(spec)),
-                // Lacks the payer's signature at expiration, so it must never execute
-                scheduleCreate("lateSigned", cryptoTransfer(tinyBarsFromTo(PAYER, RECEIVER, 7)))
-                        .designatingPayer(PAYER)
-                        .waitForExpiry()
-                        .expiringIn(2),
-                withOpContext((spec, log) -> {
-                    fillBlock(spec);
-                    fullBlock.set(spec.embeddedHederaOrThrow()
-                            .hedera()
-                            .blockStreamManager()
-                            .blockNo());
-                }),
-                viewAccount(RECEIVER, account -> receiverBefore.set(account.tinybarBalance())),
-                withOpContext((spec, log) -> {
-                    spec.embeddedHederaOrThrow().tick(Duration.ofSeconds(3));
-                    allRunFor(
-                            spec,
-                            cryptoTransfer(tinyBarsFromTo(GENESIS, "98", 1)).payingWith(GENESIS));
-                }),
-                getScheduleInfo("lateSigned").isNotExecuted(),
-                withOpContext((spec, log) -> {
-                    final var embedded = spec.repeatableEmbeddedHederaOrThrow();
-                    embedded.setRoundDuration(Duration.ofMillis(1));
-                    embedded.tick(BLOCK_PERIOD.plusSeconds(1));
-                    // This round closes the full block, so the next transaction is the first in a new block
-                    allRunFor(
-                            spec,
-                            cryptoTransfer(tinyBarsFromTo(GENESIS, "98", 1)).payingWith(GENESIS));
-                }),
-                getScheduleInfo("lateSigned").isNotExecuted(),
-                // Handled before the deferred expiry scan, but too late to count toward the schedule's execution
-                scheduleSign("lateSigned")
-                        .payingWith(PAYER)
-                        .alsoSigningWith(PAYER)
-                        .hasKnownStatus(SCHEDULE_PENDING_EXPIRATION),
-                withOpContext((spec, log) -> assertEquals(
-                        fullBlock.get() + 1,
-                        spec.embeddedHederaOrThrow()
-                                .hedera()
-                                .blockStreamManager()
-                                .blockNo())),
-                getScheduleInfo("lateSigned").hasCostAnswerPrecheck(INVALID_SCHEDULE_ID),
-                viewAccount(RECEIVER, account -> assertEquals(receiverBefore.get(), account.tinybarBalance())));
+    private static void assertStillInFullBlock(final HapiSpec spec, final long fullBlock) {
+        final var manager = spec.embeddedHederaOrThrow().hedera().blockStreamManager();
+        assertEquals(fullBlock, manager.blockNo(), "Scheduled executions must run in the same full block");
+        assertTrue(manager.hasReachedMaxBlockSize());
     }
 
     private static void openNextBlock(final HapiSpec spec) {

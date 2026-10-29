@@ -100,20 +100,6 @@ class ScheduleDeleteHandlerTest extends ScheduleHandlerTestBase {
     }
 
     @Test
-    void failsToDeleteScheduleAwaitingExpiryProcessing() throws PreCheckException {
-        // Past its expiration, but not yet executed or purged (e.g., because a full block deferred its processing)
-        final var expired = scheduleInState
-                .copyBuilder()
-                .calculatedExpirationSecond(testConsensusTime.getEpochSecond() - 1)
-                .build();
-        writableSchedules.put(expired);
-        prepareContext(scheduleDeleteTransaction(expired.scheduleId()));
-
-        throwsHandleException(() -> subject.handle(mockContext), ResponseCodeEnum.SCHEDULE_PENDING_EXPIRATION);
-        assertThat(writableSchedules.get(expired.scheduleId()).deleted()).isFalse();
-    }
-
-    @Test
     void verifyHandleExceptionsForDelete() throws PreCheckException {
         final Schedule beforeDelete = scheduleStore.get(testScheduleID);
         assertThat(beforeDelete.deleted()).isFalse();
