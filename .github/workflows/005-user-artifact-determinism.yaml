@@ -8,6 +8,10 @@ on:
         type: string
         required: false
         default: ""
+      java-distribution:
+        description: "Java JDK Distribution:"
+        type: string
+        required: false
       java-version:
         description: "Java JDK Version:"
         type: string
@@ -59,6 +63,7 @@ jobs:
     uses: ./.github/workflows/823-call-verify-gradle-determinism.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha }}
+      java-distribution: ${{ inputs.java-distribution || 'temurin' }}
       java-version: ${{ inputs.java-version || needs.extract-jdk-version.outputs.jdk-version }}
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -73,6 +78,7 @@ jobs:
     uses: ./.github/workflows/822-call-verify-docker-determinism.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha }}
+      java-distribution: ${{ inputs.java-distribution || 'temurin' }}
       java-version: ${{ inputs.java-version || needs.extract-jdk-version.outputs.jdk-version }}
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
