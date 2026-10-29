@@ -7,8 +7,10 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.FILE_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_FILE_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_FILE_SIZE_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNAUTHORIZED;
+import static com.hedera.node.app.service.file.impl.utils.FileServiceUtils.isMutable;
 import static com.hedera.node.app.service.file.impl.utils.FileServiceUtils.preValidate;
 import static com.hedera.node.app.service.file.impl.utils.FileServiceUtils.validateAndAddRequiredKeys;
+import static com.hedera.node.app.service.file.impl.utils.FileServiceUtils.validateWacl;
 import static com.hedera.node.app.spi.validation.AttributeValidator.isWithinNestedKeyLimit;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.CHILD;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.PRECEDING;
@@ -146,7 +148,7 @@ public class FileUpdateHandler implements TransactionHandler {
         // First validate this file is mutable; and the pending mutations are allowed
         if (wantsToMutateNonExpiryField(fileUpdate)) {
             if (handleContext.hasPrivilegedAuthorization() != SystemPrivilege.AUTHORIZED) {
-                validateTrue(file.hasKeys() && !file.keys().keys().isEmpty(), UNAUTHORIZED);
+                validateTrue(isMutable(file), UNAUTHORIZED);
             }
 
             validateMaybeNewMemo(handleContext.attributeValidator(), fileUpdate);
@@ -164,6 +166,7 @@ public class FileUpdateHandler implements TransactionHandler {
         final var accountsConfig = handleContext.configuration().getConfigData(AccountsConfig.class);
         resolveMutableBuilderAttributes(
                 fileUpdate, builder, fileServiceConfig, file, fileID, accountsConfig, handleContext.payer());
+        validateWacl(fileUpdate.keys());
         fileStore.put(builder.build());
     }
 

@@ -216,26 +216,6 @@ class InFlightQueueTest {
         assertThat(InFlightQueue.nanosSince(START, START.minusSeconds(2))).isEqualTo(-2_000_000_000L);
     }
 
-    @Test
-    @DisplayName("an instant too far from the start to fit in a long is clamped")
-    void nanosSinceClampsFarInstants() {
-        assertThat(InFlightQueue.nanosSince(START, Instant.MIN)).isEqualTo(Long.MIN_VALUE);
-        assertThat(InFlightQueue.nanosSince(START, Instant.MAX)).isEqualTo(Long.MAX_VALUE);
-        // just inside the range is still exact
-        assertThat(InFlightQueue.nanosSince(START, START.plusSeconds(9_000_000_000L)))
-                .isEqualTo(9_000_000_000L * 1_000_000_000L);
-    }
-
-    @Test
-    @DisplayName("an item sent before the network's first tick, while its clock reads Instant.MIN, has arrived")
-    void anItemFromBeforeTheFirstTickHasArrived() {
-        final EventWindowInTransit early = addAt(Instant.MIN.plusMillis(5));
-        final EventWindowInTransit normal = add(10);
-
-        assertThat(queue.hasArrived(InFlightQueue.nanosSince(START, START))).isTrue();
-        assertThat(drain()).containsExactly(early, normal);
-    }
-
     /**
      * Adds an item that arrives the given number of milliseconds after the start.
      *

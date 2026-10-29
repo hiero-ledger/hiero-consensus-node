@@ -11,8 +11,8 @@ import java.lang.annotation.Target;
 /**
  * A constraint annotation that can be used define a max value for a config data property (see
  * {@link com.swirlds.config.api.ConfigProperty}). The validation of the annotation is automatically executed at the
- * initialization of the configuration (see {@link ConfigurationBuilder#build()}). The annotated property should not be
- * * used for floating point values.
+ * initialization of the configuration (see {@link ConfigurationBuilder#build()}). The value is compared exactly, in its
+ * own type: a fraction is not rounded, so {@code 100.5} violates {@code @Max(100)}, and NaN violates every bound.
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
