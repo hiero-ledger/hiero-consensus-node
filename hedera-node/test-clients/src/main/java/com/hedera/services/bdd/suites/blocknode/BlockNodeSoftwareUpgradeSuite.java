@@ -149,6 +149,8 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
     @Order(0)
     final Stream<DynamicTest> multiUpgradeGrpcWriterTss() {
         final AtomicReference<Instant> timeRef = new AtomicReference<>();
+        // Taken once each upgrade returns, so acks for blocks closed while the network was freezing don't count
+        final AtomicReference<Instant> ackTimeRef = new AtomicReference<>();
         // After each upgrade, verify the node reconnected to the block node and that the block node
         // verified (acknowledged) the blocks it streamed
         final AtomicInteger blockNodePort = new AtomicInteger();
@@ -166,32 +168,38 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                 prepareFakeUpgrade(),
                 doingContextual(spec -> timeRef.set(Instant.now())),
                 upgradeToNextConfigVersion(),
+                doingContextual(spec -> ackTimeRef.set(Instant.now())),
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
                         byNodeId(0),
                         timeRef::get,
                         Duration.ofMinutes(3),
                         Duration.ofMinutes(3),
-                        String.format("Selected new block node for streaming: localhost:%s", blockNodePort.get()),
-                        BLOCK_ACK)),
+                        String.format("Selected new block node for streaming: localhost:%s", blockNodePort.get()))),
+                assertBlockNodeCommsLogContainsTimeframe(
+                        byNodeId(0), ackTimeRef::get, Duration.ofMinutes(3), Duration.ofMinutes(3), BLOCK_ACK),
                 prepareFakeUpgrade(),
                 doingContextual(spec -> timeRef.set(Instant.now())),
                 upgradeToNextConfigVersion(),
+                doingContextual(spec -> ackTimeRef.set(Instant.now())),
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
                         byNodeId(0),
                         timeRef::get,
                         Duration.ofMinutes(3),
                         Duration.ofMinutes(3),
-                        String.format("Selected new block node for streaming: localhost:%s", blockNodePort.get()),
-                        BLOCK_ACK)),
+                        String.format("Selected new block node for streaming: localhost:%s", blockNodePort.get()))),
+                assertBlockNodeCommsLogContainsTimeframe(
+                        byNodeId(0), ackTimeRef::get, Duration.ofMinutes(3), Duration.ofMinutes(3), BLOCK_ACK),
                 prepareFakeUpgrade(),
                 doingContextual(spec -> timeRef.set(Instant.now())),
                 upgradeToNextConfigVersion(),
+                doingContextual(spec -> ackTimeRef.set(Instant.now())),
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
                         byNodeId(0),
                         timeRef::get,
                         Duration.ofMinutes(3),
                         Duration.ofMinutes(3),
-                        String.format("Selected new block node for streaming: localhost:%s", blockNodePort.get()),
-                        BLOCK_ACK)));
+                        String.format("Selected new block node for streaming: localhost:%s", blockNodePort.get()))),
+                assertBlockNodeCommsLogContainsTimeframe(
+                        byNodeId(0), ackTimeRef::get, Duration.ofMinutes(3), Duration.ofMinutes(3), BLOCK_ACK));
     }
 }
