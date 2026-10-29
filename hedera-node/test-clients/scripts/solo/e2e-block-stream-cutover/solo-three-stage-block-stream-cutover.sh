@@ -1,30 +1,18 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
 #
-# Isolated reproducer for the 0.78 -> 0.79 BLOCKS cutover that deploys directly at the
-# published 0.78 release tag, verifies the 0.78 baseline, then upgrades the CN to the local 0.79
-# build and simultaneously upgrades the Block Node to v0.41.0.
-#
-#   1. Deploy a CN network directly at the published v0.78.0-rc.5 release tag. The 0.78 genesis
-#      baseline uses dual-write streaming (streamMode=BOTH, writerMode=FILE_AND_GRPC) + mock TSS
-#      signatures, so genesis + staking complete without a block node (deployed mid-chain, step 3).
-#      The WRAPS env is injected before the JVMs start so all nodes initialize WRAPS in lockstep.
-#   2. Deploy a mirror node + explorer UI on the 0.78 network (importer reads blocks from the BN).
-#   3. Deploy a Block Node (v0.41.0) mid-chain; it verifies the real-TSS blocks streamed by the CN.
-#   4. Seed the Block Node with the network's TSS ledger id (published during 0.78) so it can
-#      verify blocks after the upgrade.
-#   5. Upgrade the CN in place to the local 0.79 build with
-#      resources/0.79/application-078-to-079.properties, and simultaneously upgrade the Block Node
-#      to v0.41.0. The mirror importer continues reading blocks from the upgraded BN.
-#
-# Verifications after the 0.79 upgrade:
-#   - local-build version on all consensus nodes
-#   - real (non-mock) WRAPS proof construction in hgcaa.log
-#   - Block Node (v0.41.0) verifies + persists the post-upgrade blocks (nextExpectedBlock
-#     advances)
-#   - (optional) a node restart replays cleanly WITHOUT SELF_ISS. Enable with RESTART_REPLAY_CHECK=true.
-#
-# Block Node and mirror node + explorer are always deployed in this script — no toggles.
+# Three-stage block-stream cutover from a published CN baseline to the checkout's local CN build:
+#   0. Genesis on the published CN baseline (v0.78.1) with record streaming only, without a BN.
+#   1. 0.79.0 configuration: upgrade to the local build; WRB streaming + disk hashes with mock
+#      signatures, without a BN.
+#   2. 0.79.1 configuration: generate jumpstart.bin with offline Block Node tooling,
+#      verify it against every node's saved hashes, then
+#      enable jumpstart + TSS. Replay the records to verify every node's migration vote.
+#   3. 0.80.0 configuration: cut over to BLOCKS/GRPC with real signatures, verify BN persistence
+#      and restart a CN to check replay for SELF_ISS.
+#   4. Run SDK TCK, then verify fresh ingestion, BN reads, transaction continuity and stopped records.
+# These are configuration stages, not claims about the local build's binary version.
+# Build first with ./gradlew assemble. See README-three-stage-cutover.md for prerequisites.
 
 set -euo pipefail
 set +m
@@ -32,22 +20,29 @@ set +m
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../../../" && pwd)"
 
-SOLO_CLUSTER_NAME="${SOLO_CLUSTER_NAME:-solo-cutover-79}"
-SOLO_DEPLOYMENT="${SOLO_DEPLOYMENT:-solo-cutover-79}"
+# ---- Pinned versions ------------------------------------------------------------------------
+# Published CN release deployed at genesis, before the three local-build stages.
+# DEPLOY_RELEASE_TAG is accepted as a legacy alias (the workflows' starting-tag input).
+CN_BASELINE_RELEASE_TAG="${CN_BASELINE_RELEASE_TAG:-${DEPLOY_RELEASE_TAG:-v0.78.1}}"
+# Block Node source tag used offline for `blocks wrap` (jumpstart + replay) and BN protos.
+# The wrapping CLI must hash with the same algorithm the CN uses for wrapped record hashes.
+BLOCK_NODE_TOOLS_REF="${BLOCK_NODE_TOOLS_REF:-v0.45.0-rc2}"
+# Block Node chart/image deployed after the stage 2 upgrade and kept through cutover.
+BLOCK_NODE_CHART_VERSION="${BLOCK_NODE_CHART_VERSION:-v0.45.0-rc4}"
+# Mirror node deployed before stage 2 and kept through cutover. Must support the CN's TSS library:
+# 0.165.2+ loads the WRAPS verification key from the crypto library (TSS 3.19+) instead of the
+# ledger id publication, which no longer carries it.
+MIRROR_NODE_VERSION="${MIRROR_NODE_VERSION:-v0.165.2-rc1}"
+# ---------------------------------------------------------------------------------------------
+
+SOLO_CLUSTER_NAME="${SOLO_CLUSTER_NAME:-solo-three-stage-cutover}"
+SOLO_DEPLOYMENT="${SOLO_DEPLOYMENT:-solo-three-stage-cutover}"
 SOLO_NAMESPACE="${SOLO_NAMESPACE:-solo}"
 SOLO_CLUSTER_SETUP_NAMESPACE="${SOLO_CLUSTER_SETUP_NAMESPACE:-solo-setup}"
 NODE_ALIASES="${NODE_ALIASES:-node1,node2,node3,node4}"
 
-# We deploy the network directly at the published 0.78 release tag (genesis at 0.78 with TSS +
-# WRAPS, dual-write + mock signatures — the pre-cutover baseline, no block node required), then
-# cut over to BLOCKS/GRPC/real-TSS at the local 0.79 upgrade.
-DEPLOY_RELEASE_TAG="${DEPLOY_RELEASE_TAG:-v0.78.0-rc.5}"
-
 LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH:-${REPO_ROOT}/hedera-node/data}"
 
-# The CN downloads + extracts the WRAPS proving-key archive itself at genesis, using the
-# default tss.wrapsProvingKeyDownloadUrl + tss.wrapsProvingKeyDownloadEnabled=true values from the
-# 0.78 release (which already point at the public mirror).
 WRAPS_REQUIRED_FILE_COUNT="${WRAPS_REQUIRED_FILE_COUNT:-4}"
 # Cap the WRAPS (Nova/rayon) prover's thread pool to limit its off-heap memory during the genesis
 # ceremony. Injected as TSS_LIB_NUM_OF_CORES in lockstep with the WRAPS artifacts path (before the
@@ -57,9 +52,10 @@ WRAPS_REQUIRED_FILE_COUNT="${WRAPS_REQUIRED_FILE_COUNT:-4}"
 # concurrent provers from starving consensus on shared CI runners. Set empty (or 0) to use all cores.
 WRAPS_NUM_CORES="${WRAPS_NUM_CORES:-1}"
 
-APP_PROPS_078_FILE="${APP_PROPS_078_FILE:-${SCRIPT_DIR}/resources/0.78/application-078-to-079.properties}"
-APP_ENV_078_FILE="${APP_ENV_078_FILE:-${SCRIPT_DIR}/resources/0.78/application-078-to-079.env}"
-APP_PROPS_079_FILE="${APP_PROPS_079_FILE:-${SCRIPT_DIR}/resources/0.79/application-078-to-079.properties}"
+APP_PROPS_BASELINE_FILE="${APP_PROPS_BASELINE_FILE:-${SCRIPT_DIR}/resources/0.78.1/application.properties}"
+APP_PROPS_STAGE1_FILE="${APP_PROPS_STAGE1_FILE:-${SCRIPT_DIR}/resources/0.79.0/application.properties}"
+APP_PROPS_STAGE2_FILE="${APP_PROPS_STAGE2_FILE:-${SCRIPT_DIR}/resources/0.79.1/application.properties}"
+APP_PROPS_STAGE3_FILE="${APP_PROPS_STAGE3_FILE:-${SCRIPT_DIR}/resources/0.80.0/application.properties}"
 LOG4J2_XML_PATH="${LOG4J2_XML_PATH:-${REPO_ROOT}/hedera-node/configuration/dev/log4j2.xml}"
 HAPI_PATH="/opt/hgcapp/services-hedera/HapiApp2.0"
 WRAPS_ARTIFACTS_CONTAINER_DIR_DEFAULT="${HAPI_PATH}/data/keys/wraps"
@@ -74,20 +70,20 @@ SOLO_UPGRADE_TIMEOUT_SECS="${SOLO_UPGRADE_TIMEOUT_SECS:-1800}"
 # (Helpers.copyBlockNodesJsonToConsensusNodes -> updateBlockStreamPropertiesForMode, added in Solo
 # v0.87.0) it force-sets blockStream.writerMode to constants.BLOCK_STREAM_WRITER_MODE. The sole call
 # site passes only the resolved streamMode, so that parameter always falls back to its default of
-# FILE_AND_GRPC and silently overwrites the writerMode=GRPC the 0.79 properties ask for.
+# FILE_AND_GRPC and silently overwrites the writerMode=GRPC the final stage properties ask for.
 #
-# The upgrade itself is handled the way the 0.78 deploy handles Solo's property rewrites: stage it
+# The upgrade itself is handled the way the stage 1 deploy handles Solo's property rewrites: stage it
 # with --skip-node-start and re-apply the properties before the JVMs start. `block node upgrade`
 # runs after the nodes are already up, though, so a re-apply there would not be picked up until the
 # next restart -- for that one command we use Solo's own environment override instead
 # (constants.ts: getEnvironmentVariable('BLOCK_STREAM_WRITER_MODE')).
-BLOCK_STREAM_WRITER_MODE_079="${BLOCK_STREAM_WRITER_MODE_079:-GRPC}"
+BLOCK_STREAM_WRITER_MODE_CUTOVER="${BLOCK_STREAM_WRITER_MODE_CUTOVER:-GRPC}"
 
-# When true (default), after the 0.79 upgrade we delete a CN pod to force an
+# When true (default), after the stage 3 upgrade we delete a CN pod to force an
 # event replay and assert it comes back ACTIVE without a SELF_ISS. This is the
 # actual failure mode observed in the full run (an OOMKilled node replayed past
 # the upgrade round and hit SELF_ISS). Set false to only test the happy path.
-RESTART_REPLAY_CHECK="${RESTART_REPLAY_CHECK:-false}"
+RESTART_REPLAY_CHECK="${RESTART_REPLAY_CHECK:-true}"
 RESTART_REPLAY_NODE="${RESTART_REPLAY_NODE:-node1}"
 RESTART_REPLAY_TIMEOUT_SECS="${RESTART_REPLAY_TIMEOUT_SECS:-600}"
 
@@ -98,22 +94,16 @@ OPERATOR_ACCOUNT_ID="${OPERATOR_ACCOUNT_ID:-0.0.2}"
 OPERATOR_PRIVATE_KEY="${OPERATOR_PRIVATE_KEY:-302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137}"
 NUDGE_TX_COUNT="${NUDGE_TX_COUNT:-5}"
 
-# --- Block Node + TSS-ledger-id config (ported from the full e2e script) ---------------
-# The reproducer deploys a Block Node (v0.41.0) before the 0.78 step, seeds it with the
-# network's TSS ledger id before the 0.79 upgrade, and asserts the upgraded BN (v0.41.0) verifies +
-# persists the real-TSS-signed post-upgrade blocks.
-#
-# The baseline BN floor is v0.41.0, not something older: the block root tree the CN builds became
-# a fixed 16-slot merkle tree (#26919 on release/0.78, #26721 on main) and only BN v0.41.0+ feeds
-# 16 leaves to its Merkle Mountain Top hasher (hiero-block-node #3378). A v0.40.x-or-older BN rejects
-# every block a 0.78-with-that-rework CN produces with EndOfStream/BAD_BLOCK_PROOF, which saturates
-# the CN block buffer and wedges the handle thread on backpressure.
+# Deploy the BN (BLOCK_NODE_CHART_VERSION) only after the stage 2 jumpstart + TSS upgrade. Seed
+# its TSS ledger id before stage 3 so it can verify real signatures at the BLOCKS-only cutover.
+# The offline wrapping tools are pinned separately by BLOCK_NODE_TOOLS_REF.
 MINIO_NAMESPACE="${MINIO_NAMESPACE:-${SOLO_NAMESPACE}}"
 MINIO_BUCKET="${MINIO_BUCKET:-solo-streams}"
 BLOCK_NODE_ID="${BLOCK_NODE_ID:-1}"
 BLOCK_NODE_REPO_PATH="${BLOCK_NODE_REPO_PATH:-${REPO_ROOT}/../hiero-block-node}"
-BLOCK_NODE_CHART_VERSION="${BLOCK_NODE_CHART_VERSION:-v0.41.0}"
-BLOCK_NODE_UPGRADE_VERSION="${BLOCK_NODE_UPGRADE_VERSION:-v0.41.0}"
+BLOCK_NODE_UPGRADE_VERSION="${BLOCK_NODE_UPGRADE_VERSION:-${BLOCK_NODE_CHART_VERSION}}"
+BLOCK_NODE_INIT_IMAGE="${BLOCK_NODE_INIT_IMAGE:-docker.io/library/busybox:1.36.1}"
+BLOCK_NODE_MIN_FREE_DISK_MIB="${BLOCK_NODE_MIN_FREE_DISK_MIB:-1024}"
 BLOCK_NODE_PRIORITY_MAPPING="${BLOCK_NODE_PRIORITY_MAPPING:-}"
 BLOCK_NODE_READY_TIMEOUT_SECS="${BLOCK_NODE_READY_TIMEOUT_SECS:-600}"
 BLOCK_NODE_GRPC_PORT="${BLOCK_NODE_GRPC_PORT:-40840}"
@@ -131,8 +121,8 @@ ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_READ_TIMEOUT_SECONDS="${ROSTER_BOOTSTRAP_RSA_MI
 ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_PAGE_SIZE="${ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_PAGE_SIZE:-100}"
 
 # Mirror node + explorer. The explorer is only a UI over the mirror node's REST API, so this
-# script deploys BOTH (matching the full e2e script). Deployment is best-effort: failures warn but
-# do not abort the core 0.78 -> 0.79 / BN upgrade test.
+# script deploys BOTH. The mirror supplies record metadata
+# for jumpstart generation and must be available before stage 2.
 MIRROR_RESTJAVA_MEMORY_REQUEST="${MIRROR_RESTJAVA_MEMORY_REQUEST:-512Mi}"
 MIRROR_RESTJAVA_MEMORY_LIMIT="${MIRROR_RESTJAVA_MEMORY_LIMIT:-1000Mi}"
 MIRROR_REST_LOCAL_PORT="${MIRROR_REST_LOCAL_PORT:-5551}"
@@ -142,10 +132,64 @@ EXPLORER_INGRESS_SERVICE_NAME="${EXPLORER_INGRESS_SERVICE_NAME:-hiero-explorer-1
 SOLO_MIRROR_DEPLOY_TIMEOUT_SECS="${SOLO_MIRROR_DEPLOY_TIMEOUT_SECS:-900}"
 SOLO_EXPLORER_DEPLOY_TIMEOUT_SECS="${SOLO_EXPLORER_DEPLOY_TIMEOUT_SECS:-600}"
 
-MIRROR_NODE_VERSION="${MIRROR_NODE_VERSION:-v0.162.0-rc1}"
-MIRROR_BLOCK_CUTOVER_HAPIVERSION="${MIRROR_BLOCK_CUTOVER_HAPIVERSION:-}"
+MIRROR_BLOCK_CUTOVER_HAPIVERSION="${MIRROR_BLOCK_CUTOVER_HAPIVERSION:-0.79.0}"
 
-WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/solo-078-to-079.XXXXXX")"
+# Explicit ingestion checks supplement SDK TCK and run even when TCK is disabled.
+MIRROR_VALIDATION_TX_COUNT="${MIRROR_VALIDATION_TX_COUNT:-1}"
+BN_ISOLATION_TX_COUNT="${BN_ISOLATION_TX_COUNT:-5}"
+DOCKER_MIN_MEMORY_MIB="${DOCKER_MIN_MEMORY_MIB:-24576}"
+MINIO_RESTORE_TIMEOUT_SECS="${MINIO_RESTORE_TIMEOUT_SECS:-300}"
+MIRROR_ACCOUNT_WAIT_SECS="${MIRROR_ACCOUNT_WAIT_SECS:-180}"
+MN_BLOCK_PROGRESS_MIN_DELTA="${MN_BLOCK_PROGRESS_MIN_DELTA:-3}"
+MN_BLOCK_PROGRESS_TIMEOUT_SECS="${MN_BLOCK_PROGRESS_TIMEOUT_SECS:-180}"
+MN_BLOCK_PROGRESS_POLL_SECS="${MN_BLOCK_PROGRESS_POLL_SECS:-5}"
+BN_GET_BLOCK_MAX_PER_CHECK="${BN_GET_BLOCK_MAX_PER_CHECK:-25}"
+RECORD_CESSATION_SETTLE_SECS="${RECORD_CESSATION_SETTLE_SECS:-15}"
+VALIDATION_SUMMARY_LINES=()
+
+# Run SDK TCK against the final BLOCKS-only network by default, using the XTS pins.
+ENABLE_TCK_TESTS="${ENABLE_TCK_TESTS:-true}"
+CITR_ENV_FILE="${REPO_ROOT}/.github/workflows/support/citr/.citr-env"
+TCK_VERSION="${TCK_VERSION:-$({ sed -n 's/^tck-version=//p' "${CITR_ENV_FILE}" 2>/dev/null | head -n 1; } || true)}"
+JS_SDK_VERSION="${JS_SDK_VERSION:-$({ sed -n 's/^js-sdk-version=//p' "${CITR_ENV_FILE}" 2>/dev/null | head -n 1; } || true)}"
+TCK_REPO_PATH="${TCK_REPO_PATH:-}"
+JS_SDK_REPO_PATH="${JS_SDK_REPO_PATH:-}"
+TCK_TEST_FILES="${TCK_TEST_FILES:-}"
+TCK_TEST_SCRIPT="${TCK_TEST_SCRIPT:-test}"
+TCK_JSON_RPC_PORT="${TCK_JSON_RPC_PORT:-8544}"
+MIRROR_GRPC_LOCAL_PORT="${MIRROR_GRPC_LOCAL_PORT:-5600}"
+MIRROR_RESTJAVA_LOCAL_PORT="${MIRROR_RESTJAVA_LOCAL_PORT:-8084}"
+MIRROR_RESTJAVA_READY_TIMEOUT_SECS="${MIRROR_RESTJAVA_READY_TIMEOUT_SECS:-300}"
+TCK_TEST_TIMEOUT_SECS="${TCK_TEST_TIMEOUT_SECS:-3600}"
+TCK_INSTALL_TIMEOUT_SECS="${TCK_INSTALL_TIMEOUT_SECS:-900}"
+
+GENERATED_DIR="${GENERATED_DIR:-${SCRIPT_DIR}/generated/three-stage-cutover}"
+mkdir -p "${GENERATED_DIR}"
+WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/solo-three-stage-cutover.XXXXXX")"
+CURRENT_STAGE="prerequisites"
+TX_ID_OUT_FILE="${GENERATED_DIR}/submitted-transactions.txt"
+ACCOUNT_ID_OUT_FILE="${WORK_DIR}/nudge-accounts.txt"
+: > "${TX_ID_OUT_FILE}"
+RECORD_STREAMS_DIR="${GENERATED_DIR}/recordStreams"
+WRAPPED_BLOCKS_DIR="${GENERATED_DIR}/wrappedBlocks"
+REPLAY_WRAPPED_BLOCKS_DIR="${GENERATED_DIR}/replayWrappedBlocks"
+WRAP_DAYS_SRC_DIR="${GENERATED_DIR}/wrap-days"
+WRAP_COMPRESSED_DAYS_DIR="${GENERATED_DIR}/compressed-days"
+BLOCK_TIMES_FILE="${GENERATED_DIR}/block-times.bin"
+DAY_BLOCKS_FILE="${GENERATED_DIR}/day-blocks.json"
+MIRROR_METADATA_SCRIPT="${WORK_DIR}/mirror-metadata.js"
+JUMPSTART_PARSE_SCRIPT="${WORK_DIR}/parse-jumpstart-bin.js"
+JUMPSTART_BIN_PATH=""
+USE_BLOCK_NODE_JUMPSTART=true
+BLOCKS_WRAP_EXTRA_ARGS="${BLOCKS_WRAP_EXTRA_ARGS:-}"
+MINIO_SERVICE_NAME="${MINIO_SERVICE_NAME:-}"
+ZSTD_WRAPPER_DIR="${WORK_DIR}/zstd-bin"
+ZSTD_WRAPPER_SRC="${ZSTD_WRAPPER_DIR}/ZstdCat.java"
+ZSTD_WRAPPER_BIN="${ZSTD_WRAPPER_DIR}/zstd"
+MIGRATION_COMPARE_LOG="${GENERATED_DIR}/migration-compare.log"
+TMP_STAGE2_APP_PROPS="${GENERATED_DIR}/application-jumpstart.properties"
+WRAPPED_RECORD_HASHES_FILE="/opt/hgcapp/services-hedera/HapiApp2.0/data/wrappedRecordHashes/wrapped-record-hashes.pb"
+
 NUDGE_SCRIPT="${WORK_DIR}/nudge-consensus.js"
 CN_PORT_FORWARD_LOG="${WORK_DIR}/cn-port-forward.log"
 RSA_BOOTSTRAP_ROSTER_FILE="${WORK_DIR}/rsa-bootstrap-roster.json"
@@ -156,9 +200,21 @@ BN_TSS_PARAMS_LOCAL="${WORK_DIR}/tss-bootstrap-roster.json"
 BN_BLOCK_FILES_DIR="${WORK_DIR}/bn-block-files"
 BN_TSS_PARAMS_CONTAINER_PATH="${BN_TSS_PARAMS_CONTAINER_PATH:-/opt/hiero/block-node/application-state/tss-bootstrap-roster.json}"
 MIRROR_NODE_VALUES_FILE="${WORK_DIR}/mirror-node-values.yaml"
-MIRROR_NODE_CUTOVER_VALUES_FILE="${WORK_DIR}/mirror-node-block-cutover-values.yaml"
 MIRROR_PORT_FORWARD_PID=""
 EXPLORER_INGRESS_PORT_FORWARD_PID=""
+
+TCK_CLONE_DIR="${WORK_DIR}/hiero-sdk-tck"
+JS_SDK_CLONE_DIR="${WORK_DIR}/hiero-sdk-js"
+TCK_SDK_SERVER_LOG="${WORK_DIR}/tck-sdk-server.log"
+TCK_REPORT_EXPORT_DIR="${TCK_REPORT_EXPORT_DIR:-${GENERATED_DIR}/tck-report}"
+TCK_REPO_DIR=""
+JS_SDK_REPO_DIR=""
+TCK_STATS_SUMMARY=""
+TCK_SDK_SERVER_PID=""
+TCK_CN_PORT_FORWARD_PID=""
+MIRROR_GRPC_PORT_FORWARD_PID=""
+MIRROR_RESTJAVA_PORT_FORWARD_PID=""
+MIRROR_WEB3_PORT_FORWARD_PID=""
 
 log() {
   printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"
@@ -178,7 +234,16 @@ cleanup() {
   # (incl. on a failed exit). In CI the workflow's "Always Destroy Kind Cluster" step handles
   # teardown at the end of the run; locally, remove it yourself when done with:
   #   kind delete cluster -n "${SOLO_CLUSTER_NAME}"
-  # Only the throwaway temp work dir is cleaned up here.
+  if ! reconnect_importer_to_minio; then
+    echo "MinIO recovery incomplete; inspect ${MINIO_RESTORE_RESOURCE} in ${MINIO_NAMESPACE} and Kind node health" >&2
+    (( ec != 0 )) || ec=1
+  fi
+  stop_bn_port_forward
+  if (( ec != 0 )) && [[ "${CURRENT_STAGE}" != prerequisites ]]; then
+    collect_stage_diagnostics "${CURRENT_STAGE}-failure" || true
+  fi
+  cleanup_tck_resources
+  # Keep generated jumpstart inputs, comparisons and per-stage logs for CI artifacts.
   rm -rf "${WORK_DIR}" >/dev/null 2>&1 || true
   exit "${ec}"
 }
@@ -213,13 +278,7 @@ wait_for_haproxy_ready() {
 }
 
 configured_wraps_artifacts_container_dir() {
-  local configured=""
-  configured="$(sed -n 's/^TSS_LIB_WRAPS_ARTIFACTS_PATH=//p' "${APP_ENV_078_FILE}" | head -n 1)"
-  if [[ -n "${configured}" ]]; then
-    printf '%s\n' "${configured}"
-  else
-    printf '%s\n' "${WRAPS_ARTIFACTS_CONTAINER_DIR_DEFAULT}"
-  fi
+  printf '%s\n' "${WRAPS_ARTIFACTS_CONTAINER_DIR_DEFAULT}"
 }
 
 # Solo creates the per-node `network-<alias>-data-config-cm` ConfigMaps straight through the
@@ -229,18 +288,23 @@ configured_wraps_artifacts_container_dir() {
 # what sets it. So `consensus network deploy` renders none of them, Solo then creates them out of
 # band, and the next `helm upgrade` (driven by `consensus network upgrade`) aborts with "invalid
 # ownership metadata". Stamp the standard Helm adoption keys so Helm can take ownership instead.
-# Solo only merge-patches `.data` afterwards, so the metadata survives the later `block node upgrade`.
+# Helm 4 also tracks field ownership: release Solo data claims so Helm can apply new values.
+# This includes the shared application.properties ConfigMap, which a client-side Helm update
+# can own as helm/Update even though Helm 4 applies as helm/Apply.
 adopt_node_data_config_maps_into_helm() {
   # Solo's release name for the solo-deployment chart (constants.SOLO_DEPLOYMENT_CHART). This is NOT
   # ${SOLO_DEPLOYMENT}, which is the Solo deployment name and defaults to something else entirely.
   local helm_release="solo-deployment"
-  local node cm
-  local nodes=()
+  local node cm helm_version ownership_patch
+  local nodes=() config_maps=(network-node-data-config-cm)
+  helm_version="$(helm version --short)"
 
-  log "Stamping Helm ownership metadata on the per-node data ConfigMaps"
+  log "Adopting consensus ConfigMaps for Helm updates"
   IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
   for node in "${nodes[@]}"; do
-    cm="network-${node}-data-config-cm"
+    config_maps+=("network-${node}-data-config-cm")
+  done
+  for cm in "${config_maps[@]}"; do
     if ! kubectl -n "${SOLO_NAMESPACE}" get configmap "${cm}" >/dev/null 2>&1; then
       echo "  ${cm}: absent, nothing to adopt"
       continue
@@ -250,6 +314,16 @@ adopt_node_data_config_maps_into_helm() {
     kubectl -n "${SOLO_NAMESPACE}" annotate configmap "${cm}" \
       "meta.helm.sh/release-name=${helm_release}" \
       "meta.helm.sh/release-namespace=${SOLO_NAMESPACE}" --overwrite >/dev/null
+    if [[ "${helm_version}" == v4.* ]]; then
+      ownership_patch="$(kubectl -n "${SOLO_NAMESPACE}" get configmap "${cm}" --show-managed-fields -o json |
+        jq -c -f "${SCRIPT_DIR}/helm-configmap-ownership.jq")"
+      if [[ "${ownership_patch}" != "[]" ]]; then
+        # Resource-version test makes the metadata-only patch atomic against concurrent writes.
+        kubectl -n "${SOLO_NAMESPACE}" patch configmap "${cm}" --type=json \
+          --patch "${ownership_patch}" >/dev/null
+        echo "  ${cm}: released Solo data-field ownership for Helm 4 apply"
+      fi
+    fi
     echo "  ${cm}: adopted into Helm release ${helm_release}"
   done
 }
@@ -289,7 +363,7 @@ reapply_application_property_overrides() {
 }
 
 # Pre-inject the WRAPS artifacts, swap-file, and core-limit variables into every consensus StatefulSet's
-# container spec BEFORE Solo's 0.78 deploy. Solo's --application-env drops the
+# container spec BEFORE Solo's stage 1 deploy. Solo's --application-env drops the
 # env file onto disk but the container entrypoint never sources it, so the JVM
 # never sees it. `kubectl set env statefulset/...` is the only path that
 # reliably reaches the JVM's /proc/<pid>/environ AND survives subsequent
@@ -373,8 +447,7 @@ verify_local_build_on_consensus_nodes() {
 }
 
 # Verifies each consensus node runs a release whose Implementation-Version contains the expected
-# substring (e.g. "0.78"). Used for the 0.78 step, which deploys a published release image
-# rather than the local build, so the local-build version check does not apply.
+# substring. Used for the published CN_BASELINE_RELEASE_TAG genesis.
 verify_release_version_on_consensus_nodes() {
   local expected_substr="$1"
   local node pod pod_version
@@ -459,7 +532,7 @@ wraps_failure_present_in_log() {
 iss_present_in_log() {
   local pod="$1"
   kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
-    "grep -Eq 'ISS detected|is CATASTROPHIC_FAILURE' ${HAPI_PATH}/output/hgcaa.log" >/dev/null 2>&1
+    "grep -Eq 'SELF_ISS|ISS detected|is CATASTROPHIC_FAILURE' ${HAPI_PATH}/output/hgcaa.log" >/dev/null 2>&1
 }
 
 # Submit a few cryptoCreate transactions against a CN's gRPC port to drive
@@ -493,17 +566,25 @@ nudge_consensus_with_transactions() {
   fi
   log "CN gRPC reachable on 127.0.0.1:${CN_GRPC_LOCAL_PORT}"
 
+  : > "${ACCOUNT_ID_OUT_FILE}"
   cat > "${NUDGE_SCRIPT}" <<'EOF'
+const fs = require("fs");
 const {
   Client,
   AccountCreateTransaction,
   Hbar,
   PrivateKey,
   Status,
+  TransferTransaction,
 } = require("@hashgraph/sdk");
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function recordTransaction(txId) {
+  const nanos = String(txId.validStart.nanos).padStart(9, "0");
+  fs.appendFileSync(process.env.TX_ID_OUT_FILE, `${txId.accountId}-${txId.validStart.seconds}-${nanos}\n`);
 }
 
 async function main() {
@@ -530,11 +611,28 @@ async function main() {
     if (receipt.status !== Status.Success) {
       throw new Error(`tx ${i}/${txCount}: non-success status ${receipt.status.toString()}`);
     }
-    const accountId = receipt.accountId ? receipt.accountId.toString() : "(no id)";
+    if (!receipt.accountId) {
+      throw new Error(`tx ${i}/${txCount}: receipt has no account ID`);
+    }
+    recordTransaction(response.transactionId);
+    const accountId = receipt.accountId.toString();
+    fs.appendFileSync(process.env.ACCOUNT_ID_OUT_FILE, `${accountId}\n`);
     console.log(`  nudge tx ${i}/${txCount}: cryptoCreate -> ${accountId}`);
     await sleep(500);
   }
 
+  // A later transaction in another record period closes the last create's record block.
+  // Keep its receipt too; the final BLOCKS-mode continuity sweep must see every submission.
+  await sleep(3000);
+  const flush = await new TransferTransaction()
+    .addHbarTransfer(operatorAccountId, Hbar.fromTinybars(-1))
+    .addHbarTransfer(operatorAccountId, Hbar.fromTinybars(1))
+    .execute(client);
+  const flushReceipt = await flush.getReceipt(client);
+  if (flushReceipt.status !== Status.Success) {
+    throw new Error(`flush: non-success status ${flushReceipt.status.toString()}`);
+  }
+  recordTransaction(flush.transactionId);
   await client.close();
 }
 
@@ -560,6 +658,8 @@ EOF
     GRPC_ENDPOINT="127.0.0.1:${CN_GRPC_LOCAL_PORT}" \
     OPERATOR_ACCOUNT_ID="${OPERATOR_ACCOUNT_ID}" \
     OPERATOR_PRIVATE_KEY="${OPERATOR_PRIVATE_KEY}" \
+    TX_ID_OUT_FILE="${TX_ID_OUT_FILE}" \
+    ACCOUNT_ID_OUT_FILE="${ACCOUNT_ID_OUT_FILE}" \
     NUDGE_TX_COUNT="${tx_count}" \
       node "${NUDGE_SCRIPT}"
   ) || rc=$?
@@ -676,7 +776,7 @@ report_wraps_download_times() {
 # Delete a CN pod after the cutover to force a fresh JVM start + event replay,
 # then assert it returns to Ready without logging a SELF_ISS / CATASTROPHIC_FAILURE.
 # This reproduces the real failure mode: in the full run, an OOMKilled node
-# replayed events past the 0.78 cutover round and computed a divergent state
+# replayed events past the stage 3 cutover round and computed a divergent state
 # hash (SELF_ISS) right after the WrapsHistoryProver AGGREGATE phase.
 verify_node_replays_without_iss() {
   local node="${RESTART_REPLAY_NODE}"
@@ -713,7 +813,7 @@ verify_node_replays_without_iss() {
     if iss_present_in_log "${pod}"; then
       echo "FAIL: ${pod} hit ISS/CATASTROPHIC_FAILURE during post-cutover replay" >&2
       kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
-        "grep -nE 'ISS detected|is CATASTROPHIC_FAILURE' ${HAPI_PATH}/output/hgcaa.log | tail -5" >&2 2>/dev/null || true
+        "grep -nE 'SELF_ISS|ISS detected|is CATASTROPHIC_FAILURE' ${HAPI_PATH}/output/hgcaa.log | tail -5" >&2 2>/dev/null || true
       return 1
     fi
     if [[ "$(kubectl -n "${SOLO_NAMESPACE}" get pod "${pod}" \
@@ -767,14 +867,22 @@ run_command_with_timeout() {
 }
 
 # ======================================================================================
-# Block Node + TSS-ledger-id machinery (ported from solo-e2e-block-stream-cutover.sh).
-# Lets this fast reproducer also exercise: BN verification of real-TSS blocks during 0.78,
+# Block Node verification and TSS-ledger-id bootstrap machinery.
+# Lets this fast reproducer also exercise: BN verification of real-TSS blocks during stage 2,
 # seeding the BN with the network's TSS ledger id, and BN verification +
-# persistence of the real-TSS-signed blocks produced after the 0.79 upgrade.
+# persistence of the real-TSS-signed blocks produced after the stage 3 upgrade.
 # ======================================================================================
 
 kill_processes_on_local_port() {
   local port="$1"
+  local pid
+  # TCK's pnpm/nodemon grandchildren can outlive their launcher. Find the listener itself,
+  # since matching kubectl port-forward commands does not stop an SDK JSON-RPC server.
+  if command -v lsof >/dev/null 2>&1; then
+    while IFS= read -r pid; do
+      [[ -n "${pid}" ]] && kill "${pid}" >/dev/null 2>&1 || true
+    done < <(lsof -ti "tcp:${port}" -sTCP:LISTEN 2>/dev/null || true)
+  fi
   pkill -f "port-forward.*:${port}\b" >/dev/null 2>&1 || true
   pkill -f "port-forward.* ${port}:" >/dev/null 2>&1 || true
 }
@@ -804,7 +912,7 @@ build_default_block_node_priority_mapping() {
 }
 
 # Build the RSA bootstrap roster JSON from each CN's gossip public key (s-public-nodeN.pem).
-# Lets the BN verify the mock-signature (RSA WRB) blocks streamed before the 0.78 cutover.
+# Lets the BN verify the mock-signature (RSA WRB) blocks streamed before the stage 3 cutover.
 generate_rsa_bootstrap_roster_json() {
   require_cmd openssl
   local node node_idx node_id pem hex
@@ -847,9 +955,8 @@ EOF
   log "Generated RSA bootstrap roster (${#nodes[@]} entries): ${RSA_BOOTSTRAP_ROSTER_FILE}"
 }
 
-# Helm values: earliestManagedBlock/backfill floor + a seed-rsa-bootstrap-roster init
-# container that bakes the roster JSON onto the live PVC. (See the full e2e script for the
-# field-by-field rationale; this is a verbatim port.)
+# Helm values: earliestManagedBlock/backfill floor and an init container that seeds
+# the RSA bootstrap roster onto the live PVC before the Block Node starts.
 write_block_node_cutover_values() {
   local roster_indented
   roster_indented="$(sed 's/^/          /' "${RSA_BOOTSTRAP_ROSTER_FILE}")"
@@ -866,7 +973,8 @@ blockNode:
     ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_PAGE_SIZE: "${ROSTER_BOOTSTRAP_RSA_MIRROR_NODE_PAGE_SIZE}"
   initContainers:
     - name: init-storage-dirs
-      image: busybox
+      image: "${BLOCK_NODE_INIT_IMAGE}"
+      imagePullPolicy: IfNotPresent
       command:
         - sh
         - -c
@@ -887,7 +995,8 @@ blockNode:
         - name: application-state-storage
           mountPath: /application-state-pvc
     - name: seed-rsa-bootstrap-roster
-      image: busybox
+      image: "${BLOCK_NODE_INIT_IMAGE}"
+      imagePullPolicy: IfNotPresent
       command:
         - sh
         - -c
@@ -905,7 +1014,32 @@ ${roster_indented}
 EOF
 }
 
+verify_kind_disk_headroom() {
+  local kind_nodes node available_mib
+  if [[ ! "${BLOCK_NODE_MIN_FREE_DISK_MIB}" =~ ^[0-9]+$ ]]; then
+    echo "BLOCK_NODE_MIN_FREE_DISK_MIB must be a nonnegative integer" >&2
+    return 1
+  fi
+  kind_nodes="$(kind get nodes --name "${SOLO_CLUSTER_NAME}")" || return 1
+  [[ -n "${kind_nodes}" ]] || { echo "No Kind nodes found for ${SOLO_CLUSTER_NAME}" >&2; return 1; }
+  while IFS= read -r node; do
+    available_mib="$(docker exec "${node}" df -Pm /var | awk 'NR == 2 { print $4 }')" || return 1
+    if [[ ! "${available_mib}" =~ ^[0-9]+$ ]]; then
+      echo "Could not determine free disk space on ${node}" >&2
+      return 1
+    fi
+    if (( available_mib < BLOCK_NODE_MIN_FREE_DISK_MIB )); then
+      echo "${node}: only ${available_mib} MiB free on /var; need at least ${BLOCK_NODE_MIN_FREE_DISK_MIB} MiB before deploying BN" >&2
+      echo "Increase Docker Desktop's disk limit or free unused Docker storage before retrying. A full disk prevents image pulls and can stop the Kubernetes API server." >&2
+      docker exec "${node}" df -h /var >&2 || true
+      return 1
+    fi
+    log "${node}: ${available_mib} MiB free before BN deployment"
+  done <<< "${kind_nodes}"
+}
+
 deploy_block_node() {
+  verify_kind_disk_headroom || return 1
   validate_block_node_repo || return 1
   # earliestManagedBlock must sit ABOVE the CN's current block at deploy time; the BN then
   # snaps down to whatever CN first publishes. The reproducer produces few blocks before
@@ -1012,22 +1146,6 @@ verify_block_node_has_blocks() {
   cat "${pf_log}" >&2 2>/dev/null || true
   kill "${pf_pid}" >/dev/null 2>&1 || true
   return 1
-}
-
-minio_discover_pod_credentials() {
-  local ns="$1" pod u p cfg
-  pod="$(kubectl -n "${ns}" get pods -o json 2>/dev/null | jq -r '.items[].metadata.name | select(test("^minio-"))' | head -n 1)"
-  [[ -n "${pod}" ]] || return 1
-  # shellcheck disable=SC2016
-  cfg="$(kubectl -n "${ns}" exec "${pod}" -c minio -- sh -c 'cat "${MINIO_CONFIG_ENV_FILE:-/tmp/minio/config.env}" 2>/dev/null || true' 2>/dev/null || true)"
-  u="$(echo "${cfg}" | sed -n -E 's/^(export[[:space:]]+)?MINIO_ROOT_USER=//p' | head -1 | tr -d '"\r')"
-  p="$(echo "${cfg}" | sed -n -E 's/^(export[[:space:]]+)?MINIO_ROOT_PASSWORD=//p' | head -1 | tr -d '"\r')"
-  if [[ -z "${u}" || -z "${p}" ]]; then
-    u="$(echo "${cfg}" | sed -n -E 's/^(export[[:space:]]+)?MINIO_ACCESS_KEY=//p' | head -1 | tr -d '"\r')"
-    p="$(echo "${cfg}" | sed -n -E 's/^(export[[:space:]]+)?MINIO_SECRET_KEY=//p' | head -1 | tr -d '"\r')"
-  fi
-  [[ -n "${u}" && -n "${p}" ]] || return 1
-  printf '%s\n' "${u}" "${p}"
 }
 
 # Dependency-free Python extractor: walks the protobuf wire format of a block-stream file
@@ -1167,8 +1285,8 @@ EOF
 }
 
 # Bootstrap the BN with the network's TSS ledger id so it can verify real-TSS-signed
-# blocks after the 0.79 upgrade. The BN only self-learns the ledger id from block 0; this
-# mid-chain BN never sees it, so we extract the LedgerIdPublication (published during 0.78)
+# blocks after the stage 3 upgrade. The BN only self-learns the ledger id from block 0; this
+# mid-chain BN never sees it, so we extract the LedgerIdPublication (published during stage 2)
 # from a MinIO .blk.gz, convert it to the v0.39 application-state TssData JSON, and roll the BN.
 seed_block_node_tss_parameters() {
   require_cmd python3
@@ -1216,7 +1334,7 @@ seed_block_node_tss_parameters() {
   write_ledger_id_extractor
   rm -f "${BN_TSS_PARAMS_LOCAL}"
   if ! python3 "${LEDGER_ID_EXTRACTOR_SRC}" "${BN_TSS_PARAMS_LOCAL}" "${blk_files[@]}"; then
-    echo "seed: no LedgerIdPublication found in block stream (was it published during 0.78?)" >&2; return 1
+    echo "seed: no LedgerIdPublication found in block stream (was it published during stage 2?)" >&2; return 1
   fi
   [[ -s "${BN_TSS_PARAMS_LOCAL}" ]] || { echo "seed: extracted TssData JSON is empty" >&2; return 1; }
 
@@ -1271,7 +1389,7 @@ seed_block_node_tss_parameters() {
   return 0
 }
 
-# After the 0.79 upgrade, assert the BN VERIFIES + PERSISTS the real-TSS-signed blocks.
+# After the stage 3 upgrade, assert the BN VERIFIES + PERSISTS the real-TSS-signed blocks.
 # Reads serverStatus.nextExpectedBlock twice over a window and requires it to advance.
 # nextExpectedBlock is the live publisher position (= lastAvailableBlock + 1), bumped as the BN
 # receives/verifies each block; unlike lastAvailableBlock it does not lag behind the persistence/
@@ -1306,13 +1424,19 @@ verify_block_node_persists_post_cutover() {
 
   local baseline="" current=""
   baseline="$(read_bn_next_expected)"
-  [[ "${baseline}" =~ ^[0-9]+$ ]] || baseline=0
+  [[ "${baseline}" =~ ^[0-9]+$ ]] || baseline=""
   log "Asserting BN persists post-cutover blocks (baseline nextExpectedBlock=${baseline}; must climb within ${timeout_secs}s)"
   local deadline=$((SECONDS + timeout_secs))
+  nudge_consensus_with_transactions
   while (( SECONDS < deadline )); do
     sleep 10
     current="$(read_bn_next_expected)"
-    if [[ "${current}" =~ ^[0-9]+$ && "${current}" -gt "${baseline}" ]]; then
+    if [[ -z "${baseline}" && "${current}" =~ ^[0-9]+$ ]]; then
+      baseline="${current}"
+      nudge_consensus_with_transactions
+      continue
+    fi
+    if [[ "${current}" =~ ^[0-9]+$ && -n "${baseline}" && "${current}" -gt "${baseline}" ]]; then
       log "verify_block_node_persists_post_cutover: nextExpectedBlock advanced ${baseline} -> ${current} — BN verified the real-TSS post-cutover blocks"
       kill "${pf_pid}" >/dev/null 2>&1 || true
       return 0
@@ -1326,11 +1450,11 @@ verify_block_node_persists_post_cutover() {
 }
 
 # Seeding rolls the BN, which severs the CN->BN publisher stream at the BN's last block. The CN keeps
-# producing on 0.78, but those blocks live only in the CN's in-memory block buffer, which RESETS when
-# the 0.79 upgrade restarts the CN. If the BN hasn't re-ingested up to the live tip before that
+# producing during stage 2, but those blocks live only in the CN's in-memory block buffer, which RESETS when
+# the stage 3 upgrade restarts the CN. If the BN hasn't re-ingested up to the live tip before that
 # restart, the gap blocks are orphaned (the BN's wanted block falls below the CN's reset buffer floor,
 # "block out of range") and the BN stalls forever. So after seeding, wait until the BN is actively
-# advancing again (publisher reconnected + streaming the post-roll blocks) BEFORE the 0.79 upgrade.
+# advancing again (publisher reconnected + streaming the post-roll blocks) BEFORE the stage 3 upgrade.
 wait_for_block_node_caught_up() {
   local timeout_secs="${1:-300}"
   local svc="block-node-${BLOCK_NODE_ID}"
@@ -1370,7 +1494,7 @@ wait_for_block_node_caught_up() {
   # attempt + cool-down) to even notice the roll severed the stream, so the pre-roll tail still ends
   # with a stale "available for streaming" line that would pass this gate before any reconnection
   # (that stale match let the 2026-08-01 run cut over into the orphaned-blocks stall).
-  log "Waiting for the CN to report the Block Node in-range for streaming after the seed roll (up to ${timeout_secs}s) before the 0.78 cutover"
+  log "Waiting for the CN to report the Block Node in-range for streaming after the seed roll (up to ${timeout_secs}s) before the stage 3 cutover"
   local prev="" cur cn_view
   local deadline=$((SECONDS + timeout_secs))
   while (( SECONDS < deadline )); do
@@ -1391,7 +1515,7 @@ wait_for_block_node_caught_up() {
     fi
     sleep 5
   done
-  echo "WARN catchup: CN did not report the BN in-range within ${timeout_secs}s (last BN nextExpectedBlock=${prev:-?}); the 0.78 cutover may orphan blocks — consider seeding during the freeze" >&2
+  echo "WARN catchup: CN did not report the BN in-range within ${timeout_secs}s (last BN nextExpectedBlock=${prev:-?}); the stage 3 cutover may orphan blocks — consider seeding during the freeze" >&2
   kill "${pf_pid}" >/dev/null 2>&1 || true
   return 1
 }
@@ -1433,69 +1557,269 @@ setup_cluster_prereqs() {
     --quiet-mode
 }
 
-# Deploy the network directly at the 0.78 release tag (genesis: TSS + WRAPS enabled, mock
-# signatures, dual-write — the pre-cutover baseline). The published 0.78 tag provides the prerequisite state the 0.79
-# upgrade builds on.
-deploy_078() {
-  log "Deploying consensus network directly at ${DEPLOY_RELEASE_TAG} (genesis: TSS + WRAPS enabled, mock signatures, dual-write -- pre-cutover baseline)"
-
-  solo keys consensus generate \
-    --gossip-keys \
-    --tls-keys \
-    --deployment "${SOLO_DEPLOYMENT}" \
-    --node-aliases "${NODE_ALIASES}"
-
-  solo consensus network deploy \
-    --deployment "${SOLO_DEPLOYMENT}" \
-    --node-aliases "${NODE_ALIASES}" \
-    --application-properties "${APP_PROPS_078_FILE}" \
-    --log4j2-xml "${LOG4J2_XML_PATH}" \
-    --pvcs true \
-    --release-tag "${DEPLOY_RELEASE_TAG}"
-
-  solo consensus node setup \
-    --deployment "${SOLO_DEPLOYMENT}" \
-    --node-aliases "${NODE_ALIASES}" \
-    --release-tag "${DEPLOY_RELEASE_TAG}"
-
-  # Inject the WRAPS artifacts path, PVC-backed swap file, and core limit into each StatefulSet
-  # BEFORE starting the JVMs. consensus network deploy does not accept --application-env, so the
-  # env is set here via kubectl. All nodes come up together via the single
-  # `consensus node start` below, so the genesis WRAPS ceremony runs in lockstep.
-  inject_wraps_env_into_statefulsets
-  reapply_application_property_overrides "${APP_PROPS_078_FILE}"
-
-  solo consensus node start \
-    --deployment "${SOLO_DEPLOYMENT}" \
-    --node-aliases "${NODE_ALIASES}" \
-    --force-port-forward false
-
-  wait_for_consensus_pods_ready 600
-  wait_for_haproxy_ready 600
-  verify_release_version_on_consensus_nodes "0.78"
-  verify_runtime_config_on_consensus_nodes "0.78 baseline" \
-    "nodes.nodeRewardsEnabled=false" \
-    "blockStream.streamMode=BOTH" \
-    "blockStream.writerMode=FILE_AND_GRPC" \
-    "blockStream.enableCutover=false" \
-    "tss.hintsEnabled=true" \
-    "tss.historyEnabled=true" \
-    "tss.wrapsEnabled=true" \
-    "tss.forceMockSignatures=true" \
-    "tss.wrapsProvingKeyPath=${HAPI_PATH}/data/keys/wraps-archive"
+# Save diagnostics before Solo rotates logs during the next upgrade, and on failure.
+collect_stage_diagnostics() {
+  local stage="$1" node pod name kind_node kind_nodes nodes=()
+  local out="${GENERATED_DIR}/${stage}"
+  mkdir -p "${out}"
+  # Collect storage evidence without the Kubernetes API, which can stop on a full disk.
+  kind_nodes="$(kind get nodes --name "${SOLO_CLUSTER_NAME}" 2>/dev/null || true)"
+  while IFS= read -r kind_node; do
+    [[ -n "${kind_node}" ]] || continue
+    run_command_with_timeout 15 docker exec "${kind_node}" df -h /var > "${out}/${kind_node}-disk.txt" 2>&1 || true
+    run_command_with_timeout 15 docker exec "${kind_node}" sh -c \
+      'cat /proc/meminfo; cat /proc/loadavg; cat /proc/pressure/memory; cat /proc/pressure/io; cat /sys/fs/cgroup/memory.events; cat /sys/fs/cgroup/memory.swap.current' \
+      > "${out}/${kind_node}-memory-pressure.txt" 2>&1 || true
+  done <<< "${kind_nodes}"
+  kubectl --request-timeout=10s get nodes -o wide > "${out}/nodes.txt" 2>&1 || true
+  kubectl --request-timeout=10s -n "${SOLO_NAMESPACE}" get pods -o wide > "${out}/pods.txt" 2>&1 || true
+  kubectl --request-timeout=10s -n "${SOLO_NAMESPACE}" get events --sort-by=.lastTimestamp \
+    > "${out}/events.txt" 2>&1 || true
+  kubectl --request-timeout=10s -n "${SOLO_NAMESPACE}" logs deployment/mirror-1-importer --tail=500 \
+    > "${out}/mirror-importer.log" 2>&1 || true
+  kubectl --request-timeout=10s -n "${SOLO_NAMESPACE}" logs deployment/mirror-1-importer --previous --tail=500 \
+    > "${out}/mirror-importer-previous.log" 2>&1 || true
+  kubectl --request-timeout=10s -n "${SOLO_NAMESPACE}" logs deployment/mirror-1-rest --tail=500 \
+    > "${out}/mirror-rest.log" 2>&1 || true
+  kubectl --request-timeout=10s -n "${SOLO_NAMESPACE}" logs deployment/mirror-1-rest --previous --tail=500 \
+    > "${out}/mirror-rest-previous.log" 2>&1 || true
+  kubectl --request-timeout=10s -n "${SOLO_NAMESPACE}" describe pod -l app.kubernetes.io/component=rest \
+    > "${out}/mirror-rest-describe.txt" 2>&1 || true
+  kubectl --request-timeout=10s -n "${SOLO_NAMESPACE}" describe pod minio-pool-1-0 \
+    > "${out}/minio-describe.txt" 2>&1 || true
+  kubectl -n "${SOLO_NAMESPACE}" describe pod "block-node-${BLOCK_NODE_ID}-0" --request-timeout=10s \
+    > "${out}/block-node-describe.txt" 2>&1 || true
+  kubectl -n "${SOLO_NAMESPACE}" get events --field-selector "involvedObject.name=block-node-${BLOCK_NODE_ID}-0" \
+    --sort-by=.lastTimestamp --request-timeout=10s > "${out}/block-node-events.txt" 2>&1 || true
+  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
+  for node in "${nodes[@]}"; do
+    pod="network-${node}-0"
+    for name in output/hgcaa.log output/block-node-comms.log data/config/application.properties; do
+      kubectl --request-timeout=10s -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- cat "${HAPI_PATH}/${name}" \
+        > "${out}/${node}-$(basename "${name}")" 2>/dev/null || true
+    done
+  done
 }
 
-# Verify the genesis 0.78 WRAPS ceremony completed: nudge consensus to advance rounds (the ceremony
-# needs them), then confirm WRAPS proof construction on every node. Run after the BN is deployed so
-# the ledger id the BN later seeds from has been published.
-verify_078_wraps_baseline() {
-  log "--- 0.78 check 1/2: nudge consensus with cryptoCreate txns (genesis WRAPS ceremony needs rounds) ---"
+run_step() {
+  log "$1"
+  shift
+  "$@"
+}
+
+# Genesis on a published CN release so stage 1 is a real release -> local-build upgrade.
+deploy_stage0_baseline() {
+  CURRENT_STAGE="stage0-baseline"
+  log "=== Stage 0 (${CN_BASELINE_RELEASE_TAG}): record-stream baseline, no BN ==="
+  solo keys consensus generate --gossip-keys --tls-keys \
+    --deployment "${SOLO_DEPLOYMENT}" --node-aliases "${NODE_ALIASES}"
+  solo consensus network deploy \
+    --deployment "${SOLO_DEPLOYMENT}" --node-aliases "${NODE_ALIASES}" \
+    --application-properties "${APP_PROPS_BASELINE_FILE}" --log4j2-xml "${LOG4J2_XML_PATH}" \
+    --pvcs true --release-tag "${CN_BASELINE_RELEASE_TAG}"
+  solo consensus node setup \
+    --deployment "${SOLO_DEPLOYMENT}" --node-aliases "${NODE_ALIASES}" \
+    --release-tag "${CN_BASELINE_RELEASE_TAG}"
+  # Inject before the first start so every later stage inherits the same WRAPS core limit.
+  inject_wraps_env_into_statefulsets
+  reapply_application_property_overrides "${APP_PROPS_BASELINE_FILE}"
+  solo consensus node start --deployment "${SOLO_DEPLOYMENT}" --node-aliases "${NODE_ALIASES}" --force-port-forward false
+  wait_for_consensus_pods_ready 600
+  wait_for_haproxy_ready 600
+  verify_release_version_on_consensus_nodes "${CN_BASELINE_RELEASE_TAG#v}"
+  verify_runtime_config_on_consensus_nodes "stage 0 baseline" \
+    "contracts.chainId=298" "nodes.gossipFqdnRestricted=false" \
+    "hedera.config.version=0" \
+    "blockStream.streamMode=BOTH" "blockStream.writerMode=FILE" \
+    "blockStream.enableCutover=false" \
+    "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk=false"
   nudge_consensus_with_transactions
+}
 
-  log "--- 0.78 check 2/2: verify WRAPS runtime + proof construction on every consensus node ---"
-  verify_wraps_on_consensus_nodes 600
+# Upgrade the baseline to the checkout's local JARs; no published 0.79.0 binary is needed.
+upgrade_stage1_hash_writing() {
+  CURRENT_STAGE="stage1-hash-writing"
+  log "=== Stage 1 (0.79.0 configuration): upgrade to local build, dual-write and save wrapped record hashes ==="
+  upgrade_local_stage "${APP_PROPS_STAGE1_FILE}"
+  verify_runtime_config_on_consensus_nodes "stage 1 hash writing" \
+    "contracts.chainId=298" "nodes.gossipFqdnRestricted=false" \
+    "hedera.config.version=0" \
+    "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk=true" \
+    "hedera.recordStream.wrappedRecordHashesDir=/opt/hgcapp/services-hedera/HapiApp2.0/data/wrappedRecordHashes" \
+    "hedera.recordStream.liveWritePrevWrappedRecordHashes=false" \
+    "hedera.recordStream.computeHashesFromWrappedRecordBlocks=false" \
+    "blockStream.streamMode=BOTH" "blockStream.writerMode=FILE_AND_GRPC" \
+    "blockStream.streamWrappedRecordBlocks=true" \
+    "blockStream.enableCutover=false" "blockStream.jumpstart.blockNum=-1" \
+    "tss.hintsEnabled=false" "tss.historyEnabled=false" "tss.wrapsEnabled=false" \
+    "tss.forceMockSignatures=true"
+}
 
-  report_wraps_download_times
+wrapped_hash_file_size() {
+  kubectl -n "${SOLO_NAMESPACE}" exec "network-$1-0" -c root-container -- sh -c \
+    "wc -c < '${WRAPPED_RECORD_HASHES_FILE}'" 2>/dev/null | tr -d '[:space:]'
+}
+
+verify_wrapped_hash_files_grow() {
+  local node before after deadline nodes=()
+  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
+  nudge_consensus_with_transactions
+  for node in "${nodes[@]}"; do
+    deadline=$((SECONDS + 120))
+    before=0
+    while (( SECONDS < deadline )); do
+      before="$(wrapped_hash_file_size "${node}" || echo 0)"
+      [[ "${before}" =~ ^[0-9]+$ ]] && (( before > 0 )) && break
+      sleep 2
+    done
+    if [[ ! "${before}" =~ ^[0-9]+$ ]] || (( before == 0 )); then
+      echo "${node}: no wrapped record hashes written" >&2
+      return 1
+    fi
+    nudge_consensus_with_transactions
+    deadline=$((SECONDS + 120))
+    after=0
+    while (( SECONDS < deadline )); do
+      after="$(wrapped_hash_file_size "${node}" || echo 0)"
+      [[ "${after}" =~ ^[0-9]+$ ]] && (( after > before )) && break
+      sleep 2
+    done
+    if [[ ! "${after}" =~ ^[0-9]+$ ]] || (( after <= before )); then
+      echo "${node}: wrapped hashes did not grow (${before} -> ${after})" >&2
+      return 1
+    fi
+    log "${node}: wrapped hashes grew ${before} -> ${after} bytes"
+  done
+}
+
+# Generate jumpstart.bin by downloading records, compressing day archives and running blocks wrap.
+generate_stage2_jumpstart() {
+  log "Generating jumpstart.bin from stage 1 record streams"
+  MIRROR_REST_URL="http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}"
+  export MIRROR_REST_URL
+  wait_for_http_ok_simple "${MIRROR_REST_URL}/api/v1/blocks?limit=1" 36 5
+  local block node deadline verification_rc nodes=()
+  block="$(curl -fsS "${MIRROR_REST_URL}/api/v1/blocks?order=desc&limit=1" | jq -er '.blocks[0].number | select(. > 0)')"
+  download_solo_minio_record_streams "${block}" "${MIRROR_REST_URL}"
+  prepare_wrap_day_archives_from_record_streams
+  generate_block_node_metadata_from_mirror "${block}"
+  run_block_node_wrap_tool "${WRAP_COMPRESSED_DAYS_DIR}" "${WRAPPED_BLOCKS_DIR}"
+  load_jumpstart_env_from_bin "${JUMPSTART_BIN_PATH}"
+  [[ "${JUMPSTART_BLOCK_NUMBER}" == "${block}" ]] || { echo "Wrapping ended at ${JUMPSTART_BLOCK_NUMBER}, expected ${block}" >&2; return 1; }
+
+  # Produce newer hashes for the migration to continue from the historical jumpstart point.
+  nudge_consensus_with_transactions
+  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
+  mkdir -p "${GENERATED_DIR}/stage1-hashes"
+  for node in "${nodes[@]}"; do
+    deadline=$((SECONDS + 120))
+    while true; do
+      if kubectl -n "${SOLO_NAMESPACE}" exec "network-${node}-0" -c root-container -- cat "${WRAPPED_RECORD_HASHES_FILE}" \
+          > "${GENERATED_DIR}/stage1-hashes/${node}.pb"; then
+        verification_rc=0
+        python3 "${SCRIPT_DIR}/verify-jumpstart-hashes.py" "${JUMPSTART_BIN_PATH}" "${GENERATED_DIR}/stage1-hashes/${node}.pb" || verification_rc=$?
+        case "${verification_rc}" in
+          0) break ;;
+          2) ;; # The asynchronous writer has not finished the required entries yet.
+          *) return "${verification_rc}" ;;
+        esac
+      fi
+      if (( SECONDS >= deadline )); then
+        echo "${node}: saved hashes did not match jumpstart within 120s" >&2
+        return 1
+      fi
+      sleep 2
+    done
+  done
+  cp "${APP_PROPS_STAGE2_FILE}" "${TMP_STAGE2_APP_PROPS}"
+  cat >> "${TMP_STAGE2_APP_PROPS}" <<PROPS
+
+# Generated from Block Node offline wrapping; include both hashes to require on-disk verification.
+blockStream.jumpstart.blockNum=${JUMPSTART_BLOCK_NUMBER}
+blockStream.jumpstart.previousWrappedRecordBlockHash=${JUMPSTART_PREV_WRAPPED_RECORD_BLOCK_HASH}
+blockStream.jumpstart.currentBlockConsensusTimestampHash=${JUMPSTART_CONSENSUS_TIMESTAMP_HASH}
+blockStream.jumpstart.currentBlockOutputItemsTreeRootHash=${JUMPSTART_OUTPUT_ITEMS_TREE_ROOT_HASH}
+blockStream.jumpstart.streamingHasherLeafCount=${JUMPSTART_STREAMING_HASHER_LEAF_COUNT}
+blockStream.jumpstart.streamingHasherHashCount=${JUMPSTART_STREAMING_HASHER_HASH_COUNT}
+blockStream.jumpstart.streamingHasherSubtreeHashes=${JUMPSTART_STREAMING_HASHER_SUBTREE_HASHES}
+PROPS
+}
+
+upgrade_stage2_jumpstart_and_tss() {
+  CURRENT_STAGE="stage2-jumpstart-tss"
+  log "=== Stage 2 (0.79.1 configuration): consume jumpstart and enable TSS ==="
+  upgrade_local_stage "${TMP_STAGE2_APP_PROPS}"
+  verify_runtime_config_on_consensus_nodes "stage 2 jumpstart + TSS" \
+    "contracts.chainId=298" "nodes.gossipFqdnRestricted=false" \
+    "hedera.config.version=1" \
+    "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk=true" \
+    "hedera.recordStream.computeHashesFromWrappedRecordBlocks=true" \
+    "hedera.recordStream.liveWritePrevWrappedRecordHashes=true" \
+    "blockStream.streamMode=BOTH" "blockStream.writerMode=FILE_AND_GRPC" \
+    "blockStream.streamWrappedRecordBlocks=true" "blockStream.enableCutover=false" \
+    "tss.hintsEnabled=true" "tss.historyEnabled=true" "tss.wrapsEnabled=true" "tss.forceMockSignatures=true" \
+    "blockStream.jumpstart.blockNum=${JUMPSTART_BLOCK_NUMBER}" \
+    "blockStream.jumpstart.previousWrappedRecordBlockHash=${JUMPSTART_PREV_WRAPPED_RECORD_BLOCK_HASH}" \
+    "blockStream.jumpstart.currentBlockConsensusTimestampHash=${JUMPSTART_CONSENSUS_TIMESTAMP_HASH}" \
+    "blockStream.jumpstart.currentBlockOutputItemsTreeRootHash=${JUMPSTART_OUTPUT_ITEMS_TREE_ROOT_HASH}" \
+    "blockStream.jumpstart.streamingHasherLeafCount=${JUMPSTART_STREAMING_HASHER_LEAF_COUNT}" \
+    "blockStream.jumpstart.streamingHasherHashCount=${JUMPSTART_STREAMING_HASHER_HASH_COUNT}"
+  local node nodes=()
+  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
+  for node in "${nodes[@]}"; do
+    # Completion follows the current-block hash match and range validation in the migration.
+    kubectl -n "${SOLO_NAMESPACE}" exec "network-${node}-0" -c root-container -- sh -ec "
+      grep -F 'Successfully loaded jumpstart config: blockNumber=${JUMPSTART_BLOCK_NUMBER},' '${HAPI_PATH}/output/hgcaa.log'
+      grep -F 'Computed wrapped record block hash migration result (state write deferred)' '${HAPI_PATH}/output/hgcaa.log'
+      grep -F 'Truncated wrapped record hashes file' '${HAPI_PATH}/output/hgcaa.log'
+    "
+    # Seeding only happens when state holds no live wrapped chain yet. A network that already
+    # completed an earlier jumpstart vote (e.g. mainnet), or that maintained the chain from
+    # genesis, keeps its existing chain until the finalized vote syncs it; that sync is
+    # asserted per node in verify_stage2_migration_votes.
+    if kubectl -n "${SOLO_NAMESPACE}" exec "network-${node}-0" -c root-container -- \
+        grep -qF 'Seeded live wrapped-record hash chain from migration result' "${HAPI_PATH}/output/hgcaa.log"; then
+      log "${node}: live wrapped chain seeded from migration result"
+    else
+      log "${node}: existing live wrapped chain kept until the finalized vote syncs it"
+    fi
+  done
+}
+
+# The finalized vote must replace each node's in-memory wrapped chain with the voted values,
+# whether or not the chain was seeded from the migration result at startup.
+verify_live_chain_synced_to_vote() {
+  local node="$1" line synced_prev synced_leaf
+  line="$(kubectl -n "${SOLO_NAMESPACE}" exec "network-${node}-0" -c root-container -- sh -c \
+    "grep -F 'Synced in-memory wrapped hash state from finalized vote:' '${HAPI_PATH}/output/hgcaa.log' | tail -n 1" \
+    2>/dev/null || true)"
+  if [[ ! "${line}" =~ prevHash=([0-9a-fA-F]+),[[:space:]]*leafCount=([0-9]+) ]]; then
+    echo "${node}: live wrapped chain was not synced from the finalized vote" >&2
+    return 1
+  fi
+  synced_prev="$(echo "${BASH_REMATCH[1]}" | tr '[:upper:]' '[:lower:]')"
+  synced_leaf="${BASH_REMATCH[2]}"
+  if [[ "${synced_prev}" != "${MIGRATION_PREV_HASH}" || "${synced_leaf}" != "${MIGRATION_LEAF_COUNT}" ]]; then
+    echo "${node}: live chain synced to prevHash=${synced_prev}, leafCount=${synced_leaf};" \
+      "finalized vote has prevHash=${MIGRATION_PREV_HASH}, leafCount=${MIGRATION_LEAF_COUNT}" >&2
+    return 1
+  fi
+  log "${node}: live wrapped chain synced to finalized vote (leafCount=${synced_leaf})"
+}
+
+verify_stage2_migration_votes() {
+  local node expected_block nodes=()
+  parse_migration_vote_from_hgcaa
+  expected_block="${MIGRATION_BLOCK_NUMBER}"
+  run_replay_wrap_to_migration "${MIRROR_REST_URL}" "${expected_block}"
+  [[ "${JUMPSTART_BLOCK_NUMBER}" == "${expected_block}" ]] || { echo "Replay block did not match migration" >&2; return 1; }
+  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
+  for node in "${nodes[@]}"; do
+    NODE_ALIASES="${node}" parse_migration_vote_from_hgcaa
+    [[ "${MIGRATION_BLOCK_NUMBER}" == "${expected_block}" ]] || { echo "${node}: migration block disagrees" >&2; return 1; }
+    MIGRATION_COMPARE_LOG="${GENERATED_DIR}/${node}-migration-compare.log" compare_replay_to_migration_vote
+    verify_live_chain_synced_to_vote "${node}"
+  done
 }
 
 # ======================================================================================
@@ -1540,14 +1864,57 @@ mirror_node_failed_only_on_restjava() {
   return 0
 }
 
+# Configure automatic cutover at initial deployment. Record downloading remains active
+# until native block ingestion succeeds; block.enabled and record.enabled cannot both be true.
+# Pin the source to BN so stage 1's preview block files in MinIO cannot trigger cutover.
 write_mirror_node_values_override() {
   cat > "${MIRROR_NODE_VALUES_FILE}" <<EOF
+rest:
+  resources:
+    requests:
+      cpu: 100m
+      memory: ${MIRROR_REST_MEMORY_REQUEST:-256Mi}
+    limits:
+      cpu: '2'
+      memory: ${MIRROR_REST_MEMORY_LIMIT:-512Mi}
 restjava:
   resources:
     requests:
       memory: ${MIRROR_RESTJAVA_MEMORY_REQUEST}
     limits:
       memory: ${MIRROR_RESTJAVA_MEMORY_LIMIT}
+importer:
+  resources:
+    requests:
+      cpu: 100m
+      memory: ${MIRROR_IMPORTER_MEMORY_REQUEST:-512Mi}
+    limits:
+      cpu: '2'
+      memory: ${MIRROR_IMPORTER_MEMORY_LIMIT:-1Gi}
+  env:
+    HIERO_MIRROR_IMPORTER_DOWNLOADER_RECORD_ENABLED: 'true'
+    HIERO_MIRROR_IMPORTER_BLOCK_ENABLED: 'false'
+    HIERO_MIRROR_IMPORTER_BLOCK_SOURCETYPE: 'BLOCK_NODE'
+    HIERO_MIRROR_IMPORTER_BLOCK_CUTOVER_ENABLED: 'true'
+    HIERO_MIRROR_IMPORTER_BLOCK_CUTOVER_HAPIVERSION: '${MIRROR_BLOCK_CUTOVER_HAPIVERSION}'
+    HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_ENDPOINTS_0_HOST: 'block-node-${BLOCK_NODE_ID}.${SOLO_NAMESPACE}.svc.cluster.local'
+    HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_ENDPOINTS_0_PORT: '${BLOCK_NODE_GRPC_PORT}'
+grpc:
+  resources:
+    requests:
+      cpu: 100m
+      memory: ${MIRROR_GRPC_MEMORY_REQUEST:-256Mi}
+    limits:
+      cpu: '1'
+      memory: ${MIRROR_GRPC_MEMORY_LIMIT:-512Mi}
+web3:
+  resources:
+    requests:
+      cpu: 100m
+      memory: ${MIRROR_WEB3_MEMORY_REQUEST:-256Mi}
+    limits:
+      cpu: '1'
+      memory: ${MIRROR_WEB3_MEMORY_LIMIT:-512Mi}
 EOF
 }
 
@@ -1570,7 +1937,7 @@ start_mirror_rest_port_forward() {
   }
   kill_processes_on_local_port "${MIRROR_REST_LOCAL_PORT}"
   nohup kubectl -n "${SOLO_NAMESPACE}" port-forward "svc/${MIRROR_REST_SERVICE}" \
-    "${MIRROR_REST_LOCAL_PORT}:http" >/dev/null 2>&1 < /dev/null &
+    "${MIRROR_REST_LOCAL_PORT}:http" >"${GENERATED_DIR}/mirror-rest-port-forward.log" 2>&1 < /dev/null &
   MIRROR_PORT_FORWARD_PID="$!"
   disown "${MIRROR_PORT_FORWARD_PID}" 2>/dev/null || true
   wait_for_tcp_open "127.0.0.1" "${MIRROR_REST_LOCAL_PORT}" 20 1
@@ -1624,192 +1991,231 @@ deploy_mirror_and_explorer() {
   fi
 }
 
-# Writes the values file that switches the importer to read 0.78 blocks from the Block Node while
-# keeping the record-stream downloader alive for the pre-upgrade (0.75/0.78) blocks.
-write_mirror_node_block_cutover_values() {
-  # Enable block-stream ingestion and point the importer at the Block Node. block.enabled defaults
-  # false in v0.154, so it MUST be set true; the importer then auto-detects the cutover (switches to
-  # blockstream when no record file arrives within block.cutover.threshold, ~16s) — no hapiVersion
-  # needed on 0.154.
-  cat > "${MIRROR_NODE_CUTOVER_VALUES_FILE}" <<EOF
-restjava:
-  resources:
-    requests:
-      memory: ${MIRROR_RESTJAVA_MEMORY_REQUEST}
-    limits:
-      memory: ${MIRROR_RESTJAVA_MEMORY_LIMIT}
-importer:
-  env:
-    HIERO_MIRROR_IMPORTER_BLOCK_ENABLED: 'true'
-    HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_HOST: 'block-node-${BLOCK_NODE_ID}.${SOLO_NAMESPACE}.svc.cluster.local'
-EOF
-  if [[ -n "${MIRROR_BLOCK_CUTOVER_HAPIVERSION}" ]]; then
-    # 0.155+ only: pin the HAPI version at which to switch from record to block stream.
-    printf '    HIERO_MIRROR_IMPORTER_BLOCK_CUTOVER_HAPIVERSION: %s\n' \
-      "'${MIRROR_BLOCK_CUTOVER_HAPIVERSION}'" >> "${MIRROR_NODE_CUTOVER_VALUES_FILE}"
-  fi
+# MN stays at its initially deployed version. Its preconfigured cutover service switches
+# from records to BN after record production ceases, without a chart update or pod restart.
+verify_mirror_after_block_cutover() {
+  log "Waiting for the preconfigured mirror importer (${MIRROR_NODE_VERSION}) after cutover"
+  deployment_ready mirror-1-importer 180
+  deployment_ready mirror-1-rest 180
+  start_mirror_rest_port_forward
+  wait_for_http_ok_simple "http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}/api/v1/blocks?limit=1" 36 5
 }
 
-# After the 0.78 cutover, reconfigure the already-deployed mirror node to also read blocks from the
-# Block Node (block.enabled=true) while keeping the pre-cutover records from MinIO. The importer
-# auto-detects the cutover and permanently switches to blockstream once it reads a block from the
-# BN. Uses `solo mirror node upgrade` (NOT add) to reuse the existing ingress release; --force
-# bypasses Solo's CN/BN/MN version gates; --mirror-node-version pins a chart that recognizes the
-# block keys. Best-effort: failure warns. NOTE: MN can only ingest the 0.78 blocks if the BN has
-# successfully verified + stored them, so the BN-persist check is the real gate.
-update_mirror_node_for_block_cutover() {
-  write_mirror_node_block_cutover_values
-  log "Reconfiguring mirror node (${MIRROR_NODE_VERSION}) to read 0.79 blocks from block-node-${BLOCK_NODE_ID} (block.enabled=true, auto-cutover)"
-  if ! run_command_with_timeout "${SOLO_MIRROR_DEPLOY_TIMEOUT_SECS}" \
-      solo mirror node upgrade \
-      --deployment "${SOLO_DEPLOYMENT}" \
-      --force \
-      --mirror-node-version "${MIRROR_NODE_VERSION}" \
-      --values-file "${MIRROR_NODE_CUTOVER_VALUES_FILE}"; then
-    echo "mirror: 'solo mirror node upgrade' for block cutover failed" >&2
-    return 1
-  fi
-}
-
-upgrade_to_local_079() {
-  log "=== 0.79 upgrade: upgrade CN to local build + upgrade BN to ${BLOCK_NODE_UPGRADE_VERSION} ==="
-
-  # `consensus network upgrade` re-runs `helm upgrade` on the solo-deployment release, which now
-  # renders the per-node data ConfigMaps the block node deploy created out of band.
+upgrade_local_stage() {
+  local properties_file="$1"
   adopt_node_data_config_maps_into_helm
-
-  # --skip-node-start stages the freeze upgrade and leaves the nodes CONFIGURED instead of started,
-  # which is the only point at which the properties Solo just rewrote can still be corrected. Same
-  # deploy -> re-apply -> start ordering deploy_078 uses.
   local upgrade_cmd=(
     solo consensus network upgrade
     --deployment "${SOLO_DEPLOYMENT}"
     --node-aliases "${NODE_ALIASES}"
     --local-build-path "${LOCAL_BUILD_PATH}"
-    --application-properties "${APP_PROPS_079_FILE}"
+    --application-properties "${properties_file}"
     --skip-node-start
     --quiet-mode
     --force
   )
   run_command_with_timeout "${SOLO_UPGRADE_TIMEOUT_SECS}" "${upgrade_cmd[@]}"
-
-  reapply_application_property_overrides "${APP_PROPS_079_FILE}"
-
+  reapply_application_property_overrides "${properties_file}"
   solo consensus node start \
     --deployment "${SOLO_DEPLOYMENT}" \
     --node-aliases "${NODE_ALIASES}" \
     --force-port-forward false
-
-  log "--- 0.79 step: upgrade Block Node ${BLOCK_NODE_ID} to ${BLOCK_NODE_UPGRADE_VERSION} ---"
-  # `block node upgrade` rebuilds block-nodes.json through the same helper and runs after the nodes
-  # are already up, so re-applying the properties afterwards would not take effect until the next
-  # restart. Use Solo's environment override here so the on-disk file never drifts back.
-  env "BLOCK_STREAM_WRITER_MODE=${BLOCK_STREAM_WRITER_MODE_079}" \
-    solo block node upgrade \
-    --deployment "${SOLO_DEPLOYMENT}" \
-    --cluster-ref "kind-${SOLO_CLUSTER_NAME}" \
-    --id "${BLOCK_NODE_ID}" \
-    --upgrade-version "${BLOCK_NODE_UPGRADE_VERSION}" \
-    --quiet-mode
-  # Same StatefulSet race seed_block_node_tss_parameters documents: an in-place `block node upgrade`
-  # rolls the StatefulSet, and `wait --for=condition=ready pod/<name>` matches the OLD pod -- still
-  # Ready while it terminates -- so it returns before the upgraded pod exists. The script then races
-  # ahead and the post-cutover BN port-forward finds no ready endpoint behind svc/block-node-N.
-  # Block on the rollout first, then confirm the recreated pod.
-  kubectl -n "${SOLO_NAMESPACE}" rollout status "statefulset/block-node-${BLOCK_NODE_ID}" \
-    --timeout="${BLOCK_NODE_READY_TIMEOUT_SECS}s"
-  kubectl -n "${SOLO_NAMESPACE}" wait --for=condition=ready "pod/block-node-${BLOCK_NODE_ID}-0" --timeout="${BLOCK_NODE_READY_TIMEOUT_SECS}s"
-
-  log "--- 0.79 check 1/4: wait for consensus pods + haproxy + verify local-build version ---"
   wait_for_consensus_pods_ready 600
   wait_for_haproxy_ready 600
   verify_local_build_on_consensus_nodes
-  verify_runtime_config_on_consensus_nodes "0.79 upgrade" \
+}
+
+upgrade_stage3_cutover() {
+  CURRENT_STAGE="stage3-cutover"
+  log "=== Stage 3 (0.80.0 configuration): BLOCKS-only cutover with real TSS ==="
+  upgrade_local_stage "${APP_PROPS_STAGE3_FILE}"
+
+  # Keep the stage 2 BN running through cutover unless a separate upgrade is requested.
+  if [[ "${BLOCK_NODE_UPGRADE_VERSION}" != "${BLOCK_NODE_CHART_VERSION}" ]]; then
+    log "--- stage 3 step: upgrade Block Node ${BLOCK_NODE_ID} to ${BLOCK_NODE_UPGRADE_VERSION} ---"
+    # `block node upgrade` rebuilds block-nodes.json through the same helper and runs after the nodes
+    # are already up, so re-applying the properties afterwards would not take effect until the next
+    # restart. Use Solo's environment override here so the on-disk file never drifts back.
+    env "BLOCK_STREAM_WRITER_MODE=${BLOCK_STREAM_WRITER_MODE_CUTOVER}" \
+      solo block node upgrade \
+      --deployment "${SOLO_DEPLOYMENT}" \
+      --cluster-ref "kind-${SOLO_CLUSTER_NAME}" \
+      --id "${BLOCK_NODE_ID}" \
+      --upgrade-version "${BLOCK_NODE_UPGRADE_VERSION}" \
+      --quiet-mode
+    # Same StatefulSet race seed_block_node_tss_parameters documents: an in-place `block node upgrade`
+    # rolls the StatefulSet, and `wait --for=condition=ready pod/<name>` matches the OLD pod -- still
+    # Ready while it terminates -- so it returns before the upgraded pod exists. The script then races
+    # ahead and the post-cutover BN port-forward finds no ready endpoint behind svc/block-node-N.
+    # Block on the rollout first, then confirm the recreated pod.
+    kubectl -n "${SOLO_NAMESPACE}" rollout status "statefulset/block-node-${BLOCK_NODE_ID}" \
+      --timeout="${BLOCK_NODE_READY_TIMEOUT_SECS}s"
+    kubectl -n "${SOLO_NAMESPACE}" wait --for=condition=ready "pod/block-node-${BLOCK_NODE_ID}-0" --timeout="${BLOCK_NODE_READY_TIMEOUT_SECS}s"
+  fi
+
+  log "--- stage 3 check 1/4: wait for consensus pods + haproxy + verify local-build version ---"
+  wait_for_consensus_pods_ready 600
+  wait_for_haproxy_ready 600
+  verify_local_build_on_consensus_nodes
+  verify_runtime_config_on_consensus_nodes "stage 3 cutover" \
+    "contracts.chainId=298" "nodes.gossipFqdnRestricted=false" \
+    "hedera.config.version=2" \
+    "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk=false" \
+    "blockStream.jumpstart.blockNum=-1" \
     "nodes.nodeRewardsEnabled=false" \
     "blockStream.streamMode=BLOCKS" \
     "blockStream.writerMode=GRPC" \
     "blockStream.enableCutover=true" \
+    "blockStream.streamWrappedRecordBlocks=false" \
+    "blockStream.buffer.isBufferPersistenceEnabled=true" \
     "tss.hintsEnabled=true" \
     "tss.historyEnabled=true" \
     "tss.wrapsEnabled=true" \
     "tss.forceMockSignatures=false" \
     "tss.wrapsProvingKeyPath=${HAPI_PATH}/data/keys/wraps-archive"
 
-  log "--- 0.79 check 2/4: nudge consensus with cryptoCreate txns ---"
+  log "--- stage 3 check 2/4: nudge consensus with cryptoCreate txns ---"
   nudge_consensus_with_transactions
 
-  log "--- 0.79 check 3/4: verify WRAPS runtime + real (non-mock) proof construction ---"
+  # A history proof constructed during stage 2 may be reused after the upgrade. Real block
+  # signing is asserted by forceMockSignatures=false above and BN verification below.
+  log "--- stage 3 check 3/4: verify WRAPS runtime + history proof construction ---"
   verify_wraps_on_consensus_nodes 600
 
-  log "--- 0.79 check 4/4: restart ${RESTART_REPLAY_NODE} and confirm clean replay (no SELF_ISS) ---"
+  log "--- stage 3 check 4/4: restart ${RESTART_REPLAY_NODE} and confirm clean replay (no SELF_ISS) ---"
   verify_node_replays_without_iss
 }
 
+# Open a CN forward for the whole suite; transaction nudges only keep theirs temporarily.
+start_tck_consensus_port_forward() {
+  if wait_for_tcp_open 127.0.0.1 "${CN_GRPC_LOCAL_PORT}" 1 1; then
+    return 0
+  fi
+  nohup kubectl -n "${SOLO_NAMESPACE}" port-forward svc/haproxy-node1-svc \
+    "${CN_GRPC_LOCAL_PORT}:non-tls-grpc-client-port" \
+    > "${CN_PORT_FORWARD_LOG}" 2>&1 < /dev/null &
+  TCK_CN_PORT_FORWARD_PID=$!
+  disown "${TCK_CN_PORT_FORWARD_PID}" 2>/dev/null || true
+  if ! wait_for_tcp_open 127.0.0.1 "${CN_GRPC_LOCAL_PORT}" 30 1; then
+    cat "${CN_PORT_FORWARD_LOG}" >&2
+    return 1
+  fi
+}
+
+run_post_cutover_tck() {
+  if [[ "${ENABLE_TCK_TESTS}" != true ]]; then
+    log "SDK TCK skipped (ENABLE_TCK_TESTS=false)"
+    return 0
+  fi
+  CURRENT_STAGE="sdk-tck"
+  log "=== SDK TCK regression against the BLOCKS-only network ==="
+  # GENERATED_DIR can survive previous runs; never summarize stale reports as this run's results.
+  local report
+  for report in "${TCK_REPORT_EXPORT_DIR}"/mochawesome*.json "${TCK_REPORT_EXPORT_DIR}"/mochawesome*.html; do
+    rm -f "${report}"
+  done
+  prepare_tck_repos
+  install_tck_client_dependencies
+  start_tck_consensus_port_forward
+  start_mirror_rest_port_forward
+  ensure_tck_port_forwards
+  start_tck_sdk_server
+  fund_tck_operator_account
+
+  local tck_rc=0
+  run_tck_tests || tck_rc=$?
+  if [[ -z "${TCK_TEST_FILES}" ]]; then
+    export_tck_report || true
+  fi
+  print_tck_report_summary || true
+  if (( tck_rc != 0 )); then
+    echo "SDK TCK FAILED (rc=${tck_rc}); report: ${TCK_REPORT_EXPORT_DIR}" >&2
+    return "${tck_rc}"
+  fi
+  log "PASS: SDK TCK ${TCK_STATS_SUMMARY:-suite passed (report statistics unavailable)}"
+}
+
+# shellcheck source=cutover-jumpstart.sh
+source "${SCRIPT_DIR}/cutover-jumpstart.sh"
+# shellcheck source=cutover-tck.sh
+source "${SCRIPT_DIR}/cutover-tck.sh"
+# shellcheck source=cutover-validation.sh
+source "${SCRIPT_DIR}/cutover-validation.sh"
+
 log "Validating prerequisites"
-require_cmd kind
-require_cmd kubectl
-require_cmd solo
-require_cmd curl
-require_cmd unzip
-require_cmd node
-require_cmd npm
-require_cmd jq
-require_cmd openssl
-require_cmd grpcurl
-require_cmd python3
-validate_block_node_repo || {
-  echo "BLOCK_NODE_REPO_PATH is invalid: ${BLOCK_NODE_REPO_PATH}" >&2
-  echo "Set BLOCK_NODE_REPO_PATH to a hiero-block-node checkout." >&2
-  exit 1
-}
-
-[[ -f "${APP_PROPS_078_FILE}" ]] || { echo "Missing file: ${APP_PROPS_078_FILE}" >&2; exit 1; }
-[[ -f "${APP_ENV_078_FILE}" ]] || { echo "Missing file: ${APP_ENV_078_FILE}" >&2; exit 1; }
-[[ -f "${APP_PROPS_079_FILE}" ]] || { echo "Missing file: ${APP_PROPS_079_FILE}" >&2; exit 1; }
-[[ -f "${LOG4J2_XML_PATH}" ]] || { echo "Missing file: ${LOG4J2_XML_PATH}" >&2; exit 1; }
-
+for cmd in kind kubectl docker helm solo curl unzip node npm jq openssl grpcurl python3 java git; do
+  require_cmd "${cmd}"
+done
+[[ "${DOCKER_MIN_MEMORY_MIB}" =~ ^[1-9][0-9]*$ ]] || { echo "DOCKER_MIN_MEMORY_MIB must be a positive integer" >&2; exit 1; }
+verify_docker_memory_budget
+case "${ENABLE_TCK_TESTS}" in
+  true) require_cmd pgrep; ensure_pnpm_available ;;
+  false) ;;
+  *) echo "ENABLE_TCK_TESTS must be true or false" >&2; exit 1 ;;
+esac
+for setting in MIRROR_VALIDATION_TX_COUNT BN_ISOLATION_TX_COUNT MIRROR_ACCOUNT_WAIT_SECS \
+    MN_BLOCK_PROGRESS_MIN_DELTA MN_BLOCK_PROGRESS_TIMEOUT_SECS MN_BLOCK_PROGRESS_POLL_SECS \
+    BN_GET_BLOCK_MAX_PER_CHECK RECORD_CESSATION_SETTLE_SECS MINIO_RESTORE_TIMEOUT_SECS; do
+  [[ "${!setting}" =~ ^[1-9][0-9]*$ ]] || {
+    echo "${setting} must be a positive integer" >&2
+    exit 1
+  }
+done
+prepare_block_node_tools_checkout
+validate_block_node_repo
+[[ -x "${BLOCK_NODE_REPO_PATH}/gradlew" ]] || { echo "Block Node tools require an executable gradlew" >&2; exit 1; }
+for file in "${APP_PROPS_BASELINE_FILE}" "${APP_PROPS_STAGE1_FILE}" "${APP_PROPS_STAGE2_FILE}" "${APP_PROPS_STAGE3_FILE}" "${LOG4J2_XML_PATH}"; do
+  [[ -f "${file}" ]] || { echo "Missing file: ${file}" >&2; exit 1; }
+done
 validate_local_build_path "${LOCAL_BUILD_PATH}" || {
-  echo "Invalid LOCAL_BUILD_PATH: ${LOCAL_BUILD_PATH}" >&2
-  echo "Expected ${LOCAL_BUILD_PATH}/apps/HederaNode.jar and ${LOCAL_BUILD_PATH}/lib" >&2
+  echo "Invalid LOCAL_BUILD_PATH: ${LOCAL_BUILD_PATH}; run ./gradlew assemble first" >&2
   exit 1
 }
 
+# Each run must wrap only its own records. Keep prior per-stage diagnostics until overwritten.
+rm -rf "${RECORD_STREAMS_DIR}" "${WRAPPED_BLOCKS_DIR}" "${REPLAY_WRAPPED_BLOCKS_DIR}"
 create_cluster
 configure_solo
 setup_cluster_prereqs
-deploy_078
+deploy_stage0_baseline
+collect_stage_diagnostics "stage0-baseline"
 
-# Deploy mirror node + explorer on the 0.78 network FIRST (before the BN) so the importer is
-# wired to read block streams from the BN. After the 0.79 upgrade the importer is reconfigured
-# to continue reading blocks from the upgraded BN. Best-effort: a failure here must not abort
-# the core upgrade test.
-deploy_mirror_and_explorer || log "WARN: mirror/explorer deployment incomplete; continuing with the core 0.78 -> 0.79 upgrade test"
+upgrade_stage1_hash_writing
+verify_wrapped_hash_files_grow
+# Mirror is required to discover the record files and metadata for offline wrapping.
+deploy_mirror_and_explorer
+# Re-establish/probe the REST forward in case Solo's explorer command affected it.
+start_mirror_rest_port_forward
+validate_fresh_mirror_ingestion
+generate_stage2_jumpstart
+collect_stage_diagnostics "stage1-hash-writing"
 
-# Deploy the BN now (on the 0.78 genesis network) so it verifies the real-TSS blocks streamed
-# by the CN via the bootstrap roster before the 0.79 upgrade.
-log "=== Deploying Block Node ${BLOCK_NODE_ID} v${BLOCK_NODE_CHART_VERSION} (will verify real-TSS blocks, then upgraded for 0.79) ==="
-deploy_block_node
+upgrade_stage2_jumpstart_and_tss
+# Only now add the BN, after jumpstart + TSS. Give it a floor above the current stream.
+BLOCK_NODE_CUTOVER_START_BLOCK="${BLOCK_NODE_CUTOVER_START_BLOCK:-$((JUMPSTART_BLOCK_NUMBER + 1000))}"
+BLOCK_STREAM_WRITER_MODE=FILE_AND_GRPC deploy_block_node
+reapply_application_property_overrides "${TMP_STAGE2_APP_PROPS}"
 verify_block_node_has_blocks 180
-
-verify_078_wraps_baseline
-
-# The ledger id is published during 0.78 (history/WRAPS construction completes). Seed it
-# into the BN before the 0.79 upgrade so the BN can verify the real-TSS-signed blocks.
-log "=== Seeding Block Node with TSS ledger id (pre-0.79-upgrade) ==="
+nudge_consensus_with_transactions
+verify_wraps_on_consensus_nodes 600
+report_wraps_download_times
+verify_stage2_migration_votes
 seed_block_node_tss_parameters
-# The seed rolled the BN; let it re-catch-up to the live stream on 0.78 before the upgrade restart
-# resets the CN block buffer, otherwise the gap blocks are orphaned and the BN stalls.
-wait_for_block_node_caught_up 180 || log "WARN: BN did not re-catch-up after seeding; the 0.79 upgrade may orphan blocks (consider seeding during the freeze instead)"
+wait_for_block_node_caught_up 180
+validate_fresh_mirror_ingestion
+collect_stage_diagnostics "stage2-jumpstart-tss"
 
-upgrade_to_local_079
-
-# After the 0.79 upgrade, reconfigure the mirror node to continue reading blocks from the upgraded BN.
-log "=== Reconfiguring mirror node to read post-upgrade blocks from BN ==="
-update_mirror_node_for_block_cutover || log "WARN: mirror block-cutover reconfigure failed; explorer may not show post-0.79 blocks"
-
-log "--- 0.79 BN check: confirm Block Node verifies + persists the real-TSS post-upgrade blocks ---"
+upgrade_stage3_cutover
 verify_block_node_persists_post_cutover 300
+verify_mirror_after_block_cutover
+CURRENT_STAGE="post-cutover-validation"
+verify_record_uploads_ceased_baseline
+verify_bn_ingestion_without_minio
+collect_stage_diagnostics "stage3-cutover"
+run_post_cutover_tck
+cleanup_tck_resources
+verify_post_tck_continuity
 
-log "PASS: 0.78 (dual-write, mock) -> 0.79 (BLOCKS-only, real TSS) cutover completed and replayed cleanly"
-log "PASS: Block Node (${BLOCK_NODE_UPGRADE_VERSION}) verified the real-TSS-signed post-upgrade blocks after TSS ledger-id seeding"
+log "PASS: ${CN_BASELINE_RELEASE_TAG} baseline -> hash writing -> jumpstart + TSS -> BLOCKS-only cutover"
+log "PASS: Block Node ${BLOCK_NODE_UPGRADE_VERSION} verified and persisted real-TSS blocks"
 log "Explorer UI: http://127.0.0.1:${EXPLORER_INGRESS_LOCAL_PORT}    Mirror REST: http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}"

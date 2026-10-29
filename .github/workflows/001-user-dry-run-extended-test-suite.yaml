@@ -68,11 +68,11 @@ on:
         type: boolean
         default: true
         description: "Run Migration Testing Panel"
-      enable-078-to-079-cutover-panel:
+      enable-three-stage-block-stream-cutover-panel:
         required: true
         type: boolean
         default: true
-        description: "Run Solo 0.78 to 0.79 Block Stream Cutover Panel"
+        description: "Run Solo Three-Stage Block Stream Cutover Panel"
       execute-state-validator-build:
         required: true
         type: boolean
@@ -176,7 +176,7 @@ jobs:
           echo "Enable JSON-RPC Relay Regression Panel: ${{ inputs.enable-rpc-relay-regression-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Enable Block Node Regression Panel: ${{ inputs.enable-block-node-regression-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Enable Migration Testing Panel: ${{ inputs.enable-migration-testing-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
-          echo "Enable Solo 0.78 to 0.79 Cutover Panel: ${{ inputs.enable-078-to-079-cutover-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "Enable Solo Three-Stage Block Stream Cutover Panel: ${{ inputs.enable-three-stage-block-stream-cutover-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "TCK Version: ${{ inputs.tck-version || needs.extract-citr-vars.outputs.tck-version }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "JS SDK Version: ${{ inputs.js-sdk-version || needs.extract-citr-vars.outputs.js-sdk-version }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Block Node Release Version: ${{ needs.extract-citr-vars.outputs.bn-release-version }}" | tee -a "${GITHUB_STEP_SUMMARY}"
@@ -270,7 +270,7 @@ jobs:
       java-version: ${{ needs.extract-jdk-version.outputs.jdk-version }}
       custom-job-label: "XTS (Dry Run):"
       enable-migration-testing-panel: ${{ inputs.enable-migration-testing-panel }}
-      enable-078-to-079-cutover-panel: ${{ inputs.enable-078-to-079-cutover-panel }}
+      enable-three-stage-block-stream-cutover-panel: ${{ inputs.enable-three-stage-block-stream-cutover-panel }}
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
       regression-access-token: ${{ secrets.GH_ACCESS_TOKEN }}
