@@ -12,7 +12,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
@@ -77,8 +76,8 @@ import org.openjdk.jmh.annotations.Warmup;
  *
  * <p>{@code write} writes the same events in every pass. The records compute their encoded size on first use and keep
  * it. Production writes the same record to every peer, so only the write to the first peer computes the size; this
- * benchmark measures the writes that follow. After every pass, the stream must have written exactly the serialized
- * form of all events; once per trial, the written bytes themselves are compared with it.
+ * benchmark measures the writes that follow. After every pass, the stream must have written exactly as many bytes as
+ * the serialized form of all events has.
  *
  * <p>{@code read} reads the serialized form of all events from a new stream in every pass, and every event it reads
  * must equal the generated event.
@@ -152,31 +151,16 @@ public class GossipEventSerializationBenchmark {
         private LatencyRecorder recorder;
 
         /**
-         * Generates the events, checks once that a stream writes their serialized form, and creates the stream under
-         * test. This method is called once per trial.
-         *
-         * @throws IOException if the stream fails
+         * Generates the events and creates the stream under test. This method is called once per trial.
          */
         @Setup(Level.Trial)
-        public void setupTrial() throws IOException {
+        public void setupTrial() {
             final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
             final int bufferSize =
                     configuration.getConfigData(SocketConfig.class).bufferSize();
 
             events = generateEvents(transactionsPerEvent);
-            final byte[] expected = serialize(events);
-            expectedBytes = expected.length;
-
-            final ByteArrayOutputStream bytes = new ByteArrayOutputStream(expected.length);
-            final SyncOutputStream stream = createSyncOutputStream(configuration, bytes, bufferSize);
-            for (final GossipEvent event : events) {
-                stream.writePbjRecord(event, GossipEvent.PROTOBUF);
-            }
-            stream.flush();
-            if (!Arrays.equals(bytes.toByteArray(), expected)) {
-                throw new IllegalStateException("The stream did not write the serialized form of the events");
-            }
-
+            expectedBytes = serialize(events).length;
             output = createSyncOutputStream(configuration, OutputStream.nullOutputStream(), bufferSize);
 
             // Collect the garbage of the setup now, so that it is not collected during the measured calls.

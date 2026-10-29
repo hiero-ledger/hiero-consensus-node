@@ -63,10 +63,12 @@ import org.openjdk.jmh.annotations.Warmup;
  * {@link LatencyProfiler} reports the percentiles and the allocation per hash. JMH's primary score, the mean time per
  * event of the whole pass, includes the receiving; track {@code latency.mean} instead.
  *
- * <p>The first call of a pass, right after the setup, is hashed but not timed. On an Apple M4 laptop, its median was
- * 3.0–3.3 µs without transactions and 4.1–4.5 µs with two, against about 0.38 µs and 1.0 µs for the other calls.
- * Without transactions, timing it put p99.99 at 3.1–8.6 µs, against 0.8–1.1 µs without it, in the same run; with two,
- * other calls already reach that percentile. No such setup precedes an event in production.
+ * <p>The first call of a pass comes right after the setup and is much slower than the others, so it is hashed but not
+ * timed. On an Apple M4 laptop, its median was 3.0–3.3 µs without transactions and 4.1–4.5 µs with two, against about
+ * 0.38 µs and 1.0 µs for the other calls. One call in {@value #NUMBER_OF_EVENTS} is exactly the share above p99.99, so
+ * timing the first call of every pass would set p99.99. Without transactions, p99.99 was 3.1–8.6 µs when the first
+ * call was timed and 0.8–1.1 µs when it was not, in the same run; with two transactions, timing it made no measurable
+ * difference, because other calls are as slow. No such setup precedes an event in production.
  *
  * <p>Each latency also contains one reading of the clock, which is a noticeable part of a call this short. On an Apple
  * M4 laptop, an empty call, {@code resume()} directly followed by {@code lap()}, took 11.2–11.3 ns on average, about 3%
