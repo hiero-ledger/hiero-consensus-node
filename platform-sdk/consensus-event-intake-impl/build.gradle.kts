@@ -24,7 +24,6 @@ jmhModuleInfo {
     requires("com.swirlds.config.extensions.test.fixtures")
     requires("org.hiero.consensus.benchmark.tools")
     requires("org.hiero.consensus.event.intake.impl")
-    requires("org.hiero.consensus.hashgraph.impl.test.fixtures")
     requires("org.hiero.consensus.metrics")
     requires("org.hiero.consensus.model.test.fixtures")
     requires("org.hiero.consensus.utility.test.fixtures")

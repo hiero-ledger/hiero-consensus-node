@@ -14,6 +14,7 @@ import static com.hedera.services.bdd.spec.transactions.token.CustomFeeTests.exp
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doSeveralWithStartupConfigNow;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfigNow;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.noOp;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
@@ -33,6 +34,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.EXPIRATION_RED
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.FEE_SCHEDULE_KEY_CANNOT_BE_UPDATED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.FEE_SCHEDULE_KEY_NOT_SET;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CUSTOM_FEE_SCHEDULE_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_EXPIRATION_TIME;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOPIC_ID;
@@ -44,6 +46,8 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.UNAUTHORIZED;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.transactions.consensus.HapiTopicUpdate;
+import com.hederahashgraph.api.proto.java.Key;
+import com.hederahashgraph.api.proto.java.KeyList;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Arrays;
@@ -55,6 +59,35 @@ import org.junit.jupiter.api.DynamicTest;
 
 public class TopicUpdateSuite {
     private static final long validAutoRenewPeriod = 7_000_000L;
+
+    // A non-empty KeyList whose sole entry is the empty-KeyList sentinel: it collapses to empty but is
+    // not the canonical removal sentinel, so it must be rejected rather than stored as an unsatisfiable key.
+    private static final Key DEGENERATE_KEY =
+            Key.newBuilder().setKeyList(KeyList.newBuilder().addKeys(EMPTY_KEY)).build();
+
+    @HapiTest
+    final Stream<DynamicTest> updateRejectsDegenerateFeeScheduleKey() {
+        return hapiTest(
+                doingContextual(spec -> spec.registry().saveKey("degenerateFeeKey", DEGENERATE_KEY)),
+                newKeyNamed("aKey"),
+                newKeyNamed("fKey"),
+                createTopic("topic").adminKeyName("aKey").feeScheduleKeyName("fKey"),
+                updateTopic("topic")
+                        .feeScheduleKeyName("degenerateFeeKey")
+                        .signedBy(DEFAULT_PAYER, "aKey")
+                        .hasKnownStatus(INVALID_CUSTOM_FEE_SCHEDULE_KEY));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> updateRejectsDegenerateSubmitKey() {
+        return hapiTest(
+                newKeyNamed("aKey"),
+                createTopic("topic").adminKeyName("aKey"),
+                updateTopic("topic")
+                        .submitKey(DEGENERATE_KEY)
+                        .signedBy(DEFAULT_PAYER, "aKey")
+                        .hasKnownStatus(BAD_ENCODING));
+    }
 
     @HapiTest
     final Stream<DynamicTest> pureCheckFails() {

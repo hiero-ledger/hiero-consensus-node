@@ -27,7 +27,7 @@ class MultiNetworkGroupQueueTest {
     private final List<CompletableFuture<NetworkGroup>> waiters = new ArrayList<>();
 
     private static final NetworkGroup SMALL = NetworkGroup.of(Map.of("a", 1, "b", 1));
-    private static final NetworkGroup MTLS = NetworkGroup.of(Map.of("a_mtls", 1, "b_mtls", 1));
+    private static final NetworkGroup TLS = NetworkGroup.of(Map.of("a_tls", 1, "b_tls", 1));
     private static final NetworkGroup MANIFEST = NetworkGroup.of(Map.of("a_manifest", 2, "b_manifest", 1));
 
     private final MultiNetworkGroupQueue queue = new MultiNetworkGroupQueue(4);
@@ -67,10 +67,10 @@ class MultiNetworkGroupQueueTest {
     @DisplayName("Groups that fit the budget together are admitted together")
     void groupsThatFitRunTogether() {
         queue.register("small-1", SMALL);
-        queue.register("mtls-1", MTLS);
+        queue.register("tls-1", TLS);
 
         assertEquals(SMALL, queue.awaitTurn("small-1"));
-        assertEquals(MTLS, queue.awaitTurn("mtls-1"));
+        assertEquals(TLS, queue.awaitTurn("tls-1"));
     }
 
     @Test

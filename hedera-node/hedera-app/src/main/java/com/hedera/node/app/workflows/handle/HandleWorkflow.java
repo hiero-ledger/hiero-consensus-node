@@ -1306,7 +1306,7 @@ public class HandleWorkflow {
             // Fill any open construction (side-effect only): if a construction targets this node but does
             // not yet contain its publication, publish this node's current endpoint. This makes a
             // construction a full all-hands snapshot so the non-restarted target nodes contribute their own
-            // node-local endpoint (mtlsPort + CA cert) rather than being reconstructed by IP-keyed
+            // node-local endpoint (HAPI TLS port + certificate) rather than being reconstructed by IP-keyed
             // carry-over — which cannot distinguish nodes sharing an IP (e.g. a partial rotation).
             reconciler.contributeSelfToConstruction(
                     selfNodeId, ctx.constructionStore().get(), ctx.nodeStore(), ctx.clprConfig(), now);

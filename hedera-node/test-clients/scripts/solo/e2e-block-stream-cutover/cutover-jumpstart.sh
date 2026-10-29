@@ -6,8 +6,9 @@
 # Use the same tools revision locally as in CI. A newer BN checkout can compile against
 # different HAPI wire definitions (including BlockHashAlgorithm enum numbers), changing
 # every wrapped-block hash. Never switch or reset the caller's BN working tree.
+# Callers pin BLOCK_NODE_TOOLS_REF; it may differ from the deployed BN chart version.
 prepare_block_node_tools_checkout() {
-  local tools_ref="${BLOCK_NODE_TOOLS_REF:-v0.45.0-sha256.1}"
+  local tools_ref="${BLOCK_NODE_TOOLS_REF:?BLOCK_NODE_TOOLS_REF must name the Block Node tools tag}"
   local source_repo="${BLOCK_NODE_REPO_PATH}" revision current checkout
   require_cmd git
   revision="$(git -C "${source_repo}" rev-parse --verify "${tools_ref}^{commit}")" || {
@@ -472,36 +473,35 @@ try {
   fail(`Unable to read jumpstart file '${file}': ${e.message}`);
 }
 
-// Layout:
-//   [0..7]    blockNumber                (long, 8 bytes)
-//   [8..55]   previousWrappedBlockHash   (SHA-384, 48 bytes)
-//   [56..103] consensusTimestampHash     (SHA-384, 48 bytes)
-//   [104..151] outputItemsTreeRootHash   (SHA-384, 48 bytes)
-//   [152..159] streamingHasherLeafCount  (long, 8 bytes)
-//   [160..163] streamingHasherHashCount  (int, 4 bytes)
-//   [164..]   streamingHasher subtree hashes (48 bytes each)
-const HEADER_SIZE = 164;
-const HASH_BYTES = 48;
-
-if (b.length < HEADER_SIZE) {
-  fail(`jumpstart.bin too small: ${b.length} bytes (expected at least ${HEADER_SIZE})`);
+// Layout, with H = 32 (SHA-256) or 48 (SHA-384) bytes per hash:
+//   blockNumber                (long, 8 bytes)
+//   previousWrappedBlockHash   (H bytes)
+//   consensusTimestampHash     (H bytes)
+//   outputItemsTreeRootHash    (H bytes)
+//   streamingHasherLeafCount   (long, 8 bytes)
+//   streamingHasherHashCount   (int, 4 bytes)
+//   streamingHasher subtree hashes (H bytes each)
+// The file does not record H, so accept the single size whose header and length agree.
+const candidates = [32, 48].filter((h) => {
+  const header = 20 + 3 * h;
+  if (b.length < header) return false;
+  const count = b.readInt32BE(8 + 3 * h + 8);
+  return count >= 0 && b.length === header + count * h;
+});
+if (candidates.length !== 1) {
+  fail(`jumpstart.bin size ${b.length} does not identify a SHA-256 or SHA-384 layout`);
 }
+const HASH_BYTES = candidates[0];
+const HEADER_SIZE = 20 + 3 * HASH_BYTES;
+const leafOffset = 8 + 3 * HASH_BYTES;
 
 const blockNum = b.readBigInt64BE(0);
-const prevHash = b.subarray(8, 56).toString("hex");
-const consensusTimestampHash = b.subarray(56, 104).toString("hex");
-const outputItemsTreeRootHash = b.subarray(104, 152).toString("hex");
-const leafCount = b.readBigInt64BE(152);
-const hashCount = b.readInt32BE(160);
+const prevHash = b.subarray(8, 8 + HASH_BYTES).toString("hex");
+const consensusTimestampHash = b.subarray(8 + HASH_BYTES, 8 + 2 * HASH_BYTES).toString("hex");
+const outputItemsTreeRootHash = b.subarray(8 + 2 * HASH_BYTES, leafOffset).toString("hex");
+const leafCount = b.readBigInt64BE(leafOffset);
+const hashCount = b.readInt32BE(leafOffset + 8);
 if (blockNum < 0n || leafCount <= 0n) fail("Invalid block number or leaf count");
-if (hashCount < 0) {
-  fail(`Invalid negative hashCount ${hashCount}`);
-}
-
-const expected = HEADER_SIZE + (hashCount * HASH_BYTES);
-if (b.length !== expected) {
-  fail(`jumpstart.bin size mismatch: got ${b.length}, expected ${expected} (hashCount=${hashCount})`);
-}
 
 const subtreeHashes = [];
 let offset = HEADER_SIZE;

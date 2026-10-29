@@ -29,7 +29,7 @@ import org.junit.jupiter.api.parallel.ResourceLock;
  * {@link ClprNetworkLocksProvider} (the {@code @ResourceLock} provider below), which derives one lock per
  * network from this test's {@link Network} set: {@code READ} by default (readers on a network run
  * concurrently) or {@code READ_WRITE} when the test is {@link MultiNetworkLeakyHapiTest} (it mutates shared state, so it runs
- * alone). Tests on disjoint networks (e.g. general vs. mtls vs. manifest) run in parallel. A new suite is
+ * alone). Tests on disjoint networks (e.g. general vs. tls vs. manifest) run in parallel. A new suite is
  * scheduled correctly just by declaring its {@link Network}s; mark it {@link MultiNetworkLeakyHapiTest} if it changes ledger
  * throttles/config, overrides a network property, or restarts a network.
  */
@@ -49,7 +49,7 @@ public @interface MultiNetworkHapiTest {
          *
          * <p>{@code @Network(name = "ledgerA")} remains valid and is required when other
          * parameters ({@code firstGrpcPort}, {@code setupOverrides}, {@code size}, …) are
-         * specified alongside. When both {@link #value()} and {@link #name()} are non-empty
+         * specified alongside. When both {@code #value()} and {@link #name()} are non-empty
          * they must agree — the reader ({@code MultiNetworkExtension.resolveName}) throws on
          * mismatch. Use {@link MultiNetworkExtension#resolveName}
          * rather than reading either element directly.
@@ -70,54 +70,26 @@ public @interface MultiNetworkHapiTest {
         ConfigOverride[] setupOverrides() default {};
 
         /**
-         * Opt-in: provision a per-network ECDSA P-384 CLPR CA before the node JVM starts, dropping
-         * its cert + PKCS#8 key PEMs into each node's working dir at {@code data/clpr/ca.crt} /
-         * {@code data/clpr/ca.key} (the relative paths a suite advertises via {@code clpr.caCrtPath}
-         * / {@code clpr.caKeyPath}). The CA cert DER is stashed by network name so the suite can
-         * advertise it on-chain in {@code ClprEndpoint.tls_certificate} via
-         * {@link MultiNetworkExtension#clprMtlsCaDer(String)}. When {@code false} (the default) no CA
-         * is provisioned and CLPR sync runs plaintext.
+         * Opt-in: start each node's HAPI TLS listener, and with it CLPR sync over TLS. Before the node JVM
+         * starts, a per-network self-signed ECDSA P-384 certificate and its PKCS#8 key are written into each
+         * node's working dir at the default {@code netty.tlsCrt.path} / {@code netty.tlsKey.path}
+         * ({@code hedera.crt} / {@code hedera.key}). Each node then advertises its HAPI TLS port and that
+         * certificate in its {@code ClprEndpoint}, and peers dial it over TLS. When {@code false} (the default)
+         * no certificate is written, no HAPI TLS listener starts, and CLPR sync runs plaintext on the plain
+         * HAPI port. Set it only alongside {@link #firstHapiTlsPort()}.
          */
-        boolean enableClprMtls() default false;
+        boolean enableHapiTls() default false;
 
         /**
-         * Base {@code clpr.mtlsPort} for the dedicated mutual-TLS listener, seeded into each node's
+         * Base {@code grpc.tlsPort} for the HAPI TLS listener, seeded into each node's
          * {@code application.properties} at boot. Like {@link #firstGrpcPort()}, this is a <b>base</b>:
          * co-located subprocess nodes all bind {@code 127.0.0.1}, so node {@code i} gets
-         * {@code firstMtlsPort + i} (the base thus consumes the range
-         * {@code [firstMtlsPort, firstMtlsPort + size)} — leave room when picking bases for other
+         * {@code firstHapiTlsPort + i} (the base thus consumes the range
+         * {@code [firstHapiTlsPort, firstHapiTlsPort + size)} — leave room when picking bases for other
          * networks). {@code -1} (the default) seeds nothing; set it only alongside
-         * {@code enableClprMtls = true}. Prefer this over a {@code @ConfigOverride("clpr.mtlsPort")}:
+         * {@code enableHapiTls = true}. Prefer this over a {@code @ConfigOverride("grpc.tlsPort")}:
          * the per-node offset is applied automatically and stays discoverable at the call site.
          */
-        int firstMtlsPort() default -1;
-
-        /**
-         * Opt-in: cache the network's TSS-enriched genesis-network.json on first successful run,
-         * and preload it (skipping the cold TSS bootstrap) on subsequent runs.
-         *
-         * <p>When {@code true}, {@code MultiNetworkExtension}:
-         * <ul>
-         *   <li>before subprocess start, resolves a cached fixture from
-         *       {@code hedera-node/test-clients/tss-startup-assets/<name>-genesis-network.json[.gz]}
-         *       (preferring the committed {@code .gz} form over any stale local raw {@code .json}),
-         *       gunzips on the fly if needed, and installs it as
-         *       {@code <node>/data/config/genesis-network.json};</li>
-         *   <li>on a cold run (no cached fixture), injects
-         *       {@code networkAdmin.diskNetworkExport=ONLY_FREEZE_BLOCK} +
-         *       {@code networkAdmin.diskNetworkExportTss=true}, waits for the WRAPS sync-point, then
-         *       freezes the network so a single TSS-enriched {@code output/network.json} is flushed;</li>
-         *   <li>harvests that snapshot, gzips it into the cache dir as {@code <name>-genesis-network.json.gz}
-         *       (committable, ~10x smaller), and restarts the network warm-preloaded from it so the
-         *       test runs against the same warm path as later runs.</li>
-         * </ul>
-         *
-         * <p>The {@code .gz} fixtures live under {@code tss-startup-assets/} and are tracked in
-         * git so CI / fresh clones get a warm preload for free. Raw {@code .json} variants in the
-         * same dir are gitignored (dev-local convenience). To force regeneration: delete the
-         * committed {@code .gz} files and rerun any {@code tssPreload = true} test — the cold path
-         * will harvest fresh ones.
-         */
-        boolean tssPreload() default true;
+        int firstHapiTlsPort() default -1;
     }
 }
