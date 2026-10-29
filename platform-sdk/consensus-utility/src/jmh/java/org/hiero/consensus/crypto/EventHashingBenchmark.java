@@ -121,8 +121,8 @@ public class EventHashingBenchmark {
      * the generated events or to the hashing changes it.
      */
     private static final Map<Integer, String> EXPECTED_DIGESTS = Map.of(
-            0, "052929850f50a96db68dab2e13b514ee740a1f2b52c13e083c1f4daef62722ec",
-            2, "49ac621ed6d3c6fe77fc685d33a1e0c5ed84c87bb1dccfefc53b52990f5f3712");
+            0, "9223171760a17caf361d0c52ce6a95071dc06107183a0026f254f57ff07a3c93",
+            2, "9e2819c4a599199a7a6ef68ddbd64a58389f7831b5848c8715eb6e8c20da3bbb");
 
     /** The number of transactions of every event. */
     @Param({"0", "2"})

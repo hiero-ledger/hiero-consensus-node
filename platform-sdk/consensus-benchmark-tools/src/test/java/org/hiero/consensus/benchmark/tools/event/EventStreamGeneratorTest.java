@@ -16,6 +16,7 @@ import java.util.stream.Stream;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.SignatureType;
 import org.hiero.base.crypto.SigningSchema;
 import org.hiero.consensus.event.validation.DefaultEventFieldValidator;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
@@ -188,11 +189,12 @@ class EventStreamGeneratorTest {
     }
 
     @Test
-    void unsignedEventsHaveEmptySignatures() {
+    void unsignedEventsHaveRandomSignaturesOfRsaLength() {
         final List<PlatformEvent> events = EventStreamGenerator.generateUnsignedEvents(MIXED, ROSTER, COUNT, SEED);
 
-        assertThat(events)
-                .allSatisfy(event -> assertThat(event.getSignature().length()).isZero());
+        assertThat(events).allSatisfy(event -> assertThat(event.getSignature().length())
+                .isEqualTo(SignatureType.RSA.signatureLength()));
+        assertThat(events.stream().map(PlatformEvent::getSignature).distinct()).hasSize(COUNT);
     }
 
     @Test

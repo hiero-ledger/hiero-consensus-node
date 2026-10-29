@@ -5,8 +5,7 @@ import static org.hiero.consensus.benchmark.tools.event.EmpiricalDistribution.co
 import static org.hiero.consensus.benchmark.tools.event.EventShape.MAINNET;
 import static org.hiero.consensus.gossip.impl.gossip.sync.SyncInputStream.createSyncInputStream;
 import static org.hiero.consensus.gossip.impl.gossip.sync.SyncOutputStream.createSyncOutputStream;
-import static org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory.randomRosterWithKeys;
-import static org.hiero.consensus.test.fixtures.WeightGenerators.GAUSSIAN;
+import static org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory.randomRoster;
 
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -26,7 +25,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
-import org.hiero.base.crypto.SigningSchema;
 import org.hiero.consensus.benchmark.tools.event.EventShape;
 import org.hiero.consensus.benchmark.tools.event.EventStreamGenerator;
 import org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler;
@@ -36,7 +34,7 @@ import org.hiero.consensus.gossip.impl.gossip.sync.SyncInputStream;
 import org.hiero.consensus.gossip.impl.gossip.sync.SyncOutputStream;
 import org.hiero.consensus.model.event.EventHashFactory;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.test.fixtures.roster.RosterWithKeys;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -68,13 +66,14 @@ import org.openjdk.jmh.annotations.Warmup;
  * <p>The cost grows with the size of an event: its parents, its transactions, and its signature. The events take their
  * shape from mainnet's ({@link EventShape#MAINNET}): a self parent and the median number of other parents, four, and
  * transactions of the median size, 470 bytes. The number of transactions per event is a parameter, at two quantiles of
- * mainnet's events: 0, the median (96% of the events carry none), and 2, the 99th percentile. Every event is signed
- * with an RSA key, as mainnet's events are, so its signature has 384 bytes; only the length matters here. Every hash is
- * a SHA-256 hash, as in production after the event cutover.
+ * mainnet's events: 0, the median (96% of the events carry none), and 2, the 99th percentile. The events are unsigned:
+ * their signatures are random bytes of the length of the RSA signatures that mainnet's events carry, 384 bytes, which
+ * is all that matters here. Every hash is a SHA-256 hash, as in production after the event cutover.
  *
- * <p>{@link EventStreamGenerator} generates the events once per trial from a fixed seed, as a node receives them
- * through gossip. The SHA-256 digest of their serialized form must equal a constant; it changes when the generated
- * events change.
+ * <p>{@link EventStreamGenerator} generates the events once per trial from a fixed seed, as their creators created
+ * them: {@code write} writes them as a node sends its own events to its peers, and {@code read} reads them as the peers
+ * receive them. The SHA-256 digest of their serialized form must equal a constant; it changes when the generated events
+ * change.
  *
  * <p>{@code write} writes the same events in every pass. The records compute their encoded size on first use and keep
  * it. Production writes the same record to every peer, so only the write to the first peer computes the size; this
@@ -112,7 +111,7 @@ import org.openjdk.jmh.annotations.Warmup;
 @Measurement(iterations = 2, time = 10)
 public class GossipEventSerializationBenchmark {
 
-    /** The seed of the random number generators. The same seed produces the same keys and events. */
+    /** The seed of the random number generators. The same seed produces the same roster and events. */
     private static final long SEED = 0;
 
     /** The number of events written or read in one invocation. */
@@ -126,8 +125,8 @@ public class GossipEventSerializationBenchmark {
      * the generated events changes it.
      */
     private static final Map<Integer, String> EXPECTED_DIGESTS = Map.of(
-            0, "455abc21859cbacaad422beccbb21bad3c0a13c25caaad9fbfb259f020da2fef",
-            2, "004396a0d6c6990b1c7f37b4577e45d5786c4d5cf606ef2793ad01418673f218");
+            0, "c291032c9a54ecaf691f8b55ec779661204ccc6f94f7f0edcc6a568ffaafe7ab",
+            2, "2c1513343e60e542e3e00dada9c331d3f0caba16dd3c6a2cb8e069cacb064d2b");
 
     /** The state of {@code write}: the events and the stream they are written to. */
     @State(Scope.Thread)
@@ -161,7 +160,8 @@ public class GossipEventSerializationBenchmark {
         @Setup(Level.Trial)
         public void setupTrial() throws IOException {
             final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
-            final int bufferSize = configuration.getConfigData(SocketConfig.class).bufferSize();
+            final int bufferSize =
+                    configuration.getConfigData(SocketConfig.class).bufferSize();
 
             events = generateEvents(transactionsPerEvent);
             final byte[] expected = serialize(events);
@@ -253,7 +253,8 @@ public class GossipEventSerializationBenchmark {
          */
         @Setup(Level.Invocation)
         public void prepareInvocation() {
-            final int bufferSize = configuration.getConfigData(SocketConfig.class).bufferSize();
+            final int bufferSize =
+                    configuration.getConfigData(SocketConfig.class).bufferSize();
             input = createSyncInputStream(configuration, new ByteArrayInputStream(serializedEvents), bufferSize);
             recorder = LatencyProfiler.recorder();
 
@@ -348,10 +349,9 @@ public class GossipEventSerializationBenchmark {
                 constant(MAINNET.transactionSize().median()));
         // Every event birth round is past the cutover, so every event is hashed with SHA-256.
         EventHashFactory.initialize(0);
-        final RosterWithKeys rosterWithKeys =
-                randomRosterWithKeys(new Random(SEED), NUMBER_OF_NODES, GAUSSIAN, SigningSchema.RSA);
-        final List<PlatformEvent> generatedEvents = EventStreamGenerator.generateSignedEvents(
-                shape, rosterWithKeys.roster(), NUMBER_OF_EVENTS, SEED, rosterWithKeys.privateKeys());
+        final RosterWrapper roster = randomRoster(new Random(SEED), NUMBER_OF_NODES);
+        final List<PlatformEvent> generatedEvents =
+                EventStreamGenerator.generateUnsignedEvents(shape, roster, NUMBER_OF_EVENTS, SEED);
 
         final GossipEvent[] events = new GossipEvent[NUMBER_OF_EVENTS];
         for (int i = 0; i < NUMBER_OF_EVENTS; i++) {

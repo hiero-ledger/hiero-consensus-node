@@ -14,7 +14,6 @@ jmhModuleInfo {
     requires("org.hiero.consensus.benchmark.tools")
     requires("org.hiero.consensus.gossip.impl")
     requires("org.hiero.consensus.model.test.fixtures")
-    requires("org.hiero.consensus.utility.test.fixtures")
     requires("jmh.core")
 }
 
