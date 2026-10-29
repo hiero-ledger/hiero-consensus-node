@@ -74,6 +74,15 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
      * The logger instance for this class.
      */
     private static final Logger logger = LogManager.getLogger(NettyGrpcServerManager.class);
+
+    /**
+     * Per-thread read buffers. Regular and jumbo marshallers need different buffer sizes, so each kind gets its own
+     * thread local; all marshallers of the same kind (e.g. across app instances in one JVM) share theirs.
+     */
+    private static final ThreadLocal<BufferedData> REGULAR_BUFFER = new ThreadLocal<>();
+
+    private static final ThreadLocal<BufferedData> JUMBO_BUFFER = new ThreadLocal<>();
+
     /**
      * The supported ciphers for TLS
      */
@@ -468,8 +477,9 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
         // set buffer capacity to be big enough to hold the largest transaction
         final var bufferCapacity = isJumboEnabled ? jumboMaxTxnSize + 1 : maxTxnSize + 1;
         // set capacity and max transaction size for both normal and jumbo transactions
-        final var dataBufferMarshaller = new DataBufferMarshaller(MAX_TRANSACTION_SIZE + 1, MAX_TRANSACTION_SIZE);
-        final var jumboBufferMarshaller = new DataBufferMarshaller(bufferCapacity, jumboMaxTxnSize);
+        final var dataBufferMarshaller =
+                new DataBufferMarshaller(REGULAR_BUFFER, MAX_TRANSACTION_SIZE + 1, MAX_TRANSACTION_SIZE);
+        final var jumboBufferMarshaller = new DataBufferMarshaller(JUMBO_BUFFER, bufferCapacity, jumboMaxTxnSize);
         return rpcServiceDefinitions
                 .get()
                 .map(d -> {

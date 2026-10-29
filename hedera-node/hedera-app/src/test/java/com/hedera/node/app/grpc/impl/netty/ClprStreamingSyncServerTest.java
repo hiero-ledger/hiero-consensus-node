@@ -13,6 +13,7 @@ import com.hedera.hapi.node.state.clpr.ClprStreamingSyncPayload;
 import com.hedera.node.app.service.clpr.ClprEndpointServiceDefinition;
 import com.hedera.node.app.workflows.clpr.ClprStreamingSyncSession;
 import com.hedera.node.app.workflows.clpr.ClprSyncWorkflow;
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -59,6 +60,7 @@ class ClprStreamingSyncServerTest {
     private static final Bytes CHANNEL_ID =
             Bytes.fromHex("01000000000000000000000000000000000000000000000000000000000000ab");
     private static final long DEADLINE_SECONDS = 10;
+    private static final ThreadLocal<BufferedData> BUFFER_THREAD_LOCAL = new ThreadLocal<>();
 
     private static final MethodDescriptor.Marshaller<byte[]> BYTE_MARSHALLER = new MethodDescriptor.Marshaller<>() {
         @Override
@@ -113,8 +115,8 @@ class ClprStreamingSyncServerTest {
                 .addMethod(otherUnary, ServerCalls.asyncUnaryCall((ignoredRequest, ignoredObserver) -> {}))
                 .build();
 
-        final var withStreaming =
-                NettyGrpcServerManager.addClprStreamingSync(base, noopWorkflow(), new DataBufferMarshaller(256, 128));
+        final var withStreaming = NettyGrpcServerManager.addClprStreamingSync(
+                base, noopWorkflow(), new DataBufferMarshaller(BUFFER_THREAD_LOCAL, 256, 128));
 
         final var method = withStreaming.getMethod(ClprEndpointServiceDefinition.SYNC_FULL_METHOD_NAME);
         assertThat(method).isNotNull();
@@ -229,7 +231,9 @@ class ClprStreamingSyncServerTest {
                 base,
                 workflow,
                 new DataBufferMarshaller(
-                        NettyGrpcServerManager.MAX_TRANSACTION_SIZE + 1, NettyGrpcServerManager.MAX_TRANSACTION_SIZE));
+                        BUFFER_THREAD_LOCAL,
+                        NettyGrpcServerManager.MAX_TRANSACTION_SIZE + 1,
+                        NettyGrpcServerManager.MAX_TRANSACTION_SIZE));
 
         server = NettyServerBuilder.forPort(0).addService(service).build().start();
         channel = NettyChannelBuilder.forAddress("localhost", server.getPort())

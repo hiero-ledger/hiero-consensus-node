@@ -3,11 +3,14 @@ package com.hedera.node.app.grpc.impl.netty;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 
+import com.hedera.hapi.node.base.Transaction;
 import com.hedera.node.app.service.clpr.ClprEndpointServiceDefinition;
 import com.hedera.node.app.services.ServicesRegistry;
 import com.hedera.node.app.services.ServicesRegistryImpl;
 import com.hedera.node.app.spi.RpcService;
+import com.hedera.node.app.utils.TestUtils;
 import com.hedera.node.app.workflows.clpr.ClprStreamingSyncSession;
 import com.hedera.node.app.workflows.clpr.ClprSyncWorkflow;
 import com.hedera.node.app.workflows.clpr.ClprTestTlsCert;
@@ -16,7 +19,9 @@ import com.hedera.node.app.workflows.query.QueryWorkflow;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.hedera.pbj.runtime.RpcMethodDefinition;
 import com.hedera.pbj.runtime.RpcServiceDefinition;
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -24,8 +29,10 @@ import io.grpc.MethodDescriptor;
 import io.grpc.MethodDescriptor.MethodType;
 import io.grpc.ServerMethodDefinition;
 import io.grpc.ServerServiceDefinition;
+import java.io.ByteArrayInputStream;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.hiero.base.constructable.ConstructableRegistry;
@@ -188,6 +195,91 @@ final class NettyGrpcServerManagerTest {
         } finally {
             subject.stop();
         }
+    }
+
+    @Test
+    @DisplayName(
+            "given jumbo enabled, then a jumbo message is not truncated after a regular message on the same thread")
+    void givenJumboEnabled_thenJumboMessageIsNotTruncatedAfterRegularMessageOnSameThread() {
+        final int regularSize = NettyGrpcServerManager.MAX_TRANSACTION_SIZE;
+        final int jumboSize = 4 * regularSize;
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("jumboTransactions.isEnabled", true)
+                .withValue("jumboTransactions.maxTxnSize", jumboSize)
+                .withValue("jumboTransactions.grpcMethodNames", "callEthereum")
+                .getOrCreateConfig();
+        final var subject = managerWithTransactionService(() -> new VersionedConfigImpl(config, 1));
+        final var regularMethod = methodDescriptor(subject.hapiServices(), "proto.TestService/createAccount");
+        final var jumboMethod = methodDescriptor(subject.hapiServices(), "proto.TestService/callEthereum");
+
+        // Poison this thread's cached buffer with a regular call first
+        final var regularBytes = TestUtils.randomBytes(100);
+        assertArrayEquals(regularBytes, parse(regularMethod, regularBytes));
+
+        // Then a jumbo call on the same thread must get a buffer big enough for the whole message
+        final var jumboBytes = TestUtils.randomBytes(jumboSize);
+        assertArrayEquals(jumboBytes, parse(jumboMethod, jumboBytes));
+    }
+
+    private static byte[] parse(final MethodDescriptor<BufferedData, BufferedData> method, final byte[] bytes) {
+        final var parsed = method.parseRequest(new ByteArrayInputStream(bytes));
+        return parsed.getBytes(0, parsed.length()).toByteArray();
+    }
+
+    private static MethodDescriptor<BufferedData, BufferedData> methodDescriptor(
+            final Set<ServerServiceDefinition> definitions, final String fullMethodName) {
+        return definitions.stream()
+                .flatMap(d -> d.getMethods().stream())
+                .map(m -> (MethodDescriptor<BufferedData, BufferedData>) m.getMethodDescriptor())
+                .filter(d -> fullMethodName.equals(d.getFullMethodName()))
+                .findFirst()
+                .orElseThrow();
+    }
+
+    /** Builds a manager whose only registered RPC service has two transaction methods: one regular, one jumbo. */
+    private NettyGrpcServerManager managerWithTransactionService(final ConfigProvider provider) {
+        final var definition = new RpcServiceDefinition() {
+            @NonNull
+            @Override
+            public String basePath() {
+                return "proto.TestService";
+            }
+
+            @NonNull
+            @Override
+            public Set<RpcMethodDefinition<?, ?>> methods() {
+                return Set.of(
+                        new RpcMethodDefinition<>("createAccount", Transaction.class, Transaction.class),
+                        new RpcMethodDefinition<>("callEthereum", Transaction.class, Transaction.class));
+            }
+        };
+        final var registry = new ServicesRegistryImpl(ConstructableRegistry.getInstance(), provider.getConfiguration());
+        registry.register(new RpcService() {
+            @NonNull
+            @Override
+            public String getServiceName() {
+                return "TestService";
+            }
+
+            @NonNull
+            @Override
+            public Set<RpcServiceDefinition> rpcDefinitions() {
+                return Set.of(definition);
+            }
+
+            @Override
+            public void registerSchemas(@NonNull final SchemaRegistry registry) {
+                // no schemas needed: only rpcDefinitions() is read here
+            }
+        });
+        return new NettyGrpcServerManager(
+                provider,
+                registry,
+                ingestWorkflow,
+                userQueryWorkflow,
+                operatorQueryWorkflow,
+                clprSyncWorkflow,
+                metrics);
     }
 
     /** The method types registered under the CLPR sync method name, one per registration. */
