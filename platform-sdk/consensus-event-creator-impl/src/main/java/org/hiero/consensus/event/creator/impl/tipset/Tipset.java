@@ -5,7 +5,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.RosterEntryWrapper;
 import org.hiero.consensus.model.roster.RosterWrapper;
@@ -16,6 +15,8 @@ import org.hiero.consensus.model.roster.RosterWrapper;
  * the same creator, where a later event has a higher key.
  */
 public class Tipset {
+
+    public static final long ORDERING_KEY_UNDEFINED = -1L;
 
     private final RosterWrapper roster;
 
@@ -33,11 +34,11 @@ public class Tipset {
         this.roster = Objects.requireNonNull(roster);
         tips = new long[roster.size()];
 
-        Arrays.fill(tips, EventConstants.SEQUENCE_NUMBER_UNDEFINED);
+        Arrays.fill(tips, ORDERING_KEY_UNDEFINED);
     }
 
     /**
-     * Build an empty tipset (i.e. where all ordering keys are {@link EventConstants#SEQUENCE_NUMBER_UNDEFINED}) using
+     * Build an empty tipset (i.e. where all ordering keys are {@link ORDERING_KEY_UNDEFINED}) using
      * another tipset as a template.
      *
      * @param tipset the tipset to use as a template
@@ -83,7 +84,7 @@ public class Tipset {
 
     /**
      * Get the ordering key of the tip for a given node. If the node is not in the roster or no event from that node is
-     * known, return {@link EventConstants#SEQUENCE_NUMBER_UNDEFINED}.
+     * known, return {@link ORDERING_KEY_UNDEFINED}.
      *
      * @param nodeId the node in question
      * @return the ordering key of the tip for the node
@@ -91,7 +92,7 @@ public class Tipset {
     public long getTipOrderingKeyForNode(@NonNull final NodeId nodeId) {
         final int index = roster.index(nodeId);
         if (index == -1) {
-            return EventConstants.SEQUENCE_NUMBER_UNDEFINED;
+            return ORDERING_KEY_UNDEFINED;
         }
         return tips[index];
     }

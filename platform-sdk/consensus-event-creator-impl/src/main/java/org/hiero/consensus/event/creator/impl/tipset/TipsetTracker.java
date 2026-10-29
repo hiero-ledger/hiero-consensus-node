@@ -4,7 +4,6 @@ package org.hiero.consensus.event.creator.impl.tipset;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
-import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -71,7 +70,7 @@ public interface TipsetTracker {
      *
      * @param nodeId the node in question
      * @return the ordering key of the latest event added from the node, or
-     * {@link EventConstants#SEQUENCE_NUMBER_UNDEFINED} if there is none
+     * {@link Tipset#ORDERING_KEY_UNDEFINED} if there is none
      */
     long getLatestTipOrderingKeyForNode(@NonNull NodeId nodeId);
 

@@ -17,7 +17,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
-import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
@@ -112,9 +111,9 @@ class TipsetTrackerTests {
             }
             assertThat(newTipset.getTipOrderingKeyForNode(selfId))
                     .withFailMessage(String.format(
-                            "The sequence number should always be %s for the self node, got %s instead",
-                            EventConstants.SEQUENCE_NUMBER_UNDEFINED, newTipset.getTipOrderingKeyForNode(selfId)))
-                    .isEqualTo(EventConstants.SEQUENCE_NUMBER_UNDEFINED);
+                            "The ordering key should always be %s for the self node, got %s instead",
+                            Tipset.ORDERING_KEY_UNDEFINED, newTipset.getTipOrderingKeyForNode(selfId)))
+                    .isEqualTo(Tipset.ORDERING_KEY_UNDEFINED);
             assertSame(newTipset, tracker.getTipset(event.getDescriptor()));
 
             // Now, reconstruct the tipset manually, and make sure it matches what we were expecting.

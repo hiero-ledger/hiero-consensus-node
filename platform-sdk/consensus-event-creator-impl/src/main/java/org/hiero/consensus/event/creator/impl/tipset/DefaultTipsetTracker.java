@@ -40,7 +40,7 @@ public class DefaultTipsetTracker implements TipsetTracker {
      * has ever observed. If you ask this tipset for the ordering key for a particular node, it will return the highest
      * sequence number of all events we have ever received from that node.
      */
-    private Tipset latestGenerations;
+    private Tipset latestSequenceNumbers;
 
     private final RosterWrapper roster;
 
@@ -60,7 +60,7 @@ public class DefaultTipsetTracker implements TipsetTracker {
             @NonNull final Time time, @NonNull final NodeId selfId, @NonNull final RosterWrapper roster) {
         this.roster = Objects.requireNonNull(roster);
         this.selfId = Objects.requireNonNull(selfId);
-        this.latestGenerations = new Tipset(roster);
+        this.latestSequenceNumbers = new Tipset(roster);
 
         tipsets = new StandardSequenceMap<>(0, INITIAL_TIPSET_MAP_CAPACITY, true, EventDescriptorWrapper::birthRound);
 
@@ -138,7 +138,7 @@ public class DefaultTipsetTracker implements TipsetTracker {
                 new Tipset(roster).merge(parentTipsets).advance(event.getCreatorId(), event.getSequenceNumber());
 
         tipsets.put(event.getDescriptor(), eventTipset);
-        latestGenerations = latestGenerations.advance(event.getCreatorId(), event.getSequenceNumber());
+        latestSequenceNumbers = latestSequenceNumbers.advance(event.getCreatorId(), event.getSequenceNumber());
 
         return eventTipset;
     }
@@ -208,7 +208,7 @@ public class DefaultTipsetTracker implements TipsetTracker {
      */
     @Override
     public long getLatestTipOrderingKeyForNode(@NonNull final NodeId nodeId) {
-        return latestGenerations.getTipOrderingKeyForNode(nodeId);
+        return latestSequenceNumbers.getTipOrderingKeyForNode(nodeId);
     }
 
     /**
@@ -226,7 +226,7 @@ public class DefaultTipsetTracker implements TipsetTracker {
     @Override
     public void clear() {
         eventWindow = EventWindow.getGenesisEventWindow();
-        latestGenerations = new Tipset(roster);
+        latestSequenceNumbers = new Tipset(roster);
         tipsets.clear();
     }
 }
