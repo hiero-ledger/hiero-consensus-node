@@ -1,0 +1,80 @@
+﻿/**
+ * # Event Descriptor
+ * Unique identifier for an event.
+ *
+ * Contains the hash of the event, the creator identifier, the birth round, and the generation.
+ *
+ * An event's descriptor is constructed individually by each node that receives a `GossipEvent`,
+ * to uniquely identify that event. An event's descriptor isn't part of the `GossipEvent` itself,
+ * since the descriptor contains the fields `hash` and `generation`, which can be computed locally.
+ * Nodes receiving a `GossipEvent` have the required information to construct the event descriptor
+ * immediately upon receiving the event, without needing to wait for the event to reach consensus.
+ *
+ * Aside from being a unique identifier for events that have been received through gossip,
+ * the event descriptor contains the necessary information to describe an event's parents,
+ * in the `parents` field of `GossipEvent`.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in [RFC2119](https://www.ietf.org/rfc/rfc2119).
+ */
+syntax = "proto3";
+
+package proto.platform.event;
+
+/*
+ * Hedera Network Services Protobuf
+ *
+ * Copyright (C) 2024 Hedera Hashgraph, LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+option java_package = "com.hiero.proto.platform.event";
+option csharp_namespace = "Hiero.Proto.Platform.Event";
+// <<<pbj.java_package = "com.hiero.proto.platform.event">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+/**
+ * Unique identifier for an event.
+ */
+message EventDescriptor {
+  /**
+   * The hash of the event.<br/>
+   * The hash SHALL be a SHA-384 hash.<br/>
+   * The hash SHALL have the following inputs, in the specified order:<br/>
+   * 1. The bytes of the `EventCore` protobuf<br/>
+   * 2. The SHA-384 hash of each individual `EventTransaction`, in the order the transactions appear in the `event_transactions` field of the `GossipEvent` protobuf
+   */
+  bytes hash = 1;
+
+  /**
+   * The creator node identifier.<br/>
+   * This SHALL be the unique identifier for the node that created the event.<br/>
+   * This SHALL match the ID of the node as it appears in the address book.
+   */
+  int64 creator_node_id = 2;
+
+  /**
+   * The birth round of the event.<br/>
+   * The birth round SHALL be the pending consensus round at the time the event is created.<br/>
+   * The pending consensus round SHALL be **one greater** than the latest round to reach consensus.
+   */
+  int64 birth_round = 3;
+
+  /**
+  * Previously used to indicate the generation of the event.
+  */
+  reserved 17;
+}
