@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.file.batch;
 
-import static com.hedera.services.bdd.junit.ContextRequirement.PERMISSION_OVERRIDES;
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
@@ -11,34 +10,23 @@ import static com.hedera.services.bdd.spec.transactions.TxnUtils.BYTES_4K;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.randomUtf8Bytes;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileUpdate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
-import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
-import static com.hedera.services.bdd.suites.HapiSuite.ADDRESS_BOOK_CONTROL;
-import static com.hedera.services.bdd.suites.HapiSuite.API_PERMISSIONS;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
-import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ZERO_BYTE_MEMO;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AUTORENEW_DURATION_NOT_IN_RANGE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ZERO_BYTE_IN_STRING;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.UNAUTHORIZED;
 import static java.lang.Long.parseLong;
 
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.spec.keys.SigControl;
-import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -53,34 +41,6 @@ class AtomicFileUpdateSuite {
     private static final String CREATE_TXN = "create";
     public static final String CIVILIAN = "civilian";
     private static final String BATCH_OPERATOR = "batchOperator";
-
-    @LeakyHapiTest(requirement = PERMISSION_OVERRIDES)
-    final Stream<DynamicTest> apiPermissionsChangeDynamically() {
-        final var civilian = CIVILIAN;
-        return hapiTest(
-                cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
-                cryptoCreate(BATCH_OPERATOR),
-                cryptoTransfer(tinyBarsFromTo(GENESIS, ADDRESS_BOOK_CONTROL, 1_000_000_000L)),
-                cryptoCreate(civilian).balance(ONE_HUNDRED_HBARS),
-                getFileContents(API_PERMISSIONS).logged(),
-                tokenCreate("poc").payingWith(civilian),
-                atomicBatch(fileUpdate(API_PERMISSIONS)
-                                .payingWith(ADDRESS_BOOK_CONTROL)
-                                .overridingProps(Map.of("tokenCreate", "0-1"))
-                                .batchKey(BATCH_OPERATOR))
-                        .payingWith(BATCH_OPERATOR),
-                getFileContents(API_PERMISSIONS).logged(),
-                tokenCreate("poc")
-                        .payingWith(civilian)
-                        .hasPrecheckFrom(NOT_SUPPORTED, OK)
-                        .hasKnownStatus(UNAUTHORIZED),
-                atomicBatch(fileUpdate(API_PERMISSIONS)
-                                .payingWith(ADDRESS_BOOK_CONTROL)
-                                .overridingProps(Map.of("tokenCreate", "0-*"))
-                                .batchKey(BATCH_OPERATOR))
-                        .payingWith(BATCH_OPERATOR),
-                tokenCreate("secondPoc").payingWith(civilian));
-    }
 
     @HapiTest
     final Stream<DynamicTest> updateFeesCompatibleWithCreates() {

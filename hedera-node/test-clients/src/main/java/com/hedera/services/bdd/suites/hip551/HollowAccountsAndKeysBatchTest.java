@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip551;
 
-import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -14,8 +13,8 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
@@ -25,15 +24,14 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateInnerTxnChargedUsd;
+import static com.hedera.services.bdd.suites.HapiSuite.ADDRESS_BOOK_CONTROL;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
-import static com.hedera.services.bdd.suites.HapiSuite.THROTTLE_DEFS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.createHollowAccountFrom;
-import static com.hedera.services.bdd.suites.utils.sysfiles.serdes.ThrottleDefsLoader.protoDefsFromResource;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_KEY_SET_ON_NON_INNER_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_LIST_CONTAINS_DUPLICATES;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
@@ -49,14 +47,16 @@ import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
 import com.google.protobuf.ByteString;
+import com.hedera.services.bdd.junit.EmbeddedHapiTest;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
+import com.hedera.services.bdd.suites.hip869.NodeCreateTest;
 import com.hederahashgraph.api.proto.java.NftTransfer;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenTransferList;
 import com.hederahashgraph.api.proto.java.TransactionID;
+import java.security.cert.CertificateEncodingException;
 import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
@@ -145,31 +145,34 @@ public class HollowAccountsAndKeysBatchTest {
                 getAliasedAccountInfo(alias).isHollow()));
     }
 
-    @LeakyEmbeddedHapiTest(
-            reason = NEEDS_STATE_ACCESS,
-            requirement = {THROTTLE_OVERRIDES},
-            throttles = "testSystemFiles/mainnet-throttles.json")
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     @DisplayName("Privileged Batch does not grant bypass fees to inner unprivileged tx, should fail")
-    public Stream<DynamicTest> mixedBatchNoPrivilegeFeeBypass() {
+    public Stream<DynamicTest> mixedBatchNoPrivilegeFeeBypass() throws CertificateEncodingException {
         final var batchOperator = "batchOperator";
         final var sender = "sender";
         final var receiver = "receiver";
+        final var nodeAccount = "nodeAccount";
+        final var gossipCertificate =
+                NodeCreateTest.generateX509Certificates(1).getFirst().getEncoded();
 
         return hapiTest(
                 // Setup accounts
                 cryptoCreate(batchOperator).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(sender).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(receiver).balance(0L),
+                cryptoCreate(nodeAccount),
+                newKeyNamed("adminKey"),
+                // Fund the address book admin so its node create would be payable without the fee waiver
+                cryptoTransfer(movingHbar(ONE_HUNDRED_HBARS).between(GENESIS, ADDRESS_BOOK_CONTROL)),
 
                 // Create a mixed batch with a privileged inner txn and a normal crypto transfer
                 atomicBatch(
-                                fileUpdate(THROTTLE_DEFS)
+                                nodeCreate("privNode", nodeAccount)
+                                        .adminKey("adminKey")
+                                        .gossipCaCertificate(gossipCertificate)
                                         .batchKey(GENESIS)
-                                        .noLogging()
-                                        .payingWith(GENESIS)
-                                        .via("privTransfer")
-                                        .contents(protoDefsFromResource("testSystemFiles/mainnet-throttles.json")
-                                                .toByteArray()),
+                                        .payingWith(ADDRESS_BOOK_CONTROL)
+                                        .via("privCreate"),
                                 cryptoTransfer(movingHbar(1).between(sender, receiver))
                                         .via("nonPrivTransfer")
                                         .batchKey(GENESIS)
@@ -177,8 +180,8 @@ public class HollowAccountsAndKeysBatchTest {
                         .payingWith(GENESIS)
                         .via("mixedBatch"),
 
-                // Assert the privileged inner transfer is exempt
-                validateInnerTxnChargedUsd("privTransfer", "mixedBatch", 0.0, 0),
+                // Assert the privileged inner node create is exempt
+                validateInnerTxnChargedUsd("privCreate", "mixedBatch", 0.0, 0),
                 // Assert the non-privileged inner transfer is charged normal fees (not exempt)
                 validateInnerTxnChargedUsd("nonPrivTransfer", "mixedBatch", 0.0001, 5));
     }
