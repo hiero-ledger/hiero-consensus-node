@@ -87,13 +87,19 @@ import org.openjdk.jmh.annotations.Warmup;
  * ({@link LatencyRecorder#lap()}). {@link LatencyProfiler} reports the percentiles and the allocation per call. The
  * allocation is measured around the timed calls only, because {@code -prof gc} also counts the setup.
  *
- * <p>The first call of a {@code read} pass, right after the setup, reads an event but is not timed. It is several times
- * slower than the others, and one call in {@value #NUMBER_OF_EVENTS} is exactly the share above p99.99, so timing it
- * would put the setup into p99.99. No such setup precedes an event in production. {@code write} has no setup before
- * its passes, and its first call is as fast as the others, so it times every call.
+ * <p>The first call of a {@code read} pass comes right after the setup and is much slower than the others, so it reads
+ * an event but is not timed. On an Apple M4 laptop, its median was 6.8–6.9 µs without transactions and 7.0–7.6 µs with
+ * two, against about 0.37 µs and 0.47 µs on average for the other calls. One call in {@value #NUMBER_OF_EVENTS} is
+ * exactly the share above p99.99, so timing the first call of every pass would set p99.99. In the same run, p99.99 was
+ * 6.7–7.5 µs when the first call was timed and 1.3–3.8 µs when it was not. No such setup precedes an event in
+ * production. {@code write} has no setup before its passes, and its first call was as fast as the others, so it times
+ * every call.
  *
- * <p>Writing or reading an event takes so little time that the timing is a noticeable part of every latency. The share
- * is about constant, so a regression still shows in full nanoseconds, but as a slightly smaller percentage.
+ * <p>Writing or reading an event takes so little time that the timing is a noticeable part of every latency. On an
+ * Apple M4 laptop, {@code lap()} added 6.2–9.3 ns to a call of {@code write} (1.4–2.8% of the timed call) and
+ * 9.5–11.6 ns to a call of {@code read} (2.0–3.1%), measured with and without laps in chunks of calls interleaved in the
+ * same run; on the benchmark machine it is unmeasured. The share is about constant, so a regression still shows in full
+ * nanoseconds, but as a slightly smaller percentage.
  *
  * <p>{@code read} allocates the events it reads, so each of its invocations' setups ends with {@code System.gc()}, and
  * usually no garbage collection falls into the measured calls. {@code write} allocates nothing, neither in its calls
