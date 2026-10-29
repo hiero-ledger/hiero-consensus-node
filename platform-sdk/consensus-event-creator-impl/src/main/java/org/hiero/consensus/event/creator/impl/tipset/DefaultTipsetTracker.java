@@ -24,9 +24,9 @@ import org.hiero.consensus.model.sequence.map.StandardSequenceMap;
 /**
  * Computes and tracks tipsets for non-ancient events.
  */
-public class TipsetTracker {
+public class DefaultTipsetTracker {
 
-    private static final Logger logger = LogManager.getLogger(TipsetTracker.class);
+    private static final Logger logger = LogManager.getLogger();
 
     private static final int INITIAL_TIPSET_MAP_CAPACITY = 64;
 
@@ -56,7 +56,8 @@ public class TipsetTracker {
      * @param selfId      the id of this node
      * @param roster      the active roster
      */
-    public TipsetTracker(@NonNull final Time time, @NonNull final NodeId selfId, @NonNull final RosterWrapper roster) {
+    public DefaultTipsetTracker(
+            @NonNull final Time time, @NonNull final NodeId selfId, @NonNull final RosterWrapper roster) {
         this.roster = Objects.requireNonNull(roster);
         this.selfId = Objects.requireNonNull(selfId);
         this.latestGenerations = new Tipset(roster);

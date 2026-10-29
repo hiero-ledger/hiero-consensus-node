@@ -47,7 +47,7 @@ class TipsetTrackerTests {
     }
 
     /**
-     * This test creates a bunch of events, adds them to the {@link TipsetTracker}, and verifies that the correct
+     * This test creates a bunch of events, adds them to the {@link DefaultTipsetTracker}, and verifies that the correct
      * tipsets for those added events are returned. Lastly, it advances the event window and verifies that tipsets for
      * ancient events are no longer returned by the tracker.
      */
@@ -63,7 +63,7 @@ class TipsetTrackerTests {
         final Map<NodeId, PlatformEvent> latestEvents = new HashMap<>();
         final Map<EventDescriptorWrapper, Tipset> expectedTipsets = new HashMap<>();
 
-        final TipsetTracker tracker = new TipsetTracker(Time.getCurrent(), selfId, roster);
+        final DefaultTipsetTracker tracker = new DefaultTipsetTracker(Time.getCurrent(), selfId, roster);
 
         long birthRound = ConsensusConstants.ROUND_FIRST;
 
