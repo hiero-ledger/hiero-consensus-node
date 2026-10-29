@@ -21,6 +21,7 @@ import org.hiero.consensus.event.creator.config.EventCreationConfig;
 import org.hiero.consensus.event.creator.impl.DefaultEventCreationManager;
 import org.hiero.consensus.event.creator.impl.EventCreationManager;
 import org.hiero.consensus.event.creator.impl.EventCreator;
+import org.hiero.consensus.event.creator.impl.tipset.DefaultTipsetTracker;
 import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -149,9 +150,10 @@ public class FalconMiniNode extends AbstractMiniNode implements MiniNode, TimeTi
         final BytesSigner signer = _ -> Bytes.EMPTY;
         final RosterWrapper roster = RosterWrapper.of(roster());
         final EventTransactionSupplier transactionSupplier = List::of;
+        final DefaultTipsetTracker tipsetTracker = new DefaultTipsetTracker(time, selfId, roster);
 
         final EventCreator eventCreator = new TipsetEventCreator(
-                configuration, metrics, time, secureRandom, signer, roster, selfId, transactionSupplier);
+                configuration, metrics, time, secureRandom, signer, roster, selfId, transactionSupplier, tipsetTracker);
         eventCreationManager = new DefaultEventCreationManager(
                 configuration, metrics, time, signatureTransactionCheck, eventCreator, roster, selfId);
         eventCreationManager.updatePlatformStatus(PlatformStatus.ACTIVE);
