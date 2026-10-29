@@ -1447,7 +1447,7 @@ jobs:
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp "${{ github.workspace }}"/.github/workflows/support/citr/getLastBlock.sh network-node1-0:/tmp/getLastBlock.sh
 
           export lastBlock=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec network-node1-0 -- bash -c \
-            "sh /tmp/getLastBlock.sh")
+            "bash /tmp/getLastBlock.sh")
 
           echo "Last block at node 1 is $lastBlock"
           lastBlock=`expr $lastBlock + 100` # 100 block ahead to let BN time to start
