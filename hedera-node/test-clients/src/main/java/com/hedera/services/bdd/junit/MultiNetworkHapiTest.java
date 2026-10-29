@@ -49,7 +49,7 @@ public @interface MultiNetworkHapiTest {
          *
          * <p>{@code @Network(name = "ledgerA")} remains valid and is required when other
          * parameters ({@code firstGrpcPort}, {@code setupOverrides}, {@code size}, …) are
-         * specified alongside. When both {@link #value()} and {@link #name()} are non-empty
+         * specified alongside. When both {@code #value()} and {@link #name()} are non-empty
          * they must agree — the reader ({@code MultiNetworkExtension.resolveName}) throws on
          * mismatch. Use {@link MultiNetworkExtension#resolveName}
          * rather than reading either element directly.
@@ -91,33 +91,5 @@ public @interface MultiNetworkHapiTest {
          * the per-node offset is applied automatically and stays discoverable at the call site.
          */
         int firstHapiTlsPort() default -1;
-
-        /**
-         * Opt-in: cache the network's TSS-enriched genesis-network.json on first successful run,
-         * and preload it (skipping the cold TSS bootstrap) on subsequent runs.
-         *
-         * <p>When {@code true}, {@code MultiNetworkExtension}:
-         * <ul>
-         *   <li>before subprocess start, resolves a cached fixture from
-         *       {@code hedera-node/test-clients/tss-startup-assets/<name>-genesis-network.json[.gz]}
-         *       (preferring the committed {@code .gz} form over any stale local raw {@code .json}),
-         *       gunzips on the fly if needed, and installs it as
-         *       {@code <node>/data/config/genesis-network.json};</li>
-         *   <li>on a cold run (no cached fixture), injects
-         *       {@code networkAdmin.diskNetworkExport=ONLY_FREEZE_BLOCK} +
-         *       {@code networkAdmin.diskNetworkExportTss=true}, waits for the WRAPS sync-point, then
-         *       freezes the network so a single TSS-enriched {@code output/network.json} is flushed;</li>
-         *   <li>harvests that snapshot, gzips it into the cache dir as {@code <name>-genesis-network.json.gz}
-         *       (committable, ~10x smaller), and restarts the network warm-preloaded from it so the
-         *       test runs against the same warm path as later runs.</li>
-         * </ul>
-         *
-         * <p>The {@code .gz} fixtures live under {@code tss-startup-assets/} and are tracked in
-         * git so CI / fresh clones get a warm preload for free. Raw {@code .json} variants in the
-         * same dir are gitignored (dev-local convenience). To force regeneration: delete the
-         * committed {@code .gz} files and rerun any {@code tssPreload = true} test — the cold path
-         * will harvest fresh ones.
-         */
-        boolean tssPreload() default true;
     }
 }

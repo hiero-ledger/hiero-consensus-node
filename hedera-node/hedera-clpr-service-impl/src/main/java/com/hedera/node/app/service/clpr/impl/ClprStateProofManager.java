@@ -373,7 +373,7 @@ public class ClprStateProofManager {
                         allowPureAck,
                         includeEndpointManifest);
                 if (built == null) {
-                    log.warn(
+                    log.debug(
                             "[CLPR-BUNDLE-BUILD] buildProof returned null conn={} firstMessageId={} allowPureAck={} "
                                     + "maxMessages={} maxSyncBytes={}",
                             channelId,
@@ -537,7 +537,8 @@ public class ClprStateProofManager {
         final var connKeyBytes = ProtoBytes.PROTOBUF.toBytes(new ProtoBytes(channelId));
         final long connPath = binaryState.getKvPath(CHANNELS_STATE_ID, connKeyBytes);
         if (connPath < 0) {
-            log.warn("[CLPR-BUNDLE-BUILD] channel leaf missing conn={}; cannot build state proof", channelId);
+            // Expected until the channel is in the latest block-proven snapshot; the sync retries
+            log.debug("[CLPR-BUNDLE-BUILD] channel leaf missing conn={}; cannot build state proof", channelId);
             return null;
         }
         final var connMerkleProof = binaryState.getMerkleProof(connPath);

@@ -396,6 +396,7 @@ jobs:
       enable-block-node-regression-panel: "true"
       enable-mirror-node-regression-panel: "true"
       enable-rpc-relay-regression-panel: "true"
+      enable-evm-functional-tests-panel: "true"
       java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
       tck-version: "${{ needs.extract-citr-vars.outputs.tck-version }}"
       js-sdk-version: "${{ needs.extract-citr-vars.outputs.js-sdk-version }}"

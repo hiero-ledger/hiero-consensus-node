@@ -23,7 +23,7 @@ image:
   tag: "%BN_IMAGE_TAG%"
 
 plugins:
-  names: "backfill,block-access-service,block-verification,blocks-file-historic,blocks-file-recent,facility-messaging,health,roster-bootstrap-rsa,roster-bootstrap-tss,server-status,stream-publisher,stream-subscriber"
+  names: "backfill,block-access-service,block-verification,blocks-file-historic,blocks-file-recent,facility-app-state,facility-messaging,health,roster-bootstrap-rsa,roster-bootstrap-tss,server-status,stream-publisher,stream-subscriber"
   # image for resolving and downloading the above plugins, should have java 21+ and maven
   mavenImage: "maven:3-eclipse-temurin-25-alpine"
   # Third-party plugins with full Maven coordinates (groupId:artifactId:version).

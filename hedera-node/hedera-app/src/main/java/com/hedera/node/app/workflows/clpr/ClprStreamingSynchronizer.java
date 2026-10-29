@@ -19,6 +19,7 @@ import com.hedera.node.config.data.ClprConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import io.grpc.Status;
 import java.time.Duration;
 import java.util.List;
 import javax.inject.Inject;
@@ -160,10 +161,18 @@ public final class ClprStreamingSynchronizer implements ClprSynchronizer {
                 peerSelector.recordFailure(peerId);
             }
         } catch (final ClprSyncException | ClientException e) {
+            final var code = Status.fromThrowable(e).getCode();
+            if (code == Status.Code.NOT_FOUND) {
+                // The peer is reachable but has not registered or completed this channel yet, which is expected
+                // while the two ledgers set the channel up; retry next cycle without counting a peer failure
+                logger.debug("Peer {} does not have channel {} yet: {}", peerId, channelId, e.getMessage());
+                return;
+            }
             // ClprSyncException: stream failure. ClientException: TLS channel could not be built. Both are
             // peer-level failures for the breaker.
             peerSelector.recordFailure(peerId);
-            logger.error("Streaming sync failed for channel {} via peer {}", channelId, peerId, e);
+            // The status is in the message (not only in the stack trace) so failures can be told apart per line
+            logger.error("Streaming sync failed for channel {} via peer {} with status {}", channelId, peerId, code, e);
         }
     }
 

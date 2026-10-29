@@ -23,7 +23,10 @@ public class NegativeConstraintsValidation implements ConfigValidator {
         return ConfigReflectionUtils.getAllMatchingPropertiesForConstraintAnnotation(Negative.class, configuration)
                 .stream()
                 .filter(property -> ConfigNumberUtils.isNumber(property.propertyType()))
-                .filter(property -> 0 <= ConfigNumberUtils.getLongValue(property.propertyValue()))
+                .filter(property -> {
+                    final Object value = property.propertyValue();
+                    return ConfigNumberUtils.isNaN(value) || ConfigNumberUtils.compareWithBound(value, 0) >= 0;
+                })
                 .map(property -> new DefaultConfigViolation(
                         property.propertyName(), property.propertyValue() + "", true, "Value must be < 0"));
     }

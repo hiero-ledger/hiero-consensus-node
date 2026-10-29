@@ -4,9 +4,11 @@ package com.hedera.services.bdd.junit;
 import static java.util.stream.Collectors.toCollection;
 import static org.junit.platform.commons.support.AnnotationSupport.findAnnotation;
 
+import com.hedera.services.bdd.junit.extensions.ClassesRunConcurrentlyCondition;
 import com.hedera.services.bdd.junit.extensions.MultiNetworkExtension;
 import com.hedera.services.bdd.junit.extensions.MultiNetworkGroupQueue;
 import com.hedera.services.bdd.junit.extensions.NetworkGroup;
+import com.hedera.services.bdd.suites.validation.MultiNetworkValidationTest;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Method;
@@ -152,6 +154,14 @@ public class SharedMultiNetworkLauncherSessionListener implements LauncherSessio
                 return;
             }
             validateOneGroupPerClass(testClasses, MultiNetworkExtension.NETWORK_GROUP_QUEUE);
+            // Groups are validated after their tests only if the validation test is in the plan and runs alongside
+            // them, i.e. classes run concurrently (see ClassesRunConcurrentlyCondition); otherwise it is skipped, and
+            // groups must not wait for it
+            MultiNetworkExtension.NETWORK_GROUP_QUEUE.setValidationEnabled(
+                    testClasses.contains(MultiNetworkValidationTest.class)
+                            && !AnnotationSupport.isAnnotated(MultiNetworkValidationTest.class, Disabled.class)
+                            && ClassesRunConcurrentlyCondition.classesRunConcurrently(
+                                    testPlan.getConfigurationParameters()::get));
 
             // Resolve per-name conflicts and pick a canonical Network config: throws
             // IllegalStateException if the same name is declared with two different explicit
@@ -225,6 +235,7 @@ public class SharedMultiNetworkLauncherSessionListener implements LauncherSessio
         public void executionSkipped(@NonNull final TestIdentifier testIdentifier, @NonNull final String reason) {
             // Skipped tests never reach afterEach, so count them as finished here
             MultiNetworkExtension.finishSharedTests(testIdentifier.getUniqueId());
+            endValidationOf(testIdentifier);
         }
 
         @Override
@@ -233,6 +244,19 @@ public class SharedMultiNetworkLauncherSessionListener implements LauncherSessio
             // Tests that never ran (e.g. their class's @BeforeAll failed) never reach afterEach, so count them as
             // finished once their container finishes
             MultiNetworkExtension.finishSharedTests(testIdentifier.getUniqueId());
+            endValidationOf(testIdentifier);
+        }
+
+        /**
+         * Ends validation once the validation test class finished or was skipped, so a group still awaiting it does
+         * not hold its nodes forever. A no-op once it has validated every group.
+         */
+        private static void endValidationOf(@NonNull final TestIdentifier testIdentifier) {
+            testIdentifier
+                    .getSource()
+                    .filter(source -> source instanceof ClassSource cs
+                            && cs.getClassName().equals(MultiNetworkValidationTest.class.getName()))
+                    .ifPresent(source -> MultiNetworkExtension.validationEnded());
         }
 
         private static MultiNetworkHapiTest.Network resolveNetwork(

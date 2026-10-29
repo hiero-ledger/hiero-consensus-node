@@ -3,6 +3,7 @@ package org.hiero.otter.fixtures.network.simulation;
 
 import static java.util.Objects.requireNonNull;
 
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -15,6 +16,8 @@ import java.util.Map;
 import java.util.Random;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
+import org.hiero.consensus.gossip.config.BroadcastConfig;
+import org.hiero.consensus.gossip.config.SyncConfig;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -59,21 +62,45 @@ public class SimulatedNetworkConnectivity {
     private static final double RECONNECT_JITTER = 0.2;
 
     /**
+     * The production broadcast settings the delivery delays are derived from. Only the defaults are used.
+     */
+    private static final BroadcastConfig BROADCAST_CONFIG = new TestConfigBuilder()
+            .withConfigDataType(BroadcastConfig.class)
+            .getOrCreateConfig()
+            .getConfigData(BroadcastConfig.class);
+
+    /**
+     * The production sync settings the delivery delays are derived from. Only the defaults are used.
+     */
+    private static final SyncConfig SYNC_CONFIG = new TestConfigBuilder()
+            .withConfigDataType(SyncConfig.class)
+            .getOrCreateConfig()
+            .getConfigData(SyncConfig.class);
+
+    /**
      * The random number generator to use for simulating network delays.
      */
     private final Random random;
 
     /**
      * The time of the most recent {@link #tick(Instant)}. This is the time that changes to the connections are taken
-     * to happen at, and the time that delivery is judged against.
+     * to happen at, and the time that delivery is judged against. Before the first tick it is the start of the
+     * simulation, so that anything sent then gets an arrival time the in-flight queues can measure from the start.
      */
-    private Instant currentTime = Instant.MIN;
+    private Instant currentTime;
 
     /**
      * For every link that came up recently, the time before which nothing is delivered over it in either direction.
      * A link with no entry has no delay pending.
      */
     private final Map<LinkKey, Instant> reconnectReadyAt = new HashMap<>();
+
+    /**
+     * For every link that is, or recently was, out of broadcast mode, the time from which it is in broadcast mode
+     * again. {@link Instant#MAX} while the round trip of the link is above the threshold. A link with no entry is in
+     * broadcast mode.
+     */
+    private final Map<LinkKey, Instant> broadcastEnabledAt = new HashMap<>();
 
     /**
      * A cursored log of unique events used for gossiping events between nodes. Each node has its own cursor into this
@@ -175,11 +202,11 @@ public class SimulatedNetworkConnectivity {
      * Constructor.
      *
      * @param random the random number generator to use for simulating network delays
-     * @param start  the instant the simulation starts at; arrival times are measured from it internally, so it only
-     *               needs to be within a few centuries of the times the network is ticked with
+     * @param start  the instant the simulation starts at
      */
     public SimulatedNetworkConnectivity(@NonNull final Random random, @NonNull final Instant start) {
         this.random = requireNonNull(random);
+        this.currentTime = requireNonNull(start);
         inFlightEvents = new InFlightEvents(this::isConnected, nodeEventWindows::get, start);
         inFlightEventWindows = new InFlightEventWindows(this::isConnected, start);
         inFlightInDeliveryOrder = List.of(inFlightEventWindows, inFlightEvents);
@@ -228,6 +255,7 @@ public class SimulatedNetworkConnectivity {
         final Map<ConnectionKey, ConnectionState> oldConnections = new HashMap<>(connections);
         connections.clear();
         connections.putAll(newConnections);
+        updateBroadcastModes();
         if (initial) {
             reconnectReadyAt.clear();
             return;
@@ -250,6 +278,47 @@ public class SimulatedNetworkConnectivity {
                 linkCameUp(link);
             }
         }
+    }
+
+    /**
+     * Updates the broadcast mode of every link from its current round trip. A link leaves broadcast mode when its round
+     * trip exceeds the threshold, and returns to it a fixed time after the round trip falls below the threshold again.
+     */
+    private void updateBroadcastModes() {
+        final TreeSet<LinkKey> links = new TreeSet<>();
+        for (final ConnectionKey key : connections.keySet()) {
+            links.add(LinkKey.of(key));
+        }
+        for (final LinkKey link : links) {
+            final boolean tooSlow =
+                    roundTrip(link.first(), link.second()).compareTo(BROADCAST_CONFIG.disablePingThreshold()) > 0;
+            final Instant enabledAt = broadcastEnabledAt.get(link);
+            if (tooSlow) {
+                broadcastEnabledAt.put(link, Instant.MAX);
+            } else if (Instant.MAX.equals(enabledAt)) {
+                broadcastEnabledAt.put(link, currentTime.plus(BROADCAST_CONFIG.pauseOnLag()));
+            }
+        }
+    }
+
+    /**
+     * Reports whether a link is in broadcast mode at the current time.
+     */
+    private boolean isBroadcastMode(@NonNull final NodeId a, @NonNull final NodeId b) {
+        final Instant enabledAt = broadcastEnabledAt.get(new LinkKey(a, b));
+        return enabledAt == null || !currentTime.isBefore(enabledAt);
+    }
+
+    /**
+     * The sum of the latencies of both directions of a link. A missing direction counts as the other one.
+     */
+    @NonNull
+    private Duration roundTrip(@NonNull final NodeId a, @NonNull final NodeId b) {
+        final ConnectionState forward = connections.get(new ConnectionKey(a, b));
+        final ConnectionState backward = connections.get(new ConnectionKey(b, a));
+        final Duration forwardLatency = forward != null ? forward.latency() : backward.latency();
+        final Duration backwardLatency = backward != null ? backward.latency() : forwardLatency;
+        return forwardLatency.plus(backwardLatency);
     }
 
     /**
@@ -542,7 +611,10 @@ public class SimulatedNetworkConnectivity {
             // Whether the connection is up is decided at delivery time rather than here: the cursor is consumed
             // either way, so an event dropped now would never be offered to this receiver again, and a partition
             // would permanently deprive it of every event created while the partition was in place.
-            final Instant arrivalTime = nextArrivalTime(sender, receiver, MessageRoute.BROADCAST, now);
+            final boolean broadcast = sender.equals(event.getCreatorId()) && isBroadcastMode(sender, receiver);
+            final Instant arrivalTime = broadcast
+                    ? nextArrivalTime(sender, receiver, MessageRoute.BROADCAST, now)
+                    : nextArrivalTime(sender, receiver, MessageRoute.SYNC, now);
             if (arrivalTime != null) {
                 // create a copy so that nodes don't modify each other's events
                 final PlatformEvent eventToDeliver = event.copyGossipedData();
@@ -585,10 +657,30 @@ public class SimulatedNetworkConnectivity {
         // Simulate network latency and jitter using truncated Gaussian distribution
         final double sigma = connectionState.latency().toNanos() * connectionState.jitter().value / 100.0;
         final double jitter = Math.clamp(random.nextGaussian() * sigma, -3 * sigma, 3 * sigma);
-        final Instant arrivalTime = now.plus(connectionState.latency()).plusNanos((long) jitter);
+        Instant arrivalTime = now.plus(connectionState.latency()).plusNanos((long) jitter);
+        if (kind == MessageRoute.SYNC) {
+            arrivalTime = arrivalTime.plus(syncDelay(sender, receiver));
+        }
 
         // Ensure arrival time is always incremental within a kind of route
         return arrivalTimeClamp.clamp(connectionKey, kind, arrivalTime);
+    }
+
+    /**
+     * The time a copy sent by sync waits on top of the link latency: the hold-back applied by the sender, and the
+     * average wait for the next sync to start. Syncs of a pair run back to back, each taking about two round trips plus
+     * a pause, so the average wait is one round trip plus half the pause. Without broadcast there is no hold-back and
+     * the pause is shorter.
+     *
+     * <p>The hold-back of 3 seconds that production applies to events the forwarder does not build on is not simulated.
+     */
+    @NonNull
+    private Duration syncDelay(@NonNull final NodeId sender, @NonNull final NodeId receiver) {
+        final boolean broadcastMode = isBroadcastMode(sender, receiver);
+        final Duration holdBack = broadcastMode ? SYNC_CONFIG.ancestorFilterThreshold() : Duration.ZERO;
+        final Duration pause =
+                broadcastMode ? BROADCAST_CONFIG.rpcSleepAfterSyncWhileBroadcasting() : SYNC_CONFIG.rpcSleepAfterSync();
+        return holdBack.plus(roundTrip(sender, receiver)).plus(pause.dividedBy(2));
     }
 
     /**

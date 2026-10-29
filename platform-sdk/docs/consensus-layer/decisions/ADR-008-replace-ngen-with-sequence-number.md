@@ -253,7 +253,7 @@ See **Decision** above.
 - `consensus-model/.../PlatformEvent.java` — the `sequenceNumber` field and its
   accessors; the sentinel it defaults to lives in
   `consensus-model/.../EventConstants.java` as `SEQUENCE_NUMBER_UNDEFINED`.
-- `consensus-event-creator-impl/.../tipset/TipsetTracker.java`,
+- `consensus-event-creator-impl/.../tipset/DefaultTipsetTracker.java`,
   `ChildlessEventTracker.java` — advancement scoring, on the sequence number
   (#24991).
 - `consensus-event-creator-impl/.../tipset/TipsetEventCreator.java` —

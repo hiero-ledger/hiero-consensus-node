@@ -75,7 +75,7 @@ public class SeiVerifyConfigCall extends AbstractCall {
         try {
             verified = SeiCometBftProofVerifier.verifyConfigPayload(configPayload);
         } catch (final ProofException e) {
-            log.warn("verifyConfig (Sei): payload rejected: {}", e.getMessage());
+            log.debug("verifyConfig (Sei): payload rejected: {}", e.getMessage());
             return fail();
         } catch (final Exception e) {
             log.warn("verifyConfig (Sei): unexpected error", e);

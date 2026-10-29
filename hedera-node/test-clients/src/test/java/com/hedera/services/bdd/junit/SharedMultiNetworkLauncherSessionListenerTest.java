@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -35,11 +35,11 @@ class SharedMultiNetworkLauncherSessionListenerTest {
         SharedMultiNetworkLauncherSessionListener.validateOneGroupPerClass(
                 List.of(CrossGroupLocks.class, OneGroupLocks.class), queue);
 
-        for (final var testId : List.of("plain", "manifest")) {
-            final var e = assertThrows(IllegalStateException.class, () -> queue.awaitTurn(testId));
+        for (final var group : List.of(plain, manifest)) {
+            final var e = assertThrows(IllegalStateException.class, () -> queue.awaitSlot(group));
             assertTrue(e.getMessage().contains(CrossGroupLocks.class.getName()), e.getMessage());
         }
-        assertEquals(tls, queue.awaitTurn("tls"));
+        assertDoesNotThrow(() -> queue.awaitSlot(tls));
     }
 
     private static NetworkGroup groupOf(final Class<?> clazz, final String methodName) throws Exception {

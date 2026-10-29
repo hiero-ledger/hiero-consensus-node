@@ -371,7 +371,7 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
                             contractID);
                 }
             } else if (logClprVerifier) {
-                log.warn(
+                log.debug(
                         "[CLPR-VERIFY-NATIVE] no externalization path name={} contractID={} selector={} "
                                 + "responseCode={} evmState={} recordBuilderPresent=false isViewCall=false",
                         getName(),

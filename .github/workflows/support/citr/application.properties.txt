@@ -3,7 +3,7 @@
 contracts.chainId=298
 ledger.id=0x03
 entities.unlimitedAutoAssociationsEnabled=true
-bootstrap.throttleJsonDef.resource=genesis/throttles-dev.json
+bootstrap.throttleDefsJson.resource=genesis/throttles-dev.json
 networkAdmin.exportCandidateRoster=true
 addressBook.useRosterLifecycle=true
 nodes.gossipFqdnRestricted=false
@@ -15,3 +15,8 @@ staking.periodMins=360
 tss.forceMockSignatures=false
 
 blockStream.maxBlockSizeBytes=314572800
+
+tss.hintsEnabled=false
+tss.historyEnabled=false
+tss.forceMockSignatures=false
+blockStream.streamWrappedRecordBlocks=true

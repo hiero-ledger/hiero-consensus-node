@@ -110,5 +110,6 @@ class V0780ClprSchemaTest {
 
         verify(configurationState, never()).put(org.mockito.ArgumentMatchers.any());
         verify(manifestState, never()).put(org.mockito.ArgumentMatchers.any());
+        verify(constructionState, never()).put(org.mockito.ArgumentMatchers.any());
     }
 }

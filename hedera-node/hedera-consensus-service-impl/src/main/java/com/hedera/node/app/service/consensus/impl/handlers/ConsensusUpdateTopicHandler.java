@@ -3,6 +3,7 @@ package com.hedera.node.app.service.consensus.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.AUTORENEW_ACCOUNT_NOT_ALLOWED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.AUTORENEW_DURATION_NOT_IN_RANGE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.BAD_ENCODING;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CUSTOM_FEES_LIST_TOO_LONG;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FEE_EXEMPT_KEY_LIST_CONTAINS_DUPLICATED_KEYS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FEE_SCHEDULE_KEY_CANNOT_BE_UPDATED;
@@ -114,12 +115,14 @@ public class ConsensusUpdateTopicHandler implements TransactionHandler {
             case ADMIN_MANAGED_ONLY -> context.requireKeyOrThrow(topic.adminKey(), UNAUTHORIZED);
             case FEE_SCHEDULE_MANAGED_ONLY -> {
                 validateTruePreCheck(topic.hasFeeScheduleKey(), FEE_SCHEDULE_KEY_NOT_SET);
-                context.requireKey(topic.feeScheduleKeyOrThrow());
+                // Fail closed if the stored fee schedule key is structurally invalid (e.g. persisted before validation)
+                context.requireKeyOrThrow(topic.feeScheduleKeyOrThrow(), INVALID_CUSTOM_FEE_SCHEDULE_KEY);
             }
             case ADMIN_AND_FEE_SCHEDULE_MANAGED -> {
                 context.requireKeyOrThrow(topic.adminKey(), UNAUTHORIZED);
                 validateTruePreCheck(topic.hasFeeScheduleKey(), FEE_SCHEDULE_KEY_NOT_SET);
-                context.requireKey(topic.feeScheduleKeyOrThrow());
+                // Fail closed if the stored fee schedule key is structurally invalid (e.g. persisted before validation)
+                context.requireKeyOrThrow(topic.feeScheduleKeyOrThrow(), INVALID_CUSTOM_FEE_SCHEDULE_KEY);
             }
         }
         // If the transaction is setting a new admin key, then the transaction must also be signed by that new key
@@ -172,6 +175,7 @@ public class ConsensusUpdateTopicHandler implements TransactionHandler {
         final var currentMeta =
                 new ExpiryMeta(topic.expirationSecond(), topic.autoRenewPeriod(), topic.autoRenewAccountId());
         resolveMutableBuilderAttributes(handleContext, op, builder, currentMeta);
+        validateNoDegenerateKeys(op);
         topicStore.put(builder.build());
     }
 
@@ -379,6 +383,21 @@ public class ConsensusUpdateTopicHandler implements TransactionHandler {
             }
         } else {
             return hasExpiry ? UpdateType.EXPIRY_ONLY : UpdateType.NOOP;
+        }
+    }
+
+    /**
+     * Rejects a submit or fee schedule key that collapses to empty but is not the key-removal sentinel, since it
+     * could never be satisfied. Runs last so only an otherwise-successful update changes status.
+     */
+    private void validateNoDegenerateKeys(@NonNull final ConsensusUpdateTopicTransactionBody op) {
+        if (op.hasSubmitKey()) {
+            final var key = op.submitKeyOrThrow();
+            validateFalse(isEmpty(key) && !isKeyRemoval(key), BAD_ENCODING);
+        }
+        if (op.hasFeeScheduleKey()) {
+            final var key = op.feeScheduleKeyOrThrow();
+            validateFalse(isEmpty(key) && !isKeyRemoval(key), INVALID_CUSTOM_FEE_SCHEDULE_KEY);
         }
     }
 }

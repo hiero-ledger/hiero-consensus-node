@@ -33,6 +33,7 @@ jobs:
       docs-only: ${{ steps.classify.outputs.docs-only }}
       enable-tests: ${{ steps.classify.outputs.enable-tests }}
       workflow-files-changed: ${{ steps.classify.outputs.workflow-files-changed }}
+      smart-contracts-changed: ${{ steps.classify.outputs.smart-contracts-changed }}
     steps:
       - name: Prepare Runner
         id: prepare-runner
@@ -73,6 +74,8 @@ jobs:
       enable-otter-tests: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-snyk-scan: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-benchmark-smoke: ${{ needs.detect-change-type.outputs.enable-tests }}
+      enable-evm-functional-tests: ${{ github.base_ref == github.event.repository.default_branch && needs.detect-change-type.outputs.smart-contracts-changed || 'false' }}
+      citr-vars-ref: ${{ github.sha }}
       java-version: ${{ needs.extract-jdk-version.outputs.jdk-version }}
       java-distribution: "temurin"
       custom-job-label: "Standard"
@@ -167,6 +170,13 @@ jobs:
                 echo "- **Failure Mode:** ${{ needs.mats-pr-checks.outputs.failure-mode }}"
                 echo "- **Failed Tests:**"
                 bash "${{ github.workspace }}/${{ env.PRINT_FAILED_TESTS_SCRIPT }}" "${{ needs.mats-pr-checks.outputs.failed-tests }}"
+                echo "------------------------------------"
+            fi
+            if [[ "${{ github.base_ref }}" != "${{ github.event.repository.default_branch }}" ]]; then
+                echo "> **EVM Functional Tests not run.** MATS runs them only for PRs into \`${{ github.event.repository.default_branch }}\`."
+                echo "------------------------------------"
+            elif [[ "${{ needs.detect-change-type.outputs.smart-contracts-changed }}" != "true" ]]; then
+                echo "> **EVM Functional Tests not run.** MATS runs them only for a non-documentation change under the smart-contract service modules or the \`Run EVM Tests\` label."
                 echo "------------------------------------"
             fi
           } >> "${GITHUB_STEP_SUMMARY}"
