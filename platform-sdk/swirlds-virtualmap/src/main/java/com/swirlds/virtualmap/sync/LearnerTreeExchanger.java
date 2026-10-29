@@ -77,7 +77,11 @@ public final class LearnerTreeExchanger {
      */
     private final AtomicLong inFlightLeaves = new AtomicLong();
 
-    private final long statusLogIntervalNanos;
+    /**
+     * How often the applier thread logs the state of the leaf pipeline (in-flight leaves, hashing buffer,
+     * flusher) during reconnect.
+     */
+    private static final long STATUS_LOG_INTERVAL_NANOS = Duration.ofSeconds(60).toNanos();
 
     private VirtualMap.Metadata teacherMetadata = new VirtualMap.Metadata();
 
@@ -92,15 +96,12 @@ public final class LearnerTreeExchanger {
      *      a ReconnectMapStats object to collect reconnect metrics
      * @param maxInFlightLeaves
      *      max number of leaf requests whose responses are not fed to the hasher yet
-     * @param statusLogInterval
-     *      how often the applier thread logs the state of the leaf pipeline
      */
     public LearnerTreeExchanger(
             @NonNull final VirtualMapLearner vmapLearner,
             @NonNull final NodeTraversalOrder traversalOrder,
             @NonNull final LearnerSyncMetrics stats,
-            final int maxInFlightLeaves,
-            @NonNull final Duration statusLogInterval) {
+            final int maxInFlightLeaves) {
         this.vmapLearner = Objects.requireNonNull(vmapLearner, "vmapLearner is null");
         this.traversalOrder = Objects.requireNonNull(traversalOrder, "traversalOrder is null");
         this.stats = Objects.requireNonNull(stats, "mapStats is null");
@@ -108,8 +109,6 @@ public final class LearnerTreeExchanger {
             throw new IllegalArgumentException("maxInFlightLeaves must be positive: " + maxInFlightLeaves);
         }
         this.maxInFlightLeaves = maxInFlightLeaves;
-        this.statusLogIntervalNanos = Objects.requireNonNull(statusLogInterval, "statusLogInterval is null")
-                .toNanos();
     }
 
     /**
@@ -315,7 +314,7 @@ public final class LearnerTreeExchanger {
         }
 
         private void maybeLog(final long now) {
-            if (now - lastLogNanos >= statusLogIntervalNanos) {
+            if (now - lastLogNanos >= STATUS_LOG_INTERVAL_NANOS) {
                 log(now, (waitingHeadPath == MerklePathUtils.INVALID_PATH) ? null : waitingHeadPath, waitingSinceNanos);
             }
         }

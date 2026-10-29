@@ -101,12 +101,7 @@ public class LearningSynchronizer {
                                 + ". Supported modes: PULL_TOP_TO_BOTTOM,"
                                 + " PULL_TWO_PHASE_PESSIMISTIC, PULL_PARALLEL_SYNC");
                 };
-        return new LearnerTreeExchanger(
-                vmapLearner,
-                traversalOrder,
-                syncMetrics,
-                syncConfig.maxInFlightLeaves(),
-                syncConfig.statusLogInterval());
+        return new LearnerTreeExchanger(vmapLearner, traversalOrder, syncMetrics, syncConfig.maxInFlightLeaves());
     }
 
     /**

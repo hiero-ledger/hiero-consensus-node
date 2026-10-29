@@ -44,8 +44,6 @@ import java.time.Duration;
  *                                               requesting leaves while this limit is reached, which bounds the
  *                                               memory used to buffer leaf responses when hashing is slower than
  *                                               the network.
- * @param statusLogInterval                      How often the learner logs the state of its leaf pipeline
- *                                               (in-flight leaves, hashing buffer, flusher) during reconnect.
  */
 // spotless:off
 @ConfigData("reconnect.learner")
@@ -57,6 +55,5 @@ public record VirtualMapLearnerSyncConfig(
         @ConfigProperty(defaultValue = "10000") @Positive @Max(1073741824) int asyncStreamBufferSize,
         @ConfigProperty(defaultValue = "8ms") Duration asyncOutputStreamFlush,
         @Min(0) @ConfigProperty(defaultValue = "2000000") int flushInterval,
-        @ConfigProperty(defaultValue = "1000000") @Positive int maxInFlightLeaves,
-        @ConfigProperty(defaultValue = "60s") Duration statusLogInterval) {}
+        @ConfigProperty(defaultValue = "1000000") @Positive int maxInFlightLeaves) {}
 // spotless:on
