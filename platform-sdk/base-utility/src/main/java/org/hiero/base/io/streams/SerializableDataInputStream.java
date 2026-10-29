@@ -9,8 +9,7 @@ import static org.hiero.base.io.streams.SerializableStreamConstants.SERIALIZATIO
 
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
-import com.hedera.pbj.runtime.io.ReadableSequentialData;
-import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.base.function.CheckedFunction;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -43,8 +42,11 @@ public class SerializableDataInputStream extends AugmentedDataInputStream {
 
     private static final Set<Integer> SUPPORTED_PROTOCOL_VERSIONS = Set.of(SERIALIZATION_PROTOCOL_VERSION);
 
-    /** A stream used to read PBJ objects */
-    private final ReadableSequentialData readableSequentialData;
+    /** The buffer that a PBJ record is read into before it is parsed; it grows to the largest record read. */
+    private byte[] recordBuffer = new byte[0];
+
+    /** The buffer that a PBJ record is parsed from, over {@link #recordBuffer}. */
+    private BufferedData recordData = BufferedData.wrap(recordBuffer);
 
     /**
      * Creates a stream capable of deserializing serializable objects.
@@ -53,7 +55,6 @@ public class SerializableDataInputStream extends AugmentedDataInputStream {
      */
     public SerializableDataInputStream(@NonNull final InputStream in) {
         super(in);
-        readableSequentialData = new ReadableStreamingData(in);
     }
 
     /**
@@ -617,13 +618,20 @@ public class SerializableDataInputStream extends AugmentedDataInputStream {
             throw new IOException(
                     "PBJ record declared size " + size + " is outside the permitted range [0, " + maxSize + "]");
         }
-        readableSequentialData.limit(readableSequentialData.position() + size);
+        // PROTOTYPE: the buffer grows to the declared size before the bytes arrive; a peer controls that size
+        if (recordBuffer.length < size) {
+            recordBuffer = new byte[size];
+            recordData = BufferedData.wrap(recordBuffer);
+        }
+        readFully(recordBuffer, 0, size);
+        recordData.reset();
+        recordData.limit(size);
 
         try {
             // parse strictly with a default depth and max record size to prevent very large messages.
             // We can't use `parseStrict` as it doesn't support record size validation.
-            final T parsed = codec.parse(readableSequentialData, true, false, DEFAULT_MAX_DEPTH, maxSize);
-            if (readableSequentialData.position() != readableSequentialData.limit()) {
+            final T parsed = codec.parse(recordData, true, false, DEFAULT_MAX_DEPTH, maxSize);
+            if (recordData.position() != size) {
                 throw new EOFException("PBJ record was not fully read");
             }
             return parsed;

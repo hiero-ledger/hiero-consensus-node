@@ -10,8 +10,7 @@ import static org.hiero.base.io.streams.SerializableStreamConstants.SERIALIZATIO
 import static org.hiero.base.io.streams.SerializableStreamConstants.VERSION_BYTES;
 
 import com.hedera.pbj.runtime.Codec;
-import com.hedera.pbj.runtime.io.WritableSequentialData;
-import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.DataOutputStream;
@@ -30,8 +29,11 @@ import org.hiero.base.io.SerializableWithKnownLength;
  * It is designed for use with the SerializableDet interface, and its use is described there.
  */
 public class SerializableDataOutputStream extends AugmentedDataOutputStream {
-    /** A stream used to write PBJ objects */
-    private final WritableSequentialData writableSequentialData;
+    /** The buffer that a PBJ record is encoded into before it is written; it grows to the largest record written. */
+    private byte[] recordBuffer = new byte[0];
+
+    /** The buffer that a PBJ record is encoded with, over {@link #recordBuffer}. */
+    private BufferedData recordData = BufferedData.wrap(recordBuffer);
 
     /**
      * Creates a new data output stream to write data to the specified
@@ -43,7 +45,6 @@ public class SerializableDataOutputStream extends AugmentedDataOutputStream {
      */
     public SerializableDataOutputStream(@NonNull final OutputStream out) {
         super(out);
-        writableSequentialData = new WritableStreamingData(out);
     }
 
     /**
@@ -259,7 +260,18 @@ public class SerializableDataOutputStream extends AugmentedDataOutputStream {
     public <T> long writePbjRecord(@NonNull final T record, @NonNull final Codec<T> codec) throws IOException {
         final int recordSize = codec.measureRecord(record);
         writeInt(recordSize);
-        codec.write(record, writableSequentialData);
+        if (recordBuffer.length < recordSize) {
+            recordBuffer = new byte[recordSize];
+            recordData = BufferedData.wrap(recordBuffer);
+        }
+        recordData.reset();
+        recordData.limit(recordSize);
+        codec.write(record, recordData);
+        if (recordData.position() != recordSize) {
+            throw new IOException(
+                    "PBJ record measured " + recordSize + " bytes but wrote " + recordData.position() + " bytes");
+        }
+        write(recordBuffer, 0, recordSize);
         return recordSize + Integer.BYTES;
     }
 }
