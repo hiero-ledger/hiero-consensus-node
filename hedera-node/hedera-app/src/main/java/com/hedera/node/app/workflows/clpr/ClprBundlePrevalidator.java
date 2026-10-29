@@ -123,6 +123,10 @@ public class ClprBundlePrevalidator {
      * {@link ClprBundleValidator#validate} passes; and {@link ClprBundleValidator#validateReplies} passes without an
      * ordering violation.
      *
+     * <p>The channel is read live twice: once to verify the proof, and again right before the bundle's progress and
+     * replies are checked against it and the outbound queue. Verification takes long enough for the handle thread to
+     * apply an acknowledgement in between, which would leave the first read behind the queue.
+     *
      * <p>As at consensus, once the proof and the trust-anchor invariant pass, the peer's proven view of this ledger's
      * endpoint-manifest version is recorded, even if a later check rejects the bundle. Idle peers send pure
      * acknowledgements that are rejected with {@code CLPR_NO_PROGRESS}; without this, the sync runtime would keep
@@ -144,13 +148,8 @@ public class ClprBundlePrevalidator {
         validateTruePreCheck(payload.channelId().length() == 32, INVALID_TRANSACTION_BODY);
         try (final var stateWrapper = stateAccessor.get()) {
             final var state = requireNonNull(stateWrapper.get());
-            resetCachedChannelReads(state);
             final var stores = new ReadableStoreFactoryImpl(state);
-            final var channel = stores.readableStore(ReadableChannelStore.class).getChannel(payload.channelId());
-            validateTruePreCheck(channel != null, CLPR_CHANNEL_NOT_FOUND);
-            validateTruePreCheck(
-                    channel.status() != ClprChannelStatus.CLOSED && channel.status() != ClprChannelStatus.PENDING,
-                    CLPR_INVALID_CHANNEL_STATUS);
+            final var channel = readAdmissibleChannel(state, stores, payload.channelId());
             final var ledgerConfig =
                     stores.readableStore(ReadableLedgerConfigurationStore.class).getConfiguration();
             bundleValidator.validatePayloadSize(payload.bundlePayload(), ledgerConfig.throttlesOrThrow());
@@ -170,9 +169,11 @@ public class ClprBundlePrevalidator {
                         .recordPeerObservedManifestVersion(
                                 channel.channelId(), content.metadataOrThrow().endpointManifestVersion());
             }
-            final var validated = bundleValidator.validate(channel, content, ledgerConfig);
+            // Re-read the channel, so its acknowledgement is not older than the queue slots read next
+            final var current = readAdmissibleChannel(state, stores, payload.channelId());
+            final var validated = bundleValidator.validate(current, content, ledgerConfig);
             final var replies = bundleValidator.validateReplies(
-                    channel, validated, stores.readableStore(ReadableMessageQueueStore.class));
+                    current, validated, stores.readableStore(ReadableMessageQueueStore.class));
             validateTruePreCheck(
                     !(replies instanceof ReplyValidation.OrderingViolated), CLPR_BUNDLE_VERIFICATION_FAILED);
         } catch (final HandleException e) {
@@ -181,7 +182,30 @@ public class ClprBundlePrevalidator {
     }
 
     /**
-     * Clears the working state's cached channel reads, so this validation reads every channel from the live state.
+     * Reads the channel live from the working state and checks that it exists and is neither {@code CLOSED} nor
+     * {@code PENDING}.
+     *
+     * @param state the working state
+     * @param stores read-only stores over {@code state}
+     * @param channelId the channel to read
+     * @return the channel as it is now
+     * @throws PreCheckException with {@code CLPR_CHANNEL_NOT_FOUND} or {@code CLPR_INVALID_CHANNEL_STATUS}
+     */
+    @NonNull
+    private static ClprChannel readAdmissibleChannel(
+            @NonNull final State state, @NonNull final ReadableStoreFactory stores, @NonNull final Bytes channelId)
+            throws PreCheckException {
+        resetCachedChannelReads(state);
+        final var channel = stores.readableStore(ReadableChannelStore.class).getChannel(channelId);
+        validateTruePreCheck(channel != null, CLPR_CHANNEL_NOT_FOUND);
+        validateTruePreCheck(
+                channel.status() != ClprChannelStatus.CLOSED && channel.status() != ClprChannelStatus.PENDING,
+                CLPR_INVALID_CHANNEL_STATUS);
+        return channel;
+    }
+
+    /**
+     * Clears the working state's cached channel reads, so the next channel read comes from the live state.
      *
      * <p>The working state caches each value it reads until the round ends, and the handle thread commits to the state
      * without updating that cache. A channel cached before the handle thread applied an acknowledgement would then be

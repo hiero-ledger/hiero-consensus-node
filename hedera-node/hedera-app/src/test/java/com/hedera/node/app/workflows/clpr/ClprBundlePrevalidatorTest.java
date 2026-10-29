@@ -233,16 +233,27 @@ class ClprBundlePrevalidatorTest {
     }
 
     @Test
-    void readsTheChannelLiveRatherThanFromThisRoundsReadCache() throws PreCheckException {
+    void checksProgressAndRepliesAgainstTheChannelReadLiveAfterVerification() throws PreCheckException {
+        // The handle thread changed the channel while the proof was being verified
+        final var advanced = CHANNEL.copyBuilder()
+                .endpointManifestVersion(CHANNEL.endpointManifestVersion() + 1)
+                .build();
         when(clprStates.<ProtoBytes, ClprChannel>get(CHANNELS_STATE_ID)).thenReturn(cachedChannels);
-        when(cachedChannels.get(new ProtoBytes(CHANNEL_ID))).thenReturn(CHANNEL);
-        givenLocalReturn(bundle(List.of(dataPayload())));
+        when(cachedChannels.get(new ProtoBytes(CHANNEL_ID))).thenReturn(CHANNEL, advanced);
+        final var content = bundle(List.of(dataPayload()));
+        givenLocalReturn(content);
 
         subject.validate(PAYLOAD, configuration);
 
-        final var order = inOrder(cachedChannels);
+        // Each read bypasses this round's read cache
+        final var order = inOrder(cachedChannels, localHandler, validator);
         order.verify(cachedChannels).reset();
         order.verify(cachedChannels).get(new ProtoBytes(CHANNEL_ID));
+        order.verify(localHandler).findResponse(any(), any());
+        order.verify(cachedChannels).reset();
+        order.verify(cachedChannels).get(new ProtoBytes(CHANNEL_ID));
+        order.verify(validator).validate(advanced, content, LEDGER_CONFIG);
+        order.verify(validator).validateReplies(eq(advanced), any(), any(ReadableMessageQueueStore.class));
     }
 
     @Test
