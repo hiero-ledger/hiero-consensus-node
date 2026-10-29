@@ -8,8 +8,9 @@
 #   JOBS    JSON array of the run's jobs, each with "name" and "conclusion" (required)
 #
 # A reusable workflow job is named "<caller job name> / <called job name>", so the names below mirror the job names in
-# 906 (matrix legs), 821 (custom-job-name) and 844 (job name). A leg whose job is missing fails the script, except the
-# BN communication job of a ref without the BLOCK_NODE_VERSION override, which 906 skips on purpose.
+# 906 (matrix legs and "Build CN <ref>"), 821 (custom-job-name) and 844 (job name). A leg whose job is missing fails the
+# script, except the BN communication job of a ref without the BLOCK_NODE_VERSION override, which 906 skips on purpose,
+# and the regression job of a ref whose CN build did not succeed, which never starts (its BN Comms job still runs).
 set -euo pipefail
 
 : "${MATRIX:?MATRIX must be set}"
@@ -31,12 +32,18 @@ icon() { # conclusion
 }
 
 while IFS=$'\t' read -r ref bn override; do
-  regression=$(conclusion "CN ${ref} / BN ${bn} / Block Node ${bn} on CN ${ref}")
+  build=$(conclusion "Build CN ${ref}")
+  if [[ "${build}" == "success" ]]; then
+    regression=$(conclusion "CN ${ref} / BN ${bn} / Block Node ${bn} on CN ${ref}")
+    regression_text="$(icon "${regression}") ${regression}"
+  else
+    regression_text=":x: not run (CN build ${build})"
+  fi
   if [[ "${override}" == "true" ]]; then
     comms=$(conclusion "BN Comms CN ${ref} / BN ${bn} / HAPI Tests (BN Comms)")
     comms_text="$(icon "${comms}") ${comms}"
   else
     comms_text=":fast_forward: skipped (ref has no BLOCK_NODE_VERSION override)"
   fi
-  echo "- CN \`${ref}\` / BN \`${bn}\`: regression $(icon "${regression}") ${regression}, BN Comms ${comms_text}"
+  echo "- CN \`${ref}\` / BN \`${bn}\`: regression ${regression_text}, BN Comms ${comms_text}"
 done < <(echo "${MATRIX}" | jq -r '.[] | [."cn-ref", ."bn-version", ."bn-version-override"] | @tsv')

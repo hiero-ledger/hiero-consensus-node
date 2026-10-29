@@ -106,6 +106,7 @@ jobs:
       # BLOCK_NODE_VERSION override caches them for its pinned version instead, so a missing directory means the
       # leg did not test the requested Block Node version.
       - name: Verify Requested Block Node Version Was Used
+        id: verify-bn-version
         if: ${{ !cancelled() && inputs.bn-release-version != '' }}
         env:
           BN_VERSION: ${{ inputs.bn-release-version }}
@@ -118,6 +119,7 @@ jobs:
           fi
 
       - name: Publish HAPI Test (Block Node Communication) Reports
+        if: ${{ !cancelled() }}
         uses: step-security/publish-unit-test-result-action@681100d67b09305624c089873f12c545ee7cbc24 # v2.23.0
         with:
           check_name: "Node: HAPI Test (Block Node Communication) Results${{ env.ARTIFACT_SUFFIX }}"
@@ -127,6 +129,7 @@ jobs:
 
       - name: Upload HAPI Test (Block Node Communication) Report Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ !cancelled() }}
         with:
           name: HAPI Test (Block Node Communication) Reports${{ env.ARTIFACT_SUFFIX }}
           path: "**/test-clients/build/test-results/**/TEST-*.xml"
@@ -160,7 +163,9 @@ jobs:
         id: set-failure-mode
         if: ${{ always() }}
         run: |
-          if [[ "${{ steps.gradle-hapi-bn-communication.outcome || 'skipped' }}" == "success" \
+          if [[ "${{ steps.verify-bn-version.outcome || 'skipped' }}" == "failure" ]]; then
+            echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
+          elif [[ "${{ steps.gradle-hapi-bn-communication.outcome || 'skipped' }}" == "success" \
              || "${{ steps.gradle-hapi-bn-communication.outcome || 'skipped' }}" == "skipped" ]]; then
             echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
           elif [[ "${{ steps.gradle-hapi-bn-communication.outcome || 'skipped' }}" == "failure" ]]; then

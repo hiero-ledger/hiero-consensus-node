@@ -227,23 +227,18 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           MATRIX: ${{ needs.resolve-versions.outputs.matrix }}
-          BUILD_RESULT: ${{ needs.build-consensus-node.result }}
         run: |
           JOBS=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/jobs?per_page=100" --jq '.jobs[]' | jq -sc .)
           export JOBS
-          # legs of a ref whose build failed never start, so there are no leg jobs to summarize
-          if [[ "${BUILD_RESULT}" != "success" ]]; then
-            LEGS="- :x: Consensus node build ${BUILD_RESULT}; its legs did not run (see the build jobs)"
-          else
-            LEGS=$(bash .github/workflows/support/scripts/summarize-bn-matrix.sh)
-          fi
+          LEGS=$(bash .github/workflows/support/scripts/summarize-bn-matrix.sh)
           if grep -q ':x:' <<< "${LEGS}"; then HEADER=":x: Block Node version matrix has failures"; else HEADER=":white_check_mark: Block Node version matrix passed"; fi
           {
             echo "### ${HEADER}"
             echo "${LEGS}"
           } | tee -a "${GITHUB_STEP_SUMMARY}" > summary.md
+          # Slack mrkdwn has no headings: render the "### " header bold
           jq -Rsc --arg url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
-            '{text: (. + "\n<" + $url + "|View run>")}' summary.md > payload.json
+            '{text: (sub("^### (?<h>[^\n]*)"; "*" + .h + "*") + "\n<" + $url + "|View run>")}' summary.md > payload.json
           echo "payload=$(cat payload.json)" >> "${GITHUB_OUTPUT}"
 
       - name: Report Matrix Result to Detailed Test Reports Channel

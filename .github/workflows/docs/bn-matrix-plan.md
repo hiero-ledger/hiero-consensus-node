@@ -44,7 +44,7 @@ not only the single version pinned in `.citr-env`.
 | `support/tests/test-resolve-cn-configs.sh` | Unit tests against a throw-away git repo; wired into 857 |
 | `844-call-execute-hapi-bn-communication.yaml` | `bn-release-version` (exported as `BLOCK_NODE_VERSION`) and `artifact-suffix` inputs; step verifying the requested BN version was used |
 | `BlockNodeContainer.java` | Image/plugin version overridable via `BLOCK_NODE_VERSION` (default stays the pinned version) |
-| `821-call-block-node-regression.yaml` | BN version (and the optional `cn-label` input) added to uploaded artifact names and to the Slack panel label |
+| `821-call-block-node-regression.yaml` | BN version (and the optional `cn-label` input) added to uploaded artifact names and to the Slack panel label; `build-artifact` input (use a prebuilt CN build instead of building) and `enable-slack-report` input (906 reports once) |
 | `support/scripts/resolve-bn-versions.sh`, `support/tests/test-resolve-bn-versions.sh` | BN version parsing and validation for 906; tests wired into 857 |
 | `support/scripts/discover-cn-refs.sh`, `resolve-latest-bn-release.sh`, `build-bn-matrix.sh` and their tests | Detection of CN refs and BN versions when the inputs are empty; tests wired into 857 |
 | `support/scripts/summarize-bn-matrix.sh`, `support/tests/test-summarize-bn-matrix.sh` | Per-leg result lines for the 906 summary; tests wired into 857 |

@@ -35,6 +35,8 @@ check_fails() { # name command...
 MATRIX='[{"cn-ref":"main","bn-version":"v0.44.2","bn-version-override":true},
          {"cn-ref":"release/0.78","bn-version":"v0.44.2","bn-version-override":false}]'
 JOBS='[{"name":"Resolve Consensus and Block Node Versions","conclusion":"success"},
+       {"name":"Build CN main","conclusion":"success"},
+       {"name":"Build CN release/0.78","conclusion":"success"},
        {"name":"CN main / BN v0.44.2 / Block Node v0.44.2 on CN main","conclusion":"failure"},
        {"name":"CN main / BN v0.44.2 / Block Node v0.44.2 on CN main Slack Report","conclusion":"success"},
        {"name":"BN Comms CN main / BN v0.44.2 / HAPI Tests (BN Comms)","conclusion":"success"},
@@ -45,6 +47,15 @@ check "one line per leg" "2" "$(echo "${out}" | wc -l | tr -d ' ')"
 check "failed regression and passed comms" \
   '- CN `main` / BN `v0.44.2`: regression :x: failure, BN Comms :white_check_mark: success' "$(echo "${out}" | sed -n 1p)"
 check "comms skipped without override" \
+  '- CN `release/0.78` / BN `v0.44.2`: regression :white_check_mark: success, BN Comms :fast_forward: skipped (ref has no BLOCK_NODE_VERSION override)' \
+  "$(echo "${out}" | sed -n 2p)"
+
+# a failed build of one ref: its regression job never starts, but its BN Comms result and the other refs still show
+BUILD_FAILED_JOBS="$(echo "${JOBS}" | jq -c 'map(select(.name | startswith("CN main / BN") | not)) | map(if .name == "Build CN main" then .conclusion = "failure" else . end)')"
+out="$(MATRIX="${MATRIX}" JOBS="${BUILD_FAILED_JOBS}" "${SUMMARIZE}")"
+check "build failure keeps comms result" \
+  '- CN `main` / BN `v0.44.2`: regression :x: not run (CN build failure), BN Comms :white_check_mark: success' "$(echo "${out}" | sed -n 1p)"
+check "build failure leaves other refs" \
   '- CN `release/0.78` / BN `v0.44.2`: regression :white_check_mark: success, BN Comms :fast_forward: skipped (ref has no BLOCK_NODE_VERSION override)' \
   "$(echo "${out}" | sed -n 2p)"
 
