@@ -45,6 +45,12 @@ on:
         type: boolean
         required: false
         default: false
+      # Only honored by the `specified` (release) policy, and never for a pre-release version.
+      publish-maven-central:
+        description: "Publish to Maven Central"
+        type: boolean
+        required: false
+        default: false
       java-version:
         description: "Java JDK Version:"
         type: string
@@ -693,7 +699,7 @@ jobs:
           path: ${{ env.DOCKER_MANIFEST_PATH }}
 
   publish:
-    name: Publish to ${{ inputs.version-policy == 'specified' && 'Maven Central' || 'GCP Registry' }}
+    name: Publish to ${{ inputs.version-policy == 'specified' && inputs.publish-maven-central && 'Maven Central' || 'GCP Registry' }}
     runs-on: hl-cn-default-lin-lg
     outputs:
       create-release: ${{ steps.set-gh-release-flag.outputs.create-release }}
@@ -868,8 +874,10 @@ jobs:
         # The flags that disable parallelism are used on purpose to avoid parallel signing which may cause 'gpg: signing failed: Inappropriate ioctl for device'
         run: ./gradlew "release${RELEASE_PROFILE}" -PpublishSigningEnabled=true --no-configuration-cache -Dorg.gradle.isolated-projects=false --no-parallel
 
+      # The caller opts in with publish-maven-central; the prerelease check keeps rc/alpha
+      # versions off Maven Central even if a caller sets it by mistake.
       - name: Gradle Publish to Maven Central
-        if: ${{ github.event.repository.visibility == 'public' && inputs.version-policy == 'specified' && inputs.dry-run-enabled != true && inputs.release-profile != 'none' && !cancelled() && !failure() }}
+        if: ${{ github.event.repository.visibility == 'public' && inputs.version-policy == 'specified' && inputs.publish-maven-central == true && needs.validate.outputs.prerelease != 'true' && inputs.dry-run-enabled != true && inputs.release-profile != 'none' && !cancelled() && !failure() }}
         env:
           NEXUS_USERNAME: ${{ secrets.central-publishing-username }}
           NEXUS_PASSWORD: ${{ secrets.central-publishing-password }}
@@ -964,6 +972,7 @@ jobs:
           ARTIFACT_REGISTRY: ${{ steps.parameters.outputs.artifact-registry }}
           ARTIFACT_URL: ${{ steps.parameters.outputs.artifact-url }}
           ARTIFACT_NAME: ${{ steps.parameters.outputs.artifact-name }}
+          MAVEN_CENTRAL_PUBLISHED: ${{ inputs.publish-maven-central && needs.validate.outputs.prerelease != 'true' }}
           REF_NAME: ${{ inputs.ref-name }}
           COMMIT_ID_SHORT: ${{ needs.validate.outputs.commit-id-short }}
           SERVER_URL: ${{ github.server_url }}
