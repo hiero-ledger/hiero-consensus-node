@@ -25,68 +25,40 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
-/// Raw-queue comparison for a bounded hand-off from N producers to a single consumer.
+/// Compares bounded queues for a hand-off from N producers to a single consumer, as in the output queue of
+/// `AsyncOutputStream` (`swirlds-virtualmap`). The waits and backoff constants are copied from it; keep them in sync.
 ///
-/// The workload models the output queue of reconnect's `AsyncOutputStream` (in `swirlds-virtualmap`), which this
-/// benchmark was written to choose: its wait semantics and backoff are copied here, so keep the backoff constants
-/// below in sync with it. Nothing here depends on that module.
+/// Queues (`impl`):
+/// - `LINKED_BLOCKING`, `ARRAY_BLOCKING`: [LinkedBlockingQueue] and [ArrayBlockingQueue] with timed `offer`/`poll`.
+/// - `MPSC_VARHANDLE`: [MpscVarHandleArrayQueue] with non-blocking `offer`/`poll` and spin-then-park backoff.
+/// - `CONCURRENT_LINKED`: [ConcurrentLinkedQueue] with the same backoff. It has no capacity, so an [AtomicInteger]
+///   bounds it: a producer reserves a slot before offering, and the consumer releases it after each poll.
 ///
-/// Queue implementations (`impl`): bounded [LinkedBlockingQueue] (the baseline, as on `main`),
-/// [ArrayBlockingQueue], the vendored JCTools MPSC VarHandle queue ([MpscVarHandleArrayQueue]), and
-/// [ConcurrentLinkedQueue] bounded by a separate counter (`CONCURRENT_LINKED`). The last one is the JDK alternative
-/// that was evaluated and rejected; it isn't run by default, select it with `-PjmhParams` (see the examples below).
+/// Per-message work, in [tokens][Blackhole#consumeCPU(long)], makes either side the bottleneck:
+/// - `consumerTokens`: `0` is a fast consumer; `2000` keeps the queue full, so the result is the consumer's rate.
+/// - `producerTokens`: `0` saturates the queue; `1000` keeps 16 producers below a fast consumer, so the queue stays
+///   mostly empty. Token cost depends on the machine: `sent` with `1000` should be well below `sent` with `0`.
 ///
-/// [ConcurrentLinkedQueue] has no capacity, but `AsyncOutputStream` relies on a full queue to stop producers when the
-/// socket is slower than they are; without that, the queue grows until the heap runs out. So `CONCURRENT_LINKED`
-/// pairs the queue with an [AtomicInteger] of queued messages: a producer reads it, and if there is room reserves a
-/// slot by incrementing it and gives the slot back if that exceeded the capacity; the consumer decrements it after
-/// each poll. This is the shape a production use would need, so the counter's cost is part of what is measured. The
-/// counter is also what `AsyncOutputStream` would report as the queue size, because [ConcurrentLinkedQueue#size()]
-/// walks the whole queue.
+/// Each producer count has its own group (`producers1` ... `producers16`), because `@GroupThreads` must be a
+/// constant. The group's score counts calls; the [Counters] count messages:
+/// - `sent`: successful offers. This is the result to compare.
+/// - `received`: messages polled; lower than `sent` by the messages still queued when an iteration ends.
+/// - `offerTimeouts`: offers that gave up after [#OFFER_TIMEOUT_NANOS]. A few per iteration come from its end, when
+///   the consumer has stopped; more mean that producers starved.
+/// - `emptyPolls`: polls that found nothing within [#POLL_TIMEOUT_NANOS].
 ///
-/// Wait semantics follow production: timed `offer`/`poll` for the blocking queues; for the MPSC and
-/// `CONCURRENT_LINKED` queues non-blocking `offer`/`poll` with the same spin-then-park backoff as `AsyncOutputStream`.
-///
-/// Per-message work is simulated with [tokens][Blackhole#consumeCPU(long)] on both sides, so either side can
-/// be made the bottleneck:
-///
-/// - `consumerTokens`: work the consumer does per message. `0` is a fast consumer; `2000` (a few microseconds) is a
-///   slow consumer that keeps the queue full, so producers wait for space and the result is the consumer's rate.
-/// - `producerTokens`: work each producer does per message before offering it. `0` makes producers as fast as
-///   possible, which saturates the queue at any producer count. `1000` (one to two microseconds) is meant to keep
-///   even 16 producers combined below a fast consumer, so the queue stays mostly empty and the result shows
-///   contention and how quickly the consumer reacts to new messages. Token cost depends on the machine: check that
-///   the `produce` rate with `producerTokens=1000` is well below the rate with `producerTokens=0` at the same
-///   producer count; if it is not, the run is still consumer-bound.
-///
-/// Each producer count has its own group (`producers1` ... `producers16`) because `@GroupThreads` must be a
-/// constant. The group's own score and its `produceN`/`consumeN` lines count calls, including offers that gave up
-/// after [#OFFER_TIMEOUT_NANOS] and polls that found nothing within [#POLL_TIMEOUT_NANOS]. The messages that actually
-/// went through are reported separately, by the [Counters] (per unit of time, summed over the group's threads):
-///
-/// - `sent`: messages the producers offered successfully. This is the result to compare.
-/// - `received`: messages the consumer took. Lower than `sent` by the messages still queued when an iteration ends.
-/// - `offerTimeouts`: offers that gave up because the queue stayed full for [#OFFER_TIMEOUT_NANOS]. A few per
-///   iteration come from its end, when producers still wait after the consumer has stopped. More than that means a
-///   producer waited that long while the consumer was running, for example because others kept taking freed slots.
-/// - `emptyPolls`: polls that found nothing within [#POLL_TIMEOUT_NANOS]; non-zero only when producers are slow, or
-///   at the end of an iteration.
-///
-/// How to run (from the repository root). A full run takes well over half an hour; narrow it for targeted
-/// comparisons and use more forks when the numbers are meant to decide something:
+/// Run the jar with JMH's options; a full run takes well over half an hour:
 /// ```
-/// ./gradlew :base-concurrent:jmhOutputQueue
-/// ./gradlew :base-concurrent:jmhOutputQueue -PjmhProfilers=gc            # allocation rate
-/// ./gradlew :base-concurrent:jmhOutputQueue -PjmhProfilers=gc,perfnorm   # Linux only: cycles, cache misses
-/// ./gradlew :base-concurrent:jmhSmoke                                   # every benchmark once, briefly
-/// ./gradlew :base-concurrent:jmhOutputQueue -PjmhForks=3 -PjmhGroups=producers16 "-PjmhParams=producerTokens=1000"
-/// ./gradlew :base-concurrent:jmhOutputQueue "-PjmhParams=impl=MPSC_VARHANDLE,LINKED_BLOCKING;consumerTokens=0"
-/// ./gradlew :base-concurrent:jmhOutputQueue "-PjmhParams=impl=MPSC_VARHANDLE,CONCURRENT_LINKED" -PjmhProfilers=gc
+/// ./gradlew :base-concurrent:jmhJarWithMergedServiceFiles
+/// java -jar platform-sdk/base-concurrent/build/libs/base-concurrent-*-jmh-merged.jar OutputQueueBench
 /// ```
+/// For example `-f 3` for more forks, `-prof gc` for the allocation rate, `-p producerTokens=1000` or
+/// `-p impl=MPSC_VARHANDLE,CONCURRENT_LINKED` for other parameters, `'OutputQueueBench.producers16$'` for one group,
+/// and `-rf json -rff results.json` for JSON results.
 @State(Scope.Group)
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
-@Fork(1)
+@Fork(value = 1, jvmArgsAppend = "-Xmx4g")
 @Warmup(iterations = 3, time = 3)
 @Measurement(iterations = 5, time = 5)
 public class OutputQueueBench {
@@ -111,9 +83,9 @@ public class OutputQueueBench {
         CONCURRENT_LINKED
     }
 
-    /// `CONCURRENT_LINKED` isn't run by default, to keep the full and smoke runs short; select it with `-PjmhParams`.
-    /// With 16 producers it measured 3.6× slower than `MPSC_VARHANDLE` when producers do work, and 7.5× slower when
-    /// they saturate the queue (Linux, 3 forks, see PR #27461).
+    /// `CONCURRENT_LINKED` isn't run by default, to keep runs short; select it with `-p impl=...`. With 16 producers
+    /// it measured 3.6× slower than `MPSC_VARHANDLE` when producers do work, and 7.5× slower when they saturate the
+    /// queue (Linux, 3 forks, see PR #27461).
     @Param({"LINKED_BLOCKING", "ARRAY_BLOCKING", "MPSC_VARHANDLE"})
     public Impl impl;
 
