@@ -4,8 +4,11 @@
 # and cutover scenarios (jumpstart has its own copy under wrapped-record-block-jumpstart/resources/
 # remote/). Pass via `solo consensus network deploy --values-file` with `--pvcs false` on remote.
 #
-# Every worker node is tainted solo.hashgraph.io/{role,owner,network-id}; Exists tolerations let our
-# pods schedule on any of them. MinIO is pinned to local-path (the cluster has no default class);
+# Scheduling: each pod spec names the Chewie allocation group it runs on with a "chewie-group"
+# placeholder, which 103-user-solo-tests-adhoc renders into that group's labels (nodeSelector) and
+# tolerations via .github/workflows/support/chewie/apply-allocation-scheduling.sh. Unrendered, the
+# placeholder matches no node, so the pods stay Pending rather than land on another allocation's
+# machines. MinIO is pinned to local-path (the cluster has no default class);
 # consensus uses --pvcs false (emptyDir) so it needs no StorageClass for a single short run.
 # Resources are right-sized for a functional run (NOT the 256Gi perf profile).
 
@@ -20,22 +23,16 @@ defaults:
         memory: 16Gi
 
 deployment:
-  tolerations: &soloTolerations
-    - key: "solo.hashgraph.io/role"
-      operator: "Exists"
-      effect: "NoSchedule"
-    - key: "solo.hashgraph.io/owner"
-      operator: "Exists"
-      effect: "NoSchedule"
-    - key: "solo.hashgraph.io/network-id"
-      operator: "Exists"
-      effect: "NoSchedule"
+  nodeSelector:
+    chewie-group: cn
 
 haproxyDeployment:
-  tolerations: *soloTolerations
+  nodeSelector:
+    chewie-group: aux
 
 envoyDeployment:
-  tolerations: *soloTolerations
+  nodeSelector:
+    chewie-group: aux
 
 minio-server:
   tenant:
@@ -45,4 +42,5 @@ minio-server:
         volumesPerServer: 1
         size: 50Gi
         storageClassName: local-path
-        tolerations: *soloTolerations
+        nodeSelector:
+          chewie-group: aux

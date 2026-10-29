@@ -1,19 +1,21 @@
 # SPDX-License-Identifier: Apache-2.0
 #
-# Shared helpers for running the Solo WRB scenarios against the pre-allocated REMOTE multi-tenant
-# cluster (solo-sdlt-n6 via Teleport). Source this from a scenario script:
+# Shared helpers for running the Solo WRB scenarios against the REMOTE multi-tenant cluster, in a
+# Chewie-allocated namespace via Teleport. Source this from a scenario script:
 #
 #   source "${SCRIPT_DIR}/../remote-cluster-helpers.sh"
 #
 # It expects the sourcing script to have already set: SOLO_NAMESPACE, SOLO_DEPLOYMENT, CLUSTER_REF,
-# CONSENSUS_NODE_COUNT, SOLO_CLUSTER_SETUP_NAMESPACE, CLUSTER_TARGET, and a `log` function.
+# CONSENSUS_NODE_COUNT, SOLO_CLUSTER_SETUP_NAMESPACE, CLUSTER_TARGET, and a `log` function; on remote,
+# also AUX_LABELS and AUX_TOLERATIONS (the allocation's aux-labels / aux-tolerations, compact JSON).
 #
-# Background: the remote cluster (a) taints every worker solo.hashgraph.io/owner=...; (b) has the
+# Background: the remote cluster (a) taints each allocated machine with the allocation's scheduling
+# labels, so a pod must carry the matching nodeSelector and tolerations to run there; (b) has the
 # "local-path" StorageClass but no default; (c) Solo's "consensus network destroy" deletes the
 # deployment's solo-remote-config ConfigMap. The jumpstart script (solo-wrb-jumpstart.sh) carries the
 # same logic inline (proven); these helpers let the streaming/cutover scripts reuse it verbatim.
 
-# Path to the consensus network-deploy value overrides (scheduling tolerations + MinIO storage class).
+# Path to the consensus network-deploy value overrides (scheduling + MinIO storage class).
 # Pass it to `solo consensus network deploy --values-file` on remote (with --pvcs false).
 REMOTE_CLUSTER_HELPERS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REMOTE_CLUSTER_NETWORK_VALUES="${REMOTE_CLUSTER_NETWORK_VALUES:-${REMOTE_CLUSTER_HELPERS_DIR}/remote-cluster-network-values.yaml}"
@@ -50,13 +52,22 @@ remote_reset_and_prepare_deployment() {
 }
 
 # Background loop that keeps the namespace's NON-consensus workloads (mirror, shared-resources
-# postgres/redis, block nodes, explorer) tolerating the node taint: solo's mirror/shared-resources/
-# block-node sub-charts carry no toleration for solo.hashgraph.io/owner and expose no values knob.
-# Skips network-node/haproxy/envoy/minio so the already-running consensus network is never restarted,
-# and deletes already-Pending pods so the controllers recreate them from the patched template.
+# postgres/redis, block nodes, explorer) on the allocation's auxiliary machines: solo's mirror/
+# shared-resources/block-node sub-charts carry none of the allocation's scheduling constraints and
+# expose no values knob. Each workload template gets the aux group's labels as its nodeSelector and
+# the aux group's tolerations. Skips network-node/haproxy/envoy/minio so the already-running consensus
+# network is never restarted, and deletes already-Pending pods so the controllers recreate them from
+# the patched template.
 REMOTE_TOLERATION_PATCHER_PID="${REMOTE_TOLERATION_PATCHER_PID:-}"
 start_remote_toleration_patcher() {
   [[ "${CLUSTER_TARGET}" == "remote" ]] || return 0
+  if [[ -z "${AUX_LABELS:-}" || -z "${AUX_TOLERATIONS:-}" ]]; then
+    log "Error: AUX_LABELS and AUX_TOLERATIONS must be set on remote (the Chewie allocation's aux group)"
+    return 1
+  fi
+  local patch
+  patch="$(jq -cn --argjson labels "${AUX_LABELS}" --argjson tolerations "${AUX_TOLERATIONS}" \
+    '{spec: {template: {spec: {nodeSelector: $labels, tolerations: $tolerations}}}}')"
   (
     set +e
     # Long backstop (2h) so the loop survives the full cutover flow; scenarios stop it explicitly
@@ -71,7 +82,7 @@ start_remote_toleration_patcher() {
             network-node*|haproxy*|envoy*|minio*) continue ;;
           esac
           kubectl -n "${SOLO_NAMESPACE}" patch "${res}" "${name}" --type merge \
-            -p '{"spec":{"template":{"spec":{"tolerations":[{"operator":"Exists"}]}}}}' >/dev/null 2>&1 || true
+            -p "${patch}" >/dev/null 2>&1 || true
         done
       done
       kubectl -n "${SOLO_NAMESPACE}" get pods --field-selector=status.phase=Pending \
@@ -81,7 +92,7 @@ start_remote_toleration_patcher() {
           network-node*|haproxy*|envoy*|minio*) continue ;;
         esac
         if ! kubectl -n "${SOLO_NAMESPACE}" get pod "${pod}" -o json 2>/dev/null \
-            | jq -e '.spec.tolerations[]? | select(.operator=="Exists" and (.key==null))' >/dev/null 2>&1; then
+            | jq -e --argjson want "${AUX_LABELS}" '(.spec.nodeSelector // {}) | contains($want)' >/dev/null 2>&1; then
           kubectl -n "${SOLO_NAMESPACE}" delete pod "${pod}" --wait=false >/dev/null 2>&1 || true
         fi
       done

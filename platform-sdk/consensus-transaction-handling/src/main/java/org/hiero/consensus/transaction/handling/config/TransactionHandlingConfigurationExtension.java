@@ -17,7 +17,7 @@ public class TransactionHandlingConfigurationExtension implements ConfigurationE
     @Override
     @NonNull
     public Set<Class<? extends Record>> getConfigDataTypes() {
-        return Set.of(TransactionHandlingWiringConfig.class);
+        return Set.of(TransactionHandlingConfig.class, TransactionHandlingWiringConfig.class);
     }
 
     /**

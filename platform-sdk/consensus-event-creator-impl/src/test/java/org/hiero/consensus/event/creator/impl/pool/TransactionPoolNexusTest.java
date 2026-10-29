@@ -237,6 +237,21 @@ class TransactionPoolNexusTest {
     }
 
     @Test
+    void marksPriorityTransactions() {
+        final Bytes app = Bytes.wrap(new byte[] {1});
+        final Bytes priority = Bytes.wrap(new byte[] {2});
+        assertTrue(nexus.submitApplicationTransaction(app));
+        nexus.submitPriorityTransaction(priority);
+
+        final List<TimestampedTransaction> forEvent = nexus.getTransactionsForEvent();
+        assertEquals(2, forEvent.size());
+        assertEquals(priority, forEvent.get(0).transaction());
+        assertTrue(forEvent.get(0).priority());
+        assertEquals(app, forEvent.get(1).transaction());
+        assertFalse(forEvent.get(1).priority());
+    }
+
+    @Test
     void rejectsApplicationTransactionsAfterDrainButKeepsAcceptingPriorityOnes() {
         nexus.drainApplicationTransactions();
 

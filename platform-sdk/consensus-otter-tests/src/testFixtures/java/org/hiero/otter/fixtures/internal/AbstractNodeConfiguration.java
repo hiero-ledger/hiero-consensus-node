@@ -2,25 +2,33 @@
 package org.hiero.otter.fixtures.internal;
 
 import static java.util.Objects.requireNonNull;
+import static org.hiero.otter.fixtures.internal.AbstractMiniNode.LifeCycle.RUNNING;
 import static org.hiero.otter.fixtures.internal.helpers.Utils.createConfiguration;
 
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 import org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerConfiguration;
 import org.hiero.otter.fixtures.NodeConfiguration;
-import org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle;
+import org.hiero.otter.fixtures.internal.AbstractMiniNode.LifeCycle;
 
 /**
  * An abstract base class for node configurations that provides common functionality
  */
 public abstract class AbstractNodeConfiguration implements NodeConfiguration {
 
+    /** Defaults of the node type. Values set by the user take precedence. */
+    protected final OverrideProperties defaultProperties = new OverrideProperties();
+
+    /** Values set by the user, either for the whole network or for this node. */
     protected final OverrideProperties overrideProperties = new OverrideProperties();
 
+    /** A supplier that provides the current lifecycle state of the node, used to determine if modifying the configuration is allowed. */
     private final Supplier<LifeCycle> lifecycleSupplier;
 
     /**
@@ -157,18 +165,34 @@ public abstract class AbstractNodeConfiguration implements NodeConfiguration {
         return this;
     }
 
+    /**
+     * Throws an {@link IllegalStateException} if the node is running, indicating that configuration modification is not allowed.
+     */
     protected final void throwIfNodeIsRunning() {
-        if (lifecycleSupplier.get() == LifeCycle.RUNNING) {
+        if (lifecycleSupplier.get() == RUNNING) {
             throw new IllegalStateException("Configuration modification is not allowed when the node is running.");
         }
     }
 
     /**
-     * {@inheritDoc}
+     * Returns the properties the node is configured with: the defaults of the node type, overridden by the values set
+     * by the user.
+     *
+     * @return a new map with the effective properties
      */
     @NonNull
+    protected Map<String, String> effectiveProperties() {
+        final Map<String, String> properties = new HashMap<>(defaultProperties.properties());
+        properties.putAll(overrideProperties.properties());
+        return properties;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
     @Override
+    @NonNull
     public Configuration current() {
-        return createConfiguration(overrideProperties.properties());
+        return createConfiguration(effectiveProperties());
     }
 }

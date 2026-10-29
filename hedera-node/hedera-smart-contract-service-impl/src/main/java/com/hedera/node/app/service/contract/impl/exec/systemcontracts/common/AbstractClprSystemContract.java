@@ -12,6 +12,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.config.data.ClprConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.function.Consumer;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
@@ -22,7 +23,7 @@ import org.hyperledger.besu.evm.gascalculator.GasCalculator;
  * <p>The master {@code clpr.enabled} check lives here. While CLPR is disabled, the CLPR router and every
  * peer-ledger verifier report themselves as {@link #isDisabled(MessageFrame) disabled}, so the EVM treats
  * their addresses exactly as it did before these contracts existed. The check in
- * {@link #computeFully(ContractID, Bytes, MessageFrame)} is a defensive fallback for direct invocations.
+ * {@link #computeFully(ContractID, Bytes, MessageFrame, Consumer)} is a defensive fallback for direct invocations.
  */
 public abstract class AbstractClprSystemContract extends AbstractNativeSystemContract {
 
@@ -41,13 +42,17 @@ public abstract class AbstractClprSystemContract extends AbstractNativeSystemCon
     }
 
     @Override
-    public FullResult computeFully(
-            @NonNull final ContractID contractID, @NonNull final Bytes input, @NonNull final MessageFrame frame) {
+    public void computeFully(
+            @NonNull final ContractID contractID,
+            @NonNull final Bytes input,
+            @NonNull final MessageFrame frame,
+            @NonNull final Consumer<FullResult> completion) {
         requireNonNull(input);
         requireNonNull(frame);
         if (isDisabled(frame)) {
-            return haltResult(new HandleExceptionHaltReason(CLPR_NOT_ENABLED), frame.getRemainingGas());
+            completion.accept(haltResult(new HandleExceptionHaltReason(CLPR_NOT_ENABLED), frame.getRemainingGas()));
+            return;
         }
-        return super.computeFully(contractID, input, frame);
+        super.computeFully(contractID, input, frame, completion);
     }
 }

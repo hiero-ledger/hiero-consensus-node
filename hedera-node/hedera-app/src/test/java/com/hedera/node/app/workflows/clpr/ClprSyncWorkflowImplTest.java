@@ -4,16 +4,12 @@ package com.hedera.node.app.workflows.clpr;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.verifyNoInteractions;
 
-import com.hedera.hapi.node.state.clpr.ClprDiscoverEndpointsRequest;
 import com.hedera.node.app.service.clpr.impl.ClprStateProofManager;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfiguration;
 import com.hedera.node.config.data.ClprConfig;
 import com.hedera.node.config.testfixtures.ClprConfigBuilder;
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.state.State;
 import io.grpc.Status;
@@ -49,26 +45,10 @@ class ClprSyncWorkflowImplTest {
     private ClprBundleSubmitter bundleSubmitter;
 
     @Mock
-    private ClprChannelManager connectionManager;
+    private ClprChannelManager channelManager;
 
     @Mock
     private ClprStateProofManager stateProofManager;
-
-    @Test
-    void discoveryRejectsUnknownFieldsBeforeAccessingState() {
-        givenClprEnabled(true);
-        final var request = ClprDiscoverEndpointsRequest.newBuilder()
-                .channelId(Bytes.wrap(new byte[32]))
-                .build();
-        final var bytes = ClprDiscoverEndpointsRequest.PROTOBUF.toBytes(request).append(Bytes.fromHex("c03e01"));
-
-        assertThatThrownBy(() -> newWorkflow().handleDiscovery(bytes, BufferedData.allocate(1024)))
-                .isInstanceOf(StatusRuntimeException.class)
-                .hasMessageContaining("Invalid discovery request")
-                .extracting(e -> ((StatusRuntimeException) e).getStatus().getCode())
-                .isEqualTo(Status.Code.INVALID_ARGUMENT);
-        verifyNoInteractions(stateAccessor, connectionManager);
-    }
 
     @Nested
     class OpenStreamingSync {
@@ -125,6 +105,6 @@ class ClprSyncWorkflowImplTest {
 
     private ClprSyncWorkflowImpl newWorkflow() {
         return new ClprSyncWorkflowImpl(
-                configProvider, stateAccessor, bundleSubmitter, connectionManager, stateProofManager);
+                configProvider, stateAccessor, bundleSubmitter, channelManager, stateProofManager);
     }
 }

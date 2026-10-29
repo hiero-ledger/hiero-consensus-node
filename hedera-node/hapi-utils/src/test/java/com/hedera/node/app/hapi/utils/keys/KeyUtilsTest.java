@@ -25,8 +25,7 @@ import java.security.spec.ECGenParameterSpec;
 import net.i2p.crypto.eddsa.EdDSAPrivateKey;
 import net.i2p.crypto.eddsa.spec.EdDSANamedCurveTable;
 import net.i2p.crypto.eddsa.spec.EdDSAPrivateKeySpec;
-import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
-import org.bouncycastle.openssl.jcajce.JcaPKCS8Generator;
+import org.hiero.base.crypto.PEMEncoder;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -167,9 +166,7 @@ class KeyUtilsTest {
         final ECPrivateKey originalKey = (ECPrivateKey) kp.getPrivate();
 
         final StringWriter sw = new StringWriter();
-        try (JcaPEMWriter writer = new JcaPEMWriter(sw)) {
-            writer.writeObject(new JcaPKCS8Generator(originalKey, null).generate());
-        }
+        PEMEncoder.encode(sw, PEMEncoder.PRIVATE_KEY, originalKey.getEncoded());
 
         final var in = new ByteArrayInputStream(sw.toString().getBytes(StandardCharsets.UTF_8));
         final ECPrivateKey recoveredKey = KeyUtils.readKeyFrom(in, "", KeyUtils.BC_PROVIDER);
@@ -184,9 +181,7 @@ class KeyUtilsTest {
         final EdDSAPrivateKey originalKey = new EdDSAPrivateKey(new EdDSAPrivateKeySpec(new byte[32], curve));
 
         final StringWriter sw = new StringWriter();
-        try (JcaPEMWriter writer = new JcaPEMWriter(sw)) {
-            writer.writeObject(new JcaPKCS8Generator(originalKey, null).generate());
-        }
+        PEMEncoder.encode(sw, PEMEncoder.PRIVATE_KEY, originalKey.getEncoded());
 
         final var in = new ByteArrayInputStream(sw.toString().getBytes(StandardCharsets.UTF_8));
         final EdDSAPrivateKey recoveredKey = Ed25519Utils.readKeyFrom(in, "");

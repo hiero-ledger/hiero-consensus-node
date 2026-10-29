@@ -7,14 +7,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.hedera.node.app.grpc.impl.netty.NettyGrpcServerManager;
 import com.hedera.node.app.services.ServicesRegistryImpl;
 import com.hedera.node.app.spi.fixtures.util.LogCaptor;
-import com.hedera.node.app.workflows.clpr.ClprCaCertManager;
-import com.hedera.node.app.workflows.clpr.ClprLeafCertManager;
 import com.hedera.node.app.workflows.clpr.ClprStreamingSyncSession;
 import com.hedera.node.app.workflows.clpr.ClprSyncWorkflow;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
@@ -39,15 +35,10 @@ final class NettyManagerTest extends GrpcTestBase {
                 new ClprSyncWorkflow() {
 
                     @Override
-                    public void handleDiscovery(Bytes req, BufferedData res) {}
-
-                    @Override
                     public ClprStreamingSyncSession openStreamingSync() {
                         throw new UnsupportedOperationException();
                     }
                 },
-                () -> new ClprLeafCertManager(new ClprCaCertManager(configProvider)),
-                () -> null,
                 metrics);
     }
 

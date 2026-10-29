@@ -79,9 +79,10 @@ public class RsaContext {
         requireNonNull(weightFn);
         final Map<Long, PublicKey> keys = new HashMap<>();
         for (final var entry : roster.rosterEntries()) {
+            // fetchGossipCaCertificate() already rejects certificates whose key has no supported signing schema
             final var certificate = RosterUtils.fetchGossipCaCertificate(entry);
             final var publicKey = certificate == null ? null : certificate.getPublicKey();
-            if (publicKey != null && "RSA".equals(publicKey.getAlgorithm())) {
+            if (publicKey != null) {
                 keys.put(entry.nodeId(), publicKey);
             }
         }

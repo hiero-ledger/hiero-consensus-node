@@ -2147,7 +2147,7 @@ public final class Mnemonics {
 
         while (mnemonics.size() < wordCount) {
             if (nextIndex + 1 >= entropy.length) {
-                entropy = CRYPTOGRAPHY.digestBytesSync(entropy);
+                entropy = CRYPTOGRAPHY.digestBytesSync(entropy, Cryptography.DEFAULT_DIGEST_TYPE);
                 nextIndex = 0;
             }
 

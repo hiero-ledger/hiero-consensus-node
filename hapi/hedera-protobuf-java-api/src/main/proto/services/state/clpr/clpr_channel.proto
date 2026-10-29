@@ -136,9 +136,11 @@ message ClprChannel {
 
     /**
      * The ownership commitment hash used during registration (keccak256 of
-     * channel_id || public_key). Stored so that CloseChannel can remove
-     * it from the pending-commitments store, freeing the commitment for reuse
-     * after the channel is closed.
+     * channel_id || public_key). The commitment stays in the pending-commitments
+     * store for as long as this Channel record exists, so re-registering it is
+     * rejected with CLPR_CHANNEL_ALREADY_EXISTS. Channel records are kept
+     * in every status, including CLOSED; only a PENDING Channel record is ever
+     * deleted (by closeChannel), and its commitment is deleted with it.
      */
     bytes ownership_commitment = 14;
 

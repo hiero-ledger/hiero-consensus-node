@@ -27,6 +27,7 @@ import com.esaulpaugh.headlong.abi.ABIJSON;
 import com.google.common.base.MoreObjects;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
+import com.hedera.node.config.types.StreamMode;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.assertions.ErroringAsserts;
@@ -73,6 +74,7 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.apache.commons.lang3.tuple.Triple;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.DigestType;
 import org.junit.jupiter.api.Assertions;
 
 public class HapiGetTxnRecord extends HapiQueryOp<HapiGetTxnRecord> {
@@ -646,6 +648,18 @@ public class HapiGetTxnRecord extends HapiQueryOp<HapiGetTxnRecord> {
         }
     }
 
+    // The bytes are the n-3 running hash: 48 bytes from the record stream, or the block digest's length in BLOCKS mode
+    private static int expectedPseudoRandomBytesLength(@NonNull final HapiSpec spec) {
+        final var properties = spec.startupProperties();
+        if (properties.getStreamMode("blockStream.streamMode") != StreamMode.BLOCKS) {
+            return MAX_PSEUDORANDOM_BYTES_LENGTH;
+        }
+        final var digestType = properties.get("blockStream.digestType");
+        return digestType == null
+                ? MAX_PSEUDORANDOM_BYTES_LENGTH
+                : DigestType.valueOf(digestType).digestLength();
+    }
+
     private void assertCorrectRecord(final HapiSpec spec, final TransactionRecord actualRecord) throws Throwable {
         assertPriority(spec, actualRecord);
         if (scheduled || assertOnlyPriority) {
@@ -751,7 +765,7 @@ public class HapiGetTxnRecord extends HapiQueryOp<HapiGetTxnRecord> {
         if (pseudorandomBytesExpected) {
             final var actualByteString = actualRecord.getPrngBytes();
             final var actualRandomNum = actualRecord.getPrngNumber();
-            assertEquals(MAX_PSEUDORANDOM_BYTES_LENGTH, actualByteString.size());
+            assertEquals(expectedPseudoRandomBytesLength(spec), actualByteString.size());
             assertEquals(0, actualRandomNum);
         }
 

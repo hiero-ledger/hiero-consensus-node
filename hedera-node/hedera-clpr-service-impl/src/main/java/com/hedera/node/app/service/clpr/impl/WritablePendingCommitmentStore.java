@@ -11,8 +11,12 @@ import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
- * Store for CLPR pending ownership commitments.
+ * Store for CLPR channel ownership commitments.
  * Acts as a set — the key and value are both the commitment hash.
+ *
+ * <p>Holds commitments pending reveal as well as commitments bound to an existing Channel (in any
+ * status, including CLOSED). A commitment is only deleted by an admin sweep of an abandoned,
+ * never-revealed claim.
  */
 public class WritablePendingCommitmentStore {
 

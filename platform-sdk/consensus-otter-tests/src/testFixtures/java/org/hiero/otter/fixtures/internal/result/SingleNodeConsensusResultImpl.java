@@ -19,7 +19,7 @@ public class SingleNodeConsensusResultImpl implements SingleNodeConsensusResult 
     private final NodeResultsCollector collector;
 
     // This class may be used in a multithreaded context, so we use volatile to ensure visibility of state changes
-    private volatile int startIndex = 0;
+    private volatile long lastClearedRoundNum = -1L;
 
     /**
      * Creates a new instance of {@link SingleNodeConsensusResultImpl}.
@@ -45,7 +45,7 @@ public class SingleNodeConsensusResultImpl implements SingleNodeConsensusResult 
     @Override
     @NonNull
     public List<ConsensusRound> consensusRounds() {
-        return collector.currentConsensusRounds(startIndex);
+        return collector.currentConsensusRoundsAfter(lastClearedRoundNum);
     }
 
     /**
@@ -74,6 +74,9 @@ public class SingleNodeConsensusResultImpl implements SingleNodeConsensusResult 
      */
     @Override
     public void clear() {
-        startIndex = collector.currentConsensusRoundsCount();
+        final long lastRoundNum = lastRoundNum();
+        if (lastRoundNum >= 0) {
+            lastClearedRoundNum = lastRoundNum;
+        }
     }
 }

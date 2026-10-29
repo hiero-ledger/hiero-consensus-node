@@ -83,13 +83,13 @@ class HistoryProofVoteHandlerTest {
 
         subject.handle(context);
 
-        verify(controllers).getInProgressById(1L, tssConfig);
+        verify(controllers).getInProgressById(1L);
     }
 
     @Test
     void handleForwardsVoteWithActiveConstruction() {
         givenVoteWith(1L, HistoryProofVote.DEFAULT);
-        given(controllers.getInProgressById(1L, tssConfig)).willReturn(Optional.of(controller));
+        given(controllers.getInProgressById(1L)).willReturn(Optional.of(controller));
         given(context.creatorInfo()).willReturn(nodeInfo);
         given(context.configuration()).willReturn(configuration);
         given(configuration.getConfigData(TssConfig.class)).willReturn(tssConfig);
@@ -100,7 +100,7 @@ class HistoryProofVoteHandlerTest {
 
         subject.handle(context);
 
-        verify(controllers).getInProgressById(1L, tssConfig);
+        verify(controllers).getInProgressById(1L);
         verify(controller).addProofVote(NODE_ID, HistoryProofVote.DEFAULT, CONSENSUS_NOW, store, tssConfig);
     }
 

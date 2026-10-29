@@ -13,7 +13,6 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfiguration;
 import com.hedera.node.config.data.ClprConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
@@ -91,17 +90,15 @@ class ClprRuntimeFacadeTest {
     @Test
     void enabledFeatureLazilyInstantiatesAndDelegatesToRuntimeGraph() {
         given(clprConfig.enabled()).willReturn(true);
-        final var request = Bytes.wrap(new byte[] {1});
-        final var response = BufferedData.allocate(1);
 
         subject.start();
-        subject.handleDiscovery(request, response);
+        subject.openStreamingSync();
         subject.stop();
 
         assertThat(channelManagerProviderCalls).hasValue(1);
         verify(channelManager).start();
         assertThat(syncWorkflowProviderCalls).hasValue(1);
-        verify(syncWorkflow).handleDiscovery(request, response);
+        verify(syncWorkflow).openStreamingSync();
         verify(channelManager).stop();
     }
 
@@ -130,7 +127,7 @@ class ClprRuntimeFacadeTest {
     void disablingAnInitializedRuntimeRejectsNewWorkAndStillAllowsShutdown() {
         given(clprConfig.enabled()).willReturn(true);
         subject.start();
-        subject.handleDiscovery(Bytes.EMPTY, BufferedData.allocate(1));
+        subject.openStreamingSync();
         clearInvocations(channelManager, syncWorkflow);
 
         given(clprConfig.enabled()).willReturn(false);
@@ -167,10 +164,8 @@ class ClprRuntimeFacadeTest {
     }
 
     private static void assertAllInboundCallsDisabled(final ClprRuntimeFacade runtime) {
-        final List<Runnable> calls = List.of(
-                () -> runtime.handleDiscovery(Bytes.EMPTY, BufferedData.allocate(1)),
-                () -> runtime.openStreamingSync(),
-                () -> runtime.openStreamingSync("disabled-test"));
+        final List<Runnable> calls =
+                List.of(() -> runtime.openStreamingSync(), () -> runtime.openStreamingSync("disabled-test"));
         for (final var call : calls) {
             final var error = assertThrows(StatusRuntimeException.class, call::run);
             assertEquals(Status.Code.UNAVAILABLE, error.getStatus().getCode());

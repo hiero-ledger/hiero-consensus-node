@@ -151,7 +151,7 @@ def get_block(url, block_tag, allow_latest_fallback):
         raise
 
 
-def build_ledger_configuration(protocol_version, chain_id, service20, throttles, endpoints):
+def build_ledger_configuration(protocol_version, chain_id, service20, throttles):
     parts = [
         common.pb_uint32(common.CLPR_FIELD_PROTOCOL_VERSION, protocol_version),
         common.pb_string(common.CLPR_FIELD_CHAIN_ID, chain_id),
@@ -159,15 +159,6 @@ def build_ledger_configuration(protocol_version, chain_id, service20, throttles,
     ]
     if throttles is not None:
         parts.append(common.encode_throttles(throttles))
-    # Field 6 (seed_endpoints) IS emitted here on purpose: this payload feeds the
-    # Hiero-side BesuQBFT verifier (system contract), whose verifyConfig bootstraps
-    # the channel's endpoint manifest from these seed endpoints when no real
-    # endpoint-manifest state proof is supplied (BesuQBFTVerifyConfigCall
-    # "seed-fallback" bring-up, synthesized from parsed.endpoints()). Unlike the
-    # strict SC-189 Solidity decoder — which rejects field 6 (see
-    # build-besu-qbft-trust-anchor.py) — the Hiero verifier requires it for bring-up.
-    for endpoint in endpoints or []:
-        parts.append(common.pb_message(common.CLPR_FIELD_SEED_ENDPOINTS, common.encode_endpoint(endpoint)))
     return b"".join(parts)
 
 
@@ -187,10 +178,10 @@ def encode_storage_proof_entry(entry):
 
 def load_config_json(path):
     if not path:
-        return {}, None, []
+        return {}, None
     with open(path) as f:
         file_cfg = json.load(f)
-    return file_cfg, file_cfg.get("throttles"), file_cfg.get("endpoints", [])
+    return file_cfg, file_cfg.get("throttles")
 
 
 def main(argv=None):
@@ -199,7 +190,7 @@ def main(argv=None):
     parser.add_argument("--service", required=True, help="hex-encoded 20-byte CLPR service contract address")
     parser.add_argument("--chain-id", default="", help="CAIP-2 chain identifier")
     parser.add_argument("--protocol-version", type=int, default=1, help="CLPR protocol version")
-    parser.add_argument("--config-json", help="JSON file with throttles and endpoints")
+    parser.add_argument("--config-json", help="JSON file with throttles")
     parser.add_argument("--block-tag", default="finalized", help="block tag for current header/proof")
     parser.add_argument("--no-latest-fallback", action="store_true", help="do not fall back to latest")
     parser.add_argument("--out-payload", help="write raw payload bytes to this file")
@@ -210,7 +201,7 @@ def main(argv=None):
 
     service20 = common.parse_hex_fixed(args.service, 20, "--service")
     rpc_service = args.service if args.service.startswith(("0x", "0X")) else "0x" + args.service
-    _, throttles, endpoints = load_config_json(args.config_json)
+    _, throttles = load_config_json(args.config_json)
 
     current_block, resolved_tag = get_block(args.rpc_url, args.block_tag, not args.no_latest_fallback)
     current_block_tag = "0x" + format(hex_to_int(current_block["number"]), "x")
@@ -222,7 +213,7 @@ def main(argv=None):
     if len(storage_proofs) != 1:
         raise RuntimeError(f"eth_getProof returned {len(storage_proofs)} storage proofs, expected 1")
 
-    ledger_config = build_ledger_configuration(args.protocol_version, args.chain_id, service20, throttles, endpoints)
+    ledger_config = build_ledger_configuration(args.protocol_version, args.chain_id, service20, throttles)
     genesis_header = encode_block_header_message(encode_block_header_rlp(genesis_block))
     current_header = encode_block_header_message(encode_block_header_rlp(current_block))
 

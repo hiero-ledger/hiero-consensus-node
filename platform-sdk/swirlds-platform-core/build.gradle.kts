@@ -26,8 +26,6 @@ mainModuleInfo {
 }
 
 jmhModuleInfo {
-    requires("com.hedera.node.hapi")
-    requires("com.hedera.pbj.runtime")
     requires("com.swirlds.platform.core")
     requires("org.hiero.base.utility")
     requires("org.hiero.consensus.model.test.fixtures")

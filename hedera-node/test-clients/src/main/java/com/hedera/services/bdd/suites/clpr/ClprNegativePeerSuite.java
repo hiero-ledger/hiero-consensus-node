@@ -18,7 +18,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -39,14 +38,12 @@ import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.transactions.contract.HapiContractCall;
 import com.hederahashgraph.api.proto.java.ClprBundleContent;
 import com.hederahashgraph.api.proto.java.ClprChannelStatus;
-import com.hederahashgraph.api.proto.java.ClprEndpoint;
 import com.hederahashgraph.api.proto.java.ClprLedgerConfiguration;
 import com.hederahashgraph.api.proto.java.ClprMessage;
 import com.hederahashgraph.api.proto.java.ClprMessagePayload;
 import com.hederahashgraph.api.proto.java.ClprMessageReply;
 import com.hederahashgraph.api.proto.java.ClprMessageReplyStatus;
 import com.hederahashgraph.api.proto.java.ClprQueueMetadata;
-import com.hederahashgraph.api.proto.java.ClprServiceEndpoint;
 import com.hederahashgraph.api.proto.java.ClprSignatureScheme;
 import com.hederahashgraph.api.proto.java.ClprThrottles;
 import com.swirlds.state.spi.WritableKVState;
@@ -77,7 +74,7 @@ public class ClprNegativePeerSuite {
 
     @LeakyEmbeddedHapiTest(
             reason = NEEDS_STATE_ACCESS,
-            overrides = {"clpr.enabled", "clpr.minLockedStake"})
+            overrides = {"clpr.minLockedStake"})
     @DisplayName("Malformed (raw) bundle → CLPR_BUNDLE_VERIFICATION_FAILED")
     final Stream<DynamicTest> malformedBundleRejected() {
         final var crypto = new ClprChannelCrypto();
@@ -107,7 +104,7 @@ public class ClprNegativePeerSuite {
     /** Spec §4.5 step 4: out-of-order replies → channel PAUSED (no bundle-level rejection). */
     @LeakyEmbeddedHapiTest(
             reason = NEEDS_STATE_ACCESS,
-            overrides = {"clpr.enabled", "clpr.minLockedStake"})
+            overrides = {"clpr.minLockedStake"})
     @DisplayName("Out-of-order replies → channel PAUSED (spec §4.5)")
     final Stream<DynamicTest> outOfOrderReplies() {
         final var crypto = new ClprChannelCrypto();
@@ -125,7 +122,7 @@ public class ClprNegativePeerSuite {
     /** Spec §4.5 PAUSED-recovery: after PAUSED, a well-formed reply bundle returns the channel to ACTIVE. */
     @LeakyEmbeddedHapiTest(
             reason = NEEDS_STATE_ACCESS,
-            overrides = {"clpr.enabled", "clpr.minLockedStake"})
+            overrides = {"clpr.minLockedStake"})
     @DisplayName("PAUSED → ACTIVE recovery after a multi-message bundle (spec §4.5)")
     final Stream<DynamicTest> pausedToActiveRecoveryAfterMultiMessageBundle() {
         final var crypto = new ClprChannelCrypto();
@@ -152,7 +149,7 @@ public class ClprNegativePeerSuite {
      */
     @LeakyEmbeddedHapiTest(
             reason = NEEDS_STATE_ACCESS,
-            overrides = {"clpr.enabled", "clpr.minLockedStake", "clpr.connectorQueueQuotaPct"})
+            overrides = {"clpr.minLockedStake", "clpr.connectorQueueQuotaPct"})
     @DisplayName("Queue-full during multi-message inbound: reply enqueues bypass cap, app sends blocked")
     final Stream<DynamicTest> queueFullDuringMultiMessageInbound() {
         final var crypto = new ClprChannelCrypto();
@@ -183,7 +180,7 @@ public class ClprNegativePeerSuite {
     /** Step 8's non-resetting {@code responseIndex} must skip the Data slot between two replies. */
     @LeakyEmbeddedHapiTest(
             reason = NEEDS_STATE_ACCESS,
-            overrides = {"clpr.enabled", "clpr.minLockedStake"})
+            overrides = {"clpr.minLockedStake"})
     @DisplayName("Interleaved Data+Reply in same bundle → channel stays ACTIVE")
     final Stream<DynamicTest> interleavedDataAndReplyInSameBundle() {
         final var crypto = new ClprChannelCrypto();
@@ -210,7 +207,7 @@ public class ClprNegativePeerSuite {
             final ClprLedgerConfiguration config,
             final AtomicReference<byte[]> aSentRunningHash) {
         return new SpecOperation[] {
-            overridingTwo("clpr.enabled", "true", "clpr.minLockedStake", "100"),
+            overriding("clpr.minLockedStake", "100"),
             clprUpdateLedgerConfiguration().configuration(config).payingWith(GENESIS),
             uploadInitCode(VERIFIER_CONTRACT),
             contractCreate(VERIFIER_CONTRACT),
@@ -319,13 +316,6 @@ public class ClprNegativePeerSuite {
                         .setMaxGasPerMessage(1_000_000L)
                         .setMaxQueueDepth(maxQueueDepth)
                         .setMaxSyncBytes(1_048_576L)
-                        .build())
-                .addEndpoints(ClprEndpoint.newBuilder()
-                        .setServiceEndpoint(ClprServiceEndpoint.newBuilder()
-                                .setIpAddress("127.0.0.1")
-                                .setPort(50211)
-                                .build())
-                        .setTlsCertificate(ByteString.copyFrom(new byte[] {0x01}))
                         .build())
                 .build();
     }

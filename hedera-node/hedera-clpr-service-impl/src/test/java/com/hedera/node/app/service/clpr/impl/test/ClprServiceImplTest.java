@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.clpr.impl.test;
 
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.LEDGER_CONFIGURATION_STATE_ID;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -9,6 +10,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
+import com.hedera.hapi.node.state.clpr.ClprEndpointManifestConstruction;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.node.app.service.clpr.impl.ClprServiceImpl;
 import com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema;
@@ -36,6 +38,9 @@ class ClprServiceImplTest {
     @Mock
     private WritableSingletonState<ClprEndpointManifest> manifestState;
 
+    @Mock
+    private WritableSingletonState<ClprEndpointManifestConstruction> constructionState;
+
     private ClprServiceImpl subject;
     private Configuration configuration;
 
@@ -46,6 +51,8 @@ class ClprServiceImplTest {
                 .willReturn(configState);
         given(writableStates.<ClprEndpointManifest>getSingleton(ENDPOINT_MANIFEST_STATE_ID))
                 .willReturn(manifestState);
+        given(writableStates.<ClprEndpointManifestConstruction>getSingleton(ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID))
+                .willReturn(constructionState);
         configuration = HederaTestConfigBuilder.create()
                 .withValue("clpr.enabled", false)
                 .withValue("clpr.chainId", "hiero:test")

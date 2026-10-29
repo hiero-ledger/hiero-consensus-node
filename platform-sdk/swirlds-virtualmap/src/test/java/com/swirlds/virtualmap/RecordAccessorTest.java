@@ -309,7 +309,7 @@ public class RecordAccessorTest {
     }
 
     private static Hash hashOf(long num) {
-        return CRYPTO.digestSync(("" + num).getBytes(StandardCharsets.UTF_8));
+        return CRYPTO.digestSync(("" + num).getBytes(StandardCharsets.UTF_8), Cryptography.DEFAULT_DIGEST_TYPE);
     }
 
     private static VirtualLeafBytes<TestValue> leaf(long num) {

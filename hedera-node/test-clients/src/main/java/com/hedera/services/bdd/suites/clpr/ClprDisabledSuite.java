@@ -20,7 +20,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCloseChanne
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprDeregisterConnector;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRedactMessage;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprSubmitBundle;
@@ -40,13 +39,13 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.VERIFY_CONFIG;
 import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.toBundleProofBytes;
 import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.toConfigProofBytes;
+import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.CLPR_SERVICE_ADDRESS_20;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_TRANSACTION_IN_BLACKLIST;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_NOT_ENABLED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static java.util.stream.Collectors.toSet;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.protobuf.ByteString;
@@ -84,7 +83,6 @@ import com.hederahashgraph.service.proto.java.ClprServiceGrpc;
 import io.grpc.CallOptions;
 import io.grpc.MethodDescriptor;
 import io.grpc.Status;
-import io.grpc.StatusRuntimeException;
 import io.grpc.netty.NettyChannelBuilder;
 import io.grpc.stub.ClientCalls;
 import io.grpc.stub.StreamObserver;
@@ -100,6 +98,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -125,14 +124,19 @@ public class ClprDisabledSuite {
     private static final String CONNECTOR_CONTRACT = "PassThroughAuth";
     private static final long GAS_TO_OFFER = 500_000L;
     private static final String INGEST_BYPASS_NODE = "4";
+    // ClprMaintenance is never submitted, only externalized by nodes in the block stream
     private static final EnumSet<HederaFunctionality> NODE_INTERNAL_CLPR_FUNCTIONS =
-            EnumSet.of(HederaFunctionality.ClprEndpointPublication);
+            EnumSet.of(HederaFunctionality.ClprEndpointPublication, HederaFunctionality.ClprMaintenance);
     private static final List<String> CLPR_SYSTEM_CONTRACT_NUMS =
             List.of(String.valueOf(0x16eL), String.valueOf(0x16fL), String.valueOf(0x170L), String.valueOf(0x171L));
 
     @BeforeAll
     static void beforeAll(final TestLifecycle lifecycle) {
-        lifecycle.overrideInClass(Map.of("clpr.enabled", System.getProperty("clpr.test.enabled", "false")));
+        lifecycle.overrideInClass(Map.of(
+                "clpr.enabled",
+                System.getProperty("clpr.test.enabled", "false"),
+                "hedera.ingestThrottle.enabled",
+                "true"));
     }
 
     @HapiTest
@@ -154,7 +158,7 @@ public class ClprDisabledSuite {
     }
 
     @LeakyEmbeddedHapiTest(reason = {MUST_SKIP_INGEST, NEEDS_STATE_ACCESS})
-    @DisplayName("All ten CLPR transaction types fail in batches at consensus when ingest is bypassed")
+    @DisplayName("All ten CLPR transaction types are not whitelisted in batches at consensus when ingest is bypassed")
     final Stream<DynamicTest> allClprTransactionsInBatchesAreRejectedAtConsensus() {
         return exerciseTransactions(true, true);
     }
@@ -163,13 +167,11 @@ public class ClprDisabledSuite {
     @DisplayName("Both CLPR queries reject COST_ANSWER and ANSWER_ONLY when disabled")
     final Stream<DynamicTest> clprQueriesAreRejected() {
         return hapiTest(
-                clprGetLedgerConfiguration().payingWith(GENESIS).hasCostAnswerPrecheck(CLPR_NOT_ENABLED),
-                clprGetEndpointManifest().payingWith(GENESIS).hasCostAnswerPrecheck(CLPR_NOT_ENABLED),
-                clprGetLedgerConfiguration()
-                        .payingWith(GENESIS)
-                        .nodePayment(1L)
-                        .hasAnswerOnlyPrecheck(CLPR_NOT_ENABLED),
-                clprGetEndpointManifest().payingWith(GENESIS).nodePayment(1L).hasAnswerOnlyPrecheck(CLPR_NOT_ENABLED));
+                cryptoCreate(CALLER).balance(ONE_HUNDRED_HBARS),
+                clprGetLedgerConfiguration().payingWith(CALLER).hasCostAnswerPrecheck(CLPR_NOT_ENABLED),
+                clprGetEndpointManifest().payingWith(CALLER).hasCostAnswerPrecheck(CLPR_NOT_ENABLED),
+                clprGetLedgerConfiguration().payingWith(CALLER).nodePayment(1L).hasAnswerOnlyPrecheck(CLPR_NOT_ENABLED),
+                clprGetEndpointManifest().payingWith(CALLER).nodePayment(1L).hasAnswerOnlyPrecheck(CLPR_NOT_ENABLED));
     }
 
     @HapiTest
@@ -178,14 +180,15 @@ public class ClprDisabledSuite {
         // While disabled, the EVM treats these addresses exactly as it did before the native contracts
         // existed, so a direct call succeeds without executing anything. Enabled execution reaches
         // selector/proof validation and cannot satisfy this assertion.
-        return hapiTest(CLPR_SYSTEM_CONTRACT_NUMS.stream()
-                .map(num -> contractCallWithFunctionAbi(
-                                num, VERIFY_CONFIG.toJson(false), new byte[] {1}, new byte[32], new byte[0])
-                        .payingWith(GENESIS)
+        final var operations = new ArrayList<SpecOperation>();
+        operations.add(cryptoCreate(CALLER).balance(ONE_HUNDRED_HBARS));
+        CLPR_SYSTEM_CONTRACT_NUMS.forEach(num -> operations.add(
+                contractCallWithFunctionAbi(num, VERIFY_CONFIG.toJson(false), new byte[] {1}, new byte[32], new byte[0])
+                        .payingWith(CALLER)
                         .gas(GAS_TO_OFFER)
                         .refusingEthConversion()
-                        .hasKnownStatus(SUCCESS))
-                .toArray(SpecOperation[]::new));
+                        .hasKnownStatus(SUCCESS)));
+        return hapiTest(operations.toArray(SpecOperation[]::new));
     }
 
     @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS)
@@ -213,7 +216,7 @@ public class ClprDisabledSuite {
 
     @Tag(ONLY_SUBPROCESS)
     @HapiTest
-    @DisplayName("Every node rejects peer sync, discovery and streaming while CLPR is disabled")
+    @DisplayName("Every node rejects streaming sync while CLPR is disabled")
     final Stream<DynamicTest> peerRpcCallsAreRejected() {
         return hapiTest(withOpContext((spec, opLog) -> {
             for (final var node : spec.targetNetworkOrThrow().nodes()) {
@@ -221,14 +224,6 @@ public class ClprDisabledSuite {
                         .usePlaintext()
                         .build();
                 try {
-                    final var error = assertThrows(
-                            StatusRuntimeException.class,
-                            () -> ClientCalls.blockingUnaryCall(
-                                    channel,
-                                    peerMethod("discoverEndpoints", MethodDescriptor.MethodType.UNARY),
-                                    CallOptions.DEFAULT.withDeadlineAfter(5, TimeUnit.SECONDS),
-                                    new byte[0]));
-                    assertPeerServiceDisabled(error.getStatus());
                     final var status = new CompletableFuture<Status>();
                     final var stream = ClientCalls.asyncBidiStreamingCall(
                             channel.newCall(
@@ -351,7 +346,6 @@ public class ClprDisabledSuite {
     }
 
     private static HapiTxnOp<?> dispatch(final HapiTxnOp<?> op, final boolean inBatch, final boolean bypassIngest) {
-        op.payingWith(GENESIS);
         if (bypassIngest) {
             op.hasKnownStatus(CLPR_NOT_ENABLED);
         }
@@ -360,7 +354,9 @@ public class ClprDisabledSuite {
         final HapiTxnOp<?> submitted =
                 inBatch ? atomicBatch(op.batchKey(BATCH_OPERATOR)).payingWith(BATCH_OPERATOR) : op;
         if (bypassIngest) {
-            submitted.setNode(INGEST_BYPASS_NODE).hasKnownStatus(inBatch ? INNER_TRANSACTION_FAILED : CLPR_NOT_ENABLED);
+            submitted
+                    .setNode(INGEST_BYPASS_NODE)
+                    .hasKnownStatus(inBatch ? BATCH_TRANSACTION_IN_BLACKLIST : CLPR_NOT_ENABLED);
         } else {
             submitted.hasPrecheck(CLPR_NOT_ENABLED);
         }
@@ -371,14 +367,6 @@ public class ClprDisabledSuite {
         return withOpContext((spec, opLog) -> {
             final var channelKey = new ProtoBytes(Bytes.wrap(crypto.channelId()));
             final var connectorKey = new ClprConnectorKey(channelKey.value(), Bytes.wrap(crypto.connectorId()));
-            final var states = spec.embeddedStateOrThrow().getWritableStates(ClprService.NAME);
-            final var channels = states.<ProtoBytes, ClprChannel>get(CHANNELS_STATE_ID);
-            final var connectors = states.<ClprConnectorKey, ClprConnector>get(CONNECTORS_STATE_ID);
-            final var configurations = states.<com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration>getSingleton(
-                    LEDGER_CONFIGURATION_STATE_ID);
-            final var previousChannel = channels.get(channelKey);
-            final var previousConnector = connectors.get(connectorKey);
-            final var previousConfiguration = configurations.get();
             final var configuration =
                     protoToPbj(ledgerConfig(), com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration.class);
             final var channel = ClprChannel.newBuilder()
@@ -397,10 +385,23 @@ public class ClprDisabledSuite {
                     .connectorContract(toPbj(spec.registry().getContractId(CONNECTOR_CONTRACT)))
                     .adminKey(toPbj(spec.registry().getKey(GENESIS)))
                     .build();
-            channels.put(channelKey, channel);
-            connectors.put(connectorKey, connector);
-            configurations.put(configuration);
-            spec.commitEmbeddedState();
+            final var previousChannel = new AtomicReference<ClprChannel>();
+            final var previousConnector = new AtomicReference<ClprConnector>();
+            final var previousConfiguration =
+                    new AtomicReference<com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration>();
+            spec.mutateEmbeddedState(state -> {
+                final var states = state.getWritableStates(ClprService.NAME);
+                final var channels = states.<ProtoBytes, ClprChannel>get(CHANNELS_STATE_ID);
+                final var connectors = states.<ClprConnectorKey, ClprConnector>get(CONNECTORS_STATE_ID);
+                final var configurations = states.<com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration>getSingleton(
+                        LEDGER_CONFIGURATION_STATE_ID);
+                previousChannel.set(channels.get(channelKey));
+                previousConnector.set(connectors.get(connectorKey));
+                previousConfiguration.set(configurations.get());
+                channels.put(channelKey, channel);
+                connectors.put(connectorKey, connector);
+                configurations.put(configuration);
+            });
             try {
                 allRunFor(spec, operations);
                 final var after = spec.embeddedStateOrThrow().getReadableStates(ClprService.NAME);
@@ -417,23 +418,24 @@ public class ClprDisabledSuite {
                                         LEDGER_CONFIGURATION_STATE_ID)
                                 .get());
             } finally {
-                final var restored = spec.embeddedStateOrThrow().getWritableStates(ClprService.NAME);
-                final var restoredChannels = restored.<ProtoBytes, ClprChannel>get(CHANNELS_STATE_ID);
-                final var restoredConnectors = restored.<ClprConnectorKey, ClprConnector>get(CONNECTORS_STATE_ID);
-                if (previousChannel == null) {
-                    restoredChannels.remove(channelKey);
-                } else {
-                    restoredChannels.put(channelKey, previousChannel);
-                }
-                if (previousConnector == null) {
-                    restoredConnectors.remove(connectorKey);
-                } else {
-                    restoredConnectors.put(connectorKey, previousConnector);
-                }
-                restored.<com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration>getSingleton(
-                                LEDGER_CONFIGURATION_STATE_ID)
-                        .put(previousConfiguration);
-                spec.commitEmbeddedState();
+                spec.mutateEmbeddedState(state -> {
+                    final var restored = state.getWritableStates(ClprService.NAME);
+                    final var restoredChannels = restored.<ProtoBytes, ClprChannel>get(CHANNELS_STATE_ID);
+                    final var restoredConnectors = restored.<ClprConnectorKey, ClprConnector>get(CONNECTORS_STATE_ID);
+                    if (previousChannel.get() == null) {
+                        restoredChannels.remove(channelKey);
+                    } else {
+                        restoredChannels.put(channelKey, previousChannel.get());
+                    }
+                    if (previousConnector.get() == null) {
+                        restoredConnectors.remove(connectorKey);
+                    } else {
+                        restoredConnectors.put(connectorKey, previousConnector.get());
+                    }
+                    restored.<com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration>getSingleton(
+                                    LEDGER_CONFIGURATION_STATE_ID)
+                            .put(previousConfiguration.get());
+                });
             }
         });
     }
@@ -491,9 +493,6 @@ public class ClprDisabledSuite {
                         .connectorId(crypto.connectorId())
                         .adminKey(GENESIS)
                         .stakeRecipient(GENESIS));
-        txns.put(
-                "redactMessage",
-                clprRedactMessage().channelId(crypto.channelId()).messageId(1L));
         // A verified message referencing an unknown remote connector produces CONNECTOR_NOT_FOUND
         // in the outbound reply. The bundle itself must still be accepted successfully.
         final var payload = ClprMessagePayload.newBuilder()
@@ -511,19 +510,21 @@ public class ClprDisabledSuite {
                         .bundlePayload(
                                 toBundleProofBytes(ClprChannelStatus.ACTIVE, 0L, 0L, new byte[32], List.of(payload))));
         txns.put("closeChannel", clprCloseChannel().channelId(crypto.channelId()));
+        // Only governance operations require an administrator; public operations must exercise user throttles.
+        txns.values()
+                .forEach(op -> op.payingWith(
+                        switch (op.type()) {
+                            case ClprUpdateLedgerConfiguration, ClprCloseChannel -> GENESIS;
+                            default -> CALLER;
+                        }));
         return txns;
     }
 
     private static ClprLedgerConfiguration ledgerConfig() {
         return ClprLedgerConfiguration.newBuilder()
                 .setChainId("hiero:testing")
-                .setServiceAddress(ByteString.copyFrom(new byte[] {0, 0, 1}))
+                .setServiceAddress(ByteString.copyFrom(CLPR_SERVICE_ADDRESS_20))
                 .setThrottles(HapiClprUpdateLedgerConfiguration.defaultThrottles())
-                .addEndpoints(ClprEndpoint.newBuilder()
-                        .setServiceEndpoint(ClprServiceEndpoint.newBuilder()
-                                .setIpAddress("127.0.0.1")
-                                .setPort(50211))
-                        .setTlsCertificate(ByteString.copyFrom(new byte[] {1})))
                 .build();
     }
 
@@ -565,6 +566,7 @@ public class ClprDisabledSuite {
         // Reuse a transaction transport but replace its oneof body before signing. This checks
         // the actual parsed functionality, including an internal operation without its own RPC.
         return clprRegisterChannel()
+                .payingWith(GENESIS)
                 .withBodyMutation((body, spec) ->
                         body.setClprEndpointPublication(ClprEndpointPublicationTransactionBody.newBuilder()
                                 .setEndpoint(ClprEndpoint.newBuilder()
@@ -592,11 +594,13 @@ public class ClprDisabledSuite {
             final HapiSpec spec,
             final ClprEndpointManifest manifest,
             final ClprEndpointManifestConstruction construction) {
-        final var states = spec.embeddedStateOrThrow().getWritableStates(ClprService.NAME);
-        states.<ClprEndpointManifest>getSingleton(ENDPOINT_MANIFEST_STATE_ID).put(manifest);
-        states.<ClprEndpointManifestConstruction>getSingleton(ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID)
-                .put(construction);
-        spec.commitEmbeddedState();
+        spec.mutateEmbeddedState(state -> {
+            final var states = state.getWritableStates(ClprService.NAME);
+            states.<ClprEndpointManifest>getSingleton(ENDPOINT_MANIFEST_STATE_ID)
+                    .put(manifest);
+            states.<ClprEndpointManifestConstruction>getSingleton(ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID)
+                    .put(construction);
+        });
     }
 
     private static MethodDescriptor<byte[], byte[]> peerMethod(

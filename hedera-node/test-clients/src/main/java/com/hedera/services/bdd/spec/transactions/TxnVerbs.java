@@ -40,7 +40,6 @@ import com.hedera.services.bdd.spec.transactions.clpr.HapiClprCloseChannel;
 import com.hedera.services.bdd.spec.transactions.clpr.HapiClprCompleteChannel;
 import com.hedera.services.bdd.spec.transactions.clpr.HapiClprCompleteConnector;
 import com.hedera.services.bdd.spec.transactions.clpr.HapiClprDeregisterConnector;
-import com.hedera.services.bdd.spec.transactions.clpr.HapiClprRedactMessage;
 import com.hedera.services.bdd.spec.transactions.clpr.HapiClprRegisterChannel;
 import com.hedera.services.bdd.spec.transactions.clpr.HapiClprRegisterConnector;
 import com.hedera.services.bdd.spec.transactions.clpr.HapiClprSubmitBundle;
@@ -262,10 +261,6 @@ public class TxnVerbs {
 
     public static HapiClprDeregisterConnector clprDeregisterConnector() {
         return new HapiClprDeregisterConnector();
-    }
-
-    public static HapiClprRedactMessage clprRedactMessage() {
-        return new HapiClprRedactMessage();
     }
 
     public static HapiClprSubmitBundle clprSubmitBundle() {

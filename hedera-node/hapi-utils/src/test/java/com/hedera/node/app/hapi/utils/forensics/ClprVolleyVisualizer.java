@@ -5,6 +5,7 @@ import static com.hedera.node.app.hapi.utils.forensics.RecordParsers.parseV6Reco
 
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.esaulpaugh.headlong.abi.TupleType;
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hederahashgraph.api.proto.java.ContractLoginfo;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
@@ -20,7 +21,6 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import org.bouncycastle.jcajce.provider.digest.Keccak;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -66,10 +66,12 @@ public class ClprVolleyVisualizer {
     private static final String DEFAULT_OUT_DIR = "/tmp/clpr-viz";
 
     // PingPong event topic[0] = keccak256(eventSignature)
-    private static final byte[] T_MESSAGE_RECEIVED = keccak("MessageReceived(bytes32,bytes,bytes)");
-    private static final byte[] T_MESSAGE_DROPPED = keccak("MessageDropped(bytes32,bytes)");
-    private static final byte[] T_RESPONSE_RECEIVED = keccak("ResponseReceived(bytes32,uint64,uint8,bytes)");
-    private static final byte[] T_BOUNCED = keccak("Bounced(bytes32,bytes)");
+    private static final byte[] T_MESSAGE_RECEIVED =
+            MiscCryptoUtils.keccak256DigestOf("MessageReceived(bytes32,bytes,bytes)");
+    private static final byte[] T_MESSAGE_DROPPED = MiscCryptoUtils.keccak256DigestOf("MessageDropped(bytes32,bytes)");
+    private static final byte[] T_RESPONSE_RECEIVED =
+            MiscCryptoUtils.keccak256DigestOf("ResponseReceived(bytes32,uint64,uint8,bytes)");
+    private static final byte[] T_BOUNCED = MiscCryptoUtils.keccak256DigestOf("Bounced(bytes32,bytes)");
 
     // serve(bytes32,bytes32,bytes,bytes) selector = keccak256(sig)[:4] = 0x662cc5fb
     private static final byte[] SERVE_SELECTOR = new byte[] {0x66, 0x2c, (byte) 0xc5, (byte) 0xfb};
@@ -375,10 +377,6 @@ public class ClprVolleyVisualizer {
             }
             return "data=\"" + (payload == null ? "" : payload) + "\"";
         }
-    }
-
-    private static byte[] keccak(final String s) {
-        return new Keccak.Digest256().digest(s.getBytes(StandardCharsets.UTF_8));
     }
 
     private static String hex(final byte[] b) {

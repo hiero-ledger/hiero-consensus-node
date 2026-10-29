@@ -2,12 +2,17 @@
 package com.hedera.node.app.service.contract.impl.test.infra;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_GAS_LIMIT_EXCEEDED;
+import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES;
+import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_SERVICE_ACCOUNT_ID;
+import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction.NOT_APPLICABLE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.*;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToBesuAddress;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.QueryHeader;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
@@ -19,6 +24,7 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculator;
 import com.hedera.node.app.service.contract.impl.infra.HevmStaticTransactionFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.spi.workflows.ClprDispatchMetadata;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -75,6 +81,8 @@ class HevmStaticTransactionFactoryTest {
         assertThat(transaction.offeredGasPrice()).isEqualTo(1L);
         assertThat(transaction.maxGasAllowance()).isZero();
         assertThat(transaction.hapiCreation()).isNull();
+        assertThat(transaction.senderAddress()).isNull();
+        assertThat(transaction.isClprDispatch()).isFalse();
     }
 
     @Test
@@ -109,6 +117,53 @@ class HevmStaticTransactionFactoryTest {
         assertThat(transaction.offeredGasPrice()).isEqualTo(1L);
         assertThat(transaction.maxGasAllowance()).isZero();
         assertThat(transaction.hapiCreation()).isNull();
+        assertThat(transaction.senderAddress()).isNull();
+        assertThat(transaction.isClprDispatch()).isFalse();
+    }
+
+    @Test
+    void nativeClprQueryUsesSyntheticSenderAndConfiguredGasBudget() {
+        given(context.clprDispatchMetadata())
+                .willReturn(new ClprDispatchMetadata(CLPR_SERVICE_ACCOUNT_ID, CLPR_EVM_ADDRESS_BYTES));
+        given(gasCalculator.transactionGasRequirements(anyInt(), anyInt(), anyBoolean(), any(), any()))
+                .willReturn(BASE_COST_CHARGING_RESULT);
+        given(context.createStore(ReadableAccountStore.class)).willReturn(accountStore);
+        final long verifierGasLimit = DEFAULT_CONTRACTS_CONFIG.maxGasPerSec() + 1;
+        final var query = Query.newBuilder()
+                .contractCallLocal(callLocalWith(b -> b.gas(verifierGasLimit)
+                        .senderId(SENDER_ID)
+                        .contractID(CALLED_CONTRACT_ID)
+                        .functionParameters(CALL_DATA)))
+                .build();
+
+        final var transaction = subject.fromHapiQuery(query);
+
+        assertThat(transaction.senderId()).isEqualTo(CLPR_SERVICE_ACCOUNT_ID);
+        assertThat(transaction.senderAddress()).isEqualTo(pbjToBesuAddress(CLPR_EVM_ADDRESS_BYTES));
+        assertThat(transaction.isClprDispatch()).isTrue();
+        assertThat(transaction.gasLimit()).isEqualTo(verifierGasLimit);
+        assertThat(transaction.offeredGasPrice()).isEqualTo(NOT_APPLICABLE);
+        assertThat(transaction.maxGasAllowance()).isEqualTo(NOT_APPLICABLE);
+        assertThat(transaction.contractId()).isEqualTo(CALLED_CONTRACT_ID);
+        assertThat(transaction.payload()).isEqualTo(CALL_DATA);
+        verify(gasCalculator)
+                .transactionGasRequirements(
+                        (int) CALL_DATA.length(), HederaGasCalculator.payloadZeroBytes(CALL_DATA), false, null, null);
+    }
+
+    @Test
+    void nativeClprQueryChecksMinimumGasAgainstActualCallData() {
+        given(context.clprDispatchMetadata())
+                .willReturn(new ClprDispatchMetadata(CLPR_SERVICE_ACCOUNT_ID, CLPR_EVM_ADDRESS_BYTES));
+        given(gasCalculator.transactionGasRequirements(anyInt(), anyInt(), anyBoolean(), any(), any()))
+                .willReturn(BASE_COST_CHARGING_RESULT);
+
+        assertCallFailsWith(ResponseCodeEnum.INSUFFICIENT_GAS, builder -> builder.gas(20_999L)
+                .functionParameters(CALL_DATA));
+
+        verify(gasCalculator)
+                .transactionGasRequirements(
+                        (int) CALL_DATA.length(), HederaGasCalculator.payloadZeroBytes(CALL_DATA), false, null, null);
     }
 
     @Test
@@ -177,6 +232,33 @@ class HevmStaticTransactionFactoryTest {
         assertThat(transaction.offeredGasPrice()).isEqualTo(1L);
         assertThat(transaction.maxGasAllowance()).isZero();
         assertThat(transaction.hapiCreation()).isNull();
+        assertThat(transaction.senderAddress()).isNull();
+        assertThat(transaction.isClprDispatch()).isFalse();
+    }
+
+    @Test
+    void nativeClprQueryExceptionPreservesSyntheticSender() {
+        given(context.clprDispatchMetadata())
+                .willReturn(new ClprDispatchMetadata(CLPR_SERVICE_ACCOUNT_ID, CLPR_EVM_ADDRESS_BYTES));
+        given(context.createStore(ReadableAccountStore.class)).willReturn(accountStore);
+        final var exception = new HandleException(ResponseCodeEnum.INVALID_CONTRACT_ID);
+        final var transaction = subject.fromHapiQueryException(
+                Query.newBuilder()
+                        .contractCallLocal(callLocalWith(b -> b.gas(21_000L)
+                                .senderId(SENDER_ID)
+                                .contractID(CALLED_CONTRACT_ID)
+                                .functionParameters(CALL_DATA)))
+                        .build(),
+                exception);
+
+        assertThat(transaction.senderId()).isEqualTo(CLPR_SERVICE_ACCOUNT_ID);
+        assertThat(transaction.senderAddress()).isEqualTo(pbjToBesuAddress(CLPR_EVM_ADDRESS_BYTES));
+        assertThat(transaction.isClprDispatch()).isTrue();
+        assertThat(transaction.offeredGasPrice()).isEqualTo(NOT_APPLICABLE);
+        assertThat(transaction.maxGasAllowance()).isEqualTo(NOT_APPLICABLE);
+        assertThat(transaction.exception()).isSameAs(exception);
+        assertThat(transaction.contractId()).isEqualTo(CALLED_CONTRACT_ID);
+        assertThat(transaction.payload()).isEqualTo(CALL_DATA);
     }
 
     private void assertCallFailsWith(
