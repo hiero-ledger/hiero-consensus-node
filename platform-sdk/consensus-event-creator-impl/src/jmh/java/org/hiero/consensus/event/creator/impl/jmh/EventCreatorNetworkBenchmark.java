@@ -22,6 +22,7 @@ import org.hiero.consensus.event.creator.config.EventCreationConfig;
 import org.hiero.consensus.event.creator.config.EventCreationConfig_;
 import org.hiero.consensus.event.creator.impl.DefaultEventCreationManager;
 import org.hiero.consensus.event.creator.impl.EventCreator;
+import org.hiero.consensus.event.creator.impl.tipset.DefaultTipsetTracker;
 import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -115,8 +116,17 @@ public class EventCreatorNetworkBenchmark {
             nodeRandom.setSeed(nodeId.id());
             final KeyPair keyPair = SigningFactory.generateKeyPair(signingType.getSigningSchema(), nodeRandom);
             final BytesSigner signer = SigningFactory.createSigner(signingType, keyPair);
-            final EventCreator eventCreator =
-                    new TipsetEventCreator(configuration, metrics, time, nodeRandom, signer, roster, nodeId, List::of);
+            final DefaultTipsetTracker tipsetTracker = new DefaultTipsetTracker(time, nodeId, roster);
+            final EventCreator eventCreator = new TipsetEventCreator(
+                    configuration,
+                    metrics,
+                    time,
+                    nodeRandom,
+                    signer,
+                    roster,
+                    nodeId,
+                    List::of,
+                    tipsetTracker);
 
             final DefaultEventCreationManager eventCreationManager = new DefaultEventCreationManager(
                     configuration, metrics, time, () -> false, eventCreator, roster, nodeId);

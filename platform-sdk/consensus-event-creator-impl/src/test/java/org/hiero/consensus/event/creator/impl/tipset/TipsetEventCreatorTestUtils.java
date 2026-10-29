@@ -98,8 +98,17 @@ public class TipsetEventCreatorTestUtils {
         // Set a fixed seed for deterministic output
         secureRandom.setSeed(random.nextLong());
 
+        final DefaultTipsetTracker tipsetTracker = new DefaultTipsetTracker(time, nodeId, roster);
         return new TipsetEventCreator(
-                configuration, metrics, time, secureRandom, signer, roster, nodeId, transactionSupplier);
+                configuration,
+                metrics,
+                time,
+                secureRandom,
+                signer,
+                roster,
+                nodeId,
+                transactionSupplier,
+                tipsetTracker);
     }
 
     /**

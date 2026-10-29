@@ -51,7 +51,7 @@ public class TipsetEventCreator implements EventCreator {
     private final SecureRandom random;
     private final BytesSigner signer;
     private final NodeId selfId;
-    private final DefaultTipsetTracker tipsetTracker;
+    private final TipsetTracker tipsetTracker;
     private final TipsetWeightCalculator tipsetWeightCalculator;
     private final ChildlessEventTracker childlessOtherEventTracker;
     private final EventTransactionSupplier transactionSupplier;
@@ -116,6 +116,7 @@ public class TipsetEventCreator implements EventCreator {
      * @param roster              the active roster
      * @param selfId              this node's ID
      * @param transactionSupplier provides transactions to be included in new events
+     * @param tipsetTracker       tracks the tipsets of the events, for this node and the same roster
      */
     public TipsetEventCreator(
             @NonNull final Configuration configuration,
@@ -125,7 +126,8 @@ public class TipsetEventCreator implements EventCreator {
             @NonNull final BytesSigner signer,
             @NonNull final RosterWrapper roster,
             @NonNull final NodeId selfId,
-            @NonNull final EventTransactionSupplier transactionSupplier) {
+            @NonNull final EventTransactionSupplier transactionSupplier,
+            @NonNull final TipsetTracker tipsetTracker) {
 
         this.time = requireNonNull(time);
         this.random = requireNonNull(random);
@@ -133,12 +135,12 @@ public class TipsetEventCreator implements EventCreator {
         this.selfId = requireNonNull(selfId);
         this.transactionSupplier = requireNonNull(transactionSupplier);
         this.roster = requireNonNull(roster);
+        this.tipsetTracker = requireNonNull(tipsetTracker);
 
         final EventCreationConfig eventCreationConfig = configuration.getConfigData(EventCreationConfig.class);
 
         antiSelfishnessFactor = Math.max(1.0, eventCreationConfig.antiSelfishnessFactor());
         tipsetMetrics = new TipsetMetrics(configuration, metrics, time, roster);
-        tipsetTracker = new DefaultTipsetTracker(time, selfId, roster);
         childlessOtherEventTracker = new ChildlessEventTracker();
         tipsetWeightCalculator = new TipsetWeightCalculator(
                 configuration, time, roster, selfId, tipsetTracker, childlessOtherEventTracker);

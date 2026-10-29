@@ -38,11 +38,11 @@ class TipsetTrackerTests {
         assertThat(actual.size()).isEqualTo(expected.size());
 
         for (final RosterEntryWrapper address : roster.rosterEntries()) {
-            assertThat(actual.getTipSequenceNumberForNode(address.nodeId()))
+            assertThat(actual.getTipOrderingKeyForNode(address.nodeId()))
                     .withFailMessage(
                             "Expected tip generation for node %s to be %s but was %s",
                             address.nodeId(), expected, actual)
-                    .isEqualTo(expected.getTipSequenceNumberForNode(address.nodeId()));
+                    .isEqualTo(expected.getTipOrderingKeyForNode(address.nodeId()));
         }
     }
 
@@ -110,10 +110,10 @@ class TipsetTrackerTests {
             } else {
                 newTipset = tracker.addPeerEvent(event);
             }
-            assertThat(newTipset.getTipSequenceNumberForNode(selfId))
+            assertThat(newTipset.getTipOrderingKeyForNode(selfId))
                     .withFailMessage(String.format(
                             "The sequence number should always be %s for the self node, got %s instead",
-                            EventConstants.SEQUENCE_NUMBER_UNDEFINED, newTipset.getTipSequenceNumberForNode(selfId)))
+                            EventConstants.SEQUENCE_NUMBER_UNDEFINED, newTipset.getTipOrderingKeyForNode(selfId)))
                     .isEqualTo(EventConstants.SEQUENCE_NUMBER_UNDEFINED);
             assertSame(newTipset, tracker.getTipset(event.getDescriptor()));
 

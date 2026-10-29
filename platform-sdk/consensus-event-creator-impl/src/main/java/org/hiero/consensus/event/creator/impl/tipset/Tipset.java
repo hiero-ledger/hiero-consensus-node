@@ -11,14 +11,16 @@ import org.hiero.consensus.model.roster.RosterEntryWrapper;
 import org.hiero.consensus.model.roster.RosterWrapper;
 
 /**
- * Represents a slice of the hashgraph, containing one "tip" from each event creator.
+ * Represents a slice of the hashgraph, containing one "tip" from each event creator: the latest event of that creator in
+ * the slice. A tip is represented by its ordering key, which can only be compared with the ordering keys of events of
+ * the same creator, where a later event has a higher key.
  */
 public class Tipset {
 
     private final RosterWrapper roster;
 
     /**
-     * The tip generations, indexed by node index.
+     * The ordering keys of the tips, indexed by node index.
      */
     private final long[] tips;
 
@@ -35,8 +37,8 @@ public class Tipset {
     }
 
     /**
-     * Build an empty tipset (i.e. where all generations are {@link EventConstants#SEQUENCE_NUMBER_UNDEFINED}) using another
-     * tipset as a template.
+     * Build an empty tipset (i.e. where all ordering keys are {@link EventConstants#SEQUENCE_NUMBER_UNDEFINED}) using
+     * another tipset as a template.
      *
      * @param tipset the tipset to use as a template
      * @return a new empty tipset
@@ -50,8 +52,8 @@ public class Tipset {
      * Merge a list of tipsets together.
      *
      * <p>
-     * The generation for each node ID will be equal to the maximum generation found for that node ID from all source
-     * tipsets.
+     * The ordering key for each node ID will be equal to the maximum ordering key found for that node ID from all
+     * source tipsets.
      * In the case of empty list, a new Tipset instance with the active roster will be returned.
      *
      * @param tipsets the tipsets to merge, tipsets must be constructed from the same roster or
@@ -78,13 +80,13 @@ public class Tipset {
     }
 
     /**
-     * Get the tip generation for a given node. If the node is not in the roster or no event from that node is know,
-     * return {@link EventConstants#SEQUENCE_NUMBER_UNDEFINED}.
+     * Get the ordering key of the tip for a given node. If the node is not in the roster or no event from that node is
+     * known, return {@link EventConstants#SEQUENCE_NUMBER_UNDEFINED}.
      *
      * @param nodeId the node in question
-     * @return the tip generation for the node
+     * @return the ordering key of the tip for the node
      */
-    public long getTipSequenceNumberForNode(@NonNull final NodeId nodeId) {
+    public long getTipOrderingKeyForNode(@NonNull final NodeId nodeId) {
         final int index = roster.index(nodeId);
         if (index == -1) {
             return EventConstants.SEQUENCE_NUMBER_UNDEFINED;
@@ -104,13 +106,13 @@ public class Tipset {
     /**
      * Advance a single tip within the tipset.
      *
-     * @param creator    the node ID of the creator of the event
-     * @param generation the generation of the event
+     * @param creator     the node ID of the creator of the event
+     * @param orderingKey the ordering key of the event
      * @return this object
      */
-    public @NonNull Tipset advance(@NonNull final NodeId creator, final long generation) {
+    public @NonNull Tipset advance(@NonNull final NodeId creator, final long orderingKey) {
         final int index = roster.index(creator);
-        tips[index] = Math.max(tips[index], generation);
+        tips[index] = Math.max(tips[index], orderingKey);
         return this;
     }
 
@@ -121,9 +123,9 @@ public class Tipset {
      * </p>
      *
      * <p>
-     * A tip advancement is defined as an increase in the tip generation for a node ID. The exception to this rule is
-     * that an increase in generation for the self ID is never counted as a tip advancement. The tip advancement weight
-     * is defined as the sum of all remaining tip advancements after being appropriately weighted.
+     * A tip advancement is defined as an increase in the ordering key of the tip for a node ID. The exception to this
+     * rule is that an increase for the self ID is never counted as a tip advancement. The tip advancement weight is
+     * defined as the sum of all remaining tip advancements after being appropriately weighted.
      * </p>
      *
      * <p>
