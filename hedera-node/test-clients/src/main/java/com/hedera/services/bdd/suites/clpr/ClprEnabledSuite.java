@@ -147,8 +147,8 @@ public class ClprEnabledSuite {
     }
 
     @HapiTest
-    @DisplayName("All ten CLPR transaction types are blacklisted inside separate atomic batches")
-    final Stream<DynamicTest> allClprTransactionsAreBlacklistedInsideAtomicBatches() {
+    @DisplayName("All ten CLPR transaction types are not whitelisted inside separate atomic batches")
+    final Stream<DynamicTest> allClprTransactionsAreNotWhitelistedInsideAtomicBatches() {
         return exerciseTransactions(true, false);
     }
 
@@ -159,8 +159,8 @@ public class ClprEnabledSuite {
     }
 
     @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST)
-    @DisplayName("All ten CLPR transaction types are blacklisted in batches when ingest is bypassed")
-    final Stream<DynamicTest> allClprTransactionsAreBlacklistedInBatchesAtConsensus() {
+    @DisplayName("All ten CLPR transaction types are not whitelisted in batches when ingest is bypassed")
+    final Stream<DynamicTest> allClprTransactionsAreNotWhitelistedInBatchesAtConsensus() {
         return exerciseTransactions(true, true);
     }
 
@@ -627,11 +627,13 @@ public class ClprEnabledSuite {
             final HapiSpec spec,
             final ClprEndpointManifest manifest,
             final ClprEndpointManifestConstruction construction) {
-        final var states = spec.embeddedStateOrThrow().getWritableStates(ClprService.NAME);
-        states.<ClprEndpointManifest>getSingleton(ENDPOINT_MANIFEST_STATE_ID).put(manifest);
-        states.<ClprEndpointManifestConstruction>getSingleton(ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID)
-                .put(construction);
-        spec.commitEmbeddedState();
+        spec.mutateEmbeddedState(state -> {
+            final var states = state.getWritableStates(ClprService.NAME);
+            states.<ClprEndpointManifest>getSingleton(ENDPOINT_MANIFEST_STATE_ID)
+                    .put(manifest);
+            states.<ClprEndpointManifestConstruction>getSingleton(ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID)
+                    .put(construction);
+        });
     }
 
     private static MethodDescriptor<byte[], byte[]> peerMethod(

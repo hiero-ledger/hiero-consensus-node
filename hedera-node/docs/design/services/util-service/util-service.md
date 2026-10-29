@@ -96,7 +96,7 @@ The AtomicBatchHandler is responsible for ensuring that the following conditions
 - The list of inner transactions does not contain duplicates. Duplicates are defined as transactions
 with the same transactionId.
 - The number of inner transactions in the batch does not exceed the limit as configured in the network.
-- The type of each inner transaction in the batch is not in the blacklist as configured in the network.
+- The type of each inner transaction in the batch is in the whitelist as configured in the network.
 - The batchKey field is set to a valid key for each inner transaction in the batch.
 - The nodeAccountId is set to 0.0.0 for each inner transaction in the batch.
 - The batchKey field is not set for the AtomicBatch outer transaction.
@@ -115,10 +115,11 @@ then their containing AtomicBatch transaction must be signed by both `batchKey` 
     will not allow them.
   - ```maxNumberOfTransactions``` This number is a long that determines the maximum number of transactions
     allowed in an atomic batch. If the number of transactions in a batch exceeds this limit, the batch will be rejected.
-  - ```blacklist``` This property is a HederaFunctionalitySet that contains a list of transaction types
-    that are not allowed in an atomic batch. If an inner transaction type is in the blacklist, the batch will be rejected.
-    By default the blacklist contains `Freeze`, `AtomicBatch`, `ScheduleCreate`, `ScheduleSign` and every CLPR
-    transaction type (all `Clpr*` transactions).
+  - ```whitelist``` This property is a HederaFunctionalitySet that contains the list of transaction types
+    that are allowed in an atomic batch. If an inner transaction type is not in the whitelist, the batch will be
+    rejected. By default the whitelist does not contain `Freeze`, `AtomicBatch`, `ScheduleCreate`, `ScheduleSign`,
+    `SystemDelete`, `SystemUndelete`, the CLPR transactions (all `Clpr*` transactions), or any node-submitted, internal
+    or unsupported transaction type. A new transaction type is not allowed in a batch until it is added to the whitelist.
 
 ## Network Response Messages
 
@@ -127,7 +128,7 @@ The response codes relevant to the Util Service are:
 - `BATCH_LIST_EMPTY`: The list of batch transactions is empty.
 - `BATCH_LIST_CONTAINS_DUPLICATES`: The list of batch transactions contains duplicated transactions.
 - `BATCH_SIZE_LIMIT_EXCEEDED`: The number of transactions in the batch exceeds the limit as configured in ```maxNumberOfTransactions```
-- `BATCH_TRANSACTION_IN_BLACKLIST`: The type of one or more transactions in the batch is in the configuration blacklist.
+- `BATCH_TRANSACTION_IN_BLACKLIST`: The type of one or more transactions in the batch is not in the configuration whitelist.
 - `INNER_TRANSACTION_FAILED`: An atomic batch inner transaction failed.
 - `INVALID_BATCH_KEY`: An inner transaction in an atomic batch has an invalid batch key.
 - `INVALID_NODE_ACCOUNT_ID`: An inner transaction in an atomic batch has any account ID other than 0.0.0.

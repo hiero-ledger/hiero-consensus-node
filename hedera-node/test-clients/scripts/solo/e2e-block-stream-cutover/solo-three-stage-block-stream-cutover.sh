@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
 #
-# Three-stage block-stream cutover using the checkout's local CN build at every stage:
-#   1. 0.79.0 configuration: WRB streaming + disk hashes with mock signatures, without a BN.
+# Three-stage block-stream cutover from a published CN baseline to the checkout's local CN build:
+#   0. Genesis on the published CN baseline (v0.78.1) with record streaming only, without a BN.
+#   1. 0.79.0 configuration: upgrade to the local build; WRB streaming + disk hashes with mock
+#      signatures, without a BN.
 #   2. 0.79.1 configuration: generate jumpstart.bin with offline Block Node tooling,
 #      verify it against every node's saved hashes, then
 #      enable jumpstart + TSS. Replay the records to verify every node's migration vote.
@@ -18,37 +20,43 @@ set +m
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../../../" && pwd)"
 
+# ---- Pinned versions ------------------------------------------------------------------------
+# Published CN release deployed at genesis, before the three local-build stages.
+# DEPLOY_RELEASE_TAG is accepted as a legacy alias (the workflows' starting-tag input).
+CN_BASELINE_RELEASE_TAG="${CN_BASELINE_RELEASE_TAG:-${DEPLOY_RELEASE_TAG:-v0.78.1}}"
+# Block Node source tag used offline for `blocks wrap` (jumpstart + replay) and BN protos.
+# The wrapping CLI must hash with the same algorithm the CN uses for wrapped record hashes.
+BLOCK_NODE_TOOLS_REF="${BLOCK_NODE_TOOLS_REF:-v0.45.0-rc2}"
+# Block Node chart/image deployed after the stage 2 upgrade and kept through cutover.
+BLOCK_NODE_CHART_VERSION="${BLOCK_NODE_CHART_VERSION:-v0.45.0-rc4}"
+# Mirror node deployed before stage 2 and kept through cutover. Must support the CN's TSS library:
+# 0.165.2+ loads the WRAPS verification key from the crypto library (TSS 3.19+) instead of the
+# ledger id publication, which no longer carries it.
+MIRROR_NODE_VERSION="${MIRROR_NODE_VERSION:-v0.165.2-rc1}"
+# ---------------------------------------------------------------------------------------------
+
 SOLO_CLUSTER_NAME="${SOLO_CLUSTER_NAME:-solo-three-stage-cutover}"
 SOLO_DEPLOYMENT="${SOLO_DEPLOYMENT:-solo-three-stage-cutover}"
 SOLO_NAMESPACE="${SOLO_NAMESPACE:-solo}"
 SOLO_CLUSTER_SETUP_NAMESPACE="${SOLO_CLUSTER_SETUP_NAMESPACE:-solo-setup}"
 NODE_ALIASES="${NODE_ALIASES:-node1,node2,node3,node4}"
 
-# Optional published genesis baseline for the follow-on release-tag migration. Empty uses local JARs.
-DEPLOY_RELEASE_TAG="${DEPLOY_RELEASE_TAG:-}"
-# Solo uses this as a deployment label; node setup below supplies the actual local binary.
-DEPLOY_VERSION_LABEL="${DEPLOY_VERSION_LABEL:-v$(cat "${REPO_ROOT}/version.txt")}"
 LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH:-${REPO_ROOT}/hedera-node/data}"
 
-WRAPS_REQUIRED_FILE_COUNT="${WRAPS_REQUIRED_FILE_COUNT:-4}"
 # Cap the WRAPS (Nova/rayon) prover's thread pool to limit its off-heap memory during the genesis
-# ceremony. Injected as TSS_LIB_NUM_OF_CORES in lockstep with the WRAPS artifacts path (before the
-# upgrade) so all nodes init WRAPS identically. Without it the prover grabs every host CPU, and with
+# ceremony. Injected as TSS_LIB_NUM_OF_CORES before startup so all nodes initialize WRAPS
+# with the same core limit. Without it the prover grabs every host CPU, and with
 # multiple nodes proving concurrently the off-heap peak dominates RAM. Capping trades genesis-proof
 # speed for much lower peak memory. Default 1 matches the HAPI subprocess tests and prevents four
 # concurrent provers from starving consensus on shared CI runners. Set empty (or 0) to use all cores.
 WRAPS_NUM_CORES="${WRAPS_NUM_CORES:-1}"
 
+APP_PROPS_BASELINE_FILE="${APP_PROPS_BASELINE_FILE:-${SCRIPT_DIR}/resources/0.78.1/application.properties}"
 APP_PROPS_STAGE1_FILE="${APP_PROPS_STAGE1_FILE:-${SCRIPT_DIR}/resources/0.79.0/application.properties}"
 APP_PROPS_STAGE2_FILE="${APP_PROPS_STAGE2_FILE:-${SCRIPT_DIR}/resources/0.79.1/application.properties}"
 APP_PROPS_STAGE3_FILE="${APP_PROPS_STAGE3_FILE:-${SCRIPT_DIR}/resources/0.80.0/application.properties}"
 LOG4J2_XML_PATH="${LOG4J2_XML_PATH:-${REPO_ROOT}/hedera-node/configuration/dev/log4j2.xml}"
 HAPI_PATH="/opt/hgcapp/services-hedera/HapiApp2.0"
-WRAPS_ARTIFACTS_CONTAINER_DIR_DEFAULT="${HAPI_PATH}/data/keys/wraps"
-# Back the native WRAPS prover's large allocations with a sparse, memory-mapped file instead of
-# anonymous RAM. HAPI_PATH is PVC-backed, and every consensus StatefulSet owns a distinct PVC, so
-# this identical in-container path resolves to a unique real-disk file for each node.
-WRAPS_SWAP_FILE_CONTAINER_PATH="${WRAPS_SWAP_FILE_CONTAINER_PATH:-${HAPI_PATH}/wraps-alloc-swap.bin}"
 
 SOLO_UPGRADE_TIMEOUT_SECS="${SOLO_UPGRADE_TIMEOUT_SECS:-1800}"
 
@@ -80,14 +88,13 @@ OPERATOR_ACCOUNT_ID="${OPERATOR_ACCOUNT_ID:-0.0.2}"
 OPERATOR_PRIVATE_KEY="${OPERATOR_PRIVATE_KEY:-302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137}"
 NUDGE_TX_COUNT="${NUDGE_TX_COUNT:-5}"
 
-# Deploy BN v0.44.2 only after the stage 2 jumpstart + TSS upgrade. Seed its TSS ledger
-# id before stage 3 so it can verify real signatures at the BLOCKS-only cutover.
-# The offline wrapping tools are pinned to the same BN release.
+# Deploy the BN (BLOCK_NODE_CHART_VERSION) only after the stage 2 jumpstart + TSS upgrade. Seed
+# its TSS ledger id before stage 3 so it can verify real signatures at the BLOCKS-only cutover.
+# The offline wrapping tools are pinned separately by BLOCK_NODE_TOOLS_REF.
 MINIO_NAMESPACE="${MINIO_NAMESPACE:-${SOLO_NAMESPACE}}"
 MINIO_BUCKET="${MINIO_BUCKET:-solo-streams}"
 BLOCK_NODE_ID="${BLOCK_NODE_ID:-1}"
 BLOCK_NODE_REPO_PATH="${BLOCK_NODE_REPO_PATH:-${REPO_ROOT}/../hiero-block-node}"
-BLOCK_NODE_CHART_VERSION="${BLOCK_NODE_CHART_VERSION:-v0.44.2}"
 BLOCK_NODE_UPGRADE_VERSION="${BLOCK_NODE_UPGRADE_VERSION:-${BLOCK_NODE_CHART_VERSION}}"
 BLOCK_NODE_INIT_IMAGE="${BLOCK_NODE_INIT_IMAGE:-docker.io/library/busybox:1.36.1}"
 BLOCK_NODE_MIN_FREE_DISK_MIB="${BLOCK_NODE_MIN_FREE_DISK_MIB:-1024}"
@@ -119,7 +126,6 @@ EXPLORER_INGRESS_SERVICE_NAME="${EXPLORER_INGRESS_SERVICE_NAME:-hiero-explorer-1
 SOLO_MIRROR_DEPLOY_TIMEOUT_SECS="${SOLO_MIRROR_DEPLOY_TIMEOUT_SECS:-900}"
 SOLO_EXPLORER_DEPLOY_TIMEOUT_SECS="${SOLO_EXPLORER_DEPLOY_TIMEOUT_SECS:-600}"
 
-MIRROR_NODE_VERSION="${MIRROR_NODE_VERSION:-v0.165.0-rc1}"
 MIRROR_BLOCK_CUTOVER_HAPIVERSION="${MIRROR_BLOCK_CUTOVER_HAPIVERSION:-0.79.0}"
 
 # Explicit ingestion checks supplement SDK TCK and run even when TCK is disabled.
@@ -265,10 +271,6 @@ wait_for_haproxy_ready() {
   done
 }
 
-configured_wraps_artifacts_container_dir() {
-  printf '%s\n' "${WRAPS_ARTIFACTS_CONTAINER_DIR_DEFAULT}"
-}
-
 # Solo creates the per-node `network-<alias>-data-config-cm` ConfigMaps straight through the
 # Kubernetes API during `block node add` (Helpers.copyBlockNodesJsonToConsensusNodes), passing an
 # empty label map, so they carry no Helm ownership metadata. The solo-deployment chart templates the
@@ -350,7 +352,7 @@ reapply_application_property_overrides() {
   done
 }
 
-# Pre-inject the WRAPS artifacts, swap-file, and core-limit variables into every consensus StatefulSet's
+# Pre-inject the WRAPS core limit into every consensus StatefulSet's
 # container spec BEFORE Solo's stage 1 deploy. Solo's --application-env drops the
 # env file onto disk but the container entrypoint never sources it, so the JVM
 # never sees it. `kubectl set env statefulset/...` is the only path that
@@ -359,19 +361,17 @@ reapply_application_property_overrides() {
 # initialize WRAPS in lockstep during the freeze-restart; injecting AFTER
 # triggers independent rolling restarts that produce SELF_ISS failures.
 inject_wraps_env_into_statefulsets() {
-  local node sts log_file wraps_dir
+  local node sts log_file
   local nodes=()
-  wraps_dir="$(configured_wraps_artifacts_container_dir)"
   log_file="${WORK_DIR}/inject-wraps-env.log"
   : > "${log_file}"
 
   IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
-  local -a wraps_env_args=(
-    "TSS_LIB_WRAPS_ARTIFACTS_PATH=${wraps_dir}"
-    "TSS_LIB_WRAPS_SWAP_FILE=${WRAPS_SWAP_FILE_CONTAINER_PATH}"
-  )
+  # Proving parameters ship in the library; no external artifacts or swap file are used.
+  # Removing the variable selects the library default (all cores).
+  local -a wraps_env_args=("TSS_LIB_NUM_OF_CORES-")
   if [[ "${WRAPS_NUM_CORES}" =~ ^[1-9][0-9]*$ ]]; then
-    wraps_env_args+=("TSS_LIB_NUM_OF_CORES=${WRAPS_NUM_CORES}")
+    wraps_env_args=("TSS_LIB_NUM_OF_CORES=${WRAPS_NUM_CORES}")
   fi
   log "Injecting ${wraps_env_args[*]} into ${#nodes[@]} consensus StatefulSets (log: ${log_file})"
 
@@ -435,7 +435,7 @@ verify_local_build_on_consensus_nodes() {
 }
 
 # Verifies each consensus node runs a release whose Implementation-Version contains the expected
-# substring. Used when DEPLOY_RELEASE_TAG selects a published stage 1 baseline.
+# substring. Used for the published CN_BASELINE_RELEASE_TAG genesis.
 verify_release_version_on_consensus_nodes() {
   local expected_substr="$1"
   local node pod pod_version
@@ -481,26 +481,10 @@ verify_runtime_config_on_consensus_nodes() {
   done
 }
 
-consensus_pod_wraps_env() {
-  local pod="$1"
-  kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
-    "pid=\$(pgrep -f 'com.hedera.node.app.ServicesMain' | head -n 1);
-     if [ -n \"\${pid}\" ] && [ -r \"/proc/\${pid}/environ\" ]; then
-       tr '\\000' '\\n' < \"/proc/\${pid}/environ\" | sed -n 's/^TSS_LIB_WRAPS_ARTIFACTS_PATH=//p' | head -n 1
-     fi" 2>/dev/null
-}
-
-consensus_pod_wraps_file_count() {
-  local pod="$1"
-  local wraps_dir="$2"
-  kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
-    "find ${wraps_dir} -maxdepth 1 -type f 2>/dev/null | wc -l" 2>/dev/null | tr -d ' '
-}
-
 wraps_proof_present_in_log() {
   local pod="$1"
   kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
-    "grep -Eq 'Constructing (genesis|incremental) WRAPS proof with:' ${HAPI_PATH}/output/hgcaa.log" >/dev/null 2>&1
+    "grep -Eq 'History proof constructed \(#.*WRAPS-extensible\? true\)' ${HAPI_PATH}/output/hgcaa.log" >/dev/null 2>&1
 }
 
 # Detect a GENUINE WRAPS failure to bail early. We deliberately do NOT match a
@@ -659,47 +643,18 @@ EOF
 }
 
 verify_wraps_on_consensus_nodes() {
-  local wraps_dir="" expected_wraps=""
   local timeout_secs="${1:-600}"
   local deadline=0
-  local node pod found_env found_wraps ready_for_proof
+  local node pod
   local nodes=()
 
-  wraps_dir="$(configured_wraps_artifacts_container_dir)"
-  expected_wraps="${WRAPS_REQUIRED_FILE_COUNT}"
-
-  log "Verifying WRAPS runtime on each consensus node (expecting >=${expected_wraps} self-downloaded artifact files at ${wraps_dir} + proof construction, up to ${timeout_secs}s/node; the in-JVM env var is logged as a best-effort diagnostic only)"
+  log "Verifying completed WRAPS history proofs on each consensus node (up to ${timeout_secs}s/node)"
   IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
   for node in "${nodes[@]}"; do
     pod="network-${node}-0"
     deadline=$((SECONDS + timeout_secs))
 
-    ready_for_proof=false
-    found_env=""
-    found_wraps=""
-    while (( SECONDS < deadline )); do
-      if wraps_failure_present_in_log "${pod}"; then
-        echo "  ${pod}: WRAPS reported a runtime failure (check ${HAPI_PATH}/output/hgcaa.log)" >&2
-        return 1
-      fi
-      # found_env is a best-effort diagnostic: the /proc/<pid>/environ probe false-negatives on
-      # nodes that provably have the env set and are building proofs, so gate on the artifacts and
-      # let the authoritative proof-in-log check below decide.
-      found_env="$(consensus_pod_wraps_env "${pod}" || true)"
-      found_wraps="$(consensus_pod_wraps_file_count "${pod}" "${wraps_dir}" || true)"
-      if [[ "${found_wraps:-0}" -ge "${expected_wraps}" ]]; then
-        ready_for_proof=true
-        break
-      fi
-      sleep 5
-    done
-
-    if ! ${ready_for_proof}; then
-      echo "  ${pod}: timed out waiting for >=${expected_wraps} WRAPS artifacts in ${wraps_dir} (artifacts=${found_wraps:-0}/${expected_wraps}; env='${found_env:-unset}' [best-effort diagnostic])" >&2
-      return 1
-    fi
-
-    echo "  ${pod}: ${found_wraps} WRAPS artifacts present (env='${found_env:-unset}' [best-effort diagnostic]); waiting for 'Constructing (genesis|incremental) WRAPS proof with:' in hgcaa.log"
+    echo "  ${pod}: waiting for a completed, WRAPS-extensible history proof in hgcaa.log"
     local progress_tick=0
     while (( SECONDS < deadline )); do
       if wraps_failure_present_in_log "${pod}"; then
@@ -707,7 +662,7 @@ verify_wraps_on_consensus_nodes() {
         return 1
       fi
       if wraps_proof_present_in_log "${pod}"; then
-        echo "  ${pod}: WRAPS proof construction detected"
+        echo "  ${pod}: Completed WRAPS history proof detected"
         break
       fi
       if (( progress_tick > 0 && progress_tick % 6 == 0 )); then
@@ -718,47 +673,12 @@ verify_wraps_on_consensus_nodes() {
     done
 
     if ! wraps_proof_present_in_log "${pod}"; then
-      echo "  ${pod}: timed out after ${timeout_secs}s waiting for WRAPS proof construction" >&2
+      echo "  ${pod}: timed out after ${timeout_secs}s waiting for a completed WRAPS history proof" >&2
       return 1
     fi
   done
 
-  echo "All consensus nodes confirmed: WRAPS env wired, artifacts present, proof construction observed"
-}
-
-# Report, per consensus node, how long the CN itself spent downloading + extracting + verifying
-# the WRAPS proving-key archive from tss.wrapsProvingKeyDownloadUrl. Parsed from hgcaa.log:
-#   start: "WrapsProvingKeyVerification - ... Initiating download"
-#   end:   "WrapsProvingKeyVerification - Successfully downloaded and verified WRAPS proving key"
-# Duration is computed in pure awk (ms-of-day delta) so it works on both GNU and BSD date hosts.
-report_wraps_download_times() {
-  local node pod start_line end_line dur
-  local nodes=()
-  local hgcaa="${HAPI_PATH}/output/hgcaa.log"
-
-  log "WRAPS proving-key self-download times (per consensus node, from hgcaa.log):"
-  IFS=',' read -r -a nodes <<< "${NODE_ALIASES}"
-  for node in "${nodes[@]}"; do
-    pod="network-${node}-0"
-    start_line="$(kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
-      "grep -aE 'WrapsProvingKeyVerification - .*Initiating download' '${hgcaa}' | head -n 1" 2>/dev/null || true)"
-    end_line="$(kubectl -n "${SOLO_NAMESPACE}" exec "${pod}" -c root-container -- sh -lc \
-      "grep -aE 'WrapsProvingKeyVerification - Successfully downloaded and verified WRAPS proving key' '${hgcaa}' | head -n 1" 2>/dev/null || true)"
-    if [[ -z "${start_line}" ]]; then
-      echo "  ${pod}: no self-download observed (proving key already present, or not started)"
-      continue
-    fi
-    if [[ -z "${end_line}" ]]; then
-      echo "  ${pod}: download started but completion not yet logged"
-      continue
-    fi
-    # Each hgcaa.log line begins with 'YYYY-MM-DD HH:MM:SS.mmm'; split on space/colon/dot and
-    # take the wall-clock-of-day delta in milliseconds (guarding a midnight rollover).
-    dur="$(awk -v a="${start_line}" -v b="${end_line}" '
-      function ms(t,   x){ split(t, x, /[ :.]/); return ((x[2]*3600)+(x[3]*60)+x[4])*1000 + x[5] }
-      BEGIN { d = ms(b) - ms(a); if (d < 0) d += 86400000; printf "%.3f", d/1000 }')"
-    echo "  ${pod}: ${dur}s"
-  done
+  echo "All consensus nodes confirmed: completed WRAPS history proof observed"
 }
 
 # Delete a CN pod after the cutover to force a fresh JVM start + event replay,
@@ -1139,7 +1059,7 @@ verify_block_node_has_blocks() {
 # Dependency-free Python extractor: walks the protobuf wire format of a block-stream file
 # and converts the LedgerIdPublicationTransactionBody (Block.items[1] ->
 # BlockItem.signed_transaction[4] -> SignedTransaction.bodyBytes[1] ->
-# TransactionBody.ledger_id_publication[77]) into the canonical TssData JSON that the v0.39
+# TransactionBody.ledger_id_publication[77]) into the TssData JSON that the
 # block-verification plugin reads from app.state.tssBootstrapFilePath.
 write_ledger_id_extractor() {
   mkdir -p "${LEDGER_ID_EXTRACTOR_DIR}"
@@ -1214,7 +1134,6 @@ def extract_from_block(data):
 
 def tss_data_json(pub, block_number):
     ledger_id = find_field(pub, 1)
-    wraps_key = find_field(pub, 2)
     contributions = []
     for fnum, wtype, val in iter_fields(pub):
         if fnum != 3 or wtype != 2:
@@ -1234,11 +1153,10 @@ def tss_data_json(pub, block_number):
             "weight": str(weight),
             "schnorrPublicKey": base64.b64encode(history_key).decode("ascii"),
         })
-    if not ledger_id or not wraps_key or not contributions:
-        raise ValueError("LedgerIdPublication is missing ledger id, WRAPS key, or node contributions")
+    if not ledger_id or not contributions:
+        raise ValueError("LedgerIdPublication is missing ledger id or node contributions")
     return {
         "ledgerId": base64.b64encode(ledger_id).decode("ascii"),
-        "wrapsVerificationKey": base64.b64encode(wraps_key).decode("ascii"),
         "currentRoster": {"rosterEntries": contributions},
         "validFromBlock": str(block_number),
     }
@@ -1275,7 +1193,7 @@ EOF
 # Bootstrap the BN with the network's TSS ledger id so it can verify real-TSS-signed
 # blocks after the stage 3 upgrade. The BN only self-learns the ledger id from block 0; this
 # mid-chain BN never sees it, so we extract the LedgerIdPublication (published during stage 2)
-# from a MinIO .blk.gz, convert it to the v0.39 application-state TssData JSON, and roll the BN.
+# from a MinIO .blk.gz, convert it to application-state TssData JSON, and roll the BN.
 seed_block_node_tss_parameters() {
   require_cmd python3
   local minio_pod creds_tmp u p in_pod_dir bn_pod
@@ -1595,35 +1513,40 @@ run_step() {
   "$@"
 }
 
-# No published 0.79.0 binary is needed: node setup supplies the checkout's local JARs.
-deploy_stage1_hash_writing() {
-  CURRENT_STAGE="stage1-hash-writing"
-  log "=== Stage 1 (0.79.0 configuration): dual-write and save wrapped record hashes ==="
+# Genesis on a published CN release so stage 1 is a real release -> local-build upgrade.
+deploy_stage0_baseline() {
+  CURRENT_STAGE="stage0-baseline"
+  log "=== Stage 0 (${CN_BASELINE_RELEASE_TAG}): record-stream baseline, no BN ==="
   solo keys consensus generate --gossip-keys --tls-keys \
     --deployment "${SOLO_DEPLOYMENT}" --node-aliases "${NODE_ALIASES}"
   solo consensus network deploy \
     --deployment "${SOLO_DEPLOYMENT}" --node-aliases "${NODE_ALIASES}" \
-    --application-properties "${APP_PROPS_STAGE1_FILE}" --log4j2-xml "${LOG4J2_XML_PATH}" \
-    --pvcs true --release-tag "${DEPLOY_RELEASE_TAG:-${DEPLOY_VERSION_LABEL}}"
-  local setup_args=(solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" --node-aliases "${NODE_ALIASES}")
-  if [[ -n "${DEPLOY_RELEASE_TAG}" ]]; then
-    setup_args+=(--release-tag "${DEPLOY_RELEASE_TAG}")
-  else
-    # Without an explicit version, setup falls back to Solo's default release (v0.76.4) and looks
-    # for that version's staging files instead of the ones prepared by network deploy.
-    setup_args+=(--local-build-path "${LOCAL_BUILD_PATH}" --consensus-node-version "${DEPLOY_VERSION_LABEL}")
-  fi
-  "${setup_args[@]}"
+    --application-properties "${APP_PROPS_BASELINE_FILE}" --log4j2-xml "${LOG4J2_XML_PATH}" \
+    --pvcs true --release-tag "${CN_BASELINE_RELEASE_TAG}"
+  solo consensus node setup \
+    --deployment "${SOLO_DEPLOYMENT}" --node-aliases "${NODE_ALIASES}" \
+    --release-tag "${CN_BASELINE_RELEASE_TAG}"
+  # Inject before the first start so every later stage inherits the same WRAPS core limit.
   inject_wraps_env_into_statefulsets
-  reapply_application_property_overrides "${APP_PROPS_STAGE1_FILE}"
+  reapply_application_property_overrides "${APP_PROPS_BASELINE_FILE}"
   solo consensus node start --deployment "${SOLO_DEPLOYMENT}" --node-aliases "${NODE_ALIASES}" --force-port-forward false
   wait_for_consensus_pods_ready 600
   wait_for_haproxy_ready 600
-  if [[ -z "${DEPLOY_RELEASE_TAG}" ]]; then
-    verify_local_build_on_consensus_nodes
-  else
-    verify_release_version_on_consensus_nodes "${DEPLOY_RELEASE_TAG#v}"
-  fi
+  verify_release_version_on_consensus_nodes "${CN_BASELINE_RELEASE_TAG#v}"
+  verify_runtime_config_on_consensus_nodes "stage 0 baseline" \
+    "contracts.chainId=298" "nodes.gossipFqdnRestricted=false" \
+    "hedera.config.version=0" \
+    "blockStream.streamMode=BOTH" "blockStream.writerMode=FILE" \
+    "blockStream.enableCutover=false" \
+    "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk=false"
+  nudge_consensus_with_transactions
+}
+
+# Upgrade the baseline to the checkout's local JARs; no published 0.79.0 binary is needed.
+upgrade_stage1_hash_writing() {
+  CURRENT_STAGE="stage1-hash-writing"
+  log "=== Stage 1 (0.79.0 configuration): upgrade to local build, dual-write and save wrapped record hashes ==="
+  upgrade_local_stage "${APP_PROPS_STAGE1_FILE}"
   verify_runtime_config_on_consensus_nodes "stage 1 hash writing" \
     "contracts.chainId=298" "nodes.gossipFqdnRestricted=false" \
     "hedera.config.version=0" \
@@ -1634,7 +1557,7 @@ deploy_stage1_hash_writing() {
     "blockStream.streamMode=BOTH" "blockStream.writerMode=FILE_AND_GRPC" \
     "blockStream.streamWrappedRecordBlocks=true" \
     "blockStream.enableCutover=false" "blockStream.jumpstart.blockNum=-1" \
-    "tss.hintsEnabled=false" "tss.historyEnabled=false" "tss.wrapsEnabled=false" \
+    "tss.hintsEnabled=false" "tss.historyEnabled=false" \
     "tss.forceMockSignatures=true"
 }
 
@@ -1740,7 +1663,7 @@ upgrade_stage2_jumpstart_and_tss() {
     "hedera.recordStream.liveWritePrevWrappedRecordHashes=true" \
     "blockStream.streamMode=BOTH" "blockStream.writerMode=FILE_AND_GRPC" \
     "blockStream.streamWrappedRecordBlocks=true" "blockStream.enableCutover=false" \
-    "tss.hintsEnabled=true" "tss.historyEnabled=true" "tss.wrapsEnabled=true" "tss.forceMockSignatures=true" \
+    "tss.hintsEnabled=true" "tss.historyEnabled=true" "tss.forceMockSignatures=true" \
     "blockStream.jumpstart.blockNum=${JUMPSTART_BLOCK_NUMBER}" \
     "blockStream.jumpstart.previousWrappedRecordBlockHash=${JUMPSTART_PREV_WRAPPED_RECORD_BLOCK_HASH}" \
     "blockStream.jumpstart.currentBlockConsensusTimestampHash=${JUMPSTART_CONSENSUS_TIMESTAMP_HASH}" \
@@ -1755,9 +1678,39 @@ upgrade_stage2_jumpstart_and_tss() {
       grep -F 'Successfully loaded jumpstart config: blockNumber=${JUMPSTART_BLOCK_NUMBER},' '${HAPI_PATH}/output/hgcaa.log'
       grep -F 'Computed wrapped record block hash migration result (state write deferred)' '${HAPI_PATH}/output/hgcaa.log'
       grep -F 'Truncated wrapped record hashes file' '${HAPI_PATH}/output/hgcaa.log'
-      grep -F 'Seeded live wrapped-record hash chain from migration result' '${HAPI_PATH}/output/hgcaa.log'
     "
+    # Seeding only happens when state holds no live wrapped chain yet. A network that already
+    # completed an earlier jumpstart vote (e.g. mainnet), or that maintained the chain from
+    # genesis, keeps its existing chain until the finalized vote syncs it; that sync is
+    # asserted per node in verify_stage2_migration_votes.
+    if kubectl -n "${SOLO_NAMESPACE}" exec "network-${node}-0" -c root-container -- \
+        grep -qF 'Seeded live wrapped-record hash chain from migration result' "${HAPI_PATH}/output/hgcaa.log"; then
+      log "${node}: live wrapped chain seeded from migration result"
+    else
+      log "${node}: existing live wrapped chain kept until the finalized vote syncs it"
+    fi
   done
+}
+
+# The finalized vote must replace each node's in-memory wrapped chain with the voted values,
+# whether or not the chain was seeded from the migration result at startup.
+verify_live_chain_synced_to_vote() {
+  local node="$1" line synced_prev synced_leaf
+  line="$(kubectl -n "${SOLO_NAMESPACE}" exec "network-${node}-0" -c root-container -- sh -c \
+    "grep -F 'Synced in-memory wrapped hash state from finalized vote:' '${HAPI_PATH}/output/hgcaa.log' | tail -n 1" \
+    2>/dev/null || true)"
+  if [[ ! "${line}" =~ prevHash=([0-9a-fA-F]+),[[:space:]]*leafCount=([0-9]+) ]]; then
+    echo "${node}: live wrapped chain was not synced from the finalized vote" >&2
+    return 1
+  fi
+  synced_prev="$(echo "${BASH_REMATCH[1]}" | tr '[:upper:]' '[:lower:]')"
+  synced_leaf="${BASH_REMATCH[2]}"
+  if [[ "${synced_prev}" != "${MIGRATION_PREV_HASH}" || "${synced_leaf}" != "${MIGRATION_LEAF_COUNT}" ]]; then
+    echo "${node}: live chain synced to prevHash=${synced_prev}, leafCount=${synced_leaf};" \
+      "finalized vote has prevHash=${MIGRATION_PREV_HASH}, leafCount=${MIGRATION_LEAF_COUNT}" >&2
+    return 1
+  fi
+  log "${node}: live wrapped chain synced to finalized vote (leafCount=${synced_leaf})"
 }
 
 verify_stage2_migration_votes() {
@@ -1771,6 +1724,7 @@ verify_stage2_migration_votes() {
     NODE_ALIASES="${node}" parse_migration_vote_from_hgcaa
     [[ "${MIGRATION_BLOCK_NUMBER}" == "${expected_block}" ]] || { echo "${node}: migration block disagrees" >&2; return 1; }
     MIGRATION_COMPARE_LOG="${GENERATED_DIR}/${node}-migration-compare.log" compare_replay_to_migration_vote
+    verify_live_chain_synced_to_vote "${node}"
   done
 }
 
@@ -2022,9 +1976,7 @@ upgrade_stage3_cutover() {
     "blockStream.buffer.isBufferPersistenceEnabled=true" \
     "tss.hintsEnabled=true" \
     "tss.historyEnabled=true" \
-    "tss.wrapsEnabled=true" \
-    "tss.forceMockSignatures=false" \
-    "tss.wrapsProvingKeyPath=${HAPI_PATH}/data/keys/wraps-archive"
+    "tss.forceMockSignatures=false"
 
   log "--- stage 3 check 2/4: nudge consensus with cryptoCreate txns ---"
   nudge_consensus_with_transactions
@@ -2116,7 +2068,7 @@ done
 prepare_block_node_tools_checkout
 validate_block_node_repo
 [[ -x "${BLOCK_NODE_REPO_PATH}/gradlew" ]] || { echo "Block Node tools require an executable gradlew" >&2; exit 1; }
-for file in "${APP_PROPS_STAGE1_FILE}" "${APP_PROPS_STAGE2_FILE}" "${APP_PROPS_STAGE3_FILE}" "${LOG4J2_XML_PATH}"; do
+for file in "${APP_PROPS_BASELINE_FILE}" "${APP_PROPS_STAGE1_FILE}" "${APP_PROPS_STAGE2_FILE}" "${APP_PROPS_STAGE3_FILE}" "${LOG4J2_XML_PATH}"; do
   [[ -f "${file}" ]] || { echo "Missing file: ${file}" >&2; exit 1; }
 done
 validate_local_build_path "${LOCAL_BUILD_PATH}" || {
@@ -2129,7 +2081,10 @@ rm -rf "${RECORD_STREAMS_DIR}" "${WRAPPED_BLOCKS_DIR}" "${REPLAY_WRAPPED_BLOCKS_
 create_cluster
 configure_solo
 setup_cluster_prereqs
-deploy_stage1_hash_writing
+deploy_stage0_baseline
+collect_stage_diagnostics "stage0-baseline"
+
+upgrade_stage1_hash_writing
 verify_wrapped_hash_files_grow
 # Mirror is required to discover the record files and metadata for offline wrapping.
 deploy_mirror_and_explorer
@@ -2140,14 +2095,13 @@ generate_stage2_jumpstart
 collect_stage_diagnostics "stage1-hash-writing"
 
 upgrade_stage2_jumpstart_and_tss
-# Only now add BN v0.44.2, after jumpstart + TSS. Give it a floor above the current stream.
+# Only now add the BN, after jumpstart + TSS. Give it a floor above the current stream.
 BLOCK_NODE_CUTOVER_START_BLOCK="${BLOCK_NODE_CUTOVER_START_BLOCK:-$((JUMPSTART_BLOCK_NUMBER + 1000))}"
 BLOCK_STREAM_WRITER_MODE=FILE_AND_GRPC deploy_block_node
 reapply_application_property_overrides "${TMP_STAGE2_APP_PROPS}"
 verify_block_node_has_blocks 180
 nudge_consensus_with_transactions
 verify_wraps_on_consensus_nodes 600
-report_wraps_download_times
 verify_stage2_migration_votes
 seed_block_node_tss_parameters
 wait_for_block_node_caught_up 180
@@ -2165,6 +2119,6 @@ run_post_cutover_tck
 cleanup_tck_resources
 verify_post_tck_continuity
 
-log "PASS: three-stage hash writing -> jumpstart + TSS -> BLOCKS-only cutover"
+log "PASS: ${CN_BASELINE_RELEASE_TAG} baseline -> hash writing -> jumpstart + TSS -> BLOCKS-only cutover"
 log "PASS: Block Node ${BLOCK_NODE_UPGRADE_VERSION} verified and persisted real-TSS blocks"
 log "Explorer UI: http://127.0.0.1:${EXPLORER_INGRESS_LOCAL_PORT}    Mirror REST: http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}"

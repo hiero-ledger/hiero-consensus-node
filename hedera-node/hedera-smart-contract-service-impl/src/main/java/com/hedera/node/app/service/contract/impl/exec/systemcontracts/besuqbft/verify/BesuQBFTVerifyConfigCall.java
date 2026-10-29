@@ -78,7 +78,7 @@ public class BesuQBFTVerifyConfigCall extends AbstractCall {
         try {
             verified = verifier.verifyConfigPayload(stateProofBytes, manifestProofBytes);
         } catch (final ProofException e) {
-            log.warn("verifyConfig (QBFT): proof rejected: {}", e.getMessage());
+            log.debug("verifyConfig (QBFT): proof rejected: {}", e.getMessage());
             return fail();
         } catch (final Exception e) {
             log.warn("verifyConfig (QBFT): unexpected error", e);

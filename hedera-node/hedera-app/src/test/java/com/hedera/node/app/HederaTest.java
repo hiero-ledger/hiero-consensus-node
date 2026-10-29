@@ -11,6 +11,8 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.withSettings;
 
+import com.hedera.hapi.node.state.hints.CRSStage;
+import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.HintsScheme;
 import com.hedera.hapi.node.state.history.HistoryProof;
@@ -21,10 +23,12 @@ import com.hedera.node.app.fixtures.state.FakeServiceMigrator;
 import com.hedera.node.app.fixtures.state.FakeServicesRegistry;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.schemas.V059HintsSchema;
+import com.hedera.node.app.hints.schemas.V060HintsSchema;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.schemas.V071HistorySchema;
 import com.hedera.node.app.service.clpr.ClprService;
 import com.hedera.node.app.service.clpr.impl.ClprServiceImpl;
+import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.services.ServicesRegistry;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.app.tss.TssKeyFiles;
@@ -42,6 +46,7 @@ import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.Service;
 import com.swirlds.state.merkle.VirtualMapStateImpl;
 import com.swirlds.state.spi.CommittableWritableStates;
+import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableStates;
 import java.lang.reflect.Field;
 import java.nio.file.Path;
@@ -177,7 +182,15 @@ final class HederaTest {
 
         final var activeHintsConstruction = HintsConstruction.newBuilder()
                 .constructionId(1L)
+                .crsId(1L)
+                .numParties(4)
                 .hintsScheme(HintsScheme.DEFAULT)
+                .build();
+        final var activeCrs = CRSState.newBuilder()
+                .ceremonyId(1L)
+                .numParties(4)
+                .stage(CRSStage.COMPLETED)
+                .crs(Bytes.wrap(new byte[304 + 4 * 288]))
                 .build();
         final var proof = HistoryProof.DEFAULT;
         final var activeProofConstruction = HistoryProofConstruction.newBuilder()
@@ -190,6 +203,7 @@ final class HederaTest {
         final var network = Network.newBuilder()
                 .tssMetadata(TssMetadata.newBuilder()
                         .activeHintsConstruction(activeHintsConstruction)
+                        .crsState(activeCrs)
                         .activeProofConstruction(activeProofConstruction))
                 .nodeTssMetadata(NodeTssMetadata.newBuilder()
                         .nodeId(0L)
@@ -213,6 +227,13 @@ final class HederaTest {
         if (!profile.equals("PROD")) {
             when(state.getWritableStates(HintsService.NAME)).thenReturn(hintsStates);
             when(state.getWritableStates(HistoryService.NAME)).thenReturn(historyStates);
+            when(state.getReadableStates(HintsService.NAME)).thenReturn(hintsStates);
+            when(state.getReadableStates(EntityIdService.NAME))
+                    .thenReturn(mock(ReadableStates.class, RETURNS_DEEP_STUBS));
+            when(hintsStates
+                            .<CRSState>getSingleton(V060HintsSchema.CRS_STATE_STATE_ID)
+                            .get())
+                    .thenReturn(activeCrs);
         }
 
         final var onOverrideNetwork = Hedera.class.getDeclaredMethod("onOverrideNetwork", Network.class);
@@ -231,7 +252,7 @@ final class HederaTest {
                     .put(activeProofConstruction);
             verify((CommittableWritableStates) hintsStates).commit();
             verify((CommittableWritableStates) historyStates).commit();
-            verify(hintsService).setActiveConstruction(activeHintsConstruction);
+            verify(hintsService).setActiveConstruction(activeHintsConstruction, activeCrs);
             verify(historyService).setLatestHistoryProof(proof);
             assertThat(TssKeyFiles.readBlsPrivateKey(config, 1L)).contains(importedBlsKey);
             assertThat(TssKeyFiles.readSchnorrKeyPair(config, 1L)).contains(importedSchnorrKeys);

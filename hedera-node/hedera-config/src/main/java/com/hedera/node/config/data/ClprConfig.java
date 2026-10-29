@@ -2,11 +2,8 @@
 package com.hedera.node.config.data;
 
 import com.hedera.node.config.NetworkProperty;
-import com.hedera.node.config.NodeProperty;
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
-import com.swirlds.config.api.validation.annotation.Max;
-import com.swirlds.config.api.validation.annotation.Min;
 import java.time.Duration;
 
 /**
@@ -62,7 +59,9 @@ public record ClprConfig(
         int connectorQueueQuotaPct,
 
         // --- Verifier contract dispatch (CLPR-5.3) ---
-        @ConfigProperty(defaultValue = "300000") @NetworkProperty
+        // The dispatched call's gas must cover the EIP-7623 calldata floor (~40 gas per proof byte); a Hiero
+        // state proof carrying a WRAPS proof is ~15 KB, so even a single-message bundle needs ~640K gas
+        @ConfigProperty(defaultValue = "2000000") @NetworkProperty
         long verifierGasLimit,
 
         // --- Node-submitted ClprSubmitBundle fee cap (tinybars) ---
@@ -85,19 +84,6 @@ public record ClprConfig(
         // directory; serialized as JSON. This is NOT consensus state.
         @ConfigProperty(defaultValue = "data/clpr/peer-endpoints.json")
         String peerEndpointsFile,
-
-        // --- mTLS (CLPR-4.4) ---
-        // Path to the ECDSA P-384 CA certificate (PEM) published in ClprEndpoint.tls_certificate to peers.
-        // Empty = mTLS not configured; node falls back to plaintext and logs a warning.
-        @ConfigProperty(defaultValue = "") String caCrtPath,
-        // Path to the ECDSA P-384 CA private key, unencrypted: PEM (PKCS#8 or SEC1/PKCS#1) or binary DER
-        // PKCS#8. See docs/design/services/clpr-service/mtls.md ("CA key and cert encodings") for details.
-        // Must be set alongside caCrtPath; ignored if caCrtPath is empty.
-        @ConfigProperty(defaultValue = "") String caKeyPath,
-        // Port on which this node serves the mTLS-protected CLPR endpoints (currently the sync endpoint)
-        // when mTLS is enabled (caCrtPath/caKeyPath set).
-        @ConfigProperty(defaultValue = "50214") @NodeProperty @Min(0) @Max(65535)
-        int mtlsPort,
 
         // --- Endpoint manifest construction lifecycle (design doc §8.1) ---
         // Grace period, extension size, and extension budget for the manifest construction that

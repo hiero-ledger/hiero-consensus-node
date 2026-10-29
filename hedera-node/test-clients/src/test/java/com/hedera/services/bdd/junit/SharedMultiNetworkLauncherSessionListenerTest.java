@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -27,19 +27,19 @@ class SharedMultiNetworkLauncherSessionListenerTest {
     void classLockingTwoGroupsFailsBothGroups() throws Exception {
         final var plain = groupOf(CrossGroupLocks.class, "plain");
         final var manifest = groupOf(CrossGroupLocks.class, "manifest");
-        final var mtls = groupOf(OneGroupLocks.class, "mtls");
+        final var tls = groupOf(OneGroupLocks.class, "tls");
         queue.register("plain", plain);
         queue.register("manifest", manifest);
-        queue.register("mtls", mtls);
+        queue.register("tls", tls);
 
         SharedMultiNetworkLauncherSessionListener.validateOneGroupPerClass(
                 List.of(CrossGroupLocks.class, OneGroupLocks.class), queue);
 
-        for (final var testId : List.of("plain", "manifest")) {
-            final var e = assertThrows(IllegalStateException.class, () -> queue.awaitTurn(testId));
+        for (final var group : List.of(plain, manifest)) {
+            final var e = assertThrows(IllegalStateException.class, () -> queue.awaitSlot(group));
             assertTrue(e.getMessage().contains(CrossGroupLocks.class.getName()), e.getMessage());
         }
-        assertEquals(mtls, queue.awaitTurn("mtls"));
+        assertDoesNotThrow(() -> queue.awaitSlot(tls));
     }
 
     private static NetworkGroup groupOf(final Class<?> clazz, final String methodName) throws Exception {
@@ -64,12 +64,12 @@ class SharedMultiNetworkLauncherSessionListenerTest {
     }
 
     @Disabled("Fixture for validateOneGroupPerClass")
-    @ResourceLock("ledgerA_mtls")
-    @ResourceLock("ledgerB_mtls")
+    @ResourceLock("ledgerA_tls")
+    @ResourceLock("ledgerB_tls")
     @ResourceLock("NETWORK")
     static class OneGroupLocks {
-        @MultiNetworkHapiTest({@Network("ledgerA_mtls"), @Network("ledgerB_mtls")})
-        Stream<DynamicTest> mtls() {
+        @MultiNetworkHapiTest({@Network("ledgerA_tls"), @Network("ledgerB_tls")})
+        Stream<DynamicTest> tls() {
             return Stream.empty();
         }
     }
