@@ -225,7 +225,7 @@ jobs:
           git config --global core.eol lf
 
       # setup-gradle keeps an existing ~/.gradle, which can sit on a different drive than the checkout
-      # (windows-2022 20261025.346.1 ships C:\Users\runneradmin\.gradle with the checkout on D:).
+      # (windows-2022 20261025.346.1 (and later) ships C:\Users\runneradmin\.gradle with the checkout on D:).
       # The PBJ compiler cannot relativize paths across drives, so place the Gradle User Home next
       # to the checkout.
       - name: Keep Gradle User Home on the Workspace Drive (Windows)
