@@ -65,18 +65,6 @@ jobs:
           VERSIONS=$(bash .github/workflows/support/scripts/resolve-bn-versions.sh)
           echo "Block Node versions under test: ${VERSIONS}"
 
-          # BN Comms downloads plugin jars of the requested version from Maven Central; tag-only alpha/rc builds may
-          # not publish them, so fail here rather than after the legs have taken runners
-          while IFS= read -r v; do
-            for artifact in health roster-bootstrap-tss; do
-              url="https://repo1.maven.org/maven2/org/hiero/block-node/${artifact}/${v#v}/${artifact}-${v#v}.jar"
-              if ! curl -fsSI --retry 3 -o /dev/null "${url}"; then
-                echo "::error::Block Node ${v} has no published plugin jar ${url}; the BN Comms suite cannot run it"
-                exit 1
-              fi
-            done
-          done < <(echo "${VERSIONS}" | jq -r '.[]')
-
           # full cross product: every CN ref x every BN version
           MATRIX=$(jq -nc --argjson cfgs "${CONFIGS}" --argjson bns "${VERSIONS}" \
             '[$cfgs[] as $c | $bns[] | . as $b | $c + {"bn-version": $b}]')
@@ -91,6 +79,20 @@ jobs:
             echo "::warning::BN Comms legs skipped for CN refs without BLOCK_NODE_VERSION support: ${SKIPPED}"
             echo "### BN Comms skipped (ref lacks the BLOCK_NODE_VERSION override): ${SKIPPED}" >> "${GITHUB_STEP_SUMMARY}"
           fi
+
+          # BN Comms downloads plugin jars of the requested version from Maven Central; tag-only alpha/rc builds may
+          # not publish them. Drop only that version's BN Comms legs; the 821 legs deploy via Solo and still run.
+          while IFS= read -r v; do
+            for artifact in health roster-bootstrap-tss; do
+              url="https://repo1.maven.org/maven2/org/hiero/block-node/${artifact}/${v#v}/${artifact}-${v#v}.jar"
+              if ! curl -fsSI --retry 3 -o /dev/null "${url}"; then
+                echo "::warning::BN Comms legs skipped for Block Node ${v}: no published plugin jar ${url}"
+                echo "### BN Comms skipped for BN ${v} (missing plugin jar ${url})" >> "${GITHUB_STEP_SUMMARY}"
+                COMMS_MATRIX=$(echo "${COMMS_MATRIX}" | jq -c --arg v "${v}" '[.[] | select(."bn-version" != $v)]')
+                break
+              fi
+            done
+          done < <(echo "${COMMS_MATRIX}" | jq -r '[.[]."bn-version"] | unique | .[]')
           echo "comms-matrix=${COMMS_MATRIX}" >> "${GITHUB_OUTPUT}"
           {
             echo "### Block Node regression legs"
