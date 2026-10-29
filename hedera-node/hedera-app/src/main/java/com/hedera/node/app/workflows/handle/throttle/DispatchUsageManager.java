@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.throttle;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CHANNEL;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SUBMIT_BUNDLE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
@@ -10,10 +12,12 @@ import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_ASSOCIATE_TO_A
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.populateEthTxData;
 import static com.hedera.node.app.spi.workflows.HandleContext.ConsensusThrottling.ON;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_GAS_RESERVATION;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static com.hedera.node.app.throttle.ThrottleAccumulator.canAutoAssociate;
 import static com.hedera.node.app.throttle.ThrottleAccumulator.canAutoCreate;
+import static com.hedera.node.app.throttle.ThrottleAccumulator.isPayerThrottleExempt;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.EvmHookCall;
@@ -31,7 +35,9 @@ import com.hedera.node.app.throttle.CongestionThrottleService;
 import com.hedera.node.app.throttle.NetworkUtilizationManager;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
+import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.handle.Dispatch;
+import com.hedera.node.config.data.ClprConfig;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.EntitiesConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -82,6 +88,13 @@ public class DispatchUsageManager {
                 throw ThrottleException.newGasThrottleException();
             } else if (isThrottled) {
                 throw ThrottleException.newNativeThrottleException();
+            }
+            final var txnInfo = dispatch.txnInfo();
+            if ((txnInfo.functionality() == CLPR_COMPLETE_CHANNEL || txnInfo.functionality() == CLPR_SUBMIT_BUNDLE)
+                    && dispatch.config().getConfigData(ClprConfig.class).enabled()
+                    && dispatch.config().getConfigData(ContractsConfig.class).throttleThrottleByGas()
+                    && !isPayerThrottleExempt(txnInfo, dispatch.config())) {
+                dispatch.handleContext().dispatchMetadata().putMetadata(CLPR_GAS_RESERVATION, txnInfo);
             }
             // Persist this dispatch's tracked usage into its own savepoint immediately, so that a
             // subsequently dispatched child that resets its throttles from state sees this dispatch's
@@ -134,7 +147,13 @@ public class DispatchUsageManager {
                 final var txnInfo = dispatch.txnInfo();
                 final var gasLimitForContractTx = getGasLimitForContractTx(txnInfo.txBody(), txnInfo.functionality());
                 final var excessAmount = gasLimitForContractTx - gasUsed;
-                networkUtilizationManager.leakUnusedGasPreviouslyReserved(txnInfo, excessAmount);
+                // A verifier child spends its parent's reservation, including for otherwise exempt node payers.
+                // Use the reserving transaction when applying the payer exemption during the refund.
+                final var reservation = dispatch.handleContext()
+                        .dispatchMetadata()
+                        .getMetadata(CLPR_GAS_RESERVATION, TransactionInfo.class)
+                        .orElse(txnInfo);
+                networkUtilizationManager.leakUnusedGasPreviouslyReserved(reservation, excessAmount);
             }
         }
     }

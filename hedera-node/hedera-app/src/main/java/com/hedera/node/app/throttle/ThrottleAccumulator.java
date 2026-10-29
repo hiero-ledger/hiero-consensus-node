@@ -389,7 +389,7 @@ public class ThrottleAccumulator {
             return;
         }
         final var configuration = configSupplier.get();
-        if (throttleExempt(txnInfo.payerID(), configuration)) {
+        if (isPayerThrottleExempt(txnInfo, configuration)) {
             return;
         }
 
@@ -599,11 +599,7 @@ public class ThrottleAccumulator {
         // MonoMultiplierSources.java)
         // While CLPR is enabled, node-generated bundles must consume the dedicated CLPR capacity
         // even though their node-account payers are otherwise exempt from throttling.
-        final boolean consumesClprBundleCapacity = function == CLPR_SUBMIT_BUNDLE
-                && configuration.getConfigData(ClprConfig.class).enabled();
-        final boolean isPayerThrottleExempt =
-                !consumesClprBundleCapacity && throttleExempt(txnInfo.payerID(), configuration);
-        if (isPayerThrottleExempt) {
+        if (isPayerThrottleExempt(txnInfo, configuration)) {
             return false;
         }
 
@@ -797,6 +793,21 @@ public class ThrottleAccumulator {
             }
             return false;
         }
+    }
+
+    /**
+     * Whether the transaction's payer is exempt from reserving throttle capacity.
+     * Enabled CLPR bundles reserve capacity even when submitted by an otherwise exempt node account.
+     *
+     * @param txnInfo the transaction
+     * @param configuration the configuration
+     * @return whether the payer is exempt
+     */
+    public static boolean isPayerThrottleExempt(
+            @NonNull final TransactionInfo txnInfo, @NonNull final Configuration configuration) {
+        return !(txnInfo.functionality() == CLPR_SUBMIT_BUNDLE
+                        && configuration.getConfigData(ClprConfig.class).enabled())
+                && throttleExempt(txnInfo.payerID(), configuration);
     }
 
     private static boolean throttleExempt(

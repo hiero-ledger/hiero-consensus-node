@@ -151,6 +151,7 @@ class AtomicBatchHandlerTest {
             HederaFunctionality.CLPR_REGISTER_CHANNEL,
             HederaFunctionality.CLPR_COMPLETE_CHANNEL,
             HederaFunctionality.CLPR_CLOSE_CHANNEL,
+            HederaFunctionality.CLPR_EVICT_PEER_ENDPOINT,
             HederaFunctionality.CLPR_SUBMIT_BUNDLE,
             HederaFunctionality.CLPR_REGISTER_CONNECTOR,
             HederaFunctionality.CLPR_DEREGISTER_CONNECTOR,
