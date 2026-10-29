@@ -1,6 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.gossip.impl.jmh;
 
+import static org.hiero.consensus.benchmark.tools.event.EmpiricalDistribution.constant;
+import static org.hiero.consensus.benchmark.tools.event.EventShape.MAINNET;
+import static org.hiero.consensus.gossip.impl.gossip.sync.SyncInputStream.createSyncInputStream;
+import static org.hiero.consensus.gossip.impl.gossip.sync.SyncOutputStream.createSyncOutputStream;
+import static org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory.randomRosterWithKeys;
+import static org.hiero.consensus.test.fixtures.WeightGenerators.GAUSSIAN;
+
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -14,13 +21,14 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
-import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.SigningSchema;
+import org.hiero.consensus.benchmark.tools.event.EventShape;
+import org.hiero.consensus.benchmark.tools.event.EventStreamGenerator;
 import org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler;
 import org.hiero.consensus.benchmark.tools.histogram.LatencyRecorder;
 import org.hiero.consensus.gossip.config.SocketConfig;
@@ -28,9 +36,7 @@ import org.hiero.consensus.gossip.impl.gossip.sync.SyncInputStream;
 import org.hiero.consensus.gossip.impl.gossip.sync.SyncOutputStream;
 import org.hiero.consensus.model.event.EventHashFactory;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.hashgraph.ConsensusConstants;
-import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
+import org.hiero.consensus.model.test.fixtures.roster.RosterWithKeys;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -59,15 +65,16 @@ import org.openjdk.jmh.annotations.Warmup;
  * and its encryption are not measured. Like the stream of a connection, the output stream lives for the whole trial;
  * the input stream is new for every pass, because it is read to its end.
  *
- * <p>Every event has a self parent and {@value #OTHER_PARENTS} other parents, the most that the default
- * {@code maxOtherParents} of event creation allows, and a signature of the length of an RSA signature. The number of
- * transactions per event is a parameter: on mainnet, events carry fewer than 0.1 transactions on average (metric
- * {@code trans_per_event}), so most carry none. A transaction has {@value #TRANSACTION_SIZE} bytes, the mainnet mean of
- * the metric {@code bytes_per_trans} over the 30 days before October 2026. Every event and every parent's hash uses
- * SHA-256, as past the event cutover.
+ * <p>The cost grows with the size of an event: its parents, its transactions, and its signature. The events take their
+ * shape from mainnet's ({@link EventShape#MAINNET}): a self parent and the median number of other parents, four, and
+ * transactions of the median size, 470 bytes. The number of transactions per event is a parameter, at two quantiles of
+ * mainnet's events: 0, the median (96% of the events carry none), and 2, the 99th percentile. Every event is signed
+ * with an RSA key, as mainnet's events are, so its signature has 384 bytes; only the length matters here. Every hash is
+ * a SHA-256 hash, as in production after the event cutover.
  *
- * <p>The events are generated once per trial from a fixed seed. The SHA-256 digest of their serialized form must equal
- * a constant; it changes when the event builder changes.
+ * <p>{@link EventStreamGenerator} generates the events once per trial from a fixed seed, as a node receives them
+ * through gossip. The SHA-256 digest of their serialized form must equal a constant; it changes when the generated
+ * events change.
  *
  * <p>{@code write} writes the same events in every pass. The records compute their encoded size on first use and keep
  * it. Production writes the same record to every peer, so only the write to the first peer computes the size; this
@@ -82,18 +89,13 @@ import org.openjdk.jmh.annotations.Warmup;
  * ({@link LatencyRecorder#lap()}). {@link LatencyProfiler} reports the percentiles and the allocation per call. The
  * allocation is measured around the timed calls only, because {@code -prof gc} also counts the setup.
  *
- * <p>The first call of a {@code read} pass, right after the setup, reads an event but is not timed. On an Apple M4
- * laptop, its median was 6.6–7.0 µs without transactions and 7.8–8.3 µs with one, against about 0.75 µs for the other
- * calls; the second call was already as fast as the rest. One call in {@value #NUMBER_OF_EVENTS} is exactly the share
- * above p99.99, so timing it would put the setup into p99.99. No such setup precedes an event in production.
- * {@code write} has no setup before its passes, and its first call was as fast as the others, so it times every call.
+ * <p>The first call of a {@code read} pass, right after the setup, reads an event but is not timed. It is several times
+ * slower than the others, and one call in {@value #NUMBER_OF_EVENTS} is exactly the share above p99.99, so timing it
+ * would put the setup into p99.99. No such setup precedes an event in production. {@code write} has no setup before
+ * its passes, and its first call is as fast as the others, so it times every call.
  *
- * <p>Writing or reading an event takes so little time that the timing is a noticeable part of every latency. On an
- * Apple M4 laptop, {@code lap()} added 8.8–14.4 ns to a call of {@code write} (2.1–3.5% of the timed call) and
- * 6.1–9.4 ns to a call of {@code read} (0.8–1.3% of a call of about 0.75 µs), measured with and without laps in chunks
- * interleaved in the same run; on the benchmark machine it is unmeasured. A CPU profile overstates this share, at
- * 4.2–6.1% and 2.3–3.4%. The share is about constant, so a regression still shows in full nanoseconds, but as a
- * slightly smaller percentage.
+ * <p>Writing or reading an event takes so little time that the timing is a noticeable part of every latency. The share
+ * is about constant, so a regression still shows in full nanoseconds, but as a slightly smaller percentage.
  *
  * <p>{@code read} allocates the events it reads, so each of its invocations' setups ends with {@code System.gc()}, and
  * usually no garbage collection falls into the measured calls. {@code write} allocates nothing, neither in its calls
@@ -110,35 +112,29 @@ import org.openjdk.jmh.annotations.Warmup;
 @Measurement(iterations = 2, time = 10)
 public class GossipEventSerializationBenchmark {
 
-    /** The seed of the random number generator. The same seed produces the same events. */
+    /** The seed of the random number generators. The same seed produces the same keys and events. */
     private static final long SEED = 0;
 
     /** The number of events written or read in one invocation. */
     private static final int NUMBER_OF_EVENTS = 10_000;
 
-    /** The number of nodes that create the events. It only has to exceed the number of parents of an event. */
-    private static final int NUMBER_OF_NODES = 10;
-
-    /** The number of other parents of every event, the default {@code maxOtherParents} of event creation. */
-    private static final int OTHER_PARENTS = 4;
-
-    /** The size of a transaction in bytes, the mainnet mean. */
-    private static final int TRANSACTION_SIZE = 445;
+    /** The number of nodes that create the events: 32, as in the other consensus-layer benchmarks. */
+    private static final int NUMBER_OF_NODES = 32;
 
     /**
      * The SHA-256 digest of the serialized form of all events, by the number of transactions per event. A change to
-     * the event builder changes it.
+     * the generated events changes it.
      */
     private static final Map<Integer, String> EXPECTED_DIGESTS = Map.of(
-            0, "5ad2e322766b7f5adfa5f2525237015b0085213977b3371257d7e2b189b324fd",
-            1, "cb9e15de47cfab99ca9205b4c4fc9d4a3434be075a2d2c88afb8525ed3636bc6");
+            0, "455abc21859cbacaad422beccbb21bad3c0a13c25caaad9fbfb259f020da2fef",
+            2, "004396a0d6c6990b1c7f37b4577e45d5786c4d5cf606ef2793ad01418673f218");
 
     /** The state of {@code write}: the events and the stream they are written to. */
     @State(Scope.Thread)
     public static class Writer {
 
         /** The number of transactions of every event. */
-        @Param({"0", "1"})
+        @Param({"0", "2"})
         public int transactionsPerEvent;
 
         /** The events, written in every pass. */
@@ -163,14 +159,16 @@ public class GossipEventSerializationBenchmark {
          * @throws IOException if the stream fails
          */
         @Setup(Level.Trial)
-        public void generateEvents() throws IOException {
+        public void setupTrial() throws IOException {
             final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
-            events = GossipEventSerializationBenchmark.generateEvents(transactionsPerEvent);
+            final int bufferSize = configuration.getConfigData(SocketConfig.class).bufferSize();
+
+            events = generateEvents(transactionsPerEvent);
             final byte[] expected = serialize(events);
             expectedBytes = expected.length;
 
             final ByteArrayOutputStream bytes = new ByteArrayOutputStream(expected.length);
-            final SyncOutputStream stream = createOutputStream(configuration, bytes);
+            final SyncOutputStream stream = createSyncOutputStream(configuration, bytes, bufferSize);
             for (final GossipEvent event : events) {
                 stream.writePbjRecord(event, GossipEvent.PROTOBUF);
             }
@@ -179,7 +177,7 @@ public class GossipEventSerializationBenchmark {
                 throw new IllegalStateException("The stream did not write the serialized form of the events");
             }
 
-            output = createOutputStream(configuration, OutputStream.nullOutputStream());
+            output = createSyncOutputStream(configuration, OutputStream.nullOutputStream(), bufferSize);
 
             // Collect the garbage of the setup now, so that it is not collected during the measured calls.
             System.gc();
@@ -218,7 +216,7 @@ public class GossipEventSerializationBenchmark {
     public static class Reader {
 
         /** The number of transactions of every event. */
-        @Param({"0", "1"})
+        @Param({"0", "2"})
         public int transactionsPerEvent;
 
         /** The configuration that the streams are created with. */
@@ -243,9 +241,9 @@ public class GossipEventSerializationBenchmark {
          * Generates and serializes the events. This method is called once per trial.
          */
         @Setup(Level.Trial)
-        public void generateEvents() {
+        public void setupTrial() {
             configuration = new TestConfigBuilder().getOrCreateConfig();
-            expectedEvents = GossipEventSerializationBenchmark.generateEvents(transactionsPerEvent);
+            expectedEvents = generateEvents(transactionsPerEvent);
             serializedEvents = serialize(expectedEvents);
             events = new GossipEvent[NUMBER_OF_EVENTS];
         }
@@ -255,10 +253,8 @@ public class GossipEventSerializationBenchmark {
          */
         @Setup(Level.Invocation)
         public void prepareInvocation() {
-            final int bufferSize =
-                    configuration.getConfigData(SocketConfig.class).bufferSize();
-            input = SyncInputStream.createSyncInputStream(
-                    configuration, new ByteArrayInputStream(serializedEvents), bufferSize);
+            final int bufferSize = configuration.getConfigData(SocketConfig.class).bufferSize();
+            input = createSyncInputStream(configuration, new ByteArrayInputStream(serializedEvents), bufferSize);
             recorder = LatencyProfiler.recorder();
 
             // Collect the garbage of the setup and of the previous invocation now, so that it is not collected during
@@ -267,7 +263,7 @@ public class GossipEventSerializationBenchmark {
         }
 
         /**
-         * Verifies that the pass read every event as it was generated, and all bytes. This method is called once per
+         * Verifies that the pass read every event as it was generated and all bytes. This method is called once per
          * invocation.
          *
          * @throws IOException if the stream fails
@@ -340,86 +336,39 @@ public class GossipEventSerializationBenchmark {
     }
 
     /**
-     * Creates an output stream as production creates it for a connection.
-     *
-     * @param configuration the configuration
-     * @param out           the stream that receives the bytes
-     * @return the output stream
-     */
-    private static SyncOutputStream createOutputStream(final Configuration configuration, final OutputStream out) {
-        final int bufferSize = configuration.getConfigData(SocketConfig.class).bufferSize();
-        return SyncOutputStream.createSyncOutputStream(configuration, out, bufferSize);
-    }
-
-    /**
      * Generates the events from the fixed seed and verifies that their digest equals the expected one.
      *
      * @param transactionsPerEvent the number of transactions of every event
-     * @return the events, in the order of creation
+     * @return the events, in the order they were generated
      */
     private static GossipEvent[] generateEvents(final int transactionsPerEvent) {
-        // Every event is past the cutover: the parents get SHA-256 hashes.
-        EventHashFactory.initialize(ConsensusConstants.ROUND_FIRST);
-        final Random random = new Random(SEED);
+        final EventShape shape = new EventShape(
+                constant(MAINNET.otherParents().median()),
+                constant(transactionsPerEvent),
+                constant(MAINNET.transactionSize().median()));
+        // Every event birth round is past the cutover, so every event is hashed with SHA-256.
+        EventHashFactory.initialize(0);
+        final RosterWithKeys rosterWithKeys =
+                randomRosterWithKeys(new Random(SEED), NUMBER_OF_NODES, GAUSSIAN, SigningSchema.RSA);
+        final List<PlatformEvent> generatedEvents = EventStreamGenerator.generateSignedEvents(
+                shape, rosterWithKeys.roster(), NUMBER_OF_EVENTS, SEED, rosterWithKeys.privateKeys());
 
-        // The first event of every node has no parents. It is a parent only and is not serialized.
-        final PlatformEvent[] latestEvents = new PlatformEvent[NUMBER_OF_NODES];
-        for (int node = 0; node < NUMBER_OF_NODES; node++) {
-            latestEvents[node] = new TestingEventBuilder(random)
-                    .setCreatorId(NodeId.of(node))
-                    .setAppTransactionCount(0)
-                    .build();
-        }
-
-        final List<Integer> otherNodes = new ArrayList<>(NUMBER_OF_NODES - 1);
         final GossipEvent[] events = new GossipEvent[NUMBER_OF_EVENTS];
         for (int i = 0; i < NUMBER_OF_EVENTS; i++) {
-            final int creator = i % NUMBER_OF_NODES;
-            otherNodes.clear();
-            for (int node = 0; node < NUMBER_OF_NODES; node++) {
-                if (node != creator) {
-                    otherNodes.add(node);
-                }
-            }
-            Collections.shuffle(otherNodes, random);
-            final List<PlatformEvent> otherParents = new ArrayList<>(OTHER_PARENTS);
-            for (int j = 0; j < OTHER_PARENTS; j++) {
-                otherParents.add(latestEvents[otherNodes.get(j)]);
-            }
-            final PlatformEvent event = new TestingEventBuilder(random)
-                    .setSelfParent(latestEvents[creator])
-                    .setOtherParents(otherParents)
-                    .setAppTransactionCount(transactionsPerEvent)
-                    .setTransactionSize(TRANSACTION_SIZE)
-                    .build();
-            latestEvents[creator] = event;
-            events[i] = event.getGossipEvent();
+            events[i] = generatedEvents.get(i).getGossipEvent();
         }
-        verifyEvents(events, transactionsPerEvent);
+        verifyDigest(events, transactionsPerEvent);
         return events;
     }
 
     /**
-     * Verifies that every event has the parents and transactions that set the work, and that the digest of the
-     * serialized events equals the expected one, so that a change to the event builder cannot change the work
-     * unnoticed.
+     * Verifies that the digest of the serialized events equals the expected one, so that a change to the generated
+     * events cannot change the work unnoticed.
      *
      * @param events               the events
      * @param transactionsPerEvent the number of transactions of every event
      */
-    private static void verifyEvents(final GossipEvent[] events, final int transactionsPerEvent) {
-        for (final GossipEvent event : events) {
-            final boolean expectedParents = event.parents().size() == 1 + OTHER_PARENTS
-                    && event.parents().stream()
-                            .allMatch(parent -> parent.hash().length() == DigestType.SHA_256.digestLength());
-            final boolean expectedTransactions = event.transactions().size() == transactionsPerEvent
-                    && event.transactions().stream().allMatch(transaction -> transaction.length() == TRANSACTION_SIZE);
-            if (!expectedParents || !expectedTransactions) {
-                throw new IllegalStateException(
-                        "Expected events with %d parents with SHA-256 hashes and %d transactions of %d bytes, but got %s"
-                                .formatted(1 + OTHER_PARENTS, transactionsPerEvent, TRANSACTION_SIZE, event));
-            }
-        }
+    private static void verifyDigest(final GossipEvent[] events, final int transactionsPerEvent) {
         final String actual;
         try {
             actual = HexFormat.of()
