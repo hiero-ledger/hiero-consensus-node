@@ -139,6 +139,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private final ConfigProvider configProvider;
     private final Supplier<BlockItemWriter> writerSupplier;
     private final BoundaryStateChangeListener boundaryStateChangeListener;
+    private final ImmediateStateChangeListener immediateStateChangeListener;
 
     @Nullable
     private final BlockProvenStateAccessor blockProvenStateAccessor;
@@ -293,6 +294,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             @NonNull final ExecutorService executor,
             @NonNull final ConfigProvider configProvider,
             @NonNull final BoundaryStateChangeListener boundaryStateChangeListener,
+            @NonNull final ImmediateStateChangeListener immediateStateChangeListener,
             @NonNull final Platform platform,
             @NonNull final QuiescenceController quiescenceController,
             @NonNull final InitialStateHash initialStateHash,
@@ -309,6 +311,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         this.writerSupplier = requireNonNull(writerSupplier);
         this.executor = (ForkJoinPool) requireNonNull(executor);
         this.boundaryStateChangeListener = requireNonNull(boundaryStateChangeListener);
+        this.immediateStateChangeListener = requireNonNull(immediateStateChangeListener);
         this.lifecycle = requireNonNull(lifecycle);
         this.configProvider = requireNonNull(configProvider);
         this.quiescedHeartbeat = requireNonNull(quiescedHeartbeat);
@@ -649,6 +652,15 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             blockHashManager.startBlock(blockStreamInfo, trailingHash, postCutover);
             runningHashManager.startBlock(blockStreamInfo, isCutoverBlock);
 
+            // Genesis externalizes values already initialized in the node (including an unchanged
+            // PlatformState). Readers have no baseline yet, so the entire genesis block must stay full.
+            // Fix the encoding mode before onOpenBlock, whose commits belong to this block.
+            final boolean hasReplayBaseline = pendingWork != GENESIS_WORK;
+            final boolean stateChangeDeltasEnabled = hasReplayBaseline && blockStreamConfig.stateChangeDeltasEnabled();
+            final int deltaMinSaving = blockStreamConfig.stateChangeDeltaMinSaving();
+            immediateStateChangeListener.beginBlock(stateChangeDeltasEnabled, deltaMinSaving);
+            boundaryStateChangeListener.beginBlock(stateChangeDeltasEnabled, deltaMinSaving);
+
             lifecycle.onOpenBlock(state);
 
             resetSubtrees();
@@ -886,7 +898,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             quiescenceController.finishHandlingInProgressBlock();
             state.commitSingletons();
             // Flush all boundary state changes besides the BlockStreamInfo
-            writeItem(flushChangesFromListener(boundaryStateChangeListener));
+            flushChangesFromListener(boundaryStateChangeListener, true);
             worker.sync();
 
             // This block's starting state hash is the end state hash of the last non-empty round
@@ -941,8 +953,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             blockStreamInfoState.put(newBlockStreamInfo);
             ((CommittableWritableStates) writableState).commit();
 
-            // Produce one more state change item (i.e. putting the block stream info just constructed into state)
-            writeItem(flushChangesFromListener(boundaryStateChangeListener));
+            // Keep this final checkpoint full: reconstructLastBlockHash recreates its exact bytes from saved state.
+            flushChangesFromListener(boundaryStateChangeListener, false);
             worker.sync();
 
             final var stateChangesHash = Bytes.wrap(stateChangesHasher.computeRootHash());
@@ -1980,10 +1992,13 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         return Optional.ofNullable(eventIndexInBlock.get(eventHash));
     }
 
-    private BlockItem flushChangesFromListener(@NonNull final BoundaryStateChangeListener boundaryStateChangeListener) {
-        final var stateChanges = new StateChanges(lastUsedTime, boundaryStateChangeListener.allStateChanges());
-        boundaryStateChangeListener.reset();
-        return BlockItem.newBuilder().stateChanges(stateChanges).build();
+    private void flushChangesFromListener(
+            @NonNull final BoundaryStateChangeListener boundaryStateChangeListener, final boolean allowPartial) {
+        final var changes = boundaryStateChangeListener.allStateChanges(allowPartial);
+        writeItem(BlockItem.newBuilder()
+                .stateChanges(new StateChanges(lastUsedTime, changes))
+                .build());
+        boundaryStateChangeListener.stateChangesEmitted(changes);
     }
 
     /**

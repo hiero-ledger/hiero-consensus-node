@@ -4,6 +4,7 @@ package com.hedera.services.bdd.spec.utilops.streams.assertions;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.Block;
+import com.hedera.node.app.hapi.utils.blocks.StateChangeReconstructor;
 import com.hedera.services.bdd.junit.hedera.BlockNodeReader;
 import com.hedera.services.bdd.junit.support.BlockSourceFactory;
 import com.hedera.services.bdd.junit.support.StreamDataListener;
@@ -115,6 +116,16 @@ public class EventualBlockStreamAssertion extends AbstractEventualStreamAssertio
             }
 
             @Override
+            public boolean wantsFullStateValues() {
+                return assertion.wantsFullStateValues();
+            }
+
+            @Override
+            public void onBlockError(@NonNull final Throwable error) {
+                result.fail("Cannot reconstruct full block state values: " + error);
+            }
+
+            @Override
             public void onNewBlock(@NonNull final Block block) {
                 requireNonNull(block);
                 if (isDone()) {
@@ -155,14 +166,18 @@ public class EventualBlockStreamAssertion extends AbstractEventualStreamAssertio
         return BlockNodeReader.forActiveNetwork()
                 .map(reader -> {
                     final var rescan = assertionFactory.apply(spec);
+                    // The rescan starts at block 0, so every partial update has its baseline
+                    final var reconstructor = rescan.wantsFullStateValues() ? new StateChangeReconstructor() : null;
                     try {
                         for (final var block : reader.allBlocks()) {
-                            if (rescan.test(block)) {
+                            if (rescan.test(
+                                    reconstructor == null ? block : reconstructor.fullValuesForTranslation(block))) {
                                 return true;
                             }
                         }
-                    } catch (final AssertionError ignore) {
-                        // A failure during rescan is not a spurious timeout; let the original result stand.
+                    } catch (final AssertionError | IllegalArgumentException ignore) {
+                        // A failure during rescan (including an unrecoverable partial update) is not a
+                        // spurious timeout; let the original result stand.
                         return false;
                     }
                     return false;

@@ -66,7 +66,9 @@ import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.blocks.InitialStateHash;
 import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.OnDiskPendingBlock;
 import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
+import com.hedera.node.app.hapi.utils.blocks.StateChangeDeltas;
 import com.hedera.node.app.hints.impl.HintsContext;
+import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.records.BlockRecordService;
@@ -115,6 +117,7 @@ import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
@@ -124,12 +127,16 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.function.Executable;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class BlockStreamManagerImplTest {
+    private final ImmediateStateChangeListener deltaListener = new ImmediateStateChangeListener();
+    private boolean stateChangeDeltasEnabled;
     private static final int SHA_384_HASH_SIZE = DigestType.SHA_384.digestLength();
 
     private static final SemanticVersion CREATION_VERSION = new SemanticVersion(1, 2, 3, "alpha.1", "2");
@@ -261,6 +268,14 @@ class BlockStreamManagerImplTest {
                     ? blockSizeCircuitBreakerTripsCounter
                     : indirectProofsCounter;
         });
+    }
+
+    @Test
+    void restartReconstructsTheHistoricalCheckpointHash() {
+        assertEquals(
+                FAKE_EMPTY_RESULTS_RESTART_HASH,
+                BlockStreamManagerImpl.reconstructLastBlockHash(
+                        blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION), DigestType.SHA_384));
     }
 
     @Test
@@ -697,6 +712,217 @@ class BlockStreamManagerImplTest {
         verify(aWriter).writePbjItemAndBytes(eq(FAKE_SIGNED_TRANSACTION), any());
     }
 
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void genesisPublishesInitializedSingletonInFullEvenWhenUnchanged(final boolean enableDeltas) {
+        stateChangeDeltasEnabled = enableDeltas;
+        boundaryStateChangeListener = new BoundaryStateChangeListener(
+                new StoreMetricsServiceImpl(new NoOpMetrics()), HederaTestConfigBuilder::createConfig);
+        givenSubjectWith(
+                1, 0, StreamMode.BLOCKS, 0, false, BlockStreamInfo.DEFAULT, platformStateWithFreezeTime(null), aWriter);
+        givenEndOfRoundSetup();
+        subject.init(state, HASH_OF_ZERO_384);
+        subject.startRound(round, state);
+
+        // Genesis setup writes an already initialized value to establish the reader's first baseline.
+        final var initialized = PlatformState.newBuilder()
+                .legacyRunningEventHash(Bytes.wrap(new byte[100]))
+                .build();
+        boundaryStateChangeListener.singletonUpdateChange(PLATFORM_STATE_STATE_ID, initialized, initialized);
+        final var item = BlockItem.newBuilder()
+                .stateChanges(new StateChanges(CONSENSUS_THEN, boundaryStateChangeListener.allStateChanges()))
+                .build();
+        subject.writeItem(item);
+        subject.prngSeed();
+
+        final var update = item.stateChangesOrThrow().stateChanges().getFirst().singletonUpdateOrThrow();
+        assertFalse(update.partial());
+        assertEquals(initialized, StateChangeDeltas.applySingleton(PLATFORM_STATE_STATE_ID, null, update));
+        assertFalse(deltaListener.requiresPreviousValue());
+        assertFalse(boundaryStateChangeListener.requiresPreviousValue());
+        verify(aWriter).writePbjItemAndBytes(item, BlockItem.PROTOBUF.toBytes(item));
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void onOpenBlockCommitsUseTheNewBlocksDeltaMode(final boolean enableDeltas) {
+        stateChangeDeltasEnabled = enableDeltas;
+        givenSubjectWith(
+                1,
+                0,
+                StreamMode.BLOCKS,
+                0,
+                false,
+                blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        // The previous block ran in the opposite mode; commits made while opening this block must not inherit it.
+        deltaListener.beginBlock(!enableDeltas);
+        final var deltasAtOpen = new AtomicReference<Boolean>();
+        doAnswer(invocation -> {
+                    deltasAtOpen.set(deltaListener.requiresPreviousValue());
+                    return null;
+                })
+                .when(lifecycle)
+                .onOpenBlock(any());
+
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+
+        assertEquals(enableDeltas, deltasAtOpen.get());
+    }
+
+    @Test
+    void commitEncodedDeltasReachWriterWithMatchingBytes() {
+        stateChangeDeltasEnabled = true;
+        givenSubjectWith(
+                1,
+                0,
+                StreamMode.BLOCKS,
+                0,
+                false,
+                blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+        final var key =
+                com.hedera.hapi.node.base.AccountID.newBuilder().accountNum(123).build();
+        final var prior = com.hedera.hapi.node.state.token.Account.newBuilder()
+                .memo("preserved".repeat(20))
+                .tinybarBalance(7)
+                .build();
+        final var next = prior.copyBuilder().tinybarBalance(8).build();
+        final int stateId = com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ACCOUNTS.protoOrdinal();
+        deltaListener.mapUpdateChange(stateId, key, prior, next);
+        final var itemAtCommit = BlockItem.newBuilder()
+                .stateChanges(StateChanges.newBuilder()
+                        .consensusTimestamp(CONSENSUS_THEN)
+                        .stateChanges(List.copyOf(deltaListener.getKvStateChanges())))
+                .build();
+        assertTrue(itemAtCommit
+                .stateChangesOrThrow()
+                .stateChanges()
+                .getFirst()
+                .mapUpdateOrThrow()
+                .partial());
+        deltaListener.reset(null);
+        final int fileStateId = com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_FILES.protoOrdinal();
+        final var fileId =
+                com.hedera.hapi.node.base.FileID.newBuilder().fileNum(123).build();
+        final var oldFile = com.hedera.hapi.node.state.file.File.newBuilder()
+                .fileId(fileId)
+                .contents(Bytes.wrap("a".repeat(1024)))
+                .memo("preserved".repeat(20))
+                .build();
+        final var newFile = oldFile.copyBuilder()
+                .contents(Bytes.wrap("a".repeat(1024) + "suffix"))
+                .build();
+        deltaListener.mapUpdateChange(fileStateId, fileId, oldFile, newFile);
+        final var fileItemAtCommit = BlockItem.newBuilder()
+                .stateChanges(StateChanges.newBuilder()
+                        .consensusTimestamp(CONSENSUS_THEN)
+                        .stateChanges(List.copyOf(deltaListener.getKvStateChanges())))
+                .build();
+        subject.writeSavepointItems(List.of(itemAtCommit, fileItemAtCommit), CONSENSUS_NOW);
+        subject.prngSeed(); // synchronizes the serialization/hashing worker
+        final var itemCaptor = org.mockito.ArgumentCaptor.forClass(BlockItem.class);
+        final var bytesCaptor = org.mockito.ArgumentCaptor.forClass(Bytes.class);
+        verify(aWriter, org.mockito.Mockito.atLeastOnce())
+                .writePbjItemAndBytes(itemCaptor.capture(), bytesCaptor.capture());
+        final var items = itemCaptor.getAllValues();
+        final var emitted =
+                items.stream().filter(BlockItem::hasStateChanges).findFirst().orElseThrow();
+        final var update =
+                emitted.stateChangesOrThrow().stateChanges().getFirst().mapUpdateOrThrow();
+        assertTrue(update.partial());
+        assertEquals(next, com.hedera.node.app.hapi.utils.blocks.StateChangeDeltas.applyMap(stateId, prior, update));
+        final var fileItem = items.stream()
+                .filter(BlockItem::hasStateChanges)
+                .filter(item ->
+                        item.stateChangesOrThrow().stateChanges().getFirst().stateId() == fileStateId)
+                .findFirst()
+                .orElseThrow();
+        final var fileUpdate =
+                fileItem.stateChangesOrThrow().stateChanges().getFirst().mapUpdateOrThrow();
+        assertEquals(
+                newFile.contents(), fileUpdate.valueOrThrow().fileValueOrThrow().contents());
+        assertTrue(fileUpdate.clearedFields().isEmpty());
+        assertEquals(
+                newFile,
+                com.hedera.node.app.hapi.utils.blocks.StateChangeDeltas.applyMap(fileStateId, oldFile, fileUpdate));
+        assertEquals(
+                BlockItem.PROTOBUF.toBytes(fileItem), bytesCaptor.getAllValues().get(items.indexOf(fileItem)));
+        assertEquals(
+                BlockItem.PROTOBUF.toBytes(emitted), bytesCaptor.getAllValues().get(items.indexOf(emitted)));
+    }
+
+    @Test
+    void blockCloseConsumesDeferredSingletonsAndPublishesAFullCheckpoint() {
+        stateChangeDeltasEnabled = true;
+        boundaryStateChangeListener = new BoundaryStateChangeListener(
+                new StoreMetricsServiceImpl(new NoOpMetrics()), HederaTestConfigBuilder::createConfig);
+        givenSubjectWith(
+                1,
+                0,
+                StreamMode.BLOCKS,
+                0,
+                false,
+                blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        blockStreamInfoState.registerListener(new com.swirlds.state.spi.SingletonChangeListener<>() {
+            @Override
+            public boolean requiresPreviousValue() {
+                return boundaryStateChangeListener.requiresPreviousValue(BLOCK_STREAM_INFO_STATE_ID);
+            }
+
+            @Override
+            public void singletonUpdateChange(final BlockStreamInfo value) {
+                boundaryStateChangeListener.singletonUpdateChange(BLOCK_STREAM_INFO_STATE_ID, value);
+            }
+
+            @Override
+            public void singletonUpdateChange(final BlockStreamInfo prior, final BlockStreamInfo value) {
+                boundaryStateChangeListener.singletonUpdateChange(BLOCK_STREAM_INFO_STATE_ID, prior, value);
+            }
+        });
+        given(blockHashSigner.isReady()).willReturn(true);
+        given(blockHashSigner.sign(any(), any()))
+                .willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
+        given(mockSigningFuture.thenAcceptAsync(any())).willReturn(completedFuture(null));
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+        final var prior = com.hedera.hapi.node.state.entity.EntityCounts.newBuilder()
+                .numAccounts(10)
+                .build();
+        final var next = prior.copyBuilder().numAccounts(11).build();
+        final int countsId = com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ENTITY_COUNTS.protoOrdinal();
+        boundaryStateChangeListener.singletonUpdateChange(countsId, prior, next);
+        subject.endRound(state, ROUND_NO);
+
+        final var items = org.mockito.ArgumentCaptor.forClass(BlockItem.class);
+        verify(aWriter, org.mockito.Mockito.atLeastOnce()).writePbjItemAndBytes(items.capture(), any());
+        final var changes = items.getAllValues().stream()
+                .filter(BlockItem::hasStateChanges)
+                .flatMap(item -> item.stateChangesOrThrow().stateChanges().stream())
+                .toList();
+        assertEquals(2, changes.size());
+        assertEquals(countsId, changes.getFirst().stateId());
+        assertEquals(
+                next,
+                StateChangeDeltas.applySingleton(
+                        countsId, prior, changes.getFirst().singletonUpdateOrThrow()));
+        assertEquals(BLOCK_STREAM_INFO_STATE_ID, changes.getLast().stateId());
+        final var checkpoint = changes.getLast().singletonUpdateOrThrow();
+        assertFalse(checkpoint.partial());
+        assertEquals(infoRef.get(), checkpoint.blockStreamInfoValueOrThrow());
+        assertTrue(boundaryStateChangeListener.allStateChanges().isEmpty());
+    }
+
     @Test
     void refreshesCircuitBreakerConfigurationAtTheStartOfEveryBlock() {
         givenSubjectWith(
@@ -785,6 +1011,7 @@ class BlockStreamManagerImplTest {
                 ForkJoinPool.commonPool(),
                 configProvider,
                 boundaryStateChangeListener,
+                deltaListener,
                 platform,
                 quiescenceController,
                 hashInfo,
@@ -813,6 +1040,7 @@ class BlockStreamManagerImplTest {
                 ForkJoinPool.commonPool(),
                 configProvider,
                 boundaryStateChangeListener,
+                deltaListener,
                 platform,
                 quiescenceController,
                 hashInfo,
@@ -856,6 +1084,7 @@ class BlockStreamManagerImplTest {
                 ForkJoinPool.commonPool(),
                 configProvider,
                 boundaryStateChangeListener,
+                deltaListener,
                 platform,
                 quiescenceController,
                 hashInfo,
@@ -901,6 +1130,7 @@ class BlockStreamManagerImplTest {
                 ForkJoinPool.commonPool(),
                 configProvider,
                 boundaryStateChangeListener,
+                deltaListener,
                 platform,
                 quiescenceController,
                 hashInfo,
@@ -931,6 +1161,7 @@ class BlockStreamManagerImplTest {
                 ForkJoinPool.commonPool(),
                 configProvider,
                 boundaryStateChangeListener,
+                deltaListener,
                 platform,
                 quiescenceController,
                 hashInfo,
@@ -2411,6 +2642,7 @@ class BlockStreamManagerImplTest {
                 ForkJoinPool.commonPool(),
                 configProvider,
                 boundaryStateChangeListener,
+                deltaListener,
                 platform,
                 quiescenceController,
                 hashInfo,
@@ -2447,6 +2679,7 @@ class BlockStreamManagerImplTest {
                 ForkJoinPool.commonPool(),
                 configProvider,
                 boundaryStateChangeListener,
+                deltaListener,
                 platform,
                 quiescenceController,
                 hashInfo,
@@ -2484,6 +2717,7 @@ class BlockStreamManagerImplTest {
                 ForkJoinPool.commonPool(),
                 configProvider,
                 boundaryStateChangeListener,
+                deltaListener,
                 platform,
                 quiescenceController,
                 hashInfo,
@@ -2539,6 +2773,7 @@ class BlockStreamManagerImplTest {
                 ForkJoinPool.commonPool(),
                 configProvider,
                 boundaryStateChangeListener,
+                deltaListener,
                 platform,
                 quiescenceController,
                 hashInfo,
@@ -2590,6 +2825,7 @@ class BlockStreamManagerImplTest {
                 ForkJoinPool.commonPool(),
                 configProvider,
                 boundaryStateChangeListener,
+                deltaListener,
                 platform,
                 quiescenceController,
                 hashInfo,
@@ -2643,6 +2879,7 @@ class BlockStreamManagerImplTest {
                 ForkJoinPool.commonPool(),
                 configProvider,
                 boundaryStateChangeListener,
+                deltaListener,
                 platform,
                 quiescenceController,
                 hashInfo,
@@ -2734,6 +2971,7 @@ class BlockStreamManagerImplTest {
                 ForkJoinPool.commonPool(),
                 configProvider,
                 boundaryStateChangeListener,
+                deltaListener,
                 platform,
                 quiescenceController,
                 hashInfo,
@@ -2834,6 +3072,7 @@ class BlockStreamManagerImplTest {
                 ForkJoinPool.commonPool(),
                 configProvider,
                 boundaryStateChangeListener,
+                deltaListener,
                 platform,
                 quiescenceController,
                 hashInfo,
@@ -2884,6 +3123,7 @@ class BlockStreamManagerImplTest {
                 ForkJoinPool.commonPool(),
                 configProvider,
                 boundaryStateChangeListener,
+                deltaListener,
                 platform,
                 quiescenceController,
                 hashInfo,
@@ -2974,6 +3214,7 @@ class BlockStreamManagerImplTest {
                 ForkJoinPool.commonPool(),
                 configProvider,
                 boundaryStateChangeListener,
+                deltaListener,
                 platform,
                 quiescenceController,
                 hashInfo,
@@ -3078,6 +3319,7 @@ class BlockStreamManagerImplTest {
                 ForkJoinPool.commonPool(),
                 configProvider,
                 boundaryStateChangeListener,
+                deltaListener,
                 platform,
                 quiescenceController,
                 hashInfo,
@@ -3267,6 +3509,7 @@ class BlockStreamManagerImplTest {
                 ForkJoinPool.commonPool(),
                 configProvider,
                 boundaryStateChangeListener,
+                deltaListener,
                 platform,
                 quiescenceController,
                 hashInfo,
@@ -3305,6 +3548,7 @@ class BlockStreamManagerImplTest {
                 .withValue("blockStream.maxBlockSizeBytes", maxBlockSizeBytes)
                 .withValue("blockStream.digestType", digestType.name())
                 .withValue("clpr.enabled", clprEnabled)
+                .withValue("blockStream.enableStateChangeDeltas", stateChangeDeltasEnabled)
                 .withValue("blockStream.enableCutover", cutoverEnabled)
                 .getOrCreateConfig();
         return new VersionedConfigImpl(config, version);

@@ -33,6 +33,12 @@ public class WrappedWritableSingletonState<T> extends WritableSingletonStateBase
         delegate.put(value);
     }
 
+    /** The delegate buffers rather than stores, so keep provenance for the base state's diff. */
+    @Override
+    protected boolean untrackOnCommit() {
+        return false;
+    }
+
     @Override
     protected void removeFromDataSource() {
         delegate.put(null);

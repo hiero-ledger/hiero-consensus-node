@@ -61,6 +61,11 @@ public class SelectedBlockItemsAssertion implements BlockStreamAssertion {
     }
 
     @Override
+    public boolean wantsFullStateValues() {
+        return true;
+    }
+
+    @Override
     public boolean test(@NonNull final Block block) throws AssertionError {
         requireNonNull(block);
         // Genesis must be scanned before any translation so receipts/aliases match what the

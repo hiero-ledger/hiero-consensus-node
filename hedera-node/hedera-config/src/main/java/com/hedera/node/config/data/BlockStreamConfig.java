@@ -26,6 +26,8 @@ import org.hiero.base.crypto.DigestType;
  * @param blockFileBufferOuterSizeKb block file writer outer buffer size (in kilobytes) (see FileBlockItemWriter#openBlock(long) for details)
  * @param blockFileBufferInnerSizeKb block file writer inner buffer size (in kilobytes) (see FileBlockItemWriter#openBlock(long) for details)
  * @param blockFileBufferGzipSizeKb block file writer GZIP buffer size (in kilobytes) (see FileBlockItemWriter#openBlock(long) for details)
+ * @param enableStateChangeDeltas coordinated emission of top-level replacements and clears in complete block streams
+ * @param stateChangeDeltaMinSaving minimum omitted entity bytes after partial metadata overhead
  * @param digestType the digest algorithm to use for block-root Merkle hashing; {@code SHA_256} enables 32-byte
  *                   SHA-256 hashing, {@code SHA_384} (the default) uses 48-byte SHA-384
  */
@@ -84,7 +86,18 @@ public record BlockStreamConfig(
         boolean streamWrappedRecordBlocks,
 
         @ConfigProperty(defaultValue = "false") @NodeProperty
-        boolean enhancedObservabilityEnabled) {
+        boolean enhancedObservabilityEnabled,
+
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        boolean enableStateChangeDeltas,
+
+        @ConfigProperty(defaultValue = "64") @Min(0) @NetworkProperty
+        int stateChangeDeltaMinSaving) {
+
+    /** Whether this stream can emit canonical partial state updates. */
+    public boolean stateChangeDeltasEnabled() {
+        return enableStateChangeDeltas && streamMode == StreamMode.BLOCKS;
+    }
 
     /**
      * Whether the node should maintain an active stream to block nodes — true when the main

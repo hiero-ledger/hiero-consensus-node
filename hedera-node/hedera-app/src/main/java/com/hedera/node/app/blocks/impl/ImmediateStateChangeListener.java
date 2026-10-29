@@ -77,13 +77,13 @@ import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody;
 import com.hedera.hapi.services.auxiliary.tss.TssMessageTransactionBody;
 import com.hedera.hapi.services.auxiliary.tss.TssVoteTransactionBody;
+import com.hedera.node.app.hapi.utils.blocks.StateChangeDeltas;
 import com.hedera.pbj.runtime.OneOf;
 import com.swirlds.state.StateChangeListener;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.EnumSet;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -102,6 +102,25 @@ public class ImmediateStateChangeListener implements StateChangeListener {
 
     private final List<StateChange> queueStateChanges = new ArrayList<>();
 
+    private int deltaMinSaving = StateChangeDeltas.DEFAULT_MIN_SAVING;
+    private boolean deltasEnabled;
+
+    /** Starts a block with a fixed network-selected encoding mode. */
+    public void beginBlock(final boolean enableDeltas) {
+        beginBlock(enableDeltas, StateChangeDeltas.DEFAULT_MIN_SAVING);
+    }
+
+    public void beginBlock(final boolean enableDeltas, final int minSaving) {
+        if (minSaving < 0) throw new IllegalArgumentException("Minimum saving must be nonnegative");
+        deltaMinSaving = minSaving;
+        deltasEnabled = enableDeltas;
+    }
+
+    @Override
+    public boolean requiresPreviousValue() {
+        return deltasEnabled;
+    }
+
     @Nullable
     private Predicate<Object> logicallyIdenticalMapping;
 
@@ -114,13 +133,23 @@ public class ImmediateStateChangeListener implements StateChangeListener {
 
     @Override
     public <V> void singletonUpdateChange(final int stateId, @NonNull final V value) {
+        singletonUpdateChange(stateId, null, value);
+    }
+
+    /** Selects the payload for each transaction-owned singleton update at terminal commit. */
+    @Override
+    public <V> void singletonUpdateChange(final int stateId, @Nullable final V previousValue, @NonNull final V value) {
         requireNonNull(value);
-        if (isImmediateSingleton(stateId)) {
-            singletonStateChanges.add(StateChange.newBuilder()
-                    .stateId(stateId)
-                    .singletonUpdate(new SingletonUpdateChange(singletonUpdateChangeValueFor(value)))
-                    .build());
+        if (!isImmediateSingleton(stateId)) {
+            return;
         }
+        final var full = new SingletonUpdateChange(false, List.of(), singletonUpdateChangeValueFor(value));
+        final var wireChange =
+                StateChangeDeltas.encodeSingletonOrFull(stateId, previousValue, full, deltasEnabled, deltaMinSaving);
+        singletonStateChanges.add(StateChange.newBuilder()
+                .stateId(stateId)
+                .singletonUpdate(wireChange)
+                .build());
     }
 
     /** Resets transaction-associated singleton changes without discarding queue changes. */
@@ -134,7 +163,7 @@ public class ImmediateStateChangeListener implements StateChangeListener {
     }
 
     /**
-     * Resets keyValue state changes.
+     * Resets key/value state changes.
      */
     public void resetKvStateChanges(@Nullable final Predicate<Object> logicallyIdenticalMapping) {
         this.logicallyIdenticalMapping = logicallyIdenticalMapping;
@@ -165,13 +194,27 @@ public class ImmediateStateChangeListener implements StateChangeListener {
 
     @Override
     public <K, V> void mapUpdateChange(final int stateId, @NonNull final K key, @NonNull final V value) {
+        mapUpdateChange(stateId, key, null, value);
+    }
+
+    /** Selects the wire update at terminal commit; map updates are emitted in capture order. */
+    @Override
+    public <K, V> void mapUpdateChange(
+            final int stateId, @NonNull final K key, @Nullable final V previousValue, @NonNull final V value) {
         Objects.requireNonNull(key, "key must not be null");
         Objects.requireNonNull(value, "value must not be null");
         final boolean identical = logicallyIdenticalMapping != null && logicallyIdenticalMapping.test(key);
 
-        final var change = new MapUpdateChange(mapChangeKeyFor(key), mapChangeValueFor(value), identical);
-        final var stateChange =
-                StateChange.newBuilder().stateId(stateId).mapUpdate(change).build();
+        final var full = MapUpdateChange.newBuilder()
+                .key(mapChangeKeyFor(key))
+                .value(mapChangeValueFor(value))
+                .identical(identical)
+                .build();
+        final var stateChange = StateChange.newBuilder()
+                .stateId(stateId)
+                .mapUpdate(
+                        StateChangeDeltas.encodeMapOrFull(stateId, previousValue, full, deltasEnabled, deltaMinSaving))
+                .build();
         kvStateChanges.add(stateChange);
     }
 
@@ -204,7 +247,7 @@ public class ImmediateStateChangeListener implements StateChangeListener {
     }
 
     /**
-     * Returns the list of keyValue state changes.
+     * Returns key/value state changes in their terminal commit order.
      * @return the list of keyValue state changes
      */
     public List<StateChange> getKvStateChanges() {
@@ -220,11 +263,13 @@ public class ImmediateStateChangeListener implements StateChangeListener {
     }
 
     /**
-     * Returns the list of state changes.
+     * Returns state changes grouped by type: key/value, queue, then singleton.
+     * Changes within each type retain their capture order.
      * @return the list of state changes
      */
     public List<StateChange> getStateChanges() {
-        final var allStateChanges = new LinkedList<StateChange>();
+        final var allStateChanges = new ArrayList<StateChange>(
+                kvStateChanges.size() + queueStateChanges.size() + singletonStateChanges.size());
         allStateChanges.addAll(kvStateChanges);
         allStateChanges.addAll(queueStateChanges);
         allStateChanges.addAll(singletonStateChanges);
@@ -305,7 +350,8 @@ public class ImmediateStateChangeListener implements StateChangeListener {
             case File file -> new MapChangeValue(new OneOf<>(MapChangeValue.ValueChoiceOneOfType.FILE_VALUE, file));
             case Nft nft -> new MapChangeValue(new OneOf<>(MapChangeValue.ValueChoiceOneOfType.NFT_VALUE, nft));
             case ProtoString protoString ->
-                new MapChangeValue(new OneOf<>(MapChangeValue.ValueChoiceOneOfType.PROTO_STRING_VALUE, protoString));
+                new MapChangeValue(
+                        new OneOf<>(MapChangeValue.ValueChoiceOneOfType.PROTO_STRING_VALUE, protoString.value()));
             case Roster roster ->
                 new MapChangeValue(new OneOf<>(MapChangeValue.ValueChoiceOneOfType.ROSTER_VALUE, roster));
             case Schedule schedule ->

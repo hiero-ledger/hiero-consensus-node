@@ -22,6 +22,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -73,8 +74,11 @@ public enum StreamFileAccess {
             final List<File> maybeExistingFiles = new ArrayList<>();
             if (listener.replayExistingFiles()) {
                 try (final var stream = Files.walk(path)) {
-                    maybeExistingFiles.addAll(
-                            stream.map(Path::toFile).filter(File::isFile).toList());
+                    // Stream file names start with a block number or timestamp, so replay in name order
+                    maybeExistingFiles.addAll(stream.map(Path::toFile)
+                            .filter(File::isFile)
+                            .sorted(Comparator.comparing(File::getName))
+                            .toList());
                 }
             }
             if (listener.replayExistingFiles()) {

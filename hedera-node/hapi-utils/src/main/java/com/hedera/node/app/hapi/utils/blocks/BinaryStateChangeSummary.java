@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.services.bdd.junit.support.validators.block;
+package com.hedera.node.app.hapi.utils.blocks;
 
 import java.util.Map;
 import java.util.TreeMap;
 
-final class BinaryStateChangeSummary {
+public final class BinaryStateChangeSummary {
     private final Map<Integer, StateChangeCounts> summaries = new TreeMap<>();
 
     void countSingletonPut(final int stateId) {

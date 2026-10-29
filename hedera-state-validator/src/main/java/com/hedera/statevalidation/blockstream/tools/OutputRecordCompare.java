@@ -5,6 +5,10 @@ import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamUtils;
+import com.hedera.node.app.hapi.utils.blocks.StateChangeDeltas;
+import com.hedera.pbj.runtime.ProtoConstants;
+import com.hedera.pbj.runtime.ProtoParserTools;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.statevalidation.blockstream.tools.BlockRoundExtractor.RoundContent;
 import com.hedera.statevalidation.blockstream.tools.BlockRoundExtractor.TxRecord;
 import java.io.IOException;
@@ -399,10 +403,10 @@ public final class OutputRecordCompare {
 
     /**
      * Names of the states whose net effect differs between the two change lists, excluding ignored services.
-     * Net effect per state: last value for singletons, final key/value (or deletion) per key for maps, ordered
+     * Net effect per state: composed updates for singletons, composed updates (or deletion) per map key, ordered
      * list of operations otherwise.
      */
-    private static Set<String> differingStateServices(
+    static Set<String> differingStateServices(
             final List<StateChange> a, final List<StateChange> b, final Set<String> ignoreServices) {
         final Map<Integer, Object> aNet = netEffectByState(a);
         final Map<Integer, Object> bNet = netEffectByState(b);
@@ -425,8 +429,8 @@ public final class OutputRecordCompare {
     /**
      * Net end-of-round effect per state:
      * <ul>
-     *   <li>singleton: the last value written;</li>
-     *   <li>map: the final value per key, where a deletion is kept as {@link Marker#DELETED} so that a key deleted
+     *   <li>singleton: the composed field replacements and clears, or final full value;</li>
+     *   <li>map: the composed updates per key, where a deletion is kept as {@link Marker#DELETED} so that a key deleted
      *       on only one side is still detected;</li>
      *   <li>anything else (queues): the ordered list of operations.</li>
      * </ul>
@@ -438,11 +442,25 @@ public final class OutputRecordCompare {
         for (final StateChange sc : changes) {
             final int id = sc.stateId();
             switch (sc.changeOperation().kind()) {
-                case SINGLETON_UPDATE ->
-                    singletonFinal.put(id, sc.singletonUpdateOrThrow().newValue());
+                case SINGLETON_UPDATE -> {
+                    final var update = sc.singletonUpdateOrThrow();
+                    final var kind = update.newValue().kind();
+                    final var value = StateChangeDeltas.singletonType(kind.protoOrdinal())
+                            .bytes(update.newValue().value());
+                    final var effect = ValueEffect.compose(
+                            singletonFinal.get(id), kind, value, update.partial(), update.clearedFields());
+                    if (effect != null) singletonFinal.put(id, effect);
+                }
                 case MAP_UPDATE -> {
                     final var mu = sc.mapUpdateOrThrow();
-                    mapNet.computeIfAbsent(id, k -> new HashMap<>()).put(mu.keyOrThrow(), mu.valueOrThrow());
+                    final var kind = mu.valueOrThrow().valueChoice().kind();
+                    final var value = StateChangeDeltas.mapType(kind.protoOrdinal())
+                            .bytes(mu.valueOrThrow().valueChoice().value());
+                    final var entries = mapNet.computeIfAbsent(id, k -> new HashMap<>());
+                    final var effect = ValueEffect.compose(
+                            entries.get(mu.keyOrThrow()), kind, value, mu.partial(), mu.clearedFields());
+                    if (effect != null) entries.put(mu.keyOrThrow(), effect);
+                    if (entries.isEmpty()) mapNet.remove(id);
                 }
                 case MAP_DELETE ->
                     mapNet.computeIfAbsent(id, k -> new HashMap<>())
@@ -456,6 +474,47 @@ public final class OutputRecordCompare {
         out.putAll(mapNet);
         out.putAll(otherOrdered);
         return out;
+    }
+
+    /**
+     * A baseline-independent transformation. A partial retains every earlier replacement and clear that a
+     * later patch does not overwrite; a full value discards the preceding transformation. This lets isolated
+     * rounds and parallel scan windows compare net effects without inventing a missing baseline. A full and
+     * an unseeded partial remain distinct because equality cannot be established without that baseline.
+     */
+    private record ValueEffect(Object kind, boolean partial, Bytes value, List<Integer> clearedFields) {
+        static Object compose(Object preceding, Object kind, Bytes value, boolean partial, List<Integer> cleared) {
+            // Validate framing, clears and replace/clear overlap even without a known baseline.
+            final var replacements = StateChangeDeltas.applyBytes(Bytes.EMPTY, value, partial, cleared);
+            if (!partial) return new ValueEffect(kind, false, replacements, List.of());
+            if (preceding == Marker.DELETED) {
+                throw new IllegalArgumentException("Partial update after deletion requires a full value");
+            }
+            final var prior = (ValueEffect) preceding;
+            if (prior != null && !prior.kind.equals(kind)) {
+                throw new IllegalArgumentException("Partial update changes the value type");
+            }
+            if (value.length() == 0 && cleared.isEmpty()) return prior;
+            final var merged =
+                    StateChangeDeltas.applyBytes(prior == null ? Bytes.EMPTY : prior.value, value, true, cleared);
+            final boolean needsBaseline = prior == null || prior.partial;
+            final var pendingClears = new TreeSet<Integer>();
+            if (needsBaseline) {
+                if (prior != null) pendingClears.addAll(prior.clearedFields);
+                pendingClears.addAll(cleared);
+                final var input = merged.toReadableSequentialData();
+                try {
+                    while (input.hasRemaining()) {
+                        final int tag = input.readVarInt(false);
+                        pendingClears.remove(tag >>> 3);
+                        ProtoParserTools.skipField(input, ProtoConstants.get(tag & 7));
+                    }
+                } catch (IOException e) {
+                    throw new IllegalArgumentException("Malformed state value", e);
+                }
+            }
+            return new ValueEffect(kind, needsBaseline, merged, List.copyOf(pendingClears));
+        }
     }
 
     private static Map<Integer, List<StateChange>> groupByState(final List<StateChange> changes) {

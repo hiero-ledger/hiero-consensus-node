@@ -120,6 +120,10 @@ public final class BlockStreamUtils {
     }
 
     public static Object singletonPutFor(@NonNull final SingletonUpdateChange singletonUpdateChange) {
+        if (singletonUpdateChange.partial()
+                || !singletonUpdateChange.clearedFields().isEmpty()) {
+            throw new IllegalArgumentException("Partial singleton updates require StateChangeDeltas and a baseline");
+        }
         return switch (singletonUpdateChange.newValue().kind()) {
             case UNSET -> throw new IllegalStateException("Singleton update value is not set");
             case BLOCK_INFO_VALUE -> singletonUpdateChange.blockInfoValueOrThrow();

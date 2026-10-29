@@ -29,7 +29,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -129,8 +128,8 @@ public enum BlockStreamAccess {
     }
 
     /**
-     * Given a list of blocks, computes the last singleton value for a certain state by applying the given
-     * function to the {@link SingletonUpdateChange} block items.
+     * Replays singleton updates in stream order and extracts the final full value. A partial update requires
+     * an earlier full update in the supplied blocks; use the overload with an initial value for a stream suffix.
      *
      * @param <V> the value type
      * @param blocks the list of blocks
@@ -143,12 +142,44 @@ public enum BlockStreamAccess {
             @NonNull final List<Block> blocks,
             @NonNull final Function<SingletonUpdateChange, V> extractFn,
             final int stateId) {
-        final AtomicReference<V> lastValue = new AtomicReference<>();
-        stateChangesForState(blocks, stateId)
-                .filter(StateChange::hasSingletonUpdate)
-                .map(StateChange::singletonUpdateOrThrow)
-                .forEach(update -> lastValue.set(extractFn.apply(update)));
-        return lastValue.get();
+        return computeSingletonValueFromUpdates(blocks, extractFn, stateId, null);
+    }
+
+    /**
+     * Replays updates using the full singleton value immediately before the supplied blocks as a baseline.
+     * State removal discards the baseline. With no updates or removals, extracts the initial value, if present.
+     *
+     * @param blocks blocks in stream order
+     * @param extractFn extracts a value from the reconstructed full singleton update
+     * @param stateId the singleton's state identifier
+     * @param initialValue a full prior update, or null when replay starts without a baseline
+     * @param <V> the extracted value type
+     * @return the extracted final value, or null if no singleton value remains
+     */
+    @Nullable
+    public static <V> V computeSingletonValueFromUpdates(
+            @NonNull final List<Block> blocks,
+            @NonNull final Function<SingletonUpdateChange, V> extractFn,
+            final int stateId,
+            @Nullable final SingletonUpdateChange initialValue) {
+        var current = initialValue;
+        if (current != null) {
+            // A baseline must be full, including for an empty input sequence.
+            BlockStreamUtils.singletonPutFor(current);
+        }
+        final var changes = stateChangesForState(blocks, stateId).iterator();
+        while (changes.hasNext()) {
+            final var change = changes.next();
+            if (change.hasStateRemove()) {
+                current = null;
+            } else if (change.hasSingletonUpdate()) {
+                current = StateChangeReconstructor.reconstructSingletonUpdate(
+                        stateId,
+                        current == null ? null : BlockStreamUtils.singletonPutFor(current),
+                        change.singletonUpdateOrThrow());
+            }
+        }
+        return current == null ? null : extractFn.apply(current);
     }
 
     /**

@@ -164,6 +164,7 @@ import java.util.TreeMap;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import javax.inject.Provider;
 import org.apache.logging.log4j.LogManager;
 import org.hiero.base.crypto.Hash;
@@ -482,6 +483,46 @@ class HandleWorkflowTest {
         verify(parentTxnFactory).createTopLevelTxn(eq(state), any(), eq(txn), eq(NOW), any());
         verify(blockStreamManager, never()).confirmPendingWorkFinished();
         verify(state, never()).getWritableStates(ClprService.NAME);
+    }
+
+    @Test
+    void bootstrapPublicationStaysFullAndConsumesThePendingUpdate() throws Exception {
+        givenRealBoundaryListener();
+        givenSubjectWith(BLOCKS, BlockStreamWriterMode.FILE, emptyList());
+        final var initial = PlatformState.newBuilder()
+                .latestFreezeRound(10)
+                .legacyRunningEventHash(Bytes.wrap(new byte[200]))
+                .build();
+        final var next = initial.copyBuilder().latestFreezeRound(11).build();
+        boundaryStateChangeListener.singletonUpdateChange(
+                V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID, initial, next);
+        final var method = HandleWorkflow.class.getDeclaredMethod(
+                "doStreamingAllChanges", WritableStates.class, WritableStates.class, Runnable.class);
+        method.setAccessible(true);
+        method.invoke(subject, MapWritableStates.builder().build(), null, (Runnable) () -> {});
+
+        final ArgumentCaptor<Function<Timestamp, BlockItem>> publications = ArgumentCaptor.forClass(Function.class);
+        verify(blockStreamManager).writeItem(publications.capture());
+        final var update = publications
+                .getValue()
+                .apply(BLOCK_TIME)
+                .stateChangesOrThrow()
+                .stateChanges()
+                .getFirst()
+                .singletonUpdateOrThrow();
+        assertFalse(update.partial());
+        assertEquals(next, update.platformStateValueOrThrow());
+        assertTrue(boundaryStateChangeListener.allStateChanges().isEmpty());
+    }
+
+    private void givenRealBoundaryListener() {
+        boundaryStateChangeListener = new BoundaryStateChangeListener(
+                new com.hedera.node.app.metrics.StoreMetricsServiceImpl(
+                        new org.hiero.consensus.fakes.noop.NoOpMetrics()),
+                HederaTestConfigBuilder::createConfig);
+        boundaryStateChangeListener.beginBlock(true);
+        immediateStateChangeListener = new ImmediateStateChangeListener();
+        immediateStateChangeListener.beginBlock(true);
     }
 
     @Test

@@ -5,6 +5,7 @@ import static com.hedera.hapi.block.stream.output.StateChange.ChangeOperationOne
 import static com.hedera.hapi.block.stream.output.StateChange.ChangeOperationOneOfType.MAP_UPDATE;
 import static com.hedera.hapi.block.stream.output.StateChange.ChangeOperationOneOfType.QUEUE_POP;
 import static com.hedera.hapi.block.stream.output.StateChange.ChangeOperationOneOfType.QUEUE_PUSH;
+import static com.hedera.hapi.block.stream.output.StateChange.ChangeOperationOneOfType.SINGLETON_UPDATE;
 import static com.swirlds.state.StateChangeListener.StateType.MAP;
 import static com.swirlds.state.StateChangeListener.StateType.QUEUE;
 import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
@@ -28,6 +29,7 @@ import com.hedera.hapi.node.base.TopicID;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.clpr.ClprConnector;
 import com.hedera.hapi.node.state.clpr.ClprConnectorKey;
+import com.hedera.hapi.node.state.clpr.ClprEndpointManifestConstruction;
 import com.hedera.hapi.node.state.clpr.ClprMessageKey;
 import com.hedera.hapi.node.state.clpr.ClprMessageValue;
 import com.hedera.hapi.node.state.common.EntityIDPair;
@@ -90,6 +92,36 @@ class ImmediateStateChangeListenerTest {
 
         List<StateChange> stateChanges = listener.getStateChanges();
         assertEquals(1, stateChanges.size());
+    }
+
+    @Test
+    void stateChangesRetainTypeGroupingAndOrderWithinEachType() {
+        final int singletonId = V0780ClprSchema.ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID;
+        listener.singletonUpdateChange(singletonId, ClprEndpointManifestConstruction.DEFAULT);
+        listener.queuePushChange(STATE_ID, PROTO_BYTES);
+        listener.mapUpdateChange(STATE_ID, KEY, VALUE);
+        listener.singletonUpdateChange(
+                singletonId,
+                ClprEndpointManifestConstruction.newBuilder().constructionId(1).build());
+        listener.mapDeleteChange(STATE_ID, KEY);
+        listener.queuePopChange(STATE_ID);
+
+        final var changes = listener.getStateChanges();
+        assertEquals(
+                List.of(MAP_UPDATE, MAP_DELETE, QUEUE_PUSH, QUEUE_POP, SINGLETON_UPDATE, SINGLETON_UPDATE),
+                changes.stream().map(change -> change.changeOperation().kind()).toList());
+        assertEquals(
+                0L,
+                changes.get(4)
+                        .singletonUpdateOrThrow()
+                        .clprEndpointManifestConstructionValueOrThrow()
+                        .constructionId());
+        assertEquals(
+                1L,
+                changes.get(5)
+                        .singletonUpdateOrThrow()
+                        .clprEndpointManifestConstructionValueOrThrow()
+                        .constructionId());
     }
 
     @Test

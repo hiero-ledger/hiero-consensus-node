@@ -52,7 +52,11 @@ public class BlockNodeBlockSource implements BlockSource {
      * @param blockNodeNetwork the active block node network
      */
     public BlockNodeBlockSource(@NonNull final BlockNodeNetwork blockNodeNetwork) {
-        this.reader = BlockNodeReader.of(requireNonNull(blockNodeNetwork));
+        this(BlockNodeReader.of(requireNonNull(blockNodeNetwork)));
+    }
+
+    BlockNodeBlockSource(@NonNull final BlockNodeReader reader) {
+        this.reader = requireNonNull(reader);
     }
 
     @NonNull
@@ -65,11 +69,14 @@ public class BlockNodeBlockSource implements BlockSource {
         // node already holds so the listener only sees blocks that arrive after it subscribed. Resolved once,
         // here, because the loops below re-derive their start block from this watermark on every reconnect.
         final long initialWatermark = listener.replayExistingFiles() ? -1L : reader.latestAvailableBlock();
+        // Per subscription, since expansion tracks the blocks this listener has been delivered
+        final var fullStateValues = new FullStateValues();
         // REAL block node: one long-lived live subscription (supervised for reconnect), so the block
         // node holds a single subscriber handler for our lifetime, not one accumulating per poll.
         if (reader.isReal()) {
-            final var supervisor =
-                    new Thread(() -> liveSupervisorLoop(listener, stop, initialWatermark), "BlockNodeBlockSource-live");
+            final var supervisor = new Thread(
+                    () -> liveSupervisorLoop(listener, fullStateValues, stop, initialWatermark),
+                    "BlockNodeBlockSource-live");
             supervisor.setDaemon(true);
             supervisor.start();
             return () -> {
@@ -83,7 +90,8 @@ public class BlockNodeBlockSource implements BlockSource {
             };
         }
         // SIMULATOR: in-memory reads, no gRPC handlers to leak -- keep the simple poll loop.
-        final var poller = new Thread(() -> pollLoop(listener, stop, initialWatermark), "BlockNodeBlockSource-poller");
+        final var poller = new Thread(
+                () -> pollLoop(listener, fullStateValues, stop, initialWatermark), "BlockNodeBlockSource-poller");
         poller.setDaemon(true);
         poller.start();
         return () -> {
@@ -112,6 +120,7 @@ public class BlockNodeBlockSource implements BlockSource {
      */
     private void liveSupervisorLoop(
             @NonNull final StreamDataListener listener,
+            @NonNull final FullStateValues fullStateValues,
             @NonNull final AtomicBoolean stop,
             final long initialWatermark) {
         final var lastDelivered = new AtomicLong(initialWatermark);
@@ -128,7 +137,7 @@ public class BlockNodeBlockSource implements BlockSource {
                             if (number == Long.MAX_VALUE || number <= lastDelivered.get()) {
                                 return;
                             }
-                            listener.onNewBlock(block);
+                            deliver(listener, fullStateValues, block);
                             lastDelivered.set(number);
                         },
                         streamEnded::countDown);
@@ -151,6 +160,46 @@ public class BlockNodeBlockSource implements BlockSource {
                 }
             }
         }
+    }
+
+    /**
+     * Delivers a block, with partial updates expanded for listeners that read state values; as for blocks
+     * read from disk, an expansion failure goes to {@link StreamDataListener#onBlockError} instead.
+     */
+    private void deliver(
+            @NonNull final StreamDataListener listener,
+            @NonNull final FullStateValues fullStateValues,
+            @NonNull final Block block) {
+        if (!listener.wantsFullStateValues()) {
+            listener.onNewBlock(block);
+            return;
+        }
+        final Block fullBlock;
+        try {
+            fullBlock = fullStateValues.expand("the block node", this::earlierBlocks, block);
+        } catch (final RuntimeException e) {
+            listener.onBlockError(e);
+            return;
+        }
+        listener.onNewBlock(fullBlock);
+    }
+
+    /** The blocks from {@code from} (or block 0, if negative) up to {@code to}, failing if any are missing. */
+    private List<Block> earlierBlocks(final long from, final long to) {
+        final long first = Math.max(from, 0L);
+        if (first >= to) {
+            return List.of();
+        }
+        final var blocks = reader.blocks(first, to - 1);
+        boolean complete = blocks.size() == to - first;
+        for (int i = 0; complete && i < blocks.size(); i++) {
+            complete = BlockNodeReader.blockNumberOf(blocks.get(i)) == first + i;
+        }
+        if (!complete) {
+            throw new IllegalStateException(
+                    "Blocks #" + first + " to #" + (to - 1) + " are incomplete on the block node");
+        }
+        return blocks;
     }
 
     private static void closeQuietly(final AutoCloseable handle) {
@@ -184,6 +233,7 @@ public class BlockNodeBlockSource implements BlockSource {
      */
     private void pollLoop(
             @NonNull final StreamDataListener listener,
+            @NonNull final FullStateValues fullStateValues,
             @NonNull final AtomicBoolean stop,
             final long initialWatermark) {
         long lastDelivered = initialWatermark;
@@ -202,7 +252,7 @@ public class BlockNodeBlockSource implements BlockSource {
                         if (number == Long.MAX_VALUE || number <= lastDelivered) {
                             continue;
                         }
-                        listener.onNewBlock(block);
+                        deliver(listener, fullStateValues, block);
                         lastDelivered = number;
                     }
                 }

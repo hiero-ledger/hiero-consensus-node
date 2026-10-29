@@ -1080,9 +1080,6 @@ public class HandleWorkflow {
         if (streamMode != RECORDS) {
             immediateStateChangeListener.resetKvStateChanges(null);
             immediateStateChangeListener.resetSingletonStateChanges();
-            if (includeSingletons) {
-                boundaryStateChangeListener.reset();
-            }
         }
         action.run();
         if (writableStates instanceof CommittableWritableStates committableWritableStates) {
@@ -1100,11 +1097,12 @@ public class HandleWorkflow {
                         .build());
             }
             if (includeSingletons) {
-                final var singletonChanges = boundaryStateChangeListener.allStateChanges();
+                final var singletonChanges = boundaryStateChangeListener.allStateChanges(false);
                 if (!singletonChanges.isEmpty()) {
                     blockStreamManager.writeItem((now) -> BlockItem.newBuilder()
                             .stateChanges(new StateChanges(now, new ArrayList<>(singletonChanges)))
                             .build());
+                    boundaryStateChangeListener.stateChangesEmitted(singletonChanges);
                 }
             }
         }

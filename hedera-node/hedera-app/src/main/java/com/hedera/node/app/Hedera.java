@@ -1019,9 +1019,9 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
             if (streamMode != RECORDS && blockStreamService.isBsiSchemaOverwriteExecuted()) {
                 markBsiSchemaOverwriteExecuted(state);
             }
-            migrationStateChanges.add(
-                    StateChanges.newBuilder().stateChanges(boundaryStateChangeListener.allStateChanges()));
-            boundaryStateChangeListener.reset();
+            final var changes = boundaryStateChangeListener.allStateChanges(false);
+            migrationStateChanges.add(StateChanges.newBuilder().stateChanges(changes));
+            boundaryStateChangeListener.stateChangesEmitted(changes);
         }
         logger.info("Migration complete");
     }

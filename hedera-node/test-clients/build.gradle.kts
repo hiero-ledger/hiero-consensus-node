@@ -82,6 +82,11 @@ mainModuleInfo {
     runtimeOnly("org.junit.platform.launcher")
 }
 
+testModuleInfo {
+    requires("org.junit.jupiter.params")
+    requires("org.mockito")
+}
+
 sourceSets { create("rcdiff") }
 
 val unitTest =
@@ -95,6 +100,8 @@ val unitTest =
 
 // The default test task runs HAPI suites from src/main; keep unit tests in its verification path.
 tasks.test { dependsOn(unitTest) }
+
+tasks.check { dependsOn(unitTest) }
 
 tasks.withType<JavaCompile>().configureEach { options.compilerArgs.add("-Xlint:-exports") }
 
@@ -288,6 +295,8 @@ val hapiTestConfigProfile =
 val cutoverConfigValues =
     mapOf(
         "blockStream.streamMode" to "BLOCKS",
+        // Explicit so XTS exercises partial state changes regardless of the production default
+        "blockStream.enableStateChangeDeltas" to "true",
         "blockStream.writerMode" to "GRPC",
         "blockStream.enableCutover" to "true",
         "blockStream.streamWrappedRecordBlocks" to "false",

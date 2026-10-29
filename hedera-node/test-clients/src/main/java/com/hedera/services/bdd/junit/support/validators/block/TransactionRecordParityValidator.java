@@ -67,6 +67,11 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
 
     public static final Factory FACTORY = new Factory() {
         @Override
+        public boolean requiresRecordStream() {
+            return true;
+        }
+
+        @Override
         public boolean appliesTo(@NonNull final HapiSpec spec) {
             requireNonNull(spec);
             // Embedded networks don't have saved states or a Merkle tree to validate hashes against
@@ -175,6 +180,9 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
         } else {
             allBlocks = blocks;
         }
+        final var valueReconstructor = new com.hedera.node.app.hapi.utils.blocks.StateChangeReconstructor();
+        final boolean reconstructValues =
+                allBlocks.stream().anyMatch(com.hedera.node.app.hapi.utils.blocks.StateChangeDeltas::hasPartialUpdates);
         final var baseTranslator = requireNonNull(translator).getBaseTranslator();
         final var rfTranslator =
                 new BlockTransactionalUnitTranslator(baseTranslator.getShard(), baseTranslator.getRealm());
@@ -197,7 +205,10 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
         final var roleFreeSplit = new RoleFreeBlockUnitSplit();
         final var roleFreeRecords = allBlocks.stream()
                 .flatMap(block ->
-                        roleFreeSplit.split(block).stream().map(BlockTransactionalUnit::withBatchTransactionParts))
+                        roleFreeSplit
+                                .split(reconstructValues ? valueReconstructor.fullValuesForTranslation(block) : block)
+                                .stream()
+                                .map(BlockTransactionalUnit::withBatchTransactionParts))
                 .peek(unit -> numStateChanges.getAndAdd(unit.stateChanges().size()))
                 .flatMap(unit -> rfTranslator.translate(unit).stream())
                 .toList();
