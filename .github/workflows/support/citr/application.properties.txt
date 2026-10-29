@@ -21,3 +21,4 @@ tss.historyEnabled=false
 tss.forceMockSignatures=false
 blockStream.streamWrappedRecordBlocks=true
 
+blockStream.enableCutover=true

@@ -1325,7 +1325,7 @@ jobs:
           set +x
           set +e
 
-          for i in $(seq 1 1 1)
+          for i in $(seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }})
           do
             sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp "${{ github.workspace }}"/state/blockfiles_${i}.tgz block-node-${i}-0:/tmp/blockfiles_${i}.tgz
           done
@@ -1370,7 +1370,7 @@ jobs:
           done
 
       - name: Unarchive BN files in all CN pods
-        if: ${{ !cancelled() }}
+        if: false
         run: |
           set +x
           set +e
@@ -1436,7 +1436,7 @@ jobs:
           set +x
           set +e
 
-          for i in $(seq 1 1 1)
+          for i in $(seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }})
           do
             sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec block-node-${i}-0 -- bash -c \
               "cd /opt/hiero/block-node/data/; rm -rf historic/* live/*; tar --overwrite -xvzf /tmp/blockfiles_${i}.tgz"
@@ -1452,6 +1452,9 @@ jobs:
             sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${pod} -- \
               bash -c ". /tmp/env.sh; export BLOCK_NODE_SERVER_MAX_MESSAGE_SIZE_BYTES=300000000; export JAVA_OPTS='-Xms48G -Xmx52G -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath="/tmp/dump.hprof"'; \
                        JAVA_TOOL_OPTIONS='-Djava.util.logging.config.file=/opt/hiero/block-node/logs/config/logging.properties -Dmetrics.exporter.openmetrics.http.hostname=0.0.0.0 -Dmetrics.exporter.openmetrics.http.port=16007 -Dmetrics.exporter.openmetrics.http.path=/metrics'; \
+                       last_block=\$(tar tvfz /tmp/blockfiles_*.tgz | awk '{print \$NF}' | sort -n -k 1 -r | grep '.blk.zstd' | head -n1 | perl -ne 'print "\$1\n" if /^.*[\/]0+([^0\/]\d+).blk.zstd\$/'); \
+                       export BLOCK_NODE_EARLIEST_MANAGED_BLOCK=\$(expr \$last_block + 1); \
+                       echo BLOCK_NODE_EARLIEST_MANAGED_BLOCK=\$BLOCK_NODE_EARLIEST_MANAGED_BLOCK; \
                        nohup bash /opt/hiero/block-node/*/bin/app > /opt/hiero/block-node/logs/log.txt 2>&1 &"
           done
 
