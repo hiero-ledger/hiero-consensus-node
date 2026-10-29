@@ -135,7 +135,7 @@ public class BoundaryStateChangeListener implements StateChangeListener {
         requireNonNull(value, "value must not be null");
         final var stateChange = StateChange.newBuilder()
                 .stateId(stateId)
-                .singletonUpdate(new SingletonUpdateChange(singletonUpdateChangeValueFor(value)))
+                .singletonUpdate(new SingletonUpdateChange(false, List.of(), singletonUpdateChangeValueFor(value)))
                 .build();
         singletonUpdates.put(stateId, stateChange);
         if (stateId == ENTITY_COUNTS_STATE_ID) {
