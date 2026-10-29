@@ -224,6 +224,13 @@ jobs:
           git config --global core.autocrlf false
           git config --global core.eol lf
 
+      # The PBJ compiler relativizes proto paths against the workspace and fails with
+      # "'other' has different root" when the Gradle user home is on another drive (C: vs D:).
+      # setup-gradle only moves it to the workspace drive on some runner images, so pin it.
+      - name: Keep Gradle User Home on the Workspace Drive (Windows)
+        if: ${{ runner.os == 'Windows' }}
+        run: echo "GRADLE_USER_HOME=${RUNNER_TEMP%\\*}\\.gradle" >> "${GITHUB_ENV}"
+
       - name: Prepare Job
         uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
