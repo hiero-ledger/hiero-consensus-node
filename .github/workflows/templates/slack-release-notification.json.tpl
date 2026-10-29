@@ -76,7 +76,7 @@
               "text": {{ printf "<%s/%s/releases/tag/v%s|v%s>" $serverUrl $repository $version $version | data.ToJSON }}
             }
           ]
-        },
+        }{{ if eq (getenv "MAVEN_CENTRAL_PUBLISHED" "false") "true" }},
         {
           "type": "divider"
         },
@@ -85,10 +85,10 @@
           "elements": [
             {
               "type": "mrkdwn",
-              "text": {{ getenv "ARTIFACT_NOTE" ":warning: Artifacts may not be immediately available in Maven Central. Please verify existence of the artifacts using the link provided above." | data.ToJSON }}
+              "text": ":warning: Artifacts may not be immediately available in Maven Central. Please verify existence of the artifacts using the link provided above."
             }
           ]
-        }
+        }{{ end }}
       ]
     }
   ]
