@@ -1,0 +1,2 @@
+# The campaign patches are inputs, despite the repository-wide *.patch rule.
+!*.patch

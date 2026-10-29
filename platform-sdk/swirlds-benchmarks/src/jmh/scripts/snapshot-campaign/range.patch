@@ -1,0 +1,1617 @@
+diff --git a/platform-sdk/swirlds-benchmarks/README.md b/platform-sdk/swirlds-benchmarks/README.md
+index e74fd51ed2..17a307dfcb 100644
+--- a/platform-sdk/swirlds-benchmarks/README.md
++++ b/platform-sdk/swirlds-benchmarks/README.md
+@@ -1,9 +1,9 @@
+ # swirlds-benchmarks
+ 
+-This module contains JMH benchmarks for platform SDK virtual map and reconnect
+-workloads. They cover crypto-transfer-like operations over virtual maps, virtual
+-map read and edit cycles, and reconnect synchronization between learner and
+-teacher map states.
++This module contains JMH benchmarks for platform SDK virtual map, snapshot,
++and reconnect workloads. They cover crypto-transfer-like operations over virtual
++maps, virtual map read and edit cycles, MerkleDB snapshots, and reconnect
++synchronization between learner and teacher map states.
+ 
+ If you need to explore metrics during test run, use `hiero-observability/local-stack`
+ to scrape the Prometheus endpoint during test run and explore metrics/logs in local Grafana.
+@@ -43,6 +43,14 @@ Benchmarks:
+ - `VirtualMapEditBench.create`: creates or replaces records.
+ - `VirtualMapEditBench.delete`: updates records while removing expired entries.
+ 
++### MerkleDbSnapshotBenchmark
++
++Measures complete MerkleDB snapshots of a pre-created state.
++
++Benchmarks:
++
++- `MerkleDbSnapshotBenchmark.snapshot`: snapshots the prepared data source.
++
+ ### ReconnectBench
+ 
+ Builds learner and teacher virtual map states with configurable differences,
+@@ -78,6 +86,7 @@ Available benchmark tasks:
+ ./gradlew :swirlds-benchmarks:jmhCrypto
+ ./gradlew :swirlds-benchmarks:jmhVirtualMapRead
+ ./gradlew :swirlds-benchmarks:jmhVirtualMapEdit
++./gradlew :swirlds-benchmarks:jmhMerkleDbSnapshot
+ ./gradlew :swirlds-benchmarks:jmhReconnect
+ ```
+ 
+@@ -132,6 +141,7 @@ cd platform-sdk/swirlds-benchmarks
+ java -jar build/libs/*-jmh.jar CryptoBench.transferSerial
+ java -jar build/libs/*-jmh.jar CryptoBench.transferParallel
+ java -jar build/libs/*-jmh.jar VirtualMapReadBench.read
++java -jar build/libs/*-jmh.jar MerkleDbSnapshotBenchmark.snapshot
+ java -jar build/libs/*-jmh.jar ReconnectBench
+ ```
+ 
+diff --git a/platform-sdk/swirlds-benchmarks/build.gradle.kts b/platform-sdk/swirlds-benchmarks/build.gradle.kts
+index c9c5f22452..98ed25b257 100644
+--- a/platform-sdk/swirlds-benchmarks/build.gradle.kts
++++ b/platform-sdk/swirlds-benchmarks/build.gradle.kts
+@@ -59,6 +59,12 @@ tasks.register<JMHTask>("jmhVirtualMapEdit") {
+     resultsFile.convention(layout.buildDirectory.file("results/jmh/results-virtualmap-edit.txt"))
+ }
+ 
++tasks.register<JMHTask>("jmhMerkleDbSnapshot") {
++    includes.set(listOf("MerkleDbSnapshotBenchmark"))
++    jvmArgs.set(listOf("-Xmx16g"))
++    resultsFile.convention(layout.buildDirectory.file("results/jmh/results-merkle-db-snapshot.txt"))
++}
++
+ // Defaults are based on the large-state local calibration profile documented in
+ // docs/ReconnectBench.md.
+ tasks.register<JMHTask>("jmhReconnect") {
+diff --git a/platform-sdk/swirlds-merkledb/src/jmh/java/com/swirlds/benchmark/LongListDiskBenchmark.java b/platform-sdk/swirlds-merkledb/src/jmh/java/com/swirlds/benchmark/LongListDiskBenchmark.java
+index 6d5a6ec255..22d175d5fd 100644
+--- a/platform-sdk/swirlds-merkledb/src/jmh/java/com/swirlds/benchmark/LongListDiskBenchmark.java
++++ b/platform-sdk/swirlds-merkledb/src/jmh/java/com/swirlds/benchmark/LongListDiskBenchmark.java
+@@ -9,6 +9,8 @@ import com.swirlds.merkledb.config.MerkleDbConfig_;
+ import java.io.IOException;
+ import java.nio.file.Files;
+ import java.nio.file.Path;
++import java.util.concurrent.ExecutorService;
++import java.util.concurrent.Executors;
+ import org.hiero.base.file.FileSystemManager;
+ import org.openjdk.jmh.annotations.Benchmark;
+ import org.openjdk.jmh.annotations.Fork;
+@@ -45,7 +47,8 @@ public class LongListDiskBenchmark {
+                 .getConfigData(MerkleDbConfig.class);
+         rootDir = Files.createTempDirectory("LongListDiskBenchmark");
+         fileSystemManager = new FileSystemManager(rootDir);
+-        try (final LongListHeap list = new LongListHeap(1024, fileSize, 0)) {
++        try (final LongListHeap list = new LongListHeap(1024, fileSize, 0);
++                final ExecutorService pool = Executors.newFixedThreadPool(configuration.longListWriteThreads())) {
+             list.updateValidRange(0, fileSize - 1);
+             for (int i = 0; i < fileSize; i++) {
+                 list.put(i, i + 1);
+@@ -54,7 +57,7 @@ public class LongListDiskBenchmark {
+             if (Files.exists(srcFile)) {
+                 Files.delete(srcFile);
+             }
+-            list.writeToFile(srcFile);
++            list.writeToFile(srcFile, pool, configuration.longListWriteThreads());
+         }
+     }
+ 
+diff --git a/platform-sdk/swirlds-merkledb/src/jmh/java/com/swirlds/benchmark/LongListSnapshotBenchmark.java b/platform-sdk/swirlds-merkledb/src/jmh/java/com/swirlds/benchmark/LongListSnapshotBenchmark.java
+new file mode 100644
+index 0000000000..7920da9131
+--- /dev/null
++++ b/platform-sdk/swirlds-merkledb/src/jmh/java/com/swirlds/benchmark/LongListSnapshotBenchmark.java
+@@ -0,0 +1,154 @@
++// SPDX-License-Identifier: Apache-2.0
++package com.swirlds.benchmark;
++
++import com.swirlds.config.api.ConfigurationBuilder;
++import com.swirlds.merkledb.collections.LongList;
++import com.swirlds.merkledb.collections.LongListDisk;
++import com.swirlds.merkledb.collections.LongListDiskSegment;
++import com.swirlds.merkledb.collections.LongListHeap;
++import com.swirlds.merkledb.collections.LongListOffHeap;
++import com.swirlds.merkledb.collections.LongListSegment;
++import com.swirlds.merkledb.config.MerkleDbConfig;
++import com.swirlds.merkledb.files.DataFileCommon;
++import java.io.IOException;
++import java.nio.channels.FileChannel;
++import java.nio.file.Files;
++import java.nio.file.Path;
++import java.nio.file.StandardOpenOption;
++import java.util.concurrent.ExecutorService;
++import java.util.concurrent.Executors;
++import java.util.concurrent.TimeUnit;
++import java.util.stream.Stream;
++import org.hiero.base.file.FileSystemManager;
++import org.hiero.base.file.FileUtils;
++import org.openjdk.jmh.annotations.Benchmark;
++import org.openjdk.jmh.annotations.BenchmarkMode;
++import org.openjdk.jmh.annotations.Fork;
++import org.openjdk.jmh.annotations.Level;
++import org.openjdk.jmh.annotations.Measurement;
++import org.openjdk.jmh.annotations.Mode;
++import org.openjdk.jmh.annotations.OutputTimeUnit;
++import org.openjdk.jmh.annotations.Param;
++import org.openjdk.jmh.annotations.Scope;
++import org.openjdk.jmh.annotations.Setup;
++import org.openjdk.jmh.annotations.State;
++import org.openjdk.jmh.annotations.TearDown;
++import org.openjdk.jmh.annotations.Warmup;
++
++/// Measures snapshot writes of the leaf index.
++/// Populates the index once per trial with synthetic record locations, outside the timed operation.
++@State(Scope.Benchmark)
++@Fork(1)
++@Warmup(iterations = 1)
++@Measurement(iterations = 3)
++@BenchmarkMode(Mode.SingleShotTime)
++@OutputTimeUnit(TimeUnit.MILLISECONDS)
++public class LongListSnapshotBenchmark {
++
++    @Param({"Heap", "OffHeap", "Segment", "Disk", "DiskSegment"})
++    public String listImpl;
++
++    @Param({"1", "4"})
++    public int threadsPerLongList;
++
++    /// Number of leaves represented by the valid index range `[N - 1, 2N - 2]`.
++    @Param({"10000000"})
++    public long leafCount;
++
++    @Param({"build/tmp/long-list-snapshot-benchmark"})
++    public String workDir;
++
++    private Path trialDirectory;
++    private Path snapshotFile;
++    private LongList source;
++    private ExecutorService executor;
++
++    /// Creates and populates the source index outside the timed measurement.
++    ///
++    /// @throws IOException if setup files cannot be created or flushed
++    @Setup(Level.Trial)
++    public void setupTrial() throws IOException {
++        final Path directory = Files.createDirectories(Path.of(workDir));
++        trialDirectory = Files.createTempDirectory(directory, "trial-");
++        snapshotFile = trialDirectory.resolve("snapshot.ll");
++        final FileSystemManager fileSystemManager = new FileSystemManager(trialDirectory);
++        final MerkleDbConfig configuration =
++                ConfigurationBuilder.create().autoDiscoverExtensions().build().getConfigData(MerkleDbConfig.class);
++
++        // Leaf paths occupy the second half of the tree's path range.
++        final long capacity = leafCount * 2;
++        source = switch (listImpl) {
++            case "Heap" -> new LongListHeap(capacity, configuration);
++            case "OffHeap" -> new LongListOffHeap(capacity, configuration);
++            case "Segment" -> new LongListSegment(capacity, configuration);
++            case "Disk" -> new LongListDisk(capacity, configuration, fileSystemManager);
++            case "DiskSegment" -> new LongListDiskSegment(capacity, configuration, fileSystemManager);
++            default -> throw new IllegalArgumentException("Unknown LongList implementation: " + listImpl);
++        };
++        final long firstLeafPath = leafCount - 1;
++        source.updateValidRange(firstLeafPath, leafCount * 2 - 2);
++        for (long index = 0; index < leafCount; index++) {
++            source.put(firstLeafPath + index, DataFileCommon.dataLocation(0, index + 1));
++        }
++
++        // Finish setup writes, including disk-backed source data, before measuring snapshots.
++        try (final Stream<Path> files = Files.walk(trialDirectory)) {
++            for (final Path file : files.filter(Files::isRegularFile).toList()) {
++                forceFile(file);
++            }
++        }
++        if (threadsPerLongList > 1) {
++            executor = Executors.newFixedThreadPool(threadsPerLongList);
++        }
++    }
++
++    /// Measures a snapshot write with [LongList#writeToFile].
++    ///
++    /// @throws IOException if the snapshot cannot be created or written
++    @Benchmark
++    public void writeToFile() throws IOException {
++        source.writeToFile(snapshotFile, executor, threadsPerLongList);
++    }
++
++    /// Flushes and removes the snapshot after each measured write.
++    ///
++    /// @throws IOException if the snapshot cannot be flushed or removed
++    @TearDown(Level.Invocation)
++    public void tearDownInvocation() throws IOException {
++        try {
++            // Drain outside the timed method so pending writes do not accumulate between invocations.
++            forceFile(snapshotFile);
++        } finally {
++            Files.deleteIfExists(snapshotFile);
++        }
++    }
++
++    /// Closes the source index and executor, then removes the trial files.
++    ///
++    /// @throws IOException if the source index cannot be closed or the trial files removed
++    @TearDown(Level.Trial)
++    public void tearDownTrial() throws IOException {
++        try {
++            if (executor != null) {
++                executor.close();
++            }
++            if (source != null) {
++                source.close();
++            }
++        } finally {
++            if (trialDirectory != null) {
++                FileUtils.deleteDirectory(trialDirectory);
++            }
++        }
++    }
++
++    /// Waits for file writes to reach storage so they do not carry over into the next measurement.
++    ///
++    /// @param file file whose pending writes must be flushed
++    /// @throws IOException if the file cannot be opened or flushed
++    private static void forceFile(final Path file) throws IOException {
++        try (final FileChannel channel = FileChannel.open(file, StandardOpenOption.WRITE)) {
++            channel.force(true);
++        }
++    }
++}
+diff --git a/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/AbstractLongList.java b/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/AbstractLongList.java
+index 3c3741c4d1..09d718a7d8 100644
+--- a/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/AbstractLongList.java
++++ b/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/AbstractLongList.java
+@@ -7,12 +7,15 @@ import static java.lang.Math.max;
+ import static java.lang.Math.min;
+ import static java.lang.Math.toIntExact;
+ import static java.util.Objects.requireNonNull;
++import static org.hiero.base.file.FileUtils.rethrowIO;
+ 
+ import com.swirlds.merkledb.config.MerkleDbConfig;
+ import com.swirlds.merkledb.utilities.MerkleDbFileUtils;
+ import edu.umd.cs.findbugs.annotations.NonNull;
+ import edu.umd.cs.findbugs.annotations.Nullable;
+ import java.io.IOException;
++import java.io.RandomAccessFile;
++import java.io.UncheckedIOException;
+ import java.nio.ByteBuffer;
+ import java.nio.channels.FileChannel;
+ import java.nio.file.Files;
+@@ -21,6 +24,9 @@ import java.nio.file.StandardOpenOption;
+ import java.util.ArrayList;
+ import java.util.List;
+ import java.util.Objects;
++import java.util.concurrent.CompletableFuture;
++import java.util.concurrent.CompletionException;
++import java.util.concurrent.Executor;
+ import java.util.concurrent.atomic.AtomicLong;
+ import java.util.concurrent.atomic.AtomicReferenceArray;
+ import java.util.function.BooleanSupplier;
+@@ -170,12 +176,10 @@ public abstract class AbstractLongList<C> implements LongList {
+         chunkList = new AtomicReferenceArray<>(calculateNumberOfChunks(capacity));
+     }
+ 
+-    /**
+-     * Loads index data from a file, which was previously saved using {@link #writeToFile(Path)}.
+-     *
+-     * @param file The file to load from
+-     * @throws IOException IO exception if any
+-     */
++    /// Loads index data from a file previously saved using [#writeToFile(Path, Executor, int)].
++    ///
++    /// @param file the file to load from
++    /// @throws IOException if the file cannot be read
+     protected void loadFromFile(@NonNull final Path file) throws IOException {
+         requireNonNull(file);
+         if (!Files.exists(file)) {
+@@ -482,30 +486,161 @@ public abstract class AbstractLongList<C> implements LongList {
+         return StreamSupport.longStream(new LongListSpliterator(this), false);
+     }
+ 
+-    /**
+-     * Write all longs in this LongList into a file
+-     * <p>
+-     * <b> It is not guaranteed what version of data will be written if the LongList is changed
+-     * via put methods while this LongList is being written to a file. If you need consistency while
+-     * calling put concurrently then use a BufferedLongListWrapper. </b>
+-     *
+-     * @param file The file to write into, it should not exist but its parent directory should exist
+-     *             and be writable.
+-     * @throws IOException If there was a problem creating or writing to the file.
+-     */
++    /// {@inheritDoc}
+     @Override
+-    public void writeToFile(final Path file) throws IOException {
++    public void writeToFile(final Path file, final Executor executor, final int threadCount) throws IOException {
++        final long firstIndex = minValidIndex.get();
++        final long endIndex = size();
+         try (final FileChannel fc = FileChannel.open(file, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
+-            // write header
+             writeHeader(fc);
+-            if (size() > 0) {
+-                // write data
+-                writeLongsData(fc);
++            final long longsToWrite =
++                    endIndex > 0 && firstIndex < endIndex ? Math.subtractExact(endIndex, firstIndex) : 0;
++            final long fileLength = Math.addExact(FILE_HEADER_SIZE_V3, Math.multiplyExact(longsToWrite, Long.BYTES));
++            // Pre-size the file to reduce snapshot time by avoiding file growth during parallel writes.
++            // This sets the logical length; it does not guarantee that disk space is reserved.
++            try (final RandomAccessFile sizedFile = new RandomAccessFile(file.toFile(), "rw")) {
++                sizedFile.setLength(fileLength);
++            }
++            if (longsToWrite > 0) {
++                // Share zero-filled bytes across writers; each write uses its own buffer view.
++                final ByteBuffer zeroBuffer =
++                        ByteBuffer.allocate(memoryChunkSize).asReadOnlyBuffer();
++                if (threadCount == 1) {
++                    writeLongsData(fc, zeroBuffer, firstIndex, endIndex, FILE_HEADER_SIZE_V3);
++                } else {
++                    writeLongsDataInParallel(fc, zeroBuffer, executor, threadCount, firstIndex, endIndex);
++                }
+             }
+-            fc.force(true);
+         }
+     }
+ 
++    /// Writes contiguous chunk ranges in parallel and waits for all submitted tasks to finish.
++    ///
++    /// @param fc target file channel
++    /// @param zeroBuffer read-only zero-filled chunk shared by the writers
++    /// @param executor executor for the writer tasks
++    /// @param threadCount maximum number of writer tasks
++    /// @param firstIndex first valid list index, inclusive
++    /// @param endIndex last list index, exclusive
++    /// @throws IOException if a range cannot be written
++    private void writeLongsDataInParallel(
++            final FileChannel fc,
++            final ByteBuffer zeroBuffer,
++            final Executor executor,
++            final int threadCount,
++            final long firstIndex,
++            final long endIndex)
++            throws IOException {
++        // Chunk containing the minimum valid index; writer ranges start here, inclusive.
++        final int firstValidChunkIndex = toIntExact(firstIndex / longsPerChunk);
++        // Chunk just past the list's end; writer ranges stop here, exclusive.
++        final int totalNumOfChunks = calculateNumberOfChunks(endIndex);
++        final int activeChunkCount = totalNumOfChunks - firstValidChunkIndex;
++        // Cap the writer ranges so every task owns at least one chunk.
++        final int taskCount = min(threadCount, activeChunkCount);
++        // Minimum chunks per range (or task).
++        final int chunksPerRange = activeChunkCount / taskCount;
++        // Leading ranges (or tasks) that receive one extra chunk.
++        final int rangesWithOneMoreChunk = activeChunkCount % taskCount;
++        // Keep the submitted tasks so we can wait for them before closing the file.
++        final List<CompletableFuture<Void>> tasks = new ArrayList<>(taskCount);
++
++        // First chunk of the next writer range.
++        int rangeFirstChunkInclusive = firstValidChunkIndex;
++        Throwable failure = null;
++        try {
++            // Balanced contiguous ranges keep each writer moving forward through the file.
++            for (int rangeIndex = 0; rangeIndex < taskCount; rangeIndex++) {
++                // Give the first few tasks one extra chunk when the division is uneven.
++                final int rangeChunkCount = chunksPerRange + (rangeIndex < rangesWithOneMoreChunk ? 1 : 0);
++                // This range ends where the next range begins.
++                final int rangeLastChunkExclusive = rangeFirstChunkInclusive + rangeChunkCount;
++                // Limit the first and last ranges to the actual list boundaries.
++                final long rangeStartIndex = max(firstIndex, (long) rangeFirstChunkInclusive * longsPerChunk);
++                final long rangeEndIndex = min(endIndex, (long) rangeLastChunkExclusive * longsPerChunk);
++                // The first valid list entry is stored immediately after the header.
++                final long fileOffset = FILE_HEADER_SIZE_V3 + (rangeStartIndex - firstIndex) * Long.BYTES;
++                tasks.add(CompletableFuture.runAsync(
++                        () -> rethrowIO(
++                                () -> writeLongsData(fc, zeroBuffer, rangeStartIndex, rangeEndIndex, fileOffset)),
++                        executor));
++                rangeFirstChunkInclusive = rangeLastChunkExclusive;
++            }
++        } catch (final RuntimeException | Error e) {
++            // Remember the submission failure, but still wait for writers already submitted.
++            failure = e;
++        }
++        try {
++            // Accepted writes must finish before the shared channel closes, even after a failure.
++            CompletableFuture.allOf(tasks.toArray(CompletableFuture[]::new)).join();
++        } catch (final CompletionException e) {
++            // Preserve the writer failure type, unwrapping checked I/O failures.
++            final Throwable cause = e.getCause();
++            final Throwable writeFailure;
++            if (cause instanceof UncheckedIOException ioException) {
++                writeFailure = ioException.getCause();
++            } else if (cause instanceof RuntimeException || cause instanceof Error) {
++                writeFailure = cause;
++            } else {
++                writeFailure = e;
++            }
++            if (failure == null) {
++                failure = writeFailure;
++            } else {
++                // A submission failure remains primary if an accepted writer also failed.
++                failure.addSuppressed(writeFailure);
++            }
++        }
++        if (failure instanceof IOException ioException) {
++            throw ioException;
++        } else if (failure instanceof RuntimeException runtimeException) {
++            throw runtimeException;
++        } else if (failure instanceof Error error) {
++            throw error;
++        }
++    }
++
++    /// Writes the specified index range, clipping edge chunks and filling missing chunks with zeroes.
++    ///
++    /// @param fc target file channel
++    /// @param zeroBuffer read-only zero-filled chunk shared by the writers
++    /// @param startIndex first list index to write, inclusive
++    /// @param endIndex last list index to write, exclusive
++    /// @param fileOffset target offset for `startIndex`
++    /// @throws IOException if the range cannot be written
++    protected void writeLongsData(
++            final FileChannel fc,
++            final ByteBuffer zeroBuffer,
++            final long startIndex,
++            final long endIndex,
++            long fileOffset)
++            throws IOException {
++        final int firstChunkIndex = toIntExact(startIndex / longsPerChunk);
++        final int lastChunkIndex = toIntExact((endIndex - 1) / longsPerChunk);
++        for (int chunkIndex = firstChunkIndex; chunkIndex <= lastChunkIndex; chunkIndex++) {
++            final long chunkStart = (long) chunkIndex * longsPerChunk;
++            final int startInChunk = toIntExact(max(startIndex - chunkStart, 0));
++            final int endInChunk = toIntExact(min(endIndex - chunkStart, longsPerChunk));
++            final int bytesToWrite = (endInChunk - startInChunk) * Long.BYTES;
++            final C chunk = chunkList.get(chunkIndex);
++            if (chunk == null) {
++                writeZeroes(fc, zeroBuffer, bytesToWrite, fileOffset);
++            } else {
++                writeChunkData(fc, chunk, startInChunk, endInChunk, fileOffset);
++            }
++            fileOffset += bytesToWrite;
++        }
++    }
++
++    /// Writes the missing part of a chunk using an independent view of the shared zero buffer.
++    private static void writeZeroes(
++            final FileChannel channel, final ByteBuffer zeroBuffer, final int byteCount, final long fileOffset)
++            throws IOException {
++        final ByteBuffer zeroes = zeroBuffer.duplicate();
++        zeroes.limit(byteCount);
++        MerkleDbFileUtils.completelyWrite(channel, zeroes, fileOffset);
++    }
++
+     /**
+      * Write or rewrite header in file
+      *
+@@ -527,13 +662,21 @@ public abstract class AbstractLongList<C> implements LongList {
+         fc.position(currentFileHeaderSize);
+     }
+ 
+-    /**
+-     * Write the long data to file, This it is expected to be in one simple block of raw longs.
+-     *
+-     * @param fc The file channel to write to
+-     * @throws IOException if there was a problem writing longs
+-     */
+-    protected abstract void writeLongsData(@NonNull final FileChannel fc) throws IOException;
++    /// Writes part of one non-null chunk using positional writes.
++    ///
++    /// @param fc target file channel
++    /// @param chunk source chunk
++    /// @param startIndexInChunk first long within the chunk, inclusive
++    /// @param endIndexInChunk last long within the chunk, exclusive
++    /// @param fileOffset target offset for the first long
++    /// @throws IOException if the chunk cannot be written
++    protected abstract void writeChunkData(
++            @NonNull final FileChannel fc,
++            @NonNull final C chunk,
++            final int startIndexInChunk,
++            final int endIndexInChunk,
++            final long fileOffset)
++            throws IOException;
+ 
+     /**
+      * Lookup a long in data
+diff --git a/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongList.java b/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongList.java
+index ad1e066df6..2978dc6125 100644
+--- a/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongList.java
++++ b/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongList.java
+@@ -5,6 +5,7 @@ import com.swirlds.merkledb.files.DataFileCommon;
+ import java.io.Closeable;
+ import java.io.IOException;
+ import java.nio.file.Path;
++import java.util.concurrent.Executor;
+ import java.util.stream.LongStream;
+ 
+ /**
+@@ -90,18 +91,17 @@ public interface LongList extends CASableLongIndex, Closeable, OffHeapUser {
+      */
+     LongStream stream();
+ 
+-    /**
+-     * Write all longs in this LongList into a file
+-     * <p>
+-     * <b> It is not guaranteed what version of data will be written if the LongList is changed
+-     * via put methods while this LongList is being written to a file. If you need consistency while
+-     * calling put concurrently then use a BufferedLongListWrapper. </b>
+-     *
+-     * @param file The file to write into, it should not exist but its parent directory should exist
+-     *             and be writable.
+-     * @throws IOException If there was a problem creating or writing to the file.
+-     */
+-    void writeToFile(Path file) throws IOException;
++    /// Writes all longs in this LongList to a file.
++    /// If another thread calls `put()` during the write, the file may contain both old and updated values.
++    ///
++    /// With one thread, writes on the calling thread. Otherwise, submits up to `threadCount` tasks
++    /// to `executor` and waits for them to finish. The caller owns the executor.
++    ///
++    /// @param file new file to write; its parent directory must exist and be writable
++    /// @param executor executor able to run writer tasks while this method waits
++    /// @param threadCount maximum number of writer threads for this list, at least one
++    /// @throws IOException if there was a problem creating or writing to the file
++    void writeToFile(Path file, Executor executor, int threadCount) throws IOException;
+ 
+     /**
+      * Updates min and max valid indexes in this list. If both values are -1, this indicates
+diff --git a/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListDisk.java b/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListDisk.java
+index 8ab3aff17b..b345bea3bf 100644
+--- a/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListDisk.java
++++ b/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListDisk.java
+@@ -2,6 +2,7 @@
+ package com.swirlds.merkledb.collections;
+ 
+ import static java.lang.Math.toIntExact;
++import static java.nio.ByteBuffer.allocateDirect;
+ import static java.nio.file.Files.exists;
+ 
+ import com.swirlds.merkledb.config.MerkleDbConfig;
+@@ -23,6 +24,7 @@ import java.util.concurrent.atomic.AtomicInteger;
+ import java.util.concurrent.locks.ReadWriteLock;
+ import java.util.concurrent.locks.ReentrantReadWriteLock;
+ import org.hiero.base.file.FileSystemManager;
++import org.hiero.base.utility.MemoryUtils;
+ 
+ /**
+  *  A direct on disk implementation of LongList. This implementation creates a temporary file to store the data.
+@@ -61,6 +63,9 @@ public class LongListDisk extends AbstractLongList<Long> {
+     /** A temp byte buffer for transferring data between file channels */
+     private static final ThreadLocal<ByteBuffer> TRANSFER_BUFFER_THREAD_LOCAL;
+ 
++    /// The current writer range's buffer, reused by its chunk writes and released when the range finishes.
++    private static final ThreadLocal<ByteBuffer> WRITE_BUFFER_THREAD_LOCAL = new ThreadLocal<>();
++
+     /**
+      * Offsets of the chunks that are free to be used. The offsets are relative to the start of the file.
+      */
+@@ -398,69 +403,46 @@ public class LongListDisk extends AbstractLongList<Long> {
+         }
+     }
+ 
+-    /**
+-     * Calculate the offset in the chunk for the given index.
+-     * @param index the index to use
+-     * @return the offset in the chunk for the given index
+-     */
+-    private long calculateOffsetInChunk(long index) {
+-        return (index % longsPerChunk) * Long.BYTES;
++    /// {@inheritDoc}
++    @Override
++    protected void writeLongsData(
++            final FileChannel fc,
++            final ByteBuffer zeroBuffer,
++            final long startIndex,
++            final long endIndex,
++            final long fileOffset)
++            throws IOException {
++        final ByteBuffer transferBuffer = allocateDirect(memoryChunkSize);
++        try {
++            WRITE_BUFFER_THREAD_LOCAL.set(transferBuffer);
++            super.writeLongsData(fc, zeroBuffer, startIndex, endIndex, fileOffset);
++        } finally {
++            WRITE_BUFFER_THREAD_LOCAL.remove();
++            MemoryUtils.closeDirectByteBuffer(transferBuffer);
++        }
+     }
+ 
+-    /**
+-     * {@inheritDoc}
+-     */
++    /// {@inheritDoc}
+     @Override
+-    protected void writeLongsData(@NonNull final FileChannel fc) throws IOException {
+-        final ByteBuffer transferBuffer = initOrGetTransferBuffer();
+-        final int totalNumOfChunks = calculateNumberOfChunks(size());
+-        final long currentMinValidIndex = minValidIndex.get();
+-        final int firstChunkWithDataIndex = toIntExact(currentMinValidIndex / longsPerChunk);
+-
+-        // The following logic sequentially processes chunks. This kind of processing allows to get rid of
+-        // non-contiguous memory allocation and gaps that may be present in the current file.
+-        // MerkleDbFileUtils.completelyTransferFrom would work faster, it wouldn't allow
+-        // the required rearrangement of data.
+-        for (int i = firstChunkWithDataIndex; i < totalNumOfChunks; i++) {
+-            Long currentChunkStartOffset = chunkList.get(i);
+-            // if the chunk is null, we write zeroes to the file. If not, we write the data from the chunk
+-            if (currentChunkStartOffset != null) {
+-                final long chunkOffset;
+-                if (i == firstChunkWithDataIndex) {
+-                    // writing starts from the first valid index in the first valid chunk
+-                    final int firstValidIndexInChunk = toIntExact(currentMinValidIndex % longsPerChunk);
+-                    transferBuffer.position(firstValidIndexInChunk * Long.BYTES);
+-                    chunkOffset = currentChunkStartOffset + calculateOffsetInChunk(currentMinValidIndex);
+-                } else {
+-                    // writing the whole chunk
+-                    transferBuffer.position(0);
+-                    chunkOffset = currentChunkStartOffset;
+-                }
+-                if (i == (totalNumOfChunks - 1)) {
+-                    // the last array, so set limit to only the data needed
+-                    final long bytesWrittenSoFar = (long) memoryChunkSize * i;
+-                    final long remainingBytes = (size() * Long.BYTES) - bytesWrittenSoFar;
+-                    transferBuffer.limit(toIntExact(remainingBytes));
+-                } else {
+-                    transferBuffer.limit(memoryChunkSize);
+-                }
+-                int currentPosition = transferBuffer.position();
+-                final int toRead = transferBuffer.remaining();
+-                final int read = MerkleDbFileUtils.completelyRead(currentFileChannel, transferBuffer, chunkOffset);
+-                if (toRead != read) {
+-                    throw new IOException("Failed to read a chunk from the file, offset=" + chunkOffset + ", toRead="
+-                            + toRead + ", read=" + read + ", file size=" + currentFileChannel.size());
+-                }
+-                // Restore the position, so the right part of transferBuffer is written to the target
+-                // file channel below. No need to restore the limit, it isn't changed by completelyRead()
+-                transferBuffer.position(currentPosition);
+-            } else {
+-                // fillBufferWithZeroes() takes care of buffer position and limit
+-                fillBufferWithZeroes(transferBuffer);
+-            }
+-
+-            MerkleDbFileUtils.completelyWrite(fc, transferBuffer);
++    protected void writeChunkData(
++            @NonNull final FileChannel fc,
++            @NonNull final Long chunk,
++            final int startIndexInChunk,
++            final int endIndexInChunk,
++            final long fileOffset)
++            throws IOException {
++        final ByteBuffer transferBuffer = WRITE_BUFFER_THREAD_LOCAL.get();
++        transferBuffer.clear();
++        final int bytesToWrite = (endIndexInChunk - startIndexInChunk) * Long.BYTES;
++        transferBuffer.limit(bytesToWrite);
++        final long chunkOffset = chunk + (long) startIndexInChunk * Long.BYTES;
++        final int bytesRead = MerkleDbFileUtils.completelyRead(currentFileChannel, transferBuffer, chunkOffset);
++        if (bytesRead != bytesToWrite) {
++            throw new IOException("Failed to read a chunk from the file, offset=" + chunkOffset + ", toRead="
++                    + bytesToWrite + ", read=" + bytesRead + ", file size=" + currentFileChannel.size());
+         }
++        transferBuffer.flip();
++        MerkleDbFileUtils.completelyWrite(fc, transferBuffer, fileOffset);
+     }
+ 
+     /**
+diff --git a/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListDiskSegment.java b/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListDiskSegment.java
+index cfbb11b560..b56991f597 100644
+--- a/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListDiskSegment.java
++++ b/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListDiskSegment.java
+@@ -577,51 +577,27 @@ public final class LongListDiskSegment extends AbstractLongList<LongListDiskSegm
+     ///
+     /// {@inheritDoc}
+     ///
+-    /// Writes all chunk data to the file channel. Each chunk's {@link MemorySegment}
+-    /// is exposed as a {@link ByteBuffer} view via {@link MemorySegment#asByteBuffer()}
+-    /// for {@link FileChannel} compatibility. For null chunk slots (sparse regions), a
+-    /// pre-allocated zero-filled buffer is written instead.
++    /// Writes a view of the assigned chunk range without copying its native bytes.
+     ///
+-    /// This method runs exclusively during snapshot, which is sequenced after flush
+-    /// completion by the virtual pipeline. No concurrent {@link #closeChunk} can
+-    /// invalidate a chunk's arena during this operation.
++    /// Chunk writes may run concurrently, but the snapshot is sequenced after
++    /// flush completion by the virtual pipeline. No concurrent [#closeChunk(SegmentChunk)] can invalidate
++    /// a chunk's arena during this operation.
+     ///
+     @Override
+-    protected void writeLongsData(@NonNull final FileChannel fc) throws IOException {
+-        final int totalNumOfChunks = calculateNumberOfChunks(size());
+-        final long currentMinValidIndex = minValidIndex.get();
+-        final int firstChunkWithDataIndex = toIntExact(currentMinValidIndex / longsPerChunk);
+-
+-        // A zero-filled buffer for null chunk slots. Heap-allocated — no arena needed.
+-        final ByteBuffer emptyBuffer = ByteBuffer.allocate(memoryChunkSize);
+-
+-        for (int i = firstChunkWithDataIndex; i < totalNumOfChunks; i++) {
+-            final SegmentChunk segChunk = chunkList.get(i);
+-            final ByteBuffer buf;
+-            if (segChunk != null) {
+-                buf = segChunk.segment().asByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
+-            } else {
+-                emptyBuffer.clear();
+-                buf = emptyBuffer;
+-            }
+-
+-            if (i == firstChunkWithDataIndex) {
+-                final int firstValidIndexInChunk = toIntExact(currentMinValidIndex % longsPerChunk);
+-                buf.position(firstValidIndexInChunk * Long.BYTES);
+-            } else {
+-                buf.position(0);
+-            }
+-
+-            if (i == (totalNumOfChunks - 1)) {
+-                final long bytesWrittenSoFar = (long) memoryChunkSize * i;
+-                final long remainingBytes = size() * Long.BYTES - bytesWrittenSoFar;
+-                buf.limit(toIntExact(remainingBytes));
+-            } else {
+-                buf.limit(memoryChunkSize);
+-            }
+-
+-            MerkleDbFileUtils.completelyWrite(fc, buf);
+-        }
++    protected void writeChunkData(
++            @NonNull final FileChannel fc,
++            @NonNull final SegmentChunk chunk,
++            final int startIndexInChunk,
++            final int endIndexInChunk,
++            final long fileOffset)
++            throws IOException {
++        // Create a buffer view of only the requested values, without copying the chunk's bytes.
++        final ByteBuffer buffer = chunk.segment()
++                .asSlice(
++                        (long) startIndexInChunk * Long.BYTES,
++                        (long) (endIndexInChunk - startIndexInChunk) * Long.BYTES)
++                .asByteBuffer();
++        MerkleDbFileUtils.completelyWrite(fc, buffer, fileOffset);
+     }
+ 
+     // =========================================================================
+diff --git a/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListHeap.java b/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListHeap.java
+index 2cb74a56fb..ebbfc593b8 100644
+--- a/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListHeap.java
++++ b/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListHeap.java
+@@ -1,6 +1,7 @@
+ // SPDX-License-Identifier: Apache-2.0
+ package com.swirlds.merkledb.collections;
+ 
++import static com.swirlds.base.units.UnitConstants.MEBIBYTES_TO_BYTES;
+ import static java.lang.Math.toIntExact;
+ import static java.nio.ByteBuffer.allocateDirect;
+ 
+@@ -37,6 +38,9 @@ import org.hiero.base.utility.MemoryUtils;
+ @SuppressWarnings("unused")
+ public final class LongListHeap extends AbstractLongList<AtomicLongArray> {
+ 
++    /// The current writer range's buffer, reused by its chunk writes and released when the range finishes.
++    private static final ThreadLocal<ByteBuffer> WRITE_BUFFER_THREAD_LOCAL = new ThreadLocal<>();
++
+     /** A buffer for reading chunk data from the file only during the initialization. */
+     private ByteBuffer initReadBuffer;
+ 
+@@ -150,40 +154,56 @@ public final class LongListHeap extends AbstractLongList<AtomicLongArray> {
+         return chunk.compareAndSet(subIndex, oldValue, newValue);
+     }
+ 
+-    /**
+-     * Write the long data to file, This it is expected to be in one simple block of raw longs.
+-     *
+-     * @param fc The file channel to write to
+-     * @throws IOException if there was a problem writing longs
+-     */
++    /// {@inheritDoc}
+     @Override
+-    protected void writeLongsData(final FileChannel fc) throws IOException {
+-        // write data
+-        final ByteBuffer tempBuffer = allocateDirect(1024 * 1024);
++    protected void writeLongsData(
++            final FileChannel fc,
++            final ByteBuffer zeroBuffer,
++            final long startIndex,
++            final long endIndex,
++            final long fileOffset)
++            throws IOException {
++        final ByteBuffer tempBuffer = allocateDirect(MEBIBYTES_TO_BYTES);
+         try {
+             tempBuffer.order(ByteOrder.LITTLE_ENDIAN);
+-            final LongBuffer tempLongBuffer = tempBuffer.asLongBuffer();
+-            for (long i = minValidIndex.get(); i < size(); i++) {
+-                // if buffer is full then write
+-                if (!tempLongBuffer.hasRemaining()) {
+-                    tempBuffer.clear();
+-                    MerkleDbFileUtils.completelyWrite(fc, tempBuffer);
+-                    tempLongBuffer.clear();
+-                }
+-                // add value to buffer
+-                tempLongBuffer.put(get(i, 0));
+-            }
+-            // write any remaining
+-            if (tempLongBuffer.position() > 0) {
+-                tempBuffer.position(0);
+-                tempBuffer.limit(tempLongBuffer.position() * Long.BYTES);
+-                MerkleDbFileUtils.completelyWrite(fc, tempBuffer);
+-            }
++            WRITE_BUFFER_THREAD_LOCAL.set(tempBuffer);
++            super.writeLongsData(fc, zeroBuffer, startIndex, endIndex, fileOffset);
+         } finally {
++            WRITE_BUFFER_THREAD_LOCAL.remove();
+             MemoryUtils.closeDirectByteBuffer(tempBuffer);
+         }
+     }
+ 
++    /// {@inheritDoc}
++    @Override
++    protected void writeChunkData(
++            @NonNull final FileChannel fc,
++            @NonNull final AtomicLongArray chunk,
++            final int startIndexInChunk,
++            final int endIndexInChunk,
++            long fileOffset)
++            throws IOException {
++        final ByteBuffer tempBuffer = WRITE_BUFFER_THREAD_LOCAL.get();
++        tempBuffer.clear();
++        final LongBuffer tempLongBuffer = tempBuffer.asLongBuffer();
++        for (int i = startIndexInChunk; i < endIndexInChunk; i++) {
++            // If the buffer is full, write it before adding the next value.
++            if (!tempLongBuffer.hasRemaining()) {
++                tempBuffer.clear();
++                fileOffset += MerkleDbFileUtils.completelyWrite(fc, tempBuffer, fileOffset);
++                tempLongBuffer.clear();
++            }
++            // Add the next value to the buffer.
++            tempLongBuffer.put(chunk.get(i));
++        }
++        // Write any remaining values.
++        if (tempLongBuffer.position() > 0) {
++            tempBuffer.position(0);
++            tempBuffer.limit(tempLongBuffer.position() * Long.BYTES);
++            MerkleDbFileUtils.completelyWrite(fc, tempBuffer, fileOffset);
++        }
++    }
++
+     /**
+      * Lookup a long in data
+      *
+diff --git a/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListOffHeap.java b/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListOffHeap.java
+index a8e7f880ce..a748e843ad 100644
+--- a/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListOffHeap.java
++++ b/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListOffHeap.java
+@@ -2,8 +2,6 @@
+ package com.swirlds.merkledb.collections;
+ 
+ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+-import static java.lang.Math.toIntExact;
+-import static java.util.Objects.requireNonNullElse;
+ 
+ import com.swirlds.merkledb.config.MerkleDbConfig;
+ import com.swirlds.merkledb.utilities.MerkleDbFileUtils;
+@@ -143,47 +141,19 @@ public final class LongListOffHeap extends AbstractLongList<ByteBuffer> implemen
+         return MemoryUtils.compareAndSwapLong(chunk, subIndexBytes, oldValue, newValue);
+     }
+ 
+-    /**
+-     * Write the long data to file, This it is expected to be in one simple block of raw longs.
+-     *
+-     * @param fc The file channel to write to
+-     * @throws IOException if there was a problem writing longs
+-     */
++    /// {@inheritDoc}
+     @Override
+-    protected void writeLongsData(final FileChannel fc) throws IOException {
+-        final int totalNumOfChunks = calculateNumberOfChunks(size());
+-        final long currentMinValidIndex = minValidIndex.get();
+-        final int firstChunkWithDataIndex = toIntExact(currentMinValidIndex / longsPerChunk);
+-        // write data
+-        final ByteBuffer emptyBuffer = createChunk();
+-        try {
+-            for (int i = firstChunkWithDataIndex; i < totalNumOfChunks; i++) {
+-                final ByteBuffer byteBuffer = chunkList.get(i);
+-                final ByteBuffer nonNullBuffer = requireNonNullElse(byteBuffer, emptyBuffer);
+-                // Slice so we don't mess with the byte buffer pointers.
+-                // Also, the slice size has to be equal to the size of the buffer
+-                final ByteBuffer buf = nonNullBuffer.slice(0, nonNullBuffer.limit());
+-                if (i == firstChunkWithDataIndex) {
+-                    // writing starts from the first valid index in the first valid chunk
+-                    final int firstValidIndexInChunk = toIntExact(currentMinValidIndex % longsPerChunk);
+-                    buf.position(firstValidIndexInChunk * Long.BYTES);
+-                } else {
+-                    buf.position(0);
+-                }
+-                if (i == (totalNumOfChunks - 1)) {
+-                    // last array, so set limit to only the data needed
+-                    final long bytesWrittenSoFar = (long) memoryChunkSize * i;
+-                    final long remainingBytes = size() * Long.BYTES - bytesWrittenSoFar;
+-                    buf.limit(toIntExact(remainingBytes));
+-                } else {
+-                    buf.limit(buf.capacity());
+-                }
+-                MerkleDbFileUtils.completelyWrite(fc, buf);
+-            }
+-        } finally {
+-            // releasing memory allocated
+-            closeChunk(emptyBuffer);
+-        }
++    protected void writeChunkData(
++            @NonNull final FileChannel fc,
++            @NonNull final ByteBuffer chunk,
++            final int startIndexInChunk,
++            final int endIndexInChunk,
++            final long fileOffset)
++            throws IOException {
++        // Slice the requested range so writing does not change the chunk's position or limit.
++        final ByteBuffer buffer =
++                chunk.slice(startIndexInChunk * Long.BYTES, (endIndexInChunk - startIndexInChunk) * Long.BYTES);
++        MerkleDbFileUtils.completelyWrite(fc, buffer, fileOffset);
+     }
+ 
+     /**
+diff --git a/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListSegment.java b/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListSegment.java
+index bc3f9527bc..cbe1d581d0 100644
+--- a/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListSegment.java
++++ b/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListSegment.java
+@@ -1,8 +1,6 @@
+ // SPDX-License-Identifier: Apache-2.0
+ package com.swirlds.merkledb.collections;
+ 
+-import static java.lang.Math.toIntExact;
+-
+ import com.swirlds.merkledb.config.MerkleDbConfig;
+ import com.swirlds.merkledb.utilities.MerkleDbFileUtils;
+ import edu.umd.cs.findbugs.annotations.NonNull;
+@@ -282,54 +280,28 @@ public final class LongListSegment extends AbstractLongList<LongListSegment.Segm
+         return chunk;
+     }
+ 
+-    /**
+-     * {@inheritDoc}
+-     *
+-     * <p>Writes all chunk data to the file channel. Each chunk's {@link MemorySegment}
+-     * is exposed as a {@link ByteBuffer} view via {@link MemorySegment#asByteBuffer()}
+-     * for {@link FileChannel} compatibility. For null chunk slots (sparse regions), a
+-     * pre-allocated zero-filled buffer is written instead.
+-     *
+-     * <p>This method runs exclusively during snapshot, which is sequenced after flush
+-     * completion by the virtual pipeline. No concurrent {@link #closeChunk} can
+-     * invalidate a chunk's arena during this operation.
+-     */
++    /// {@inheritDoc}
++    ///
++    /// Writes a view of the assigned chunk range without copying its native bytes.
++    ///
++    /// Chunk writes may run concurrently, but the snapshot is sequenced after
++    /// flush completion by the virtual pipeline. No concurrent [#closeChunk(SegmentChunk)] can invalidate
++    /// a chunk's arena during this operation.
+     @Override
+-    protected void writeLongsData(@NonNull final FileChannel fc) throws IOException {
+-        final int totalNumOfChunks = calculateNumberOfChunks(size());
+-        final long currentMinValidIndex = minValidIndex.get();
+-        final int firstChunkWithDataIndex = toIntExact(currentMinValidIndex / longsPerChunk);
+-
+-        // A zero-filled buffer for null chunk slots. Heap-allocated — no arena needed.
+-        final ByteBuffer emptyBuffer = ByteBuffer.allocate(memoryChunkSize);
+-
+-        for (int i = firstChunkWithDataIndex; i < totalNumOfChunks; i++) {
+-            final SegmentChunk segChunk = chunkList.get(i);
+-            final ByteBuffer buf;
+-            if (segChunk != null) {
+-                buf = segChunk.segment().asByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
+-            } else {
+-                emptyBuffer.clear();
+-                buf = emptyBuffer;
+-            }
+-
+-            if (i == firstChunkWithDataIndex) {
+-                final int firstValidIndexInChunk = toIntExact(currentMinValidIndex % longsPerChunk);
+-                buf.position(firstValidIndexInChunk * Long.BYTES);
+-            } else {
+-                buf.position(0);
+-            }
+-
+-            if (i == (totalNumOfChunks - 1)) {
+-                final long bytesWrittenSoFar = (long) memoryChunkSize * i;
+-                final long remainingBytes = size() * Long.BYTES - bytesWrittenSoFar;
+-                buf.limit(toIntExact(remainingBytes));
+-            } else {
+-                buf.limit(memoryChunkSize);
+-            }
+-
+-            MerkleDbFileUtils.completelyWrite(fc, buf);
+-        }
++    protected void writeChunkData(
++            @NonNull final FileChannel fc,
++            @NonNull final SegmentChunk chunk,
++            final int startIndexInChunk,
++            final int endIndexInChunk,
++            final long fileOffset)
++            throws IOException {
++        // Create a buffer view of only the requested values, without copying the chunk's bytes.
++        final ByteBuffer buffer = chunk.segment()
++                .asSlice(
++                        (long) startIndexInChunk * Long.BYTES,
++                        (long) (endIndexInChunk - startIndexInChunk) * Long.BYTES)
++                .asByteBuffer();
++        MerkleDbFileUtils.completelyWrite(fc, buffer, fileOffset);
+     }
+ 
+     // =========================================================================
+diff --git a/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/config/MerkleDbConfig.java b/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/config/MerkleDbConfig.java
+index e566483630..346abccb36 100644
+--- a/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/config/MerkleDbConfig.java
++++ b/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/config/MerkleDbConfig.java
+@@ -78,6 +78,8 @@ import com.swirlds.config.api.validation.annotation.Positive;
+  * @param consolidationMinFileCount
+  *      Minimum number of small files at a level before consolidation triggers. Prevents
+  *      pointless runs when only a few small files exist.
++ * @param longListWriteThreads
++ *      Number of threads used to write each LongList snapshot file. One uses sequential per-list writing.
+  */
+ // spotless:off
+ @ConfigData("merkleDb")
+@@ -107,7 +109,8 @@ public record MerkleDbConfig(
+         @Min(1) @ConfigProperty(defaultValue = "8") int maxThreadsPerFileChannel,
+         @ConfigProperty(defaultValue = "false") boolean useDiskIndices,
+         @Min(0) @ConfigProperty(defaultValue = "50") long consolidationMaxInputFileSizeMB,
+-        @Min(2) @ConfigProperty(defaultValue = "10") int consolidationMinFileCount){
++        @Min(2) @ConfigProperty(defaultValue = "10") int consolidationMinFileCount,
++        @Min(1) @ConfigProperty(defaultValue = "4") int longListWriteThreads) {
+ 
+     // spotless:on
+ 
+diff --git a/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/files/hashmap/HalfDiskHashMap.java b/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/files/hashmap/HalfDiskHashMap.java
+index 298285a20f..dcafa56436 100644
+--- a/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/files/hashmap/HalfDiskHashMap.java
++++ b/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/files/hashmap/HalfDiskHashMap.java
+@@ -31,6 +31,7 @@ import java.nio.file.Path;
+ import java.util.ArrayList;
+ import java.util.List;
+ import java.util.LongSummaryStatistics;
++import java.util.concurrent.Executor;
+ import java.util.concurrent.ForkJoinPool;
+ import java.util.concurrent.atomic.AtomicBoolean;
+ import java.util.concurrent.atomic.AtomicInteger;
+@@ -373,10 +374,24 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
+ 
+     /** {@inheritDoc} */
+     public void snapshot(final Path snapshotDirectory) throws IOException {
++        snapshot(snapshotDirectory, Runnable::run, 1);
++    }
++
++    /// Writes a snapshot, using the supplied executor for parallel bucket-index writes.
++    ///
++    /// Waits for all writes to finish. The caller owns the executor.
++    ///
++    /// @param snapshotDirectory directory to write the snapshot to
++    /// @param executor executor able to run writer tasks while this method waits
++    /// @param threadCount maximum number of bucket-index writer threads; one writes on the calling thread
++    /// @throws IOException if the snapshot cannot be written
++    public void snapshot(final Path snapshotDirectory, final Executor executor, final int threadCount)
++            throws IOException {
+         // create snapshot directory if needed
+         Files.createDirectories(snapshotDirectory);
+         // write index to file
+-        bucketIndexToBucketLocation.writeToFile(snapshotDirectory.resolve(storeName + BUCKET_INDEX_FILENAME_SUFFIX));
++        bucketIndexToBucketLocation.writeToFile(
++                snapshotDirectory.resolve(storeName + BUCKET_INDEX_FILENAME_SUFFIX), executor, threadCount);
+         // snapshot files
+         fileCollection.snapshot(snapshotDirectory);
+         // write metadata
+diff --git a/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/internal/MerkleDbDataSource.java b/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/internal/MerkleDbDataSource.java
+index 62165b6ff6..2b26c25ee6 100644
+--- a/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/internal/MerkleDbDataSource.java
++++ b/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/internal/MerkleDbDataSource.java
+@@ -6,6 +6,7 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+ import static com.swirlds.logging.legacy.LogMarker.MERKLE_DB;
+ import static com.swirlds.merkledb.KeyRange.INVALID_KEY_RANGE;
+ import static java.util.Objects.requireNonNull;
++import static org.hiero.base.concurrent.interrupt.Uninterruptable.retryIfInterrupted;
+ import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+ 
+ import com.hedera.pbj.runtime.FieldDefinition;
+@@ -45,7 +46,6 @@ import java.util.Arrays;
+ import java.util.Comparator;
+ import java.util.Map;
+ import java.util.Objects;
+-import java.util.concurrent.Callable;
+ import java.util.concurrent.CompletableFuture;
+ import java.util.concurrent.ConcurrentHashMap;
+ import java.util.concurrent.CountDownLatch;
+@@ -56,6 +56,7 @@ import java.util.concurrent.ForkJoinPool;
+ import java.util.concurrent.Future;
+ import java.util.concurrent.atomic.AtomicBoolean;
+ import java.util.concurrent.atomic.AtomicInteger;
++import java.util.concurrent.atomic.AtomicReference;
+ import java.util.concurrent.atomic.LongAdder;
+ import java.util.stream.Stream;
+ import org.apache.logging.log4j.LogManager;
+@@ -204,7 +205,10 @@ public final class MerkleDbDataSource implements VirtualDataSource {
+      */
+     private final VirtualLeafBytes[] leafRecordCache;
+ 
+-    /** Thread pool creating snapshots, it is unbounded in threads, but we use at most 7 */
++    /// Thread group for this data source's snapshot threads.
++    private final ThreadGroup threadGroup;
++
++    /// Runs the four snapshot groups. Index writers use a separate snapshot-scoped pool.
+     private final ExecutorService snapshotExecutor;
+ 
+     /** Flag for if a snapshot is in progress */
+@@ -306,8 +310,8 @@ public final class MerkleDbDataSource implements VirtualDataSource {
+         this.hashChunkHeight = merkleDbConfig.hashChunkHeight();
+ 
+         // create thread group with label
+-        final ThreadGroup threadGroup = new ThreadGroup("MerkleDb-" + tableName);
+-        // thread pool creating snapshots, it is unbounded in threads, but we use at most 7
++        threadGroup = new ThreadGroup("MerkleDb-" + tableName);
++        // Pool for the four top-level snapshot groups.
+         snapshotExecutor = Executors.newCachedThreadPool(new ThreadConfiguration(getStaticThreadManager())
+                 .setThreadGroup(threadGroup)
+                 .setThreadNameProvider(CompositeThreadNameProvider.createNumbered(MERKLEDB_COMPONENT, "Snapshot"))
+@@ -948,56 +952,74 @@ public final class MerkleDbDataSource implements VirtualDataSource {
+         }
+         logger.info(MERKLE_DB.getMarker(), "[{}] Starting snapshot to {}", tableName, snapshotDirectory);
+         try {
+-            // start timing snapshot
+-            final long START = System.currentTimeMillis();
+-            // create snapshot dir if it doesn't exist
++            final long start = System.currentTimeMillis();
+             Files.createDirectories(snapshotDirectory);
+             final MerkleDbPaths snapshotDbPaths = new MerkleDbPaths(snapshotDirectory);
+-            // main snapshotting process in multiple-threads
++            final AtomicReference<Throwable> snapshotFailure = new AtomicReference<>();
++            InterruptedException snapshotInterrupted = null;
+             try {
+-                // Flush cached hash chunks to the hash chunk store
+-                flushHashChunkCache();
+-                final CountDownLatch countDownLatch = new CountDownLatch(6);
+-                // write all data stores
+-                runWithSnapshotExecutor(countDownLatch, "idToDiskLocationHashChunks", () -> {
+-                    idToDiskLocationHashChunks.writeToFile(snapshotDbPaths.idToDiskLocationHashChunksFile);
+-                    return true;
+-                });
+-                runWithSnapshotExecutor(countDownLatch, "pathToDiskLocationLeafNodes", () -> {
+-                    pathToDiskLocationLeafNodes.writeToFile(snapshotDbPaths.pathToDiskLocationLeafNodesFile);
+-                    return true;
+-                });
+-                runWithSnapshotExecutor(countDownLatch, "hashChunkStore", () -> {
+-                    hashChunkStore.snapshot(snapshotDbPaths.hashChunkDirectory);
+-                    return true;
+-                });
+-                runWithSnapshotExecutor(countDownLatch, "keyToPath", () -> {
+-                    keyToPath.snapshot(snapshotDbPaths.keyToPathDirectory);
+-                    return true;
+-                });
+-                runWithSnapshotExecutor(countDownLatch, "keyValueStore", () -> {
+-                    keyValueStore.snapshot(snapshotDbPaths.pathToKeyValueDirectory);
+-                    return true;
+-                });
+-                runWithSnapshotExecutor(countDownLatch, "metadata", () -> {
+-                    saveMetadata(snapshotDbPaths);
+-                    return true;
+-                });
+-                // wait for the others to finish
+-                countDownLatch.await();
++                final int threadsPerLongList = merkleDbConfig.longListWriteThreads();
++                // LongLists sharing the writer pool: pathToDiskLocationLeafNodes, idToDiskLocationHashChunks,
++                // and keyToPath's bucketIndexToBucketLocation.
++                final int longListCount = 3;
++                try (final ExecutorService longListSnapshotExecutor = Executors.newFixedThreadPool(
++                        threadsPerLongList * longListCount,
++                        new ThreadConfiguration(getStaticThreadManager())
++                                .setThreadGroup(threadGroup)
++                                .setThreadNameProvider(CompositeThreadNameProvider.createNumbered(
++                                        MERKLEDB_COMPONENT, "Snapshot index writer"))
++                                .buildFactory())) {
++                    final CountDownLatch countDownLatch = new CountDownLatch(4);
++                    // The groups run independently. Only the hash group waits for the hash-cache flush.
++                    runWithSnapshotExecutor(countDownLatch, snapshotFailure, "hashes", () -> {
++                        flushHashChunkCache();
++                        idToDiskLocationHashChunks.writeToFile(
++                                snapshotDbPaths.idToDiskLocationHashChunksFile,
++                                longListSnapshotExecutor,
++                                threadsPerLongList);
++                        hashChunkStore.snapshot(snapshotDbPaths.hashChunkDirectory);
++                    });
++                    runWithSnapshotExecutor(countDownLatch, snapshotFailure, "leaves", () -> {
++                        pathToDiskLocationLeafNodes.writeToFile(
++                                snapshotDbPaths.pathToDiskLocationLeafNodesFile,
++                                longListSnapshotExecutor,
++                                threadsPerLongList);
++                        keyValueStore.snapshot(snapshotDbPaths.pathToKeyValueDirectory);
++                    });
++                    runWithSnapshotExecutor(countDownLatch, snapshotFailure, "keyToPath", () -> {
++                        keyToPath.snapshot(
++                                snapshotDbPaths.keyToPathDirectory, longListSnapshotExecutor, threadsPerLongList);
++                    });
++                    runWithSnapshotExecutor(
++                            countDownLatch, snapshotFailure, "metadata", () -> saveMetadata(snapshotDbPaths));
++                    // Finish started tasks before closing the writer pool or returning ownership of the directory.
++                    awaitSnapshotTasks(countDownLatch);
++                }
+             } catch (final InterruptedException e) {
+-                logger.error(
+-                        EXCEPTION.getMarker(),
+-                        "[{}] InterruptedException from waiting for countDownLatch in snapshot",
+-                        tableName,
+-                        e);
++                snapshotInterrupted = e;
+                 Thread.currentThread().interrupt();
+             }
++            final Throwable failure = snapshotFailure.get();
++            if (failure != null && snapshotInterrupted != null) {
++                // Report the interruption too, without replacing the snapshot failure.
++                failure.addSuppressed(snapshotInterrupted);
++            }
++            if (failure instanceof IOException ioException) {
++                throw ioException;
++            } else if (failure instanceof RuntimeException runtimeException) {
++                throw runtimeException;
++            } else if (failure instanceof Error error) {
++                throw error;
++            } else if (failure != null) {
++                throw new IOException("Snapshot task failed", failure);
++            } else if (snapshotInterrupted != null) {
++                throw new IOException("Interrupted while waiting for snapshot tasks to finish", snapshotInterrupted);
++            }
+             logger.info(
+                     MERKLE_DB.getMarker(),
+                     "[{}] Snapshot all finished in {} seconds",
+                     tableName,
+-                    (System.currentTimeMillis() - START) * UnitConstants.MILLISECONDS_TO_SECONDS);
++                    (System.currentTimeMillis() - start) * UnitConstants.MILLISECONDS_TO_SECONDS);
+         } finally {
+             snapshotInProgress.set(false);
+         }
+@@ -1127,36 +1149,59 @@ public final class MerkleDbDataSource implements VirtualDataSource {
+     // ==================================================================================================================
+     // private methods
+ 
+-    /**
+-     * Run a runnable on background thread using snapshot ExecutorService, counting down latch when
+-     * done.
+-     *
+-     * @param countDownLatch latch to count down when done
+-     * @param taskName the name of the task for logging
+-     * @param runnable the code to run
+-     */
+-    private void runWithSnapshotExecutor(
+-            final CountDownLatch countDownLatch, final String taskName, final Callable<Object> runnable) {
+-        snapshotExecutor.submit(() -> {
+-            final long START = System.currentTimeMillis();
+-            try {
+-                runnable.call();
+-                logger.trace(
+-                        MERKLE_DB.getMarker(),
+-                        "[{}] Snapshot {} complete in {} seconds",
+-                        tableName,
+-                        taskName,
+-                        (System.currentTimeMillis() - START) * UnitConstants.MILLISECONDS_TO_SECONDS);
+-                return true; // turns this into a callable, so it can throw checked
+-                // exceptions
+-            } catch (final Throwable t) {
+-                // log and rethrow
+-                logger.error(EXCEPTION.getMarker(), "[{}] Snapshot {} failed", tableName, taskName, t);
+-                throw t;
+-            } finally {
+-                countDownLatch.countDown();
+-            }
+-        });
++    /// Even after a failure or interruption, finish waiting so no task keeps writing after the
++    /// caller regains ownership of the snapshot directory.
++    ///
++    /// @param countDownLatch tracks the snapshot tasks that have not finished
++    /// @throws InterruptedException if interrupted while waiting, after all tasks have finished
++    private static void awaitSnapshotTasks(final CountDownLatch countDownLatch) throws InterruptedException {
++        try {
++            countDownLatch.await();
++        } catch (final InterruptedException e) {
++            // Finish the started tasks before reporting the interruption to the caller.
++            retryIfInterrupted(() -> countDownLatch.await());
++            throw e;
++        }
++    }
++
++    /// Runs one snapshot group and records its failure. Groups that have not started skip work after a failure.
++    ///
++    /// @param countDownLatch latch to count down when done
++    /// @param snapshotFailure receives the first task failure
++    /// @param taskName the name of the task for logging
++    /// @param runnable the code to run
++    void runWithSnapshotExecutor(
++            final CountDownLatch countDownLatch,
++            final AtomicReference<Throwable> snapshotFailure,
++            final String taskName,
++            final IORunnable runnable) {
++        try {
++            snapshotExecutor.execute(() -> {
++                final long start = System.currentTimeMillis();
++                try {
++                    if (snapshotFailure.get() != null) {
++                        return;
++                    }
++                    runnable.run();
++                    logger.trace(
++                            MERKLE_DB.getMarker(),
++                            "[{}] Snapshot {} complete in {} seconds",
++                            tableName,
++                            taskName,
++                            (System.currentTimeMillis() - start) * UnitConstants.MILLISECONDS_TO_SECONDS);
++                } catch (final Throwable t) {
++                    snapshotFailure.compareAndSet(null, t);
++                    logger.error(EXCEPTION.getMarker(), "[{}] Snapshot {} failed", tableName, taskName, t);
++                } finally {
++                    countDownLatch.countDown();
++                }
++            });
++        } catch (final RuntimeException | Error e) {
++            // Submission failed, so this group's finally block will never run.
++            // Decrement the latch here to avoid waiting forever for this group.
++            snapshotFailure.compareAndSet(null, e);
++            countDownLatch.countDown();
++        }
+     }
+ 
+     /**
+diff --git a/platform-sdk/swirlds-merkledb/src/test/java/com/swirlds/merkledb/collections/AbstractLongListTest.java b/platform-sdk/swirlds-merkledb/src/test/java/com/swirlds/merkledb/collections/AbstractLongListTest.java
+index f81fd1647e..b206f775d6 100644
+--- a/platform-sdk/swirlds-merkledb/src/test/java/com/swirlds/merkledb/collections/AbstractLongListTest.java
++++ b/platform-sdk/swirlds-merkledb/src/test/java/com/swirlds/merkledb/collections/AbstractLongListTest.java
+@@ -5,6 +5,7 @@ import static com.swirlds.merkledb.collections.AbstractLongList.FILE_HEADER_SIZE
+ import static com.swirlds.merkledb.collections.LongList.IMPERMISSIBLE_VALUE;
+ import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.checkDirectMemoryIsCleanedUpToLessThanBaseUsage;
+ import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.getDirectMemoryUsedBytes;
++import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.writeLongListToFileAndVerify;
+ import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
+ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+ import static org.junit.jupiter.api.Assertions.assertEquals;
+@@ -564,15 +565,13 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> extends Abstr
+         try (final LongList longList = createLongList(100, MAX_LONGS, 0)) {
+             longList.updateValidRange(0, 50);
+             longList.put(2, 1002);
+-            final Path snapshot1 = testDir.resolve("snapshot1");
+-            longList.writeToFile(snapshot1);
++            final Path snapshot1 = writeLongListToFileAndVerify(longList, "snapshot1", testDir);
+             try (final LongList restored = createLongList(snapshot1, 100, MAX_LONGS, 0)) {
+                 restored.updateValidRange(0, 50);
+                 assertEquals(3, restored.size());
+                 assertEquals(1002, restored.get(2));
+                 restored.put(3, 1003);
+-                final Path snapshot2 = testDir.resolve("snapshot2");
+-                restored.writeToFile(snapshot2);
++                final Path snapshot2 = writeLongListToFileAndVerify(restored, "snapshot2", testDir);
+                 try (final LongList restored2 = createLongList(snapshot2, 100, MAX_LONGS, 0)) {
+                     restored2.updateValidRange(0, 50);
+                     assertEquals(4, restored2.size());
+@@ -592,8 +591,7 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> extends Abstr
+             longList.put(1050, 2050); // chunk 5
+             longList.put(900, 1900); // chunk 4
+             longList.put(700, 1700); // chunk 3
+-            final Path snapshot = testDir.resolve("snapshot");
+-            longList.writeToFile(snapshot);
++            final Path snapshot = writeLongListToFileAndVerify(longList, "snapshot", testDir);
+             try (final LongList restored = createLongList(snapshot, 200, 10000, 0)) {
+                 assertEquals(1700, restored.get(700));
+                 assertEquals(2050, restored.get(1050));
+@@ -605,6 +603,55 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> extends Abstr
+         }
+     }
+ 
++    @Test
++    void testSnapshotWithMissingFirstChunk(@TempDir final Path testDir) throws IOException {
++        try (final T longList = createLongList(4, 100, 0)) {
++            longList.updateValidRange(3, 6);
++            longList.put(4, 40);
++            longList.put(5, 50);
++            longList.put(6, 60);
++            assertNull(longList.dataCopy().get(0));
++
++            final Path snapshot = testDir.resolve("missingFirstChunk");
++            longList.writeToFile(snapshot, Runnable::run, 1);
++
++            assertEquals(FILE_HEADER_SIZE_V3 + 4L * Long.BYTES, Files.size(snapshot));
++            try (final LongList restored = createLongList(snapshot, 4, 100, 0)) {
++                assertEquals(3, restored.getMinValidIndex());
++                assertEquals(7, restored.size());
++                assertEquals(0, restored.get(3));
++                assertEquals(40, restored.get(4));
++                assertEquals(50, restored.get(5));
++                assertEquals(60, restored.get(6));
++            }
++        }
++    }
++
++    @Test
++    void testSnapshotWithMissingLastChunk(@TempDir final Path testDir) throws IOException {
++        try (final T longList = createLongList(4, 100, 0)) {
++            longList.updateValidRange(0, 9);
++            longList.put(1, 10);
++            longList.put(9, 90);
++            longList.updateValidRange(1, 5);
++            assertNull(longList.dataCopy().get(1));
++
++            final Path snapshot = testDir.resolve("missingLastChunk");
++            longList.writeToFile(snapshot, Runnable::run, 1);
++
++            assertEquals(FILE_HEADER_SIZE_V3 + 5L * Long.BYTES, Files.size(snapshot));
++            try (final LongList restored = createLongList(snapshot, 4, 100, 0)) {
++                assertEquals(1, restored.getMinValidIndex());
++                assertEquals(6, restored.size());
++                assertEquals(10, restored.get(1));
++                assertEquals(0, restored.get(2));
++                assertEquals(0, restored.get(3));
++                assertEquals(0, restored.get(4));
++                assertEquals(0, restored.get(5));
++            }
++        }
++    }
++
+     @Test
+     void forEachWhileTest() throws Exception {
+         try (final LongList list = createLongList(10, 100, 0)) {
+@@ -674,6 +721,9 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> extends Abstr
+             () -> new LongListDisk(NUM_LONGS_PER_CHUNK, MAX_LONGS, 0, fileSystemManager));
+     static final LongListWriterFactory segmentWriterFactory = new LongListWriterFactory(
+             LongListSegment.class.getSimpleName(), () -> new LongListSegment(NUM_LONGS_PER_CHUNK, MAX_LONGS, 0));
++    static final LongListWriterFactory diskSegmentWriterFactory = new LongListWriterFactory(
++            LongListDiskSegment.class.getSimpleName(),
++            () -> new LongListDiskSegment(NUM_LONGS_PER_CHUNK, MAX_LONGS, 0, fileSystemManager));
+ 
+     /**
+      * Factories (named BiFunctions) for reconstructing different {@link AbstractLongList}
+@@ -1036,8 +1086,7 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> extends Abstr
+                 checkData(longListFromFile);
+ 
+                 // Rewrite the data from the first reconstructed list back to the file
+-                Files.delete(longListFile);
+-                longListFromFile.writeToFile(longListFile);
++                writeLongListToFileAndVerify(longListFromFile, TEMP_FILE_NAME, tempDir);
+ 
+                 // Reconstruct the list again using the second reader implementation
+                 try (final AbstractLongList<?> longListFromFile2 = secondReaderFactory
+@@ -1387,27 +1436,4 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> extends Abstr
+             assertEquals(0, readValue, "Longs don't match for " + i + " got [" + readValue + "] should be [" + 0 + "]");
+         }
+     }
+-
+-    /**
+-     * Writes all longs in LongList instance to a temporary file and verifies its existence.
+-     *
+-     * @param longList   the LongList instance to be written to the file
+-     * @param fileName   the name of the file to write
+-     * @param tempDir    the directory where the temporary file will be created
+-     * @return the path to the created file
+-     * @throws IOException if an I/O error occurs
+-     */
+-    static Path writeLongListToFileAndVerify(final LongList longList, final String fileName, final Path tempDir)
+-            throws IOException {
+-        final Path file = tempDir.resolve(fileName);
+-
+-        Files.deleteIfExists(file);
+-        longList.writeToFile(file);
+-
+-        assertTrue(
+-                Files.exists(file),
+-                String.format("File '%s' does not exist after writing longs.", file.toAbsolutePath()));
+-
+-        return file;
+-    }
+ }
+diff --git a/platform-sdk/swirlds-merkledb/src/test/java/com/swirlds/merkledb/collections/LongListDiskSegmentTest.java b/platform-sdk/swirlds-merkledb/src/test/java/com/swirlds/merkledb/collections/LongListDiskSegmentTest.java
+index eadd9dcc23..77e2bd01b9 100644
+--- a/platform-sdk/swirlds-merkledb/src/test/java/com/swirlds/merkledb/collections/LongListDiskSegmentTest.java
++++ b/platform-sdk/swirlds-merkledb/src/test/java/com/swirlds/merkledb/collections/LongListDiskSegmentTest.java
+@@ -29,18 +29,11 @@ class LongListDiskSegmentTest extends AbstractLongListTest<LongListDiskSegment>
+         return new LongListDiskSegment(file, longsPerChunk, capacity, reservedBufferLength, fileSystemManager);
+     }
+ 
+-    /**
+-     * Provides a stream of writer-reader pairs specifically for the {@link LongListSegment}
+-     * implementation. The writer is always {@link LongListSegment}, and it is paired with
+-     * all reader implementations (heap, off-heap, disk-based, and segment-based). This
+-     * allows for testing whether data written by the {@link LongListSegment} can be correctly
+-     * read back by all supported long list implementations.
+-     *
+-     * @return a stream of argument pairs, each containing a {@link LongListSegment} writer
+-     *         and one of the supported reader implementations
+-     */
++    /// Pairs a [LongListDiskSegment] writer with each supported reader implementation.
++    ///
++    /// @return writer-reader pairs for cross-compatibility tests
+     static Stream<Arguments> longListWriterReaderPairsProvider() {
+-        return longListWriterBasedPairsProvider(segmentWriterFactory);
++        return longListWriterBasedPairsProvider(diskSegmentWriterFactory);
+     }
+ 
+     /**
+diff --git a/platform-sdk/swirlds-merkledb/src/test/java/com/swirlds/merkledb/files/DataFileCollectionCompactionTest.java b/platform-sdk/swirlds-merkledb/src/test/java/com/swirlds/merkledb/files/DataFileCollectionCompactionTest.java
+index fe6875e68a..2555c2d2d7 100644
+--- a/platform-sdk/swirlds-merkledb/src/test/java/com/swirlds/merkledb/files/DataFileCollectionCompactionTest.java
++++ b/platform-sdk/swirlds-merkledb/src/test/java/com/swirlds/merkledb/files/DataFileCollectionCompactionTest.java
+@@ -4,6 +4,7 @@ package com.swirlds.merkledb.files;
+ import static com.swirlds.merkledb.files.DataFileCommon.getSizeOfFiles;
+ import static com.swirlds.merkledb.files.DataFileCommon.getSizeOfFilesByPath;
+ import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_MERKLE_DB_CONFIG;
++import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.writeLongListToFileAndVerify;
+ import static org.junit.jupiter.api.Assertions.assertEquals;
+ import static org.junit.jupiter.api.Assertions.assertNotEquals;
+ import static org.junit.jupiter.api.Assertions.assertNotNull;
+@@ -543,7 +544,7 @@ class DataFileCollectionCompactionTest {
+             // to acquire mergingPaused semaphore
+             final Path snapshotDir = tempFileDir.resolve("testMergeSnapshotRestore-snapshot");
+             Files.createDirectories(snapshotDir);
+-            index.writeToFile(snapshotDir.resolve("index.ll"));
++            writeLongListToFileAndVerify(index, "index.ll", snapshotDir);
+             store.snapshot(snapshotDir);
+             // Release the semaphore to unpause merging and wait for it to complete
+             compactor.resumeCompaction();
+@@ -616,7 +617,7 @@ class DataFileCollectionCompactionTest {
+                     // Start a snapshot while the index is being updated
+                     try {
+                         System.err.println("SAVED");
+-                        index.writeToFile(savedIndex);
++                        writeLongListToFileAndVerify(index, "index.ll", testDir);
+                         store.snapshot(snapshot);
+                     } catch (IOException ex) {
+                         ex.printStackTrace();
+diff --git a/platform-sdk/swirlds-merkledb/src/test/java/com/swirlds/merkledb/internal/MerkleDbCompactionCoordinatorTest.java b/platform-sdk/swirlds-merkledb/src/test/java/com/swirlds/merkledb/internal/MerkleDbCompactionCoordinatorTest.java
+index 778e78f5aa..cfa4a2e0f4 100644
+--- a/platform-sdk/swirlds-merkledb/src/test/java/com/swirlds/merkledb/internal/MerkleDbCompactionCoordinatorTest.java
++++ b/platform-sdk/swirlds-merkledb/src/test/java/com/swirlds/merkledb/internal/MerkleDbCompactionCoordinatorTest.java
+@@ -83,7 +83,8 @@ class MerkleDbCompactionCoordinatorTest {
+                 defaultConfig.maxThreadsPerFileChannel(),
+                 defaultConfig.useDiskIndices(),
+                 defaultConfig.consolidationMaxInputFileSizeMB(),
+-                defaultConfig.consolidationMinFileCount());
++                defaultConfig.consolidationMinFileCount(),
++                defaultConfig.longListWriteThreads());
+         coordinator = new MerkleDbCompactionCoordinator(config);
+         coordinator.enableBackgroundCompaction();
+     }
+@@ -1168,6 +1169,7 @@ class MerkleDbCompactionCoordinatorTest {
+                 d.maxThreadsPerFileChannel(),
+                 d.useDiskIndices(),
+                 maxInputSizeMB,
+-                minFileCount);
++                minFileCount,
++                d.longListWriteThreads());
+     }
+ }
+diff --git a/platform-sdk/swirlds-merkledb/src/testFixtures/java/com/swirlds/merkledb/test/fixtures/MerkleDbTestUtils.java b/platform-sdk/swirlds-merkledb/src/testFixtures/java/com/swirlds/merkledb/test/fixtures/MerkleDbTestUtils.java
+index 184924069a..a0becea09f 100644
+--- a/platform-sdk/swirlds-merkledb/src/testFixtures/java/com/swirlds/merkledb/test/fixtures/MerkleDbTestUtils.java
++++ b/platform-sdk/swirlds-merkledb/src/testFixtures/java/com/swirlds/merkledb/test/fixtures/MerkleDbTestUtils.java
+@@ -10,6 +10,7 @@ import com.swirlds.base.units.UnitConstants;
+ import com.swirlds.config.api.Configuration;
+ import com.swirlds.config.api.ConfigurationBuilder;
+ import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
++import com.swirlds.merkledb.collections.LongList;
+ import com.swirlds.merkledb.config.MerkleDbConfig;
+ import com.swirlds.metrics.api.Metric;
+ import com.swirlds.metrics.api.Metrics;
+@@ -62,6 +63,31 @@ public class MerkleDbTestUtils {
+     public static final MerkleDbConfig DEFAULT_MERKLE_DB_CONFIG =
+             DEFAULT_CONFIGURATION.getConfigData(MerkleDbConfig.class);
+ 
++    /// Writes the list using the default long list parallelism, replacing any existing file,
++    /// and verifies that the file exists.
++    ///
++    /// @param longList the LongList instance to write
++    /// @param fileName the name of the file to write
++    /// @param tempDir the directory where the file will be created
++    /// @return the path to the created file
++    /// @throws IOException if an I/O error occurs
++    public static Path writeLongListToFileAndVerify(final LongList longList, final String fileName, final Path tempDir)
++            throws IOException {
++        final Path file = tempDir.resolve(fileName);
++
++        Files.deleteIfExists(file);
++        final int threadCount = DEFAULT_MERKLE_DB_CONFIG.longListWriteThreads();
++        try (final ExecutorService pool = Executors.newFixedThreadPool(threadCount)) {
++            longList.writeToFile(file, pool, threadCount);
++        }
++
++        assertTrue(
++                Files.exists(file),
++                String.format("File '%s' does not exist after writing longs.", file.toAbsolutePath()));
++
++        return file;
++    }
++
+     /**
+      * Run a callable test in the background and then make sure no direct memory is leaked and not
+      * databases are left open. Running test in a thread helps by allowing the thread to be killed
