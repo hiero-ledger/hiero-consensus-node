@@ -183,21 +183,22 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
             // Lazy start: get each shared network, starting it on first demand and
             // reusing it thereafter. Start under the canonical config the launcher reserved ports
             // for, not this test's copy, so every test on the name hits the same subprocess.
-            // Wait for this test's network group to be admitted under the node budget, then lazily boot
+            // Wait for this test's network group to get a slot under the node budget, then lazily boot
             // its networks. The test id is stored first, so afterEach counts the test as finished even
             // if admission or the boot throws.
             final String testId = ctx.getUniqueId();
             store(ctx).put(TEST_ID_KEY, testId);
-            final var group = NETWORK_GROUP_QUEUE.awaitTurn(testId);
+            final var group = NetworkGroup.of(configs);
             final var networks = new SubProcessNetwork[configs.length];
-            // READ tests of one group can get here together. Boot (or reuse) under a per-group lock, so a
-            // failed boot is torn down and marked failed before another test of the group can see the
-            // networks missing and boot them again outside the node budget.
+            // READ tests of one group can get here together. Wait for the slot and boot (or reuse) under a
+            // per-group lock, so a failed boot is torn down and marked failed before another test of the group
+            // can see the networks missing and boot them again outside the node budget.
             final var bootLock = GROUP_BOOT_LOCKS.computeIfAbsent(group.id(), id -> new ReentrantLock());
             lockManaged(bootLock);
             try {
-                // Throws if an earlier test of the group failed to boot; returns at once while it runs
-                NETWORK_GROUP_QUEUE.awaitTurn(testId);
+                // Returns at once if the group already has a slot; throws if it cannot run or an earlier test of
+                // it failed to boot
+                NETWORK_GROUP_QUEUE.awaitSlot(group);
                 try {
                     startSharedNetworks(configs, networks);
                 } catch (final RuntimeException | Error e) {
@@ -205,7 +206,7 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
                     // tests then fail fast instead of retrying the boot
                     log.warn("[MultiNetworkExtension] Networks of network group [{}] failed to start", group.id(), e);
                     tearDownSharedGroup(group);
-                    NETWORK_GROUP_QUEUE.bootFailed(testId);
+                    NETWORK_GROUP_QUEUE.bootFailed(group);
                     throw e;
                 }
             } finally {
@@ -291,7 +292,29 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
      * finished, and tears down every shared network group whose last test this was.
      */
     public static void finishSharedTests(@NonNull final String uniqueId) {
-        for (final var group : NETWORK_GROUP_QUEUE.testsFinished(uniqueId)) {
+        tearDownSharedGroups(NETWORK_GROUP_QUEUE.testsFinished(uniqueId));
+    }
+
+    /**
+     * Moves {@code group} on from validation to teardown. Called by {@link MultiNetworkValidation} once the group's
+     * validation container has run.
+     */
+    static void finishValidation(@NonNull final NetworkGroup group) {
+        if (NETWORK_GROUP_QUEUE.validationFinished(group)) {
+            tearDownSharedGroups(List.of(group));
+        }
+    }
+
+    /**
+     * Disables validation once the validation test has finished or was skipped, tearing down any group that was still
+     * awaiting it.
+     */
+    public static void validationEnded() {
+        tearDownSharedGroups(NETWORK_GROUP_QUEUE.validationEnded());
+    }
+
+    private static void tearDownSharedGroups(@NonNull final List<NetworkGroup> groups) {
+        for (final var group : groups) {
             try {
                 tearDownSharedGroup(group);
             } finally {
