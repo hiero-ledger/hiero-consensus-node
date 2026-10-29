@@ -144,7 +144,8 @@ public class TipsetWeightCalculator {
      *
      * @return the current tipset snapshot
      */
-    public @NonNull Tipset getSnapshot() {
+    @NonNull
+    public Tipset getSnapshot() {
         return snapshot;
     }
 
@@ -163,6 +164,7 @@ public class TipsetWeightCalculator {
      * @return the change in this event's tipset advancement weight compared to the tipset advancement weight of the
      * previous event passed to this method
      */
+    @NonNull
     public TipsetAdvancementWeight addEventAndGetAdvancementWeight(@NonNull final EventDescriptorWrapper event) {
         requireNonNull(event);
         if (!event.creator().equals(selfId)) {
@@ -204,6 +206,7 @@ public class TipsetWeightCalculator {
      * @param parents the proposed parents of an event
      * @return the advancement weight we would get by creating an event with the given parents
      */
+    @NonNull
     public TipsetAdvancementWeight getTheoreticalAdvancementWeight(
             @NonNull final List<EventDescriptorWrapper> parents) {
         if (parents.isEmpty()) {
@@ -326,6 +329,10 @@ public class TipsetWeightCalculator {
         previousAdvancementWeight = ZERO_ADVANCEMENT_WEIGHT;
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     @NonNull
     public String toString() {
         final StringBuilder sb = new StringBuilder();

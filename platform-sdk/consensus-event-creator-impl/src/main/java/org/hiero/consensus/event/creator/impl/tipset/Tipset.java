@@ -43,7 +43,8 @@ public class Tipset {
      * @param tipset the tipset to use as a template
      * @return a new empty tipset
      */
-    private static @NonNull Tipset buildEmptyTipset(@NonNull final Tipset tipset) {
+    @NonNull
+    private static Tipset buildEmptyTipset(@NonNull final Tipset tipset) {
         return new Tipset(tipset.roster);
     }
 
@@ -60,7 +61,8 @@ public class Tipset {
      *                else this method has undefined behavior
      * @return a new tipset
      */
-    public @NonNull Tipset merge(@NonNull final List<Tipset> tipsets) {
+    @NonNull
+    public Tipset merge(@NonNull final List<Tipset> tipsets) {
         if (tipsets.isEmpty()) {
             return new Tipset(roster);
         }
@@ -110,7 +112,8 @@ public class Tipset {
      * @param orderingKey the ordering key of the event
      * @return this object
      */
-    public @NonNull Tipset advance(@NonNull final NodeId creator, final long orderingKey) {
+    @NonNull
+    public Tipset advance(@NonNull final NodeId creator, final long orderingKey) {
         final int index = roster.index(creator);
         tips[index] = Math.max(tips[index], orderingKey);
         return this;
@@ -166,6 +169,7 @@ public class Tipset {
      * {@inheritDoc}
      */
     @Override
+    @NonNull
     public String toString() {
         final StringBuilder sb = new StringBuilder("(");
         for (int index = 0; index < tips.length; index++) {

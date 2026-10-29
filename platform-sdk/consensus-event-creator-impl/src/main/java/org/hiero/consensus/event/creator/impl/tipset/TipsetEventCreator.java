@@ -220,8 +220,8 @@ public class TipsetEventCreator implements EventCreator {
     /**
      * {@inheritDoc}
      */
-    @Nullable
     @Override
+    @Nullable
     public PlatformEvent maybeCreateEvent() {
         if (quiescenceCommand == QuiescenceCommand.QUIESCE) {
             return null;
@@ -247,6 +247,7 @@ public class TipsetEventCreator implements EventCreator {
      *
      * @return new event based only on self parent
      */
+    @NonNull
     private UnsignedEvent createQuiescenceBreakEvent() {
         return buildAndProcessEvent();
     }
@@ -263,6 +264,7 @@ public class TipsetEventCreator implements EventCreator {
         return createEventCombinedAlgorithm();
     }
 
+    @NonNull
     private PlatformEvent signEvent(final UnsignedEvent event) {
         final PlatformEvent platformEvent =
                 new PlatformEvent(event, signer.sign(event.getHash().getBytes()), EventOrigin.RUNTIME);
@@ -378,7 +380,8 @@ public class TipsetEventCreator implements EventCreator {
      *
      * @return parent to reduce selfishness
      */
-    private @Nullable PlatformEvent selectParentToReduceSelfishness() {
+    @Nullable
+    private PlatformEvent selectParentToReduceSelfishness() {
         final Collection<PlatformEvent> possibleOtherParents = childlessOtherEventTracker.getChildlessEvents();
         final List<PlatformEvent> ignoredNodes = new ArrayList<>(possibleOtherParents.size());
 
@@ -451,6 +454,7 @@ public class TipsetEventCreator implements EventCreator {
      * @param otherParents the other parents, or zero length arglist if there is no other parents
      * @return the new event
      */
+    @NonNull
     private UnsignedEvent buildAndProcessEvent(@NonNull final PlatformEvent... otherParents) {
         final List<EventDescriptorWrapper> otherParentDescriptors;
 
@@ -529,6 +533,10 @@ public class TipsetEventCreator implements EventCreator {
         eventWindow = EventWindow.getGenesisEventWindow();
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     @NonNull
     public String toString() {
         final StringBuilder sb = new StringBuilder();
