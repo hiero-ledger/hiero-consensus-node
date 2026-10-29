@@ -350,7 +350,7 @@ public class VerifyConfigCall extends AbstractCall {
 
     @NonNull
     private PricedResult fail(@NonNull final String reason) {
-        log.warn(
+        log.debug(
                 "verifyConfig FAILED: reason={} stateProofBytes={} stateProofHash={} stateProofPrefix={} status={}",
                 reason,
                 stateProofBytes.length,
@@ -362,7 +362,7 @@ public class VerifyConfigCall extends AbstractCall {
 
     @NonNull
     private PricedResult fail(@NonNull final String reason, @NonNull final Throwable cause) {
-        log.warn(
+        log.debug(
                 "verifyConfig FAILED: reason={} stateProofBytes={} stateProofHash={} stateProofPrefix={} status={}",
                 reason,
                 stateProofBytes.length,

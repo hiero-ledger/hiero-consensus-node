@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SUBMIT_BUNDLE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
@@ -123,6 +124,8 @@ class DispatchProcessorTest {
             SignedTransaction.DEFAULT, TXN_BODY, SignatureMap.DEFAULT, Bytes.EMPTY, ETHEREUM_TRANSACTION, null);
     private static final TransactionInfo NODE_CREATE_TXN_INFO = new TransactionInfo(
             SignedTransaction.DEFAULT, TXN_BODY, SignatureMap.DEFAULT, Bytes.EMPTY, NODE_CREATE, null);
+    private static final TransactionInfo CLPR_SUBMIT_BUNDLE_TXN_INFO = new TransactionInfo(
+            SignedTransaction.DEFAULT, TXN_BODY, SignatureMap.DEFAULT, Bytes.EMPTY, CLPR_SUBMIT_BUNDLE, null);
 
     @Mock
     private EthereumTransactionHandler ethereumTransactionHandler;
@@ -219,6 +222,73 @@ class DispatchProcessorTest {
         verify(recordBuilder).status(INVALID_PAYER_SIGNATURE);
         assertFinished(IsRootStack.NO);
         verify(opWorkflowMetrics, never()).incrementThrottled(any());
+    }
+
+    @Test
+    void clprSubmitBundleCreatorErrorChargesCreator() {
+        given(dispatch.fees()).willReturn(FEES);
+        given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
+        given(dispatch.txnInfo()).willReturn(CLPR_SUBMIT_BUNDLE_TXN_INFO);
+        given(dispatchValidator.validateFeeChargingScenario(dispatch))
+                .willReturn(newCreatorError(CREATOR_ACCOUNT_ID, INVALID_PAYER_SIGNATURE));
+        final var creatorInfo = mock(NodeInfo.class);
+        given(dispatch.creatorInfo()).willReturn(creatorInfo);
+        given(creatorInfo.accountId()).willReturn(CREATOR_ACCOUNT_ID);
+
+        subject.processDispatch(dispatch);
+
+        verify(feeAccumulator).chargeFee(CREATOR_ACCOUNT_ID, FEES.networkFee(), null);
+        verify(recordBuilder).status(INVALID_PAYER_SIGNATURE);
+        assertFinished(IsRootStack.NO);
+    }
+
+    @Test
+    void clprSubmitBundleHandleExceptionRollsBack() {
+        given(dispatch.fees()).willReturn(FEES);
+        given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
+        given(dispatchValidator.validateFeeChargingScenario(dispatch))
+                .willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
+        given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
+        given(dispatch.txnInfo()).willReturn(CLPR_SUBMIT_BUNDLE_TXN_INFO);
+        given(dispatch.handleContext()).willReturn(context);
+        givenAuthorization(CLPR_SUBMIT_BUNDLE_TXN_INFO);
+        doThrow(new HandleException(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT))
+                .when(dispatcher)
+                .dispatchHandle(context);
+        given(dispatch.txnCategory()).willReturn(USER);
+        doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
+        doCallRealMethod().when(dispatch).category();
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
+
+        subject.processDispatch(dispatch);
+
+        verify(recordBuilder).status(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT);
+        verify(stack).rollbackFullStack();
+    }
+
+    @Test
+    void clprSubmitBundleThrottledIncrementsMetric() throws ThrottleException {
+        given(dispatch.fees()).willReturn(FEES);
+        given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
+        given(dispatchValidator.validateFeeChargingScenario(dispatch))
+                .willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
+        given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
+        given(dispatch.txnInfo()).willReturn(CLPR_SUBMIT_BUNDLE_TXN_INFO);
+        given(dispatch.txnCategory()).willReturn(HandleContext.TransactionCategory.CHILD);
+        givenAuthorization(CLPR_SUBMIT_BUNDLE_TXN_INFO);
+        doThrow(ThrottleException.newGasThrottleException())
+                .when(dispatchUsageManager)
+                .screenForCapacity(dispatch);
+        doCallRealMethod().when(dispatch).charge(any(), any(), any());
+        doCallRealMethod().when(dispatch).category();
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+
+        subject.processDispatch(dispatch);
+
+        verify(recordBuilder).status(CONSENSUS_GAS_EXHAUSTED);
+        verify(opWorkflowMetrics).incrementThrottled(CLPR_SUBMIT_BUNDLE);
+        assertFinished(IsRootStack.NO);
     }
 
     @Test
