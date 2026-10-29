@@ -11,8 +11,9 @@ machine, and track it every night. They apply to every benchmark in a module's `
 | [calibration.md](calibration.md) | Calibration | The calibration run and its analysis, forks and iterations, fork modes, heap, the record. |
 | [operations.md](operations.md)   | Operations  | Tracking, the smoke run, the nightly run, the benchmark machine, publishing, alerts.      |
 
-New to JMH? Two diagrams show its terms and how they relate: [forks, parameter sets, and iterations](images/jmh-forks.png),
-and [iterations, invocations, and operations](images/jmh-iterations.png).
+New to JMH? Three diagrams show its terms and how they relate, from the outside in:
+[parameter sets, forks, and trials](images/jmh-forks.png), [a trial's warmup and measurement iterations](images/jmh-trials.png),
+and [an iteration's invocations and operations](images/jmh-iterations.png).
 
 The shared Java tooling is described in the [`consensus-benchmark-tools` README](../../../consensus-benchmark-tools/README.md),
 which also lists the developer scripts.
