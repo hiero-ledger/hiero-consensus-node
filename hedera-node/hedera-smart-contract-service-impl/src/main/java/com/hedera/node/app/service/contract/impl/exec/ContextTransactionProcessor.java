@@ -109,6 +109,17 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
 
     @Override
     public CallOutcome call() {
+        // Track contract-execution nesting so that storage-slot accounting runs only for the outermost
+        // execution; a nested dispatch commits its slots into this scope and must not be re-counted.
+        ContractExecutionDepth.enter();
+        try {
+            return doCall();
+        } finally {
+            ContractExecutionDepth.exit();
+        }
+    }
+
+    private CallOutcome doCall() {
         // ONLY USED FOR METRICS: Measure the actual execution time.
         final var startTimeNanos = System.nanoTime();
 

@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.integration;
 
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.services.bdd.junit.RepeatableReason.MUST_SKIP_INGEST;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW;
@@ -22,9 +23,11 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.burnToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCallWithFunctionAbi;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.handleAnyRepeatableQueryPayment;
@@ -56,6 +59,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.SignaturePair;
+import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshot;
 import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshots;
 import com.hedera.hapi.platform.state.SingletonType;
@@ -63,6 +67,7 @@ import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.hapi.utils.SignatureGenerator;
 import com.hedera.node.app.service.contract.impl.utils.SystemContractUtils;
+import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.throttle.CongestionThrottleService;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -81,6 +86,7 @@ import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.ScheduleID;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
@@ -204,6 +210,41 @@ public class RepeatableIntegrationTests {
                                 mirrorAddrWith(spec, scheduleIdRef.get().getScheduleNum()))
                         .gas(1_000_000L)),
                 getScheduleInfo("schedule").isExecuted());
+    }
+
+    @RepeatableHapiTest({NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW, NEEDS_STATE_ACCESS})
+    final Stream<DynamicTest> nestedScheduledContractCallCountsStorageSlotsOnce() {
+        final var scheduleIdRef = new AtomicReference<ScheduleID>();
+        final var slotsBefore = new AtomicLong();
+        final var factory = "NoncesExternalization";
+        return hapiTest(
+                uploadInitCode(factory),
+                contractCreate(factory).gas(1_000_000L),
+                cryptoCreate("schedulePayer")
+                        .balance(ONE_HUNDRED_HBARS)
+                        .keyShape(KeyShape.CONTRACT.signedWith(SIGNING_CONTRACT.name())),
+                scheduleCreate(
+                                "schedule",
+                                contractCall(factory, "deployParentContract").gas(500_000L))
+                        .designatingPayer("schedulePayer")
+                        .exposingCreatedIdTo(scheduleIdRef::set),
+                viewSingleton(
+                        EntityIdService.NAME,
+                        ENTITY_COUNTS_STATE_ID,
+                        (EntityCounts counts) -> slotsBefore.set(counts.numContractStorageSlots())),
+                sourcingContextual(spec -> SIGNING_CONTRACT
+                        .call(
+                                "authorizeScheduleCall",
+                                mirrorAddrWith(spec, scheduleIdRef.get().getScheduleNum()))
+                        .gas(2_000_000L)),
+                getScheduleInfo("schedule").isExecuted(),
+                // The scheduled call inserts exactly one storage slot; the nested dispatch must count it once,
+                // not again when the enclosing dispatch commits.
+                viewSingleton(
+                        EntityIdService.NAME,
+                        ENTITY_COUNTS_STATE_ID,
+                        (EntityCounts counts) ->
+                                assertEquals(slotsBefore.get() + 1, counts.numContractStorageSlots())));
     }
 
     @RepeatableHapiTest(NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW)

@@ -11,6 +11,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.contract.ContractNonceInfo;
 import com.hedera.node.app.service.contract.impl.annotations.TransactionScope;
+import com.hedera.node.app.service.contract.impl.exec.ContractExecutionDepth;
 import com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaOperations;
 import com.hedera.node.app.service.contract.impl.infra.IterableStorageManager;
 import com.hedera.node.app.service.contract.impl.infra.RentCalculator;
@@ -89,13 +90,18 @@ public class RootProxyWorldUpdater extends ProxyWorldUpdater {
                 sizeEffects.finalSlotsUsed(), enhancement.operations(), sizeEffects.sizeChanges());
         // Charge rent for each increase in storage size
         chargeRentFor(sizeEffects);
-        // "Rewrite" the pending storage changes to preserve per-contract linked lists
-        storageManager.persistChanges(
-                enhancement,
-                writes,
-                sizeEffects.sizeChanges(),
-                enhancement.operations().getStore(),
-                enhancement.nativeOperations().writableEvmHookStore());
+        // A nested contract dispatch commits its storage writes into this (enclosing) scope, so the outermost
+        // execution already sees and persists the net effect of the whole transactional unit; persisting again
+        // in a nested dispatch would double-count slots (both the network counter and each contract's kv-pair
+        // count). So only the outermost contract execution rewrites the per-contract linked lists and counts.
+        if (!ContractExecutionDepth.isNested()) {
+            storageManager.persistChanges(
+                    enhancement,
+                    writes,
+                    sizeEffects.sizeChanges(),
+                    enhancement.operations().getStore(),
+                    enhancement.nativeOperations().writableEvmHookStore());
+        }
 
         // We now have an apparently valid change set, and want to capture some summary
         // information for the Hedera record
