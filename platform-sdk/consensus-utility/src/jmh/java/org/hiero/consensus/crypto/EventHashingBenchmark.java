@@ -136,7 +136,7 @@ public class EventHashingBenchmark {
     /** The generated events, as their creators created them. */
     private List<PlatformEvent> generatedEvents;
 
-    /** The events that the hasher hashed in one invocation, kept for the check after it. */
+    /** The events that the hasher hashed in one invocation, kept to calculate the digest for verification. */
     private PlatformEvent[] events;
 
     /** The latency recorder for the benchmark. */
