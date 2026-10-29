@@ -117,6 +117,15 @@ public interface HandleContext {
         }
 
         /**
+         * Creates an independently mutable copy of the given dispatch metadata.
+         *
+         * @param source the metadata to copy
+         */
+        public DispatchMetadata(@NonNull final DispatchMetadata source) {
+            this.metadata = new HashMap<>(requireNonNull(source).metadata);
+        }
+
+        /**
          * Constructs a new DispatchMetadata instance with a single metadata entry.
          *
          * @param type the metadata key
@@ -197,6 +206,15 @@ public interface HandleContext {
              * Metadata for a contract child dispatch executed by the native CLPR service.
              */
             CLPR_DISPATCH,
+            /**
+             * Boolean marker identifying the verifier call within a native CLPR transaction.
+             */
+            CLPR_VERIFIER,
+            /**
+             * The CLPR parent transaction whose successful gas reservation funds a verifier child dispatch.
+             * Set by the app after capacity screening and passed only to the direct verifier child.
+             */
+            CLPR_GAS_RESERVATION,
             /**
              * Boolean marker set by the app when dispatching a trusted internal system transaction.
              * Never populate this from a submitted transaction or propagate it to child dispatches.
