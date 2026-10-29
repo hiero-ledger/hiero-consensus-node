@@ -3,8 +3,10 @@ package org.hiero.base.concurrent.jctools.queues;
 
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.LockSupport;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -25,10 +27,20 @@ import org.openjdk.jmh.infra.Blackhole;
 /// Raw-queue comparison for the `AsyncOutputStream` output queue: N producers and a single consumer.
 ///
 /// Queue implementations (`impl`): bounded [LinkedBlockingQueue] (the baseline, as on `main`),
-/// [ArrayBlockingQueue], and the vendored JCTools MPSC VarHandle queue ([MpscVarHandleArrayQueue]).
+/// [ArrayBlockingQueue], the vendored JCTools MPSC VarHandle queue ([MpscVarHandleArrayQueue]), and
+/// [ConcurrentLinkedQueue] bounded by a separate counter (`CONCURRENT_LINKED`). The last one is the JDK alternative
+/// that was evaluated and rejected; it isn't run by default, select it with `-PjmhParams` (see the examples below).
 ///
-/// Wait semantics follow production: timed `offer`/`poll` for the blocking queues; for the MPSC queues
-/// non-blocking `offer`/`poll` with the same spin-then-park backoff as `AsyncOutputStream`.
+/// [ConcurrentLinkedQueue] has no capacity, but `AsyncOutputStream` relies on a full queue to stop producers when the
+/// socket is slower than they are; without that, the queue grows until the heap runs out. So `CONCURRENT_LINKED`
+/// pairs the queue with an [AtomicInteger] of queued messages: a producer reads it, and if there is room reserves a
+/// slot by incrementing it and gives the slot back if that exceeded the capacity; the consumer decrements it after
+/// each poll. This is the shape a production use would need, so the counter's cost is part of what is measured. The
+/// counter is also what `AsyncOutputStream` would report as the queue size, because [ConcurrentLinkedQueue#size()]
+/// walks the whole queue.
+///
+/// Wait semantics follow production: timed `offer`/`poll` for the blocking queues; for the MPSC and
+/// `CONCURRENT_LINKED` queues non-blocking `offer`/`poll` with the same spin-then-park backoff as `AsyncOutputStream`.
 ///
 /// Per-message work is simulated with [tokens][Blackhole#consumeCPU(long)] on both sides, so either side can
 /// be made the bottleneck:
@@ -55,6 +67,7 @@ import org.openjdk.jmh.infra.Blackhole;
 /// ./gradlew :base-concurrent:jmhSmoke                                   # every benchmark once, briefly
 /// ./gradlew :base-concurrent:jmhOutputQueue -PjmhForks=3 -PjmhGroups=producers16 "-PjmhParams=producerTokens=1000"
 /// ./gradlew :base-concurrent:jmhOutputQueue "-PjmhParams=impl=MPSC_VARHANDLE,LINKED_BLOCKING;consumerTokens=0"
+/// ./gradlew :base-concurrent:jmhOutputQueue "-PjmhParams=impl=MPSC_VARHANDLE,CONCURRENT_LINKED" -PjmhProfilers=gc
 /// ```
 @State(Scope.Group)
 @BenchmarkMode(Mode.Throughput)
@@ -80,9 +93,13 @@ public class OutputQueueBench {
     public enum Impl {
         LINKED_BLOCKING,
         ARRAY_BLOCKING,
-        MPSC_VARHANDLE
+        MPSC_VARHANDLE,
+        CONCURRENT_LINKED
     }
 
+    /// `CONCURRENT_LINKED` isn't run by default, to keep the full and smoke runs short; select it with `-PjmhParams`.
+    /// With 16 producers it measured 3.6× slower than `MPSC_VARHANDLE` when producers do work, and 7.5× slower when
+    /// they saturate the queue (Linux, 3 forks, see PR #27461).
     @Param({"LINKED_BLOCKING", "ARRAY_BLOCKING", "MPSC_VARHANDLE"})
     public Impl impl;
 
@@ -94,15 +111,24 @@ public class OutputQueueBench {
 
     private BlockingQueue<byte[]> blockingQueue;
     private MessagePassingQueue<byte[]> mpscQueue;
+    private ConcurrentLinkedQueue<byte[]> linkedQueue;
+    /// Number of messages in [#linkedQueue], including slots reserved by producers that haven't offered yet.
+    private AtomicInteger linkedQueueSize;
 
     @Setup(Level.Iteration)
     public void setup() {
         blockingQueue = null;
         mpscQueue = null;
+        linkedQueue = null;
+        linkedQueueSize = null;
         switch (impl) {
             case LINKED_BLOCKING -> blockingQueue = new LinkedBlockingQueue<>(CAPACITY);
             case ARRAY_BLOCKING -> blockingQueue = new ArrayBlockingQueue<>(CAPACITY);
             case MPSC_VARHANDLE -> mpscQueue = new MpscVarHandleArrayQueue<>(CAPACITY);
+            case CONCURRENT_LINKED -> {
+                linkedQueue = new ConcurrentLinkedQueue<>();
+                linkedQueueSize = new AtomicInteger();
+            }
         }
     }
 
@@ -110,6 +136,10 @@ public class OutputQueueBench {
         Blackhole.consumeCPU(producerTokens);
         if (blockingQueue != null) {
             blockingQueue.offer(PAYLOAD, OFFER_TIMEOUT_NANOS, TimeUnit.NANOSECONDS);
+            return;
+        }
+        if (linkedQueue != null) {
+            produceLinked();
             return;
         }
         if (mpscQueue.offer(PAYLOAD)) {
@@ -125,10 +155,54 @@ public class OutputQueueBench {
         }
     }
 
+    // Same wait as the MPSC path, with the counter as the capacity check
+    private void produceLinked() {
+        if (offerLinked()) {
+            return;
+        }
+        final long deadline = System.nanoTime() + OFFER_TIMEOUT_NANOS;
+        int idle = 0;
+        while (!offerLinked()) {
+            if (System.nanoTime() - deadline >= 0) {
+                return;
+            }
+            idle = backOff(idle, PRODUCER_MAX_PARK_SHIFT);
+        }
+    }
+
+    // Reserves a slot first, so the queue never holds more than CAPACITY messages. The plain read before the
+    // increment keeps producers retrying on a full queue from writing the counter, whose cache line the consumer
+    // needs for its decrement
+    private boolean offerLinked() {
+        if (linkedQueueSize.get() >= CAPACITY) {
+            return false;
+        }
+        if (linkedQueueSize.getAndIncrement() >= CAPACITY) {
+            linkedQueueSize.getAndDecrement();
+            return false;
+        }
+        return linkedQueue.offer(PAYLOAD);
+    }
+
     private void consume(final Blackhole bh) throws InterruptedException {
         byte[] message;
         if (blockingQueue != null) {
             message = blockingQueue.poll(POLL_TIMEOUT_NANOS, TimeUnit.NANOSECONDS);
+        } else if (linkedQueue != null) {
+            message = linkedQueue.poll();
+            if (message == null) {
+                final long deadline = System.nanoTime() + POLL_TIMEOUT_NANOS;
+                int idle = 0;
+                while ((message = linkedQueue.poll()) == null) {
+                    if (System.nanoTime() - deadline >= 0) {
+                        break;
+                    }
+                    idle = backOff(idle, WRITER_MAX_PARK_SHIFT);
+                }
+            }
+            if (message != null) {
+                linkedQueueSize.getAndDecrement();
+            }
         } else {
             // relaxedPoll(), like the AsyncOutputStream writer loop
             message = mpscQueue.relaxedPoll();
