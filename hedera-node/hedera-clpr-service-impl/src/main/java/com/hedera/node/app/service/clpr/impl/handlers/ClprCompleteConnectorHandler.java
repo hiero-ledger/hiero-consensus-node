@@ -135,7 +135,8 @@ public final class ClprCompleteConnectorHandler extends AbstractClprHandler {
                 .serviceApi(TokenServiceApi.class)
                 .transferFromTo(context.payer(), stakingAccountId, op.lockedStake());
 
-        // 9. Store connector and remove consumed commitment
+        // 9. Store connector. The commitment is not consumed: it stays registered permanently, even
+        // after deregistration, so the same connector cannot be registered again.
         connectorStore.put(ClprConnector.newBuilder()
                 .connectorId(submittedConnectorId)
                 .channelId(op.channelId())
@@ -144,7 +145,6 @@ public final class ClprCompleteConnectorHandler extends AbstractClprHandler {
                 .lockedStake(op.lockedStake())
                 .slashCount(0)
                 .build());
-        commitmentStore.remove(expectedCommitment);
     }
 
     private static Bytes deriveConnectorId(final byte[] channelId, final byte[] pubKey, final byte[] salt) {

@@ -137,18 +137,15 @@ write_default_local_config() {
         return 0
     fi
 
-    local ip="${LOCAL_HIERO_EP_IP:-127.0.0.1}"
-    local port="${LOCAL_HIERO_EP_PORT:-50211}"
     local service_hex="${LOCAL_CLPR_SERVICE_ADDRESS_HEX:-000000000000000000000000000000000000016e}"
-    local tls_hex="${LOCAL_HIERO_EP_TLS_CERT_HEX:-01}"
 
-    python3 - "${out_file}" "${ip}" "${port}" "${service_hex}" "${tls_hex}" <<'PY'
+    python3 - "${out_file}" "${service_hex}" <<'PY'
 import base64
 import json
 import sys
 from pathlib import Path
 
-out_file, ip, port, service_hex, tls_hex = sys.argv[1:6]
+out_file, service_hex = sys.argv[1:3]
 
 def b64hex(value: str) -> str:
     value = value[2:] if value.startswith(("0x", "0X")) else value
@@ -167,15 +164,6 @@ cfg = {
         "maxSyncBytes": 1048576,
         "maxBundlesPerSec": 0,
     },
-    "endpoints": [
-        {
-            "serviceEndpoint": {
-                "ipAddress": ip,
-                "port": int(port),
-            },
-            "tlsCertificate": b64hex(tls_hex),
-        }
-    ],
 }
 Path(out_file).write_text(json.dumps(cfg, indent=2) + "\n")
 PY
@@ -223,7 +211,6 @@ if [[ -z "${PRIVATE_KEY:-}" ]]; then
     PRIVATE_KEY="$(read_env_var "${env_file}" PRIVATE_KEY)"
 fi
 PRIVATE_KEY="${PRIVATE_KEY:-${ANVIL_DEV_KEY_0}}"
-DEPLOYER_PUBKEY="$(cast wallet public-key --private-key "${PRIVATE_KEY}")"
 
 echo "  EVM_CHAIN_ID   : ${EVM_CHAIN_ID}"
 echo "  CLPR_SERVICE   : ${CLPR_SERVICE}"
@@ -249,14 +236,9 @@ else
 fi
 
 header "[3/10] build Sei config payload"
-FALLBACK_EP_IP="${FALLBACK_EP_IP:-127.0.0.1}"
-FALLBACK_EP_PORT="${FALLBACK_EP_PORT:-9545}"
-FALLBACK_EP_KEY="${FALLBACK_EP_KEY:-${DEPLOYER_PUBKEY}}"
-python3 - "${SEI_CONFIG_JSON}" "${FALLBACK_EP_IP}" "${FALLBACK_EP_PORT}" "${FALLBACK_EP_KEY}" <<'PYEOF'
+python3 - "${SEI_CONFIG_JSON}" <<'PYEOF'
 import json, sys
-out_path, ip, port, key = sys.argv[1:5]
-if key.startswith(("0x", "0X")):
-    key = key[2:]
+out_path = sys.argv[1]
 cfg = {
     "throttles": {
         "max_messages_per_bundle": 100,
@@ -266,14 +248,7 @@ cfg = {
         "max_queue_depth": 1000,
         "max_sync_bytes": 1048576,
         "max_bundles_per_sec": 0
-    },
-    "endpoints": [{
-        "ip_address": ip,
-        "port": int(port),
-        "tls_certificate": "",
-        "ecdsa_signing_key": "0x" + key,
-        "account_id": ""
-    }]
+    }
 }
 with open(out_path, "w") as f:
     json.dump(cfg, f, indent=2)

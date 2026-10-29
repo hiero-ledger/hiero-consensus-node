@@ -5,12 +5,14 @@ import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ACTIV
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_CRS_STATE;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_HINTS_KEY_SETS;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_LEDGER_ID;
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_NEXT_CRS_STATE;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_NEXT_HINTS_CONSTRUCTION;
 import static com.hedera.hapi.node.base.HederaFunctionality.HINTS_PARTIAL_SIGNATURE;
 import static com.hedera.hapi.node.base.HederaFunctionality.LEDGER_ID_PUBLICATION;
+import static com.hedera.hapi.node.state.hints.CRSStage.COMPLETED;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
-import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
+import static com.hedera.node.app.hapi.utils.CommonUtils.sha256DigestOrThrow;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.node.app.hints.impl.RsaContext.CONSTRUCTION_ID;
 import static java.util.Comparator.comparingLong;
@@ -19,7 +21,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.hedera.cryptography.hints.HintsLibraryBridge;
 import com.hedera.cryptography.tss.TSS;
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
@@ -59,6 +60,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -70,6 +72,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.DigestType;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.PathsConfig;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
@@ -78,20 +81,22 @@ import org.junit.jupiter.api.Assertions;
 /**
  * Standalone validator for wrap-free TSS block signatures.
  *
- * <p>This intentionally implements only the narrow {@link StateChangesValidator} proof path where WRAPS is disabled:
- * direct block signatures are verified as {@code verificationKey || aggregateSig} with
- * {@link HintsLibrary#verifyAggregate(Bytes, Bytes, Bytes, long, long)}.
+ * <p>This intentionally implements only the narrow {@link StateChangesValidator} proof path where history proofs
+ * are disabled: direct block signatures are verified as {@code verificationKey || aggregateSig} with
+ * {@link HintsLibrary#verifyAggregate(Bytes, Bytes, Bytes, long, long)}. (Composite signatures, whose chain-of-trust
+ * proof is a WRAPS proof, are simply verified against the ledger id.)
  */
 @SuppressWarnings("removal")
 public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
     private static final Logger logger = LogManager.getLogger(WrapsFreeBlockSignaturesValidator.class);
     private static final int MAX_SUBSET_SEARCH_PARTIALS = 16;
-    private static final int HINTS_SIGNATURE_LENGTH = 1632;
+    private static final int HINTS_SIGNATURE_LENGTH = HintsLibraryImpl.SIGNATURE_LENGTH;
     private static final boolean DUMP_INVALID_AGGREGATE_VECTORS =
             Boolean.getBoolean("hints.dumpInvalidAggregateVectors")
                     || Boolean.parseBoolean(System.getenv("HINTS_DUMP_INVALID_AGGREGATE_VECTORS"));
 
     private final long hintsThresholdDenominator;
+    private final DigestType digestType;
     private final HintsLibrary hintsLibrary;
     private final Metrics metrics;
 
@@ -113,8 +118,7 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
     private final Set<String> dumpedInvalidAggregateVectors = new HashSet<>();
     private long lastHintsBridgeConstructionId = Long.MIN_VALUE;
 
-    @Nullable
-    private Bytes currentCrs;
+    private final Map<Long, Bytes> crsById = new HashMap<>();
 
     @Nullable
     private Bytes ledgerIdFromState;
@@ -124,6 +128,8 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
 
     private record ConstructionSnapshot(
             long constructionId,
+            long crsId,
+            int numParties,
             @NonNull Bytes aggregationKey,
             @NonNull Bytes verificationKey,
             @NonNull Map<Long, Integer> partyIds,
@@ -137,7 +143,7 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
         }
     }
 
-    private record PartyKey(int partyId, int numParties) {}
+    private record PartyKey(int partyId, int numParties, long crsId) {}
 
     private record PartialValidation(
             @Nullable Boolean valid,
@@ -215,7 +221,8 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
             System.out.printf(
                     "Loaded epoch %d with %d block(s) from %s%n", i + 1, blocks.size(), blockStreamDirs.get(i));
         }
-        final var validator = new WrapsFreeBlockSignaturesValidator(hintsThresholdDenominator);
+        final var digestType = DigestType.valueOf(System.getProperty("blockStream.digestType", "SHA_384"));
+        final var validator = new WrapsFreeBlockSignaturesValidator(hintsThresholdDenominator, digestType);
         validator.validateBlockEpochs(blockEpochs);
 
         System.out.printf(
@@ -231,8 +238,9 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
                 validator.canonicalBlockHashMismatches);
     }
 
-    public WrapsFreeBlockSignaturesValidator(final long hintsThresholdDenominator) {
+    public WrapsFreeBlockSignaturesValidator(final long hintsThresholdDenominator, final DigestType digestType) {
         this.hintsThresholdDenominator = hintsThresholdDenominator;
+        this.digestType = digestType;
 
         metrics = new NoOpMetrics();
         final var platformConfig = ServicesMain.buildPlatformConfig();
@@ -282,8 +290,8 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
             logger.info(
                     "Discovered {}-byte ledger id for block #0 signature verification", discoveredLedgerId.length());
         }
-        var previousBlockHash = HASH_OF_ZERO;
-        var incrementalBlockHashes = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+        var previousBlockHash = BlockStreamManager.hashOfZero(digestType);
+        var incrementalBlockHashes = new IncrementalStreamingHasher(digest(), List.of(), 0);
 
         for (int epochIndex = 0; epochIndex < blockEpochs.size(); epochIndex++) {
             final var blocks = blockEpochs.get(epochIndex);
@@ -305,15 +313,15 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
                 final var block = blocks.get(i);
                 final var blockNumber = blockNumberOf(block);
                 final IncrementalStreamingHasher inputTreeHasher =
-                        new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+                        new IncrementalStreamingHasher(digest(), List.of(), 0);
                 final IncrementalStreamingHasher outputTreeHasher =
-                        new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+                        new IncrementalStreamingHasher(digest(), List.of(), 0);
                 final IncrementalStreamingHasher consensusHeaderHasher =
-                        new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+                        new IncrementalStreamingHasher(digest(), List.of(), 0);
                 final IncrementalStreamingHasher stateChangesHasher =
-                        new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+                        new IncrementalStreamingHasher(digest(), List.of(), 0);
                 final IncrementalStreamingHasher traceDataHasher =
-                        new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+                        new IncrementalStreamingHasher(digest(), List.of(), 0);
 
                 long firstBlockRound = -1;
                 long eventNodeId = -1;
@@ -356,21 +364,8 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
                             final var op = parts.body().hintsPartialSignatureOrThrow();
                             observeHintsPartialSignature(eventNodeId, op);
                         } else if (parts.function() == LEDGER_ID_PUBLICATION) {
-                            final var ledgerIdPublication = parts.body().ledgerIdPublicationOrThrow();
-                            ledgerIdFromState = ledgerIdPublication.ledgerId();
-                            final int k =
-                                    ledgerIdPublication.nodeContributions().size();
-                            final long[] nodeIds = new long[k];
-                            final long[] weights = new long[k];
-                            final byte[][] publicKeys = new byte[k][];
-                            for (int j = 0; j < k; j++) {
-                                final var contribution =
-                                        ledgerIdPublication.nodeContributions().get(j);
-                                nodeIds[j] = contribution.nodeId();
-                                weights[j] = contribution.weight();
-                                publicKeys[j] = contribution.historyProofKey().toByteArray();
-                            }
-                            TSS.setAddressBook(publicKeys, weights, nodeIds);
+                            ledgerIdFromState =
+                                    parts.body().ledgerIdPublicationOrThrow().ledgerId();
                         }
                     }
                 }
@@ -496,7 +491,7 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
         }
     }
 
-    private static StreamHashContext cutoverHashContextFrom(@NonNull final Block firstPostCutoverBlock) {
+    private StreamHashContext cutoverHashContextFrom(@NonNull final Block firstPostCutoverBlock) {
         final var blockInfo = BlockStreamAccess.computeSingletonValueFromUpdates(
                 List.of(firstPostCutoverBlock),
                 SingletonUpdateChange::blockInfoValue,
@@ -508,7 +503,7 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
                     + " but its first block has no BlockInfo with wrapped record block hashes");
         }
         final var incrementalBlockHashes = new IncrementalStreamingHasher(
-                sha384DigestOrThrow(),
+                digest(),
                 blockInfo.wrappedIntermediatePreviousBlockRootHashes().stream()
                         .map(Bytes::toByteArray)
                         .toList(),
@@ -584,7 +579,7 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
                     proof.hasBlockStateProof(),
                     "Indirect proof for block #%s is missing a block state proof".formatted(blockNumber));
             if (indirectProofSeq == null) {
-                indirectProofSeq = new IndirectProofSequenceValidator();
+                indirectProofSeq = new IndirectProofSequenceValidator(digestType);
             }
             indirectProofSeq.registerProof(
                     blockNumber, proof, expectedBlockHash, previousBlockHash, blockTimestamp, expectedSiblingHashes);
@@ -599,7 +594,8 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
 
         if (indirectProofSeq != null && indirectProofSeq.containsIndirectProofs()) {
             logger.info("Verifying contiguous indirect proofs prior to block {}", blockNumber);
-            indirectProofSeq.verify();
+            indirectProofSeq.verify(
+                    embeddedSignature -> isValidSignature(blockNumber, embeddedSignature, expectedBlockHash));
             for (final var pendingBlockNumber : pendingIndirectProofBlocks) {
                 System.out.printf("#%d proof valid: yes%n", pendingBlockNumber);
             }
@@ -642,7 +638,7 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
         if (snapshot == null) {
             return new PartialValidation(null, null, 0, "partialValid=? (missing construction snapshot)");
         }
-        final var crs = currentCrs();
+        final var crs = crsFor(snapshot);
         if (crs == null) {
             return new PartialValidation(null, null, 0, "partialValid=? (missing CRS)");
         }
@@ -661,6 +657,23 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
                 "partialValid=%s, party=%d, weight=%d".formatted(valid ? "yes" : "no", partyId, weight));
     }
 
+    /**
+     * Whether {@code signature} is a valid signature on {@code blockHash}: a {@code verificationKey || aggregateSig}
+     * signature is checked with the hinTS library, any other with {@code TSS.verifyTSS()}.
+     */
+    private boolean isValidSignature(
+            final long blockNumber, @NonNull final Bytes signature, @NonNull final Bytes blockHash) {
+        if (signature.length() == HintsLibraryImpl.VK_LENGTH + HINTS_SIGNATURE_LENGTH) {
+            final var vk = signature.slice(0, HintsLibraryImpl.VK_LENGTH);
+            final var sig = signature.slice(HintsLibraryImpl.VK_LENGTH, HintsLibraryImpl.SIGNATURE_LENGTH);
+            return hintsLibrary.verifyAggregate(sig, blockHash, vk, 1, hintsThresholdDenominator);
+        }
+        requireNonNull(
+                ledgerIdFromState,
+                "Ledger id not available for composite TSS signature verification on block #" + blockNumber);
+        return TSS.verifyTSS(ledgerIdFromState.toByteArray(), signature.toByteArray(), blockHash.toByteArray());
+    }
+
     private void verifySignedBlockProof(
             final long firstRound, @NonNull final BlockProof proof, @NonNull final Bytes expectedBlockHash) {
         final var signature = proof.signedBlockProofOrThrow().blockSignature();
@@ -674,14 +687,8 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
             proofVkHash = shortSha384Hash(vk);
             verificationKey = vk;
             aggregateSignature = sig;
-            valid = hintsLibrary.verifyAggregate(sig, expectedBlockHash, vk, 1, hintsThresholdDenominator);
-        } else {
-            requireNonNull(
-                    ledgerIdFromState,
-                    "Ledger id not available for composite TSS signature verification on block #" + proof.block());
-            valid = TSS.verifyTSS(
-                    ledgerIdFromState.toByteArray(), signature.toByteArray(), expectedBlockHash.toByteArray());
         }
+        valid = isValidSignature(proof.block(), signature, expectedBlockHash);
         if (proofVkHash == null) {
             System.out.printf("#%d proof valid: %s%n", proof.block(), valid ? "yes" : "no");
         } else {
@@ -731,6 +738,9 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
     }
 
     private void captureStateFrom(@NonNull final StateChanges stateChanges) {
+        // Apply both CRS slots before reading construction updates from this same state-change batch.
+        captureCrsState(STATE_ID_CRS_STATE.protoOrdinal());
+        captureCrsState(STATE_ID_NEXT_CRS_STATE.protoOrdinal());
         var maybePreprocessInputsChanged = false;
         for (final var stateChange : stateChanges.stateChanges()) {
             if (stateChange.stateId() == STATE_ID_HINTS_KEY_SETS.protoOrdinal()) {
@@ -740,13 +750,13 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
                                 stateChange.mapUpdateOrThrow().keyOrThrow().hintsPartyIdKeyOrThrow();
                         final var value =
                                 stateChange.mapUpdateOrThrow().valueOrThrow().hintsKeySetValueOrThrow();
-                        hintsKeySets.put(new PartyKey(key.partyId(), key.numParties()), value);
+                        hintsKeySets.put(new PartyKey(key.partyId(), key.numParties(), key.crsId()), value);
                         maybePreprocessInputsChanged = true;
                     }
                     case MAP_DELETE -> {
                         final var key =
                                 stateChange.mapDeleteOrThrow().keyOrThrow().hintsPartyIdKeyOrThrow();
-                        hintsKeySets.remove(new PartyKey(key.partyId(), key.numParties()));
+                        hintsKeySets.remove(new PartyKey(key.partyId(), key.numParties(), key.crsId()));
                         maybePreprocessInputsChanged = true;
                     }
                     default -> {
@@ -762,8 +772,8 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
             final var stateId = stateChange.stateId();
             if (stateId == STATE_ID_LEDGER_ID.protoOrdinal()) {
                 captureLedgerId();
-            } else if (stateId == STATE_ID_CRS_STATE.protoOrdinal()) {
-                captureCrsState();
+            } else if (stateId == STATE_ID_CRS_STATE.protoOrdinal()
+                    || stateId == STATE_ID_NEXT_CRS_STATE.protoOrdinal()) {
                 maybePreprocessInputsChanged = true;
             } else if (stateId == STATE_ID_ACTIVE_HINTS_CONSTRUCTION.protoOrdinal()
                     || stateId == STATE_ID_NEXT_HINTS_CONSTRUCTION.protoOrdinal()) {
@@ -788,22 +798,21 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
         }
     }
 
-    private void captureCrsState() {
-        final var rawCrsState = requireNonNull(
-                state.getSingleton(STATE_ID_CRS_STATE.protoOrdinal()), "CRS state singleton update did not apply");
+    private void captureCrsState(final int stateId) {
+        final var rawCrsState = state.getSingleton(stateId);
+        if (rawCrsState == null) {
+            return;
+        }
         try {
             final var crsState = CRSState.PROTOBUF.parse(rawCrsState);
-            final var crs = crsState.crs();
-            if (Bytes.EMPTY.equals(crs)) {
-                return;
-            }
-            final var previous = currentCrs;
-            currentCrs = crs;
-            if (!crs.equals(previous)) {
-                System.out.printf("  -> hinTS CRS now crsHash=%s (stage=%s)%n", shortSha384Hash(crs), crsState.stage());
+            if (crsState.stage() == COMPLETED && crsState.crs().length() > 0) {
+                final var previous = crsById.putIfAbsent(crsState.ceremonyId(), crsState.crs());
+                if (previous != null && !previous.equals(crsState.crs())) {
+                    throw new IllegalStateException("Completed CRS changed for ceremony " + crsState.ceremonyId());
+                }
             }
         } catch (ParseException e) {
-            throw new IllegalStateException("Failed to parse CRS state singleton value", e);
+            throw new IllegalStateException("Failed to parse CRS singleton value", e);
         }
     }
 
@@ -827,6 +836,8 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
             }
             final var snapshot = new ConstructionSnapshot(
                     construction.constructionId(),
+                    construction.crsId(),
+                    construction.numParties(),
                     keys.aggregationKey(),
                     keys.verificationKey(),
                     Map.copyOf(partyIds),
@@ -841,7 +852,7 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
                         construction.constructionId(),
                         shortSha384Hash(snapshot.verificationKey()),
                         shortSha384Hash(snapshot.aggregationKey()),
-                        crsHash(),
+                        crsHash(snapshot),
                         snapshot.totalWeight(),
                         partySummary(snapshot));
                 return true;
@@ -858,7 +869,7 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
                         shortSha384Hash(snapshot.verificationKey()),
                         shortSha384Hash(previous.aggregationKey()),
                         shortSha384Hash(snapshot.aggregationKey()),
-                        crsHash());
+                        crsHash(snapshot));
                 return true;
             }
             return false;
@@ -881,7 +892,7 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
     }
 
     private String preprocessDiagnosticFor(@NonNull final ConstructionSnapshot snapshot) {
-        final var crs = currentCrs();
+        final var crs = crsFor(snapshot);
         if (crs == null) {
             return "  -> construction #%d preprocess check unavailable (missing CRS)"
                     .formatted(snapshot.constructionId());
@@ -892,7 +903,7 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
                             + "(crsHash=%s, knownPartySizes=%s, expectedParties=%s, keySetMismatches=%s)")
                     .formatted(
                             snapshot.constructionId(),
-                            crsHash(),
+                            crsHash(snapshot),
                             knownPartySizes(),
                             expectedPartySummary(snapshot),
                             keySetMismatchSummary(snapshot));
@@ -906,7 +917,7 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
                     .formatted(
                             snapshot.constructionId(),
                             candidate.numParties(),
-                            crsHash(),
+                            crsHash(snapshot),
                             hintKeySummary(candidate),
                             candidate.weights());
         }
@@ -918,7 +929,7 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
                 .formatted(
                         snapshot.constructionId(),
                         candidate.numParties(),
-                        crsHash(),
+                        crsHash(snapshot),
                         hintKeySummary(candidate),
                         candidate.weights(),
                         snapshot.verificationKey().equals(recomputedVk) ? "yes" : "no",
@@ -930,6 +941,9 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
     }
 
     private @Nullable PreprocessCandidate candidateFor(@NonNull final ConstructionSnapshot snapshot) {
+        if (snapshot.numParties() > 0) {
+            return candidateFor(snapshot, snapshot.numParties());
+        }
         return knownPartySizes().stream()
                 .filter(numParties -> hasUsableKeySetsFor(snapshot, numParties))
                 .map(numParties -> candidateFor(snapshot, numParties))
@@ -945,7 +959,7 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
         for (final var entry : snapshot.partyIds().entrySet()) {
             final var nodeId = entry.getKey();
             final var partyId = entry.getValue();
-            final var keySet = hintsKeySets.get(new PartyKey(partyId, numParties));
+            final var keySet = hintsKeySets.get(new PartyKey(partyId, numParties, snapshot.crsId()));
             if (keySet == null || keySet.nodeId() != nodeId || keySet.key().length() == 0) {
                 return null;
             }
@@ -957,7 +971,7 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
 
     private boolean hasUsableKeySetsFor(@NonNull final ConstructionSnapshot snapshot, final int numParties) {
         for (final var entry : snapshot.partyIds().entrySet()) {
-            final var keySet = hintsKeySets.get(new PartyKey(entry.getValue(), numParties));
+            final var keySet = hintsKeySets.get(new PartyKey(entry.getValue(), numParties, snapshot.crsId()));
             if (keySet == null
                     || keySet.nodeId() != entry.getKey()
                     || keySet.key().length() == 0) {
@@ -988,7 +1002,8 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
             snapshot.partyIds().entrySet().stream()
                     .sorted(Map.Entry.comparingByKey())
                     .forEach(entry -> {
-                        final var keySet = hintsKeySets.get(new PartyKey(entry.getValue(), numParties));
+                        final var keySet =
+                                hintsKeySets.get(new PartyKey(entry.getValue(), numParties, snapshot.crsId()));
                         if (keySet == null) {
                             missingOrMismatched.add("party%d=missing".formatted(entry.getValue()));
                         } else if (keySet.nodeId() != entry.getKey()) {
@@ -1050,7 +1065,7 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
                     proof.blockNumber(), constructionId, partials.byNode.size());
             return;
         }
-        final var crs = currentCrs();
+        final var crs = crsFor(snapshot);
         if (crs == null) {
             System.out.printf(
                     "  -> #%d offline reaggregate unavailable "
@@ -1075,7 +1090,7 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
                             + "invalidPartials=%d, weight=%d/%d, threshold=>%d)%n",
                     proof.blockNumber(),
                     constructionId,
-                    crsHash(),
+                    crsHash(snapshot),
                     shortSha384Hash(snapshot.aggregationKey()),
                     validPartials.size(),
                     partials.byNode.size(),
@@ -1099,7 +1114,7 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
                         + "aggregateValid=%s, aggregateSigHash=%s, proofSigHash=%s, matchesProof=%s, proofSubset=%s%n",
                 proof.blockNumber(),
                 constructionId,
-                crsHash(),
+                crsHash(snapshot),
                 shortSha384Hash(snapshot.aggregationKey()),
                 proof.verificationKey().equals(snapshot.verificationKey()) ? "yes" : "no",
                 validPartials.size(),
@@ -1183,7 +1198,7 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
 
     private void useHintsBridgeFor(final long constructionId) {
         if (lastHintsBridgeConstructionId != constructionId) {
-            HintsLibraryBridge.getInstance().resetCache();
+            hintsLibrary.resetCache();
             lastHintsBridgeConstructionId = constructionId;
         }
     }
@@ -1229,12 +1244,12 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
         return "none";
     }
 
-    private @Nullable Bytes currentCrs() {
-        return currentCrs;
+    private @Nullable Bytes crsFor(@NonNull final ConstructionSnapshot snapshot) {
+        return crsById.get(snapshot.crsId());
     }
 
-    private String crsHash() {
-        final var crs = currentCrs();
+    private String crsHash(@NonNull final ConstructionSnapshot snapshot) {
+        final var crs = crsFor(snapshot);
         return crs == null ? "?" : shortSha384Hash(crs);
     }
 
@@ -1298,7 +1313,7 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
 
     private record RootAndSiblingHashes(Bytes blockRootHash, MerkleSiblingHash[] siblingHashes) {}
 
-    private static RootAndSiblingHashes computeBlockHash(
+    private RootAndSiblingHashes computeBlockHash(
             @NonNull final Timestamp blockTimestamp,
             @NonNull final Bytes previousBlockHash,
             @NonNull final IncrementalStreamingHasher prevBlockRootsHasher,
@@ -1317,18 +1332,18 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
         // Built by hand, on purpose. This validator must not share the block root tree implementation with
         // block production: if it did, any error in that implementation would be reproduced here and the
         // validator would pass regardless. Branches 1-8 carry data, branches 9-16 are reserved and empty.
-        final var branches12 = BlockImplUtils.hashInternalNode(previousBlockHash, prevBlocksRootHash);
-        final var branches34 = BlockImplUtils.hashInternalNode(startOfBlockStateHash, consensusHeaderHash);
-        final var branches56 = BlockImplUtils.hashInternalNode(inputTreeHash, outputTreeHash);
-        final var branches78 = BlockImplUtils.hashInternalNode(finalStateChangesHash, traceDataHash);
-        final var branches1234 = BlockImplUtils.hashInternalNode(branches12, branches34);
-        final var branches5678 = BlockImplUtils.hashInternalNode(branches56, branches78);
-        final var assignedHalf = BlockImplUtils.hashInternalNode(branches1234, branches5678);
+        final var branches12 = BlockImplUtils.hashInternalNode(digest(), previousBlockHash, prevBlocksRootHash);
+        final var branches34 = BlockImplUtils.hashInternalNode(digest(), startOfBlockStateHash, consensusHeaderHash);
+        final var branches56 = BlockImplUtils.hashInternalNode(digest(), inputTreeHash, outputTreeHash);
+        final var branches78 = BlockImplUtils.hashInternalNode(digest(), finalStateChangesHash, traceDataHash);
+        final var branches1234 = BlockImplUtils.hashInternalNode(digest(), branches12, branches34);
+        final var branches5678 = BlockImplUtils.hashInternalNode(digest(), branches56, branches78);
+        final var assignedHalf = BlockImplUtils.hashInternalNode(digest(), branches1234, branches5678);
 
         final var reservedHalf = emptyReservedHalf();
-        final var subtreesRoot = BlockImplUtils.hashInternalNode(assignedHalf, reservedHalf);
-        final var timestampLeaf = BlockImplUtils.hashLeaf(Timestamp.PROTOBUF.toBytes(blockTimestamp));
-        final var root = BlockImplUtils.hashInternalNode(timestampLeaf, subtreesRoot);
+        final var subtreesRoot = BlockImplUtils.hashInternalNode(digest(), assignedHalf, reservedHalf);
+        final var timestampLeaf = BlockImplUtils.hashLeaf(digest(), Timestamp.PROTOBUF.toBytes(blockTimestamp));
+        final var root = BlockImplUtils.hashInternalNode(digest(), timestampLeaf, subtreesRoot);
 
         // The right sibling of branch 1's ancestor at each level, bottom-up
         return new RootAndSiblingHashes(root, new MerkleSiblingHash[] {
@@ -1341,13 +1356,15 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
 
     /**
      * The root of the eight empty reserved branches 9-16, derived here rather than read from production.
-     * Expected value: {@code cf7e7647f57807006f4f5870d2210b5b4038d000b2bfa711bceeb7f4a327346b50c61fda4e5c68110b03ce708fb91cf8}.
+     * Under the SHA-384 default the expected value is
+     * {@code cf7e7647f57807006f4f5870d2210b5b4038d000b2bfa711bceeb7f4a327346b50c61fda4e5c68110b03ce708fb91cf8};
+     * under {@code digestType=SHA_256} it is the SHA-256 analogue computed from {@code hashOfZero(DigestType.SHA_256)}.
      */
-    private static Bytes emptyReservedHalf() {
-        final var pairOfEmpties =
-                BlockImplUtils.hashInternalNode(BlockStreamManager.HASH_OF_ZERO, BlockStreamManager.HASH_OF_ZERO);
-        final var fourEmpties = BlockImplUtils.hashInternalNode(pairOfEmpties, pairOfEmpties);
-        return BlockImplUtils.hashInternalNode(fourEmpties, fourEmpties);
+    private Bytes emptyReservedHalf() {
+        final var emptyLeaf = BlockStreamManager.hashOfZero(digestType);
+        final var pairOfEmpties = BlockImplUtils.hashInternalNode(digest(), emptyLeaf, emptyLeaf);
+        final var fourEmpties = BlockImplUtils.hashInternalNode(digest(), pairOfEmpties, pairOfEmpties);
+        return BlockImplUtils.hashInternalNode(digest(), fourEmpties, fourEmpties);
     }
 
     private static List<Block> readBlocksFrom(@NonNull final Path blockStreamsDir) {
@@ -1379,7 +1396,11 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
         return footer == null ? null : footer.previousBlockRootHash();
     }
 
-    private static @Nullable Bytes persistedBlockHashFrom(@NonNull final Block block) {
+    private MessageDigest digest() {
+        return digestType == DigestType.SHA_256 ? sha256DigestOrThrow() : sha384DigestOrThrow();
+    }
+
+    private @Nullable Bytes persistedBlockHashFrom(@NonNull final Block block) {
         final var blockStreamInfo = BlockStreamAccess.computeSingletonValueFromUpdates(
                 List.of(block),
                 SingletonUpdateChange::blockStreamInfoValue,
@@ -1387,7 +1408,17 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
         if (blockStreamInfo == null || blockStreamInfo.blockNumber() != blockNumberOf(block)) {
             return null;
         }
-        return BlockStreamManagerImpl.reconstructLastBlockHash(blockStreamInfo);
+        // For the first post-cutover block the trailing window holds the original record hash (kept for the EVM
+        // BLOCKHASH history), not the wrapped record block root production actually used as the parent. The wrapped
+        // root lives in that block's own BlockInfo update; provide it so reconstruction links to the correct parent.
+        // firstPostCutoverParentHash returns null for every other block (with or without a BlockInfo update),
+        // preserving the normal trailing-window behavior.
+        final var blockInfo = BlockStreamAccess.computeSingletonValueFromUpdates(
+                List.of(block), SingletonUpdateChange::blockInfoValue, StateIdentifier.STATE_ID_BLOCKS.protoOrdinal());
+        final var providedParent = BlockStreamManagerImpl.firstPostCutoverParentHash(blockInfo, blockStreamInfo);
+        // Reconstruct the persisted last-block hash with the same digest type the validator hashes blocks with. The
+        // trailing-window stride comes from the persisted trailing_block_hashes_compacted flag, not a window size.
+        return BlockStreamManagerImpl.reconstructLastBlockHash(blockStreamInfo, digestType, providedParent);
     }
 
     private static @Nullable BlockProof proofFrom(@NonNull final Block block) {

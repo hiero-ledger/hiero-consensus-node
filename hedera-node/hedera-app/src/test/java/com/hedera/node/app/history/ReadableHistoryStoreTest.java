@@ -19,44 +19,38 @@ class ReadableHistoryStoreTest {
     private ReadableHistoryStore subject;
 
     @Test
-    void onlyReadyToAdoptIfNextConstructionIsCompleteAndMatching() {
+    void onlyReadyToAdoptIfNextConstructionHasMatchingWrapsExtensibleProof() {
         final var rosterHash = Bytes.wrap("RH");
-        doCallRealMethod().when(subject).isReadyToAdopt(rosterHash, false);
+        doCallRealMethod().when(subject).isReadyToAdopt(rosterHash);
 
         given(subject.getNextConstruction()).willReturn(HistoryProofConstruction.DEFAULT);
-        assertFalse(subject.isReadyToAdopt(rosterHash, false));
+        assertFalse(subject.isReadyToAdopt(rosterHash));
 
         given(subject.getNextConstruction())
                 .willReturn(HistoryProofConstruction.newBuilder()
                         .targetRosterHash(rosterHash)
                         .build());
-        assertFalse(subject.isReadyToAdopt(rosterHash, false));
-
-        given(subject.getNextConstruction())
-                .willReturn(HistoryProofConstruction.newBuilder()
-                        .targetRosterHash(rosterHash)
-                        .targetProof(HistoryProof.DEFAULT)
-                        .build());
-        assertTrue(subject.isReadyToAdopt(rosterHash, false));
-    }
-
-    @Test
-    void onlyReadyToAdoptIfNextConstructionIsCompleteAndMatchingWithWrapsExtensibility() {
-        final var rosterHash = Bytes.wrap("RH");
-        doCallRealMethod().when(subject).isReadyToAdopt(rosterHash, true);
+        assertFalse(subject.isReadyToAdopt(rosterHash));
 
         given(subject.getNextConstruction())
                 .willReturn(HistoryProofConstruction.newBuilder()
                         .targetRosterHash(rosterHash)
                         .targetProof(HistoryProof.DEFAULT)
                         .build());
-        assertFalse(subject.isReadyToAdopt(rosterHash, true));
+        assertFalse(subject.isReadyToAdopt(rosterHash));
+
+        given(subject.getNextConstruction())
+                .willReturn(HistoryProofConstruction.newBuilder()
+                        .targetRosterHash(Bytes.wrap("OTHER"))
+                        .targetProof(HistoryProof.newBuilder().uncompressedWrapsProof(Bytes.wrap("<proof>")))
+                        .build());
+        assertFalse(subject.isReadyToAdopt(rosterHash));
 
         given(subject.getNextConstruction())
                 .willReturn(HistoryProofConstruction.newBuilder()
                         .targetRosterHash(rosterHash)
                         .targetProof(HistoryProof.newBuilder().uncompressedWrapsProof(Bytes.wrap("<proof>")))
                         .build());
-        assertTrue(subject.isReadyToAdopt(rosterHash, true));
+        assertTrue(subject.isReadyToAdopt(rosterHash));
     }
 }

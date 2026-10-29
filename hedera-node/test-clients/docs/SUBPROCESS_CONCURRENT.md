@@ -25,6 +25,9 @@ The `hapiTestCrypto` PR check runs all three phases in order:
 - Parallel execution uses JUnit Jupiter's `fixed` parallelism strategy. The thread count is derived
   from `hapi.spec.network.size`: **3 threads when network size ≤ 3, otherwise 2** (see the
   `testParallelism` calculation in `testSubprocessConcurrent` in `build.gradle.kts`).
+- Blocked tests still grow the pool past that count: JUnit adds compensation threads up to
+  parallelism + 256, so `hapiTestToken` averaged ~185 concurrent specs in CI. The
+  `prCheckJunitMaxPoolSizes` map in `build.gradle.kts` caps the pool per task (`hapiTestToken`: 32).
 
 ## Validation for Subprocess Concurrent
 

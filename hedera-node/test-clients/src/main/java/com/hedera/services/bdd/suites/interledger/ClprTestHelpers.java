@@ -67,7 +67,7 @@ public final class ClprTestHelpers {
     });
 
     /** Hardcoded 20-byte address of the CLPR system contract (0x16e). Mirrors the value embedded in
-     * {@code ClprCompleteConnectorHandler.CLPR_SERVICE_ADDRESS} for connector signature messages. */
+     * {@code ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES} for connector signature messages. */
     public static final byte[] CLPR_SERVICE_ADDRESS_20 = {
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01, (byte) 0x6e
     };

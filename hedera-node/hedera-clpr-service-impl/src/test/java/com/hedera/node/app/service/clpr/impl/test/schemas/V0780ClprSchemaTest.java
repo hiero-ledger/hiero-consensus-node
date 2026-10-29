@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.test.schemas;
 
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.LEDGER_CONFIGURATION_STATE_ID;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -10,6 +11,7 @@ import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
+import com.hedera.hapi.node.state.clpr.ClprEndpointManifestConstruction;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -38,6 +40,9 @@ class V0780ClprSchemaTest {
     @Mock
     private WritableSingletonState<ClprEndpointManifest> manifestState;
 
+    @Mock
+    private WritableSingletonState<ClprEndpointManifestConstruction> constructionState;
+
     private V0780ClprSchema subject;
     private Configuration configuration;
 
@@ -60,7 +65,7 @@ class V0780ClprSchemaTest {
 
     @Test
     void leavesInitializationToGenesisAndPostUpgradeSetup() {
-        subject.migrate(migrationContext);
+        subject.restart(migrationContext);
 
         verify(migrationContext, never()).newStates();
         verify(migrationContext, never()).appConfig();
@@ -72,6 +77,8 @@ class V0780ClprSchemaTest {
                 .willReturn(configurationState);
         given(writableStates.<ClprEndpointManifest>getSingleton(ENDPOINT_MANIFEST_STATE_ID))
                 .willReturn(manifestState);
+        given(writableStates.<ClprEndpointManifestConstruction>getSingleton(ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID))
+                .willReturn(constructionState);
 
         assertThat(V0780ClprSchema.initializeSingletons(writableStates, configuration))
                 .isTrue();
@@ -83,6 +90,7 @@ class V0780ClprSchemaTest {
             assertThat(throttles.maxGasPerMessage()).isEqualTo(15_000_000L);
         }));
         verify(manifestState).put(org.mockito.ArgumentMatchers.any(ClprEndpointManifest.class));
+        verify(constructionState).put(ClprEndpointManifestConstruction.DEFAULT);
     }
 
     @Test
@@ -91,8 +99,11 @@ class V0780ClprSchemaTest {
                 .willReturn(configurationState);
         given(writableStates.<ClprEndpointManifest>getSingleton(ENDPOINT_MANIFEST_STATE_ID))
                 .willReturn(manifestState);
+        given(writableStates.<ClprEndpointManifestConstruction>getSingleton(ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID))
+                .willReturn(constructionState);
         given(configurationState.get()).willReturn(ClprLedgerConfiguration.DEFAULT);
         given(manifestState.get()).willReturn(ClprEndpointManifest.DEFAULT);
+        given(constructionState.get()).willReturn(ClprEndpointManifestConstruction.DEFAULT);
 
         assertThat(V0780ClprSchema.initializeSingletons(writableStates, configuration))
                 .isFalse();

@@ -12,6 +12,7 @@ mainModuleInfo {
 }
 
 testModuleInfo {
+    requires("org.hiero.base.crypto")
     requires("com.fasterxml.jackson.databind")
     requires("org.apache.commons.lang3")
     requires("org.assertj.core")

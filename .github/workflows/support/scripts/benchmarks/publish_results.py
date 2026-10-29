@@ -18,7 +18,8 @@ workloads used fewer than run_benchmarks.py's --max-load CPUs during the measure
 - jmh_allocation_bytes_per_op: alloc.norm;
 - jmh_gc_discarded_passes: measured.gc.discardedPasses, passes dropped because a collection hit them;
 - jmh_other_load_cpus: CPUs used by other workloads during the measurement;
-- jmh_attempts: how many attempts the parameter set needed.
+- jmh_attempts: how many attempts the parameter set needed;
+- jmh_run_seconds: wall-clock time of the published attempt's JMH invocation, which sets the nightly job's time budget.
 
 With --loki-url, it also pushes one log line per published result to Loki, labeled job="consensuslayer-benchmarks",
 benchmark, params, and run_type. The line is a JSON object with the commit, the run's URL, the slot ("quiet", "loaded",
@@ -109,6 +110,7 @@ def series(directory, run_type):
             if attempt["others_cpus"] is not None:
                 result.append(("jmh_other_load_cpus", labels, attempt["others_cpus"]))
             result.append(("jmh_attempts", labels, float(count)))
+            result.append(("jmh_run_seconds", labels, attempt["finished"] - attempt["started"]))
     return [(name, labels, value) for name, labels, value in result if not math.isnan(value)], slots
 
 

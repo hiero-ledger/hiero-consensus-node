@@ -8,8 +8,6 @@ import com.hedera.hapi.node.transaction.TransactionResponse;
 import com.hedera.node.app.grpc.impl.netty.NettyGrpcServerManager;
 import com.hedera.node.app.services.ServicesRegistryImpl;
 import com.hedera.node.app.spi.RpcService;
-import com.hedera.node.app.workflows.clpr.ClprCaCertManager;
-import com.hedera.node.app.workflows.clpr.ClprLeafCertManager;
 import com.hedera.node.app.workflows.clpr.ClprStreamingSyncSession;
 import com.hedera.node.app.workflows.clpr.ClprSyncWorkflow;
 import com.hedera.node.app.workflows.ingest.IngestWorkflow;
@@ -23,8 +21,6 @@ import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.node.config.data.NettyConfig;
 import com.hedera.pbj.runtime.RpcMethodDefinition;
 import com.hedera.pbj.runtime.RpcServiceDefinition;
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.api.source.ConfigSource;
@@ -211,15 +207,10 @@ public abstract class GrpcTestBase extends TestBase {
                 new ClprSyncWorkflow() {
 
                     @Override
-                    public void handleDiscovery(Bytes req, BufferedData res) {}
-
-                    @Override
                     public ClprStreamingSyncSession openStreamingSync() {
                         throw new UnsupportedOperationException();
                     }
                 },
-                () -> new ClprLeafCertManager(new ClprCaCertManager(configProvider)),
-                () -> null,
                 metrics);
 
         grpcServer.start();

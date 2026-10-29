@@ -64,13 +64,25 @@ public class TipsetEventCreatorTestUtils {
             @NonNull final NodeId nodeId,
             @NonNull final EventTransactionSupplier transactionSupplier,
             final int maxParents) {
-
         final Configuration configuration = ConfigurationBuilder.create()
                 .autoDiscoverExtensions()
                 .withValue("event.creation.maxOtherParents", Integer.toString(maxParents))
                 .build();
+        return buildEventCreator(random, time, roster, nodeId, transactionSupplier, configuration, new NoOpMetrics());
+    }
 
-        final Metrics metrics = new NoOpMetrics();
+    /**
+     * Build an event creator for a node, with the given configuration and metrics.
+     */
+    @NonNull
+    public static EventCreator buildEventCreator(
+            @NonNull final Random random,
+            @NonNull final Time time,
+            @NonNull final RosterWrapper roster,
+            @NonNull final NodeId nodeId,
+            @NonNull final EventTransactionSupplier transactionSupplier,
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics) {
 
         final BytesSigner signer = mock(BytesSigner.class);
         when(signer.sign(any()))
@@ -112,7 +124,7 @@ public class TipsetEventCreatorTestUtils {
             // Set a wide event window so that no events get stuck in the Future Event Buffer
             eventCreator.setEventWindow(EventWindow.getGenesisEventWindow());
 
-            final TipsetTracker tipsetTracker = new TipsetTracker(time, selfId, roster);
+            final DefaultTipsetTracker tipsetTracker = new DefaultTipsetTracker(time, selfId, roster);
 
             final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
             final TipsetWeightCalculator tipsetWeightCalculator = new TipsetWeightCalculator(

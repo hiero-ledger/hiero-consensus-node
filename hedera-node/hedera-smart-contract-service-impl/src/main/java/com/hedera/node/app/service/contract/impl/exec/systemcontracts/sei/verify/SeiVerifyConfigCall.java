@@ -85,12 +85,11 @@ public class SeiVerifyConfigCall extends AbstractCall {
         final ClprLedgerConfiguration parsed = verified.ledgerConfiguration();
         log.info(
                 "verifyConfig (Sei): verifier returned chainId={}, serviceAddress={}, "
-                        + "initialTrustAnchor={} bytes, initialTrustAnchorId={}, endpoints={}",
+                        + "initialTrustAnchor={} bytes, initialTrustAnchorId={}",
                 parsed.chainId(),
                 parsed.serviceAddress(),
                 parsed.initialTrustAnchor().length(),
-                parsed.initialTrustAnchorId(),
-                parsed.endpoints().size());
+                parsed.initialTrustAnchorId());
         if (parsed.initialTrustAnchor().length() == 0) {
             log.warn(
                     "verifyConfig (Sei): proven config has empty initial_trust_anchor; rejecting chainId={}, serviceAddress={}",
@@ -99,11 +98,11 @@ public class SeiVerifyConfigCall extends AbstractCall {
             return fail();
         }
 
-        // Manifest-aware: proven manifest verbatim when the verifier supplied one; otherwise a bring-up seed-fallback
-        // (version 1, bound to the proven service address, seeded with the config's endpoints) so the
-        // channel bootstraps a dial target. Sei has no config-path manifest-proof producer yet (see
-        // SeiCometBftProofVerifier.VerifiedConfig#endpointManifestBytes), so the seed-fallback is the live
-        // path; the real manifest advances via the bundle path (Step 1b).
+        // Manifest-aware: proven manifest verbatim when the verifier supplied one; otherwise the UNINITIALIZED
+        // manifest (version 0, bound to the proven service address, no endpoints), matching the Solidity
+        // verifiers. Sei has no config-path manifest-proof producer yet (see
+        // SeiCometBftProofVerifier.VerifiedConfig#endpointManifestBytes), so the uninitialized manifest is the
+        // live path; the first proven manifest (version >= 1) applies via the bundle path (Step 1b).
         final byte[] provenManifestBytes = verified.endpointManifestBytes();
         final ClprEndpointManifest manifest;
         if (provenManifestBytes.length > 0) {
@@ -116,9 +115,7 @@ public class SeiVerifyConfigCall extends AbstractCall {
             }
         } else {
             manifest = ClprEndpointManifest.newBuilder()
-                    .version(1L)
                     .serviceAddress(parsed.serviceAddress())
-                    .endpoints(parsed.endpoints())
                     .build();
         }
         return manifestSuccess(parsed, manifest);

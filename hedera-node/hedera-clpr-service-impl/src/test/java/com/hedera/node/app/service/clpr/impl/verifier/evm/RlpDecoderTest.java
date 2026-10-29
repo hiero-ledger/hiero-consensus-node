@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.verifier.evm;
 
-import static com.hedera.node.app.service.clpr.impl.verifier.evm.ProofBytes.keccak256;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.service.clpr.impl.verifier.ProofException;
 import com.hedera.node.app.service.clpr.impl.verifier.Rlp;
 import java.util.ArrayList;
@@ -58,20 +58,22 @@ class RlpDecoderTest {
             byte[] value = bytes(5, 0x33);
             byte[] leaf = leafNode(key, value);
 
-            MerklePatriciaTrie trie = RlpDecoder.decodeMerklePatriciaTrie(keccak256(leaf), new byte[][] {leaf});
+            MerklePatriciaTrie trie =
+                    RlpDecoder.decodeMerklePatriciaTrie(MiscCryptoUtils.keccak256DigestOf(leaf), new byte[][] {leaf});
             assertThat(trie.provenValue(key)).contains(value);
         }
 
         @Test
         void singleLeafProof_divergingKey_provesAbsent() {
             byte[] leaf = leafNode(bytes(32, 0xAA), bytes(5, 0x33));
-            MerklePatriciaTrie trie = RlpDecoder.decodeMerklePatriciaTrie(keccak256(leaf), new byte[][] {leaf});
+            MerklePatriciaTrie trie =
+                    RlpDecoder.decodeMerklePatriciaTrie(MiscCryptoUtils.keccak256DigestOf(leaf), new byte[][] {leaf});
             assertThat(trie.provenValue(bytes(32, 0xBB))).isEmpty();
         }
 
         @Test
         void emptyTrieRoot_provesAbsent() {
-            byte[] emptyRoot = keccak256(Rlp.encodeBytes(new byte[0])); // keccak256(0x80)
+            byte[] emptyRoot = MiscCryptoUtils.keccak256DigestOf(Rlp.encodeBytes(new byte[0])); // keccak256(0x80)
             MerklePatriciaTrie trie = RlpDecoder.decodeMerklePatriciaTrie(emptyRoot, new byte[0][]);
             assertThat(trie.provenValue(bytes(32, 1))).isEmpty();
         }
@@ -94,14 +96,14 @@ class RlpDecoderTest {
             byte[] leafB = leafNodeWithPath(Arrays.copyOfRange(nibblesB, 2, 64), valueB);
 
             Map<Integer, byte[]> children = new HashMap<>();
-            children.put(nibblesA[1], keccak256(leafA)); // slot 2
-            children.put(nibblesB[1], keccak256(leafB)); // slot 3
+            children.put(nibblesA[1], MiscCryptoUtils.keccak256DigestOf(leafA)); // slot 2
+            children.put(nibblesB[1], MiscCryptoUtils.keccak256DigestOf(leafB)); // slot 3
             byte[] branch = branchNode(children);
 
-            byte[] root = extensionNode(new int[] {nibblesA[0]}, keccak256(branch));
+            byte[] root = extensionNode(new int[] {nibblesA[0]}, MiscCryptoUtils.keccak256DigestOf(branch));
 
-            MerklePatriciaTrie trie =
-                    RlpDecoder.decodeMerklePatriciaTrie(keccak256(root), new byte[][] {root, branch, leafA, leafB});
+            MerklePatriciaTrie trie = RlpDecoder.decodeMerklePatriciaTrie(
+                    MiscCryptoUtils.keccak256DigestOf(root), new byte[][] {root, branch, leafA, leafB});
             assertThat(trie.provenValue(keyA)).contains(valueA);
             assertThat(trie.provenValue(keyB)).contains(valueB);
             // shares the extension prefix but lands on an empty branch slot.
@@ -124,7 +126,8 @@ class RlpDecoderTest {
         @Test
         void nodeNotAList_throws() {
             byte[] node = Rlp.encodeBytes(bytes(3, 1));
-            assertThatThrownBy(() -> RlpDecoder.decodeMerklePatriciaTrie(keccak256(node), new byte[][] {node}))
+            assertThatThrownBy(() -> RlpDecoder.decodeMerklePatriciaTrie(
+                            MiscCryptoUtils.keccak256DigestOf(node), new byte[][] {node}))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("MPT node is not an RLP list");
         }
@@ -133,7 +136,8 @@ class RlpDecoderTest {
         void invalidNodeItemCount_throws() {
             byte[] node = Rlp.encodeList(
                     List.of(Rlp.encodeBytes(bytes(1, 1)), Rlp.encodeBytes(bytes(1, 2)), Rlp.encodeBytes(bytes(1, 3))));
-            assertThatThrownBy(() -> RlpDecoder.decodeMerklePatriciaTrie(keccak256(node), new byte[][] {node}))
+            assertThatThrownBy(() -> RlpDecoder.decodeMerklePatriciaTrie(
+                            MiscCryptoUtils.keccak256DigestOf(node), new byte[][] {node}))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("invalid MPT node length 3");
         }
@@ -141,7 +145,8 @@ class RlpDecoderTest {
         @Test
         void emptyHexPrefixPath_throws() {
             byte[] node = Rlp.encodeList(List.of(Rlp.encodeBytes(new byte[0]), Rlp.encodeBytes(bytes(2, 1))));
-            assertThatThrownBy(() -> RlpDecoder.decodeMerklePatriciaTrie(keccak256(node), new byte[][] {node}))
+            assertThatThrownBy(() -> RlpDecoder.decodeMerklePatriciaTrie(
+                            MiscCryptoUtils.keccak256DigestOf(node), new byte[][] {node}))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("empty hex-prefix path");
         }
@@ -150,7 +155,8 @@ class RlpDecoderTest {
         void invalidEvenHexPrefix_throws() {
             // 0x21: even flag (leaf) but a non-zero low nibble, which an even path forbids.
             byte[] node = Rlp.encodeList(List.of(Rlp.encodeBytes(new byte[] {0x21}), Rlp.encodeBytes(bytes(2, 1))));
-            assertThatThrownBy(() -> RlpDecoder.decodeMerklePatriciaTrie(keccak256(node), new byte[][] {node}))
+            assertThatThrownBy(() -> RlpDecoder.decodeMerklePatriciaTrie(
+                            MiscCryptoUtils.keccak256DigestOf(node), new byte[][] {node}))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("invalid even hex-prefix path");
         }
@@ -165,7 +171,8 @@ class RlpDecoderTest {
             items.add(Rlp.encodeBytes(new byte[0])); // branch value
             byte[] branch = Rlp.encodeList(items);
 
-            assertThatThrownBy(() -> RlpDecoder.decodeMerklePatriciaTrie(keccak256(branch), new byte[][] {branch}))
+            assertThatThrownBy(() -> RlpDecoder.decodeMerklePatriciaTrie(
+                            MiscCryptoUtils.keccak256DigestOf(branch), new byte[][] {branch}))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("invalid MPT node reference length 33");
         }

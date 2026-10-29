@@ -79,10 +79,10 @@ jobs:
     runs-on: hl-cn-sdlt-lin-sm
     continue-on-error: true
     outputs:
-      build-number: ${{ steps.verify-tag.outputs.build-number }}
-      commit: ${{ steps.resolve-commit.outputs.commit }}
-      branch: ${{ steps.resolve-commit.outputs.branch }}
-      build-tag-number: ${{ steps.resolve-commit.outputs.build-tag-number }}
+      build-number: ${{ steps.resolve-ref.outputs.build-number }}
+      commit: ${{ steps.resolve-ref.outputs.commit }}
+      branch: ${{ steps.resolve-ref.outputs.branch }}
+      build-tag-number: ${{ steps.resolve-ref.outputs.build-tag-number }}
     steps:
       - name: Prepare Runner
         id: prepare-runner
@@ -92,83 +92,16 @@ jobs:
           checkout-ref: "${{ inputs.ref || github.ref }}"
           checkout-token: "${{ secrets.GITHUB_TOKEN }}"
 
-      - name: Verify Tag
-        id: verify-tag
-        env:
-          PROMOTED_GREP_PATTERN: "build-(.{5})" # Pattern to match build tags (e.g., build-12345)
-          CHECK_TAG: "${{ inputs.ref || github.ref }}"
-        run: |
-          # Ensure the tag that we received is a build tag
-          # if the tag is a build tag then we can parse out the build number (the last 5 characters)
-          # return the build tag as an output
-          # if the tag is not a build tag then we will fail the workflow
-          if [[ "${CHECK_TAG}" =~ ${PROMOTED_GREP_PATTERN} ]]; then
-            echo "The tag is a valid build tag."
-            BUILD_NUMBER="${BASH_REMATCH[1]}"
-            echo "build-number=${BUILD_NUMBER}" >> "${GITHUB_OUTPUT}"
-
-            echo "### Running SDLT" >> "${GITHUB_STEP_SUMMARY}"
-            echo "Build number: ${BUILD_NUMBER}" >> "${GITHUB_STEP_SUMMARY}"
-          else
-            echo "::notice title=Invalid Build Tag::The provided tag (${CHECK_TAG}) is not a valid build tag."
-
-            echo "### Running SDLT" >> "${GITHUB_STEP_SUMMARY}"
-            echo "Ref: ${CHECK_TAG}" >> "${GITHUB_STEP_SUMMARY}"
-          fi
-
       # Chewie records AdHoc results against the commit under test, with its branch when the ref is a
       # branch and its build number when the ref is a build tag.
-      - name: Resolve Commit
-        id: resolve-commit
+      - name: Resolve Ref
+        id: resolve-ref
         env:
-          REF: ${{ inputs.ref || github.ref }}
+          REF: "${{ inputs.ref || github.ref }}"
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch || 'main' }}
           GH_TOKEN: ${{ github.token }}
-        run: |
-          COMMIT="$(git rev-parse HEAD)"
+        run: ./.github/workflows/support/citr/resolve-ref.sh -r "${REF}" -d "${DEFAULT_BRANCH}" -l SDLT
 
-          BRANCH=""
-          REF_NAME="${REF#refs/heads/}"
-          if [[ "${REF}" == refs/heads/* ]] || git ls-remote --exit-code --heads origin "${REF_NAME}" >/dev/null 2>&1; then
-            BRANCH="${REF_NAME}"
-          fi
-
-          # Chewie refuses a report whose commit is not reachable from the reported branch, or from the
-          # default branch when none is named. A tag or SHA off the default branch (a release tag, say)
-          # therefore needs a branch that contains it: take the newest release branch that does, using
-          # the same GitHub compare Chewie checks with.
-          commit_on() {
-            local status
-            status="$(gh api "repos/${GITHUB_REPOSITORY}/compare/${1}...${COMMIT}" --jq .status 2>/dev/null || true)"
-            [[ "${status}" == "identical" || "${status}" == "behind" ]]
-          }
-          if [[ -z "${BRANCH}" ]] && ! commit_on "${DEFAULT_BRANCH}"; then
-            while IFS= read -r candidate; do
-              if commit_on "${candidate}"; then
-                BRANCH="${candidate}"
-                break
-              fi
-            done < <(gh api "repos/${GITHUB_REPOSITORY}/branches" --paginate --jq '.[].name | select(startswith("release/"))' | sort -rV)
-            if [[ -z "${BRANCH}" ]]; then
-              echo "::warning title=Commit Not On A Release Branch::${COMMIT} is not on ${DEFAULT_BRANCH} or any release branch; Chewie will refuse the AdHoc report."
-            fi
-          fi
-
-          BUILD_TAG_NUMBER=""
-          if [[ "${REF#refs/tags/}" =~ ^build-([0-9]{5})$ ]]; then
-            BUILD_TAG_NUMBER="${BASH_REMATCH[1]}"
-          fi
-
-          {
-            echo "commit=${COMMIT}"
-            echo "branch=${BRANCH}"
-            echo "build-tag-number=${BUILD_TAG_NUMBER}"
-          } >> "${GITHUB_OUTPUT}"
-          {
-            echo "Commit: ${COMMIT}"
-            echo "Branch: ${BRANCH:-(none)}"
-            echo "Build tag number: ${BUILD_TAG_NUMBER:-(none)}"
-          } >> "${GITHUB_STEP_SUMMARY}"
   extract-jdk-version:
     name: Extract Java Version
     uses: ./.github/workflows/854-call-extract-jdk-version.yaml

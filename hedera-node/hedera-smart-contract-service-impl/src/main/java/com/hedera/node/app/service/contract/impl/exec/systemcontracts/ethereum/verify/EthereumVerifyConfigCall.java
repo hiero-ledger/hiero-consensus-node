@@ -117,11 +117,10 @@ public class EthereumVerifyConfigCall extends AbstractCall {
         final ClprLedgerConfiguration parsed = verified.ledgerConfiguration();
         log.info(
                 "[EthereumVerifier] verifyConfig: verifier returned chainId={}, serviceAddress={}, "
-                        + "initialTrustAnchor={} bytes, endpoints={}, slot={}",
+                        + "initialTrustAnchor={} bytes, slot={}",
                 parsed.chainId(),
                 parsed.serviceAddress(),
                 parsed.initialTrustAnchor().length(),
-                parsed.endpoints().size(),
                 verified.slot());
         return verified;
     }
@@ -175,18 +174,17 @@ public class EthereumVerifyConfigCall extends AbstractCall {
     /**
      * Resolves the endpoint manifest for the manifest-aware return. For Ethereum the manifest travels as <b>raw bytes</b> — trusted
      * like the self-described config at bootstrap (there is no state root to verify it against at config time). When
-     * present the bytes are strict-parsed and checked for the spec §4.8 invariants; when empty (bring-up) an empty
-     * manifest is synthesized, bound to the config's service address and seeded from its endpoints so the channel
-     * opens with dial targets. Returns {@code null} on an invalid or §4.8-violating manifest (caller reverts).
+     * present the bytes are strict-parsed and checked for the spec §4.8 invariants; when empty (bring-up) the
+     * UNINITIALIZED manifest (version 0, bound to the config's service address, no endpoints) is returned, matching
+     * the Solidity verifiers, so the first proven manifest (version >= 1) applies via Step 1b. Returns {@code null}
+     * on an invalid or §4.8-violating manifest (caller reverts).
      */
     @Nullable
     private ClprEndpointManifest manifestFor(@NonNull final ClprLedgerConfiguration parsed) {
         final byte[] bytes = requireNonNull(manifestBytes);
         if (bytes.length == 0) {
             return ClprEndpointManifest.newBuilder()
-                    .version(1L)
                     .serviceAddress(parsed.serviceAddress())
-                    .endpoints(parsed.endpoints())
                     .build();
         }
         final ClprEndpointManifest manifest;

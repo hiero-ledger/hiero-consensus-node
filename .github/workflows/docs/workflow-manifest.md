@@ -8,14 +8,13 @@
 | 004-user-deploy-preview.yaml                        | 004: [USER] Deploy Preview                  | node-flow-deploy-preview.yaml                         | Node: Deploy Preview                                              |
 | 005-user-artifact-determinism.yaml                  | 005: [USER] Artifact Determinism            | flow-artifact-determinism.yaml                        | Artifact Determinism                                              |
 | 006-user-update-gs-state-variable.yaml              | 006: [USER] Update GS State Var             | zxf-update-gs-state-variable.yaml                     | ZXF: Update GS_STATE Variable                                     |
+| 007-user-benchmark-calibration.yaml                 | 007: [USER] Benchmark Calibration           | N/A                                                   | N/A                                                               |
 |                                                     |                                             |                                                       |                                                                   |
 | # OPERATIONAL (100-199)                             |                                             |                                                       |                                                                   |
 | 100-user-collect-workflow-logs.yaml                 | 100: [USER] Collect Workflow Logs           | zxf-collect-workflow-logs.yaml                        | ZXF: Collect Workflow Run Logs                                    |
 | 101-user-trigger-release.yaml                       | 101: [USER] Trigger Release                 | flow-trigger-release.yaml                             | [Release] Create New Release                                      |
 | 102-user-memory-profile-ctrl.yaml                   | 102: [USER] Memory Profile Ctrl             | 050-user-memory-profile-ctrl.yaml                     | 050: [USER] Memory Profile Ctrl                                   |
 | 103-user-solo-tests-adhoc.yaml                      | 103: [USER] Solo Tests Adhoc                | 200-user-adhoc-solo-tests.yaml                        | 200: [USER] Ad Hoc Solo Tests                                     |
-| 104-user-wraps-smoke-test.yaml                      | 104: [USER] WRAPS Runner Smoke Test         | N/A                                                   | N/A                                                               |
-| 105-user-publish-wraps-key.yaml                     | 105: [USER] Publish Wraps Proving Key Image | N/A                                                   | N/A                                                               |
 | 106-disp-xts-optional-tests.yaml                    | 106: [DISP] XTS Optional Tests              | N/A                                                   | N/A                                                               |
 | 107-disp-clean-citr-namespaces.yaml                 | 107: [DISP] Clean CITR Namespaces           |                                                       |                                                                   |
 |                                                     |                                             |                                                       |                                                                   |
@@ -42,6 +41,7 @@
 | 304-flow-publish-yahcli-image.yaml                  | 304: [FLOW] Publish Yahcli Image            | zxf-publish-yahcli-image.yaml                         | ZXC: Publish Yahcli Image                                         |
 | 305-flow-generate-release-notes.yaml                | 305: [FLOW] Generate Rel Notes              | flow-generate-release-notes.yaml                      | Generate Release Notes                                            |
 | 306-flow-snyk-monitor.yaml                          | 306: [FLOW] Snyk Monitor                    | node-zxf-snyk-monitor.yaml                            | ZXF: Snyk Monitor                                                 |
+| 307-disp-build-commit-artifact.yaml                 | 307: [DISP] Build Commit Artifact           |                                                       |                                                                   |
 |                                                     |                                             |                                                       |                                                                   |
 | # RESERVED (400-599)                                |                                             |                                                       |                                                                   |
 |                                                     |                                             |                                                       |                                                                   |
@@ -77,21 +77,22 @@
 | 823-call-verify-gradle-determinism.yaml             | 823: [CALL] Verify Gradle Build             | zxc-verify-gradle-build-determinism.yaml              | ZXC: Verify Gradle Build Determinism                              |
 | 824-call-xts-optional-tests.yaml                    | 824: [CALL] Exec XTS Optional Tests         | N/A                                                   | N/A                                                               |
 | 825-call-migration-testing.yaml                     | 825: [CALL] Migration Testing               | zxc-migration-testing-yaml                            | ZXC: Migration Testing                                            |
-| 826-call-solo-078-to-079-cutover.yaml               | 826: [CALL] Solo 078-079 Cutover            | N/A                                                   | N/A                                                               |
+| 826-call-solo-three-stage-cutover.yaml              | 826: [CALL] Solo 3-Stage Cutover            | N/A                                                   | N/A                                                               |
 | 827-call-execute-xts-hapi.yaml                      | 827: [CALL] Exec XTS HAPI Suites            | N/A                                                   | N/A                                                               |
 | 828-call-execute-xts-otter.yaml                     | 828: [CALL] Exec XTS Otter Suites           | N/A                                                   | N/A                                                               |
+| 829-call-execute-xts-hapi-testnet.yaml              | 829: [CALL] Exec XTS HAPI Testnet           | N/A                                                   | N/A                                                               |
 | 831-call-single-day-performance-test.yaml           | 831: [CALL] CITR Exec SDPT                  | zxc-single-day-performance-test.yaml                  | ZXC: [CITR] Single Day Performance Test                           |
 | 832-call-execute-performance-test.yaml              | 832: [CALL] CITR Exec Perf Test             | zxc-execute-performance-test.yaml                     | ZXC: [CITR] Execute Performance Test                              |
 | 833-call-single-day-longevity-test.yaml             | 833: [CALL] CITR Exec SDLT                  | zxc-single-day-longevity-test.yaml                    | ZXC: [CITR] Single Day Longevity Test                             |
 | 835-call-multi-day-longevity-test.yaml              | 835: [CALL] CITR Exec MDLT                  |                                                       |                                                                   |
 | 836-call-execute-hapi-misc.yaml                     | 836: [CALL] Exec HAPI Misc                  | N/A                                                   | N/A                                                               |
 | 837-call-execute-hapi-misc-records-crypto.yaml      | 837: [CALL] Exec HAPI Rec Crypto            | N/A                                                   | N/A                                                               |
-| 838-call-execute-hapi-token-time-consuming.yaml     | 838: [CALL] Exec HAPI Token Time            | N/A                                                   | N/A                                                               |
+| 838-call-execute-hapi-token-time-consuming.yaml     | 838: [CALL] Exec HAPI Time Stake            | N/A                                                   | N/A                                                               |
 | 839-call-execute-hapi-simple-fees-nd-reconnect.yaml | 839: [CALL] Exec HAPI Fees NDRec            | N/A                                                   | N/A                                                               |
 | 840-call-execute-hapi-smart-contract-iss.yaml       | 840: [CALL] Exec HAPI SC ISS                | N/A                                                   | N/A                                                               |
 | 841-call-execute-hapi-restart.yaml                  | 841: [CALL] Exec HAPI Restart               | N/A                                                   | N/A                                                               |
 | 842-call-execute-hapi-atomic-batch.yaml             | 842: [CALL] Exec HAPI Atomic Batch          | N/A                                                   | N/A                                                               |
-| 843-call-execute-hapi-state-throttling.yaml         | 843: [CALL] Exec HAPI State Throttle        | N/A                                                   | N/A                                                               |
+| 843-call-execute-hapi-state-throttling.yaml         | 843: [CALL] Exec HAPI Token Thrtl           | N/A                                                   | N/A                                                               |
 | 844-call-execute-hapi-bn-communication.yaml         | 844: [CALL] Exec HAPI BN Comms              | N/A                                                   | N/A                                                               |
 | 845-call-execute-hapi-wraps.yaml                    | 845: [CALL] Exec HAPI Wraps                 | N/A                                                   | N/A                                                               |
 | 846-call-execute-hapi-cutover.yaml                  | 846: [CALL] Exec HAPI Cutover               | N/A                                                   | N/A                                                               |
@@ -113,6 +114,8 @@
 | 862-call-get-chewie-properties.yaml                 | 862: [CALL] Get CITR Chewie Properties      |                                                       |                                                                   |
 | 863-call-get-chewie-allocation.yaml                 | 863: [CALL] Get Chewie Allocation Details   |                                                       |                                                                   |
 | 864-call-report-suite-result.yaml                   | 864: [CALL] Report Suite Result             |                                                       |                                                                   |
+| 870-call-execute-hapi-clpr.yaml                     | 870: [CALL] Exec HAPI CLPR                  | N/A                                                   | N/A                                                               |
+| 871-call-evm-functional-tests.yaml                  | 871: [CALL] EVM Functional Tests            | N/A                                                   | N/A                                                               |
 |                                                     |                                             |                                                       |                                                                   |
 | # CRON (900-999)                                    |                                             |                                                       |                                                                   |
 | 900-cron-extended-test-suite.yaml                   | 900: [CRON] CITR Ext Test Suite             | zxcron-extended-test-suite.yaml                       | ZXCron: [CITR] Extended Test Suite                                |
@@ -135,7 +138,7 @@
   numbered in that consumer's block; per-suite leaves are neutral and are not.
 
 - **The contiguous space below 850 is now exhausted.** The next batch of leaf workflows starts at
-  **870**, on a clean ten boundary. 813-814 and 829-830 are reserved for MATS- and XTS-specific
+  **870**, on a clean ten boundary. 813-814 and 830 are reserved for MATS- and XTS-specific
   callees respectively.
 
 - **`disp`-class operational controllers live in 100-199.** `106-disp-xts-optional-tests.yaml` is

@@ -1,11 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.clpr;
 
-import com.hedera.hapi.node.state.clpr.ClprEndpoint;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
-import java.util.List;
 
 /**
  * Responsible for outbound CLPR RPC calls to a single peer endpoint.
@@ -18,19 +15,6 @@ import java.util.List;
  * exposes that lifecycle control, and only to the cache.
  */
 public interface ClprEndpointClient {
-
-    /**
-     * Sends a discoverEndpoints request to the peer endpoint and returns the peer's known
-     * endpoint list for the given Channel.
-     *
-     * @param channelId the 32-byte Channel ID to discover endpoints for
-     * @param timeout the call deadline
-     * @return the peer's known endpoints for this Channel (possibly empty)
-     * @throws ClprDiscoveryException if the call fails
-     */
-    @NonNull
-    List<ClprEndpoint> discoverEndpoints(@NonNull Bytes channelId, @NonNull Duration timeout)
-            throws ClprDiscoveryException;
 
     /**
      * Opens the streaming sync RPC and returns a handle for driving it.
@@ -68,19 +52,6 @@ public interface ClprEndpointClient {
          * @param cause   the underlying throwable
          */
         public ClprSyncException(@NonNull final String message, @NonNull final Throwable cause) {
-            super(message, cause);
-        }
-    }
-
-    /**
-     * Exception thrown when an outbound CLPR discoverEndpoints call fails.
-     */
-    class ClprDiscoveryException extends Exception {
-        /**
-         * @param message the detail message
-         * @param cause   the underlying throwable
-         */
-        public ClprDiscoveryException(@NonNull final String message, @NonNull final Throwable cause) {
             super(message, cause);
         }
     }

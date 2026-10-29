@@ -539,7 +539,9 @@ public class TestingEventBuilder {
                 birthRound,
                 timeCreated,
                 transactionBytes,
-                random.nextLong(0, Long.MAX_VALUE));
+                random.nextLong(0, Long.MAX_VALUE),
+                timeCreated,
+                List.of());
 
         final byte[] signature = new byte[SignatureType.RSA.signatureLength()];
         random.nextBytes(signature);

@@ -146,6 +146,15 @@ public final class LearnerTreeExchanger {
         }
     }
 
+    /**
+     * Returns traversal statistics collected by the traversal order.
+     *
+     * @return traversal statistics summary, see {@link NodeTraversalOrder#getStatistics()}
+     */
+    public String getTraversalStatistics() {
+        return traversalOrder.getStatistics();
+    }
+
     public void onRequestSend() {
         stats.incrementTransfersFromLearner();
     }
@@ -159,6 +168,8 @@ public final class LearnerTreeExchanger {
             // Eager, order-independent store: stale-key tracking + leaf store, done in parallel on this
             // receiver the moment the leaf arrives. Only the ordered hash-feed (dirtyLeafReceived, on the
             // applier) is deferred. nodeReceived is a no-op for leaf paths, so it is not needed here.
+            // storeDirtyLeaf() may block, while the flusher is busy and the next batch is already full.
+            // This backpressure intentionally throttles receiving to the disk write rate.
             if (!response.isClean() && teacherMetadata.getLastLeafPath() > 0) {
                 final VirtualLeafBytes<?> leaf = response.leafData();
                 assert leaf != null && leaf.path() == responsePath;

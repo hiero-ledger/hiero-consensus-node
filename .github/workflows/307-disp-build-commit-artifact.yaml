@@ -1,0 +1,279 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "307: [DISP] Build Commit Artifact"
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        required: true
+        description: "Git Reference (branch, tag, or commit SHA)"
+      ref-name:
+        required: true
+        description: "Git Reference Name (branch name or tag name)"
+      dry-run-enabled:
+        required: false
+        default: false
+        type: boolean
+        description: "Specify that this is a test run which will skip certain steps."
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  id-token: write
+  contents: write
+  actions: read
+
+jobs:
+  extract-jdk-version:
+    name: Extract Java Version
+    uses: ./.github/workflows/854-call-extract-jdk-version.yaml
+    with:
+      # The commit being built, not the ref this workflow was dispatched at.
+      ref: ${{ inputs.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  build-commit-artifact:
+    name: Build Commit Artifact
+    uses: ./.github/workflows/850-call-build-release-artifact.yaml
+    needs:
+      - extract-jdk-version
+    with:
+      version-policy: branch-commit
+      trigger-env-deploy: integration
+      release-profile: DevelopCommit
+      ref: ${{ inputs.ref }}
+      ref-name: ${{ inputs.ref-name }}
+      dry-run-enabled: ${{ inputs.dry-run-enabled }}
+      java-version: ${{ needs.extract-jdk-version.outputs.jdk-version }}
+      java-distribution: "temurin"
+    # Only the secrets the branch-commit path of 850 reads. The release-only
+    # secrets (Maven Central, the CDN bucket, the release notification webhook)
+    # are optional in 850 and deliberately not passed here.
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      bucket-name: ${{ secrets.RELEASE_ARTIFACT_BUCKET_NAME }}
+      sdk-gpg-key-contents: ${{ secrets.PLATFORM_GPG_KEY_CONTENTS }}
+      sdk-gpg-key-passphrase: ${{ secrets.PLATFORM_GPG_KEY_PASSPHRASE }}
+      jf-url: ${{ vars.JF_URL }}
+      jf-docker-registry: ${{ vars.JF_DOCKER_REGISTRY }}
+      jf-user-name: ${{ vars.JF_USER_NAME }}
+      jf-access-token: ${{ secrets.JF_ACCESS_TOKEN }}
+
+  deploy-xts-ci-trigger:
+    name: Trigger XTS CI Flow
+    runs-on: hl-cn-default-lin-sm
+    needs:
+      - build-commit-artifact
+    steps:
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+        with:
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref }}"
+          checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
+          checkout-fetch-depth: "0"
+
+      - name: Check Prep XTS Job State
+        id: check-xts-job
+        if: ${{ needs.build-commit-artifact.result == 'success' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          JOB_ENABLED="true"
+          JOB_STATE=$(gh workflow list --all --json name,state | jq -r '.[]|select(.name=="302: [DISP] CITR Prepare XTS")|.state')
+          [[ "${JOB_STATE}" == "disabled_manually" ]] && JOB_ENABLED="false"
+          echo "enabled=${JOB_ENABLED}" >> "${GITHUB_OUTPUT}"
+
+      - name: "Trigger 302: [DISP] CITR Prepare XTS"
+        if: ${{ needs.build-commit-artifact.result == 'success' && steps.check-xts-job.outputs.enabled == 'true' }}
+        uses: step-security/workflow-dispatch@024752877e2bfa07299ee4204cc5f7e7c14ff930 # v1.3.21
+        with:
+          workflow: .github/workflows/302-disp-prepare-extended-test-suite.yaml
+          repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
+          ref: main # ensure we are always using the workflow definition from the main branch
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          inputs: '{
+            "ref": "${{ inputs.ref }}",
+            "dry-run-enabled": "${{ inputs.dry-run-enabled }}"
+            }'
+
+  deploy-integration-ci-trigger:
+    name: Trigger Deploy Integration Flow
+    runs-on: hl-cn-default-lin-sm
+    needs:
+      - build-commit-artifact
+    steps:
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+        with:
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref }}"
+          checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
+          checkout-fetch-depth: "0"
+
+      - name: Check Integration Job State
+        id: check-integration-job
+        if: ${{ needs.build-commit-artifact.result == 'success' && !cancelled() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          JOB_ENABLED="true"
+          JOB_STATE=$(gh workflow list --all --json name,state --limit 200 | jq -r '.[]|select(.name=="303: [DISP] Deploy Integration")|.state')
+          [[ "${JOB_STATE}" == "disabled_manually" ]] && JOB_ENABLED="false"
+          echo "enabled=${JOB_ENABLED}" >> "${GITHUB_OUTPUT}"
+
+      - name: "Trigger 303: [DISP] Deploy Integration"
+        if: >-
+          ${{
+            inputs.dry-run-enabled == false &&
+            needs.build-commit-artifact.result == 'success' &&
+            steps.check-integration-job.outputs.enabled == 'true' &&
+            !cancelled()
+          }}
+        uses: step-security/workflow-dispatch@024752877e2bfa07299ee4204cc5f7e7c14ff930 # v1.3.21
+        with:
+          workflow: .github/workflows/303-disp-deploy-integration.yaml
+          repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
+          ref: main # ensure we are always using the workflow definition from the main branch
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+
+  # Runs only when a job this workflow depends on failed. A job skipped because
+  # an earlier one failed is covered by that earlier job's failure, so testing
+  # for 'failure' rather than for '!= success' cannot fire on a successful run.
+  report-failures:
+    name: Report Commit Build Failures
+    runs-on: hl-cn-default-lin-sm
+    needs:
+      - extract-jdk-version
+      - build-commit-artifact
+      - deploy-xts-ci-trigger
+      - deploy-integration-ci-trigger
+    if: ${{ inputs.dry-run-enabled == false && !cancelled() && contains(needs.*.result, 'failure') }}
+    steps:
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+        with:
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref }}"
+          checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
+          checkout-fetch-depth: "0"
+          setup-gomplate: "true"
+
+      - name: Collect run logs in a log file
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+        run: |
+          for job_id in $(gh run view ${{ github.run_id }} --json jobs --jq '.jobs | map(.databaseId) | .[0:-1] | .[]'); do
+            echo "Fetching logs for job $job_id..."
+
+            current_job_name=$(gh run view ${{ github.run_id }} --json jobs | jq --argjson job_id "$job_id" -r '.jobs[] | select(.databaseId == $job_id) | .name')
+
+            echo "Logs for job $current_job_name :" >> run.log
+
+            gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            /repos/hiero-ledger/hiero-consensus-node/actions/jobs/$job_id/logs >> run.log
+          done
+
+      - name: Upload log as artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        continue-on-error: true
+        with:
+          path: run.log
+
+      - name: Get Commit Information
+        id: fetch-commit-info
+        continue-on-error: true
+        env:
+          REF: ${{ inputs.ref }}
+        run: |
+          echo "commit-hash=${REF}" >> "${GITHUB_OUTPUT}"
+          echo "commit-author=$(git show -s --format='%an <%ae>' ${REF})" >> "${GITHUB_OUTPUT}"
+          echo "commit-email=$(git show -s --format='%ae' ${REF})" >> "${GITHUB_OUTPUT}"
+
+      - name: Find Commit Author in Slack
+        id: find-commit-author-slack
+        continue-on-error: true
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_CITR_BOT_TOKEN }}
+          EMAIL: ${{ steps.fetch-commit-info.outputs.commit-email }}
+        run: |
+          bash "${{ github.workspace }}/.github/workflows/support/scripts/find-commit-author-slack.sh"
+          echo "slack-user-id=${SLACK_USER_ID}" >> "${GITHUB_OUTPUT}"
+
+      - name: Build Rootly Summary
+        id: rootly-summary
+        env:
+          REF: ${{ inputs.ref }}
+        run: |
+          title="Build Commit Artifact job failed (${{ inputs.ref-name }} - ${REF})."
+          echo "title=${title}" >> "${GITHUB_OUTPUT}"
+          {
+            echo 'summary<<EOF'
+            echo "------------------------------------"
+            echo "Status of each jobs:"
+            echo "- Extract Java Version: ${{ needs.extract-jdk-version.result }}"
+            echo "- Build Commit Artifact: ${{ needs.build-commit-artifact.result }}"
+            echo "- Trigger XTS CI Flow: ${{ needs.deploy-xts-ci-trigger.result }}"
+            echo "- Trigger Deploy Integration Flow: ${{ needs.deploy-integration-ci-trigger.result }}"
+            echo "------------------------------------"
+            echo "Commit information:"
+            echo "- Author: ${{ steps.fetch-commit-info.outputs.commit-author }}"
+            echo "- Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ steps.fetch-commit-info.outputs.commit-hash }}>"
+            echo "- Workflow: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
+            echo EOF
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Log Rootly Summary
+        run: |
+          echo "## Rootly Summary:"
+          echo "### Title: ${{ steps.rootly-summary.outputs.title }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${{ steps.rootly-summary.outputs.summary }}" >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Create Rootly Alert
+        id: create-rootly-alert
+        uses: pandaswhocode/rootly-alert-action@25cfdb8b2c006c1b130c183c7b1cbcffafb71f39 # v1.0.10
+        continue-on-error: true
+        with:
+          api_key: ${{ secrets.ROOTLY_API_TOKEN }}
+          summary: "${{ steps.rootly-summary.outputs.title }}"
+          details: "${{ steps.rootly-summary.outputs.summary }}"
+          notification_target_type: "Service"
+          notification_target: "CI/CD Workflows"
+          set_as_noise: "false"
+          alert_urgency: "High"
+          external_id: ${{ github.run_id }}
+          external_url: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          environments: "CITR"
+
+      - name: Build Slack Payload Message
+        id: payload
+        env:
+          REPORT_TITLE: "Build Commit Artifact"
+          JOB_RESULTS: |-
+            *Extract Java Version*: ${{ needs.extract-jdk-version.result }}
+            *Build Commit Artifact*: ${{ needs.build-commit-artifact.result }}
+            *Trigger XTS CI Flow*: ${{ needs.deploy-xts-ci-trigger.result }}
+            *Trigger Deploy Integration Flow*: ${{ needs.deploy-integration-ci-trigger.result }}
+          COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ steps.fetch-commit-info.outputs.commit-hash }}
+          COMMIT_AUTHOR: ${{ steps.fetch-commit-info.outputs.commit-author }}
+          SLACK_USER_ID: ${{ steps.find-commit-author-slack.outputs.slack-user-id }}
+          REF_NAME: ${{ inputs.ref-name }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+          WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: gomplate -f .github/workflows/templates/slack-deploy-release-failure.json.tpl -o slack_payload.json
+
+      - name: Report failure (slack citr-failures)
+        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc # v3.0.5
+        with:
+          webhook: ${{ secrets.SLACK_CITR_FAILURES_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload.json

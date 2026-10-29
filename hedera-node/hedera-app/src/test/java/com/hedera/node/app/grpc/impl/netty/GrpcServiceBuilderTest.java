@@ -8,8 +8,6 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import com.hedera.node.app.utils.TestUtils;
-import com.hedera.node.app.workflows.clpr.ClprStreamingSyncSession;
-import com.hedera.node.app.workflows.clpr.ClprSyncWorkflow;
 import com.hedera.node.app.workflows.ingest.IngestWorkflow;
 import com.hedera.node.app.workflows.query.QueryWorkflow;
 import com.hedera.node.config.ConfigProvider;
@@ -17,8 +15,6 @@ import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.VersionedConfiguration;
 import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Metrics;
 import java.io.ByteArrayInputStream;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,16 +35,6 @@ final class GrpcServiceBuilderTest {
     // These are simple no-op workflows
     private final QueryWorkflow queryWorkflow = (requestBuffer, responseBuffer) -> {};
     private final IngestWorkflow ingestWorkflow = (requestBuffer, responseBuffer) -> {};
-    private final ClprSyncWorkflow clprSyncWorkflow = new ClprSyncWorkflow() {
-
-        @Override
-        public void handleDiscovery(Bytes req, BufferedData res) {}
-
-        @Override
-        public ClprStreamingSyncSession openStreamingSync() {
-            throw new UnsupportedOperationException();
-        }
-    };
 
     private GrpcServiceBuilder builder;
     private final Metrics metrics = TestUtils.metrics();
@@ -64,8 +50,7 @@ final class GrpcServiceBuilderTest {
 
     @BeforeEach
     void setUp() {
-        builder = new GrpcServiceBuilder(
-                SERVICE_NAME, ingestWorkflow, queryWorkflow, clprSyncWorkflow, MARSHALLER, JUMBO_MARSHALLER);
+        builder = new GrpcServiceBuilder(SERVICE_NAME, ingestWorkflow, queryWorkflow, MARSHALLER, JUMBO_MARSHALLER);
     }
 
     @Test
@@ -74,7 +59,7 @@ final class GrpcServiceBuilderTest {
         //noinspection ConstantConditions
         assertThrows(
                 NullPointerException.class,
-                () -> new GrpcServiceBuilder(SERVICE_NAME, ingestWorkflow, null, null, MARSHALLER, JUMBO_MARSHALLER));
+                () -> new GrpcServiceBuilder(SERVICE_NAME, ingestWorkflow, null, MARSHALLER, JUMBO_MARSHALLER));
     }
 
     @Test
@@ -83,7 +68,7 @@ final class GrpcServiceBuilderTest {
         //noinspection ConstantConditions
         assertThrows(
                 NullPointerException.class,
-                () -> new GrpcServiceBuilder(null, ingestWorkflow, queryWorkflow, null, MARSHALLER, JUMBO_MARSHALLER));
+                () -> new GrpcServiceBuilder(null, ingestWorkflow, queryWorkflow, MARSHALLER, JUMBO_MARSHALLER));
     }
 
     @ParameterizedTest()
@@ -92,7 +77,7 @@ final class GrpcServiceBuilderTest {
     void serviceIsBlank(final String value) {
         assertThrows(
                 IllegalArgumentException.class,
-                () -> new GrpcServiceBuilder(value, ingestWorkflow, queryWorkflow, null, MARSHALLER, JUMBO_MARSHALLER));
+                () -> new GrpcServiceBuilder(value, ingestWorkflow, queryWorkflow, MARSHALLER, JUMBO_MARSHALLER));
     }
 
     @Test
@@ -152,17 +137,6 @@ final class GrpcServiceBuilderTest {
     void singleQuery() {
         final var sd = builder.query("qA").build(metrics, configProvider);
         assertNotNull(sd.getMethod(SERVICE_NAME + "/qA"));
-    }
-
-    /**
-     * A {@link GrpcServiceBuilder} may define CLPR discovery methods which will be created on the
-     * {@link io.grpc.ServerServiceDefinition}.
-     */
-    @Test
-    @DisplayName("The built ServiceDescriptor includes a method with the name of the defined clprDiscovery")
-    void singleClprDiscovery() {
-        final var sd = builder.clprDiscovery("discoveryA").build(metrics, configProvider);
-        assertNotNull(sd.getMethod(SERVICE_NAME + "/discoveryA"));
     }
 
     /**

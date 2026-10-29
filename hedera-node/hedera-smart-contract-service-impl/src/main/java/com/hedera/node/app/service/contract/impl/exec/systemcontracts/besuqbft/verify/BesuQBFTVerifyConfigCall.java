@@ -96,9 +96,10 @@ public class BesuQBFTVerifyConfigCall extends AbstractCall {
             return fail();
         }
 
-        // Manifest-aware: proven manifest verbatim when a real manifest proof was supplied; otherwise a bring-up
-        // seed-fallback (version 1, bound to the proven service address, seeded with the config's
-        // endpoints) so the channel bootstraps a dial target — the real manifest advances via Step 1b.
+        // Manifest-aware: proven manifest verbatim when a real manifest proof was supplied; otherwise the
+        // UNINITIALIZED manifest (version 0, bound to the proven service address, no endpoints), matching the
+        // Solidity verifiers. The first proven manifest (version >= 1) then strictly exceeds it and applies via
+        // Step 1b. A fabricated version-1 manifest would collide with a real peer manifest still at version 1.
         final byte[] provenManifestBytes = verified.endpointManifestBytes();
         final ClprEndpointManifest manifest;
         if (provenManifestBytes.length > 0) {
@@ -111,14 +112,12 @@ public class BesuQBFTVerifyConfigCall extends AbstractCall {
             }
         } else {
             manifest = ClprEndpointManifest.newBuilder()
-                    .version(1L)
                     .serviceAddress(parsed.serviceAddress())
-                    .endpoints(parsed.endpoints())
                     .build();
         }
         log.info(
                 "verifyConfigWithManifest (QBFT): source={} version={} endpoints={}",
-                provenManifestBytes.length > 0 ? "proven-proof" : "seed-fallback",
+                provenManifestBytes.length > 0 ? "proven-proof" : "uninitialized",
                 manifest.version(),
                 manifest.endpoints().size());
         return manifestSuccess(parsed, manifest);

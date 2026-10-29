@@ -37,7 +37,6 @@ import com.hedera.hapi.node.state.clpr.ClprThrottles;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.clpr.ReadableChannelStore;
 import com.hedera.node.app.service.clpr.ReadableLedgerConfigurationStore;
-import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfiguration;
@@ -50,7 +49,6 @@ import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.state.State;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
@@ -89,12 +87,6 @@ class ClprChannelManagerTest {
     private ClprSynchronizer synchronizer;
 
     @Mock
-    private NetworkInfo networkInfo;
-
-    @Mock
-    private ClprLeafCertManager leafCertManager;
-
-    @Mock
     private ClprEndpointClientCache clientCache;
 
     @TempDir
@@ -108,8 +100,7 @@ class ClprChannelManagerTest {
         given(versionedConfig.getConfigData(ClprConfig.class))
                 .willReturn(defaultClprConfig().build());
         Mockito.reset(synchronizer);
-        subject = new ClprChannelManager(
-                configProvider, networkInfo, stateAccessor, synchronizer, leafCertManager, clientCache);
+        subject = new ClprChannelManager(configProvider, stateAccessor, synchronizer, clientCache);
     }
 
     @AfterEach
@@ -146,35 +137,10 @@ class ClprChannelManagerTest {
         }
 
         @Test
-        @DisplayName("discovery is disabled")
-        void startWithDiscoveryDisabled() {
-            final var config = defaultClprConfig().discoveryIntervalSeconds(-1).build();
-            given(versionedConfig.getConfigData(ClprConfig.class)).willReturn(config);
-
-            subject.start();
-
-            assertFalse(subject.isDiscoveryEnabled(), "Expected discovery to be disabled");
-        }
-
-        @Test
-        @DisplayName("discovery is enabled")
-        void startWithDiscoveryEnabled() {
-            final var config = defaultClprConfig().discoveryIntervalSeconds(10).build();
-            given(versionedConfig.getConfigData(ClprConfig.class)).willReturn(config);
-
-            subject.start();
-
-            assertTrue(subject.isDiscoveryEnabled(), "Expected discovery to be enabled");
-        }
-
-        @Test
         @DisplayName("is idempotent — a second call schedules no additional tasks")
         void startIsIdempotent() {
-            // Discovery off so the only periodic task is the peer-endpoints flush; with no active
-            // channel the scheduler queue holds exactly that one task after start().
-            given(versionedConfig.getConfigData(ClprConfig.class))
-                    .willReturn(defaultClprConfig().discoveryIntervalSeconds(-1).build());
-
+            // The only periodic task is the peer-endpoints flush; with no active channel the
+            // scheduler queue holds exactly that one task after start().
             subject.start();
             assertTrue(subject.started());
             final var executor = (ScheduledThreadPoolExecutor) subject.scheduler();
@@ -303,7 +269,7 @@ class ClprChannelManagerTest {
             final var channelStore = mock(ReadableChannelStore.class);
             lenient().when(channelStore.getChannel(CHANNEL_ID_1)).thenReturn(null);
 
-            try (var _ = givenMockedStateForSync(channelStore, ledgerConfigWithEndpoints(Collections.emptyList(), 0))) {
+            try (var _ = givenMockedStateForSync(channelStore, ledgerConfigWithMaxPeerEndpoints(0))) {
                 subject.syncChannel(CHANNEL_ID_1);
 
                 // Null channel is not auto-removed; cleanup is driven by onChannelClosed only.
@@ -321,7 +287,7 @@ class ClprChannelManagerTest {
             final var channelStore = mock(ReadableChannelStore.class);
             lenient().when(channelStore.getChannel(CHANNEL_ID_1)).thenReturn(closedConn);
 
-            try (var _ = givenMockedStateForSync(channelStore, ledgerConfigWithEndpoints(Collections.emptyList(), 0))) {
+            try (var _ = givenMockedStateForSync(channelStore, ledgerConfigWithMaxPeerEndpoints(0))) {
                 subject.syncChannel(CHANNEL_ID_1);
 
                 assertThat(subject.knownChannelsIds()).doesNotContain(CHANNEL_ID_1);
@@ -398,8 +364,7 @@ class ClprChannelManagerTest {
                     .willReturn(defaultClprConfig()
                             .maxConcurrentSyncs(maxConcurrentSyncs)
                             .build());
-            subject = new ClprChannelManager(
-                    configProvider, networkInfo, stateAccessor, synchronizer, leafCertManager, clientCache);
+            subject = new ClprChannelManager(configProvider, stateAccessor, synchronizer, clientCache);
 
             final List<ClprChannel> channels = IntStream.range(0, maxConcurrentSyncs + 1)
                     .mapToObj((id) -> makeActiveChannelWithPendingMessages(Bytes.wrap("channel_" + id)))
@@ -511,235 +476,6 @@ class ClprChannelManagerTest {
         }
     }
 
-    @Nested
-    @DisplayName("endpoint cache (mergeDiscoveredEndpoints)")
-    class EndpointCacheTest {
-
-        private static final Bytes CHANNEL_ID = Bytes.wrap(new byte[32]);
-
-        @Test
-        @DisplayName("adds new endpoints to the cache")
-        void mergeDiscoveredEndpointsAddsNewEndpoints() {
-            final var ep1 = makeEndpoint("10.0.0.1", 50211);
-            subject.mergeDiscoveredEndpoints(CHANNEL_ID, List.of(ep1));
-            assertThat(subject.getKnownEndpoints(CHANNEL_ID)).hasSize(1);
-        }
-
-        @Test
-        @DisplayName("deduplicates endpoints by address")
-        void mergeDiscoveredEndpointsDeduplicatesByAddress() {
-            final var ep1 = makeEndpoint("10.0.0.1", 50211);
-            final var ep2 = makeEndpoint("10.0.0.1", 50211);
-            final var ep3 = makeEndpoint("10.0.0.2", 50211);
-
-            subject.mergeDiscoveredEndpoints(CHANNEL_ID, List.of(ep1));
-            subject.mergeDiscoveredEndpoints(CHANNEL_ID, List.of(ep2, ep3));
-
-            assertThat(subject.getKnownEndpoints(CHANNEL_ID)).hasSize(2);
-        }
-
-        @Test
-        @DisplayName("ignores an empty endpoint list")
-        void mergeDiscoveredEndpointsIgnoresEmpty() {
-            subject.mergeDiscoveredEndpoints(CHANNEL_ID, List.of());
-            assertThat(subject.getKnownEndpoints(CHANNEL_ID)).isEmpty();
-        }
-
-        @Test
-        @DisplayName("re-merging only already-known endpoints leaves the cache unchanged")
-        void mergeDiscoveredEndpointsAllDuplicatesAreNoOp() {
-            subject.mergeDiscoveredEndpoints(CHANNEL_ID, List.of(makeEndpoint("10.0.0.1", 50211)));
-            assertThat(subject.getKnownEndpoints(CHANNEL_ID)).hasSize(1);
-
-            // A merge whose endpoints are all already known adds nothing — the cache neither grows
-            // nor corrupts (and the size-gate skips flagging the file dirty for this no-op).
-            subject.mergeDiscoveredEndpoints(CHANNEL_ID, List.of(makeEndpoint("10.0.0.1", 50211)));
-            assertThat(subject.getKnownEndpoints(CHANNEL_ID)).hasSize(1);
-        }
-    }
-
-    @Nested
-    @DisplayName("mTLS: known peer CA certs + discovery suppression")
-    class MtlsTests {
-        private static final Bytes CONN = Bytes.wrap(new byte[32]);
-
-        @BeforeEach
-        void enableMtls() {
-            // buildPeerCaCertificates() is a no-op unless mTLS is enabled — the trust index it
-            // builds is consumed only by the mTLS sync listener. lenient(): not every test in this
-            // class triggers a rebuild (e.g. the no-endpoints-cached case).
-            lenient().when(leafCertManager.isMtlsEnabled()).thenReturn(true);
-        }
-
-        @Test
-        @DisplayName("knownPeerCaCertificatesByIssuer parses cached endpoint certs, skipping empty/unparseable")
-        void knownPeerCaCertificatesParsesCerts() throws Exception {
-            final var caCert = selfSignedCert();
-            final var withCert = ClprEndpoint.newBuilder()
-                    .serviceEndpoint(ClprServiceEndpoint.newBuilder()
-                            .ipAddress("10.0.0.1")
-                            .port(50214)
-                            .build())
-                    .tlsCertificate(Bytes.wrap(caCert.getEncoded()))
-                    .build();
-            final var withoutCert = makeEndpoint("10.0.0.2", 50214); // empty tls_certificate — skipped
-            final var withGarbage = ClprEndpoint.newBuilder()
-                    .serviceEndpoint(ClprServiceEndpoint.newBuilder()
-                            .ipAddress("10.0.0.3")
-                            .port(50214)
-                            .build())
-                    .tlsCertificate(Bytes.wrap(new byte[] {1, 2, 3})) // unparseable — skipped
-                    .build();
-
-            subject.seedPeerEndpoints(CONN, List.of(withCert, withoutCert, withGarbage));
-
-            assertThat(allTrustedCerts(subject)).containsExactly(caCert);
-        }
-
-        @Test
-        @DisplayName("knownPeerCaCertificatesByIssuer is empty when no endpoints are cached")
-        void knownPeerCaCertificatesEmpty() {
-            assertThat(subject.knownPeerCaCertificatesByIssuer()).isEmpty();
-        }
-
-        @Test
-        @DisplayName("knownPeerCaCertificatesByIssuer skips parsing entirely when mTLS is disabled")
-        void knownPeerCaCertificatesSkippedWhenMtlsDisabled() {
-            given(leafCertManager.isMtlsEnabled()).willReturn(false);
-            final var withGarbage = ClprEndpoint.newBuilder()
-                    .serviceEndpoint(ClprServiceEndpoint.newBuilder()
-                            .ipAddress("10.0.0.3")
-                            .port(50214)
-                            .build())
-                    .tlsCertificate(Bytes.wrap(new byte[] {1, 2, 3})) // unparseable, but never reached
-                    .build();
-
-            subject.seedPeerEndpoints(CONN, List.of(withGarbage));
-
-            assertThat(subject.knownPeerCaCertificatesByIssuer()).isEmpty();
-        }
-
-        @Test
-        @DisplayName("discoveryTick requests no client when mTLS is enabled")
-        void discoverySuppressedUnderMtls() {
-            subject.seedPeerEndpoints(CONN, List.of(makeEndpoint("10.0.0.9", 50214)));
-            subject.discoveryTick();
-            verifyNoInteractions(clientCache);
-        }
-
-        @Test
-        @DisplayName("knownPeerCaCertificatesByIssuer keys CAs with distinct subject DNs under separate keys")
-        void knownPeerCaCertificatesInvalidatedOnAdd() throws Exception {
-            final var ca1 = caWithCn("ca-one");
-            subject.seedPeerEndpoints(CONN, List.of(endpointWithCert("10.0.0.1", ca1)));
-            var certsByIssuer = subject.knownPeerCaCertificatesByIssuer();
-            assertThat(certsByIssuer).containsOnlyKeys(ca1.getSubjectX500Principal());
-            assertThat(certsByIssuer.get(ca1.getSubjectX500Principal())).containsExactly(ca1);
-
-            final var ca2 = caWithCn("ca-two");
-            final var conn2 = Bytes.wrap(distinctConnId());
-            subject.seedPeerEndpoints(conn2, List.of(endpointWithCert("10.0.0.2", ca2)));
-            certsByIssuer = subject.knownPeerCaCertificatesByIssuer();
-            assertThat(certsByIssuer).containsOnlyKeys(ca1.getSubjectX500Principal(), ca2.getSubjectX500Principal());
-            assertThat(certsByIssuer.get(ca1.getSubjectX500Principal())).containsExactly(ca1);
-            assertThat(certsByIssuer.get(ca2.getSubjectX500Principal())).containsExactly(ca2);
-        }
-
-        @Test
-        @DisplayName("knownPeerCaCertificatesByIssuer groups distinct CAs that share a subject DN under one key")
-        void knownPeerCaCertificatesGroupsCasSharingSubjectDn() throws Exception {
-            // Two distinct CAs (different key pairs) that happen to share the same subject DN — they must
-            // collapse into one bucket under that DN, not overwrite each other.
-            final var ca1 = caWithCn("shared-ca");
-            final var ca2 = caWithCn("shared-ca");
-            final var sharedDn = ca1.getSubjectX500Principal();
-            assertThat(ca2.getSubjectX500Principal()).isEqualTo(sharedDn); // precondition: DNs collide
-
-            subject.seedPeerEndpoints(
-                    CONN, List.of(endpointWithCert("10.0.0.1", ca1), endpointWithCert("10.0.0.2", ca2)));
-
-            final var index = subject.knownPeerCaCertificatesByIssuer();
-            assertThat(index).containsOnlyKeys(sharedDn);
-            assertThat(index.get(sharedDn)).containsExactlyInAnyOrder(ca1, ca2);
-        }
-
-        @Test
-        @DisplayName(
-                "knownPeerCaCertificatesByIssuer drops a peer's CA after its channel closes (invalidated on remove)")
-        void knownPeerCaCertificatesInvalidatedOnRemove() throws Exception {
-            final var ca = selfSignedCert();
-            subject.registerChannel(CONN);
-            subject.seedPeerEndpoints(CONN, List.of(endpointWithCert("10.0.0.1", ca)));
-            assertThat(allTrustedCerts(subject)).containsExactly(ca);
-
-            subject.onChannelClosed(CONN);
-            assertThat(subject.knownPeerCaCertificatesByIssuer()).isEmpty();
-        }
-
-        @Test
-        @DisplayName("seedPeerEndpoints with an empty list drops this channel's CA from the trust index, "
-                + "retaining a CA still referenced by another channel")
-        void seedPeerEndpointsEmptyListDropsCaButRetainsCaSharedByAnotherChannel() throws Exception {
-            final var ca1 = caWithCn("ca-one");
-            final var ca2 = caWithCn("ca-two");
-            subject.seedPeerEndpoints(CONN, List.of(endpointWithCert("10.0.0.1", ca1)));
-            final var conn2 = Bytes.wrap(distinctConnId());
-            subject.seedPeerEndpoints(conn2, List.of(endpointWithCert("10.0.0.2", ca2)));
-            assertThat(allTrustedCerts(subject)).containsExactlyInAnyOrder(ca1, ca2);
-
-            // A replacement manifest with zero endpoints (e.g. the manifest-only recovery path, spec
-            // §8.1.4) must replace — not skip — the cache entry, rebuilding the trust index so ca1 is
-            // dropped while ca2 (contributed independently by conn2) remains trusted.
-            subject.seedPeerEndpoints(CONN, List.of());
-
-            assertThat(subject.getKnownEndpoints(CONN)).isEmpty();
-            assertThat(allTrustedCerts(subject)).containsExactly(ca2);
-        }
-
-        @Test
-        @DisplayName("knownPeerCaCertificatesByIssuer returns the cached instance when endpoints are unchanged")
-        void knownPeerCaCertificatesCachedBetweenCalls() throws Exception {
-            subject.seedPeerEndpoints(CONN, List.of(endpointWithCert("10.0.0.1", selfSignedCert())));
-            final var first = subject.knownPeerCaCertificatesByIssuer();
-            final var second = subject.knownPeerCaCertificatesByIssuer();
-            assertThat(second).isSameAs(first);
-        }
-    }
-
-    /** Flattens the issuer-keyed trust index to the set of trusted CA certs, for assertion convenience. */
-    private static List<X509Certificate> allTrustedCerts(final ClprChannelManager mgr) {
-        return mgr.knownPeerCaCertificatesByIssuer().values().stream()
-                .flatMap(List::stream)
-                .toList();
-    }
-
-    private static X509Certificate selfSignedCert() throws Exception {
-        return new ClprTestCa("test-ca").caCert();
-    }
-
-    /** A self-signed CA cert with subject/issuer {@code CN=<cn>}, for asserting how the index keys CAs. */
-    private static X509Certificate caWithCn(final String cn) throws Exception {
-        return new ClprTestCa(cn).caCert();
-    }
-
-    /** An endpoint advertising {@code cert} as its {@code tls_certificate}. */
-    private static ClprEndpoint endpointWithCert(final String ip, final X509Certificate cert) throws Exception {
-        return ClprEndpoint.newBuilder()
-                .serviceEndpoint(ClprServiceEndpoint.newBuilder()
-                        .ipAddress(ip)
-                        .port(50214)
-                        .build())
-                .tlsCertificate(Bytes.wrap(cert.getEncoded()))
-                .build();
-    }
-
-    /** A 32-byte channel id distinct from the all-zero {@code CONN} used by the mTLS tests. */
-    private static byte[] distinctConnId() {
-        final var id = new byte[32];
-        id[0] = 1;
-        return id;
-    }
-
     private ClprConfigBuilder defaultClprConfig() {
         // Isolate the node-local channel cache to a per-test temp file so the orchestrator's
         // disk persistence/rehydration doesn't leak across tests (or runs) via the default path.
@@ -755,10 +491,8 @@ class ClprChannelManagerTest {
         return nodeStore;
     }
 
-    private static ClprLedgerConfiguration ledgerConfigWithEndpoints(
-            final List<ClprEndpoint> endpoints, final int maxPeerEndpoints) {
+    private static ClprLedgerConfiguration ledgerConfigWithMaxPeerEndpoints(final int maxPeerEndpoints) {
         return ClprLedgerConfiguration.newBuilder()
-                .endpoints(endpoints)
                 .throttles(ClprThrottles.newBuilder()
                         .maxPeerEndpoints(maxPeerEndpoints)
                         .build())
@@ -895,8 +629,7 @@ class ClprChannelManagerTest {
 
             // Manager B: fresh instance, same (temp) cache file. It must rebuild the registry, the
             // peer endpoint cache, the interval, and the timer purely from disk + committed state.
-            final var managerB = new ClprChannelManager(
-                    configProvider, networkInfo, stateAccessor, synchronizer, leafCertManager, clientCache);
+            final var managerB = new ClprChannelManager(configProvider, stateAccessor, synchronizer, clientCache);
             final var channelStore = mock(ReadableChannelStore.class);
             given(channelStore.getChannel(CHANNEL_ID_1))
                     .willReturn(ClprChannel.newBuilder()
@@ -933,8 +666,7 @@ class ClprChannelManagerTest {
                     .until(() -> cacheHas(cacheFile, CHANNEL_ID_1) && !cacheHasEndpoint(cacheFile, CHANNEL_ID_1));
             subject.stop();
 
-            final var managerB = new ClprChannelManager(
-                    configProvider, networkInfo, stateAccessor, synchronizer, leafCertManager, clientCache);
+            final var managerB = new ClprChannelManager(configProvider, stateAccessor, synchronizer, clientCache);
             final var channelStore = mock(ReadableChannelStore.class);
             given(channelStore.getChannel(CHANNEL_ID_1))
                     .willReturn(ClprChannel.newBuilder()
@@ -961,8 +693,7 @@ class ClprChannelManagerTest {
             await().atMost(Duration.ofSeconds(5)).until(() -> cacheHas(cacheFile, CHANNEL_ID_1));
             subject.stop();
 
-            final var managerB = new ClprChannelManager(
-                    configProvider, networkInfo, stateAccessor, synchronizer, leafCertManager, clientCache);
+            final var managerB = new ClprChannelManager(configProvider, stateAccessor, synchronizer, clientCache);
             final var channelStore = mock(ReadableChannelStore.class);
             given(channelStore.getChannel(CHANNEL_ID_1))
                     .willReturn(makeChannel(CHANNEL_ID_1, ClprChannelStatus.CLOSED, 0L, 0L));
@@ -983,21 +714,19 @@ class ClprChannelManagerTest {
         final var channel = makeChannel(CHANNEL_ID_1, ClprChannelStatus.ACTIVE, 0L, 2L);
         subject.onChannelActivated(CHANNEL_ID_1);
         subject.seedPeerEndpoints(CHANNEL_ID_1, List.of(makeEndpoint("10.0.0.7", 50211)));
-        Mockito.clearInvocations(stateAccessor, synchronizer, clientCache, networkInfo, leafCertManager);
+        Mockito.clearInvocations(stateAccessor, synchronizer, clientCache);
         given(versionedConfig.getConfigData(ClprConfig.class))
                 .willReturn(defaultClprConfig().enabled(false).build());
 
         subject.start();
         subject.syncChannel(CHANNEL_ID_1);
         subject.initiateSync(channel);
-        subject.discoveryTick();
 
         assertFalse(subject.started());
-        assertFalse(subject.isDiscoveryEnabled());
         assertNull(subject.syncTickFuture(CHANNEL_ID_1));
         assertThat(((ScheduledThreadPoolExecutor) subject.scheduler()).getQueue())
                 .isEmpty();
-        verifyNoInteractions(stateAccessor, synchronizer, clientCache, networkInfo, leafCertManager);
+        verifyNoInteractions(stateAccessor, synchronizer, clientCache);
     }
 
     @Test
@@ -1018,14 +747,13 @@ class ClprChannelManagerTest {
 
         subject.start();
         subject.syncChannel(CHANNEL_ID_1);
-        subject.discoveryTick();
 
         assertFalse(subject.started());
         assertThat(subject.knownChannelsIds()).isEmpty();
         assertThat(subject.getKnownEndpoints(CHANNEL_ID_1)).isEmpty();
         assertThat(((ScheduledThreadPoolExecutor) subject.scheduler()).getQueue())
                 .isEmpty();
-        verifyNoInteractions(stateAccessor, synchronizer, clientCache, networkInfo, leafCertManager);
+        verifyNoInteractions(stateAccessor, synchronizer, clientCache);
         subject.stop();
         assertThat(Files.readAllBytes(cacheFile)).isEqualTo(before);
     }

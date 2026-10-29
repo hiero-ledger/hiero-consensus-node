@@ -13,6 +13,8 @@ module org.hiero.consensus.gossip.impl {
     exports org.hiero.consensus.gossip.impl.gossip.sync to
             org.hiero.consensus.gossip.impl.test.fixtures,
             org.hiero.consensus.reconnect.impl;
+    exports org.hiero.consensus.gossip.impl.gossip.sync.protocol to
+            org.hiero.otter.fixtures;
     exports org.hiero.consensus.gossip.impl.network to
             org.hiero.consensus.gossip.impl.test.fixtures,
             org.hiero.consensus.reconnect.impl;

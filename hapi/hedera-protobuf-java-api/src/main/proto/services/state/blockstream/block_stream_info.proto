@@ -180,4 +180,31 @@ message BlockStreamInfo {
      * The number of leaves in the intermediate block roots subtree.
      */
     uint64 intermediate_block_roots_leaf_count = 18;
+
+    /**
+     * Whether the trailing_block_hashes window has been compacted to the active
+     * digest's native entry size.<br/>
+     * The window stores fixed-width per-block hash entries at a single uniform
+     * stride. While any genuine pre-cutover (48-byte SHA2-384) hash remains, every
+     * entry is stored at 48 bytes (shorter hashes left-padded); once none remain and
+     * the stream has cut over, the window is compacted once to the active (e.g.
+     * 32-byte SHA2-256) size and stays native thereafter. This flag records that
+     * stride directly so cold readers (restart, reconnect, snapshot queries) decode
+     * the window without re-inferring the entry count:
+     * <ul>
+     *   <li>{@code false} (proto3 default) - entries are stored at the pre-cutover
+     *       48-byte padded size.</li>
+     *   <li>{@code true} - entries are stored at the active digest's native size.</li>
+     * </ul>
+     * A genesis window on a digest shorter than 48 bytes (e.g. SHA2-256) grows
+     * natively and is {@code true} from its first entry. A SHA2-384 window, and a
+     * record-migration seed, hold 48-byte entries and are {@code false} until they
+     * compact.<br/>
+     * This flag SHALL be set to {@code true} if and only if the trailing block hashes
+     * are stored at the active digest's native entry size and that size is shorter
+     * than 48 bytes. It has no effect while the window is empty.<br/>
+     * Except for a window that is native from genesis, this flag SHALL NOT be set to
+     * {@code true} prior to block stream cutover.
+     */
+    bool trailing_block_hashes_compacted = 19;
 }

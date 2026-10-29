@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl;
 
-import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.LEDGER_CONFIGURATION_STATE_ID;
@@ -17,6 +16,7 @@ import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprMessageKey;
 import com.hedera.hapi.node.state.clpr.ClprThrottles;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
+import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.hapi.utils.blocks.HashUtils;
 import com.hedera.node.app.hapi.utils.blocks.MerklePathBuilder;
 import com.hedera.node.app.hapi.utils.blocks.StateProofVerifier;
@@ -24,11 +24,13 @@ import com.hedera.node.app.hapi.utils.blocks.TssVerifier;
 import com.hedera.node.app.spi.state.BlockProvenSnapshot;
 import com.hedera.node.app.spi.state.BlockProvenSnapshotProvider;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.ClprConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.BinaryState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -89,6 +91,19 @@ public class ClprStateProofManager {
     }
 
     /**
+     * Returns a fresh {@link MessageDigest} matching the block-root Merkle tree's current hashing algorithm
+     * ({@code BlockStreamConfig.digestType}), so CLPR state-proof construction/verification always hashes with the
+     * same algorithm as the live tree being proved. Mirrors
+     * {@code BlockStreamManagerImpl.digestOrThrow()}.
+     */
+    private MessageDigest digestOrThrow() {
+        return CommonUtils.digestOrThrow(configProvider
+                .getConfiguration()
+                .getConfigData(BlockStreamConfig.class)
+                .digestType());
+    }
+
+    /**
      * A built bundle together with the outbound message range it actually covers.
      *
      * <p>{@code messageCount} is what the builder managed to pack, which is not simply
@@ -107,8 +122,9 @@ public class ClprStateProofManager {
      * Returns this ledger's id as carried on the latest signed snapshot. Empty bytes when no
      * snapshot is available yet. The value comes from
      * {@code ReadableHistoryStore.getLedgerId()} captured at snapshot construction time —
-     * callers should use this rather than reading {@code LedgerConfig.id()} so the verifier
-     * always sees the genesis-rooted ledger id.
+     * proof and query consumers use this so the verifier sees the genesis-rooted ledger id.
+     * Availability is node-local: consensus handlers must instead read
+     * {@link com.hedera.node.app.spi.workflows.HandleContext#historyLedgerId()}.
      */
     @NonNull
     public Bytes latestLedgerId() {
@@ -233,8 +249,9 @@ public class ClprStateProofManager {
 
         // Precompute the block-root extension siblings appended to every leaf path
         // (same shape used by buildBundleStateProof: state root → block subtree root → hashed timestamp).
+        final var digest = digestOrThrow();
         final var tsBytes = Timestamp.PROTOBUF.toBytes(snapshot.blockTimestamp());
-        final var hashedTs = Bytes.wrap(HashUtils.computeRawLeafHash(sha384DigestOrThrow(), tsBytes));
+        final var hashedTs = Bytes.wrap(HashUtils.computeRawLeafHash(digest, tsBytes));
         final var baseSibs = snapshot.path().siblings();
         final var extendedSibs = new ArrayList<SiblingNode>(baseSibs.size() + 1);
         extendedSibs.addAll(baseSibs);
@@ -257,7 +274,7 @@ public class ClprStateProofManager {
         }
 
         final var allPaths = new ArrayList<MerklePath>();
-        allPaths.add(MerklePathBuilder.fromStateApi(singletonMerkleProof)
+        allPaths.add(MerklePathBuilder.fromStateApi(singletonMerkleProof, digest)
                 .appendSiblingNodes(extendedSibs)
                 .build());
 
@@ -285,14 +302,15 @@ public class ClprStateProofManager {
      * depends on {@code allowPureAck}: responder paths pass {@code true} so the channel-only
      * proof is still emitted (a pure-ACK bundle carrying just the channel leaf — the peer
      * learns the current {@code receivedMessageId} / {@code receivedRunningHash} ack frontier).
-     * Initiator paths pass {@code false} so they skip the sync entirely when they have nothing
-     * meaningful to push.
+     * Initiator paths also pass {@code true} for CLOSING and DRAINED channels so the peer learns
+     * the proven closing status even with an empty queue. Other initiator paths pass {@code false}
+     * to skip the bundle unless it carries messages or an endpoint manifest update.
      *
      * @param channelId   raw bytes of the channel identifier
      * @param firstMessageId first outbound message ID to include (= ackedMessageId + 1)
      * @param peerThrottles  peer-published throttles governing this bundle (max messages, max bytes)
      * @param allowPureAck   when true, emit a channel-only (pure-ACK) bundle if no message
-     *                       leaves are available; when false, return null in that case
+     *                       leaves are available; when false, require messages or an endpoint manifest update
      * @param includeEndpointManifest  when true, embed a Merkle path for this ledger's
      *                       {@code ClprEndpointManifest} singleton so the peer's verifyBundle can
      *                       return {@code new_endpoint_manifest} and Step 1b applies the update
@@ -300,7 +318,7 @@ public class ClprStateProofManager {
      *                       when the peer's cached {@code endpoint_manifest_version} is stale
      *                       (see #335).
      * @return serialised {@code StateProof} bytes, or {@code null} when no snapshot is available
-     *         or when there are no message leaves and {@code allowPureAck} is false
+     *         or when there are no message leaves, {@code allowPureAck} is false, and no manifest is included
      */
     @Nullable
     public Bytes buildSerializedBundleProof(
@@ -412,7 +430,7 @@ public class ClprStateProofManager {
             byte[] rootHash = null;
             for (final var path : stateProof.paths()) {
                 if (path.hasStateItemLeaf()) {
-                    rootHash = StateProofVerifier.computeBlockRootHashFromPath(path);
+                    rootHash = StateProofVerifier.computeBlockRootHashFromPath(path, digestOrThrow());
                     break;
                 }
             }
@@ -455,7 +473,8 @@ public class ClprStateProofManager {
             @NonNull final List<MerklePath> allPaths,
             @NonNull final BinaryState binaryState,
             @NonNull final Bytes channelId,
-            @NonNull final List<SiblingNode> extendedSibs) {
+            @NonNull final List<SiblingNode> extendedSibs,
+            @NonNull final MessageDigest digest) {
         final long manifestPath = binaryState.getSingletonPath(ENDPOINT_MANIFEST_STATE_ID);
         if (manifestPath < 0) {
             // Invariant violation, not a normal operating condition: ClprServiceImpl.doGenesisSetup()
@@ -475,7 +494,7 @@ public class ClprStateProofManager {
                     manifestPath);
             return;
         }
-        allPaths.add(MerklePathBuilder.fromStateApi(manifestMerkleProof)
+        allPaths.add(MerklePathBuilder.fromStateApi(manifestMerkleProof, digest)
                 .appendSiblingNodes(extendedSibs)
                 .build());
         log.debug(
@@ -506,8 +525,9 @@ public class ClprStateProofManager {
                 snapshot.blockTimestamp());
 
         // Precompute the block-root extension siblings appended to every leaf path.
+        final var digest = digestOrThrow();
         final var tsBytes = Timestamp.PROTOBUF.toBytes(snapshot.blockTimestamp());
-        final var hashedTs = Bytes.wrap(HashUtils.computeRawLeafHash(sha384DigestOrThrow(), tsBytes));
+        final var hashedTs = Bytes.wrap(HashUtils.computeRawLeafHash(digest, tsBytes));
         final var baseSibs = snapshot.path().siblings();
         final var extendedSibs = new ArrayList<SiblingNode>(baseSibs.size() + 1);
         extendedSibs.addAll(baseSibs);
@@ -530,7 +550,7 @@ public class ClprStateProofManager {
         // Build each leaf path independently (no merging). Each path is a complete
         // leaf-to-block-root proof verified independently against the block root.
         final var allPaths = new ArrayList<MerklePath>();
-        final var connPathBuilder = MerklePathBuilder.fromStateApi(connMerkleProof);
+        final var connPathBuilder = MerklePathBuilder.fromStateApi(connMerkleProof, digest);
         connPathBuilder.appendSiblingNodes(extendedSibs);
         allPaths.add(connPathBuilder.build());
         // Track how many message-queue leaves we've added, so the pure-ACK guard below
@@ -539,7 +559,7 @@ public class ClprStateProofManager {
 
         // ── Endpoint manifest singleton leaf (spec §4.9) ──────────────────────────
         if (includeEndpointManifest) {
-            addEndpointManifest(allPaths, binaryState, channelId, extendedSibs);
+            addEndpointManifest(allPaths, binaryState, channelId, extendedSibs, digest);
         }
 
         final var tssProof = TssSignedBlockProof.newBuilder()
@@ -581,7 +601,7 @@ public class ClprStateProofManager {
                         msgPath);
                 break;
             }
-            final var candidatePath = MerklePathBuilder.fromStateApi(msgMerkleProof)
+            final var candidatePath = MerklePathBuilder.fromStateApi(msgMerkleProof, digest)
                     .appendSiblingNodes(extendedSibs)
                     .build();
             allPaths.add(candidatePath);
@@ -629,18 +649,18 @@ public class ClprStateProofManager {
                     firstMessageId);
         }
 
-        // A proof with no message leaves carries only the current ack frontier
-        // (channel.receivedMessageId / receivedRunningHash) plus, since #335, the endpoint
+        // A proof with no message leaves carries the channel's status and current ack frontier
+        // (channel.receivedMessageId / receivedRunningHash), plus any requested endpoint
         // manifest. Responder paths (`allowPureAck=true`) need this so they can acknowledge
         // an inbound message even when the local outbound queue is empty — without it, the
-        // peer never learns its message was received and replays forever.
+        // peer never learns its message was received and replays forever. Initiators also pass
+        // `allowPureAck=true` during shutdown to propagate their proven CLOSING or DRAINED status.
         //
         // An initiator (`allowPureAck=false`) with an empty queue still has meaningful work when
         // it must push a manifest advance the peer has not observed — a moved endpoint has to
         // propagate or peers stay stuck dialing the stale address. So permit a manifest-only
         // bundle when the manifest will actually be carried (includeEndpointManifest).
-        // Only when there is truly nothing — no messages, not a responder ack, and no manifest to
-        // send — do we skip. (Neeha review.)
+        // Skip only when there are no messages, no permitted channel-only proof, and no manifest to send.
         final boolean manifestOnlyPayload = includeEndpointManifest;
         if (messageLeafCount == 0) {
             if (!allowPureAck && !manifestOnlyPayload) {

@@ -29,7 +29,6 @@ public final class ClprTransactionServiceDefinition implements RpcServiceDefinit
             new RpcMethodDefinition<>("completeChannel", Transaction.class, TransactionResponse.class),
             new RpcMethodDefinition<>("closeChannel", Transaction.class, TransactionResponse.class),
             new RpcMethodDefinition<>("submitBundle", Transaction.class, TransactionResponse.class),
-            new RpcMethodDefinition<>("redactMessage", Transaction.class, TransactionResponse.class),
             new RpcMethodDefinition<>("registerConnector", Transaction.class, TransactionResponse.class),
             new RpcMethodDefinition<>("completeConnector", Transaction.class, TransactionResponse.class),
             new RpcMethodDefinition<>("deregisterConnector", Transaction.class, TransactionResponse.class),
