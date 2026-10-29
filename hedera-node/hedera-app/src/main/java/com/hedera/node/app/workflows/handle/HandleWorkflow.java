@@ -1201,14 +1201,20 @@ public class HandleWorkflow {
                             final var writableEntityStates = stack.getWritableStates(EntityIdService.NAME);
                             final var entityCounters = new WritableEntityIdStoreImpl(writableEntityStates);
                             final var hintsStore = new WritableHintsStoreImpl(writableHintsStates, entityCounters);
-                            TssHandoffCoordinator.tryJointHandoff(
+                            // The roster TSS proved before this rotation, which was kept for this proof to start from
+                            final var previouslyProvenRosterHash = historyStore.provenRosterHash();
+                            if (TssHandoffCoordinator.tryJointHandoff(
                                     historyStore,
                                     hintsStore,
                                     historyService,
                                     hintsService,
                                     activeRoster,
                                     requireNonNull(candidateRoster),
-                                    requireNonNull(candidateRosterHash));
+                                    requireNonNull(candidateRosterHash))) {
+                                // The next proof starts from the rotated roster, so release the one before it
+                                new WritableRosterStore(stack.getWritableStates(RosterService.NAME))
+                                        .removeRosterIfUnused(previouslyProvenRosterHash);
+                            }
                         } else if (historyStore.handoff(activeRoster, candidateRoster, candidateRosterHash)) {
                             // Make sure we include the latest chain-of-trust proof in following block proofs
                             historyService.setLatestHistoryProof(construction.targetProofOrThrow());

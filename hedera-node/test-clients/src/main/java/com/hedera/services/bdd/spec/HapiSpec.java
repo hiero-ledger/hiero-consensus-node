@@ -1436,6 +1436,17 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
                 put("memo.useSpecName", "true");
             }
         };
+        // A network whose roster changed at runtime may no longer have the default node (e.g. node0 was
+        // deleted); send to its first node instead of one it no longer has
+        final long defaultNodeNum = spec.setup().defaultNode().getAccountNum();
+        if (!targetNetwork.nodes().isEmpty()
+                && targetNetwork.nodes().stream()
+                        .noneMatch(node -> node.getAccountId().accountNumOrElse(-1L) == defaultNodeNum)) {
+            final var firstNode = targetNetwork.nodes().getFirst().getAccountId();
+            overrides.put(
+                    "default.node",
+                    firstNode.shardNum() + "." + firstNode.realmNum() + "." + firstNode.accountNumOrThrow());
+        }
 
         // We only need to set shard/realm if they aren't the default values (zero)
         final var shardRealm = determineShardRealm(targetNetwork);

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.extensions;
 
+import static com.hedera.node.app.info.DiskStartupNetworks.GENESIS_NETWORK_JSON;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.WORKING_DIR;
 import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.awaitStatus;
 import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.prCheckOverrides;
@@ -11,10 +13,12 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.remembering;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 
+import com.hedera.node.app.info.DiskStartupNetworks;
 import com.hedera.services.bdd.junit.ConfigOverride;
 import com.hedera.services.bdd.junit.MultiNetworkHapiTest;
 import com.hedera.services.bdd.junit.MultiNetworkHapiTest.Network;
 import com.hedera.services.bdd.junit.hedera.HederaNetwork;
+import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.spec.infrastructure.HapiClients;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -461,7 +465,7 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
             final long shard = cfg.shard() >= 0 ? cfg.shard() : getConfigShard();
             final long realm = cfg.realm() >= 0 ? cfg.realm() : getConfigRealm();
             final var network = SubProcessNetwork.newIsolatedNetwork(
-                    resolveName(cfg), cfg.size(), shard, realm, resolveFirstGrpcPort(cfg));
+                    resolveName(cfg), cfg.size(), nodeIdSlots(cfg), shard, realm, resolveFirstGrpcPort(cfg));
 
             // Collect setup overrides (defaults + annotation-declared) into one map so duplicates are
             // merged predictably. Defaults are seeded first so a per-test setupOverrides entry with the
@@ -476,13 +480,14 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
             if (cfg.firstHapiTlsPort() > 0) {
                 overrides.put(GRPC_TLS_PORT_KEY, Integer.toString(cfg.firstHapiTlsPort()));
             }
-            seedPerNodeApplicationOverrides(network, overrides, cfg.size());
+            seedPerNodeApplicationOverrides(network, overrides, nodeIdSlots(cfg));
 
             // Provision the per-network HAPI TLS certificate (cert/key PEMs into the working dir) before
             // the node JVM starts and looks for them to start its HAPI TLS listener.
             if (cfg.enableHapiTls()) {
                 provisionHapiTls(cfg, network);
             }
+            network.getPostInitWorkingDirActions().add(MultiNetworkExtension::alignGenesisNodeGossipEndpoints);
 
             networks.add(network);
         }
@@ -603,23 +608,24 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
         if (cached != null) {
             return cached.base();
         }
-        final int footprint = cfg.size() * PORTS_PER_NODE;
+        final int footprint = nodeIdSlots(cfg) * PORTS_PER_NODE;
 
         if (cfg.firstGrpcPort() > 0) {
             final int base = cfg.firstGrpcPort();
             final Reservation conflict = firstOverlapping(base, base + footprint);
             if (conflict != null) {
-                throw new IllegalArgumentException("Explicit firstGrpcPort=" + base + " (size=" + cfg.size()
-                        + ", footprint " + footprint + ") on network '" + name + "' overlaps the ["
-                        + conflict.base() + ", " + conflict.end() + ") range reserved by network '"
-                        + conflict.name() + "'");
+                throw new IllegalArgumentException(
+                        "Explicit firstGrpcPort=" + base + " (node-id slots=" + nodeIdSlots(cfg)
+                                + ", footprint " + footprint + ") on network '" + name + "' overlaps the ["
+                                + conflict.base() + ", " + conflict.end() + ") range reserved by network '"
+                                + conflict.name() + "'");
             }
             RESERVATIONS_BY_NAME.put(name, new Reservation(name, base, footprint));
             return base;
         }
 
         if (footprint > SHARED_PORT_SLOT) {
-            throw new IllegalArgumentException("Network '" + name + "' size=" + cfg.size()
+            throw new IllegalArgumentException("Network '" + name + "' node-id slots=" + nodeIdSlots(cfg)
                     + " exceeds shared-port slot width " + SHARED_PORT_SLOT
                     + "; pin firstGrpcPort explicitly on the annotation");
         }
@@ -662,7 +668,15 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
     }
 
     /**
-     * Seeds every node's {@code application.properties} overrides from {@code overrides}, but assigns
+     * Number of node ids {@code cfg}'s network lays out ports and per-node overrides for: the larger of its size and
+     * {@link Network#maxNodeIds()}, so nodes added at runtime get collision-free ports and their overrides.
+     */
+    private static int nodeIdSlots(@NonNull final Network cfg) {
+        return Math.max(cfg.size(), cfg.maxNodeIds());
+    }
+
+    /**
+     * Seeds every node id's {@code application.properties} overrides from {@code overrides}, but assigns
      * the node-local {@code grpc.tlsPort} a <b>per-node</b> value ({@code base + nodeId}). Subprocess
      * nodes all share {@code 127.0.0.1}, so a single fixed {@code tlsPort} would collide when more
      * than one node tries to bind its HAPI TLS listener; {@code grpc.tlsPort} is a {@code @NodeProperty}
@@ -670,11 +684,13 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
      * applied uniformly.
      */
     private static void seedPerNodeApplicationOverrides(
-            @NonNull final SubProcessNetwork network, @NonNull final Map<String, String> overrides, final int size) {
+            @NonNull final SubProcessNetwork network,
+            @NonNull final Map<String, String> overrides,
+            final int nodeIdSlots) {
         if (overrides.isEmpty()) {
             return;
         }
-        for (long id = 0; id < size; id++) {
+        for (long id = 0; id < nodeIdSlots; id++) {
             final long nodeId = id;
             final List<String> flat = new ArrayList<>();
             overrides.forEach((k, v) -> {
@@ -687,12 +703,12 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
             });
             network.getApplicationPropertyOverrides().put(id, List.copyOf(flat));
         }
-        // Make the per-node tlsPort offset visible: the single base expands to base..base+size-1.
+        // Make the per-node tlsPort offset visible: the single base expands to base..base+nodeIdSlots-1.
         final var tlsBase = overrides.get(GRPC_TLS_PORT_KEY);
         if (tlsBase != null) {
             final int base = Integer.parseInt(tlsBase.trim());
             final var assignments = new StringBuilder();
-            for (int id = 0; id < size; id++) {
+            for (int id = 0; id < nodeIdSlots; id++) {
                 assignments
                         .append(id == 0 ? "" : ", ")
                         .append("node")
@@ -701,6 +717,45 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
                         .append(base + id);
             }
             log.info("[CLPR-TLS] '{}' per-node grpc.tlsPort: {}", network.name(), assignments);
+        }
+    }
+
+    /**
+     * Rewrites {@code node}'s {@code genesis-network.json} so each address-book {@code Node} lists its gossip
+     * endpoints in the reverse of its roster entry's order, the address-book convention. A candidate roster built
+     * from state ({@code ReadableNodeStore.snapshotOfFutureRoster}) swaps a node's first two gossip endpoints, so
+     * only then does it match the roster the nodes started with. The generated genesis network lists both in the
+     * same order, which only an {@code override-network.json} papers over; tests that adopt a changed roster from
+     * state, the way a production upgrade does, need the two to agree.
+     */
+    private static void alignGenesisNodeGossipEndpoints(@NonNull final HederaNode node) {
+        final Path genesisNetworkPath = node.getExternalPath(DATA_CONFIG_DIR).resolve(GENESIS_NETWORK_JSON);
+        if (!Files.exists(genesisNetworkPath)) {
+            return;
+        }
+        final var genesisNetwork = DiskStartupNetworks.loadNetworkFrom(genesisNetworkPath)
+                .orElseThrow(() -> new IllegalStateException("Unreadable genesis network at " + genesisNetworkPath));
+        final var aligned = genesisNetwork
+                .copyBuilder()
+                .nodeMetadata(genesisNetwork.nodeMetadata().stream()
+                        .map(metadata -> {
+                            final var endpoints = metadata.rosterEntryOrThrow().gossipEndpoint();
+                            if (endpoints.size() < 2) {
+                                return metadata;
+                            }
+                            return metadata.copyBuilder()
+                                    .node(metadata.nodeOrThrow()
+                                            .copyBuilder()
+                                            .gossipEndpoint(endpoints.getLast(), endpoints.getFirst())
+                                            .build())
+                                    .build();
+                        })
+                        .toList())
+                .build();
+        try {
+            Files.writeString(genesisNetworkPath, com.hedera.node.internal.network.Network.JSON.toJSON(aligned));
+        } catch (final IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 

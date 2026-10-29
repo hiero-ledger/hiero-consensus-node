@@ -106,10 +106,29 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     private static int nextPrometheusPort;
     private static boolean nextPortsInitialized = false;
 
+    /**
+     * The port bases of one network, captured from the static {@code next*Port} cursors when the network is built
+     * (or its ports are reassigned). Node {@code i} binds {@code grpc + 2i}, {@code nodeOperator + i},
+     * {@code internalGossip + 2i}, {@code externalGossip + 2i} and {@code prometheus + i}. Several isolated networks
+     * coexist in one JVM, so a network must never derive ports for nodes added later from the static cursors,
+     * which by then hold whichever network was built last.
+     */
+    private record PortLayout(int grpc, int nodeOperator, int internalGossip, int externalGossip, int prometheus) {
+        static PortLayout current() {
+            return new PortLayout(
+                    nextGrpcPort,
+                    nextNodeOperatorPort,
+                    nextInternalGossipPort,
+                    nextExternalGossipPort,
+                    nextPrometheusPort);
+        }
+    }
+
     private final Map<Long, AccountID> pendingNodeAccounts = new HashMap<>();
     private final AtomicReference<DeferredRun> ready = new AtomicReference<>();
 
     private long maxNodeId;
+    private PortLayout ports;
     private Network network;
     private Map<NodeId, KeysAndCerts> nodeKeys;
     private final long shard;
@@ -186,7 +205,8 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         this.realm = realm;
         this.maxNodeId =
                 Collections.max(nodes.stream().map(SubProcessNode::getNodeId).toList());
-        final var networkWithKeys = generateNetworkConfig(nodes(), nextInternalGossipPort, nextExternalGossipPort);
+        this.ports = PortLayout.current();
+        final var networkWithKeys = generateNetworkConfig(nodes(), ports.internalGossip(), ports.externalGossip());
         this.network = networkWithKeys.network();
         this.nodeKeys = networkWithKeys.keysAndCerts();
         this.postInitWorkingDirActions.add(this::configureApplicationProperties);
@@ -223,10 +243,32 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      */
     public static synchronized SubProcessNetwork newIsolatedNetwork(
             @NonNull final String name, final int size, final long shard, final long realm, final int firstGrpcPort) {
+        return newIsolatedNetwork(name, size, size, shard, realm, firstGrpcPort);
+    }
+
+    /**
+     * As {@link #newIsolatedNetwork(String, int, long, long, int)}, but lays ports out for node ids
+     * {@code [0, nodeIdSlots)} while starting only nodes {@code [0, size)}, so nodes added later (e.g. via
+     * {@link #addNode(long)}) get ports that collide neither with this network's other nodes nor with
+     * another network's window.
+     *
+     * @param nodeIdSlots number of node ids to lay ports out for; must be at least {@code size}
+     */
+    public static synchronized SubProcessNetwork newIsolatedNetwork(
+            @NonNull final String name,
+            final int size,
+            final int nodeIdSlots,
+            final long shard,
+            final long realm,
+            final int firstGrpcPort) {
+        if (nodeIdSlots < size) {
+            throw new IllegalArgumentException(
+                    "nodeIdSlots (" + nodeIdSlots + ") must be at least the network size (" + size + ")");
+        }
         if (firstGrpcPort > 0) {
-            initializeNextPortsForNetwork(size, firstGrpcPort);
+            initializeNextPortsForNetwork(nodeIdSlots, firstGrpcPort);
         } else {
-            initializeNextPortsForNetwork(size);
+            initializeNextPortsForNetwork(nodeIdSlots);
         }
         final var network = new SubProcessNetwork(
                 name,
@@ -427,22 +469,22 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      * <i>candidate-roster.json</i> (if present); and reassigns ports to avoid binding conflicts.
      */
     public void refreshOverrideWithNewPorts() {
-        log.info("Reassigning ports for network '{}' starting from {}", name(), nextGrpcPort);
+        log.info("Reassigning ports for network '{}' starting from {}", name(), ports.grpc());
         reinitializePorts();
-        log.info("  -> Network '{}' ports now starting from {}", name(), nextGrpcPort);
+        log.info("  -> Network '{}' ports now starting from {}", name(), ports.grpc());
         nodes.forEach(node -> {
             final int nodeId = (int) node.getNodeId();
             ((SubProcessNode) node)
                     .reassignPorts(
-                            nextGrpcPort + nodeId * 2,
-                            nextNodeOperatorPort + nodeId,
-                            nextInternalGossipPort + nodeId * 2,
-                            nextExternalGossipPort + nodeId * 2,
-                            nextPrometheusPort + nodeId);
+                            ports.grpc() + nodeId * 2,
+                            ports.nodeOperator() + nodeId,
+                            ports.internalGossip() + nodeId * 2,
+                            ports.externalGossip() + nodeId * 2,
+                            ports.prometheus() + nodeId);
         });
         final var weights = maybeLatestCandidateWeights();
         final var nwk =
-                NetworkUtils.generateNetworkConfig(nodes, nextInternalGossipPort, nextExternalGossipPort, weights);
+                NetworkUtils.generateNetworkConfig(nodes, ports.internalGossip(), ports.externalGossip(), weights);
         network = nwk.network();
         nodeKeys = nwk.keysAndCerts();
         refreshOverrideNetworks(ReassignPorts.YES);
@@ -453,6 +495,19 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      */
     public void refreshClients() {
         HapiClients.tearDown();
+        this.clients = HapiClients.clientsFor(this);
+    }
+
+    /**
+     * Rebuilds only this network's clients for its current nodes, e.g. after {@link #addNode(long)} or
+     * {@link #removeNode(NodeSelector)}, closing the channels of the given departed nodes. Unlike
+     * {@link #refreshClients()}, it leaves other networks' channels in this JVM untouched.
+     *
+     * @param departedNodeUris the {@code host:port} gRPC URIs of nodes no longer in this network
+     */
+    public void refreshClientsForCurrentNodes(@NonNull final List<String> departedNodeUris) {
+        requireNonNull(departedNodeUris);
+        HapiClients.removeChannelsFor(departedNodeUris);
         this.clients = HapiClients.clientsFor(this);
     }
 
@@ -468,7 +523,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         node.stopFuture();
         nodes.remove(node);
         final var nwk = NetworkUtils.generateNetworkConfig(
-                nodes, nextInternalGossipPort, nextExternalGossipPort, latestCandidateWeights());
+                nodes, ports.internalGossip(), ports.externalGossip(), latestCandidateWeights());
         network = nwk.network();
         nodeKeys = nwk.keysAndCerts();
         refreshOverrideNetworks(ReassignPorts.NO);
@@ -494,11 +549,11 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                         name(),
                         SUBPROCESS_HOST,
                         SHARED_NETWORK_NAME.equals(name()) ? null : name(),
-                        nextGrpcPort + (int) nodeId * 2,
-                        nextNodeOperatorPort + (int) nodeId,
-                        nextInternalGossipPort + (int) nodeId * 2,
-                        nextExternalGossipPort + (int) nodeId * 2,
-                        nextPrometheusPort + (int) nodeId,
+                        ports.grpc() + (int) nodeId * 2,
+                        ports.nodeOperator() + (int) nodeId,
+                        ports.internalGossip() + (int) nodeId * 2,
+                        ports.externalGossip() + (int) nodeId * 2,
+                        ports.prometheus() + (int) nodeId,
                         shard,
                         realm),
                 GRPC_PINGER,
@@ -509,7 +564,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         }
         nodes.add(insertionPoint, node);
         final var nwk = NetworkUtils.generateNetworkConfig(
-                nodes, nextInternalGossipPort, nextExternalGossipPort, latestCandidateWeights());
+                nodes, ports.internalGossip(), ports.externalGossip(), latestCandidateWeights());
         network = nwk.network();
         nodeKeys = nwk.keysAndCerts();
         nodes.get(insertionPoint).initWorkingDir(network);
@@ -528,10 +583,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      * @return the gossip endpoints
      */
     public List<ServiceEndpoint> gossipEndpointsForNextNodeId() {
-        final var nextNodeId = maxNodeId + 1;
-        return List.of(
-                endpointFor(nextInternalGossipPort + (int) nextNodeId * 2),
-                endpointFor(nextExternalGossipPort + (int) nextNodeId * 2));
+        return gossipEndpointsFor(maxNodeId + 1);
     }
 
     /**
@@ -541,8 +593,67 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      * @return the gRPC endpoint
      */
     public ServiceEndpoint grpcEndpointForNextNodeId() {
-        final var nextNodeId = maxNodeId + 1;
-        return endpointFor(nextGrpcPort + (int) nextNodeId * 2);
+        return grpcEndpointFor(maxNodeId + 1);
+    }
+
+    /**
+     * Returns the gossip endpoints (internal, external) this network assigns to node {@code nodeId}.
+     *
+     * @param nodeId the node id
+     * @return the gossip endpoints
+     */
+    public List<ServiceEndpoint> gossipEndpointsFor(final long nodeId) {
+        return List.of(
+                endpointFor(ports.internalGossip() + (int) nodeId * 2),
+                endpointFor(ports.externalGossip() + (int) nodeId * 2));
+    }
+
+    /**
+     * Returns the gRPC endpoint this network assigns to node {@code nodeId}.
+     *
+     * @param nodeId the node id
+     * @return the gRPC endpoint
+     */
+    public ServiceEndpoint grpcEndpointFor(final long nodeId) {
+        return endpointFor(ports.grpc() + (int) nodeId * 2);
+    }
+
+    /**
+     * Returns the highest node id this network has ever had; the next node created on it gets this plus one.
+     *
+     * @return the highest node id
+     */
+    public long maxNodeId() {
+        return maxNodeId;
+    }
+
+    /**
+     * Runs this network's post-init working-dir actions (application properties, platform settings, and any
+     * actions callers registered via {@link #getPostInitWorkingDirActions()}) for a node added by
+     * {@link #addNode(long)}, which only initializes the working dir. Call it before the node first starts.
+     *
+     * @param nodeId the id of the added node
+     */
+    public void runPostInitWorkingDirActions(final long nodeId) {
+        executePostInitWorkingDirActions(getRequiredNode(byNodeId(nodeId)));
+    }
+
+    /**
+     * Rewrites the <i>genesis-network.json</i> of a node added by {@link #addNode(long)} with the network as it is now.
+     * {@link #addNode(long)} writes it from the network at that point, so of several nodes added for the same
+     * upgrade, all but the last would start with a roster missing the nodes added after them (and fail to reconnect
+     * to a state with the full roster). Call before the node first starts.
+     *
+     * @param nodeId the id of the added node
+     */
+    public void refreshGenesisNetwork(final long nodeId) {
+        final var node = getRequiredNode(byNodeId(nodeId));
+        try {
+            Files.writeString(
+                    node.getExternalPath(DATA_CONFIG_DIR).resolve(GENESIS_NETWORK_JSON), Network.JSON.toJSON(network));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     @Override
@@ -661,6 +772,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         final var totalPortsUsed = effectiveSize * PORTS_PER_NODE;
         final var newFirstGrpcPort = firstGrpcPort + totalPortsUsed;
         initializeNextPortsForNetwork(effectiveSize, newFirstGrpcPort);
+        ports = PortLayout.current();
     }
 
     private ServiceEndpoint endpointFor(final int port) {

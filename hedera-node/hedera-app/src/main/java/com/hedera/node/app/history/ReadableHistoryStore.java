@@ -110,6 +110,18 @@ public interface ReadableHistoryStore {
     HistoryProofConstruction getNextConstruction();
 
     /**
+     * Returns the hash of the roster the active construction's proof was built for, if it has a proof. The next proof
+     * folds onto that proof, so it must start from exactly this roster, even when it was a candidate the platform
+     * never adopted (a weight rotation hands off TSS before the platform adopts its candidate roster).
+     *
+     * @return the proven roster hash, or empty if the active construction has no proof yet
+     */
+    default @NonNull Bytes provenRosterHash() {
+        final var activeConstruction = getActiveConstruction();
+        return activeConstruction.hasTargetProof() ? activeConstruction.targetRosterHash() : Bytes.EMPTY;
+    }
+
+    /**
      * Returns whether the give roster hash is ready to be adopted.
      *
      * @param rosterHash the roster hash

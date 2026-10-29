@@ -149,4 +149,16 @@ public class ReadableHistoryStoreImpl implements ReadableHistoryStore {
         return activeRosters.sourceRosterHash().equals(construction.sourceRosterHash())
                 && activeRosters.targetRosterHash().equals(construction.targetRosterHash());
     }
+
+    /**
+     * Returns the hash of the roster the active history proof was built for (see
+     * {@link com.hedera.node.app.history.ReadableHistoryStore#provenRosterHash()}), or empty if the given states
+     * have no history state.
+     *
+     * @param historyStates the states of the history service
+     * @return the proven roster hash, or empty
+     */
+    public static Bytes provenRosterHashIn(@NonNull final ReadableStates historyStates) {
+        return historyStates.isEmpty() ? Bytes.EMPTY : new ReadableHistoryStoreImpl(historyStates).provenRosterHash();
+    }
 }

@@ -20,14 +20,20 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Optional;
+import java.util.SortedMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.function.LongPredicate;
 import java.util.function.Supplier;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 @Singleton
 public class ProofControllers {
+    private static final Logger log = LogManager.getLogger(ProofControllers.class);
+
     private static final long NO_CONSTRUCTION_ID = -1L;
 
     private final Executor executor;
@@ -134,6 +140,56 @@ public class ProofControllers {
     }
 
     /**
+     * Returns the source weights of a new history proof construction. A proof extending the chain of trust folds
+     * onto the active proof, so its source address book must be exactly the book that proof targeted: every node
+     * of the roster it proved, including nodes with no hinTS party (e.g. a node added at an upgrade, which was not
+     * running to publish a hinTS key, so it has weight zero and no proof key in that book). Weights taken from the
+     * active hinTS scheme's parties would drop those nodes, and the incremental WRAPS proof could not fold onto the
+     * active one. Falls back to the hinTS party weights when there is no proof to fold onto yet, or its roster is
+     * no longer known.
+     *
+     * @param activeRosters the active rosters
+     * @param activeHintsConstruction the active hinTS construction, if any
+     * @param activeProofConstruction the active proof construction
+     * @return the source weights, or null to use the source roster's
+     */
+    private static @Nullable SortedMap<Long, Long> sourceWeightsFor(
+            @NonNull final ActiveRosters activeRosters,
+            @Nullable final HintsConstruction activeHintsConstruction,
+            @NonNull final HistoryProofConstruction activeProofConstruction,
+            final long constructionId) {
+        if (activeProofConstruction.hasTargetProof()) {
+            final var provenRosterHash = activeProofConstruction.targetRosterHash();
+            final var provenRoster = activeRosters.findRelatedRoster(provenRosterHash);
+            if (provenRoster != null) {
+                final var weights = ActiveRosters.weightsFrom(provenRoster);
+                log.info(
+                        "Construction #{} takes its source weights {} from the roster {} proven by construction #{}",
+                        constructionId,
+                        weights,
+                        provenRosterHash,
+                        activeProofConstruction.constructionId());
+                return weights;
+            }
+            final var fallback = maybeWeightsFrom(activeHintsConstruction);
+            log.warn(
+                    "Construction #{} cannot find the roster {} proven by construction #{} (current={}, source={}, "
+                            + "target={}); falling back to hinTS party weights {}",
+                    constructionId,
+                    provenRosterHash,
+                    activeProofConstruction.constructionId(),
+                    activeRosters.currentRosterHash(),
+                    activeRosters.sourceRosterHash(),
+                    activeRosters.targetRosterHash(),
+                    fallback);
+            return fallback;
+        }
+        final var fallback = maybeWeightsFrom(activeHintsConstruction);
+        log.info("Construction #{} has no proof to fold onto; takes hinTS party weights {}", constructionId, fallback);
+        return fallback;
+    }
+
+    /**
      * Returns a new controller for the given active rosters and history proof construction.
      *
      * @param activeRosters the active rosters
@@ -151,7 +207,8 @@ public class ProofControllers {
             @Nullable final HintsConstruction activeHintsConstruction,
             @NonNull final HistoryProofConstruction activeProofConstruction,
             @NonNull final TssConfig tssConfig) {
-        final var weights = activeRosters.transitionWeights(maybeWeightsFrom(activeHintsConstruction));
+        final var weights = activeRosters.transitionWeights(sourceWeightsFor(
+                activeRosters, activeHintsConstruction, activeProofConstruction, construction.constructionId()));
         if (!weights.sourceNodesHaveTargetThreshold()) {
             return new InertProofController(construction.constructionId());
         } else {
@@ -162,8 +219,25 @@ public class ProofControllers {
             final var selfId = selfNodeInfoSupplier.get().nodeId();
             final var schnorrKeyPair = keyAccessor.getOrCreateSchnorrKeyPair(construction.constructionId());
             final var sourceProof = activeProofConstruction.targetProof();
+            // The source book is the whole roster the source proof targeted, but only nodes with weight that are
+            // parties of the active hinTS scheme can sign for the current roster; others stay out of WRAPS signing
+            final var hintsParties = maybeWeightsFrom(activeHintsConstruction);
+            final var sourceWeights = weights.sourceNodeWeights();
+            final LongPredicate canSign = nodeId -> sourceWeights.getOrDefault(nodeId, 0L) > 0
+                    && (hintsParties == null || hintsParties.containsKey(nodeId));
             final HistoryProver.Factory proverFactory = (s, t, k, p, w, r, x, l, m) -> new WrapsHistoryProver(
-                    s, t.wrapsMessageGracePeriod(), k, p, w, r, CompletableFuture::delayedExecutor, x, l, m, machine);
+                    s,
+                    t.wrapsMessageGracePeriod(),
+                    k,
+                    p,
+                    w,
+                    r,
+                    CompletableFuture::delayedExecutor,
+                    x,
+                    l,
+                    m,
+                    machine,
+                    canSign);
             return new ProofControllerImpl(
                     selfId,
                     schnorrKeyPair,

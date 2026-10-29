@@ -79,7 +79,22 @@ public class WritableRosterStore extends ReadableRosterStoreImpl {
      * @param candidateRoster a candidate roster to set. It must be a valid roster.
      */
     public void putCandidateRoster(@NonNull final Roster candidateRoster) {
+        putCandidateRoster(candidateRoster, Bytes.EMPTY);
+    }
+
+    /**
+     * Sets the candidate roster in state, as {@link #putCandidateRoster(Roster)}; but keeps the previous candidate
+     * roster in the roster map if it is the given retained roster. A caller passes the roster something else still
+     * needs after the candidate moves on; e.g., the roster the latest TSS history proof was built for, since the next
+     * proof must start from exactly that roster even if the platform never adopted it. Release it later with
+     * {@link #removeRosterIfUnused(Bytes)}.
+     *
+     * @param candidateRoster a candidate roster to set. It must be a valid roster.
+     * @param retainedRosterHash the hash of a roster to keep even if it is the previous candidate, or empty for none
+     */
+    public void putCandidateRoster(@NonNull final Roster candidateRoster, @NonNull final Bytes retainedRosterHash) {
         requireNonNull(candidateRoster);
+        requireNonNull(retainedRosterHash);
         RosterValidator.validate(candidateRoster);
 
         final Bytes incomingCandidateRosterHash = rosterHashOf(candidateRoster);
@@ -89,10 +104,26 @@ public class WritableRosterStore extends ReadableRosterStoreImpl {
         final Bytes previousCandidateRosterHash = previousRosterState.candidateRosterHash();
         final Builder newRosterStateBuilder =
                 previousRosterState.copyBuilder().candidateRosterHash(incomingCandidateRosterHash);
-        removeRoster(previousCandidateRosterHash);
+        if (!previousCandidateRosterHash.equals(retainedRosterHash)) {
+            removeRoster(previousCandidateRosterHash);
+        }
 
         rosterState.put(newRosterStateBuilder.build());
         rosterMap.put(ProtoBytes.newBuilder().value(incomingCandidateRosterHash).build(), candidateRoster);
+    }
+
+    /**
+     * Removes the roster with the given hash from the roster map unless the roster state still uses it; that is,
+     * unless it is an active roster or the candidate roster. Used to release a roster retained by
+     * {@link #putCandidateRoster(Roster, Bytes)} once it is no longer needed.
+     *
+     * @param rosterHash the hash of the roster to release
+     */
+    public void removeRosterIfUnused(@NonNull final Bytes rosterHash) {
+        requireNonNull(rosterHash);
+        if (!rosterHash.equals(rosterStateOrDefault().candidateRosterHash())) {
+            removeRoster(rosterHash);
+        }
     }
 
     /**

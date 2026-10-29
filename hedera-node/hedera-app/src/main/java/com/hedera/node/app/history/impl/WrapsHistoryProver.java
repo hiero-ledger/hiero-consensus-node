@@ -47,6 +47,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.function.LongPredicate;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -83,6 +84,12 @@ public class WrapsHistoryProver implements HistoryProver {
     private final HistoryLibrary historyLibrary;
     private final HistorySubmissions submissions;
     private final WrapsMpcStateMachine machine;
+    /**
+     * Which source-book nodes may take part in the WRAPS signing protocol. The source book is every node of the
+     * roster the source proof targeted, but only nodes that can sign for the current roster should sign.
+     */
+    private final LongPredicate canSign;
+
     private final Object voteLock = new Object();
 
     private final Map<WrapsPhase, SortedMap<Long, WrapsMessagePublication>> phaseMessages =
@@ -234,6 +241,41 @@ public class WrapsHistoryProver implements HistoryProver {
             @NonNull final HistoryLibrary historyLibrary,
             @NonNull final HistorySubmissions submissions,
             @NonNull final WrapsMpcStateMachine machine) {
+        this(
+                selfId,
+                wrapsMessageGracePeriod,
+                schnorrKeyPair,
+                sourceProof,
+                weights,
+                proofKeys,
+                delayer,
+                executor,
+                historyLibrary,
+                submissions,
+                machine,
+                nodeId -> true);
+    }
+
+    /**
+     * As the other constructor, but only lets the source-book nodes {@code canSign} accepts take part in the WRAPS
+     * signing protocol; any other node neither publishes nor has its signing messages accepted.
+     *
+     * @param canSign which source-book nodes may sign
+     */
+    public WrapsHistoryProver(
+            final long selfId,
+            @NonNull final Duration wrapsMessageGracePeriod,
+            @NonNull final SchnorrKeyPair schnorrKeyPair,
+            @Nullable final HistoryProof sourceProof,
+            @NonNull final RosterTransitionWeights weights,
+            @NonNull final Map<Long, Bytes> proofKeys,
+            @NonNull final Delayer delayer,
+            @NonNull final Executor executor,
+            @NonNull final HistoryLibrary historyLibrary,
+            @NonNull final HistorySubmissions submissions,
+            @NonNull final WrapsMpcStateMachine machine,
+            @NonNull final LongPredicate canSign) {
+        this.canSign = requireNonNull(canSign);
         this.selfId = selfId;
         this.sourceProof = sourceProof;
         this.wrapsMessageGracePeriod = requireNonNull(wrapsMessageGracePeriod);
@@ -312,6 +354,28 @@ public class WrapsHistoryProver implements HistoryProver {
                     construction.constructionId(), state.phase(), targetMetadata, targetProofKeys, tssConfig, ledgerId);
         }
         return Outcome.InProgress.INSTANCE;
+    }
+
+    /**
+     * Diagnostic: logs whether {@code sourceBook} is exactly the address book the folded proof proved, which the
+     * native fold requires. Never affects the proof; any failure computing the hashes is only logged.
+     */
+    private void logSourceBookAgainstProvenBook(
+            @NonNull final HistoryProof foldedProof, @NonNull final AddressBook sourceBook) {
+        try {
+            final var provenBookHash = foldedProof.hasTargetHistory()
+                    ? foldedProof.targetHistoryOrThrow().addressBookHash()
+                    : null;
+            final var sourceBookHashBytes = historyLibrary.hashAddressBook(sourceBook);
+            final var sourceBookHash = sourceBookHashBytes == null ? null : Bytes.wrap(sourceBookHashBytes);
+            log.info(
+                    "Source book hash {} vs address book hash {} proven by the folded proof (match? {})",
+                    sourceBookHash,
+                    provenBookHash,
+                    sourceBookHash != null && sourceBookHash.equals(provenBookHash));
+        } catch (final Exception e) {
+            log.info("Could not compare the source book with the folded proof's address book", e);
+        }
     }
 
     public static boolean isRecoverableFailure(@NonNull final String reason) {
@@ -411,6 +475,14 @@ public class WrapsHistoryProver implements HistoryProver {
             // we ignore any WRAPS message it publishes later after coming online
             return false;
         }
+        if (publication.phase() == R1 && !canSign.test(publication.nodeId())) {
+            // A node in the source book that cannot sign for the current roster does not join the signing
+            log.info(
+                    "Ignoring R1 message from node{} for construction #{}: not a signer",
+                    publication.nodeId(),
+                    constructionId);
+            return false;
+        }
         final var transition = machine.onNext(publication, wrapsPhase, weights, wrapsMessageGracePeriod, phaseMessages);
         log.info(
                 "Received {} message from node{} for construction #{} in phase={}) -> {} (new phase={})",
@@ -445,6 +517,9 @@ public class WrapsHistoryProver implements HistoryProver {
             @NonNull final TssConfig tssConfig,
             @Nullable final Bytes ledgerId) {
         if (shouldSkipAfterCancellation(constructionId, phase)) {
+            return;
+        }
+        if (phase == R1 && !canSign.test(selfId)) {
             return;
         }
         final boolean isWrapsReadinessRetry = phase == phaseNeedingWrapsReadinessRetry;
@@ -499,6 +574,18 @@ public class WrapsHistoryProver implements HistoryProver {
                                                     log.warn(
                                                             "Got null output for {} phase, skipping publication",
                                                             phase);
+                                                } else if (phaseMessages
+                                                        .getOrDefault(R1, emptySortedMap())
+                                                        .containsKey(selfId)) {
+                                                    log.warn(
+                                                            "Got null output for {} phase of construction #{} with "
+                                                                    + "R1 signers {} and source book {}",
+                                                            phase,
+                                                            constructionId,
+                                                            phaseMessages
+                                                                    .getOrDefault(R1, emptySortedMap())
+                                                                    .keySet(),
+                                                            sourceBook);
                                                 }
                                                 return;
                                             }
@@ -757,6 +844,7 @@ public class WrapsHistoryProver implements HistoryProver {
         final long now = System.nanoTime();
         if (foldsOntoSourceProof) {
             final var foldedProof = requireNonNull(sourceProof);
+            logSourceBookAgainstProvenBook(foldedProof, sourceBook);
             log.info(
                     """
                             Constructing incremental WRAPS proof with:
