@@ -53,6 +53,16 @@ on:
         type: string
         required: false
         default: "false"
+      enable-evm-functional-tests:
+        description: "EVM Functional Tests Enabled (one solo deployment per shard)"
+        type: string
+        required: false
+        default: "false"
+      citr-vars-ref:
+        description: "Git Reference to read .citr-env from for the EVM functional tests (defaults to the tested commit)"
+        type: string
+        required: false
+        default: ""
       java-version:
         description: "Java JDK Version"
         type: string
@@ -290,6 +300,41 @@ jobs:
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
+  # The EVM functional tests (871) take their solo, mirror node and relay versions from .citr-env. PR checks (600)
+  # pass the PR's merge commit as citr-vars-ref, so a PR that is behind its base branch still runs with the base
+  # branch's current versions; other callers read .citr-env from the tested commit.
+  evm-citr-vars:
+    name: Extract CITR Vars (EVM)
+    if: ${{ inputs.enable-evm-functional-tests == 'true' }}
+    needs:
+      - commit-info
+    uses: ./.github/workflows/855-call-extract-citr-vars.yaml
+    with:
+      ref: ${{ inputs.citr-vars-ref || needs.commit-info.outputs.sha }}
+    secrets:
+      github-token: ${{ secrets.access-token }}
+
+  mats-evm-functional-tests:
+    name: EVM Functional Tests
+    if: ${{ inputs.enable-evm-functional-tests == 'true' }}
+    needs:
+      - commit-info
+      - compile-and-spotless
+      - evm-citr-vars
+    uses: ./.github/workflows/871-call-evm-functional-tests.yaml
+    with:
+      ref: ${{ needs.commit-info.outputs.sha }}
+      custom-job-name: "${{ inputs.custom-job-label }}"
+      java-version: "${{ inputs.java-version }}"
+      java-distribution: "${{ inputs.java-distribution }}"
+      solo-version: "${{ needs.evm-citr-vars.outputs.citr-solo-version }}"
+      mirror-node-version: "${{ needs.evm-citr-vars.outputs.citr-mirror-node-version }}"
+      json-rpc-relay-version: "${{ needs.evm-citr-vars.outputs.json-rpc-relay-version }}"
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
   set-failure-mode:
     name: Set Failure Mode
     runs-on: hl-cn-default-lin-sm
@@ -308,6 +353,8 @@ jobs:
       - mats-benchmark-smoke
       - mats-gradle-determinism
       - mats-docker-determinism
+      - evm-citr-vars
+      - mats-evm-functional-tests
     if: ${{ always() }}
     steps:
       - name: Initialize GitHub Job
@@ -331,6 +378,8 @@ jobs:
             ${{ needs.mats-benchmark-smoke.result }}
             ${{ needs.mats-gradle-determinism.result }}
             ${{ needs.mats-docker-determinism.result }}
+            ${{ needs.evm-citr-vars.result }}
+            ${{ needs.mats-evm-functional-tests.result }}
           INPUT_JOB_FAILURE_MODES: >-
             ${{ needs.commit-info.outputs.failure-mode || 'none' }}
             ${{ needs.compile-and-spotless.outputs.failure-mode || 'none' }}
@@ -343,6 +392,8 @@ jobs:
             ${{ needs.mats-benchmark-smoke.outputs.failure-mode || 'none' }}
             ${{ needs.mats-gradle-determinism.outputs.failure-mode || 'none' }}
             ${{ needs.mats-docker-determinism.outputs.failure-mode || 'none' }}
+            ${{ needs.evm-citr-vars.outputs.failure-mode || 'none' }}
+            ${{ needs.mats-evm-functional-tests.outputs.failure-mode || 'none' }}
           INPUT_JOB_NAMES: >-
             commit-info
             compile-and-spotless
@@ -355,4 +406,6 @@ jobs:
             mats-benchmark-smoke
             mats-gradle-determinism
             mats-docker-determinism
+            evm-citr-vars
+            mats-evm-functional-tests
         run: bash .github/workflows/support/scripts/set-failure-mode.sh

@@ -37,8 +37,8 @@ import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
 
 /**
- * Checks that {@link EventStreamGenerator} gives the same events for the same seed, events that pass internal
- * validation, and signatures that verify against the roster.
+ * Checks that {@link EventStreamGenerator} gives the same events for the same seed, received events that equal the
+ * created ones and pass internal validation, and signatures that verify against the roster.
  */
 class EventStreamGeneratorTest {
 
@@ -80,10 +80,34 @@ class EventStreamGeneratorTest {
             assertThat(event.getTransactions()).hasSize(3).allSatisfy(transaction -> assertThat(transaction.getSize())
                     .isEqualTo(445));
             assertThat(event.getHash()).isNotNull();
-            assertThat(event.getOrigin()).isEqualTo(EventOrigin.GOSSIP);
+            assertThat(event.getOrigin()).isEqualTo(EventOrigin.RUNTIME);
         }
         assertThat(events.stream().map(PlatformEvent::getCreatorId).distinct())
                 .containsExactlyInAnyOrderElementsOf(ROSTER.nodeIds());
+    }
+
+    @Test
+    void receivedEventsEqualTheCreatedOnes() {
+        final List<PlatformEvent> events = EventStreamGenerator.generateUnsignedEvents(MIXED, ROSTER, COUNT, SEED);
+
+        final List<PlatformEvent> received = EventStreamGenerator.receive(events);
+
+        assertThat(gossipEvents(received)).isEqualTo(gossipEvents(events));
+        assertThat(hashes(received)).isEqualTo(hashes(events));
+        assertThat(received).allSatisfy(event -> assertThat(event.getOrigin()).isEqualTo(EventOrigin.GOSSIP));
+    }
+
+    @Test
+    void unhashedReceivedEventsHaveNoHash() {
+        final List<PlatformEvent> events = EventStreamGenerator.generateUnsignedEvents(MIXED, ROSTER, COUNT, SEED);
+
+        final List<PlatformEvent> received = EventStreamGenerator.receiveUnhashed(events);
+
+        assertThat(gossipEvents(received)).isEqualTo(gossipEvents(events));
+        assertThat(received).allSatisfy(event -> {
+            assertThat(event.getHash()).isNull();
+            assertThat(event.getOrigin()).isEqualTo(EventOrigin.GOSSIP);
+        });
     }
 
     @Test
@@ -116,13 +140,13 @@ class EventStreamGeneratorTest {
 
     @ParameterizedTest
     @MethodSource("shapes")
-    void everyEventPassesFieldValidation(final EventShape shape) {
+    void everyReceivedEventPassesFieldValidation(final EventShape shape) {
         final DefaultEventFieldValidator validator =
                 new DefaultEventFieldValidator(new NoOpMetrics(), Time.getCurrent(), TRANSACTION_LIMITS);
 
         final List<PlatformEvent> events = EventStreamGenerator.generateUnsignedEvents(shape, ROSTER, COUNT, SEED);
 
-        assertThat(events).allMatch(validator::isValid);
+        assertThat(EventStreamGenerator.receive(events)).allMatch(validator::isValid);
     }
 
     @Test
@@ -139,7 +163,7 @@ class EventStreamGeneratorTest {
                         .allSatisfy(parent ->
                                 assertThat(parent.hash().getDigestType()).isEqualTo(DigestType.SHA_256));
             });
-            assertThat(events).allMatch(validator::isValid);
+            assertThat(EventStreamGenerator.receive(events)).allMatch(validator::isValid);
         } finally {
             // the default, so that the other tests hash with SHA-384
             EventHashFactory.initialize(Long.MAX_VALUE);

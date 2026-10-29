@@ -3,10 +3,11 @@ package com.hedera.node.app.service.file.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_FILE_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNAUTHORIZED;
+import static com.hedera.node.app.service.file.impl.utils.FileServiceUtils.isMutable;
 import static com.hedera.node.app.service.file.impl.utils.FileServiceUtils.preValidate;
 import static com.hedera.node.app.service.file.impl.utils.FileServiceUtils.validateAndAddRequiredKeysForDelete;
 import static com.hedera.node.app.service.file.impl.utils.FileServiceUtils.verifyNotSystemFile;
-import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
+import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -89,8 +90,8 @@ public class FileDeleteHandler implements TransactionHandler {
 
         final File file = verifyNotSystemFile(ledgerConfig, fileStore, fileId);
 
-        // First validate this file is mutable; and the pending mutations are allowed
-        validateFalse(file.keys() == null, UNAUTHORIZED);
+        // A file whose WACL is absent, empty, or contains a structurally invalid key is immutable.
+        validateTrue(isMutable(file), UNAUTHORIZED);
 
         /* Copy part of the fields from existing, delete the file content and set the deleted flag  */
         final var fileBuilder = new File.Builder()

@@ -60,12 +60,14 @@ class ConcurrentEmbeddedHedera extends AbstractEmbeddedHedera implements Embedde
     protected void handleRoundWith(@NonNull final byte[] serializedSignedTx) {
         final var round = platform.roundWith(serializedSignedTx);
         hedera.onPreHandle(round.iterator().next(), state, NOOP_STATE_SIG_CALLBACK);
-        bulkUpdateOf(state, v -> {
-            v.setRound(round.getRoundNum());
-            v.setConsensusTimestamp(round.getConsensusTimestamp());
-        });
-        hedera.handleWorkflow().handleRound(state, round, NOOP_STATE_SIG_CALLBACK);
-        hedera.onSealConsensusRound(round, state);
+        synchronized (state) {
+            bulkUpdateOf(state, v -> {
+                v.setRound(round.getRoundNum());
+                v.setConsensusTimestamp(round.getConsensusTimestamp());
+            });
+            hedera.handleWorkflow().handleRound(state, round, NOOP_STATE_SIG_CALLBACK);
+            hedera.onSealConsensusRound(round, state);
+        }
         notifyStateHashed(round.getRoundNum());
     }
 
@@ -203,8 +205,11 @@ class ConcurrentEmbeddedHedera extends AbstractEmbeddedHedera implements Embedde
                             })
                             .toList();
                     final var round = new FakeRound(roundNo.getAndIncrement(), requireNonNull(roster), consensusEvents);
-                    hedera.handleWorkflow().handleRound(state, round, NOOP_STATE_SIG_CALLBACK);
-                    hedera.onSealConsensusRound(round, state);
+                    // Tests mutate this same state from their own thread (see HapiSpec.mutateEmbeddedState())
+                    synchronized (state) {
+                        hedera.handleWorkflow().handleRound(state, round, NOOP_STATE_SIG_CALLBACK);
+                        hedera.onSealConsensusRound(round, state);
+                    }
                     notifyStateHashed(round.getRoundNum());
                     prehandledEvents.clear();
                 }

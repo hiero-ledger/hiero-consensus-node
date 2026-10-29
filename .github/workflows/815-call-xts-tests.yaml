@@ -49,6 +49,10 @@ on:
         type: string
         description: "Run Block Node Regression Panel"
         default: "false"
+      enable-evm-functional-tests-panel:
+        type: string
+        description: "Run EVM Functional Tests Panel"
+        default: "false"
       solo-version:
         type: string
         description: "The solo version to use for the regression panels"
@@ -353,6 +357,29 @@ jobs:
       access-token: ${{ secrets.regression-access-token }}
       slack-detailed-report-webhook: ${{ secrets.slack-citr-details-token }}
 
+  # Deploys the candidate build with solo and runs the hedera-evm-testing hardhat suite, one shard per deployment.
+  # The relay must be >= 0.79.0-rc1 for the HIP-1340 shards (TX_TYPE_4_ENABLED). Shares the hl-cn-rpc-relay-lin-lg
+  # pool with the JSON-RPC relay panel above.
+  evm-functional-tests-panel:
+    name: EVM Functional Tests Panel
+    needs:
+      - commit-info
+      - build
+    if: ${{ needs.build.result == 'success' && inputs.enable-evm-functional-tests-panel == 'true' }}
+    uses: ./.github/workflows/871-call-evm-functional-tests.yaml
+    with:
+      ref: ${{ needs.commit-info.outputs.sha }} # pass the xts-candidate tag to the EVM panel for checkout
+      custom-job-name: "${{ inputs.custom-job-label }} EVM Functional Tests"
+      java-version: "${{ inputs.java-version }}"
+      java-distribution: "${{ inputs.java-distribution }}"
+      solo-version: "${{ inputs.solo-version }}"
+      mirror-node-version: "${{ inputs.mirror-node-version }}"
+      json-rpc-relay-version: "${{ inputs.json-rpc-relay-version }}"
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
   block-node-regression-panel:
     name: Block Node Regression Panel
     needs:
@@ -411,6 +438,7 @@ jobs:
       - mirror-node-regression-panel
       - json-rpc-relay-regression-panel
       - block-node-regression-panel
+      - evm-functional-tests-panel
     if: ${{ !cancelled() && always() }} # always run unless cancelled
     steps:
       - name: Initialize GitHub Job
@@ -435,6 +463,7 @@ jobs:
             ${{ needs.mirror-node-regression-panel.result }}
             ${{ needs.json-rpc-relay-regression-panel.result }}
             ${{ needs.block-node-regression-panel.result }}
+            ${{ needs.evm-functional-tests-panel.result }}
           INPUT_JOB_FAILURE_MODES: >-
             ${{ needs.commit-info.outputs.failure-mode || 'none' }}
             ${{ needs.build.outputs.failure-mode || 'none' }}
@@ -448,6 +477,7 @@ jobs:
             ${{ needs.mirror-node-regression-panel.outputs.failure-mode || 'none' }}
             ${{ needs.json-rpc-relay-regression-panel.outputs.failure-mode || 'none' }}
             ${{ needs.block-node-regression-panel.outputs.failure-mode || 'none' }}
+            ${{ needs.evm-functional-tests-panel.outputs.failure-mode || 'none' }}
           INPUT_JOB_NAMES: >-
             commit-info
             build
@@ -461,4 +491,5 @@ jobs:
             mirror-node-regression-panel
             json-rpc-relay-regression-panel
             block-node-regression-panel
+            evm-functional-tests-panel
         run: bash .github/workflows/support/scripts/set-failure-mode.sh

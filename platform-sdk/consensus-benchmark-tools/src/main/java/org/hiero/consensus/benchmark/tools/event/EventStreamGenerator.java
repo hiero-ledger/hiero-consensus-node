@@ -41,17 +41,20 @@ import org.hiero.consensus.model.roster.RosterWrapper;
  *       creators from the roster, and birth rounds at or below the event's own;</li>
  *   <li>carries {@link EventShape#transactionsPerEvent()} transactions of random bytes, each of a size drawn from
  *       {@link EventShape#transactionSize()};</li>
- *   <li>is signed with its creator's key if keys are given; otherwise its signature is empty;</li>
- *   <li>arrives as an event received from another node. The streams of the gossip protocol write and read it
- *       ({@link SerializableDataOutputStream#writePbjRecord}, {@link SerializableDataInputStream#readPbjRecord}), so
- *       that its lists and byte buffers are the ones the gossip layer's parser creates. It is then built from the
- *       parsed gossip event with the origin {@link EventOrigin#GOSSIP}, as the gossip layer builds it, and hashed, as
- *       the intake hashes it.</li>
+ *   <li>is hashed by its creator, and signed with its creator's key if keys are given; otherwise its signature is
+ *       empty;</li>
+ *   <li>is returned as its creator created it, with the origin {@link EventOrigin#RUNTIME}.</li>
  * </ul>
  *
- * <p>A benchmark whose code under test leaves state in an event verifies fresh copies in every pass:
- * {@link #receive(List)} receives the generated events again, as another node receives them, with new lists and byte
- * buffers. For example, a PBJ {@code Bytes} caches the memory segment that the Ed25519 verifier creates from it
+ * <p>A benchmark gets the events as another node receives them from {@link #receive(List)} or
+ * {@link #receiveUnhashed(List)}. The streams of the gossip protocol write and read each event
+ * ({@link SerializableDataOutputStream#writePbjRecord}, {@link SerializableDataInputStream#readPbjRecord}), so that its
+ * lists and byte buffers are the ones the gossip layer's parser creates. The event is then built from the parsed gossip
+ * event with the origin {@link EventOrigin#GOSSIP}, as the gossip layer builds it. {@link #receive(List)} also hashes
+ * it, as the intake does; {@link #receiveUnhashed(List)} leaves the hashing to a benchmark of the hasher.
+ *
+ * <p>A benchmark whose code under test leaves state in an event receives fresh copies in every pass, with new lists and
+ * byte buffers. For example, a PBJ {@code Bytes} caches the memory segment that the Ed25519 verifier creates from it
  * ({@code Bytes#toMemorySegment}); a node creates it once for every event it receives, but a benchmark that verifies the
  * same objects in every pass would create it in the first pass only.
  *
@@ -59,11 +62,11 @@ import org.hiero.consensus.model.roster.RosterWrapper;
  * ({@link EmpiricalDistribution#quantile(double)}). With a mix, the upper percentiles would measure the heaviest events
  * instead of how the time of one kind of call varies.
  *
- * <p>The same arguments give the same events, hashes, and signatures; only the time received, which the gossip layer
- * sets when it builds the event, is the time of generation. No production code runs except the hasher, the signer, and
- * the gossip streams, so the events stay the same when the event creator or the consensus code changes. The events pass
- * internal validation ({@code DefaultEventFieldValidator}) as long as their transactions stay within the transaction
- * limits.
+ * <p>The same arguments give the same events, hashes, and signatures; only the time received of a received event,
+ * which the gossip layer sets when it builds the event, is the time it was received. No production code runs except
+ * the hasher, the signer, and the gossip streams, so the events stay the same when the event creator or the consensus
+ * code changes. The received events pass internal validation ({@code DefaultEventFieldValidator}) as long as their
+ * transactions stay within the transaction limits.
  *
  * <p>The hash type, SHA-384 or SHA-256, follows the static cutover setting of {@link EventHashFactory}, which is
  * SHA-384 unless something in the JVM changes it. The same arguments give the same events only under the same setting.
@@ -93,7 +96,7 @@ public final class EventStreamGenerator {
      * @param roster the creators of the events
      * @param count  the number of events
      * @param seed   the seed of all random choices
-     * @return the events, in the order they were generated
+     * @return the events as their creators created them, in the order they were generated
      * @throws IllegalArgumentException if the roster is empty, {@code count} is negative, or the shape draws a negative
      *                                  count, more other parents than there are other nodes, or an empty transaction
      */
@@ -111,7 +114,7 @@ public final class EventStreamGenerator {
      * @param count  the number of events
      * @param seed   the seed of all random choices
      * @param keys   the keys of every node in the roster
-     * @return the events, in the order they were generated
+     * @return the events as their creators created them, in the order they were generated
      * @throws IllegalArgumentException if a node in the roster has no keys, or for the reasons of
      *                                  {@link #generateUnsignedEvents(EventShape, RosterWrapper, int, long)}
      */
@@ -134,18 +137,36 @@ public final class EventStreamGenerator {
     }
 
     /**
-     * Receives events again, as another node receives them through gossip: as each generated event is received (see the
-     * class description), but with new lists and byte buffers, which no code has used yet.
+     * Receives events as another node receives them through gossip, and hashes them as the intake does (see the class
+     * description). Each call creates new lists and byte buffers, which no code has used yet.
      *
      * @param events the events, for example generated ones
-     * @return the received events, equal to the given ones, in the same order
+     * @return the received events, equal to the given ones and hashed, in the same order
      */
     @NonNull
     public static List<PlatformEvent> receive(@NonNull final List<PlatformEvent> events) {
         final PbjStreamHasher hasher = new PbjStreamHasher();
         final List<PlatformEvent> received = new ArrayList<>(events.size());
         for (final PlatformEvent event : events) {
-            received.add(receive(event, hasher));
+            final PlatformEvent receivedEvent = receiveUnhashed(event);
+            hasher.hashEvent(receivedEvent);
+            received.add(receivedEvent);
+        }
+        return Collections.unmodifiableList(received);
+    }
+
+    /**
+     * Receives events as another node receives them through gossip, as {@link #receive(List)} does, but does not hash
+     * them: the input of a benchmark of the hasher, which the intake hashes first.
+     *
+     * @param events the events, for example generated ones
+     * @return the received events, equal to the given ones and not hashed, in the same order
+     */
+    @NonNull
+    public static List<PlatformEvent> receiveUnhashed(@NonNull final List<PlatformEvent> events) {
+        final List<PlatformEvent> received = new ArrayList<>(events.size());
+        for (final PlatformEvent event : events) {
+            received.add(receiveUnhashed(event));
         }
         return Collections.unmodifiableList(received);
     }
@@ -185,19 +206,17 @@ public final class EventStreamGenerator {
             final Bytes signature = signers.isEmpty()
                     ? Bytes.EMPTY
                     : signers.get(creator).sign(unsignedEvent.getHash().getBytes());
-            final PlatformEvent created = new PlatformEvent(unsignedEvent, signature, EventOrigin.RUNTIME);
-            events.add(receive(created, hasher));
+            events.add(new PlatformEvent(unsignedEvent, signature, EventOrigin.RUNTIME));
         }
         return Collections.unmodifiableList(events);
     }
 
     /**
      * Receives an event as another node receives it through gossip: sends it through the streams that the gossip
-     * protocol writes and reads events with, builds the event from the gossip event that the receiving side parses, and
-     * hashes it as the intake does.
+     * protocol writes and reads events with, and builds the event from the gossip event that the receiving side parses.
      */
     @NonNull
-    private static PlatformEvent receive(@NonNull final PlatformEvent event, @NonNull final PbjStreamHasher hasher) {
+    private static PlatformEvent receiveUnhashed(@NonNull final PlatformEvent event) {
         try {
             final ByteArrayOutputStream sent = new ByteArrayOutputStream();
             try (final SerializableDataOutputStream out = new SerializableDataOutputStream(sent)) {
@@ -206,9 +225,7 @@ public final class EventStreamGenerator {
             try (final SerializableDataInputStream in =
                     new SerializableDataInputStream(new ByteArrayInputStream(sent.toByteArray()))) {
                 final GossipEvent gossipEvent = in.readPbjRecord(GossipEvent.PROTOBUF);
-                final PlatformEvent received = new PlatformEvent(gossipEvent, EventOrigin.GOSSIP);
-                hasher.hashEvent(received);
-                return received;
+                return new PlatformEvent(gossipEvent, EventOrigin.GOSSIP);
             }
         } catch (final IOException e) {
             throw new UncheckedIOException("Failed to send an event through the gossip streams", e);

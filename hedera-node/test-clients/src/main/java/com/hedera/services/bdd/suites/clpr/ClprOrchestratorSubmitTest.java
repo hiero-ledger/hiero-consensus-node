@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.clpr;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.protoToPbj;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
 import static com.hedera.services.bdd.junit.ContextRequirement.PROPERTY_OVERRIDES;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.CLPR;
@@ -18,26 +19,35 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
+import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.toBundleProofBytes;
 import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.CLPR_SERVICE_ADDRESS_20;
 import static java.util.Objects.requireNonNull;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.protobuf.ByteString;
 import com.hedera.hapi.block.stream.MerklePath;
 import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.node.state.clpr.ClprBundleRequest;
 import com.hedera.hapi.node.state.clpr.ClprBundleResponse;
+import com.hedera.hapi.node.state.clpr.ClprChannel;
 import com.hedera.hapi.node.state.clpr.ClprStreamingSyncPayload;
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.platform.state.StateItem;
 import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
+import com.hedera.node.app.service.clpr.ClprService;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
+import com.hederahashgraph.api.proto.java.ClprChannelStatus;
 import com.hederahashgraph.api.proto.java.ClprLedgerConfiguration;
+import com.hederahashgraph.api.proto.java.ClprMessage;
+import com.hederahashgraph.api.proto.java.ClprMessagePayload;
 import com.hederahashgraph.api.proto.java.ClprSignatureScheme;
 import com.hederahashgraph.api.proto.java.ClprThrottles;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.stream.Stream;
-import org.bouncycastle.math.ec.rfc8032.Ed25519;
+import org.hiero.base.crypto.Ed25519;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -68,6 +78,18 @@ public class ClprOrchestratorSubmitTest {
         final var crypto = new Crypto();
 
         final var proofBytes = buildProofBytes();
+        // A verified message referencing an unknown remote connector; the bundle itself is valid, so it passes
+        // validation before gossip and is applied by ClprSubmitBundleHandler (the message gets a CONNECTOR_NOT_FOUND
+        // reply)
+        final var probe = ClprMessagePayload.newBuilder()
+                .setMessage(ClprMessage.newBuilder()
+                        .setConnectorId(ByteString.copyFrom(new byte[32]))
+                        .setTargetApplication(ByteString.copyFrom(new byte[20]))
+                        .setSender(ByteString.copyFrom(new byte[20]))
+                        .setMessageData(ByteString.copyFromUtf8("probe")))
+                .build();
+        final var bundleBytes =
+                Bytes.wrap(toBundleProofBytes(ClprChannelStatus.ACTIVE, 0L, 0L, new byte[32], List.of(probe)));
         return hapiTest(
                 overriding("clpr.minLockedStake", String.valueOf(MIN_LOCKED_STAKE)),
                 // Fund the self node's account (account 3 in embedded) so the inbound
@@ -116,7 +138,7 @@ public class ClprOrchestratorSubmitTest {
                             .channelId(Bytes.wrap(crypto.channelId))
                             .bundleRequest(ClprBundleRequest.DEFAULT)
                             .bundleResponse(ClprBundleResponse.newBuilder()
-                                    .bundlePayload(proofBytes)
+                                    .bundlePayload(bundleBytes)
                                     .build())
                             .build();
 
@@ -128,6 +150,12 @@ public class ClprOrchestratorSubmitTest {
                         spec.embeddedHederaOrThrow().tick(java.time.Duration.ofMillis(100));
                         Thread.sleep(20);
                     }
+                    // The handler applied the bundle: the channel has received its one message
+                    final var channel = spec.embeddedStateOrThrow()
+                            .getReadableStates(ClprService.NAME)
+                            .<ProtoBytes, ClprChannel>get(CHANNELS_STATE_ID)
+                            .get(new ProtoBytes(Bytes.wrap(crypto.channelId)));
+                    assertEquals(1L, requireNonNull(channel).receivedMessageId());
                     // Diagnosis cue:
                     // Run this test in IntelliJ in debug mode and set a breakpoint at the
                     // very first line of ClprSubmitBundleHandler.doHandle. If it does NOT
@@ -166,7 +194,7 @@ public class ClprOrchestratorSubmitTest {
     }
 
     private static final class Crypto {
-        private static final byte[] TEST_PRIVATE_KEY = {
+        private static final byte[] TEST_PRIVATE_KEY_SEED = {
             0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
             0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10,
             0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
@@ -176,25 +204,26 @@ public class ClprOrchestratorSubmitTest {
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, (byte) 0x6e
         };
 
-        final byte[] publicKey = new byte[32];
+        final byte[] publicKey = new byte[Ed25519.PUBLIC_KEY_BYTES];
+        final byte[] secretKey = new byte[Ed25519.SECRET_KEY_BYTES];
         final byte[] channelId;
         final byte[] channelCommitment;
-        final byte[] channelSignature = new byte[Ed25519.SIGNATURE_SIZE];
+        final byte[] channelSignature = new byte[Ed25519.SIGNATURE_BYTES];
         final byte[] connectorSalt = new byte[32];
         final byte[] connectorId;
         final byte[] connectorCommitment;
-        final byte[] connectorSignature = new byte[Ed25519.SIGNATURE_SIZE];
+        final byte[] connectorSignature = new byte[Ed25519.SIGNATURE_BYTES];
 
         Crypto() {
-            Ed25519.generatePublicKey(TEST_PRIVATE_KEY, 0, publicKey, 0);
+            Ed25519.newKeypair(publicKey, secretKey, TEST_PRIVATE_KEY_SEED);
             channelId = MiscCryptoUtils.keccak256DigestOf("orch-test-conn-v1".getBytes(StandardCharsets.UTF_8));
             channelCommitment = MiscCryptoUtils.keccak256DigestOf(concat(channelId, publicKey));
             final var connSig = MiscCryptoUtils.keccak256DigestOf(channelId);
-            Ed25519.sign(TEST_PRIVATE_KEY, 0, connSig, 0, connSig.length, channelSignature, 0);
+            Ed25519.sign(channelSignature, connSig, secretKey);
             connectorId = MiscCryptoUtils.keccak256DigestOf(concat(channelId, concat(publicKey, connectorSalt)));
             connectorCommitment = MiscCryptoUtils.keccak256DigestOf(concat(connectorId, publicKey));
             final var connectorSig = MiscCryptoUtils.keccak256DigestOf(concat(connectorId, CLPR_SERVICE_ADDRESS));
-            Ed25519.sign(TEST_PRIVATE_KEY, 0, connectorSig, 0, connectorSig.length, connectorSignature, 0);
+            Ed25519.sign(connectorSignature, connectorSig, secretKey);
         }
 
         private static byte[] concat(final byte[] a, final byte[] b) {
