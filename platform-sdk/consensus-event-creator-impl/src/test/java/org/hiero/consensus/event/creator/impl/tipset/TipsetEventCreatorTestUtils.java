@@ -100,15 +100,7 @@ public class TipsetEventCreatorTestUtils {
 
         final DefaultTipsetTracker tipsetTracker = new DefaultTipsetTracker(time, nodeId, roster);
         return new TipsetEventCreator(
-                configuration,
-                metrics,
-                time,
-                secureRandom,
-                signer,
-                roster,
-                nodeId,
-                transactionSupplier,
-                tipsetTracker);
+                configuration, metrics, time, secureRandom, signer, roster, nodeId, transactionSupplier, tipsetTracker);
     }
 
     /**

@@ -118,15 +118,7 @@ public class EventCreatorNetworkBenchmark {
             final BytesSigner signer = SigningFactory.createSigner(signingType, keyPair);
             final DefaultTipsetTracker tipsetTracker = new DefaultTipsetTracker(time, nodeId, roster);
             final EventCreator eventCreator = new TipsetEventCreator(
-                    configuration,
-                    metrics,
-                    time,
-                    nodeRandom,
-                    signer,
-                    roster,
-                    nodeId,
-                    List::of,
-                    tipsetTracker);
+                    configuration, metrics, time, nodeRandom, signer, roster, nodeId, List::of, tipsetTracker);
 
             final DefaultEventCreationManager eventCreationManager = new DefaultEventCreationManager(
                     configuration, metrics, time, () -> false, eventCreator, roster, nodeId);

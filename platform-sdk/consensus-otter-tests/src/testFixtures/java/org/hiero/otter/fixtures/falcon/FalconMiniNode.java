@@ -153,15 +153,7 @@ public class FalconMiniNode extends AbstractMiniNode implements MiniNode, TimeTi
         final DefaultTipsetTracker tipsetTracker = new DefaultTipsetTracker(time, selfId, roster);
 
         final EventCreator eventCreator = new TipsetEventCreator(
-                configuration,
-                metrics,
-                time,
-                secureRandom,
-                signer,
-                roster,
-                selfId,
-                transactionSupplier,
-                tipsetTracker);
+                configuration, metrics, time, secureRandom, signer, roster, selfId, transactionSupplier, tipsetTracker);
         eventCreationManager = new DefaultEventCreationManager(
                 configuration, metrics, time, signatureTransactionCheck, eventCreator, roster, selfId);
         eventCreationManager.updatePlatformStatus(PlatformStatus.ACTIVE);
