@@ -3,6 +3,7 @@ package com.swirlds.virtualmap.config;
 
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
+import com.swirlds.config.api.validation.annotation.Max;
 import com.swirlds.config.api.validation.annotation.Positive;
 import java.time.Duration;
 
@@ -17,14 +18,18 @@ import java.time.Duration;
  *                                               The output stream rounds this value up to the next power of two
  *                                               (the default 10000 becomes 16384) because its lock-free ring buffer
  *                                               indexes slots with a bit mask. The default has no strict derivation,
- *                                               so the larger effective capacity is acceptable.
+ *                                               so the larger effective capacity is acceptable. At most
+ *                                               1073741824 (2^30), the largest capacity of the ring buffer,
+ *                                               which is allocated in full up front.
  * @param asyncOutputStreamFlush                 In order to ensure that data is not languishing in the
  *                                               asyncOutputStream buffer a periodic flush is performed.
  */
+// spotless:off
 @ConfigData("reconnect.teacher")
 public record VirtualMapTeacherSyncConfig(
         @ConfigProperty(defaultValue = "16") @Positive int numReceiveThreads,
         @ConfigProperty(defaultValue = "8000000") @Positive int maxMessageSizeBytes,
         @ConfigProperty(defaultValue = "60s") Duration asyncStreamIdleTimeout,
-        @ConfigProperty(defaultValue = "10000") @Positive int asyncStreamBufferSize,
+        @ConfigProperty(defaultValue = "10000") @Positive @Max(1073741824) int asyncStreamBufferSize,
         @ConfigProperty(defaultValue = "8ms") Duration asyncOutputStreamFlush) {}
+// spotless:on

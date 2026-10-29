@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -42,6 +43,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.base.concurrent.pool.ParallelExecutionException;
 import org.hiero.base.concurrent.pool.StandardWorkGroup;
@@ -705,10 +707,85 @@ class AsyncOutputStreamTest {
                         IllegalStateException.class,
                         outcome.get(),
                         "producer should fail with IllegalStateException, got: " + outcome.get());
+                // The producer's exception may reach the work group before the writer's, so it carries the cause
+                assertInstanceOf(
+                        IOException.class, outcome.get().getCause(), "the writer's I/O error should be the cause");
+                assertEquals("simulated write failure", outcome.get().getCause().getMessage());
                 assertTrue(waitedMillis < 5_000, "producer should not wait for the timeout, waited " + waitedMillis);
                 assertEquals(AsyncOutputStream.Status.DONE, out.getStatus());
 
                 assertThrows(ParallelExecutionException.class, workGroup::join, "writer I/O error is reported");
+            }
+        }
+
+        @Test
+        @DisplayName("Producers keep waiting past the timeout while the writer makes progress")
+        void sendAsyncWaitsWhileWriterMakesProgress()
+                throws InterruptedException, BrokenBarrierException, ParallelExecutionException {
+            // A slow writer and more producers than slots, so most calls wait much longer than the timeout. The
+            // writer keeps taking messages, so no call may time out.
+            final int producers = 8;
+            final int perProducer = 3;
+            final int bufferSize = 2;
+            final Duration timeout = Duration.ofMillis(100);
+            final long writeMillis = 40;
+
+            try (final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "test")) {
+                final AsyncOutputStream out =
+                        new AsyncOutputStream(
+                                new DataOutputStream(new ByteArrayOutputStream()),
+                                bufferSize,
+                                DEFAULT_FLUSH_INTERVAL,
+                                timeout) {
+                            @Override
+                            protected void writeMessage(final byte[] messageBytes) throws IOException {
+                                try {
+                                    MILLISECONDS.sleep(writeMillis);
+                                } catch (final InterruptedException e) {
+                                    Thread.currentThread().interrupt();
+                                    throw new IOException(e);
+                                }
+                                super.writeMessage(messageBytes);
+                            }
+                        };
+                out.start(workGroup);
+
+                final CyclicBarrier start = new CyclicBarrier(producers + 1);
+                final AtomicReference<Throwable> failure = new AtomicReference<>();
+                final AtomicLong maxWaitNanos = new AtomicLong();
+                final List<Thread> threads = new ArrayList<>();
+                for (int p = 0; p < producers; p++) {
+                    final int producer = p;
+                    final Thread thread = new Thread(() -> {
+                        try {
+                            start.await();
+                            for (int i = 0; i < perProducer; i++) {
+                                final long sendStart = System.nanoTime();
+                                out.sendAsync(serializeLong(producer * 1_000L + i));
+                                maxWaitNanos.accumulateAndGet(System.nanoTime() - sendStart, Math::max);
+                            }
+                        } catch (final Throwable t) {
+                            failure.compareAndSet(null, t);
+                        }
+                    });
+                    thread.setDaemon(true);
+                    threads.add(thread);
+                    thread.start();
+                }
+                start.await();
+                for (final Thread thread : threads) {
+                    thread.join(30_000);
+                    assertFalse(thread.isAlive(), "producer should finish");
+                }
+
+                assertNull(failure.get(), "no call should fail while the writer makes progress");
+                assertTrue(
+                        maxWaitNanos.get() > timeout.toNanos(),
+                        "the test must make some call wait longer than the timeout, max wait was "
+                                + Duration.ofNanos(maxWaitNanos.get()));
+
+                out.done();
+                workGroup.join();
             }
         }
 

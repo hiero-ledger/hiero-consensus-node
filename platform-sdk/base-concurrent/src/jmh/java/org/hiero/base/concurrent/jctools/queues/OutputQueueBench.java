@@ -8,6 +8,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.LockSupport;
+import org.openjdk.jmh.annotations.AuxCounters;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -24,7 +25,11 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
-/// Raw-queue comparison for the `AsyncOutputStream` output queue: N producers and a single consumer.
+/// Raw-queue comparison for a bounded hand-off from N producers to a single consumer.
+///
+/// The workload models the output queue of reconnect's `AsyncOutputStream` (in `swirlds-virtualmap`), which this
+/// benchmark was written to choose: its wait semantics and backoff are copied here, so keep the backoff constants
+/// below in sync with it. Nothing here depends on that module.
 ///
 /// Queue implementations (`impl`): bounded [LinkedBlockingQueue] (the baseline, as on `main`),
 /// [ArrayBlockingQueue], the vendored JCTools MPSC VarHandle queue ([MpscVarHandleArrayQueue]), and
@@ -55,8 +60,17 @@ import org.openjdk.jmh.infra.Blackhole;
 ///   producer count; if it is not, the run is still consumer-bound.
 ///
 /// Each producer count has its own group (`producers1` ... `producers16`) because `@GroupThreads` must be a
-/// constant. Look at the `produce` line of a group for the number of messages offered per unit of time; the group's
-/// own score is the sum of its `produce` and `consume` lines.
+/// constant. The group's own score and its `produceN`/`consumeN` lines count calls, including offers that gave up
+/// after [#OFFER_TIMEOUT_NANOS] and polls that found nothing within [#POLL_TIMEOUT_NANOS]. The messages that actually
+/// went through are reported separately, by the [Counters] (per unit of time, summed over the group's threads):
+///
+/// - `sent`: messages the producers offered successfully. This is the result to compare.
+/// - `received`: messages the consumer took. Lower than `sent` by the messages still queued when an iteration ends.
+/// - `offerTimeouts`: offers that gave up because the queue stayed full for [#OFFER_TIMEOUT_NANOS]. A few per
+///   iteration come from its end, when producers still wait after the consumer has stopped. More than that means a
+///   producer waited that long while the consumer was running, for example because others kept taking freed slots.
+/// - `emptyPolls`: polls that found nothing within [#POLL_TIMEOUT_NANOS]; non-zero only when producers are slow, or
+///   at the end of an iteration.
 ///
 /// How to run (from the repository root). A full run takes well over half an hour; narrow it for targeted
 /// comparisons and use more forks when the numbers are meant to decide something:
@@ -132,42 +146,44 @@ public class OutputQueueBench {
         }
     }
 
-    private void produce() throws InterruptedException {
+    /// Offers one message after the producer's work; returns `false` if the queue stayed full for
+    /// [#OFFER_TIMEOUT_NANOS].
+    private boolean produce() throws InterruptedException {
         Blackhole.consumeCPU(producerTokens);
         if (blockingQueue != null) {
-            blockingQueue.offer(PAYLOAD, OFFER_TIMEOUT_NANOS, TimeUnit.NANOSECONDS);
-            return;
+            return blockingQueue.offer(PAYLOAD, OFFER_TIMEOUT_NANOS, TimeUnit.NANOSECONDS);
         }
         if (linkedQueue != null) {
-            produceLinked();
-            return;
+            return produceLinked();
         }
         if (mpscQueue.offer(PAYLOAD)) {
-            return;
+            return true;
         }
         final long deadline = System.nanoTime() + OFFER_TIMEOUT_NANOS;
         int idle = 0;
         while (!mpscQueue.offer(PAYLOAD)) {
             if (System.nanoTime() - deadline >= 0) {
-                return;
+                return false;
             }
             idle = backOff(idle, PRODUCER_MAX_PARK_SHIFT);
         }
+        return true;
     }
 
     // Same wait as the MPSC path, with the counter as the capacity check
-    private void produceLinked() {
+    private boolean produceLinked() {
         if (offerLinked()) {
-            return;
+            return true;
         }
         final long deadline = System.nanoTime() + OFFER_TIMEOUT_NANOS;
         int idle = 0;
         while (!offerLinked()) {
             if (System.nanoTime() - deadline >= 0) {
-                return;
+                return false;
             }
             idle = backOff(idle, PRODUCER_MAX_PARK_SHIFT);
         }
+        return true;
     }
 
     // Reserves a slot first, so the queue never holds more than CAPACITY messages. The plain read before the
@@ -184,7 +200,9 @@ public class OutputQueueBench {
         return linkedQueue.offer(PAYLOAD);
     }
 
-    private void consume(final Blackhole bh) throws InterruptedException {
+    /// Takes one message and does the consumer's work; returns `false` if the queue stayed empty for
+    /// [#POLL_TIMEOUT_NANOS].
+    private boolean consume(final Blackhole bh) throws InterruptedException {
         byte[] message;
         if (blockingQueue != null) {
             message = blockingQueue.poll(POLL_TIMEOUT_NANOS, TimeUnit.NANOSECONDS);
@@ -217,10 +235,12 @@ public class OutputQueueBench {
                 }
             }
         }
-        if (message != null) {
-            bh.consume(message);
-            Blackhole.consumeCPU(consumerTokens);
+        if (message == null) {
+            return false;
         }
+        bh.consume(message);
+        Blackhole.consumeCPU(consumerTokens);
+        return true;
     }
 
     private static int backOff(final int idle, final int maxParkShift) {
@@ -232,75 +252,110 @@ public class OutputQueueBench {
         return Math.min(idle + 1, SPIN_LIMIT + maxParkShift);
     }
 
+    /// Messages that went through, and calls that gave up, per thread. JMH reports each public field as a rate
+    /// summed over the group's threads, next to the call counts; see the class docs.
+    @State(Scope.Thread)
+    @AuxCounters(AuxCounters.Type.OPERATIONS)
+    public static class Counters {
+        public long sent;
+        public long offerTimeouts;
+        public long received;
+        public long emptyPolls;
+
+        @Setup(Level.Iteration)
+        public void reset() {
+            sent = 0;
+            offerTimeouts = 0;
+            received = 0;
+            emptyPolls = 0;
+        }
+
+        void countOffer(final boolean offered) {
+            if (offered) {
+                sent++;
+            } else {
+                offerTimeouts++;
+            }
+        }
+
+        void countPoll(final boolean taken) {
+            if (taken) {
+                received++;
+            } else {
+                emptyPolls++;
+            }
+        }
+    }
+
     // One group per producer count, each with a single consumer.
 
     @Benchmark
     @Group("producers1")
     @GroupThreads(1)
-    public void produce1() throws InterruptedException {
-        produce();
+    public void produce1(final Counters counters) throws InterruptedException {
+        counters.countOffer(produce());
     }
 
     @Benchmark
     @Group("producers1")
     @GroupThreads(1)
-    public void consume1(final Blackhole bh) throws InterruptedException {
-        consume(bh);
+    public void consume1(final Blackhole bh, final Counters counters) throws InterruptedException {
+        counters.countPoll(consume(bh));
     }
 
     @Benchmark
     @Group("producers2")
     @GroupThreads(2)
-    public void produce2() throws InterruptedException {
-        produce();
+    public void produce2(final Counters counters) throws InterruptedException {
+        counters.countOffer(produce());
     }
 
     @Benchmark
     @Group("producers2")
     @GroupThreads(1)
-    public void consume2(final Blackhole bh) throws InterruptedException {
-        consume(bh);
+    public void consume2(final Blackhole bh, final Counters counters) throws InterruptedException {
+        counters.countPoll(consume(bh));
     }
 
     @Benchmark
     @Group("producers4")
     @GroupThreads(4)
-    public void produce4() throws InterruptedException {
-        produce();
+    public void produce4(final Counters counters) throws InterruptedException {
+        counters.countOffer(produce());
     }
 
     @Benchmark
     @Group("producers4")
     @GroupThreads(1)
-    public void consume4(final Blackhole bh) throws InterruptedException {
-        consume(bh);
+    public void consume4(final Blackhole bh, final Counters counters) throws InterruptedException {
+        counters.countPoll(consume(bh));
     }
 
     @Benchmark
     @Group("producers8")
     @GroupThreads(8)
-    public void produce8() throws InterruptedException {
-        produce();
+    public void produce8(final Counters counters) throws InterruptedException {
+        counters.countOffer(produce());
     }
 
     @Benchmark
     @Group("producers8")
     @GroupThreads(1)
-    public void consume8(final Blackhole bh) throws InterruptedException {
-        consume(bh);
+    public void consume8(final Blackhole bh, final Counters counters) throws InterruptedException {
+        counters.countPoll(consume(bh));
     }
 
     @Benchmark
     @Group("producers16")
     @GroupThreads(16)
-    public void produce16() throws InterruptedException {
-        produce();
+    public void produce16(final Counters counters) throws InterruptedException {
+        counters.countOffer(produce());
     }
 
     @Benchmark
     @Group("producers16")
     @GroupThreads(1)
-    public void consume16(final Blackhole bh) throws InterruptedException {
-        consume(bh);
+    public void consume16(final Blackhole bh, final Counters counters) throws InterruptedException {
+        counters.countPoll(consume(bh));
     }
 }

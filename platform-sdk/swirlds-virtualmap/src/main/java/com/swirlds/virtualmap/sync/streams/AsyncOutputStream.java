@@ -21,7 +21,8 @@ import org.hiero.base.concurrent.pool.StandardWorkGroup;
 ///
 /// A background thread continuously dequeues messages from an internal bounded buffer and writes
 /// length-prefixed frames to the underlying [DataOutputStream]. Producers enqueue messages with
-/// [#sendAsync(byte[])] (which blocks up to `timeout` when the buffer is full) and signal
+/// [#sendAsync(byte[])] (which waits while the buffer is full, and fails once the writer has taken no message
+/// for `timeout`) and signal
 /// end-of-stream by calling [#done()]. After [#done()], the background thread drains any
 /// remaining queued messages, writes a `-1` termination marker, flushes, and exits.
 ///
@@ -88,8 +89,12 @@ public class AsyncOutputStream {
     /// writer flushes right away, before it starts parking.
     private final Duration flushInterval;
 
-    /// Maximum time [#sendAsync(byte[])] will wait when the buffer is full.
+    /// Maximum time [#sendAsync(byte[])] waits while the buffer is full and the writer takes no message.
     private final long timeoutNanos;
+
+    /// Why the writer stopped, if it failed. Set before the status becomes [Status#DONE], so a producer that sees
+    /// `DONE` can report the writer's failure as the cause, even if its own exception reaches the work group first.
+    private volatile Throwable writerFailure;
 
     // Single writer per transition: start() sets RUNNING atomically; done() sets FINISHING atomically
     // (guarded — no-op unless RUNNING); the background thread sets DONE on exit.
@@ -102,8 +107,8 @@ public class AsyncOutputStream {
     ///                      rounded up to the next power of two
     /// @param flushInterval maximum time the background thread waits for a new message before flushing
     ///                      buffered data; must be non-null and positive
-    /// @param timeout       maximum time [#sendAsync(byte[])] will wait when the buffer is full;
-    ///                      must be non-null and positive
+    /// @param timeout       maximum time [#sendAsync(byte[])] waits while the buffer is full and the writer
+    ///                      takes no message; must be non-null and positive
     public AsyncOutputStream(
             @NonNull final DataOutputStream outputStream,
             final int bufferSize,
@@ -159,38 +164,54 @@ public class AsyncOutputStream {
 
     /// Send a pre-serialized message asynchronously. Messages from a single producer are written to
     /// the underlying stream in submission order; ordering across producers is not guaranteed. When
-    /// the internal buffer is full this call blocks for up to `timeout` and then throws.
+    /// the internal buffer is full this call waits for space, and throws once the writer has taken no
+    /// message for `timeout`.
+    ///
+    /// The timeout measures the writer's progress rather than this call's wait, because waiting producers
+    /// aren't served in order: one that has backed off to a long park may lose freed slots to producers that
+    /// are still spinning or just arrived. Such a producer keeps waiting while the stream is moving, and the
+    /// call fails only when the writer is stuck.
     ///
     /// @param messageBytes the serialized message bytes
-    /// @throws InterruptedException           if the caller is interrupted while waiting to enqueue
+    /// @throws InterruptedException           if the caller is interrupted, on entry or while waiting to enqueue
     /// @throws IllegalStateException          if the stream is not in [Status#RUNNING], either on entry or
-    ///                                        while waiting for space because the writer has stopped
-    /// @throws MerkleSynchronizationException if the enqueue timed out because the buffer stayed full
+    ///                                        while waiting for space because the writer has stopped; if the
+    ///                                        writer failed, its failure is the cause
+    /// @throws MerkleSynchronizationException if the writer took no message for `timeout` while the buffer
+    ///                                        stayed full
     public void sendAsync(@NonNull final byte[] messageBytes) throws InterruptedException {
-        if (status.get() != Status.RUNNING) {
-            throw new IllegalStateException("Stream is not running: " + status);
+        final Status initial = status.get();
+        if (initial != Status.RUNNING) {
+            throw new IllegalStateException("Stream is not running: " + initial, writerFailure);
         }
-        // LinkedBlockingQueue.offer(e, timeout, unit) throws on entry if already interrupted; keep that.
-        if (Thread.interrupted()) {
-            throw new InterruptedException();
-        }
-        if (outputQueue.offer(messageBytes)) {
-            return;
-        }
-        final long deadlineNanos = System.nanoTime() + timeoutNanos;
+        // The deadline is set after the first failed offer, so the fast path doesn't read the clock, and is
+        // moved whenever the writer has taken a message since the last check
+        long deadlineNanos = 0;
+        long consumerIndex = 0;
         int idle = 0;
-        while (!outputQueue.offer(messageBytes)) {
+        while (true) {
+            // Like LinkedBlockingQueue.offer(e, timeout, unit): an interrupt fails the call even if there is room
             if (Thread.interrupted()) {
                 throw new InterruptedException();
+            }
+            if (outputQueue.offer(messageBytes)) {
+                return;
             }
             // The writer is the only consumer: once it stops (I/O error, interrupt, or done()), no slot
             // will ever be freed, so fail now instead of waiting for the timeout.
             final Status current = status.get();
             if (current != Status.RUNNING) {
-                throw new IllegalStateException("Stream stopped while waiting to send data: " + current);
+                throw new IllegalStateException("Stream stopped while waiting to send data: " + current, writerFailure);
             }
-            if (System.nanoTime() - deadlineNanos >= 0) {
-                throw new MerkleSynchronizationException("Timed out waiting to send data");
+            final long nowNanos = System.nanoTime();
+            final long currentConsumerIndex = outputQueue.currentConsumerIndex();
+            if (idle == 0 || currentConsumerIndex != consumerIndex) {
+                consumerIndex = currentConsumerIndex;
+                deadlineNanos = nowNanos + timeoutNanos;
+            } else if (nowNanos - deadlineNanos >= 0) {
+                throw new MerkleSynchronizationException(
+                        "Timed out waiting to send data: the writer took no message for "
+                                + Duration.ofNanos(timeoutNanos));
             }
             idle = backOff(idle, PRODUCER_MAX_PARK_SHIFT);
         }
@@ -262,8 +283,13 @@ public class AsyncOutputStream {
             outputStream.writeInt(-1);
             outputStream.flush();
         } catch (final IOException e) {
+            // Recorded before finally sets DONE, so producers that see DONE can report it, see writerFailure
+            writerFailure = e;
             logger.warn(RECONNECT.getMarker(), "Async output stream failed due to I/O error", e);
             throw new UncheckedIOException(e);
+        } catch (final RuntimeException | Error e) {
+            writerFailure = e;
+            throw e;
         } finally {
             status.set(Status.DONE);
             logger.debug(RECONNECT.getMarker(), "Background writer thread stopped");
