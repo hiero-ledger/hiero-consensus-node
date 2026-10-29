@@ -44,7 +44,8 @@ import com.swirlds.config.api.validation.annotation.Min;
  *      ignored
  * @param valueParseMaxSizeBytes
  *      Maximum allowed size for parsing a delimited virtual-map value payload.
- * @param fullRehashTimeoutMs the number of milliseconds to wait for the full leaf rehash to finish before it fail with an exception.
+ * @param fullRehashTimeoutMs the number of milliseconds to wait for the full leaf rehash to finish, including
+ *      flushing all new hashes to disk, before it fails with an exception.
  */
 // spotless:off
 @ConfigData("virtualMap")

@@ -2,7 +2,7 @@
 package com.hedera.node.app.history.impl;
 
 import static com.hedera.hapi.util.HapiUtils.asInstant;
-import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
+import static com.hedera.node.app.hapi.utils.CommonUtils.hashOfAll;
 import static com.hedera.node.app.history.HistoryService.isCompleted;
 import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
 import static com.hedera.node.app.history.impl.ProofVoteCategory.INVALID_RECURSIVE;
@@ -45,6 +45,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.DigestType;
 
 /**
  * Default implementation of {@link ProofController}.
@@ -101,10 +102,14 @@ public class ProofControllerImpl implements ProofController {
             this.historyProofVote = requireNonNull(historyProofVote);
             final var proof = historyProofVote.proofOrThrow();
             final var chainOfTrustProof = proof.chainOfTrustProofOrThrow();
+            // Tags are only compared within this node, so they don't follow the block digest type
+            final var digest = DigestType.SHA_256.buildDigest();
             tag = chainOfTrustProof.hasAggregatedNodeSignatures()
-                    ? noThrowSha384HashOf(AggregatedNodeSignatures.PROTOBUF.toBytes(
-                            chainOfTrustProof.aggregatedNodeSignaturesOrThrow()))
-                    : noThrowSha384HashOf(proof.uncompressedWrapsProof());
+                    ? hashOfAll(
+                            digest,
+                            AggregatedNodeSignatures.PROTOBUF.toBytes(
+                                    chainOfTrustProof.aggregatedNodeSignaturesOrThrow()))
+                    : hashOfAll(digest, proof.uncompressedWrapsProof());
         }
 
         public Bytes tag() {

@@ -12,6 +12,7 @@ import com.hedera.hapi.node.base.ResponseHeader;
 import com.hedera.hapi.node.clpr.ClprGetEndpointManifestResponse;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
+import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.hapi.utils.blocks.StateProofVerifier;
 import com.hedera.node.app.hapi.utils.blocks.TssVerifier;
 import com.hedera.node.app.service.clpr.ReadableEndpointManifestStore;
@@ -20,6 +21,7 @@ import com.hedera.node.app.spi.workflows.FreeQueryHandler;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.ClprConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -127,7 +129,11 @@ public class ClprGetEndpointManifestHandler extends FreeQueryHandler {
         }
         try {
             final var stateProof = StateProof.PROTOBUF.parseStrict(proofBytes.toReadableSequentialData());
-            final byte[] rootHash = StateProofVerifier.computeBlockRootHash(stateProof);
+            final var digest = CommonUtils.digestOrThrow(configProvider
+                    .getConfiguration()
+                    .getConfigData(BlockStreamConfig.class)
+                    .digestType());
+            final byte[] rootHash = StateProofVerifier.computeBlockRootHash(stateProof, digest);
             if (!stateProof.hasSignedBlockProof()) {
                 log.warn("ClprGetEndpointManifest: proof has no signedBlockProof; refusing");
                 return Bytes.EMPTY;

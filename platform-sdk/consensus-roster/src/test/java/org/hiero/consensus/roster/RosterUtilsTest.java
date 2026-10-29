@@ -11,6 +11,8 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.security.cert.CertificateEncodingException;
 import java.util.List;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.test.fixtures.crypto.PreGeneratedX509Certs;
 import org.junit.jupiter.api.Assertions;
@@ -20,21 +22,31 @@ public class RosterUtilsTest {
 
     @Test
     void testHash() {
-        final Hash hash = RosterUtils.hash(Roster.DEFAULT);
+        final Hash hash = RosterUtils.hash(Roster.DEFAULT, DigestType.SHA_384);
         assertEquals(
                 "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b",
                 hash.toString());
 
         final Hash anotherHash = RosterUtils.hash(
-                Roster.DEFAULT.copyBuilder().rosterEntries(RosterEntry.DEFAULT).build());
+                Roster.DEFAULT.copyBuilder().rosterEntries(RosterEntry.DEFAULT).build(), DigestType.SHA_384);
         assertEquals(
                 "5d693ce2c5d445194faee6054b4d8fe4a4adc1225cf0afc2ecd7866ea895a0093ea3037951b75ab7340b75699aa1db1d",
                 anotherHash.toString());
 
-        final Hash validRosterHash = RosterUtils.hash(RosterValidatorTests.buildValidRoster());
+        final Hash validRosterHash = RosterUtils.hash(RosterValidatorTests.buildValidRoster(), DigestType.SHA_384);
         assertEquals(
                 "b58744d9cfbceda7b1b3c50f501c3ab30dc4ea7e59e96c8071a7bb2198e7071bde40535605c7f37db47e7a1efe5ef280",
                 validRosterHash.toString());
+    }
+
+    @Test
+    void testHashWithDigestType() {
+        assertEquals(
+                RosterUtils.hash(Roster.DEFAULT), RosterUtils.hash(Roster.DEFAULT, Cryptography.DEFAULT_DIGEST_TYPE));
+
+        final Hash sha256Hash = RosterUtils.hash(Roster.DEFAULT, DigestType.SHA_256);
+        assertEquals(DigestType.SHA_256, sha256Hash.getDigestType());
+        assertEquals("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", sha256Hash.toString());
     }
 
     @Test

@@ -6,6 +6,7 @@ import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
 import com.swirlds.virtualmap.test.fixtures.TestValueCodec;
+import java.util.function.LongFunction;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.CryptographyProvider;
@@ -200,5 +201,28 @@ public class VirtualTestBase {
 
     private VirtualLeafBytes<TestValue> copyWithPath(VirtualLeafBytes<TestValue> leaf, TestValue value, long path) {
         return new VirtualLeafBytes<>(path, leaf.keyBytes(), value, TestValueCodec.INSTANCE);
+    }
+
+    /// Computes hashes of all nodes in a virtual tree with the given leaf path range, sequentially,
+    /// bottom up. Used as a reference to check other hashing implementations.
+    ///
+    /// @param firstLeafPath the first leaf path, must be positive
+    /// @param lastLeafPath the last leaf path
+    /// @param leafReader a function to read leaf records by path
+    /// @return node hash bytes, indexed by path
+    protected static byte[][] referenceHashes(
+            final long firstLeafPath, final long lastLeafPath, final LongFunction<VirtualLeafBytes<?>> leafReader) {
+        final MerkleHasher hasher = new MerkleHasher();
+        final byte[][] hashes = new byte[Math.toIntExact(lastLeafPath + 1)][];
+        for (int path = hashes.length - 1; path >= 0; path--) {
+            if (path >= firstLeafPath) {
+                hashes[path] = hasher.leafNodeHashBytes(leafReader.apply(path));
+            } else {
+                final int right = 2 * path + 2;
+                hashes[path] = hasher.internalNodeHashBytes(
+                        hashes[2 * path + 1], right <= lastLeafPath ? hashes[right] : null);
+            }
+        }
+        return hashes;
     }
 }

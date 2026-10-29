@@ -44,7 +44,7 @@ See [`../README.md`](../README.md) § *Block Node Testing*.
 
 |            Property            |                       Read in                       |                     Format                     | Default |                 Set by                 |
 |--------------------------------|-----------------------------------------------------|------------------------------------------------|---------|----------------------------------------|
-| `hapi.spec.test.overrides`     | `ProcessUtils`                                      | comma-separated `key=value` pairs              | empty   | per-task in `prCheckPropOverrides`     |
+| `hapi.spec.test.overrides`     | `ProcessUtils`                                      | comma-separated `key=value` pairs              | empty   | per-task; see `GRADLE_TASKS.md`        |
 | `hapi.spec.platform.overrides` | `SubProcessNetwork` (`PLATFORM_OVERRIDES_PROPERTY`) | comma-separated `key=value` for `settings.txt` | empty   | per-task in `prCheckPlatformOverrides` |
 
 ## TSS (`wraps` / hinTS / history)

@@ -98,4 +98,11 @@ public interface PlatformStateAccessor {
      * @return the round number of the last freeze round
      */
     long getLatestFreezeRound();
+
+    /**
+     * Gets the event cutover minimum birth round.
+     *
+     * @return the minimum birth round of events post cutover
+     */
+    long getEventCutoverMinBirthRound();
 }

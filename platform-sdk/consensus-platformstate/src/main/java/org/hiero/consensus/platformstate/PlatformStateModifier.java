@@ -65,6 +65,13 @@ public interface PlatformStateModifier extends PlatformStateAccessor {
     void setFreezeTime(@Nullable Instant freezeTime);
 
     /**
+     * Sets the minimum birth round of events created after the cutover.
+     *
+     * @param eventCutoverMinBirthRound the minimum post cutover event birth round
+     */
+    void setEventCutoverMinBirthRound(final long eventCutoverMinBirthRound);
+
+    /**
      * Sets the last freezeTime based on which the nodes were frozen.
      *
      * @param lastFrozenTime the last freezeTime based on which the nodes were frozen

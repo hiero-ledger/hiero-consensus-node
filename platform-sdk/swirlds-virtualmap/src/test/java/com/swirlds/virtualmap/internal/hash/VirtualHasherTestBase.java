@@ -87,7 +87,10 @@ class VirtualHasherTestBase extends VirtualTestBase {
 
     @SuppressWarnings("rawtypes")
     protected static List<VirtualLeafBytes> invalidateNodes(final TestDataSource ds, final Stream<Long> dirtyPaths) {
-        return dirtyPaths.peek(l -> ds.setHash(l, new Hash())).map(ds::getLeaf).collect(Collectors.toList());
+        return dirtyPaths
+                .peek(l -> ds.setHash(l, new Hash(Cryptography.DEFAULT_DIGEST_TYPE)))
+                .map(ds::getLeaf)
+                .collect(Collectors.toList());
     }
 
     protected static Hash hashSubTree(final TestDataSource ds, final MessageDigest md, final long nodePath) {

@@ -134,6 +134,13 @@ class WritablePlatformStateStoreTest {
         assertEquals(lastFrozenTime, store.getLastFrozenTime());
     }
 
+    @Test
+    void verifyEventCutoverMinBirthRound() {
+        final var eventCutoverMinBirthRound = nextInt(1, 100);
+        store.setEventCutoverMinBirthRound(eventCutoverMinBirthRound);
+        assertEquals(eventCutoverMinBirthRound, store.getEventCutoverMinBirthRound());
+    }
+
     @AfterEach
     void tearDown() {
         virtualMap.release();

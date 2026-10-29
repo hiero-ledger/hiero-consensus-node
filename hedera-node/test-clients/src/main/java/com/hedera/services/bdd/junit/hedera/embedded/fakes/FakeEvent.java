@@ -12,6 +12,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.Iterator;
+import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.node.NodeId;
@@ -109,6 +110,6 @@ public class FakeEvent implements Event {
 
     @NonNull
     public Hash getHash() {
-        return new Hash();
+        return new Hash(Cryptography.DEFAULT_DIGEST_TYPE);
     }
 }

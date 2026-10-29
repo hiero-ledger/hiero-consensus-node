@@ -54,16 +54,8 @@ public class BlockNodeBackPressureSuite {
                             "15",
                             "blockStream.streamMode",
                             "BLOCKS",
-                            "blockStream.writerMode",
-                            "FILE_AND_GRPC",
                             "blockStream.streamWrappedRecordBlocks",
-                            "false",
-                            "blockStream.enableCutover",
-                            "false",
-                            "blockStream.buffer.isBufferPersistenceEnabled",
-                            "false",
-                            "tss.forceMockSignatures",
-                            "true"
+                            "false"
                         })
             })
     @Order(1)
@@ -99,20 +91,14 @@ public class BlockNodeBackPressureSuite {
                             "15",
                             "blockStream.streamMode",
                             "BLOCKS",
-                            "blockStream.writerMode",
-                            "FILE_AND_GRPC",
                             "blockStream.streamWrappedRecordBlocks",
                             "false",
-                            "blockStream.enableCutover",
-                            "false",
-                            "blockStream.buffer.isBufferPersistenceEnabled",
+                            "tss.forceMockSignatures",
                             "false",
                             "tss.hintsEnabled",
                             "true",
                             "tss.historyEnabled",
-                            "true",
-                            "tss.forceMockSignatures",
-                            "false"
+                            "true"
                         })
             })
     @Order(2)
@@ -167,16 +153,12 @@ public class BlockNodeBackPressureSuite {
                             "GRPC",
                             "blockStream.streamWrappedRecordBlocks",
                             "false",
-                            "blockStream.enableCutover",
-                            "false",
-                            "blockStream.buffer.isBufferPersistenceEnabled",
+                            "tss.forceMockSignatures",
                             "false",
                             "tss.hintsEnabled",
                             "true",
                             "tss.historyEnabled",
-                            "true",
-                            "tss.forceMockSignatures",
-                            "false"
+                            "true"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 1,
@@ -191,16 +173,12 @@ public class BlockNodeBackPressureSuite {
                             "GRPC",
                             "blockStream.streamWrappedRecordBlocks",
                             "false",
-                            "blockStream.enableCutover",
-                            "false",
-                            "blockStream.buffer.isBufferPersistenceEnabled",
+                            "tss.forceMockSignatures",
                             "false",
                             "tss.hintsEnabled",
                             "true",
                             "tss.historyEnabled",
-                            "true",
-                            "tss.forceMockSignatures",
-                            "false"
+                            "true"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 2,
@@ -215,16 +193,12 @@ public class BlockNodeBackPressureSuite {
                             "GRPC",
                             "blockStream.streamWrappedRecordBlocks",
                             "false",
-                            "blockStream.enableCutover",
-                            "false",
-                            "blockStream.buffer.isBufferPersistenceEnabled",
+                            "tss.forceMockSignatures",
                             "false",
                             "tss.hintsEnabled",
                             "true",
                             "tss.historyEnabled",
-                            "true",
-                            "tss.forceMockSignatures",
-                            "false"
+                            "true"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 3,
@@ -239,16 +213,12 @@ public class BlockNodeBackPressureSuite {
                             "GRPC",
                             "blockStream.streamWrappedRecordBlocks",
                             "false",
-                            "blockStream.enableCutover",
-                            "false",
-                            "blockStream.buffer.isBufferPersistenceEnabled",
+                            "tss.forceMockSignatures",
                             "false",
                             "tss.hintsEnabled",
                             "true",
                             "tss.historyEnabled",
-                            "true",
-                            "tss.forceMockSignatures",
-                            "false"
+                            "true"
                         })
             })
     @Order(3)
@@ -325,20 +295,14 @@ public class BlockNodeBackPressureSuite {
                             "3",
                             "blockStream.streamMode",
                             "BLOCKS",
-                            "blockStream.writerMode",
-                            "FILE_AND_GRPC",
                             "blockStream.streamWrappedRecordBlocks",
                             "false",
-                            "blockStream.enableCutover",
-                            "false",
-                            "blockStream.buffer.isBufferPersistenceEnabled",
+                            "tss.forceMockSignatures",
                             "false",
                             "tss.hintsEnabled",
                             "true",
                             "tss.historyEnabled",
-                            "true",
-                            "tss.forceMockSignatures",
-                            "false"
+                            "true"
                         })
             })
     @Order(4)

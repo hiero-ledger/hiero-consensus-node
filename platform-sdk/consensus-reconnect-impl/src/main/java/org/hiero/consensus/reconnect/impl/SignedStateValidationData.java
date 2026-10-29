@@ -12,6 +12,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.Optional;
+import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.roster.RosterUtils;
 
@@ -43,7 +44,7 @@ public record SignedStateValidationData(
                 roundOf(that),
                 Optional.ofNullable(consensusTimestampOf(that)).orElse(Instant.EPOCH),
                 roster == null ? null : RosterUtils.hash(roster),
-                Optional.ofNullable(legacyRunningEventHashOf(that)).orElse(new Hash()));
+                Optional.ofNullable(legacyRunningEventHashOf(that)).orElse(new Hash(DigestType.SHA_384)));
     }
 
     /**

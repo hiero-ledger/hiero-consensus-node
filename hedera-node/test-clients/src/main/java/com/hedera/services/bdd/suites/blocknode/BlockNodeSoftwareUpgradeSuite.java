@@ -57,13 +57,7 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                             "blockStream.buffer.isBufferPersistenceEnabled",
                             "true",
                             "blockNode.blockNodeStatusTimeout",
-                            "10s",
-                            "blockStream.enableCutover",
-                            "false",
-                            "blockStream.streamWrappedRecordBlocks",
-                            "true",
-                            "tss.forceMockSignatures",
-                            "true"
+                            "10s"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 1,
@@ -86,13 +80,7 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                             "blockStream.buffer.isBufferPersistenceEnabled",
                             "true",
                             "blockNode.blockNodeStatusTimeout",
-                            "10s",
-                            "blockStream.enableCutover",
-                            "false",
-                            "blockStream.streamWrappedRecordBlocks",
-                            "true",
-                            "tss.forceMockSignatures",
-                            "true"
+                            "10s"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 2,
@@ -115,13 +103,7 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                             "blockStream.buffer.isBufferPersistenceEnabled",
                             "true",
                             "blockNode.blockNodeStatusTimeout",
-                            "10s",
-                            "blockStream.enableCutover",
-                            "false",
-                            "blockStream.streamWrappedRecordBlocks",
-                            "true",
-                            "tss.forceMockSignatures",
-                            "true"
+                            "10s"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 3,
@@ -144,13 +126,7 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                             "blockStream.buffer.isBufferPersistenceEnabled",
                             "true",
                             "blockNode.blockNodeStatusTimeout",
-                            "10s",
-                            "blockStream.enableCutover",
-                            "false",
-                            "blockStream.streamWrappedRecordBlocks",
-                            "true",
-                            "tss.forceMockSignatures",
-                            "true"
+                            "10s"
                         }),
             })
     @Order(0)

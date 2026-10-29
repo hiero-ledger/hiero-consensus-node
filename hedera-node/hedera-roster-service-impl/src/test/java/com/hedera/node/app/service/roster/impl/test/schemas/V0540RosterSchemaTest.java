@@ -10,6 +10,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -158,9 +159,11 @@ class V0540RosterSchemaTest {
 
         subject.restart(ctx);
 
+        final var inOrder = inOrder(rosterStore);
+        inOrder.verify(rosterStore).getCandidateRoster();
+        inOrder.verify(rosterStore).adoptCandidateRoster(ROUND_NO + 1L);
         verify(rosterStore, times(1)).getActiveRoster();
-        verify(rosterStore).getCandidateRoster();
-        verify(rosterStore).adoptCandidateRoster(ROUND_NO + 1L);
+        verify(rosterStore, never()).rehashRosters(any());
     }
 
     @Test

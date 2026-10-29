@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.model.test.fixtures.event;
 
+import static org.hiero.base.crypto.Cryptography.DEFAULT_DIGEST_TYPE;
 import static org.hiero.consensus.model.event.EventConstants.MINIMUM_ROUND_CREATED;
 
 import com.hedera.hapi.platform.event.EventConsensusData;
@@ -25,6 +26,7 @@ import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.model.event.EventHashFactory;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -400,12 +402,12 @@ public class TestingEventBuilder {
      */
     public @NonNull TestingEventBuilder setHash(@NonNull final String hexString) {
         final byte[] parsedHex = HexFormat.of().parseHex(hexString.toLowerCase());
-        if (parsedHex.length > DigestType.SHA_384.digestLength()) {
+        if (parsedHex.length > DEFAULT_DIGEST_TYPE.digestLength()) {
             throw new IllegalArgumentException("Hash length is too long");
         }
-        final byte[] hash = new byte[DigestType.SHA_384.digestLength()];
+        final byte[] hash = new byte[DEFAULT_DIGEST_TYPE.digestLength()];
         System.arraycopy(parsedHex, 0, hash, 0, parsedHex.length);
-        this.hash = new Hash(hash);
+        this.hash = new Hash(hash, DEFAULT_DIGEST_TYPE);
         return this;
     }
 
@@ -544,7 +546,8 @@ public class TestingEventBuilder {
 
         final PlatformEvent platformEvent = new PlatformEvent(unsignedEvent, Bytes.wrap(signature), origin);
 
-        platformEvent.setHash(hash != null ? hash : CryptoRandomUtils.randomHash(random));
+        final DigestType digestType = EventHashFactory.getTypeForBirthRound(birthRound);
+        platformEvent.setHash(hash != null ? hash : CryptoRandomUtils.randomHash(random, digestType));
 
         platformEvent.setNGen(nGen);
         if (sequenceNumberOverride > EventConstants.SEQUENCE_NUMBER_UNDEFINED) {

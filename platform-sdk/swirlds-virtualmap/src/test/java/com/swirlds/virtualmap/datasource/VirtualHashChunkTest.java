@@ -19,6 +19,7 @@ import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.virtualmap.MerkleHasher;
 import com.swirlds.virtualmap.MerklePathUtils;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Random;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
@@ -362,7 +363,7 @@ public class VirtualHashChunkTest {
         final Random random = new Random();
         final byte[] hashData = new byte[HASH_LENGTH];
         random.nextBytes(hashData);
-        return new Hash(hashData);
+        return new Hash(hashData, Cryptography.DEFAULT_DIGEST_TYPE);
     }
 
     @ParameterizedTest
@@ -381,7 +382,9 @@ public class VirtualHashChunkTest {
             assertEquals(hash, chunk.getHashAtIndex(i));
             assertEquals(hash, chunk.getHashAtPath(path));
         }
-        assertThrows(IllegalArgumentException.class, () -> chunk.setHashAtPath(chunk.getPath(chunkSize), new Hash()));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> chunk.setHashAtPath(chunk.getPath(chunkSize), new Hash(Cryptography.DEFAULT_DIGEST_TYPE)));
     }
 
     @Test
@@ -458,13 +461,13 @@ public class VirtualHashChunkTest {
         final VirtualHashChunk original = new VirtualHashChunk(0, 2);
 
         final Hash hash1 =
-                new Hash("111111111111111111111111111111111111111111111111".getBytes(StandardCharsets.UTF_8));
+                new Hash("1".repeat(HASH_LENGTH).getBytes(StandardCharsets.UTF_8), Cryptography.DEFAULT_DIGEST_TYPE);
         final Hash hash2 =
-                new Hash("222222222222222222222222222222222222222222222222".getBytes(StandardCharsets.UTF_8));
+                new Hash("2".repeat(HASH_LENGTH).getBytes(StandardCharsets.UTF_8), Cryptography.DEFAULT_DIGEST_TYPE);
         final Hash hash3 =
-                new Hash("333333333333333333333333333333333333333333333333".getBytes(StandardCharsets.UTF_8));
+                new Hash("3".repeat(HASH_LENGTH).getBytes(StandardCharsets.UTF_8), Cryptography.DEFAULT_DIGEST_TYPE);
         final Hash hash4 =
-                new Hash("444444444444444444444444444444444444444444444444".getBytes(StandardCharsets.UTF_8));
+                new Hash("4".repeat(HASH_LENGTH).getBytes(StandardCharsets.UTF_8), Cryptography.DEFAULT_DIGEST_TYPE);
 
         original.setHashAtPath(3, hash1);
         original.setHashAtPath(4, hash2);
@@ -481,10 +484,14 @@ public class VirtualHashChunkTest {
         assertEquals(hash4, copy.getHashAtPath(6));
 
         // Modify the original
-        final Hash newHash1 =
-                new Hash("AAA111111111111111111111111111111111111111111111".getBytes(StandardCharsets.UTF_8));
-        final Hash newHash2 =
-                new Hash("BBB222222222222222222222222222222222222222222222".getBytes(StandardCharsets.UTF_8));
+        final String aaaPrefix = "AAA";
+        final Hash newHash1 = new Hash(
+                (aaaPrefix + "1".repeat(HASH_LENGTH - aaaPrefix.length())).getBytes(StandardCharsets.UTF_8),
+                Cryptography.DEFAULT_DIGEST_TYPE);
+        final String bbbPrefix = "BBB";
+        final Hash newHash2 = new Hash(
+                (bbbPrefix + "2".repeat(HASH_LENGTH - bbbPrefix.length())).getBytes(StandardCharsets.UTF_8),
+                Cryptography.DEFAULT_DIGEST_TYPE);
         original.setHashAtPath(3, newHash1);
         original.setHashAtPath(4, newHash2);
 
@@ -504,10 +511,13 @@ public class VirtualHashChunkTest {
         // Create original chunk with height 1 (2 hashes)
         final VirtualHashChunk original = new VirtualHashChunk(0, 1);
 
-        final Hash originalHash1 =
-                new Hash("ORIG11111111111111111111111111111111111111111111".getBytes(StandardCharsets.UTF_8));
-        final Hash originalHash2 =
-                new Hash("ORIG22222222222222222222222222222222222222222222".getBytes(StandardCharsets.UTF_8));
+        final String originalPrefix = "ORIG";
+        final Hash originalHash1 = new Hash(
+                (originalPrefix + "1".repeat(HASH_LENGTH - originalPrefix.length())).getBytes(StandardCharsets.UTF_8),
+                Cryptography.DEFAULT_DIGEST_TYPE);
+        final Hash originalHash2 = new Hash(
+                (originalPrefix + "2".repeat(HASH_LENGTH - originalPrefix.length())).getBytes(StandardCharsets.UTF_8),
+                Cryptography.DEFAULT_DIGEST_TYPE);
 
         original.setHashAtPath(1, originalHash1);
         original.setHashAtPath(2, originalHash2);
@@ -516,10 +526,13 @@ public class VirtualHashChunkTest {
         final VirtualHashChunk copy = original.copy();
 
         // Modify the copy
-        final Hash copyHash1 =
-                new Hash("COPY11111111111111111111111111111111111111111111".getBytes(StandardCharsets.UTF_8));
-        final Hash copyHash2 =
-                new Hash("COPY22222222222222222222222222222222222222222222".getBytes(StandardCharsets.UTF_8));
+        final String copyPrefix = "COPY";
+        final Hash copyHash1 = new Hash(
+                (copyPrefix + "1".repeat(HASH_LENGTH - copyPrefix.length())).getBytes(StandardCharsets.UTF_8),
+                Cryptography.DEFAULT_DIGEST_TYPE);
+        final Hash copyHash2 = new Hash(
+                (copyPrefix + "2".repeat(HASH_LENGTH - copyPrefix.length())).getBytes(StandardCharsets.UTF_8),
+                Cryptography.DEFAULT_DIGEST_TYPE);
         copy.setHashAtPath(1, copyHash1);
         copy.setHashAtPath(2, copyHash2);
 
@@ -783,14 +796,26 @@ public class VirtualHashChunkTest {
     @Test
     void calcHashTest36() {
         final VirtualHashChunk chunk = new VirtualHashChunk(0, 2);
-        final Hash hash3 =
-                new Hash("345678901234567890123456789012345678901234567890".getBytes(StandardCharsets.UTF_8));
-        final Hash hash4 =
-                new Hash("456789012345678901234567890123456789012345678901".getBytes(StandardCharsets.UTF_8));
-        final Hash hash5 =
-                new Hash("567890123456789012345678901234567890123456789012".getBytes(StandardCharsets.UTF_8));
-        final Hash hash6 =
-                new Hash("678901234567890123456789012345678901234567890123".getBytes(StandardCharsets.UTF_8));
+        final Hash hash3 = new Hash(
+                Arrays.copyOf(
+                        "345678901234567890123456789012345678901234567890".getBytes(StandardCharsets.UTF_8),
+                        HASH_LENGTH),
+                Cryptography.DEFAULT_DIGEST_TYPE);
+        final Hash hash4 = new Hash(
+                Arrays.copyOf(
+                        "456789012345678901234567890123456789012345678901".getBytes(StandardCharsets.UTF_8),
+                        HASH_LENGTH),
+                Cryptography.DEFAULT_DIGEST_TYPE);
+        final Hash hash5 = new Hash(
+                Arrays.copyOf(
+                        "567890123456789012345678901234567890123456789012".getBytes(StandardCharsets.UTF_8),
+                        HASH_LENGTH),
+                Cryptography.DEFAULT_DIGEST_TYPE);
+        final Hash hash6 = new Hash(
+                Arrays.copyOf(
+                        "678901234567890123456789012345678901234567890123".getBytes(StandardCharsets.UTF_8),
+                        HASH_LENGTH),
+                Cryptography.DEFAULT_DIGEST_TYPE);
         chunk.setHashAtPath(3, hash3);
         chunk.setHashAtPath(4, hash4);
         chunk.setHashAtPath(5, hash5);
@@ -812,12 +837,21 @@ public class VirtualHashChunkTest {
     @Test
     void calcHashTest24() {
         final VirtualHashChunk chunk = new VirtualHashChunk(0, 2);
-        final Hash hash2 =
-                new Hash("234567890123456789012345678901234567890123456789".getBytes(StandardCharsets.UTF_8));
-        final Hash hash3 =
-                new Hash("345678901234567890123456789012345678901234567890".getBytes(StandardCharsets.UTF_8));
-        final Hash hash4 =
-                new Hash("456789012345678901234567890123456789012345678901".getBytes(StandardCharsets.UTF_8));
+        final Hash hash2 = new Hash(
+                Arrays.copyOf(
+                        "234567890123456789012345678901234567890123456789".getBytes(StandardCharsets.UTF_8),
+                        HASH_LENGTH),
+                Cryptography.DEFAULT_DIGEST_TYPE);
+        final Hash hash3 = new Hash(
+                Arrays.copyOf(
+                        "345678901234567890123456789012345678901234567890".getBytes(StandardCharsets.UTF_8),
+                        HASH_LENGTH),
+                Cryptography.DEFAULT_DIGEST_TYPE);
+        final Hash hash4 = new Hash(
+                Arrays.copyOf(
+                        "456789012345678901234567890123456789012345678901".getBytes(StandardCharsets.UTF_8),
+                        HASH_LENGTH),
+                Cryptography.DEFAULT_DIGEST_TYPE);
         chunk.setHashAtPath(2, hash2);
         chunk.setHashAtPath(3, hash3);
         chunk.setHashAtPath(4, hash4);
@@ -839,7 +873,7 @@ public class VirtualHashChunkTest {
 
         // Set hash for path 1 only (firstLeafPath and lastLeafPath are 1)
         final Hash hash1 =
-                new Hash("111111111111111111111111111111111111111111111111".getBytes(StandardCharsets.UTF_8));
+                new Hash("1".repeat(HASH_LENGTH).getBytes(StandardCharsets.UTF_8), Cryptography.DEFAULT_DIGEST_TYPE);
         chunk.setHashAtPath(1, hash1);
 
         // Calculate hash at path 0 (root), which needs to hash(hash1, hash2)
@@ -861,13 +895,13 @@ public class VirtualHashChunkTest {
         final VirtualHashChunk chunk = new VirtualHashChunk(0, 2);
 
         final Hash hash3 =
-                new Hash("333333333333333333333333333333333333333333333333".getBytes(StandardCharsets.UTF_8));
+                new Hash("3".repeat(HASH_LENGTH).getBytes(StandardCharsets.UTF_8), Cryptography.DEFAULT_DIGEST_TYPE);
         final Hash hash4 =
-                new Hash("444444444444444444444444444444444444444444444444".getBytes(StandardCharsets.UTF_8));
+                new Hash("4".repeat(HASH_LENGTH).getBytes(StandardCharsets.UTF_8), Cryptography.DEFAULT_DIGEST_TYPE);
         final Hash hash5 =
-                new Hash("555555555555555555555555555555555555555555555555".getBytes(StandardCharsets.UTF_8));
+                new Hash("5".repeat(HASH_LENGTH).getBytes(StandardCharsets.UTF_8), Cryptography.DEFAULT_DIGEST_TYPE);
         final Hash hash6 =
-                new Hash("666666666666666666666666666666666666666666666666".getBytes(StandardCharsets.UTF_8));
+                new Hash("6".repeat(HASH_LENGTH).getBytes(StandardCharsets.UTF_8), Cryptography.DEFAULT_DIGEST_TYPE);
 
         chunk.setHashAtPath(3, hash3);
         chunk.setHashAtPath(4, hash4);
