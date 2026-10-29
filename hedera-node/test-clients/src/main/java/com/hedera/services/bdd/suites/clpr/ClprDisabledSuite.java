@@ -425,9 +425,13 @@ public class ClprDisabledSuite {
                 } else {
                     restoredConnectors.put(connectorKey, previousConnector);
                 }
-                restored.<com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration>getSingleton(
-                                LEDGER_CONFIGURATION_STATE_ID)
-                        .put(previousConfiguration);
+                // With CLPR disabled the ledger configuration singleton may never have been initialized, and a
+                // null singleton value cannot be committed
+                if (previousConfiguration != null) {
+                    restored.<com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration>getSingleton(
+                                    LEDGER_CONFIGURATION_STATE_ID)
+                            .put(previousConfiguration);
+                }
                 spec.commitEmbeddedState();
             }
         });
