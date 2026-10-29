@@ -47,6 +47,11 @@ on:
         type: boolean
         required: false
         default: true
+      enable-evm-functional-tests:
+        description: "EVM Functional Tests Enabled (one solo deployment per shard; PR checks enable them only for smart-contract changes)"
+        type: boolean
+        required: false
+        default: false
       custom-job-label:
         description: "Custom Job Label"
         type: string
@@ -90,6 +95,7 @@ jobs:
       enable-snyk-scan: "${{ inputs.enable-snyk-scan || 'false' }}"
       enable-gradle-determinism: "${{ inputs.enable-gradle-determinism || 'false' }}"
       enable-docker-determinism: "${{ inputs.enable-docker-determinism || 'false' }}"
+      enable-evm-functional-tests: "${{ inputs.enable-evm-functional-tests || 'false' }}"
       java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
       java-distribution: "temurin"
       custom-job-label: "${{ inputs.custom-job-label || 'MATS (dry-run):' }}"
