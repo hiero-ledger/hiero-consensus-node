@@ -85,7 +85,7 @@
           "elements": [
             {
               "type": "mrkdwn",
-              "text": ":warning: Artifacts may not be immediately available in Maven Central. Please verify existence of the artifacts using the link provided above."
+              "text": {{ getenv "ARTIFACT_NOTE" ":warning: Artifacts may not be immediately available in Maven Central. Please verify existence of the artifacts using the link provided above." | data.ToJSON }}
             }
           ]
         }

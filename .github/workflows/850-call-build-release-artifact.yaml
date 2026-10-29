@@ -30,7 +30,8 @@ on:
       # - DevelopCommit
       # - DevelopDailySnapshot
       # - DevelopSnapshot
-      # - PrereleaseChannel
+      # - MavenCentral (final releases only)
+      # - PrereleaseChannel (pre-releases; never published to Maven Central)
       release-profile:
         description: "Release Profile:"
         type: string
@@ -693,7 +694,7 @@ jobs:
           path: ${{ env.DOCKER_MANIFEST_PATH }}
 
   publish:
-    name: Publish to ${{ inputs.version-policy == 'specified' && 'Maven Central' || 'GCP Registry' }}
+    name: Publish to ${{ inputs.release-profile == 'MavenCentral' && 'Maven Central' || (inputs.version-policy == 'specified' && 'GCP Bucket' || 'GCP Registry') }}
     runs-on: hl-cn-default-lin-lg
     outputs:
       create-release: ${{ steps.set-gh-release-flag.outputs.create-release }}
@@ -869,7 +870,8 @@ jobs:
         run: ./gradlew "release${RELEASE_PROFILE}" -PpublishSigningEnabled=true --no-configuration-cache -Dorg.gradle.isolated-projects=false --no-parallel
 
       - name: Gradle Publish to Maven Central
-        if: ${{ github.event.repository.visibility == 'public' && inputs.version-policy == 'specified' && inputs.dry-run-enabled != true && inputs.release-profile != 'none' && !cancelled() && !failure() }}
+        # Only final releases go to Maven Central; pre-releases (rc, alpha, ...) use the PrereleaseChannel profile.
+        if: ${{ github.event.repository.visibility == 'public' && inputs.version-policy == 'specified' && inputs.dry-run-enabled != true && inputs.release-profile == 'MavenCentral' && !cancelled() && !failure() }}
         env:
           NEXUS_USERNAME: ${{ secrets.central-publishing-username }}
           NEXUS_PASSWORD: ${{ secrets.central-publishing-password }}
@@ -946,16 +948,20 @@ jobs:
           ARTIFACT_URL="https://repo1.maven.org/maven2/com/swirlds/swirlds-platform-core/${{ needs.validate.outputs.version }}/"
           ARTIFACT_LINK_NAME="MC Availability Check"
           ARTIFACT_REGISTRY="Maven Central"
+          ARTIFACT_NOTE=":warning: Artifacts may not be immediately available in Maven Central. Please verify existence of the artifacts using the link provided above."
 
+          # Pre-releases are not published to Maven Central; only the SDK archives are uploaded to the GCP bucket.
           if [[ "${RELEASE_PROFILE}" == "PrereleaseChannel" ]]; then
-            ARTIFACT_URL="https://console.cloud.google.com/artifacts/maven/swirlds-registry/us/maven-prerelease-channel/com.swirlds:swirlds-platform-core/${{ needs.validate.outputs.version }}?project=swirlds-registry"
-            ARTIFACT_LINK_NAME="GCP Registry"
-            ARTIFACT_REGISTRY="GCP Artifact Registry"
+            ARTIFACT_URL="https://console.cloud.google.com/storage/browser/platform-sdk-ci-release-artifacts/v${{ needs.validate.outputs.version }}"
+            ARTIFACT_LINK_NAME="SDK Release Archives"
+            ARTIFACT_REGISTRY="GCP Bucket (pre-release, not on Maven Central)"
+            ARTIFACT_NOTE=":information_source: Pre-release build: Maven artifacts are not published to Maven Central."
           fi
 
           echo "artifact-url=${ARTIFACT_URL}" >>"${GITHUB_OUTPUT}"
           echo "artifact-name=${ARTIFACT_LINK_NAME}" >>"${GITHUB_OUTPUT}"
           echo "artifact-registry=${ARTIFACT_REGISTRY}" >>"${GITHUB_OUTPUT}"
+          echo "artifact-note=${ARTIFACT_NOTE}" >>"${GITHUB_OUTPUT}"
 
       - name: Build Slack Payload
         id: slack-payload
@@ -964,6 +970,7 @@ jobs:
           ARTIFACT_REGISTRY: ${{ steps.parameters.outputs.artifact-registry }}
           ARTIFACT_URL: ${{ steps.parameters.outputs.artifact-url }}
           ARTIFACT_NAME: ${{ steps.parameters.outputs.artifact-name }}
+          ARTIFACT_NOTE: ${{ steps.parameters.outputs.artifact-note }}
           REF_NAME: ${{ inputs.ref-name }}
           COMMIT_ID_SHORT: ${{ needs.validate.outputs.commit-id-short }}
           SERVER_URL: ${{ github.server_url }}
