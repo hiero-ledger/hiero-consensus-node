@@ -45,6 +45,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willAnswer;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -55,6 +56,7 @@ import static org.mockito.Mockito.withSettings;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.input.EventHeader;
 import com.hedera.hapi.block.stream.input.ParentEventReference;
+import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.AccountAmount;
@@ -130,8 +132,8 @@ import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.throttle.CongestionMetrics;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
-import com.hedera.node.app.workflows.clpr.ClprCaCertManager;
 import com.hedera.node.app.workflows.clpr.ClprEndpointManifestReconciler;
+import com.hedera.node.app.workflows.clpr.ClprHapiTlsEndpoint;
 import com.hedera.node.app.workflows.clpr.ClprSubmissions;
 import com.hedera.node.app.workflows.handle.cache.CacheWarmer;
 import com.hedera.node.app.workflows.handle.record.MigrationRootHashSubmissions;
@@ -156,9 +158,8 @@ import com.swirlds.state.test.fixtures.FunctionWritableSingletonState;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import com.swirlds.state.test.fixtures.MapWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.security.cert.CertificateEncodingException;
-import java.security.cert.X509Certificate;
 import java.time.Instant;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -166,6 +167,7 @@ import java.util.TreeMap;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import javax.inject.Provider;
 import org.apache.logging.log4j.LogManager;
 import org.hiero.base.crypto.Hash;
@@ -1000,13 +1002,13 @@ class HandleWorkflowTest {
         final WritableSingletonState<ClprEndpointManifest> manifest = mock(WritableSingletonState.class);
         final WritableSingletonState<ClprEndpointManifestConstruction> construction =
                 mock(WritableSingletonState.class);
-        given(clprStates.<ClprEndpointManifestConstruction>getSingleton(ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID))
-                .willReturn(construction);
         given(state.getWritableStates(ClprService.NAME)).willReturn(clprStates);
         given(clprStates.<ClprLedgerConfiguration>getSingleton(LEDGER_CONFIGURATION_STATE_ID))
                 .willReturn(ledgerConfiguration);
         given(clprStates.<ClprEndpointManifest>getSingleton(ENDPOINT_MANIFEST_STATE_ID))
                 .willReturn(manifest);
+        given(clprStates.<ClprEndpointManifestConstruction>getSingleton(ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID))
+                .willReturn(construction);
 
         final var method = HandleWorkflow.class.getDeclaredMethod(
                 "initializeMissingClprSingletons",
@@ -1018,6 +1020,7 @@ class HandleWorkflowTest {
 
         verify(ledgerConfiguration).put(any(ClprLedgerConfiguration.class));
         verify(manifest).put(any(ClprEndpointManifest.class));
+        verify(construction).put(ClprEndpointManifestConstruction.DEFAULT);
     }
 
     @ParameterizedTest
@@ -1083,8 +1086,7 @@ class HandleWorkflowTest {
     @ParameterizedTest
     @CsvSource({
         "false, NONE", "true, NONE",
-        "false, CA_INITIALIZATION", "true, CA_INITIALIZATION",
-        "false, CA_ENCODING", "true, CA_ENCODING",
+        "false, TLS_ENDPOINT_INITIALIZATION", "true, TLS_ENDPOINT_INITIALIZATION",
         "false, SUBMISSION", "true, SUBMISSION",
         "false, SUBMISSIONS_INITIALIZATION", "true, SUBMISSIONS_INITIALIZATION"
     })
@@ -1092,13 +1094,14 @@ class HandleWorkflowTest {
             final boolean extendsGrace, final LocalClprFailure failure) throws Exception {
         boundaryStateChangeListener = new BoundaryStateChangeListener(
                 mock(StoreMetricsService.class), () -> configProvider.getConfiguration());
-        final var caCertManager = mock(ClprCaCertManager.class);
+        final var hapiTlsEndpoint = mock(ClprHapiTlsEndpoint.class);
+        lenient().when(hapiTlsEndpoint.certificateDer()).thenReturn(Bytes.EMPTY);
         final var submissions = mock(ClprSubmissions.class);
-        final Provider<ClprCaCertManager> caProvider = () -> {
-            if (failure == LocalClprFailure.CA_INITIALIZATION) {
-                throw new IllegalStateException("local CA unavailable");
+        final Provider<ClprHapiTlsEndpoint> hapiTlsEndpointProvider = () -> {
+            if (failure == LocalClprFailure.TLS_ENDPOINT_INITIALIZATION) {
+                throw new IllegalStateException("local HAPI TLS endpoint unavailable");
             }
-            return caCertManager;
+            return hapiTlsEndpoint;
         };
         final Provider<ClprSubmissions> submissionsProvider = () -> {
             if (failure == LocalClprFailure.SUBMISSIONS_INITIALIZATION) {
@@ -1106,16 +1109,12 @@ class HandleWorkflowTest {
             }
             return submissions;
         };
-        if (failure == LocalClprFailure.CA_ENCODING) {
-            final var cert = mock(X509Certificate.class);
-            given(caCertManager.isMtlsEnabled()).willReturn(true);
-            given(caCertManager.caCert()).willReturn(cert);
-            given(cert.getEncoded()).willThrow(new CertificateEncodingException("local CA failure"));
-        } else if (failure == LocalClprFailure.SUBMISSION) {
+        if (failure == LocalClprFailure.SUBMISSION) {
             given(submissions.submitEndpointPublication(any()))
                     .willThrow(new RejectedExecutionException("local gossip executor unavailable"));
         }
-        clprEndpointManifestReconciler = new ClprEndpointManifestReconciler(submissionsProvider, caProvider);
+        clprEndpointManifestReconciler =
+                new ClprEndpointManifestReconciler(submissionsProvider, hapiTlsEndpointProvider);
         // Timeout-close without changing manifest contents, or extend grace while waiting for a publication.
         final var manifest = clprSingleton(
                 ENDPOINT_MANIFEST_STATE_ID,
@@ -1269,7 +1268,7 @@ class HandleWorkflowTest {
     @Test
     void upgradeRosterChangeEmitsSyntheticMaintenanceTransaction() throws Exception {
         clprEndpointManifestReconciler = new ClprEndpointManifestReconciler(
-                () -> mock(ClprSubmissions.class), () -> mock(ClprCaCertManager.class));
+                () -> mock(ClprSubmissions.class), () -> mock(ClprHapiTlsEndpoint.class));
         final var construction = clprSingleton(
                 ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID,
                 "ENDPOINT_MANIFEST_CONSTRUCTION",
@@ -1320,8 +1319,7 @@ class HandleWorkflowTest {
 
     private enum LocalClprFailure {
         NONE,
-        CA_INITIALIZATION,
-        CA_ENCODING,
+        TLS_ENDPOINT_INITIALIZATION,
         SUBMISSION,
         SUBMISSIONS_INITIALIZATION
     }
@@ -1355,6 +1353,33 @@ class HandleWorkflowTest {
         method.invoke(subject, state, NOW, UPGRADE_INITIALIZATION);
 
         verify(boundaryStateChangeListener, never()).reset();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void streamingAllChangesFlushesPendingBoundarySingletonsBeforeReset() throws Exception {
+        givenSubjectWith(BLOCKS, BlockStreamWriterMode.FILE, emptyList());
+        // A boundary singleton change made earlier in the still-open block, before the action
+        final var pendingChange = StateChange.newBuilder()
+                .stateId(ENTITY_COUNTS_STATE_ID)
+                .singletonUpdate(SingletonUpdateChange.DEFAULT)
+                .build();
+        given(boundaryStateChangeListener.allStateChanges()).willReturn(new LinkedList<>(List.of(pendingChange)));
+
+        final var method = HandleWorkflow.class.getDeclaredMethod(
+                "doStreamingAllChanges", WritableStates.class, WritableStates.class, Runnable.class);
+        method.setAccessible(true);
+        method.invoke(subject, mock(WritableStates.class), null, (Runnable) () -> {});
+
+        // The pending change is streamed before the listener is reset, so it is neither dropped nor repeated
+        // when the block closes
+        final ArgumentCaptor<Function<Timestamp, BlockItem>> itemCaptor = ArgumentCaptor.forClass(Function.class);
+        final var inOrder = inOrder(blockStreamManager, boundaryStateChangeListener);
+        inOrder.verify(blockStreamManager).writeItem(itemCaptor.capture());
+        inOrder.verify(boundaryStateChangeListener).reset();
+        assertEquals(
+                List.of(pendingChange),
+                itemCaptor.getValue().apply(BLOCK_TIME).stateChangesOrThrow().stateChanges());
     }
 
     @Test
@@ -1556,7 +1581,9 @@ class HandleWorkflowTest {
         final var afterEvents = beforeEvents.plusSeconds(1);
         final var ledgerId = Bytes.wrap("LEDGER_ID");
         final var proof = HistoryProof.newBuilder()
-                .targetHistory(History.newBuilder().addressBookHash(ledgerId).build())
+                .targetHistory(History.newBuilder()
+                        .addressBookHash(Bytes.wrap("ADDRESS_BOOK_HASH"))
+                        .build())
                 .build();
         final var construction = HistoryProofConstruction.newBuilder()
                 .constructionId(1L)
@@ -1572,7 +1599,7 @@ class HandleWorkflowTest {
                 })
                 .given(historyService)
                 .onFinishedConstruction(any());
-        given(historyService.historyProofVerificationKey()).willReturn(Bytes.EMPTY);
+        given(historyService.ledgerIdOf(proof)).willReturn(ledgerId);
         given(state.getReadableStates(RosterService.NAME)).willReturn(mock(ReadableStates.class));
 
         final var creatorId = NodeId.of(0L);
@@ -1642,12 +1669,11 @@ class HandleWorkflowTest {
                             invocation.getArgument(1),
                             invocation.getArgument(2),
                             invocation.getArgument(3),
-                            invocation.getArgument(4),
-                            invocation.getArgument(5));
+                            invocation.getArgument(4));
                     return null;
                 })
                 .given(systemTransactions)
-                .externalizeLedgerId(any(), any(), any(), any(), any(), any());
+                .externalizeLedgerId(any(), any(), any(), any(), any());
 
         subject.handleRound(state, round, txns -> {});
 

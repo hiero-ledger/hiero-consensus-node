@@ -57,7 +57,6 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
-import com.hedera.hapi.node.state.history.AggregatedNodeSignatures;
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.blocks.BlockHashSigner;
@@ -1989,7 +1988,7 @@ class BlockStreamManagerImplTest {
                 .willReturn(new BlockHashSigner.Attempt(
                         Bytes.EMPTY,
                         ChainOfTrustProof.newBuilder()
-                                .aggregatedNodeSignatures(AggregatedNodeSignatures.DEFAULT)
+                                .wrapsProof(Bytes.wrap("wraps-proof"))
                                 .build(),
                         mockSigningFuture));
         doAnswer(invocationOnMock -> {
@@ -2054,7 +2053,7 @@ class BlockStreamManagerImplTest {
                 .willReturn(new BlockHashSigner.Attempt(
                         Bytes.EMPTY,
                         ChainOfTrustProof.newBuilder()
-                                .aggregatedNodeSignatures(AggregatedNodeSignatures.DEFAULT)
+                                .wrapsProof(Bytes.wrap("wraps-proof"))
                                 .build(),
                         mockSigningFuture));
         doAnswer(invocationOnMock -> {

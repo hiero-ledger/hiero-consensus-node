@@ -24,8 +24,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import org.bouncycastle.crypto.params.Ed25519PrivateKeyParameters;
-import org.bouncycastle.crypto.signers.Ed25519Signer;
+import org.hiero.base.crypto.Ed25519;
 
 /**
  * Builds a fully synthetic but cryptographically consistent CometBFT chain for verifier tests:
@@ -35,7 +34,6 @@ import org.bouncycastle.crypto.signers.Ed25519Signer;
  * produce targeted invalid variants for negative tests.
  */
 final class SyntheticSeiChain {
-
     static final String CHAIN_ID = "clpr-sei-test";
     static final long HEIGHT = 1000;
     static final byte[] SERVICE_ADDRESS = sha20("clpr-service-contract");
@@ -54,10 +52,7 @@ final class SyntheticSeiChain {
 
     private SyntheticSeiChain() {}
 
-    record Validator(
-            @NonNull Ed25519PrivateKeyParameters privateKey,
-            @NonNull byte[] publicKey,
-            long votingPower) {}
+    record Validator(@NonNull byte[] secretKey, @NonNull byte[] publicKey, long votingPower) {}
 
     /** Deterministic validators with the given voting powers. */
     @NonNull
@@ -65,9 +60,10 @@ final class SyntheticSeiChain {
         final List<Validator> validators = new ArrayList<>();
         for (int i = 0; i < powers.length; i++) {
             final byte[] seed = SeiMerkle.sha256(("validator-seed-" + i).getBytes(StandardCharsets.UTF_8));
-            final var priv = new Ed25519PrivateKeyParameters(seed, 0);
-            final var pub = priv.generatePublicKey().getEncoded();
-            validators.add(new Validator(priv, pub, powers[i]));
+            final byte[] publicKey = new byte[Ed25519.PUBLIC_KEY_BYTES];
+            final byte[] secretKey = new byte[Ed25519.SECRET_KEY_BYTES];
+            Ed25519.newKeypair(publicKey, secretKey, seed);
+            validators.add(new Validator(secretKey, publicKey, powers[i]));
         }
         return validators;
     }
@@ -268,12 +264,12 @@ final class SyntheticSeiChain {
             final var timestamp =
                     Timestamp.newBuilder().seconds(seconds).nanos(nanos).build();
             final byte[] signBytes = SeiHashing.precommitSignBytes(CHAIN_ID, height, 0, blockId, timestamp);
-            final var signer = new Ed25519Signer();
-            signer.init(true, validator.privateKey());
-            signer.update(signBytes, 0, signBytes.length);
+
+            final byte[] signature = new byte[Ed25519.SIGNATURE_BYTES];
+            Ed25519.sign(signature, signBytes, validator.secretKey());
             signatures.add(SeiCommitSig.newBuilder()
                     .timestamp(timestamp)
-                    .signature(Bytes.wrap(signer.generateSignature()))
+                    .signature(Bytes.wrap(signature))
                     .build());
         }
         return SeiCommit.newBuilder()

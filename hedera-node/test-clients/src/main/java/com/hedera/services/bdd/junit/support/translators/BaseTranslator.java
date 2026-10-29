@@ -592,6 +592,49 @@ public class BaseTranslator {
     }
 
     /**
+     * Uses the call's captured creation IDs when present. Otherwise, adds to {@code resultBuilder} only the recipients
+     * of its own {@code CREATE} actions that were committed, i.e. have a bytecode update in {@code stateChanges}.
+     * This fallback keeps a call from claiming
+     * contracts created by other calls dispatched in the same unit (e.g. a CLPR verifier call claiming a contract
+     * that the application callback after it created). Falls back to {@link #addCreatedIdsTo} if the call has no
+     * traces to attribute creations with.
+     *
+     * @param resultBuilder the builder to populate with created IDs
+     * @param parts the call's transaction parts
+     * @param stateChanges the unit's remaining state changes
+     */
+    public void addCreatedIdsOfCallTo(
+            @NonNull final ContractFunctionResult.Builder resultBuilder,
+            @NonNull final BlockTransactionParts parts,
+            @NonNull final List<StateChange> stateChanges) {
+        requireNonNull(resultBuilder);
+        requireNonNull(parts);
+        requireNonNull(stateChanges);
+        if (addCapturedCreatedIdsTo(resultBuilder, parts)) {
+            return;
+        }
+        if (parts.traces() == null) {
+            addCreatedIdsTo(resultBuilder, parts, stateChanges);
+            return;
+        }
+        final Set<ContractID> committed = new HashSet<>(stateChanges.stream()
+                .filter(change -> change.stateId() == STATE_ID_BYTECODE.protoOrdinal())
+                .filter(StateChange::hasMapUpdate)
+                .map(change -> change.mapUpdateOrThrow().keyOrThrow().contractIdKeyOrThrow())
+                .toList());
+        resultBuilder.createdContractIDs(parts.traces().stream()
+                .filter(TraceData::hasEvmTraceData)
+                .flatMap(trace -> trace.evmTraceDataOrThrow().contractActions().stream())
+                .filter(action -> ContractActionType.CREATE.equals(action.callType()))
+                .filter(ContractAction::hasRecipientContract)
+                .map(ContractAction::recipientContractOrThrow)
+                .filter(committed::contains)
+                .distinct()
+                .sorted(CONTRACT_ID_COMPARATOR)
+                .toList());
+    }
+
+    /**
      * Adds the created IDs from the given state changes to the provided {@link ContractFunctionResult.Builder}.
      *
      * @param resultBuilder the builder to populate with created IDs

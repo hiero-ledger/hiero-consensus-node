@@ -72,8 +72,8 @@ awk -v bench="$bench" -v cut="$cut" -v setups="$setups" '
       next
     }
     for (j = 1; j <= ns; j++) if (index(stack, setup[j]) > 0) { s["setup: " setup[j]] += n; next }
-    if (stack ~ /G1|GC Thread|GCTask|VM_GC|gc/) s["GC threads"] += n
-    else if (stack ~ /Compile|C2Compiler|C1/) s["JIT"] += n
+    if (thread ~ /^(GC Thread|G1 )/ || stack ~ /G1|GC Thread|GCTask|VM_GC|gc/) s["GC threads"] += n
+    else if (thread ~ /CompilerThread/ || stack ~ /Compile|C2Compiler|C1/) s["JIT"] += n
     else if (thread != "") s["other: " thread] += n
     else s["other"] += n
   }

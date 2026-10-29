@@ -13,14 +13,20 @@ the JMH benchmarks (`src/jmh`) of other modules. For the modules these tests exe
 
 ## Benchmarks
 
-The classes in this module are the measurement tooling of the
+The classes in this module are the tooling of the
 [benchmark conventions](../docs/consensus-layer/benchmarks/README.md), which every JMH benchmark
-follows, `LatencyHistogramBenchmark` in `src/jmh` included.
+follows, `LatencyHistogramBenchmark` in `src/jmh` included:
+
+- `histogram` — records the latency of every measured call and reports its percentiles to JMH.
+- `event` — benchmark inputs. `EventStreamGenerator` generates independent events, hashed and
+  optionally signed by their creators, for the benchmarks that process one event at a time, and
+  receives them as a node receives them through gossip, hashed or not. `EventShape` sets their
+  number of other parents, transactions per event, and transaction sizes.
 
 ## Scripts
 
-Developer tools in [`scripts/`](scripts), run locally on a benchmark's profiles and logs. Each
-script's header gives its usage. The scripts that CI runs live in
+Developer tools in [`scripts/`](scripts), run locally on a benchmark's profiles and logs, or on
+production data. Each script's header gives its usage. The scripts that CI runs live in
 [`.github/workflows/support/scripts/benchmarks/`](../../.github/workflows/support/scripts/benchmarks).
 
 - `profile-regions.sh` — checks that a benchmark measures the code it is meant to measure: how
@@ -40,11 +46,15 @@ script's header gives its usage. The scripts that CI runs live in
   components, such as gossip, event intake, and consensus, from Java Flight Recorder recordings.
 - `sloth-stages.sh` — summarizes a [Sloth](../consensus-sloth) run: how long after its arrival an
   event passes each processing stage of a node, and how long the network takes to reach consensus.
+- `event-shapes.py` — counts the shape of every event in mainnet block streams (its other parents,
+  its transactions, and their sizes) and prints the frequency tables of `EventShape.MAINNET`, with
+  how they vary by hour and between weekdays and the weekend.
 
 ## Dependency Rules
 
 May depend on:
 - Any consensus-layer module except structural-transitional ones, including impl modules
+- The `base-*` modules
 
 Must not depend on:
 - Any structural-transitional module — those are on their way out of the consensus layer, and

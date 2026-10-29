@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.Assertions;
 
 public class HgcaaLogValidator {
@@ -91,13 +92,12 @@ public class HgcaaLogValidator {
                 List.of("Throttle multiplier for CryptoTransfer throughput congestion has no throttle buckets"),
                 // Although we do want a little more visibility for these messages, they shouldn't fail a CI run
                 List.of("Proof future for construction", "must wait until previous finished"),
-                List.of("Ignoring forced handoff to incomplete construction"),
                 List.of("Completing signing attempt"),
                 List.of("No pending blocks found"),
-                List.of("Forcing handoff to history construction", "with different target roster"),
-                List.of("Forcing handoff to construction", "with different target roster"),
                 // Guarded joint TSS handoff deliberately skips partial promotions until both services are ready
-                List.of("TssHandoffCoordinator", "Skipping forced TSS handoff because"),
+                List.of("TssHandoffCoordinator", "Skipping TSS handoff because"),
+                // hinTS store refuses a handoff whose next construction has no matching completed CRS and scheme yet
+                List.of("WritableHintsStoreImpl", "Ignoring handoff to construction"),
                 List.of("HintsSubmissions", "Failed to submit"),
                 List.of("Ignoring invalid partial signature"),
                 List.of("Action stack prematurely empty"),
@@ -109,22 +109,35 @@ public class HgcaaLogValidator {
                 // Not present on OS X
                 List.of("Native library besu blake2bf is not present"),
                 List.of("Restarted WRAPS signing"),
-                // Expected as part of WRAPS proving key verification tests
-                List.of("WRAPS proving key hash mismatch at"),
-                List.of("Failed to install WRAPS proving key archive"),
-                List.of("Failed to download WRAPS proving key"),
-                List.of("WRAPS proving key download failed"),
-                List.of("Downloaded WRAPS proving key hash mismatch"),
-                List.of("WRAPS proving key download did not complete"),
-                List.of("Failed to initiate async download of WRAPS proving key (from URL "),
-                List.of("WRAPS enabled but this node cannot build recursive proofs", "data/keys"),
                 // A WRAPS-extensible history proof is a single ~63MB savepoint batch, which trips
                 // the streamMode=BOTH block size circuit breaker (blockStream.maxBlockSizeBytes)
                 List.of("BlockStreamManagerImpl", "suppressing savepoint output for the rest of the block"),
                 List.of("QueryWorkflowImpl", "Unexpected ParseException while parsing protobuf"),
-                // HAPI networks run with CLPR enabled but without a CA, so CLPR sync runs without mTLS
-                List.of("ClprCaCertManager", "CLPR CA cert/key not configured"),
-                List.of("Timed out waiting for pending block proofs"));
+                // HAPI networks run with CLPR enabled but without a HAPI TLS cert, so CLPR sync runs plaintext
+                List.of("ClprHapiTlsEndpoint", "HAPI TLS cert/key not found"),
+                List.of("Timed out waiting for pending block proofs"),
+                // CLPR queries verify their own state proofs before returning them, which cannot succeed
+                // when a CLPR task runs with tss.forceMockSignatures=true
+                List.of("ClprGetLedgerConfigurationHandler", "TSS verification failed for ledgerId"),
+                List.of("ClprGetEndpointManifestHandler", "TSS verification failed for ledgerId"),
+                // Multi-network tests warm-start their networks from TSS fixtures in the startup network JSON
+                List.of("dev-only", "from startup network JSON"),
+                List.of("WRAPS enabled but this node cannot build recursive proofs", "TSS_LIB_WRAPS_ARTIFACTS_PATH=''"),
+                // When warm-started, the WRAPS artifacts dir mapped for cold bootstraps is never provisioned
+                List.of("WRAPS enabled but this node cannot build recursive proofs", "contents=<path does not exist>"),
+                // Multi-network tests restart CLPR peer networks and rotate their HAPI TLS ports, so syncs to a peer
+                // fail as UNAVAILABLE while it is unreachable; any other sync failure (e.g. TLS or protocol) is
+                // still a problem
+                List.of("ClprStreamingSynchronizer", "Streaming sync failed for channel", "with status UNAVAILABLE"),
+                List.of("ClprPeerSelector", "circuit breaker opened"),
+                // The server side of the same churn: a peer cancels its sync stream when it fails or restarts
+                List.of("ClprStreamingSyncMethod", "stream aborted by peer"));
+
+        /**
+         * The level of a log line: the first word after its timestamp and optional {@code <network-nN>} tag.
+         */
+        private static final Pattern LOG_LEVEL =
+                Pattern.compile("^\\d{4}-\\d{2}-\\d{2} [\\d:.]+ (?:<[^>]*> )?([A-Z]+)\\b");
 
         private int numProblems = 0;
         private int linesSinceInitialProblem = -1;
@@ -162,7 +175,9 @@ public class HgcaaLogValidator {
         }
 
         private boolean isInitialProblem(final String line) {
-            return line.contains(WARN) || line.contains(ERROR);
+            // Match the log level field, not any occurrence of the words (e.g. a CLPR status APPLICATION_ERROR)
+            final var matcher = LOG_LEVEL.matcher(line);
+            return matcher.find() && (WARN.equals(matcher.group(1)) || ERROR.equals(matcher.group(1)));
         }
 
         private boolean isPossiblyCatastrophicProblem(final String line) {

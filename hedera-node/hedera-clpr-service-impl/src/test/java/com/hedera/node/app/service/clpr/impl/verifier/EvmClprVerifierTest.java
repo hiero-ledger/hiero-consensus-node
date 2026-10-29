@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.verifier;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_SERVICE_ACCOUNT_ID;
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.DISPATCH_ONLY_NOOP_FEE_CHARGING;
+import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_DISPATCH;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -12,7 +14,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
+import com.esaulpaugh.headlong.abi.Function;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.esaulpaugh.headlong.abi.TupleType;
 import com.hedera.hapi.node.base.AccountID;
@@ -26,9 +30,12 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import java.math.BigInteger;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -144,6 +151,70 @@ class EvmClprVerifierTest {
 
         assertThat(content.metadata()).isNotNull();
         assertThat(content.metadata().endpointManifestVersion()).isEqualTo(9L);
+    }
+
+    @Test
+    void verifyBundleLocallyEncodesTheSameVerifierCallWithoutDispatch() {
+        final var bundlePayload = Bytes.wrap(new byte[33]);
+        final var trustAnchor = Bytes.fromHex("abcd");
+        final var channelContext = Bytes.wrap(new byte[52]);
+        final var expectedCall = Bytes.wrap(new Function("verifyBundle(bytes,bytes,bytes)", "()")
+                .encodeCall(
+                        Tuple.of(bundlePayload.toByteArray(), trustAnchor.toByteArray(), channelContext.toByteArray()))
+                .array());
+
+        final var content = subject.verifyBundleLocally(bundlePayload, trustAnchor, channelContext, callData -> {
+            assertThat(callData).isEqualTo(expectedCall);
+            return bundleWithManifestReturn(1L, 0L, SERVICE_ADDR, 9L);
+        });
+
+        assertThat(content.metadata().endpointManifestVersion()).isEqualTo(9L);
+        verifyNoInteractions(context, dispatchResult);
+    }
+
+    @Test
+    void verifyBundleLocallyDecodesTrustAnchorAndEndpointManifest() {
+        final var trustAnchor = Bytes.fromHex("aabbcc");
+        final var trustAnchorId = Bytes.fromHex("ddeeff");
+        final var endpoint = Tuple.of("127.0.0.1", 50211L, new byte[] {1, 2}, new byte[] {3, 4});
+        final var manifest = Tuple.of(BigInteger.valueOf(7L), SERVICE_ADDR, new Tuple[] {endpoint});
+        final var rawReturn = Bytes.wrap(BUNDLE_RETURN
+                .encode(Tuple.of(
+                        ClprVerifierAbi.absentMetadataTuple(),
+                        new byte[0][],
+                        trustAnchor.toByteArray(),
+                        trustAnchorId.toByteArray(),
+                        manifest))
+                .array());
+
+        final var content = subject.verifyBundleLocally(Bytes.EMPTY, Bytes.EMPTY, Bytes.EMPTY, ignored -> rawReturn);
+
+        assertThat(content.metadata()).isNull();
+        assertThat(content.newTrustAnchor()).isEqualTo(trustAnchor);
+        assertThat(content.newTrustAnchorId()).isEqualTo(trustAnchorId);
+        final var decodedManifest = content.newEndpointManifestOrThrow();
+        assertThat(decodedManifest.version()).isEqualTo(7L);
+        assertThat(decodedManifest.serviceAddress()).isEqualTo(Bytes.wrap(SERVICE_ADDR));
+        assertThat(decodedManifest.endpoints()).hasSize(1);
+        final var decodedEndpoint = decodedManifest.endpoints().getFirst();
+        assertThat(decodedEndpoint.serviceEndpointOrThrow().ipAddress()).isEqualTo("127.0.0.1");
+        assertThat(decodedEndpoint.serviceEndpointOrThrow().port()).isEqualTo(50211);
+        assertThat(decodedEndpoint.tlsCertificate()).isEqualTo(Bytes.fromHex("0102"));
+        assertThat(decodedEndpoint.accountId()).isEqualTo(Bytes.fromHex("0304"));
+        verifyNoInteractions(context, dispatchResult);
+    }
+
+    @ParameterizedTest
+    @MethodSource("invalidLocalEvmResults")
+    void verifyBundleLocallyRejectsMissingOrMalformedResults(final Bytes result) {
+        assertThatThrownBy(() -> subject.verifyBundleLocally(Bytes.EMPTY, Bytes.EMPTY, Bytes.EMPTY, ignored -> result))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(CLPR_BUNDLE_VERIFICATION_FAILED));
+        verifyNoInteractions(context, dispatchResult);
+    }
+
+    private static Stream<Bytes> invalidLocalEvmResults() {
+        return Stream.of(null, Bytes.EMPTY, Bytes.fromHex("ffff"));
     }
 
     // ---- helpers ----
