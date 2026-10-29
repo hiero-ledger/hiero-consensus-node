@@ -36,6 +36,10 @@ jobs:
           echo "GRADLE_USER_HOME=${GRADLE_USER_HOME:-<unset>} HOME=$HOME USERPROFILE=$USERPROFILE"
           echo "JAVA_HOME=$JAVA_HOME"
 
+      - name: Keep Gradle user home on the workspace drive
+        shell: bash
+        run: echo "GRADLE_USER_HOME=${RUNNER_TEMP%\\*}\\.gradle" >> "${GITHUB_ENV}"
+
       - name: Generate PBJ sources
         shell: bash
         run: ./gradlew :hapi:generatePbjSource --no-build-cache --stacktrace -I .github/workflows/support/pbj-debug.init.gradle
