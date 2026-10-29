@@ -113,9 +113,9 @@ public class ClprEndpointManifestConstructionEmbeddedTest {
                     assertThat(self.serviceEndpoint())
                             .as("self endpoint carries a service endpoint (IP + port)")
                             .isNotNull();
-                    // mTLS not configured in embedded ⇒ plaintext fallback: empty CA cert.
+                    // No HAPI TLS cert in embedded ⇒ plaintext fallback: empty certificate.
                     assertThat(self.tlsCertificate())
-                            .as("mTLS-off self endpoint advertises an empty certificate")
+                            .as("TLS-off self endpoint advertises an empty certificate")
                             .isEqualTo(Bytes.EMPTY);
                 }));
     }

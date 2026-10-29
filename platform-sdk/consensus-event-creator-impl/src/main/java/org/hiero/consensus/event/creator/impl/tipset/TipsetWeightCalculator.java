@@ -39,7 +39,7 @@ public class TipsetWeightCalculator {
     /**
      * Builds tipsets for each event. Is maintained outside this object.
      */
-    private final TipsetTracker tipsetTracker;
+    private final DefaultTipsetTracker tipsetTracker;
 
     /**
      * Tracks non-ancient events without children.
@@ -108,7 +108,7 @@ public class TipsetWeightCalculator {
             @NonNull final Time time,
             @NonNull final RosterWrapper roster,
             @NonNull final NodeId selfId,
-            @NonNull final TipsetTracker tipsetTracker,
+            @NonNull final DefaultTipsetTracker tipsetTracker,
             @NonNull final ChildlessEventTracker childlessEventTracker) {
 
         this.selfId = requireNonNull(selfId);

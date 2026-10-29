@@ -14,7 +14,6 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -96,9 +95,6 @@ class ClprStreamingSynchronizerTest {
     private ClprStateProofManager stateProofManager;
 
     @Mock
-    private ClprLeafCertManager leafCertManager;
-
-    @Mock
     private ClprEndpointClientCache clientCache;
 
     @Mock
@@ -127,11 +123,11 @@ class ClprStreamingSynchronizerTest {
                 .thenReturn(HederaTestConfigBuilder.createConfig().getConfigData(BlockStreamConfig.class));
         // Peer selection is covered by ClprPeerSelectorTest; here it just hands back the one peer.
         lenient().when(peerSelector.selectEndpoint(any(), any())).thenReturn(new SelectedPeer(PEER_ID, endpoint()));
-        lenient().when(clientCache.clientFor(any(), anyInt(), any(), any())).thenReturn(client);
+        lenient().when(clientCache.clientFor(any(), anyInt(), anyBoolean())).thenReturn(client);
         lenient().when(client.sync(any())).thenReturn(streamingCall);
         lenient().when(bundleSubmitter.submitBundle(any())).thenReturn(true);
         subject = new ClprStreamingSynchronizer(
-                configProvider, bundleSubmitter, stateProofManager, leafCertManager, clientCache, peerSelector);
+                configProvider, bundleSubmitter, stateProofManager, clientCache, peerSelector);
     }
 
     @Test
@@ -192,7 +188,6 @@ class ClprStreamingSynchronizerTest {
                     configProvider,
                     bundleSubmitter,
                     new ClprStateProofManager(snapshotProvider, tssVerifier, configProvider),
-                    leafCertManager,
                     clientCache,
                     peerSelector,
                     3);
@@ -360,18 +355,29 @@ class ClprStreamingSynchronizerTest {
     }
 
     @Test
-    @DisplayName(
-            "given mTLS is enabled and the peer has a certificate, then the stream is opened with our leaf credentials")
-    void givenMtlsWithPeerCertificate_thenStreamIsOpenedWithLeafCredentials() throws Exception {
+    @DisplayName("given the peer advertises a TLS certificate, then the stream is opened over TLS")
+    void givenPeerAdvertisesTlsCertificate_thenStreamIsOpenedOverTls() throws Exception {
         givenMessageQueueIsEmpty();
-        final var leafCredentials = mock(ClprLeafCredentials.class);
-        given(leafCertManager.isMtlsEnabled()).willReturn(true);
-        given(leafCertManager.leafCredentials()).willReturn(leafCredentials);
         givenPeerMessages(payload(request(0L), null));
 
         synchronize(channel(1L, 0L, 0L));
 
-        verify(clientCache).clientFor(PEER_HOST, PEER_PORT, endpoint().tlsCertificate(), leafCredentials);
+        verify(clientCache).clientFor(PEER_HOST, PEER_PORT, true);
+        verify(streamingCall).halfClose();
+    }
+
+    @Test
+    @DisplayName("given the peer advertises no TLS certificate, then the stream is opened in plaintext")
+    void givenPeerAdvertisesNoTlsCertificate_thenStreamIsOpenedInPlaintext() throws Exception {
+        givenMessageQueueIsEmpty();
+        givenPeerMessages(payload(request(0L), null));
+        final var plaintextEndpoint =
+                endpoint().copyBuilder().tlsCertificate(Bytes.EMPTY).build();
+        given(peerSelector.selectEndpoint(any(), any())).willReturn(new SelectedPeer(PEER_ID, plaintextEndpoint));
+
+        synchronize(channel(1L, 0L, 0L));
+
+        verify(clientCache).clientFor(PEER_HOST, PEER_PORT, false);
         verify(streamingCall).halfClose();
     }
 
@@ -410,6 +416,45 @@ class ClprStreamingSynchronizerTest {
     @Nested
     @DisplayName("failures")
     class Failures {
+
+        @Test
+        @DisplayName("given an opening reply for another channel, then no bundle is submitted and the stream ends")
+        void givenOpeningReplyForAnotherChannel_thenNothingIsSubmittedAndStreamEnds() throws Exception {
+            givenPeerMessages(payload(request(0L), INBOUND_BUNDLE)
+                    .copyBuilder()
+                    .channelId(Bytes.wrap(new byte[32]))
+                    .build());
+
+            synchronize(channel(6L, 0L, 0L));
+
+            verifyNoInteractions(bundleSubmitter, stateProofManager);
+            verify(streamingCall, times(1)).read();
+            verify(streamingCall, times(1)).write(any());
+            verify(streamingCall, never()).halfClose();
+            verify(streamingCall).close();
+            thenFailureIsRecorded();
+        }
+
+        @Test
+        @DisplayName("given a trailing reply for another channel, then its bundle is not submitted and draining ends")
+        void givenTrailingReplyForAnotherChannel_thenNothingIsSubmittedAndDrainingEnds() throws Exception {
+            givenMessageQueueIsEmpty();
+            givenPeerMessages(
+                    payload(request(0L), null),
+                    payload(null, INBOUND_BUNDLE)
+                            .copyBuilder()
+                            .channelId(Bytes.wrap(new byte[32]))
+                            .build(),
+                    payload(null, INBOUND_BUNDLE));
+
+            synchronize(channel(1L, 0L, 0L));
+
+            verifyNoInteractions(bundleSubmitter);
+            verify(streamingCall).halfClose();
+            verify(streamingCall, times(2)).read();
+            verify(streamingCall).close();
+            thenFailureIsRecorded();
+        }
 
         @Test
         @DisplayName("given a write fails, then the peer is penalized and the stream is released")
@@ -494,10 +539,10 @@ class ClprStreamingSynchronizerTest {
         }
 
         @Test
-        @DisplayName("given the mTLS client cannot be built, then the peer is penalized")
+        @DisplayName("given the TLS client cannot be built, then the peer is penalized")
         void givenClientCannotBeBuilt_thenPeerIsPenalized() {
-            given(clientCache.clientFor(any(), anyInt(), any(), any()))
-                    .willThrow(new ClientException("bad cert", new IllegalArgumentException()));
+            given(clientCache.clientFor(any(), anyInt(), anyBoolean()))
+                    .willThrow(new ClientException("bad TLS context", new IllegalArgumentException()));
 
             synchronize(channel(6L, 0L, 0L));
 
@@ -541,31 +586,11 @@ class ClprStreamingSynchronizerTest {
             verifyNoInteractions(clientCache, stateProofManager, bundleSubmitter);
             thenNoOutcomeIsRecorded();
         }
-
-        @Test
-        @DisplayName("given mTLS is enabled and the peer has no certificate, then no stream is opened")
-        void givenMtlsWithoutPeerCertificate_thenNoStreamIsOpened() {
-            given(leafCertManager.isMtlsEnabled()).willReturn(true);
-            final var endpoint =
-                    endpoint().copyBuilder().tlsCertificate(Bytes.EMPTY).build();
-            given(peerSelector.selectEndpoint(any(), any())).willReturn(new SelectedPeer(PEER_ID, endpoint));
-
-            synchronize(channel(6L, 0L, 0L));
-
-            verifyNoInteractions(clientCache, stateProofManager, bundleSubmitter);
-            thenNoOutcomeIsRecorded();
-        }
     }
 
     private ClprStreamingSynchronizer newSubject(final int maxBundlesPerCycle) {
         return new ClprStreamingSynchronizer(
-                configProvider,
-                bundleSubmitter,
-                stateProofManager,
-                leafCertManager,
-                clientCache,
-                peerSelector,
-                maxBundlesPerCycle);
+                configProvider, bundleSubmitter, stateProofManager, clientCache, peerSelector, maxBundlesPerCycle);
     }
 
     private void synchronize(final ClprChannel channel) {

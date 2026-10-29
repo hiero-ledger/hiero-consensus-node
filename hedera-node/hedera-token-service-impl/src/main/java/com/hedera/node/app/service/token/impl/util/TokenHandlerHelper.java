@@ -323,7 +323,7 @@ public class TokenHandlerHelper {
     }
 
     /**
-     * Returns the token relation if it exists and is usable.
+     * Verifies that the given key is not an empty key.
      * @param key the key to check
      * @param responseCode the response code to throw if the key is empty
      * @throws PreCheckException if the key is empty

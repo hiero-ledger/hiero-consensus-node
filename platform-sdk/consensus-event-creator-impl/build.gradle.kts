@@ -3,15 +3,23 @@ plugins {
     id("org.hiero.gradle.module.library")
     id("org.hiero.gradle.feature.publish-artifactregistry")
     id("org.hiero.gradle.feature.benchmark")
+    id("org.hiero.gradle.feature.benchmark-tracking")
 }
 
 jmhModuleInfo {
     requires("com.swirlds.config.extensions.test.fixtures")
+    requires("org.hiero.consensus.benchmark.tools")
     requires("org.hiero.consensus.event.creator")
     requires("org.hiero.consensus.event.creator.impl")
     requires("org.hiero.consensus.fakes")
     requires("org.hiero.consensus.model.test.fixtures")
+    requires("org.hiero.consensus.utility")
     requires("jmh.core")
+}
+
+jmh {
+    // the benchmarks that are tracked; -PjmhTests=<pattern> runs others instead
+    includes.convention(listOf("EventSigningBenchmark"))
 }
 
 description = "Default Consensus Event Creator Implementation"

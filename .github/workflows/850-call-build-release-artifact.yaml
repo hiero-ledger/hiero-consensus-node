@@ -60,31 +60,30 @@ on:
         required: false
         default: "wrapper"
 
+    # Every version policy reads the required secrets. The optional ones are
+    # read only by the `specified` (release) policy, so a branch-commit caller
+    # such as 307 need not hold them.
     secrets:
       access-token:
         required: true
       bucket-name:
         required: true
       cdn-bucket-name:
-        required: true
+        required: false
+        description: "Release only: the CDN bucket the release artifacts are copied to."
       central-publishing-username:
-        required: true
+        required: false
+        description: "Release only: Maven Central (Central Portal) publishing."
       central-publishing-password:
-        required: true
-      svcs-gpg-key-contents:
-        required: true
-      svcs-gpg-key-passphrase:
-        required: true
-      sdk-ossrh-username:
-        required: true
-      sdk-ossrh-password:
-        required: true
+        required: false
+        description: "Release only: Maven Central (Central Portal) publishing."
       sdk-gpg-key-contents:
         required: true
       sdk-gpg-key-passphrase:
         required: true
       slack-webhook-url:
-        required: true
+        required: false
+        description: "Release only: the release notification webhook."
       jf-url:
         required: true
       jf-user-name:

@@ -51,7 +51,7 @@ public class TipsetEventCreator implements EventCreator {
     private final SecureRandom random;
     private final BytesSigner signer;
     private final NodeId selfId;
-    private final TipsetTracker tipsetTracker;
+    private final DefaultTipsetTracker tipsetTracker;
     private final TipsetWeightCalculator tipsetWeightCalculator;
     private final ChildlessEventTracker childlessOtherEventTracker;
     private final EventTransactionSupplier transactionSupplier;
@@ -138,7 +138,7 @@ public class TipsetEventCreator implements EventCreator {
 
         antiSelfishnessFactor = Math.max(1.0, eventCreationConfig.antiSelfishnessFactor());
         tipsetMetrics = new TipsetMetrics(configuration, metrics, time, roster);
-        tipsetTracker = new TipsetTracker(time, selfId, roster);
+        tipsetTracker = new DefaultTipsetTracker(time, selfId, roster);
         childlessOtherEventTracker = new ChildlessEventTracker();
         tipsetWeightCalculator = new TipsetWeightCalculator(
                 configuration, time, roster, selfId, tipsetTracker, childlessOtherEventTracker);

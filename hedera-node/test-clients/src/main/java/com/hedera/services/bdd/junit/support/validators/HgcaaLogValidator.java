@@ -95,6 +95,8 @@ public class HgcaaLogValidator {
                 List.of("No pending blocks found"),
                 // Guarded joint TSS handoff deliberately skips partial promotions until both services are ready
                 List.of("TssHandoffCoordinator", "Skipping TSS handoff because"),
+                // hinTS store refuses a handoff whose next construction has no matching completed CRS and scheme yet
+                List.of("WritableHintsStoreImpl", "Ignoring handoff to construction"),
                 List.of("HintsSubmissions", "Failed to submit"),
                 List.of("Ignoring invalid partial signature"),
                 List.of("Action stack prematurely empty"),
@@ -110,8 +112,8 @@ public class HgcaaLogValidator {
                 // the streamMode=BOTH block size circuit breaker (blockStream.maxBlockSizeBytes)
                 List.of("BlockStreamManagerImpl", "suppressing savepoint output for the rest of the block"),
                 List.of("QueryWorkflowImpl", "Unexpected ParseException while parsing protobuf"),
-                // HAPI networks run with CLPR enabled but without a CA, so CLPR sync runs without mTLS
-                List.of("ClprCaCertManager", "CLPR CA cert/key not configured"),
+                // HAPI networks run with CLPR enabled but without a HAPI TLS cert, so CLPR sync runs plaintext
+                List.of("ClprHapiTlsEndpoint", "HAPI TLS cert/key not found"),
                 List.of("Timed out waiting for pending block proofs"));
 
         private int numProblems = 0;
