@@ -132,7 +132,11 @@ public class ImmediateStateChangeListener implements StateChangeListener {
         Objects.requireNonNull(value, "value must not be null");
         final boolean identical = logicallyIdenticalMapping != null && logicallyIdenticalMapping.test(key);
 
-        final var change = new MapUpdateChange(mapChangeKeyFor(key), mapChangeValueFor(value), identical);
+        final var change = MapUpdateChange.newBuilder()
+                .key(mapChangeKeyFor(key))
+                .value(mapChangeValueFor(value))
+                .identical(identical)
+                .build();
         final var stateChange =
                 StateChange.newBuilder().stateId(stateId).mapUpdate(change).build();
         kvStateChanges.add(stateChange);
