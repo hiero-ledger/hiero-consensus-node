@@ -18,7 +18,7 @@ import com.swirlds.virtualmap.test.fixtures.datasource.InMemoryDataSource;
 import java.nio.ByteBuffer;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -159,13 +159,13 @@ public class ReconnectHashLeafFlusherTest {
     }
 
     private static Hash hash(final int h) {
-        final int len = DigestType.SHA_384.digestLength();
+        final int len = Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
         final byte[] bytes = new byte[len];
         final ByteBuffer buf = ByteBuffer.wrap(bytes);
         for (int i = 0; i < len; i += Integer.BYTES) { // assuming len % Integer.BYTES == 0
             buf.putInt(h);
         }
-        return new Hash(bytes);
+        return new Hash(bytes, Cryptography.DEFAULT_DIGEST_TYPE);
     }
 
     private static VirtualLeafBytes leaf(final int path, final int k, final int v) {

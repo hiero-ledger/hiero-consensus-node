@@ -67,6 +67,7 @@ public class RepeatableDeletedStakeeIndirectStakerBatchTest {
         // the child builders' deleted-account beneficiaries onto the parent record builder before paying, so the
         // batch succeeds and the reward is redirected exactly once.
         return hapiTest(
+                waitUntilStartOfNextStakingPeriod(1),
                 newKeyNamed("batchKey"),
                 cryptoCreate("batchOperator").key("batchKey").balance(ONE_HUNDRED_HBARS),
 

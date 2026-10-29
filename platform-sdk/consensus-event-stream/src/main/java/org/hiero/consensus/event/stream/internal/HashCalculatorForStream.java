@@ -8,6 +8,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.CryptographyProvider;
+import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.RunningHashable;
 import org.hiero.base.crypto.SerializableHashable;
 import org.hiero.consensus.event.stream.AbstractLinkedObjectStream;
@@ -41,7 +42,7 @@ public class HashCalculatorForStream<T extends RunningHashable & SerializableHas
     public void addObject(T t) {
         // calculate and set Hash for this object
         if (Objects.requireNonNull(t).getHash() == null) {
-            CRYPTOGRAPHY.digestSync(t);
+            CRYPTOGRAPHY.digestSync(t, DigestType.SHA_384);
         }
         super.addObject(t);
     }

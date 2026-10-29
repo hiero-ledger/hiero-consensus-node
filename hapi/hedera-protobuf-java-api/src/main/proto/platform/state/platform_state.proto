@@ -74,6 +74,20 @@ message PlatformState {
      */
     uint64 latest_freeze_round = 6;
 
+    /**
+     * The minimum birth round of events after the latest event cutover. This
+     * value can be reused for different event cutover events such as hashing
+     * changes or structural changes.
+     * <p>
+     * In rounds produced by a software version that performed a cutover, this
+     * value will be non-zero and represent the lowest event birth round in the
+     * post-cutover epoch.
+     * <p>
+     * In rounds produced by a software version that do not perform a cutover,
+     * this value will be zero.
+     */
+    uint64 eventCutoverMinBirthRound = 7;
+
     // Fields below are to be deprecated in the foreseeable future.
 
     /**

@@ -27,6 +27,21 @@ on:
         type: string
         required: false
         default: "false"
+      include-wraps-download:
+        description: "Also run hapiTestWrapsDownload (the regular XTS run keeps it in 846)"
+        type: boolean
+        required: false
+        default: false
+      hapi-test-config-profile:
+        description: "Node config profile for the HAPI tasks (e.g. testnet); blank keeps the production defaults"
+        required: false
+        type: string
+        default: ""
+      name-suffix:
+        description: "Suffix for the job, check and artifact names (keeps reruns apart from the regular run)"
+        required: false
+        type: string
+        default: ""
     secrets:
       access-token:
         description: "The GitHub access token used to checkout the repository, submodules, and make GitHub API calls."
@@ -59,10 +74,11 @@ env:
   GRADLE_CACHE_PASSWORD: ${{ secrets.gradle-cache-password }}
   GRADLE_EXEC: ionice -c 2 -n 2 nice -n 19 ./gradlew
   CG_EXEC: ionice -c 2 -n 2 nice -n 19
+  HAPI_TEST_CONFIG_PROFILE: ${{ inputs.hapi-test-config-profile }}
 
 jobs:
   hapi-tests-wraps:
-    name: "HAPI Tests (Wraps)"
+    name: "HAPI Tests (Wraps)${{ inputs.name-suffix }}"
     # Dedicated runner pool with the WRAPS proving-key artifacts mounted at
     # /opt/wraps-v1.0.0 (see hedera-node/infrastructure/docker/containers/production-next/wraps-proving-key)
     runs-on: hl-cn-hapi-wraps-lin-lg
@@ -96,12 +112,31 @@ jobs:
           TSS_LIB_WRAPS_ARTIFACTS_PATH: /opt/wraps-v1.0.0
           # Cap each node JVM's share of the heap pool (4 GiB x 3 nodes) on the shared pod
           HAPI_TEST_NODE_POOL_MIB: "12288"
-        run: ${GRADLE_EXEC} hapiTestWraps --no-daemon
+          INCLUDE_WRAPS_DOWNLOAD: ${{ inputs.include-wraps-download }}
+        run: |
+          status=0
+          run_subtask() {
+            local t=$1
+            echo "::group::${t}"
+            if ${GRADLE_EXEC} "${t}" --no-daemon; then
+              echo "::endgroup::"
+              return 0
+            fi
+            echo "::endgroup::"
+            status=1
+            echo "::error::${t} failed"
+            echo "❌ ${t} FAILED — expand group above for details"
+          }
+          run_subtask hapiTestWraps
+          if [[ "${INCLUDE_WRAPS_DOWNLOAD}" == "true" ]]; then
+            run_subtask hapiTestWrapsDownload
+          fi
+          exit "${status}"
 
       - name: Publish HAPI Test (Wraps) Reports
         uses: step-security/publish-unit-test-result-action@681100d67b09305624c089873f12c545ee7cbc24 # v2.23.0
         with:
-          check_name: "Node: HAPI Test (Wraps) Results"
+          check_name: "Node: HAPI Test (Wraps)${{ inputs.name-suffix }} Results"
           json_thousands_separator: ","
           junit_files: |
             **/test-clients/build/test-results/**/TEST-*.xml
@@ -110,7 +145,7 @@ jobs:
       - name: Upload HAPI Test (Wraps) Report Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: HAPI Test (Wraps) Reports
+          name: "HAPI Test (Wraps)${{ inputs.name-suffix }} Reports"
           path: |
             **/test-clients/build/test-results/**/TEST-*.xml
           retention-days: 7
@@ -119,7 +154,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ !cancelled() && inputs.enable-network-log-capture && steps.gradle-hapi-wraps.conclusion == 'failure' }}
         with:
-          name: HAPI Test (Wraps) Network Logs
+          name: "HAPI Test (Wraps)${{ inputs.name-suffix }} Network Logs"
           path: |
             hedera-node/test-clients/build/*-test/**/output/**
             hedera-node/test-clients/build/*-test/*.log
@@ -130,7 +165,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ !cancelled() && steps.gradle-hapi-wraps.conclusion == 'failure' }}
         with:
-          name: HAPI Test (Wraps) Failure Artifacts
+          name: "HAPI Test (Wraps)${{ inputs.name-suffix }} Failure Artifacts"
           path: |
             hedera-node/test-clients/build/**/*.blk.gz
             hedera-node/test-clients/build/**/*.rcd.gz

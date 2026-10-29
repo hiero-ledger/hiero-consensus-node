@@ -51,7 +51,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CONTRA
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_EXPIRATION_TIME;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_MAX_AUTO_ASSOCIATIONS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_STAKING_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ZERO_BYTE_IN_STRING;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REQUESTED_NUM_AUTOMATIC_ASSOCIATIONS_EXCEEDS_ASSOCIATION_LIMIT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -159,40 +158,6 @@ public class CryptoUpdateSuite {
                 cryptoUpdate(ACCOUNT_PARKER).maxAutomaticAssociations(1),
                 getAccountInfo(ACCOUNT_PARKER).hasMaxAutomaticAssociations(1),
                 getTxnRecord("tokenCreate").hasNewTokenAssociation(TOKEN_FUNGIBLE, ACCOUNT_ALICE));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> updateStakingFieldsWorks() {
-        final var stakedAccountId = 20;
-        return hapiTest(
-                newKeyNamed(ADMIN_KEY),
-                cryptoCreate("user").key(ADMIN_KEY).stakedAccountId(20).declinedReward(true),
-                getAccountInfo("user")
-                        .has(accountWith()
-                                .stakedAccountId(stakedAccountId)
-                                .noStakingNodeId()
-                                .isDeclinedReward(true)),
-                cryptoUpdate("user").newStakedNodeId(0L).newDeclinedReward(false),
-                getAccountInfo("user")
-                        .has(accountWith().noStakedAccountId().stakedNodeId(0L).isDeclinedReward(false)),
-                cryptoUpdate("user").newStakedNodeId(-1L),
-                cryptoUpdate("user").newStakedNodeId(-25L).hasKnownStatus(INVALID_STAKING_ID),
-                getAccountInfo("user")
-                        .has(accountWith().noStakedAccountId().noStakingNodeId().isDeclinedReward(false)),
-                cryptoUpdate("user").key(ADMIN_KEY).newStakedAccountId("20").newDeclinedReward(true),
-                getAccountInfo("user")
-                        .has(accountWith()
-                                .stakedAccountId(stakedAccountId)
-                                .noStakingNodeId()
-                                .isDeclinedReward(true))
-                        .logged(),
-                cryptoUpdate("user").key(ADMIN_KEY).newStakedAccountId("0.0.0"),
-                getAccountInfo("user")
-                        .has(accountWith().noStakedAccountId().noStakingNodeId().isDeclinedReward(true))
-                        .logged(),
-                // For completeness stake back to a node
-                cryptoUpdate("user").key(ADMIN_KEY).newStakedNodeId(1),
-                getAccountInfo("user").has(accountWith().stakedNodeId(1L).isDeclinedReward(true)));
     }
 
     @LeakyEmbeddedHapiTest(

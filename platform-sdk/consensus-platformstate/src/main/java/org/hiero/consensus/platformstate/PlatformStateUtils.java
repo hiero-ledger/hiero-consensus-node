@@ -226,11 +226,33 @@ public final class PlatformStateUtils {
 
     /**
      * Returns the last freeze round of the state.
+     *
      * @param state the state to extract the last freeze round from
      * @return the last freeze round
      */
     public static long latestFreezeRoundOf(@NonNull final State state) {
         return readablePlatformStateStore(state).getLatestFreezeRound();
+    }
+
+    /**
+     * Given a {@link State}, returns the event cutover minimum birth round if it exists.
+     *
+     * @param state the state to extract the event cutover minimum birth round from
+     * @return the event cutover minimum birth round
+     */
+    public static long eventCutoverMinBirthRoundOf(@NonNull final State state) {
+        return readablePlatformStateStore(state).getEventCutoverMinBirthRound();
+    }
+
+    /**
+     * Update the event cutover minimum birth round of the state.
+     *
+     * @param state                     the state to update
+     * @param eventCutoverMinBirthRound the new event cutover minimum birth round
+     */
+    public static void updateEventCutoverMinBirthRound(
+            @NonNull final State state, final long eventCutoverMinBirthRound) {
+        getWritablePlatformStateOf(state).setEventCutoverMinBirthRound(eventCutoverMinBirthRound);
     }
 
     /**

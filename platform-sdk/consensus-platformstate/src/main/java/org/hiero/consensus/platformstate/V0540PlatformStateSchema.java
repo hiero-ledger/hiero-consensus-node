@@ -29,7 +29,7 @@ public class V0540PlatformStateSchema extends Schema<SemanticVersion> {
      * is encountered before initializing the States API.
      */
     public static final PlatformState UNINITIALIZED_PLATFORM_STATE =
-            new PlatformState(null, 0, ConsensusSnapshot.DEFAULT, null, null, 0L, Bytes.EMPTY);
+            new PlatformState(null, 0, ConsensusSnapshot.DEFAULT, null, null, 0L, 0L, Bytes.EMPTY);
 
     private static final SemanticVersion VERSION =
             SemanticVersion.newBuilder().major(0).minor(54).patch(0).build();

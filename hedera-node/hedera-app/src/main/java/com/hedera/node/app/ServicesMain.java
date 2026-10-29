@@ -245,7 +245,8 @@ public class ServicesMain {
                 hederaConfig.getConfigData(BlockStreamConfig.class).streamMode(),
                 blockRecordConfig,
                 jumpstartConfig,
-                migrationAlreadyApplied);
+                migrationAlreadyApplied,
+                hederaConfig.getConfigData(BlockStreamConfig.class).digestType());
         if (isUpgrade) {
             migration.truncateHashesFileOnUpgrade(blockRecordConfig, jumpstartConfig);
         }

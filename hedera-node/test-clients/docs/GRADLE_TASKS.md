@@ -38,9 +38,12 @@ sibling tasks can run in parallel without clashing.
 | `hapiTestCutover`                | `CUTOVER`                                     | `testSubprocess`           | default               |
 | `hapiTestTimeConsuming`          | `LONG_RUNNING`                                | `testSubprocessConcurrent` | default               |
 | `hapiTestTimeConsumingSerial`    | `(LONG_RUNNING&SERIAL)`                       | `testSubprocess`           | default               |
+| `hapiTestNodeStaking`            | `(NODE_STAKING)&!(SERIAL)`                    | `testSubprocess`           | 3                     |
+| `hapiTestNodeStakingSerial`      | `(NODE_STAKING&SERIAL)`                       | `testSubprocess`           | default               |
 | `hapiTestIss`                    | `ISS`                                         | `testSubprocess`           | default               |
 | `hapiTestBlockNodeCommunication` | `BLOCK_NODE`                                  | `testSubprocess`           | default               |
 | `hapiTestMisc`                   | everything outside the area tags (see source) | `testSubprocessConcurrent` | default               |
+| `hapiTestGenesisSubProcess`      | `GENESIS_SUBPROCESS`                          | `testSubprocess`           | default               |
 | `hapiTestMiscSerial`             | `<miscTags>&SERIAL`                           | `testSubprocess`           | default               |
 | `hapiTestMiscRecords`            | misc + records mode                           | `testSubprocessConcurrent` | default               |
 | `hapiTestMiscRecordsSerial`      | misc + records mode + SERIAL                  | `testSubprocess`           | default               |
@@ -90,6 +93,34 @@ Each task that needs to ship configuration changes adds them to a comma-separate
   path.
 
 See `build.gradle.kts` for the full table.
+
+`preCutoverDefaultsOverrides` holds the pins a task needs only while the production block stream and TSS
+defaults are pre-cutover (e.g. `tss.forceMockSignatures=false` for `hapiTestCrypto`); it goes away once
+those defaults switch to the cutover values.
+
+### Testnet configuration profile
+
+`-PhapiTestConfigProfile=testnet` (or `HAPI_TEST_CONFIG_PROFILE=testnet`) runs the HAPI tasks with the cutover
+block stream and TSS values planned for testnet (`cutoverConfigValues` in `build.gradle.kts`) instead of the
+production defaults:
+
+- each task's `prCheckPropOverrides` still win (e.g. the `writerMode=FILE` pins that keep `hapiTestRestart`
+  and `hapiTestIss` off the block node), and `preCutoverDefaultsOverrides` are skipped;
+- a real block node is started for the gRPC writer;
+- embedded and repeatable tasks keep the `FILE` writer and mock signatures;
+- `hapiTestGenesisSubProcess`, `hapiTestClpr` and `hapiTestClprMultinetwork` keep the `FILE` writer (genesis and
+  multi-network nets get no block node);
+- `hapiTestMiscRecords*`, `hapiTestCutover` and `hapiTestBlockNodeCommunication` ignore it.
+
+Stream assertions follow the effective stream mode: with no record stream (`BLOCKS`), record-stream checks read
+the block stream instead.
+
+XTS reruns the MATS HAPI panels, `hapiTestWraps` and `hapiTestWrapsDownload` this way
+(`829-call-execute-xts-hapi-testnet.yaml`).
+
+```bash
+./gradlew :test-clients:hapiTestCrypto -PhapiTestConfigProfile=testnet
+```
 
 ## Platform overrides (`prCheckPlatformOverrides`)
 

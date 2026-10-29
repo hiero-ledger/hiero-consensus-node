@@ -132,7 +132,17 @@ public final class Randotron extends Random {
      */
     @NonNull
     public Hash nextHash() {
-        return new Hash(nextByteArray(DigestType.SHA_384.digestLength()), DigestType.SHA_384);
+        return nextHash(DigestType.SHA_384);
+    }
+    /**
+     *
+     * Generates a random hash
+     *
+     * @return a random hash
+     */
+    @NonNull
+    public Hash nextHash(@NonNull final DigestType digestType) {
+        return new Hash(nextByteArray(digestType.digestLength()), digestType);
     }
 
     /**

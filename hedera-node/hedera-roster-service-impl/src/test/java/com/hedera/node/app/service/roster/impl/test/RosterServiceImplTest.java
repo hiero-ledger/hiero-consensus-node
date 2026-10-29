@@ -6,6 +6,7 @@ import com.hedera.node.app.service.roster.RosterService;
 import com.hedera.node.app.service.roster.RosterTransplantSchema;
 import com.hedera.node.app.service.roster.impl.RosterServiceImpl;
 import com.hedera.node.app.service.roster.impl.schemas.V0540RosterSchema;
+import com.hedera.node.app.service.roster.impl.schemas.V0790RosterSchema;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.Schema;
@@ -55,11 +56,12 @@ class RosterServiceImplTest {
 
         rosterService.registerSchemas(schemaRegistry);
         final var captor = ArgumentCaptor.forClass(Schema.class);
-        Mockito.verify(schemaRegistry).register(captor.capture());
+        Mockito.verify(schemaRegistry, Mockito.times(2)).register(captor.capture());
         final var schemas = captor.getAllValues();
-        Assertions.assertThat(schemas).hasSize(1);
+        Assertions.assertThat(schemas).hasSize(2);
         Assertions.assertThat(schemas.getFirst()).isInstanceOf(V0540RosterSchema.class);
         Assertions.assertThat(schemas.getFirst()).isInstanceOf(RosterTransplantSchema.class);
+        Assertions.assertThat(schemas.get(1)).isInstanceOf(V0790RosterSchema.class);
     }
 
     @Test

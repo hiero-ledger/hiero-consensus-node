@@ -7,6 +7,7 @@ import com.hedera.hapi.block.stream.MerklePath;
 import com.hedera.hapi.block.stream.SiblingNode;
 import com.hedera.hapi.block.stream.StateProof;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.security.MessageDigest;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -19,13 +20,14 @@ import org.apache.logging.log4j.Logger;
 /**
  * Utility class for validating {@link StateProof} messages.
  *
- * <p>Provides Merkle-path reconstruction helpers — {@link #computeBlockRootHash(StateProof)},
- * {@link #computeBlockRootHashFromPath(MerklePath)}, and {@link #verifyPath(MerklePath, byte[])} —
- * that callers combine with a {@link TssVerifier} (e.g. {@link NativeTssVerifier}) to perform the
- * BLS aggregate signature check against the peer ledger's verification key.
+ * <p>Provides Merkle-path reconstruction helpers — {@link #computeBlockRootHash(StateProof, MessageDigest)},
+ * {@link #computeBlockRootHashFromPath(MerklePath, MessageDigest)}, and
+ * {@link #verifyPath(MerklePath, byte[], MessageDigest)} — that callers combine with a {@link TssVerifier}
+ * (e.g. {@link NativeTssVerifier}) to perform the BLS aggregate signature check against the peer ledger's
+ * verification key.
  *
- * <p>{@link #verifyPath(MerklePath, byte[])} performs Merkle reconstruction only and only accepts
- * {@code stateItemLeaf} paths (the only leaf type CLPR produces).
+ * <p>{@link #verifyPath(MerklePath, byte[], MessageDigest)} performs Merkle reconstruction only and only
+ * accepts {@code stateItemLeaf} paths (the only leaf type CLPR produces).
  */
 public final class StateProofVerifier {
 
@@ -44,14 +46,17 @@ public final class StateProofVerifier {
      * hash to hand off to an external TSS verifier.
      *
      * @param stateProof the state proof to compute the root hash of
+     * @param digest the digest instance to hash with
      * @return the computed block root hash
-     * @throws NullPointerException  if {@code stateProof} is null
+     * @throws NullPointerException  if {@code stateProof} or {@code digest} is null
      * @throws IllegalStateException if the paths are structurally invalid
      */
     @NonNull
-    public static byte[] computeBlockRootHash(@NonNull final StateProof stateProof) {
+    public static byte[] computeBlockRootHash(
+            @NonNull final StateProof stateProof, @NonNull final MessageDigest digest) {
         requireNonNull(stateProof, "stateProof must not be null");
-        final var rootHash = computeRootHash(stateProof.paths());
+        requireNonNull(digest, "digest must not be null");
+        final var rootHash = computeRootHash(stateProof.paths(), digest);
         log.info(
                 "StateProofVerifier.computeBlockRootHash PASS paths={} rootHash={}",
                 stateProof.paths().size(),
@@ -64,22 +69,26 @@ public final class StateProofVerifier {
      * {@link MerklePath} — the form used by CLPR bundle paths, where each path independently
      * authenticates to the block root and has {@code nextPathIndex = -1}.
      *
-     * <p>Unlike {@link #computeBlockRootHash(StateProof)} (which expects a single connected
+     * <p>Unlike {@link #computeBlockRootHash(StateProof, MessageDigest)} (which expects a single connected
      * proof tree), this works on one independent path; callers should subsequently verify the
-     * remaining bundle paths against the returned hash via {@link #verifyPath(MerklePath, byte[])}.
+     * remaining bundle paths against the returned hash via
+     * {@link #verifyPath(MerklePath, byte[], MessageDigest)}.
      *
      * @param path the merkle path to compute the block root hash from
+     * @param digest the digest instance to hash with
      * @return the computed block root hash
-     * @throws NullPointerException  if {@code path} is null
+     * @throws NullPointerException  if {@code path} or {@code digest} is null
      * @throws IllegalStateException if the path has no leaf or explicit hash
      */
     @NonNull
-    public static byte[] computeBlockRootHashFromPath(@NonNull final MerklePath path) {
+    public static byte[] computeBlockRootHashFromPath(
+            @NonNull final MerklePath path, @NonNull final MessageDigest digest) {
         requireNonNull(path, "path must not be null");
+        requireNonNull(digest, "digest must not be null");
         if (!hasBaseHash(path)) {
             throw new IllegalStateException("MerklePath has no leaf or explicit hash");
         }
-        final var rootHash = computeBasePathHash(path);
+        final var rootHash = computeBasePathHash(path, digest);
         log.debug(
                 "StateProofVerifier.computeBlockRootHashFromPath PASS siblings={} nextPathIndex={} rootHash={}",
                 path.siblings().size(),
@@ -92,27 +101,33 @@ public final class StateProofVerifier {
      * Verifies a single independent {@link MerklePath} against an expected block-root hash.
      *
      * <p>Use this for CLPR bundle paths, which are each fully self-contained leaf-to-block-root
-     * paths with {@code nextPathIndex = -1}. Passing them to {@link #computeBlockRootHash(StateProof)}
-     * would fail because the stack-based reconstruction requires a single root entry; N independent
-     * paths leave N entries on the stack and throw {@link IllegalStateException}.
+     * paths with {@code nextPathIndex = -1}. Passing them to
+     * {@link #computeBlockRootHash(StateProof, MessageDigest)} would fail because the stack-based
+     * reconstruction requires a single root entry; N independent paths leave N entries on the stack
+     * and throw {@link IllegalStateException}.
      *
      * <p>The leaf hash is computed via {@link HashUtils#computeVirtualMapStateLeafHash} —
      * CLPR state proofs contain only {@code stateItemLeaf} paths from VirtualMap.
      *
      * @param path the merkle path to verify (must have a leaf or explicit hash)
      * @param expectedBlockRootHash the expected block root hash to compare against
+     * @param digest the digest instance to hash with
      * @return {@code true} if the path correctly authenticates to {@code expectedBlockRootHash}
      */
-    public static boolean verifyPath(@NonNull final MerklePath path, @NonNull final byte[] expectedBlockRootHash) {
+    public static boolean verifyPath(
+            @NonNull final MerklePath path,
+            @NonNull final byte[] expectedBlockRootHash,
+            @NonNull final MessageDigest digest) {
         requireNonNull(path, "path must not be null");
         requireNonNull(expectedBlockRootHash, "expectedBlockRootHash must not be null");
+        requireNonNull(digest, "digest must not be null");
         if (!hasBaseHash(path)) {
             log.debug("verifyPath: path has no base hash (no leaf and no explicit hash)");
             return false;
         }
         final byte[] computed;
         try {
-            computed = computeBasePathHash(path);
+            computed = computeBasePathHash(path, digest);
         } catch (final IllegalStateException e) {
             // Defensive: hasBaseHash currently admits leaf types that computeLeafHash does not yet
             // support (blockItemLeaf, timestampLeaf), which would otherwise propagate as an
@@ -168,7 +183,7 @@ public final class StateProofVerifier {
      * @throws IllegalStateException if the path structure violates invariants
      */
     @NonNull
-    private static byte[] computeRootHash(@NonNull final List<MerklePath> paths) {
+    private static byte[] computeRootHash(@NonNull final List<MerklePath> paths, @NonNull final MessageDigest digest) {
         requireNonNull(paths, "paths must not be null");
 
         if (paths.isEmpty()) {
@@ -182,7 +197,7 @@ public final class StateProofVerifier {
 
             if (hasBaseHash(path)) {
                 // Base path: compute hash and push to stack
-                final byte[] basePathHash = computeBasePathHash(path);
+                final byte[] basePathHash = computeBasePathHash(path, digest);
                 stack.push(new HashIndexPair(basePathHash, path.nextPathIndex()));
             } else {
                 // Internal path: must have child hashes on stack
@@ -200,7 +215,7 @@ public final class StateProofVerifier {
                 Collections.reverse(childHashes);
 
                 // Compute this path's hash and push to stack
-                final byte[] pathHash = computeInternalPathHash(path, childHashes);
+                final byte[] pathHash = computeInternalPathHash(path, childHashes, digest);
                 stack.push(new HashIndexPair(pathHash, path.nextPathIndex()));
             }
         }
@@ -227,9 +242,9 @@ public final class StateProofVerifier {
      * @return the computed hash reaching the path's endpoint
      */
     @NonNull
-    private static byte[] computeBasePathHash(@NonNull final MerklePath path) {
-        final byte[] baseHash = path.hasHash() ? path.hash().toByteArray() : computeLeafHash(path);
-        return computeRootOfSiblings(path.siblings(), baseHash);
+    private static byte[] computeBasePathHash(@NonNull final MerklePath path, @NonNull final MessageDigest digest) {
+        final byte[] baseHash = path.hasHash() ? path.hash().toByteArray() : computeLeafHash(path, digest);
+        return computeRootOfSiblings(path.siblings(), baseHash, digest);
     }
 
     /**
@@ -248,17 +263,19 @@ public final class StateProofVerifier {
      */
     @NonNull
     private static byte[] computeInternalPathHash(
-            @NonNull final MerklePath path, @NonNull final List<byte[]> childHashes) {
+            @NonNull final MerklePath path,
+            @NonNull final List<byte[]> childHashes,
+            @NonNull final MessageDigest digest) {
         final byte[] baseHash =
                 switch (childHashes.size()) {
-                    case 1 -> computeSingleChildHash(childHashes.get(0));
-                    case 2 -> joinHashes(childHashes.get(0), childHashes.get(1));
+                    case 1 -> computeSingleChildHash(childHashes.get(0), digest);
+                    case 2 -> joinHashes(childHashes.get(0), childHashes.get(1), digest);
                     default ->
                         throw new IllegalStateException(
                                 "Internal path must have 1 or 2 children, but found " + childHashes.size());
                 };
 
-        return computeRootOfSiblings(path.siblings(), baseHash);
+        return computeRootOfSiblings(path.siblings(), baseHash, digest);
     }
 
     /**
@@ -277,7 +294,9 @@ public final class StateProofVerifier {
      */
     @NonNull
     private static byte[] computeRootOfSiblings(
-            @NonNull final List<SiblingNode> siblings, @NonNull final byte[] startHash) {
+            @NonNull final List<SiblingNode> siblings,
+            @NonNull final byte[] startHash,
+            @NonNull final MessageDigest digest) {
         byte[] computedHash = startHash;
 
         for (final SiblingNode sibling : siblings) {
@@ -285,14 +304,14 @@ public final class StateProofVerifier {
 
             if (siblingBytes.length == 0) {
                 // Empty sibling = single-child level, promote current hash
-                computedHash = computeSingleChildHash(computedHash);
+                computedHash = computeSingleChildHash(computedHash, digest);
             } else {
                 if (sibling.isLeft()) {
                     // Sibling is on the left
-                    computedHash = joinHashes(siblingBytes, computedHash);
+                    computedHash = joinHashes(siblingBytes, computedHash, digest);
                 } else {
                     // Sibling is on the right
-                    computedHash = joinHashes(computedHash, siblingBytes);
+                    computedHash = joinHashes(computedHash, siblingBytes, digest);
                 }
             }
         }
@@ -301,16 +320,16 @@ public final class StateProofVerifier {
     }
 
     /**
-     * Computes SHA-384(0x00 || stateItemBytes) for a VirtualMap state-item leaf.
+     * Computes SHA-256(0x00 || stateItemBytes) for a VirtualMap state-item leaf.
      *
      * @param path a merkle path containing a {@code stateItemLeaf}
      * @return the computed leaf hash
      * @throws IllegalStateException if no stateItemLeaf is set
      */
     @NonNull
-    private static byte[] computeLeafHash(@NonNull final MerklePath path) {
+    private static byte[] computeLeafHash(@NonNull final MerklePath path, @NonNull final MessageDigest digest) {
         if (path.hasStateItemLeaf()) {
-            return HashUtils.computeVirtualMapStateLeafHash(HashUtils.newMessageDigest(), path.stateItemLeaf());
+            return HashUtils.computeVirtualMapStateLeafHash(digest, path.stateItemLeaf());
         }
         throw new IllegalStateException("MerklePath does not contain a stateItemLeaf");
     }
@@ -318,28 +337,29 @@ public final class StateProofVerifier {
     /**
      * Computes the hash for a single-child node with the single-child prefix (0x01).
      *
-     * <p>Format: SHA-384(0x01 || childHash)
+     * <p>Format: SHA-256(0x01 || childHash)
      *
      * @param childHash the hash of the single child
      * @return the computed single-child hash
      */
     @NonNull
-    private static byte[] computeSingleChildHash(@NonNull final byte[] childHash) {
-        return HashUtils.computeSingleChildHash(HashUtils.newMessageDigest(), childHash);
+    private static byte[] computeSingleChildHash(@NonNull final byte[] childHash, @NonNull final MessageDigest digest) {
+        return HashUtils.computeSingleChildHash(digest, childHash);
     }
 
     /**
      * Joins two child hashes to create an internal node hash with the internal prefix (0x02).
      *
-     * <p>Format: SHA-384(0x02 || leftHash || rightHash)
+     * <p>Format: SHA-256(0x02 || leftHash || rightHash)
      *
      * @param leftHash the hash of the left child
      * @param rightHash the hash of the right child
      * @return the computed internal node hash
      */
     @NonNull
-    private static byte[] joinHashes(@NonNull final byte[] leftHash, @NonNull final byte[] rightHash) {
-        return HashUtils.joinHashes(HashUtils.newMessageDigest(), leftHash, rightHash);
+    private static byte[] joinHashes(
+            @NonNull final byte[] leftHash, @NonNull final byte[] rightHash, @NonNull final MessageDigest digest) {
+        return HashUtils.joinHashes(digest, leftHash, rightHash);
     }
 
     private static boolean hasBaseHash(@NonNull final MerklePath path) {

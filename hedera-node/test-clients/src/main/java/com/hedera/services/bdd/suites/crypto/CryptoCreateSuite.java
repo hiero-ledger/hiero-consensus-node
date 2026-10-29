@@ -58,7 +58,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ALIAS_
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_MAX_AUTO_ASSOCIATIONS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_STAKING_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ZERO_BYTE_IN_STRING;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.KEY_REQUIRED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -92,7 +91,6 @@ public class CryptoCreateSuite {
     public static final String ACCOUNT = "account";
     public static final String ANOTHER_ACCOUNT = "anotherAccount";
     public static final String ED_25519_KEY = "ed25519Alias";
-    public static final long ACCOUNT_ID = 10;
     public static final long STAKED_ACCOUNT_ID = 3;
     public static final String CIVILIAN = "civilian";
     public static final String NO_KEYS = "noKeys";
@@ -189,58 +187,6 @@ public class CryptoCreateSuite {
                         .call("makeCallWithAmount", address, new byte[0])
                         .andAssert(txn -> txn.sending(1L))),
                 getAccountBalance("secondUser").hasTinyBars(1L));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> createAnAccountWithStakingFields() {
-        return hapiTest(
-                cryptoCreate("civilianWORewardStakingNode")
-                        .balance(ONE_HUNDRED_HBARS)
-                        .declinedReward(true)
-                        .stakedNodeId(0),
-                getAccountInfo("civilianWORewardStakingNode")
-                        .has(accountWith()
-                                .isDeclinedReward(true)
-                                .noStakedAccountId()
-                                .stakedNodeId(0)),
-                cryptoCreate("civilianWORewardStakingAcc")
-                        .balance(ONE_HUNDRED_HBARS)
-                        .declinedReward(true)
-                        .stakedAccountId(ACCOUNT_ID),
-                getAccountInfo("civilianWORewardStakingAcc")
-                        .has(accountWith()
-                                .isDeclinedReward(true)
-                                .noStakingNodeId()
-                                .stakedAccountId(ACCOUNT_ID)),
-                cryptoCreate("civilianWRewardStakingNode")
-                        .balance(ONE_HUNDRED_HBARS)
-                        .declinedReward(false)
-                        .stakedNodeId(0),
-                getAccountInfo("civilianWRewardStakingNode")
-                        .has(accountWith()
-                                .isDeclinedReward(false)
-                                .noStakedAccountId()
-                                .stakedNodeId(0)),
-                cryptoCreate("civilianWRewardStakingAcc")
-                        .balance(ONE_HUNDRED_HBARS)
-                        .declinedReward(false)
-                        .stakedAccountId(ACCOUNT_ID),
-                getAccountInfo("civilianWRewardStakingAcc")
-                        .has(accountWith()
-                                .isDeclinedReward(false)
-                                .noStakingNodeId()
-                                .stakedAccountId(ACCOUNT_ID)),
-                /* --- sentinel values throw */
-                cryptoCreate("invalidStakedAccount")
-                        .balance(ONE_HUNDRED_HBARS)
-                        .declinedReward(false)
-                        .stakedAccountId("0")
-                        .hasPrecheck(INVALID_STAKING_ID),
-                cryptoCreate("invalidStakedNode")
-                        .balance(ONE_HUNDRED_HBARS)
-                        .declinedReward(false)
-                        .stakedNodeId(-1L)
-                        .hasPrecheck(INVALID_STAKING_ID));
     }
 
     @HapiTest

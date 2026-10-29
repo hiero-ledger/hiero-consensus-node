@@ -14,7 +14,7 @@ import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hedera.services.bdd.GenesisSubProcessTest;
+import com.hedera.services.bdd.GenesisSubprocessTest;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.support.translators.inputs.TransactionParts;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.BlockStreamAssertion;
@@ -44,16 +44,25 @@ public class LedgerIdPublicationTimestampTest {
     private static final Duration PUBLICATION_TIMEOUT = Duration.ofMinutes(5);
 
     @HapiTest
-    @GenesisSubProcessTest(
+    @GenesisSubprocessTest(
             subProcessNodeConfigs = {
-                @GenesisSubProcessTest.SubProcessNodeConfig(
+                @GenesisSubprocessTest.SubProcessNodeConfig(
                         nodeId = 0,
                         applicationPropertiesOverrides = {
                             "tss.hintsEnabled", "true",
                             "tss.historyEnabled", "true",
                             "blockStream.streamMode", "BOTH",
                             "blockStream.writerMode", "FILE"
-                        })
+                        }),
+                @GenesisSubprocessTest.SubProcessNodeConfig(
+                        nodeId = 1,
+                        applicationPropertiesOverrides = {"tss.hintsEnabled", "true", "tss.historyEnabled", "true"}),
+                @GenesisSubprocessTest.SubProcessNodeConfig(
+                        nodeId = 2,
+                        applicationPropertiesOverrides = {"tss.hintsEnabled", "true", "tss.historyEnabled", "true"}),
+                @GenesisSubprocessTest.SubProcessNodeConfig(
+                        nodeId = 3,
+                        applicationPropertiesOverrides = {"tss.hintsEnabled", "true", "tss.historyEnabled", "true"})
             })
     final Stream<DynamicTest> ledgerIdPublicationIsNotBackdatedWithinItsBlock() {
         // TSS is deactivated and no blocks are written when streamMode=RECORDS, so nothing publishes a ledger id

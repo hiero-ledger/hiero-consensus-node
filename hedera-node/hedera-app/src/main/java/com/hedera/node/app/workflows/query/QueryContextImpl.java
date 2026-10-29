@@ -15,6 +15,7 @@ import com.hedera.node.app.spi.records.BlockRecordInfo;
 import com.hedera.node.app.spi.records.RecordCache;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.QueryContext;
+import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -120,10 +121,13 @@ public class QueryContextImpl implements QueryContext {
         if (blockRecordInfo == null) {
             // In BLOCKS mode the legacy BlockInfo singleton is not maintained, so block number/timestamp/hashes
             // must be sourced from BlockStreamInfo (mirrors the handle-path selection in ParentTxnFactory).
-            final var streamMode =
-                    configuration.getConfigData(BlockStreamConfig.class).streamMode();
-            blockRecordInfo =
-                    streamMode == StreamMode.BLOCKS ? BlockStreamInfoImpl.from(state) : BlockRecordInfoImpl.from(state);
+            final var blockStreamConfig = configuration.getConfigData(BlockStreamConfig.class);
+            final var streamMode = blockStreamConfig.streamMode();
+            final var numTrailingBlocks =
+                    configuration.getConfigData(BlockRecordStreamConfig.class).numOfBlockHashesInState();
+            blockRecordInfo = streamMode == StreamMode.BLOCKS
+                    ? BlockStreamInfoImpl.from(state, blockStreamConfig.digestType(), numTrailingBlocks)
+                    : BlockRecordInfoImpl.from(state);
         }
         return blockRecordInfo;
     }

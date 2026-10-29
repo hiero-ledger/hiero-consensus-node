@@ -31,6 +31,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.manager.ThreadManager;
 import org.hiero.base.concurrent.pool.StandardWorkGroup;
+import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 
 /**
@@ -233,7 +234,8 @@ public class LearningSynchronizer {
     private void exchangeRootNode(
             LearnerTreeExchanger exchanger, final AsyncInputStream in, final AsyncOutputStream out) {
         logger.info(RECONNECT.getMarker(), "Learner sending root node request to teacher");
-        final PullVirtualTreeRequest rootRequest = new PullVirtualTreeRequest(MerklePathUtils.ROOT_PATH, new Hash());
+        final PullVirtualTreeRequest rootRequest =
+                new PullVirtualTreeRequest(MerklePathUtils.ROOT_PATH, new Hash(Cryptography.DEFAULT_DIGEST_TYPE));
         final byte[] rootRequestBytes = new byte[rootRequest.getSizeInBytes()];
         rootRequest.writeTo(BufferedData.wrap(rootRequestBytes));
         try {

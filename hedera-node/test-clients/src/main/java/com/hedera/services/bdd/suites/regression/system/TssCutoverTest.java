@@ -79,7 +79,10 @@ public class TssCutoverTest implements LifecycleTest {
                                 .loggingOff(),
                         prepareFakeUpgrade(),
                         upgradeToNextConfigVersion(Map.of(
-                                "tss.hintsEnabled", "true", "tss.historyEnabled", "true", "tss.wrapsEnabled", "true")),
+                                "tss.hintsEnabled", "true",
+                                "tss.historyEnabled", "true",
+                                "tss.wrapsEnabled", "true",
+                                "tss.forceMockSignatures", "false")),
                         withExternalizedLedgerIdFromHgcaaLog(
                                 byNodeId(0),
                                 LEDGER_ID_TIMEOUT,

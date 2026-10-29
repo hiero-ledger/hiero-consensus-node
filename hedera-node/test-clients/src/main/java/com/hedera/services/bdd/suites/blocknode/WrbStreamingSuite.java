@@ -44,19 +44,11 @@ public class WrbStreamingSuite {
                         blockNodeIds = {0},
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
-                            // writerMode=FILE is the production WRB topology (preview blocks to
-                            // disk, only WRBs over gRPC); see #24775.
-                            "blockStream.writerMode", "FILE_AND_GRPC",
-                            "blockStream.streamWrappedRecordBlocks", "true",
                             "hedera.recordStream.liveWritePrevWrappedRecordHashes", "true",
                             // Forces votingBlockNumInitialized() so WRB emission fires without
                             // waiting for migration voting; matches the unit-test pattern in
                             // BlockRecordManagerImplWrappedRecordFileBlockHashesTest.
-                            "blockStream.jumpstart.blockNum", "1",
-                            "blockStream.enableCutover", "false",
-                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
-                            "tss.forceMockSignatures", "true"
+                            "blockStream.jumpstart.blockNum", "1"
                         })
             })
     @Order(0)
@@ -115,16 +107,12 @@ public class WrbStreamingSuite {
                         blockNodeIds = {0},
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
                             "blockStream.writerMode", "FILE",
                             // WRB build path on but streaming flag off: items computed locally,
                             // never forwarded to the block node.
                             "hedera.recordStream.liveWritePrevWrappedRecordHashes", "true",
                             "blockStream.jumpstart.blockNum", "1",
-                            "blockStream.streamWrappedRecordBlocks", "false",
-                            "blockStream.enableCutover", "false",
-                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
-                            "tss.forceMockSignatures", "true"
+                            "blockStream.streamWrappedRecordBlocks", "false"
                         })
             })
     @Order(1)

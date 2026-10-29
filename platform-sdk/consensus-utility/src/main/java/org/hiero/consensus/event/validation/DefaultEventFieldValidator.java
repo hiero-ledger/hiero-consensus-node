@@ -22,6 +22,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.throttle.RateLimitedLogger;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.model.event.EventHashFactory;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.transaction.Transaction;
 import org.hiero.consensus.transaction.TransactionLimits;
@@ -127,15 +128,18 @@ public class DefaultEventFieldValidator implements EventFieldValidator {
 
     private boolean areByteFieldsCorrectLength(@NonNull final PlatformEvent event) {
         final GossipEvent gossipEvent = event.getGossipEvent();
-        if (gossipEvent.parents().stream()
-                .map(EventDescriptor::hash)
-                .anyMatch(hash -> hash.length() != DigestType.SHA_384.digestLength())) {
-            fieldLengthLogger.error(
-                    EXCEPTION.getMarker(),
-                    "Event parent descriptor has a hash that is the wrong length {}",
-                    gossipEvent);
-            fieldLengthAccumulator.update(1);
-            return false;
+        for (final EventDescriptor parent : gossipEvent.parents()) {
+            final DigestType expectedDigestType = EventHashFactory.getTypeForBirthRound(parent.birthRound());
+            if (parent.hash().length() != expectedDigestType.digestLength()) {
+                fieldLengthLogger.error(
+                        EXCEPTION.getMarker(),
+                        "Event parent descriptor has a hash that is the wrong length in event {}. Expected {}, but was {}",
+                        gossipEvent,
+                        expectedDigestType.digestLength(),
+                        parent.hash().length());
+                fieldLengthAccumulator.update(1);
+                return false;
+            }
         }
         return true;
     }

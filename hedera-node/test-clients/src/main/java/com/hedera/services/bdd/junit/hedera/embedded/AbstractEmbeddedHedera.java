@@ -52,6 +52,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
@@ -70,7 +71,7 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
     protected static final NodeId MISSING_NODE_ID = NodeId.of(666L);
     protected static final int MAX_PLATFORM_TXN_SIZE = 1024 * 130;
     protected static final int MAX_QUERY_RESPONSE_SIZE = 1024 * 1024 * 2;
-    protected static final Hash FAKE_START_OF_STATE_HASH = new Hash(new byte[48]);
+    protected static final Hash FAKE_START_OF_STATE_HASH = new Hash(Cryptography.DEFAULT_DIGEST_TYPE);
     protected static final TransactionResponse OK_RESPONSE = TransactionResponse.getDefaultInstance();
     protected static final PlatformStatusChangeNotification ACTIVE_NOTIFICATION =
             new PlatformStatusChangeNotification(ACTIVE);

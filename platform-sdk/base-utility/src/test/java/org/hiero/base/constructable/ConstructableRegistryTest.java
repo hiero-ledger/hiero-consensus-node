@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.base.constructable;
 
+import static org.hiero.base.crypto.Cryptography.DEFAULT_DIGEST_TYPE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -80,7 +81,7 @@ class ConstructableRegistryTest {
 
         assertEquals(
                 "org.hiero.base.crypto.Hash:-854880720348154850(0xF422DA83A251741E)",
-                ClassIdFormatter.classIdString(new Hash()),
+                ClassIdFormatter.classIdString(new Hash(DEFAULT_DIGEST_TYPE)),
                 "generated class ID string should match expected");
     }
 }

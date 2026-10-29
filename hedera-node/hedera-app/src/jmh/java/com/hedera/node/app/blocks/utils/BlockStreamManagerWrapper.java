@@ -18,6 +18,7 @@ import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema;
 import com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.internal.network.PendingProof;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
@@ -44,6 +45,8 @@ import java.util.Set;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.hashgraph.Round;
@@ -130,7 +133,11 @@ public class BlockStreamManagerWrapper {
                 null,
                 new BlockStreamingObs(configProvider));
 
-        manager.init(state, BlockStreamManager.HASH_OF_ZERO);
+        final DigestType digestType = configProvider
+                .getConfiguration()
+                .getConfigData(BlockStreamConfig.class)
+                .digestType();
+        manager.init(state, BlockStreamManager.hashOfZero(digestType));
     }
 
     public void startBlock(long blockNumber, BlockItem header) {
@@ -152,7 +159,7 @@ public class BlockStreamManagerWrapper {
         // (endRound() for the NEXT block will wait for this future)
         // In production, this is done by the platform's state hashing notification system
         // For benchmark, we simulate it with a dummy hash
-        Hash dummyStateHash = new Hash(new byte[48]); // 48 bytes = SHA-384 hash size
+        Hash dummyStateHash = new Hash(Cryptography.DEFAULT_DIGEST_TYPE);
         StateHashedNotification notification = new StateHashedNotification(roundNum, dummyStateHash);
         manager.notify(notification);
 
@@ -231,7 +238,7 @@ public class BlockStreamManagerWrapper {
 
         @Override
         public @NonNull Hash getHash() {
-            return hash != null ? hash : new Hash(new byte[48]);
+            return hash != null ? hash : new Hash(Cryptography.DEFAULT_DIGEST_TYPE);
         }
 
         void updateBlockNumber(long blockNumber) {

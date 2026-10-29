@@ -58,7 +58,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
 
     private static final int HASH_CHUNK_HEIGHT = 2;
 
-    private static final Hash NO_HASH = new Hash(new byte[Cryptography.DEFAULT_DIGEST_TYPE.digestLength()]);
+    private static final Hash NO_HASH = new Hash(Cryptography.DEFAULT_DIGEST_TYPE);
 
     private static final long BOGUS_KEY_ID = -7000;
 
@@ -1257,7 +1257,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
             final long hashChunkPath = VirtualHashChunk.pathToChunkPath(i, HASH_CHUNK_HEIGHT);
             if (VirtualHashChunk.containsPath(i, hashChunkPath, HASH_CHUNK_HEIGHT)) {
                 final VirtualHashChunk chunk = cache0.preloadHashChunk(hashChunkPath);
-                chunk.setHashAtPath(i, CRYPTO.digestSync(internalBytes));
+                chunk.setHashAtPath(i, CRYPTO.digestSync(internalBytes, Cryptography.DEFAULT_DIGEST_TYPE));
                 cache0.putHashChunk(chunk);
             }
         }
@@ -1285,7 +1285,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
             final long hashChunkPath = VirtualHashChunk.pathToChunkPath(i, HASH_CHUNK_HEIGHT);
             if (VirtualHashChunk.containsPath(i, hashChunkPath, HASH_CHUNK_HEIGHT)) {
                 final VirtualHashChunk chunk = cache1.preloadHashChunk(hashChunkPath);
-                chunk.setHashAtPath(i, CRYPTO.digestSync(internalBytes));
+                chunk.setHashAtPath(i, CRYPTO.digestSync(internalBytes, Cryptography.DEFAULT_DIGEST_TYPE));
                 cache1.putHashChunk(chunk);
             }
         }
@@ -1320,7 +1320,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
                 });
 
         final AtomicInteger chunkIdIndex = new AtomicInteger(0);
-        final Hash noHash = new Hash();
+        final Hash noHash = new Hash(Cryptography.DEFAULT_DIGEST_TYPE);
         cache1.dirtyHashesForFlush(lastLeafPath).forEach(chunk -> {
             final long chunkId = chunk.getChunkId();
             final int t = chunkIdIndex.getAndIncrement();
@@ -1331,14 +1331,20 @@ class VirtualNodeCacheTest extends VirtualTestBase {
                 // Since no hashes were put for leaves (in range [totalMutationsCount,
                 // totalMutationsCount * 2 - 1]), there should be no checks for them. The original
                 // version of the test checked that these hashes are null. I'm replacing these
-                // checks with checks against a null hash (48 zeroes)
+                // checks with checks against a null hash (all zeroes)
                 final Hash hash = chunk.getHashAtIndex(i);
                 if (path < nextMutationCount) { // mutated internal nodes
                     final byte[] internalBytes = ("OverriddenInternal" + path).getBytes(StandardCharsets.UTF_8);
-                    assertEquals(CRYPTO.digestSync(internalBytes), hash, "hashes should match");
+                    assertEquals(
+                            CRYPTO.digestSync(internalBytes, Cryptography.DEFAULT_DIGEST_TYPE),
+                            hash,
+                            "hashes should match");
                 } else if (path < totalMutationCount) { // original internal nodes
                     final byte[] internalBytes = ("Internal" + path).getBytes(StandardCharsets.UTF_8);
-                    assertEquals(CRYPTO.digestSync(internalBytes), hash, "hashes should match");
+                    assertEquals(
+                            CRYPTO.digestSync(internalBytes, Cryptography.DEFAULT_DIGEST_TYPE),
+                            hash,
+                            "hashes should match");
                 } else { // leaf nodes, not hashed
                     assertEquals(noHash, hash, "hashes should be null");
                 }
@@ -1398,12 +1404,14 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         nextRound();
 
         final VirtualHashChunk chunk1 = new VirtualHashChunk(ROOT_PATH, HASH_CHUNK_HEIGHT);
-        final Hash leftHash1 = CRYPTO.digestSync("Left 1".getBytes(StandardCharsets.UTF_8));
+        final Hash leftHash1 =
+                CRYPTO.digestSync("Left 1".getBytes(StandardCharsets.UTF_8), Cryptography.DEFAULT_DIGEST_TYPE);
         chunk1.setHashAtPath(LEFT_PATH, leftHash1);
         cache0.putHashChunk(chunk1);
 
         final VirtualHashChunk chunk2 = new VirtualHashChunk(ROOT_PATH, HASH_CHUNK_HEIGHT);
-        final Hash leftHash2 = CRYPTO.digestSync("Left 2".getBytes(StandardCharsets.UTF_8));
+        final Hash leftHash2 =
+                CRYPTO.digestSync("Left 2".getBytes(StandardCharsets.UTF_8), Cryptography.DEFAULT_DIGEST_TYPE);
         chunk2.setHashAtPath(LEFT_PATH, leftHash2);
         cache0.putHashChunk(chunk2);
 
@@ -1445,7 +1453,8 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         nextRound();
 
         final VirtualHashChunk chunk = new VirtualHashChunk(ROOT_PATH, HASH_CHUNK_HEIGHT);
-        final Hash rightHash = CRYPTO.digestSync("Right 0".getBytes(StandardCharsets.UTF_8));
+        final Hash rightHash =
+                CRYPTO.digestSync("Right 0".getBytes(StandardCharsets.UTF_8), Cryptography.DEFAULT_DIGEST_TYPE);
         chunk.setHashAtPath(RIGHT_PATH, rightHash);
         cache0.putHashChunk(chunk);
 

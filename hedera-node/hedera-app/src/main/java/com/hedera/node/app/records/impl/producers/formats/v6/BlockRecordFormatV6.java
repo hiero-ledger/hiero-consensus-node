@@ -50,7 +50,7 @@ public final class BlockRecordFormatV6 implements BlockRecordFormat {
             ByteBuffer buf = ByteBuffer.allocate(Long.BYTES + Integer.BYTES);
             buf.order(ByteOrder.LITTLE_ENDIAN);
             buf.putLong(Hash.CLASS_ID);
-            buf.putInt(new Hash().getVersion());
+            buf.putInt(Hash.CLASS_VERSION);
             HASH_HEADER = buf.array();
             assert Arrays.equals(HASH_HEADER, HexFormat.of().parseHex("1e7451a283da22f401000000"))
                     : "Hash object header is not the expected 1e7451a283da22f401000000";

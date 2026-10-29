@@ -26,13 +26,12 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class CryptographyTests {
     private static final int PARALLELISM = 16;
     private static final Cryptography CRYPTOGRAPHY = CryptographyProvider.getInstance();
-    private static final Hash KNOWN_DUMMY_SERIALIZABLE_HASH = new Hash(
-            unhex("a19330d1f361a9e8f6433cce909b5d04ec0216788acef9e8977633a8332a1b08ab6b65d821e8ff30f64f1353d46182d1"));
     private static CryptoConfig cryptoConfig;
     private static MessageDigestPool digestPool;
     private static SignaturePool ed25519SignaturePool;
@@ -65,21 +64,26 @@ class CryptographyTests {
 
         for (int i = 0; i < messages.length; i++) {
             messages[i] = digestPool.next();
-            final Hash hash = CRYPTOGRAPHY.digestSync(messages[i].getPayloadDirect());
+            final Hash hash = CRYPTOGRAPHY.digestSync(messages[i].getPayloadDirect(), Cryptography.DEFAULT_DIGEST_TYPE);
             assertTrue(digestPool.isValid(messages[i], hash.copyToByteArray()));
         }
     }
 
-    @Test
-    void hashableSerializableTest() {
+    @ParameterizedTest
+    @CsvSource({
+        "SHA_384, a19330d1f361a9e8f6433cce909b5d04ec0216788acef9e8977633a8332a1b08ab6b65d821e8ff30f64f1353d46182d1",
+        "SHA_256, 4e44996f8e66877fb845d423dfbdaa6b5ec2075f59bff6c680beb758b73420b8"
+    })
+    void hashableSerializableTest(final DigestType digestType, final String knownHashHex) {
+        final Hash knownHash = new Hash(unhex(knownHashHex), digestType);
         final SerializableHashable hashable = new SerializableHashableDummy(123, "some string");
         assertNull(hashable.getHash());
-        CRYPTOGRAPHY.digestSync(hashable);
+        CRYPTOGRAPHY.digestSync(hashable, digestType);
         assertNotNull(hashable.getHash());
 
         final Hash hash = hashable.getHash();
-        assertEquals(KNOWN_DUMMY_SERIALIZABLE_HASH, hash);
-        assertEquals(KNOWN_DUMMY_SERIALIZABLE_HASH.getBytes(), hash.getBytes());
+        assertEquals(knownHash, hash);
+        assertEquals(knownHash.getBytes(), hash.getBytes());
     }
 
     @ParameterizedTest
