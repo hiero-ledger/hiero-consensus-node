@@ -153,6 +153,14 @@ public abstract class BlockNodePublisherConnection extends AbstractBlockNodeConn
     }
 
     /**
+     * @return the block buffer instance
+     */
+    @NonNull
+    final BlockBufferService bufferService() {
+        return bufferService;
+    }
+
+    /**
      * @return true if the request client is initialized, else false
      */
     final boolean isRequestClientActive() {

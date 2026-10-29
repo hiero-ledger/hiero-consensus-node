@@ -54,11 +54,6 @@ public class BlockNodeStreamingConnection extends BlockNodePublisherConnection {
     private static final Logger logger = LogManager.getLogger(BlockNodeStreamingConnection.class);
 
     /**
-     * Manager that maintains the system-wide state as it pertains to block streaming. Access here is used to retrieve
-     * blocks for streaming and indicating which blocks have been acknowledged by the block node.
-     */
-    private final BlockBufferService blockBufferService;
-    /**
      * The reset period for the stream. This is used to periodically reset the stream to ensure increased stability and reliability.
      */
     private final Duration streamResetPeriod;
@@ -127,7 +122,6 @@ public class BlockNodeStreamingConnection extends BlockNodePublisherConnection {
                 blockingIoExecutor,
                 blockBufferService,
                 connectionManager);
-        this.blockBufferService = requireNonNull(blockBufferService, "blockBufferService must not be null");
         this.streamingObs = requireNonNull(streamingObs);
         this.streamResetPeriod = bncConfig().streamResetPeriod();
         this.streamResetPeriodJitter = bncConfig().streamResetPeriodJitter();
@@ -181,7 +175,11 @@ public class BlockNodeStreamingConnection extends BlockNodePublisherConnection {
                                 pbir.blockNumber(), result.context().successfulSentTimestamp());
             }
             if (pbir.hasBlockHeader()) {
-                final BlockState block = blockBufferService.getBlockState(pbir.blockNumber());
+                streamingObs.onBlockHeaderSend(
+                        pbir.blockNumber(),
+                        result.context().startNanos(),
+                        result.context().endNanos());
+                final BlockState block = bufferService().getBlockState(pbir.blockNumber());
                 if (block != null) {
                     block.setHeaderSentNanos(result.context().endNanos());
                 }
@@ -253,15 +251,15 @@ public class BlockNodeStreamingConnection extends BlockNodePublisherConnection {
             return;
         }
 
-        final long currentBlockProducing = blockBufferService.getLastBlockNumberProduced();
-        final long lowestAvailableBlockInBuffer = blockBufferService.getEarliestAvailableBlockNumber();
+        final long currentBlockProducing = bufferService().getLastBlockNumberProduced();
+        final long lowestAvailableBlockInBuffer = bufferService().getEarliestAvailableBlockNumber();
         final long nowNanos = System.nanoTime();
         final long start = Math.max(previousAcknowledgedBlockNumber + 1, lowestAvailableBlockInBuffer);
         final long end = Math.min(latestAcknowledgedBlockNumber, currentBlockProducing);
 
         if (start <= end) {
             for (long blkNum = start; blkNum <= end; blkNum++) {
-                final BlockState blockState = blockBufferService.getBlockState(blkNum);
+                final BlockState blockState = bufferService().getBlockState(blkNum);
                 if (blockState != null) {
                     final long openedNanos = blockState.openedNanos();
                     if (openedNanos != -1) {
@@ -290,8 +288,8 @@ public class BlockNodeStreamingConnection extends BlockNodePublisherConnection {
      */
     private void acknowledgeBlocks(final long acknowledgedBlockNumber, final boolean maybeJumpToBlock) {
         final long currentBlockStreaming = streamingBlockNumber.get();
-        final long currentBlockProducing = blockBufferService.getLastBlockNumberProduced();
-        final long previousAcknowledgedBlockNumber = blockBufferService.getHighestAckedBlockNumber();
+        final long currentBlockProducing = bufferService().getLastBlockNumberProduced();
+        final long previousAcknowledgedBlockNumber = bufferService().getHighestAckedBlockNumber();
 
         /*
         Record the acknowledgement in the block buffer. Depending on the minimum number of required acknowledgements,
@@ -299,10 +297,11 @@ public class BlockNodeStreamingConnection extends BlockNodePublisherConnection {
         this outcome, we want to treat the acknowledgement received over this connection as the decision maker for
         whether we should jump ahead, and not use the real acknowledgement level tracked by the block buffer.
          */
-        blockBufferService.acknowledgeBlock(
-                acknowledgedBlockNumber, blockNode().configuration().streamingEndpoint());
+        bufferService()
+                .acknowledgeBlock(
+                        acknowledgedBlockNumber, blockNode().configuration().streamingEndpoint());
 
-        final long latestAcknowledgedBlockNumber = blockBufferService.getHighestAckedBlockNumber();
+        final long latestAcknowledgedBlockNumber = bufferService().getHighestAckedBlockNumber();
 
         if (previousAcknowledgedBlockNumber != latestAcknowledgedBlockNumber) {
             // this acknowledgement raised the acknowledgement high watermark, thus publish metrics recording it
@@ -425,7 +424,7 @@ public class BlockNodeStreamingConnection extends BlockNodePublisherConnection {
         final long resendBlockNumber = resendBlock.blockNumber();
         logger.debug("{} Received ResendBlock response for block {}", this, resendBlockNumber);
 
-        if (blockBufferService.getBlockState(resendBlockNumber) != null) {
+        if (bufferService().getBlockState(resendBlockNumber) != null) {
             streamingBlockNumber.set(resendBlockNumber);
         } else {
             // If we don't have the block state, we schedule retry for this connection and establish new one
@@ -435,7 +434,7 @@ public class BlockNodeStreamingConnection extends BlockNodePublisherConnection {
                     this,
                     resendBlockNumber);
 
-            if (resendBlockNumber < blockBufferService.getEarliestAvailableBlockNumber()) {
+            if (resendBlockNumber < bufferService().getEarliestAvailableBlockNumber()) {
                 // Indicate that the block node should catch up from another trustworthy block node
                 close(CloseReason.BLOCK_NODE_BEHIND, true, EndStream.Code.TOO_FAR_BEHIND);
             } else {
@@ -484,7 +483,7 @@ public class BlockNodeStreamingConnection extends BlockNodePublisherConnection {
         final long blockToStream = blockNumber == Long.MAX_VALUE ? 0 : blockNumber + 1;
         // The block node is behind us, check if we have the last verified block still available
         // to start streaming from there
-        if (blockBufferService.getBlockState(blockToStream) != null) {
+        if (bufferService().getBlockState(blockToStream) != null) {
             logger.info("{} Block node reported it is behind; will start streaming block {}", this, blockToStream);
 
             streamingBlockNumber.set(blockToStream);
@@ -496,7 +495,7 @@ public class BlockNodeStreamingConnection extends BlockNodePublisherConnection {
                     this,
                     blockToStream);
 
-            if (blockToStream < blockBufferService.getEarliestAvailableBlockNumber()) {
+            if (blockToStream < bufferService().getEarliestAvailableBlockNumber()) {
                 // Indicate that the block node should catch up from another trustworthy block node
                 close(CloseReason.BLOCK_NODE_BEHIND, true, EndStream.Code.TOO_FAR_BEHIND);
             } else {
@@ -1175,7 +1174,7 @@ public class BlockNodeStreamingConnection extends BlockNodePublisherConnection {
          */
         private void switchBlockIfNeeded() {
             if (streamingBlockNumber.get() == -1) {
-                final long latestBlock = blockBufferService.getLastBlockNumberProduced();
+                final long latestBlock = bufferService().getLastBlockNumberProduced();
 
                 if (latestBlock != -1 && streamingBlockNumber.compareAndSet(-1L, latestBlock)) {
                     logger.info(
@@ -1196,9 +1195,9 @@ public class BlockNodeStreamingConnection extends BlockNodePublisherConnection {
             }
 
             // Swap blocks and reset
-            block = blockBufferService.getBlockState(latestActiveBlockNumber);
+            block = bufferService().getBlockState(latestActiveBlockNumber);
 
-            if (block == null && latestActiveBlockNumber < blockBufferService.getEarliestAvailableBlockNumber()) {
+            if (block == null && latestActiveBlockNumber < bufferService().getEarliestAvailableBlockNumber()) {
                 // Indicate that the block node should catch up from another trustworthy block node
                 logger.warn(
                         "{} Wanted block ({}) is not obtainable; notifying block node it is too far behind and closing connection",
