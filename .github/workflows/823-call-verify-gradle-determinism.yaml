@@ -230,7 +230,7 @@ jobs:
       # to the checkout.
       - name: Keep Gradle User Home on the Workspace Drive (Windows)
         if: ${{ runner.os == 'Windows' }}
-        run: echo "GRADLE_USER_HOME=${RUNNER_TEMP%\\*}\\.gradle" >> "${GITHUB_ENV}"
+        run: printf 'GRADLE_USER_HOME=%s\\.gradle\n' "${RUNNER_WORKSPACE%\\*}" >> "${GITHUB_ENV}"
 
       - name: Prepare Job
         uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
