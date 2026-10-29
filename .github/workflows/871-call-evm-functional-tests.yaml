@@ -206,6 +206,16 @@ jobs:
         run: npm ci
         working-directory: ${{ env.EVM_TESTING_DIR }}
 
+      # Until https://github.com/hashgraph/hedera-evm-testing/issues/155 is fixed upstream, prevent
+      # hardhat-ethers from leaving sendTransaction() pending when transaction lookup throws.
+      - name: Test and apply Hardhat transaction polling workaround
+        id: patch-hardhat-ethers
+        env:
+          HARDHAT_ETHERS_PACKAGE_DIR: ${{ env.EVM_TESTING_DIR }}/node_modules/@nomicfoundation/hardhat-ethers
+        run: |
+          node --test .github/workflows/support/tests/hardhat-ethers-workaround.test.cjs
+          node .github/workflows/support/scripts/patch-hardhat-ethers.cjs "${HARDHAT_ETHERS_PACKAGE_DIR}"
+
       - name: Install Solo
         id: install-solo
         env:
@@ -425,6 +435,7 @@ jobs:
             ${{ steps.checkout-evm-testing.outcome }}
             ${{ steps.shard.outcome }}
             ${{ steps.npm-ci.outcome }}
+            ${{ steps.patch-hardhat-ethers.outcome }}
             ${{ steps.install-solo.outcome }}
             ${{ steps.setup-kind.outcome }}
             ${{ steps.build-consensus-node.outcome }}
