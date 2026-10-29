@@ -277,16 +277,17 @@ public class TransactionProcessor {
             }
             return result;
         } catch (final HandleException e) {
-            if (!(e instanceof ResourceExhaustedException) && e.getStatus() != CONTRACT_EXECUTION_EXCEPTION) {
+            if (e instanceof ResourceExhaustedException || e.getStatus() == CONTRACT_EXECUTION_EXCEPTION) {
+                updater.revert();
+                final var sender = updater.getHederaAccount(transaction.senderId());
+                return resourceExhaustionFrom(
+                        sender == null ? transaction.senderId() : sender.hederaId(),
+                        transaction.gasLimit(),
+                        context.gasPrice(),
+                        e.getStatus());
+            } else {
                 throw e;
             }
-            updater.revert();
-            final var sender = updater.getHederaAccount(transaction.senderId());
-            return resourceExhaustionFrom(
-                    sender == null ? transaction.senderId() : sender.hederaId(),
-                    transaction.gasLimit(),
-                    context.gasPrice(),
-                    e.getStatus());
         }
     }
 
