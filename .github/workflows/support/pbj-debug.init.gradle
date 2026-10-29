@@ -1,0 +1,16 @@
+// SPDX-License-Identifier: Apache-2.0
+// Temporary debug aid: print the PBJ source roots so we can see which one is on a different drive.
+allprojects {
+    if (path == ':hapi') {
+        afterEvaluate {
+            tasks.matching { it.name == 'generatePbjSource' }.configureEach { t ->
+                t.doFirst {
+                    println "PBJDEBUG project dir: ${project.projectDir}"
+                    println "PBJDEBUG build dir: ${project.layout.buildDirectory.get().asFile}"
+                    project.sourceSets.main.extensions.getByName('pbj').srcDirs.each { println "PBJDEBUG srcDir: ${it}" }
+                    t.inputs.files.files.take(10).each { println "PBJDEBUG input: ${it}" }
+                }
+            }
+        }
+    }
+}
