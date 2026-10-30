@@ -38,7 +38,7 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
  *       re-derived from a proven state root.</li>
  * </ul>
  *
- * <p>The {@code configPayload} is the RLP-encoded sync-committee config payload carrying the initial sync
+ * <p>The {@code configPayload} is the protobuf {@code EthereumPosLedgerConfigurationPayload} carrying the initial sync
  * committee, the chain-pinning {@code genesisValidatorsRoot}/{@code forkVersion}, and the advertised
  * {@link ClprLedgerConfiguration}. Decoding is delegated to
  * {@link EthereumSyncCommitteeProofVerifier#verifyConfigPayload(byte[])}, which derives the initial trust
