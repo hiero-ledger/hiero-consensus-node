@@ -85,8 +85,6 @@ public class WritableMessageQueueStore extends ReadableMessageQueueStoreImpl {
             return "MESSAGE_REPLY";
         } else if (payload.hasControl()) {
             return "CONTROL";
-        } else if (payload.hasRedactedMessage()) {
-            return "REDACTED";
         } else {
             return "EMPTY";
         }

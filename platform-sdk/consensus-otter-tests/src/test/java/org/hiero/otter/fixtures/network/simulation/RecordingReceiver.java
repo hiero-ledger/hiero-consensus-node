@@ -3,7 +3,9 @@ package org.hiero.otter.fixtures.network.simulation;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
@@ -27,6 +29,12 @@ final class RecordingReceiver implements EventReceiver {
     /** Whether to accept what is delivered. A node that is not running refuses everything. */
     boolean accepting = true;
 
+    /** Senders whose events are refused while everyone else's are accepted. */
+    final Set<NodeId> refusedSenders = new HashSet<>();
+
+    /** How many times each event was offered, whether or not it was accepted. */
+    int receiveEventCalls;
+
     RecordingReceiver(@NonNull final NodeId nodeId) {
         this.nodeId = nodeId;
     }
@@ -38,7 +46,8 @@ final class RecordingReceiver implements EventReceiver {
 
     @Override
     public boolean receiveEvent(@NonNull final PlatformEvent event) {
-        if (!accepting) {
+        receiveEventCalls++;
+        if (!accepting || refusedSenders.contains(event.getSenderId())) {
             return false;
         }
         receivedEvents.add(event);

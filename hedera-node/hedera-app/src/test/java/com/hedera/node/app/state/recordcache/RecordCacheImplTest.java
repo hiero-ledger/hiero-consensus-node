@@ -4,13 +4,16 @@ package com.hedera.node.app.state.recordcache;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_IS_IMMUTABLE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_START;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_EXPIRED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNKNOWN;
 import static com.hedera.node.app.state.HederaRecordCache.DuplicateCheckResult.NO_DUPLICATE;
 import static com.hedera.node.app.state.HederaRecordCache.DuplicateCheckResult.OTHER_NODE;
 import static com.hedera.node.app.state.HederaRecordCache.DuplicateCheckResult.SAME_NODE;
 import static com.hedera.node.app.state.recordcache.schemas.V0490RecordCacheSchema.TRANSACTION_RECEIPTS_STATE_ID;
+import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
@@ -24,6 +27,8 @@ import com.hedera.hapi.node.state.recordcache.TransactionReceiptEntries;
 import com.hedera.hapi.node.state.recordcache.TransactionReceiptEntry;
 import com.hedera.hapi.node.transaction.TransactionReceipt;
 import com.hedera.hapi.node.transaction.TransactionRecord;
+import com.hedera.node.app.blocks.BlockStreamManager;
+import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.fixtures.AppTestBase;
 import com.hedera.node.app.fixtures.state.FakeSchemaRegistry;
 import com.hedera.node.app.fixtures.state.FakeState;
@@ -41,9 +46,11 @@ import com.hedera.node.config.data.LedgerConfig;
 import com.swirlds.state.spi.WritableQueueState;
 import com.swirlds.state.test.fixtures.ListWritableQueueState;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.InstantSource;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -71,6 +78,7 @@ final class RecordCacheImplTest extends AppTestBase {
             AccountID.newBuilder().accountNum(3).build();
     private static final AccountID PAYER_ACCOUNT_ID =
             AccountID.newBuilder().accountNum(1001).build();
+    private static final long MAX_VALID_DURATION_SECS = 180L;
 
     private DeduplicationCache dedupeCache;
 
@@ -106,7 +114,7 @@ final class RecordCacheImplTest extends AppTestBase {
         lenient().when(wsa.getState()).thenReturn(state);
         lenient().when(props.getConfiguration()).thenReturn(versionedConfig);
         lenient().when(versionedConfig.getConfigData(HederaConfig.class)).thenReturn(hederaConfig);
-        lenient().when(hederaConfig.transactionMaxValidDuration()).thenReturn(180L);
+        lenient().when(hederaConfig.transactionMaxValidDuration()).thenReturn(MAX_VALID_DURATION_SECS);
         lenient().when(versionedConfig.getConfigData(LedgerConfig.class)).thenReturn(ledgerConfig);
         lenient().when(ledgerConfig.recordsMaxQueryableByAccount()).thenReturn(MAX_QUERYABLE_PER_ACCOUNT);
     }
@@ -191,7 +199,8 @@ final class RecordCacheImplTest extends AppTestBase {
                     // duplicate  user tx
                     new TransactionReceiptEntry(3, txId1, SUCCESS));
 
-            final var entry = new TransactionReceiptEntries(entries);
+            final var entry =
+                    TransactionReceiptEntries.newBuilder().entries(entries).build();
 
             final var state = wsa.getState();
             assertThat(state).isNotNull();
@@ -262,7 +271,8 @@ final class RecordCacheImplTest extends AppTestBase {
                     new TransactionReceiptEntry(2, txId2, DUPLICATE_TRANSACTION),
                     new TransactionReceiptEntry(3, txId1, DUPLICATE_TRANSACTION));
 
-            final var entry = new TransactionReceiptEntries(entries);
+            final var entry =
+                    TransactionReceiptEntries.newBuilder().entries(entries).build();
             queue.add(entry);
             ((ListWritableQueueState<?>) queue).commit();
 
@@ -767,6 +777,213 @@ final class RecordCacheImplTest extends AppTestBase {
 
             // Then we can check for a duplicate by transaction ID
             assertThat(cache.hasDuplicate(txId, currentNodeId)).isEqualTo(SAME_NODE);
+        }
+    }
+
+    @Nested
+    @DisplayName("Purging expired receipts")
+    final class PurgeTests {
+        private static final Instant FIRST_ROUND_TIME = Instant.parse("2026-01-01T00:00:00Z");
+        private static final Instant FAR_FUTURE_VALID_START = FIRST_ROUND_TIME.plus(Duration.ofDays(250 * 365L));
+
+        @Mock
+        private ImmediateStateChangeListener immediateStateChangeListener;
+
+        @Mock
+        private BlockStreamManager blockStreamManager;
+
+        @Test
+        @DisplayName("A far-future valid start does not stop its round or later rounds from being purged")
+        void farFutureValidStartDoesNotStopPurging() {
+            final var cache = new RecordCacheImpl(dedupeCache, wsa, props, networkInfo);
+            final var farFutureRecord = recordWith(FAR_FUTURE_VALID_START, INVALID_TRANSACTION_START);
+            final var firstRecord = recordWith(FIRST_ROUND_TIME.minusSeconds(1), SUCCESS);
+            final var secondRecord = recordWith(FIRST_ROUND_TIME, SUCCESS);
+
+            handleRound(cache, FIRST_ROUND_TIME, farFutureRecord, firstRecord);
+            handleRound(cache, FIRST_ROUND_TIME.plusSeconds(1), secondRecord);
+            assertThat(receiptQueue()).hasSize(2);
+
+            handleRound(cache, FIRST_ROUND_TIME.plusSeconds(MAX_VALID_DURATION_SECS + 1));
+            assertThat(receiptQueue()).isEmpty();
+            assertThat(cache.getHistory(farFutureRecord.transactionIDOrThrow())).isNull();
+            assertThat(cache.getHistory(firstRecord.transactionIDOrThrow())).isNull();
+            assertThat(cache.getHistory(secondRecord.transactionIDOrThrow())).isNull();
+            assertThat(cache.getRecords(PAYER_ACCOUNT_ID)).isEmpty();
+        }
+
+        @Test
+        @DisplayName("A round with only far-future valid starts is purged once its own consensus time expires")
+        void roundWithOnlyFarFutureValidStartsIsPurgedWhenItsConsensusTimeExpires() {
+            final var cache = new RecordCacheImpl(dedupeCache, wsa, props, networkInfo);
+            final var farFutureRecord = recordWith(FAR_FUTURE_VALID_START, INVALID_TRANSACTION_START);
+            final var laterRecord = recordWith(FIRST_ROUND_TIME.plusSeconds(MAX_VALID_DURATION_SECS), SUCCESS);
+
+            handleRound(cache, FIRST_ROUND_TIME, farFutureRecord);
+            handleRound(cache, FIRST_ROUND_TIME.plusSeconds(MAX_VALID_DURATION_SECS), laterRecord);
+            assertThat(receiptQueue()).hasSize(2);
+            assertThat(getReceipt(cache, farFutureRecord.transactionIDOrThrow()))
+                    .isEqualTo(farFutureRecord.receipt());
+
+            handleRound(cache, FIRST_ROUND_TIME.plusSeconds(MAX_VALID_DURATION_SECS + 1));
+            assertThat(receiptQueue()).hasSize(1);
+            assertThat(cache.getHistory(farFutureRecord.transactionIDOrThrow())).isNull();
+            assertThat(cache.getHistory(laterRecord.transactionIDOrThrow())).isNotNull();
+        }
+
+        @Test
+        @DisplayName("Future valid starts spread out over time do not hold their round past its own consensus time")
+        void spreadOutFutureValidStartsDoNotHoldRoundPastItsConsensusTime() {
+            final var cache = new RecordCacheImpl(dedupeCache, wsa, props, networkInfo);
+            final List<TransactionRecord> records = new ArrayList<>();
+            records.add(recordWith(FIRST_ROUND_TIME.minusSeconds(1), SUCCESS));
+            for (long i = 0; i < 3; i++) {
+                records.add(recordWith(
+                        FIRST_ROUND_TIME.plusSeconds((1 + 2 * i) * MAX_VALID_DURATION_SECS),
+                        INVALID_TRANSACTION_START));
+            }
+
+            handleRound(cache, FIRST_ROUND_TIME, records.toArray(TransactionRecord[]::new));
+            handleRound(cache, FIRST_ROUND_TIME.plusSeconds(MAX_VALID_DURATION_SECS));
+            assertThat(receiptQueue()).hasSize(1);
+
+            handleRound(cache, FIRST_ROUND_TIME.plusSeconds(MAX_VALID_DURATION_SECS + 1));
+            assertThat(receiptQueue()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("A round committed without its consensus time is still purged by its valid starts")
+        void roundWithoutConsensusTimeIsPurgedByValidStarts() {
+            final var txnId = recordWith(FIRST_ROUND_TIME, SUCCESS).transactionIDOrThrow();
+            final WritableQueueState<TransactionReceiptEntries> queue = Objects.requireNonNull(wsa.getState())
+                    .getWritableStates(RecordCacheService.NAME)
+                    .getQueue(TRANSACTION_RECEIPTS_STATE_ID);
+            queue.add(TransactionReceiptEntries.newBuilder()
+                    .entries(new TransactionReceiptEntry(0, txnId, SUCCESS))
+                    .build());
+            ((ListWritableQueueState<?>) queue).commit();
+            final var cache = new RecordCacheImpl(dedupeCache, wsa, props, networkInfo);
+
+            handleRound(cache, FIRST_ROUND_TIME.plusSeconds(MAX_VALID_DURATION_SECS));
+            assertThat(receiptQueue()).hasSize(1);
+
+            handleRound(cache, FIRST_ROUND_TIME.plusSeconds(MAX_VALID_DURATION_SECS + 1));
+            assertThat(receiptQueue()).isEmpty();
+            assertThat(cache.getHistory(txnId)).isNull();
+        }
+
+        @Test
+        @DisplayName("Purging a round keeps the history that later rounds still hold for the same id")
+        void purgingRoundKeepsHistoryThatLaterRoundsStillHold() {
+            given(nodeInfo.accountId()).willReturn(NODE_ACCOUNT_ID);
+            given(networkInfo.nodeInfo(2)).willReturn(nodeInfo);
+            final var cache = new RecordCacheImpl(dedupeCache, wsa, props, networkInfo);
+            // The valid start is after the first rounds, so they are purged while the id is still valid
+            final var validStart = FIRST_ROUND_TIME.plusSeconds(MAX_VALID_DURATION_SECS);
+            final var txnId = recordWith(validStart, SUCCESS).transactionIDOrThrow();
+
+            handleRound(cache, FIRST_ROUND_TIME, 1, recordWith(validStart, INVALID_TRANSACTION_START));
+            handleRound(cache, FIRST_ROUND_TIME, 2, recordWith(validStart, INVALID_TRANSACTION_START));
+            handleRound(cache, FIRST_ROUND_TIME, 2, recordWith(validStart, INVALID_NODE_ACCOUNT));
+            handleRound(cache, validStart, 2, recordWith(validStart, SUCCESS));
+            handleRound(cache, FIRST_ROUND_TIME.plusSeconds(MAX_VALID_DURATION_SECS + 1));
+            assertThat(receiptQueue()).hasSize(1);
+
+            final var rebuiltCache = new RecordCacheImpl(dedupeCache, wsa, props, networkInfo);
+            for (final var subject : List.of(cache, rebuiltCache)) {
+                assertThat(subject.hasDuplicate(txnId, 1)).isEqualTo(OTHER_NODE);
+                assertThat(subject.hasDuplicate(txnId, 2)).isEqualTo(SAME_NODE);
+                assertThat(getReceipt(subject, txnId).status()).isEqualTo(SUCCESS);
+            }
+        }
+
+        @Test
+        @DisplayName("A cache rebuilt before a purge drops only the purged round from the history")
+        void cacheRebuiltBeforePurgeDropsOnlyPurgedRoundFromHistory() {
+            final var cache = new RecordCacheImpl(dedupeCache, wsa, props, networkInfo);
+            // The valid start is after the first round, so it is purged while the id is still valid
+            final var validStart = FIRST_ROUND_TIME.plusSeconds(MAX_VALID_DURATION_SECS);
+            final var userRecord = recordWith(validStart, SUCCESS);
+            final var txnId = userRecord.transactionIDOrThrow();
+            final var childRecord = userRecord
+                    .copyBuilder()
+                    .transactionID(txnId.copyBuilder().nonce(1))
+                    .build();
+
+            handleRound(cache, FIRST_ROUND_TIME, 1, recordWith(validStart, INVALID_NODE_ACCOUNT));
+            handleRound(cache, validStart, 2, userRecord, childRecord);
+            final var rebuiltCache = new RecordCacheImpl(dedupeCache, wsa, props, networkInfo);
+            handleRound(rebuiltCache, FIRST_ROUND_TIME.plusSeconds(MAX_VALID_DURATION_SECS + 1));
+            assertThat(receiptQueue()).hasSize(1);
+
+            assertThat(Objects.requireNonNull(rebuiltCache.getReceipts(txnId))
+                            .priorityReceipt(txnId)
+                            .status())
+                    .isEqualTo(SUCCESS);
+            assertThat(getReceipt(rebuiltCache, txnId).status()).isEqualTo(SUCCESS);
+            assertThat(getRecords(rebuiltCache, txnId)).hasSize(2);
+        }
+
+        @Test
+        @DisplayName("An id handled again in every round keeps only the history of its queued rounds")
+        void idHandledInEveryRoundKeepsOnlyHistoryOfQueuedRounds() {
+            final var cache = new RecordCacheImpl(dedupeCache, wsa, props, networkInfo);
+            final var txnId = recordWith(FIRST_ROUND_TIME, SUCCESS).transactionIDOrThrow();
+
+            // After the first purge only the node failure is queued, which must still keep the history
+            var consensusTime = FIRST_ROUND_TIME.plusSeconds(MAX_VALID_DURATION_SECS);
+            for (final var status :
+                    List.of(TRANSACTION_EXPIRED, INVALID_NODE_ACCOUNT, TRANSACTION_EXPIRED, TRANSACTION_EXPIRED)) {
+                consensusTime = consensusTime.plusSeconds(1);
+                handleRound(cache, consensusTime, recordWith(FIRST_ROUND_TIME, status));
+            }
+            assertThat(receiptQueue()).hasSize(1);
+            assertThat(Objects.requireNonNull(cache.getHistory(txnId)).records())
+                    .hasSize(1);
+        }
+
+        private void handleRound(
+                @NonNull final RecordCacheImpl cache,
+                @NonNull final Instant consensusTime,
+                @NonNull final TransactionRecord... records) {
+            handleRound(cache, consensusTime, 0, records);
+        }
+
+        private void handleRound(
+                @NonNull final RecordCacheImpl cache,
+                @NonNull final Instant consensusTime,
+                final long nodeId,
+                @NonNull final TransactionRecord... records) {
+            cache.resetRoundReceipts();
+            for (final var record : records) {
+                cache.addRecordSource(
+                        nodeId, record.transactionIDOrThrow(), DueDiligenceFailure.NO, new PartialRecordSource(record));
+            }
+            cache.commitReceipts(
+                    Objects.requireNonNull(wsa.getState()),
+                    consensusTime,
+                    immediateStateChangeListener,
+                    blockStreamManager,
+                    RECORDS);
+        }
+
+        private List<TransactionReceiptEntries> receiptQueue() {
+            final var queue = Objects.requireNonNull(wsa.getState())
+                    .getReadableStates(RecordCacheService.NAME)
+                    .<TransactionReceiptEntries>getQueue(TRANSACTION_RECEIPTS_STATE_ID);
+            final List<TransactionReceiptEntries> rounds = new ArrayList<>();
+            queue.iterator().forEachRemaining(rounds::add);
+            return rounds;
+        }
+
+        private TransactionRecord recordWith(
+                @NonNull final Instant validStart, @NonNull final ResponseCodeEnum status) {
+            return TransactionRecord.newBuilder()
+                    .transactionID(TransactionID.newBuilder()
+                            .accountID(PAYER_ACCOUNT_ID)
+                            .transactionValidStart(asTimestamp(validStart)))
+                    .receipt(TransactionReceipt.newBuilder().status(status))
+                    .build();
         }
     }
 }

@@ -18,7 +18,6 @@ public class ClprHandlers {
     private final ClprCompleteChannelHandler clprCompleteChannelHandler;
     private final ClprCloseChannelHandler clprCloseChannelHandler;
     private final ClprSubmitBundleHandler clprSubmitBundleHandler;
-    private final ClprRedactMessageHandler clprRedactMessageHandler;
     private final ClprRegisterConnectorHandler clprRegisterConnectorHandler;
     private final ClprCompleteConnectorHandler clprCompleteConnectorHandler;
     private final ClprDeregisterConnectorHandler clprDeregisterConnectorHandler;
@@ -34,7 +33,6 @@ public class ClprHandlers {
      * @param clprCompleteChannelHandler the handler for completing channels (reveal phase)
      * @param clprCloseChannelHandler the handler for closing channels
      * @param clprSubmitBundleHandler the handler for submitting bundles from peer syncs
-     * @param clprRedactMessageHandler the handler for redacting messages from the queue
      * @param clprRegisterConnectorHandler the handler for registering connectors (commit phase)
      * @param clprCompleteConnectorHandler the handler for completing connector registration (reveal phase)
      * @param clprDeregisterConnectorHandler the handler for deregistering connectors
@@ -49,7 +47,6 @@ public class ClprHandlers {
             @NonNull final ClprCompleteChannelHandler clprCompleteChannelHandler,
             @NonNull final ClprCloseChannelHandler clprCloseChannelHandler,
             @NonNull final ClprSubmitBundleHandler clprSubmitBundleHandler,
-            @NonNull final ClprRedactMessageHandler clprRedactMessageHandler,
             @NonNull final ClprRegisterConnectorHandler clprRegisterConnectorHandler,
             @NonNull final ClprCompleteConnectorHandler clprCompleteConnectorHandler,
             @NonNull final ClprDeregisterConnectorHandler clprDeregisterConnectorHandler,
@@ -67,8 +64,6 @@ public class ClprHandlers {
                 Objects.requireNonNull(clprCloseChannelHandler, "clprCloseChannelHandler must not be null");
         this.clprSubmitBundleHandler =
                 Objects.requireNonNull(clprSubmitBundleHandler, "clprSubmitBundleHandler must not be null");
-        this.clprRedactMessageHandler =
-                Objects.requireNonNull(clprRedactMessageHandler, "clprRedactMessageHandler must not be null");
         this.clprRegisterConnectorHandler =
                 Objects.requireNonNull(clprRegisterConnectorHandler, "clprRegisterConnectorHandler must not be null");
         this.clprCompleteConnectorHandler =
@@ -133,15 +128,6 @@ public class ClprHandlers {
      */
     public ClprSubmitBundleHandler clprSubmitBundleHandler() {
         return clprSubmitBundleHandler;
-    }
-
-    /**
-     * Gets the handler for redacting messages from the queue.
-     *
-     * @return the redact message handler
-     */
-    public ClprRedactMessageHandler clprRedactMessageHandler() {
-        return clprRedactMessageHandler;
     }
 
     /**

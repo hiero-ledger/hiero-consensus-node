@@ -5,7 +5,6 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_CLOSE_CHANNEL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CHANNEL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CONNECTOR;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_DEREGISTER_CONNECTOR;
-import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_REDACT_MESSAGE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_REGISTER_CHANNEL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_REGISTER_CONNECTOR;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SUBMIT_BUNDLE;
@@ -84,7 +83,7 @@ class ClprFeeCalculatorTest {
         assertThat(feeResult.getServiceTotalTinycents()).isEqualTo(FLAT_CLPR_BASE_FEE_TINYCENTS);
     }
 
-    /** All 9 CLPR transaction functionalities paired with their TransactionBody discriminants. */
+    /** All 8 CLPR transaction functionalities paired with their TransactionBody discriminants. */
     private static Stream<Arguments> clprTransactionOps() {
         return Stream.of(
                 Arguments.of(
@@ -96,7 +95,6 @@ class ClprFeeCalculatorTest {
                 Arguments.of(CLPR_REGISTER_CONNECTOR, TransactionBody.DataOneOfType.CLPR_REGISTER_CONNECTOR),
                 Arguments.of(CLPR_COMPLETE_CONNECTOR, TransactionBody.DataOneOfType.CLPR_COMPLETE_CONNECTOR),
                 Arguments.of(CLPR_DEREGISTER_CONNECTOR, TransactionBody.DataOneOfType.CLPR_DEREGISTER_CONNECTOR),
-                Arguments.of(CLPR_SUBMIT_BUNDLE, TransactionBody.DataOneOfType.CLPR_SUBMIT_BUNDLE),
-                Arguments.of(CLPR_REDACT_MESSAGE, TransactionBody.DataOneOfType.CLPR_REDACT_MESSAGE));
+                Arguments.of(CLPR_SUBMIT_BUNDLE, TransactionBody.DataOneOfType.CLPR_SUBMIT_BUNDLE));
     }
 }

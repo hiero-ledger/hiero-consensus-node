@@ -4,7 +4,6 @@ package com.hedera.node.app.service.clpr.impl.verifier.evm;
 import com.hedera.node.app.service.clpr.impl.verifier.ProofException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
-import org.bouncycastle.crypto.digests.KeccakDigest;
 
 /**
  * Small byte/hash helpers shared by the EVM proof verifiers (Merkle-Patricia traversal, account
@@ -16,16 +15,6 @@ public final class ProofBytes {
     private static final String SOURCE = "ProofBytes";
 
     private ProofBytes() {}
-
-    /** keccak-256 of {@code input}. */
-    @NonNull
-    public static byte[] keccak256(@NonNull final byte[] input) {
-        final KeccakDigest digest = new KeccakDigest(256);
-        digest.update(input, 0, input.length);
-        final byte[] out = new byte[32];
-        digest.doFinal(out, 0);
-        return out;
-    }
 
     /**
      * Returns a defensive copy of {@code bytes}, requiring it to be exactly {@code expectedLength} bytes.

@@ -133,22 +133,21 @@ public class FrameBuilder {
                 .miningBeneficiary(nominalCoinbase)
                 .blockHashLookup(context.blocks()::blockHashOf)
                 .contextVariables(contextVariables);
-        // add accessLists and codeDelegations authorities to "warmed" addresses
-        if ((transaction.accessLists() != null && !transaction.accessLists().isEmpty())
-                || !codeDelegationAccessedAddresses.isEmpty()) {
-            final Set<Address> accessListWarmAddresses = new HashSet<>(codeDelegationAccessedAddresses);
+        // add coinbase, accessLists and codeDelegations authorities to "warmed" addresses
+        final Set<Address> accessListWarmAddresses = new HashSet<>(codeDelegationAccessedAddresses);
+        // EIP-3651: the coinbase address is warm at the start of transaction execution
+        accessListWarmAddresses.add(nominalCoinbase);
+        // add accessLists to "warmed" addresses
+        if (transaction.accessLists() != null && !transaction.accessLists().isEmpty()) {
             final Multimap<Address, Bytes32> accessListWarmStorage = HashMultimap.create();
-            // add accessLists to "warmed" addresses
-            if (transaction.accessLists() != null) {
-                for (final AccessListItem accessList : transaction.accessLists()) {
-                    final Address address = Address.wrap(accessList.address());
-                    accessListWarmAddresses.add(address);
-                    accessListWarmStorage.putAll(address, accessList.storageKeys());
-                }
+            for (final AccessListItem accessList : transaction.accessLists()) {
+                final Address address = Address.wrap(accessList.address());
+                accessListWarmAddresses.add(address);
+                accessListWarmStorage.putAll(address, accessList.storageKeys());
             }
-            builder.eip2930AccessListWarmAddresses(accessListWarmAddresses);
             builder.eip2930AccessListWarmStorage(accessListWarmStorage);
         }
+        builder.eip2930AccessListWarmAddresses(accessListWarmAddresses);
         // finish initial frame
         if (transaction.isCreate()) {
             return finishedAsCreate(to, builder, transaction);

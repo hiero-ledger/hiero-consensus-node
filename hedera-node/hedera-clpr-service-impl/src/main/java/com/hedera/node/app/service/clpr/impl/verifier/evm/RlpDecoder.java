@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.verifier.evm;
 
-import static com.hedera.node.app.service.clpr.impl.verifier.evm.ProofBytes.keccak256;
 import static com.hedera.node.app.service.clpr.impl.verifier.evm.ProofBytes.leftPad32;
 
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.service.clpr.impl.verifier.ProofException;
 import com.hedera.node.app.service.clpr.impl.verifier.Rlp;
 import com.hedera.node.app.service.clpr.impl.verifier.evm.MerklePatriciaTrie.BranchNode;
@@ -44,7 +44,7 @@ public final class RlpDecoder {
             if (raw.length == 0) {
                 throw new ProofException(SOURCE, "empty proof node");
             }
-            nodesByHash.put(new BytesKey(keccak256(raw)), decodeNode(Rlp.decodeOne(raw)));
+            nodesByHash.put(new BytesKey(MiscCryptoUtils.keccak256DigestOf(raw)), decodeNode(Rlp.decodeOne(raw)));
         }
         return new MerklePatriciaTrie(rootHash32, nodesByHash);
     }

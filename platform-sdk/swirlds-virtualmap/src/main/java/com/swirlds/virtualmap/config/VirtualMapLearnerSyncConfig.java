@@ -19,9 +19,17 @@ import java.time.Duration;
  * @param asyncOutputStreamFlush                 In order to ensure that data is not languishing in the
  *                                               asyncOutputStream buffer a periodic flush is performed.
  * @param flushInterval                          During reconnect, hashes and leaves are periodically flushed to disk
- *                                               after they are processed. This interval indicates the number of items
- *                                               to collect before they are flushed. If zero, all data is flushed in the
- *                                               end of reconnect hashing only.
+ *                                               after they are processed. A flush is started once any of the following
+ *                                               reaches this value: the number of hash slots in collected hash chunks,
+ *                                               the number of updated leaves, or the number of deleted leaves. While a
+ *                                               flush is running, threads that receive leaves, hash, or delete old
+ *                                               leaves block once the next batch reaches this value, so about two
+ *                                               batches are kept in memory. Blocked receivers stop reading from the
+ *                                               teacher, so a single flush must complete well within the teacher's
+ *                                               {@code reconnect.teacher.asyncStreamIdleTimeout} and
+ *                                               {@code reconnect.socketTimeout}, otherwise reconnect fails. If zero,
+ *                                               all data is flushed in the end of reconnect only, and these threads
+ *                                               never block.
  */
 // spotless:off
 @ConfigData("reconnect.learner")

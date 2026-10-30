@@ -3,6 +3,7 @@ package com.hedera.node.app.state.recordcache;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hedera.hapi.util.HapiUtils.TIMESTAMP_COMPARATOR;
+import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.hapi.util.HapiUtils.isBefore;
 import static com.hedera.node.app.spi.records.RecordCache.matchesExceptNonce;
 import static com.hedera.node.app.state.HederaRecordCache.DuplicateCheckResult.NO_DUPLICATE;
@@ -17,6 +18,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.recordcache.TransactionReceiptEntries;
@@ -41,9 +43,12 @@ import com.swirlds.state.spi.WritableQueueState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.ConcurrentModificationException;
+import java.util.Deque;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -139,41 +144,82 @@ public class RecordCacheImpl implements HederaRecordCache {
      * <p>
      * This history has two parts:
      * <ol>
-     *     <li>A {@code nodeIds} set with all the node ids that have submitted a properly
-     *     screened transaction with the scoped base {@link TransactionID}; this is used to
+     *     <li>A {@code nodeIdCounts} map with the number of queued receipts each node has for a properly
+     *     screened transaction with the scoped base {@link TransactionID}; its keys are used to
      *     classify duplicate transactions.</li>
      *     <li>A {@code recordSources} list with all the sources of records for the relevant
      *     base {@link TransactionID}. This is used to construct {@link TransactionRecord}
      *     records for answering queries.</li>
      * </ol>
      *
-     * @param nodeIds The set of node ids that have submitted a properly screened transaction
+     * @param nodeIdCounts The number of queued receipts for a properly screened transaction, by node id
      * @param recordSources The sources of records for the relevant base {@link TransactionID}
+     * @param sourceReceiptCounts The number of queued receipts from each record source, in the same order
      */
     private record HistorySource(
-            @NonNull Set<Long> nodeIds, @NonNull List<RecordSource> recordSources) implements ReceiptSource {
+            @NonNull Map<Long, Integer> nodeIdCounts,
+            @NonNull List<RecordSource> recordSources,
+            @NonNull Deque<Integer> sourceReceiptCounts)
+            implements ReceiptSource {
         public HistorySource() {
-            this(new HashSet<>(), new CopyOnWriteArrayList<>());
+            this(new HashMap<>(), new CopyOnWriteArrayList<>(), new ArrayDeque<>());
+        }
+
+        /**
+         * Returns the ids of the nodes with a queued receipt for a properly screened transaction.
+         */
+        Set<Long> nodeIds() {
+            return nodeIdCounts.keySet();
+        }
+
+        /**
+         * Adds a queued receipt from the given record source.
+         */
+        void addReceipt(final long nodeId, @NonNull final ResponseCodeEnum status, @NonNull final RecordSource source) {
+            if (!NODE_FAILURES.contains(status)) {
+                nodeIdCounts.merge(nodeId, 1, Integer::sum);
+            }
+            // All receipts from a source are added together, so a source already in this history is its last one
+            if (!recordSources.isEmpty() && recordSources.getLast() == source) {
+                sourceReceiptCounts.addLast(sourceReceiptCounts.removeLast() + 1);
+            } else {
+                recordSources.add(source);
+                sourceReceiptCounts.addLast(1);
+            }
+        }
+
+        /**
+         * Removes a purged receipt, returning whether no queued receipt is left.
+         */
+        boolean removeReceipt(final long nodeId, @NonNull final ResponseCodeEnum status) {
+            if (!NODE_FAILURES.contains(status)) {
+                nodeIdCounts.computeIfPresent(nodeId, (ignore, count) -> count == 1 ? null : count - 1);
+            }
+            // Receipts are purged in the order they were added, so this one came from the first source
+            final int left = sourceReceiptCounts.removeFirst() - 1;
+            if (left > 0) {
+                sourceReceiptCounts.addFirst(left);
+            } else {
+                recordSources.removeFirst();
+            }
+            return recordSources.isEmpty();
         }
 
         @Override
         public @NonNull TransactionReceipt priorityReceipt(@NonNull final TransactionID txnId) {
             requireNonNull(txnId);
-            if (recordSources.isEmpty()) {
-                return PENDING_RECEIPT;
-            }
-            final var firstPriorityReceipt = recordSources.getFirst().receiptOf(txnId);
-            if (!NODE_FAILURES.contains(firstPriorityReceipt.status())) {
-                return firstPriorityReceipt;
-            } else {
-                for (int i = 1, n = recordSources.size(); i < n; i++) {
-                    final var nextPriorityReceipt = recordSources.get(i).receiptOf(txnId);
-                    if (!NODE_FAILURES.contains(nextPriorityReceipt.status())) {
-                        return nextPriorityReceipt;
-                    }
+            // Iterate over a snapshot, since purging can remove sources while a query reads them
+            TransactionReceipt firstPriorityReceipt = null;
+            for (final var source : recordSources) {
+                final var receipt = source.receiptOf(txnId);
+                if (!NODE_FAILURES.contains(receipt.status())) {
+                    return receipt;
+                }
+                if (firstPriorityReceipt == null) {
+                    firstPriorityReceipt = receipt;
                 }
             }
-            return firstPriorityReceipt;
+            return firstPriorityReceipt == null ? PENDING_RECEIPT : firstPriorityReceipt;
         }
 
         @Override
@@ -224,7 +270,7 @@ public class RecordCacheImpl implements HederaRecordCache {
                     }
                 });
             }
-            return new History(nodeIds, duplicateRecords, childRecords);
+            return new History(nodeIds(), duplicateRecords, childRecords);
         }
     }
 
@@ -259,6 +305,8 @@ public class RecordCacheImpl implements HederaRecordCache {
         final var iter = getReadableQueue(workingStateAccessor).iterator();
         while (iter.hasNext()) {
             final var roundReceipts = iter.next();
+            // Each queued entry gets its own record source per id, so purging the entry removes only its receipts
+            final Map<TransactionID, PartialRecordSource> entrySources = new HashMap<>();
             for (final var receipt : roundReceipts.entries()) {
                 final var txnId = receipt.transactionIdOrThrow();
                 // We group history by the base transaction ID, which is the transaction ID with a nonce of 0
@@ -269,18 +317,14 @@ public class RecordCacheImpl implements HederaRecordCache {
                 deduplicationCache.add(baseTxnId);
                 // Now update the history of this transaction id
                 final var historySource = historySources.computeIfAbsent(baseTxnId, ignore -> new HistorySource());
+                // These steps only make a partial transaction record available for answering queries, and are not
+                // of critical importance for the operation of the node
+                final var recordSource = entrySources.computeIfAbsent(baseTxnId, ignore -> new PartialRecordSource());
+                recordSource.incorporate(asTxnRecord(receipt));
                 // Honest nodes use the set of node ids that have submitted classifiable transactions with this id to
                 // classify user versus node duplicates; so reconstructing the set here is critical for deterministic
                 // transaction handling across all nodes in the network
-                if (!NODE_FAILURES.contains(receipt.status())) {
-                    historySource.nodeIds().add(receipt.nodeId());
-                }
-                // These steps only make a partial transaction record available for answering queries, and are not
-                // of critical importance for the operation of the node
-                if (historySource.recordSources().isEmpty()) {
-                    historySource.recordSources().add(new PartialRecordSource());
-                }
-                ((PartialRecordSource) historySource.recordSources.getFirst()).incorporate(asTxnRecord(receipt));
+                historySource.addReceipt(receipt.nodeId(), receipt.status(), recordSource);
                 payerTxnIds
                         .computeIfAbsent(txnId.accountIDOrThrow(), ignored -> new HashSet<>())
                         .add(txnId);
@@ -307,15 +351,7 @@ public class RecordCacheImpl implements HederaRecordCache {
                     txnId.nonce() == 0 ? txnId : txnId.copyBuilder().nonce(0).build();
             final var historySource = historySources.computeIfAbsent(baseTxnId, ignore -> new HistorySource());
             // We don't let improperly submitted transactions keep properly submitted transactions from using an id
-            if (!NODE_FAILURES.contains(status)) {
-                historySource.nodeIds().add(nodeId);
-            }
-            // Only add each record source once per history; since very few record sources contain more than one
-            // transaction id, and few transaction ids have duplicates, this is almost always an existence check
-            // in an empty list
-            if (!historySource.recordSources().contains(recordSource)) {
-                historySource.recordSources.add(recordSource);
-            }
+            historySource.addReceipt(nodeId, status, recordSource);
             final AccountID effectivePayerId;
             if (dueDiligenceFailure == DueDiligenceFailure.YES && matchesExceptNonce(txnId, userTxnId)) {
                 effectivePayerId = requireNonNull(networkInfo.nodeInfo(nodeId)).accountId();
@@ -365,7 +401,7 @@ public class RecordCacheImpl implements HederaRecordCache {
         final var queue = states.<TransactionReceiptEntries>getQueue(TRANSACTION_RECEIPTS_STATE_ID);
         purgeExpiredReceiptEntries(queue, consensusNow);
         if (!transactionReceipts.isEmpty()) {
-            queue.add(new TransactionReceiptEntries(new ArrayList<>(transactionReceipts)));
+            queue.add(new TransactionReceiptEntries(new ArrayList<>(transactionReceipts), asTimestamp(consensusNow)));
         }
         if (states instanceof CommittableWritableStates committable) {
             committable.commit();
@@ -417,18 +453,29 @@ public class RecordCacheImpl implements HederaRecordCache {
                     .map(entry -> entry.transactionIdOrElse(TransactionID.DEFAULT)
                             .transactionValidStartOrElse(Timestamp.DEFAULT))
                     .orElseThrow();
+            // A valid start after the round's own consensus time belongs to a transaction that never executed, so
+            // it must not keep this round (and every round after it) from being purged
+            final var roundConsensusTime = roundReceipts.consensusTimestamp();
+            final var latestValidStart =
+                    roundConsensusTime != null && isBefore(roundConsensusTime, latestReceiptValidStart)
+                            ? roundConsensusTime
+                            : latestReceiptValidStart;
             // If even the latest valid start time is before the earliest valid start, then all transaction
             // ids used in this round are expired and cannot be duplicated
-            if (isBefore(latestReceiptValidStart, earliestValidStart)) {
-                // Remove all in-memory context for these transaction ids.  Note that all transactions are added
-                // to this map keyed to the "user transaction" ID, so removing the entry here removes both "parent"
-                // and "child" transaction records associated with that ID.
+            if (isBefore(latestValidStart, earliestValidStart)) {
+                // Remove the in-memory context for these receipts.  Note that all transactions are added to this
+                // map keyed to the "user transaction" ID, so removing the entry here removes both "parent" and
+                // "child" transaction records associated with that ID.  Only this round's receipts are removed, so
+                // the entry stays as long as a later round still holds a receipt for the same ID.
                 for (final var receipt : roundReceipts.entries()) {
                     final var txnId = receipt.transactionIdOrThrow();
-                    historySources.remove(
+                    historySources.computeIfPresent(
                             txnId.nonce() == 0
                                     ? txnId
-                                    : txnId.copyBuilder().nonce(0).build());
+                                    : txnId.copyBuilder().nonce(0).build(),
+                            (ignore, historySource) -> historySource.removeReceipt(receipt.nodeId(), receipt.status())
+                                    ? null
+                                    : historySource);
                     // Remove from the payer to transaction index
                     var payerId = txnId.accountIDOrThrow();
                     var txnIds = payerTxnIds.computeIfAbsent(payerId, ignored -> new HashSet<>());

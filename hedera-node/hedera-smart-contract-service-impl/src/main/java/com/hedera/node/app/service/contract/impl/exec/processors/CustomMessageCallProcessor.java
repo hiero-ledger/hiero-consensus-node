@@ -408,9 +408,18 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
             doHalt(context, INVALID_CONTRACT_ID, tracer);
         } else {
             final var result = PrecompileContractResult.success(Bytes.EMPTY);
-            context.frame.clearGasRemaining();
+            // An internal call to the coinbase returns its unused gas, as a call to any other account
+            // without code does, since the coinbase is warm from the start of the transaction (EIP-3651)
+            if (!isInternalCallToCoinbase(context)) {
+                context.frame.clearGasRemaining();
+            }
             finishPrecompileExecution(context, result, PRECOMPILE);
         }
+    }
+
+    private static boolean isInternalCallToCoinbase(@NonNull final CustomMessageCallContext context) {
+        final var frame = context.frame;
+        return frame.getDepth() > 0 && FrameUtils.isCoinbase(frame, context.executableCodeAddress);
     }
 
     private void handleRegularCall(

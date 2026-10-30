@@ -16,7 +16,9 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_NAME_TOO_LONG;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_SYMBOL_TOO_LONG;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.service.token.impl.test.handlers.util.CryptoHandlerTestBase.A_COMPLEX_KEY;
+import static com.hedera.node.app.spi.fixtures.NestedKeys.nestedKeyList;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
+import static com.hedera.node.app.spi.validation.AttributeValidator.MAX_NESTED_KEY_LEVELS;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -91,6 +93,30 @@ class TokenAttributesValidatorTest {
         assertThatThrownBy(() -> subject.validateTokenMetadata(Bytes.wrap(randomLongBytes), tokensConfig))
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(METADATA_TOO_LONG));
+    }
+
+    @Test
+    void failsSupplyKeyNestedBeyondMaxDepth() {
+        final var deepSupplyKey = nestedKeyList(MAX_NESTED_KEY_LEVELS);
+        assertThatThrownBy(() -> subject.validateTokenKeys(
+                        false,
+                        null,
+                        false,
+                        null,
+                        false,
+                        null,
+                        true,
+                        deepSupplyKey,
+                        false,
+                        null,
+                        false,
+                        null,
+                        false,
+                        null,
+                        false,
+                        null))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(INVALID_SUPPLY_KEY));
     }
 
     @Test

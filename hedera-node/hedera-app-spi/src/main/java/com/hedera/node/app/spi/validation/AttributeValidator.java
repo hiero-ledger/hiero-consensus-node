@@ -80,4 +80,38 @@ public interface AttributeValidator {
         requireNonNull(source);
         return isImmutableKey(source);
     }
+
+    /**
+     * Returns whether the given key nests no deeper than {@link #MAX_NESTED_KEY_LEVELS} levels. This is the stateless
+     * counterpart to {@link #validateKey(Key)}'s depth check, usable from pure checks and pre-handle (where no
+     * {@link AttributeValidator} instance is available) so every transaction type can enforce the same nesting limit.
+     * Key validity itself (e.g. {@code KeyUtils.isValid}) must still be checked separately.
+     *
+     * @param key the key to check
+     * @return true if the key nests no deeper than {@link #MAX_NESTED_KEY_LEVELS}
+     */
+    static boolean isWithinNestedKeyLimit(@NonNull final Key key) {
+        requireNonNull(key);
+        return isWithinNestedKeyLimit(key, 1);
+    }
+
+    private static boolean isWithinNestedKeyLimit(@NonNull final Key key, final int level) {
+        if (level > MAX_NESTED_KEY_LEVELS) {
+            return false;
+        }
+        if (key.hasThresholdKey() && key.thresholdKeyOrThrow().hasKeys()) {
+            for (final var child : key.thresholdKeyOrThrow().keysOrThrow().keys()) {
+                if (!isWithinNestedKeyLimit(child, level + 1)) {
+                    return false;
+                }
+            }
+        } else if (key.hasKeyList()) {
+            for (final var child : key.keyListOrThrow().keys()) {
+                if (!isWithinNestedKeyLimit(child, level + 1)) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
 }

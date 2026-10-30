@@ -22,6 +22,7 @@ jobs:
   prime-workflow:
     name: Prime workflow
     runs-on: hl-cn-default-lin-ss
+    if: ${{ github.event.repository.visibility == 'public' }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
@@ -35,7 +36,7 @@ jobs:
   check-trigger:
     name: Check Trigger Conditions
     runs-on: hl-cn-default-lin-sm
-    if: ${{ !github.event.workflow_dispatch.repository.fork }}
+    if: ${{ github.event.repository.visibility == 'public' && !github.event.workflow_dispatch.repository.fork }}
     outputs:
       triggered: ${{ steps.evaluate.outputs.triggered }}
     steps:
@@ -201,6 +202,7 @@ jobs:
   extract-jdk-version:
     name: Extract Java Version
     uses: ./.github/workflows/854-call-extract-jdk-version.yaml
+    if: ${{ github.event.repository.visibility == 'public' }}
     with:
       ref: ${{ github.ref }}
     secrets:

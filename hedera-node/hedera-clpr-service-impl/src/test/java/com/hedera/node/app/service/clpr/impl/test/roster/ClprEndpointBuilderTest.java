@@ -12,6 +12,7 @@ import com.hedera.node.app.service.clpr.impl.roster.ClprEndpointBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -22,8 +23,8 @@ class ClprEndpointBuilderTest {
 
     private static final long NODE_ID = 1L;
     private static final int HAPI_PORT = 50211;
-    private static final int MTLS_PORT = 43450;
-    private static final Bytes CA_CERT_DER = Bytes.wrap(new byte[] {1, 2, 3, 4});
+    private static final int HAPI_TLS_PORT = 50212;
+    private static final Bytes HAPI_TLS_CERT_DER = Bytes.wrap(new byte[] {1, 2, 3, 4});
 
     @Mock
     private ReadableNodeStore nodeStore;
@@ -31,7 +32,7 @@ class ClprEndpointBuilderTest {
     @Test
     void returnsNullWhenNodeAbsent() {
         given(nodeStore.get(NODE_ID)).willReturn(null);
-        assertThat(ClprEndpointBuilder.buildFor(NODE_ID, nodeStore, false, MTLS_PORT, Bytes.EMPTY))
+        assertThat(ClprEndpointBuilder.buildFor(NODE_ID, nodeStore, HAPI_TLS_PORT, Bytes.EMPTY))
                 .isNull();
     }
 
@@ -39,7 +40,7 @@ class ClprEndpointBuilderTest {
     void returnsNullWhenNodeDeleted() {
         given(nodeStore.get(NODE_ID))
                 .willReturn(nodeWithDomain("host-1").copyBuilder().deleted(true).build());
-        assertThat(ClprEndpointBuilder.buildFor(NODE_ID, nodeStore, false, MTLS_PORT, Bytes.EMPTY))
+        assertThat(ClprEndpointBuilder.buildFor(NODE_ID, nodeStore, HAPI_TLS_PORT, Bytes.EMPTY))
                 .isNull();
     }
 
@@ -51,15 +52,16 @@ class ClprEndpointBuilderTest {
                         .accountId(AccountID.newBuilder().accountNum(3001L).build())
                         .serviceEndpoint(List.of())
                         .build());
-        assertThat(ClprEndpointBuilder.buildFor(NODE_ID, nodeStore, true, MTLS_PORT, CA_CERT_DER))
+        assertThat(ClprEndpointBuilder.buildFor(NODE_ID, nodeStore, HAPI_TLS_PORT, HAPI_TLS_CERT_DER))
                 .isNull();
     }
 
     @Test
-    void mtlsOffFallsBackToHapiPortAndEmptyCert() {
+    @DisplayName("given no HAPI TLS certificate, then the address-book HAPI port and an empty cert are advertised")
+    void givenNoHapiTlsCertificate_thenAddressBookHapiPortAndEmptyCertAreAdvertised() {
         given(nodeStore.get(NODE_ID)).willReturn(nodeWithDomain("host-1"));
 
-        final var endpoint = ClprEndpointBuilder.buildFor(NODE_ID, nodeStore, false, MTLS_PORT, CA_CERT_DER);
+        final var endpoint = ClprEndpointBuilder.buildFor(NODE_ID, nodeStore, HAPI_TLS_PORT, Bytes.EMPTY);
 
         assertThat(endpoint).isNotNull();
         assertThat(endpoint.serviceEndpointOrThrow().ipAddress()).isEqualTo("host-1");
@@ -68,14 +70,16 @@ class ClprEndpointBuilderTest {
     }
 
     @Test
-    void mtlsOnAdvertisesMtlsPortAndCaCert() {
+    @DisplayName("given a HAPI TLS certificate, then the HAPI TLS port and that cert are advertised")
+    void givenHapiTlsCertificate_thenHapiTlsPortAndCertAreAdvertised() {
         given(nodeStore.get(NODE_ID)).willReturn(nodeWithDomain("host-1"));
 
-        final var endpoint = ClprEndpointBuilder.buildFor(NODE_ID, nodeStore, true, MTLS_PORT, CA_CERT_DER);
+        final var endpoint = ClprEndpointBuilder.buildFor(NODE_ID, nodeStore, HAPI_TLS_PORT, HAPI_TLS_CERT_DER);
 
         assertThat(endpoint).isNotNull();
-        assertThat(endpoint.serviceEndpointOrThrow().port()).isEqualTo(MTLS_PORT);
-        assertThat(endpoint.tlsCertificate()).isEqualTo(CA_CERT_DER);
+        assertThat(endpoint.serviceEndpointOrThrow().ipAddress()).isEqualTo("host-1");
+        assertThat(endpoint.serviceEndpointOrThrow().port()).isEqualTo(HAPI_TLS_PORT);
+        assertThat(endpoint.tlsCertificate()).isEqualTo(HAPI_TLS_CERT_DER);
     }
 
     @Test
@@ -90,7 +94,7 @@ class ClprEndpointBuilderTest {
                                 .build())
                         .build());
 
-        final var endpoint = ClprEndpointBuilder.buildFor(NODE_ID, nodeStore, false, MTLS_PORT, Bytes.EMPTY);
+        final var endpoint = ClprEndpointBuilder.buildFor(NODE_ID, nodeStore, HAPI_TLS_PORT, Bytes.EMPTY);
 
         assertThat(endpoint).isNotNull();
         assertThat(endpoint.serviceEndpointOrThrow().ipAddress()).isEqualTo("10.0.0.1");
@@ -108,7 +112,7 @@ class ClprEndpointBuilderTest {
     @Test
     void identityOfPrefersIpElseTlsCertificate() {
         given(nodeStore.get(NODE_ID)).willReturn(nodeWithDomain("host-1"));
-        final var withIp = ClprEndpointBuilder.buildFor(NODE_ID, nodeStore, true, MTLS_PORT, CA_CERT_DER);
+        final var withIp = ClprEndpointBuilder.buildFor(NODE_ID, nodeStore, HAPI_TLS_PORT, HAPI_TLS_CERT_DER);
         assertThat(ClprEndpointBuilder.identityOf(withIp))
                 .isEqualTo(Bytes.wrap("host-1".getBytes(StandardCharsets.UTF_8)));
     }

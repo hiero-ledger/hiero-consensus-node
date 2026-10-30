@@ -157,8 +157,8 @@ class GrpcBlockItemWriterTest {
         grpcBlockItemWriter.openBlock(blockNumber);
         grpcBlockItemWriter.flushPendingBlock(PendingProof.newBuilder()
                 .block(blockNumber)
-                .blockHash(Bytes.wrap(new byte[48]))
-                .previousBlockHash(Bytes.wrap(new byte[48]))
+                .blockHash(Bytes.wrap(new byte[32]))
+                .previousBlockHash(Bytes.wrap(new byte[32]))
                 .blockTimestamp(Timestamp.DEFAULT)
                 .build());
 

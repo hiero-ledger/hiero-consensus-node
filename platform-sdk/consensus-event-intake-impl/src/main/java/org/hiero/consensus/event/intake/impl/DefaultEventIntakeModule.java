@@ -79,6 +79,15 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
     @Nullable
     private ComponentWiring<BranchReporter, Void> branchReporterWiring;
 
+    @Nullable
+    private InputWire<PlatformEvent> unhashedEventsInputWire;
+
+    @Nullable
+    private InputWire<PlatformEvent> nonValidatedEventsInputWire;
+
+    @Nullable
+    private InputWire<RosterWrapperHistory> rosterHistoryInputWire;
+
     /**
      * {@inheritDoc}
      */
@@ -97,7 +106,7 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
             throw new IllegalStateException("Already initialized");
         }
 
-        // Set up wiring
+        // Set up wired components
         this.eventWindowExtractor = new WireTransformer<>(
                 model, "EventIntake_EventWindowExtractor", "consensus round", ConsensusRound::getEventWindow);
         this.eventWindowDispatcher =
@@ -116,6 +125,12 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
         this.orphanBufferWiring = new ComponentWiring<>(model, OrphanBuffer.class, wiringConfig.orphanBuffer());
         this.branchDetectorWiring = new ComponentWiring<>(model, BranchDetector.class, wiringConfig.branchDetector());
         this.branchReporterWiring = new ComponentWiring<>(model, BranchReporter.class, wiringConfig.branchReporter());
+
+        // Set up input wires
+        unhashedEventsInputWire = eventHasherWiring.getInputWire(EventHasher::hashEvent);
+        nonValidatedEventsInputWire = eventValidatorWiring.getInputWire(InternalEventValidator::validateEvent);
+        rosterHistoryInputWire =
+                eventSignatureValidatorWiring.getInputWire(EventSignatureValidator::updateRosterHistory);
 
         // Wire metrics before the components: an output wire forwards to its destinations in the order they were
         // soldered, and a stage must record an event before the next stage receives it
@@ -186,13 +201,6 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
                 .getOutputWire()
                 .solderTo(branchReporterWiring.getInputWire(BranchReporter::clear), INJECT);
 
-        // Force not soldered wires to be built
-        eventDeduplicatorWiring.getInputWire(EventDeduplicator::clear);
-        eventSignatureValidatorWiring.getInputWire(EventSignatureValidator::updateRosterHistory);
-        orphanBufferWiring.getInputWire(OrphanBuffer::clear);
-        branchDetectorWiring.getInputWire(BranchDetector::clear);
-        branchReporterWiring.getInputWire(BranchReporter::clear);
-
         // Create and bind components
         final RosterWrapper activeRoster = rosterHistory.activeRoster();
         final EventHasher eventHasher = new DefaultEventHasher();
@@ -228,7 +236,7 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
     @Override
     @NonNull
     public InputWire<PlatformEvent> unhashedEventsInputWire() {
-        return requireNonNull(eventHasherWiring, "Not initialized").getInputWire(EventHasher::hashEvent);
+        return requireNonNull(unhashedEventsInputWire, "Not initialized");
     }
 
     /**
@@ -237,8 +245,7 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
     @Override
     @NonNull
     public InputWire<PlatformEvent> nonValidatedEventsInputWire() {
-        return requireNonNull(eventValidatorWiring, "Not initialized")
-                .getInputWire(InternalEventValidator::validateEvent);
+        return requireNonNull(nonValidatedEventsInputWire, "Not initialized");
     }
 
     /**
@@ -265,8 +272,7 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
     @Override
     @NonNull
     public InputWire<RosterWrapperHistory> rosterHistoryInputWire() {
-        return requireNonNull(eventSignatureValidatorWiring, "Not initialized")
-                .getInputWire(EventSignatureValidator::updateRosterHistory);
+        return requireNonNull(rosterHistoryInputWire, "Not initialized");
     }
 
     /**

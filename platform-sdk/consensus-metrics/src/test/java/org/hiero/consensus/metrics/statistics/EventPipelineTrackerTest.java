@@ -6,7 +6,9 @@ import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.consensus.metrics.config.ConsensusLayerMetricsConfig_.AVERAGE_AND_MAX_ENABLED;
 import static org.hiero.consensus.metrics.config.ConsensusLayerMetricsConfig_.LATENCY_ENABLED;
+import static org.hiero.consensus.metrics.config.ConsensusLayerMetricsConfig_.LATENCY_PERCENTILES;
 import static org.hiero.consensus.metrics.config.ConsensusLayerMetricsConfig_.LATENCY_WINDOW;
+import static org.hiero.consensus.metrics.config.ConsensusLayerMetricsConfig_.SELF_EVENTS_LATENCY_PERCENTILES;
 import static org.hiero.consensus.metrics.config.ConsensusLayerMetricsConfig_.SELF_EVENTS_LATENCY_WINDOW;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -105,6 +107,26 @@ class EventPipelineTrackerTest {
                         "eventLatency_1_eventCreation_p99",
                         "eventLatency_1_eventCreation_max");
         assertThat(descriptionOf("eventLatency_1_eventCreation_max")).endsWith("over the last 1200 s");
+    }
+
+    @Test
+    void percentilesComeFromTheConfiguration() {
+        final Configuration percentiles = new TestConfigBuilder()
+                .withValue(AVERAGE_AND_MAX_ENABLED, false)
+                .withValue(LATENCY_PERCENTILES, "75")
+                .withValue(SELF_EVENTS_LATENCY_PERCENTILES, "25,99.99")
+                .getOrCreateConfig();
+        final EventPipelineTracker tracker = requireNonNull(EventPipelineTracker.create(metrics, percentiles, time));
+        tracker.registerMetric("eventCreation", EventOrigin.RUNTIME);
+        tracker.registerMetric(STAGE, EventOrigin.GOSSIP);
+        assertThat(metrics.getAll())
+                .extracting(Metric::getName)
+                .containsExactlyInAnyOrder(
+                        "eventLatency_1_eventCreation_p25",
+                        "eventLatency_1_eventCreation_p99_99",
+                        "eventLatency_1_eventCreation_max",
+                        "eventLatency_1_hashing_p75",
+                        "eventLatency_1_hashing_max");
     }
 
     @Test

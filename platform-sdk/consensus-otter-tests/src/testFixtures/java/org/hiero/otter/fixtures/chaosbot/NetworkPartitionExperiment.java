@@ -15,8 +15,8 @@ import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.test.fixtures.Randotron;
+import org.hiero.otter.fixtures.MiniNode;
 import org.hiero.otter.fixtures.Network;
-import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.network.Partition;
 
 /**
@@ -104,9 +104,9 @@ public record NetworkPartitionExperiment(
                     maxPartitions);
             return List.of();
         }
-        final Collection<Node> nodes;
+        final Collection<MiniNode> nodes;
         if (network.networkPartitions().isEmpty()) {
-            nodes = network.nodes();
+            nodes = network.allNodes();
         } else {
             // Select the largest existing partition to split
             nodes = network.networkPartitions().stream()
@@ -121,9 +121,9 @@ public record NetworkPartitionExperiment(
         final double partitionFraction =
                 minPartitionFraction + (randotron.nextDouble() * (maxPartitionFraction - minPartitionFraction));
         final int partitionSize = Math.clamp(Math.round((nodes.size() - 1) * partitionFraction), 1, nodes.size() - 1);
-        final List<Node> shuffledNodes = new ArrayList<>(nodes);
+        final List<MiniNode> shuffledNodes = new ArrayList<>(nodes);
         Collections.shuffle(shuffledNodes, randotron);
-        final List<Node> partitionNodes = shuffledNodes.subList(0, partitionSize);
+        final List<MiniNode> partitionNodes = shuffledNodes.subList(0, partitionSize);
         final Duration duration = randotron.nextDuration(minDuration, maxDuration);
 
         log.info(

@@ -163,6 +163,7 @@ public class TransactionDispatcher {
                     CRYPTO_DELETE_LIVE_HASH,
                     STATE_SIGNATURE_TRANSACTION,
                     LEDGER_ID_PUBLICATION,
+                    CLPR_MAINTENANCE,
                     HINTS_KEY_PUBLICATION,
                     HINTS_PREPROCESSING_VOTE,
                     HINTS_PARTIAL_SIGNATURE,
@@ -275,7 +276,6 @@ public class TransactionDispatcher {
             case CLPR_COMPLETE_CHANNEL -> handlers.clprCompleteChannelHandler();
             case CLPR_CLOSE_CHANNEL -> handlers.clprCloseChannelHandler();
             case CLPR_SUBMIT_BUNDLE -> handlers.clprSubmitBundleHandler();
-            case CLPR_REDACT_MESSAGE -> handlers.clprRedactMessageHandler();
             case CLPR_REGISTER_CONNECTOR -> handlers.clprRegisterConnectorHandler();
             case CLPR_COMPLETE_CONNECTOR -> handlers.clprCompleteConnectorHandler();
             case CLPR_DEREGISTER_CONNECTOR -> handlers.clprDeregisterConnectorHandler();
@@ -293,7 +293,7 @@ public class TransactionDispatcher {
                     case FILE_ID -> handlers.fileSystemUndeleteHandler();
                     default -> throw new UnsupportedOperationException(SYSTEM_UNDELETE_WITHOUT_ID_CASE);
                 };
-            case LEDGER_ID_PUBLICATION, NODE_STAKE_UPDATE -> NOOP_HANDLER;
+            case LEDGER_ID_PUBLICATION, CLPR_MAINTENANCE, NODE_STAKE_UPDATE -> NOOP_HANDLER;
 
             default -> throw new UnsupportedOperationException(TYPE_NOT_SUPPORTED);
         };

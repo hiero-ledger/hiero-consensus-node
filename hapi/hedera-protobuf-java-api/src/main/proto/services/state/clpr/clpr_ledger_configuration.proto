@@ -130,13 +130,14 @@ message ClprEndpoint {
     ClprServiceEndpoint service_endpoint = 1;
 
     /**
-     * DER-encoded RSA public certificate for mTLS transport.
-     * Minimum RSA key size: 2048 bits.
+     * DER-encoded public certificate of the endpoint's TLS listener. Endpoints use ordinary TLS
+     * for confidentiality only: peers do not validate this certificate, so it does not authenticate
+     * the endpoint. Slated for deprecation.
      */
     bytes tls_certificate = 2;
 
     /**
-     * On-ledger account associated with this endpoint node.
+     * On-ledger account associated with this endpoint node. Not used by the network.
      */
     bytes account_id = 3;
 }

@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap;
 
+import com.hedera.pbj.runtime.hashing.WritableMessageDigest;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
 import com.swirlds.virtualmap.test.fixtures.TestValueCodec;
 import java.util.function.LongFunction;
+import org.hiero.base.concurrent.ThreadLocalStorage;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.CryptographyProvider;
@@ -212,15 +214,16 @@ public class VirtualTestBase {
     /// @return node hash bytes, indexed by path
     protected static byte[][] referenceHashes(
             final long firstLeafPath, final long lastLeafPath, final LongFunction<VirtualLeafBytes<?>> leafReader) {
-        final MerkleHasher hasher = new MerkleHasher();
+        final WritableMessageDigest digestWriter =
+                ThreadLocalStorage.getWritableMessageDigest(Cryptography.DEFAULT_DIGEST_TYPE.algorithmName());
         final byte[][] hashes = new byte[Math.toIntExact(lastLeafPath + 1)][];
         for (int path = hashes.length - 1; path >= 0; path--) {
             if (path >= firstLeafPath) {
-                hashes[path] = hasher.leafNodeHashBytes(leafReader.apply(path));
+                hashes[path] = MerkleHasher.leafNodeHashBytes(leafReader.apply(path), digestWriter);
             } else {
                 final int right = 2 * path + 2;
-                hashes[path] = hasher.internalNodeHashBytes(
-                        hashes[2 * path + 1], right <= lastLeafPath ? hashes[right] : null);
+                hashes[path] = MerkleHasher.internalNodeHashBytes(
+                        hashes[2 * path + 1], right <= lastLeafPath ? hashes[right] : null, digestWriter);
             }
         }
         return hashes;

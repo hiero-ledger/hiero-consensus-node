@@ -58,7 +58,9 @@ public class ClprConnectorSuite {
 
     private static final String CONNECTOR_CONTRACT = "GlobalProperties";
 
-    @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
+    @LeakyHapiTest(
+            requirement = PROPERTY_OVERRIDES,
+            overrides = {"clpr.enabled"})
     final Stream<DynamicTest> rejectsRegisterWhenDisabled() {
         return hapiTest(
                 overriding("clpr.enabled", "false"),
@@ -75,15 +77,15 @@ public class ClprConnectorSuite {
     final Stream<DynamicTest> rejectsRegisterWithMalformedCommitment() {
         // Spec §6.3: registerConnector body carries a 32-byte ownership_commitment.
         // ClprRegisterConnectorHandler.pureChecks enforces the length invariant.
-        return hapiTest(
-                overriding("clpr.enabled", "true"),
-                clprRegisterConnector()
-                        .commitment(new byte[16]) // wrong length
-                        .payingWith(GENESIS)
-                        .hasPrecheck(INVALID_TRANSACTION_BODY));
+        return hapiTest(clprRegisterConnector()
+                .commitment(new byte[16]) // wrong length
+                .payingWith(GENESIS)
+                .hasPrecheck(INVALID_TRANSACTION_BODY));
     }
 
-    @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
+    @LeakyHapiTest(
+            requirement = PROPERTY_OVERRIDES,
+            overrides = {"clpr.enabled"})
     final Stream<DynamicTest> rejectsDeregisterWhenDisabled() {
         return hapiTest(
                 overriding("clpr.enabled", "false"),

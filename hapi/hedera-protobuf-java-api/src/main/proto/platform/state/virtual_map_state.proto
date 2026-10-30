@@ -315,6 +315,9 @@ message StateKey {
     proto.ProtoBytes ClprService_I_PENDING_CONNECTOR_COMMITMENTS = 64;
 
     // Queue states
+    /** Queue index for adopted hinTS verification-key provenance. */
+    uint64 HistoryService_I_HINTS_KEY_PROVENANCE = 69;
+
     /**
      * Queue index for the round receipts queue.
      */
@@ -627,6 +630,9 @@ message StateValue {
       */
     com.hedera.hapi.node.state.hints.CRSState HintsService_I_CRS_STATE = 48;
 
+    /** The next CRS ceremony, isolated from the active signing CRS. Singleton state. */
+    com.hedera.hapi.node.state.hints.CRSState HintsService_I_NEXT_CRS_STATE = 68;
+
     /**
      * A state identifier for the CRS publications.
      */
@@ -725,6 +731,9 @@ message StateValue {
      * Metadata of the round receipts queue.
      */
     proto.TransactionReceiptEntries RecordCache_I_TRANSACTION_RECEIPTS = 126;
+
+    /** Explicit authorization links between adopted hinTS generations. */
+    com.hedera.hapi.node.state.history.HintsKeyProvenance HistoryService_I_HINTS_KEY_PROVENANCE = 69;
 
     /**
      * Metadata of the queue state.<br/>
@@ -895,6 +904,9 @@ enum SingletonType {
    */
   HintsService_I_CRS_STATE = 48;
 
+  /** The next CRS ceremony, isolated from the active signing CRS. Singleton state. */
+  HintsService_I_NEXT_CRS_STATE = 68;
+
   /**
    * A state identifier for the node rewards. Singleton state.
    */
@@ -938,6 +950,9 @@ enum SingletonType {
   ClprService_I_ENDPOINT_MANIFEST_CONSTRUCTION = 67;
 
   // Queue metadata
+
+  /** Metadata of the adopted hinTS verification-key provenance queue. */
+  HistoryService_I_HINTS_KEY_PROVENANCE = 69;
 
   /**
    * Metadata of the round receipts queue.

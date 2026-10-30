@@ -35,26 +35,6 @@ class ClprHashUtilsTest {
     }
 
     @Test
-    @DisplayName("computeRunningHashFromPayloadHash matches the chain step with payload_hash injected")
-    void computeRunningHashFromPayloadHashChainsIdentically() throws Exception {
-        // The property that makes redaction self-verifying: feeding SHA-256(payload) into the
-        // redacted-slot helper produces the same running hash as folding the payload directly.
-        final var prev = Bytes.wrap(new byte[32]);
-        final var payload = ClprMessagePayload.newBuilder()
-                .message(ClprMessage.newBuilder()
-                        .messageData(Bytes.wrap(new byte[] {7, 8, 9}))
-                        .build())
-                .build();
-        final var payloadHash = Bytes.wrap(MessageDigest.getInstance("SHA-256")
-                .digest(ClprMessagePayload.PROTOBUF.toBytes(payload).toByteArray()));
-
-        final var viaPayload = ClprHashUtils.computeRunningHash(prev, payload);
-        final var viaPayloadHash = ClprHashUtils.computeRunningHashFromPayloadHash(prev, payloadHash);
-
-        assertThat(viaPayloadHash).isEqualTo(viaPayload);
-    }
-
-    @Test
     @DisplayName("hash chains correctly: second hash takes first hash as prev")
     void hashChainsCorrectly() throws Exception {
         final var initialHash = Bytes.wrap(new byte[32]);

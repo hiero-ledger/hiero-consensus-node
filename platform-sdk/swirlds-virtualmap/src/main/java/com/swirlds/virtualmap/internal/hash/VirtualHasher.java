@@ -6,6 +6,7 @@ import static com.swirlds.virtualmap.MerklePathUtils.INVALID_PATH;
 import static com.swirlds.virtualmap.MerklePathUtils.ROOT_PATH;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.pbj.runtime.hashing.WritableMessageDigest;
 import com.swirlds.virtualmap.MerkleHasher;
 import com.swirlds.virtualmap.MerklePathUtils;
 import com.swirlds.virtualmap.VirtualMap;
@@ -28,7 +29,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.AbstractTask;
 import org.hiero.base.concurrent.ExecutorFactory;
+import org.hiero.base.concurrent.ThreadLocalStorage;
 import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 
 /**
@@ -233,7 +236,7 @@ public final class VirtualHasher {
             final int chunkLastRank = chunkRank + hashChunk.height();
             long rankPath = MerklePathUtils.getLeftGrandChildPath(path, height);
             int currentRank = taskRank + height;
-            final MerkleHasher merkleHasher = MerkleHasher.threadSafeDefault();
+            final WritableMessageDigest wmd = getWritableMessageDigest();
             while (len > 1) {
                 for (int i = 0; i < len / 2; i++) {
                     byte[] left = ins[i * 2];
@@ -247,7 +250,7 @@ public final class VirtualHasher {
                             left = hashChunk.getHashBytesAtPath(leftPath);
                         } else {
                             // Get left's left and right child hashes and hashInternal() them
-                            left = hashChunk.calcHashBytes(merkleHasher, leftPath, firstLeafPath, lastLeafPath);
+                            left = hashChunk.calcHashBytes(leftPath, firstLeafPath, lastLeafPath, wmd);
                         }
                     } else {
                         // Hash is provided / computed, need to update it in hashChunk
@@ -270,7 +273,7 @@ public final class VirtualHasher {
                             right = hashChunk.getHashBytesAtPath(rightPath);
                         } else {
                             // Get right's left and right child hashes and hashInternal() them
-                            right = hashChunk.calcHashBytes(merkleHasher, rightPath, firstLeafPath, lastLeafPath);
+                            right = hashChunk.calcHashBytes(rightPath, firstLeafPath, lastLeafPath, wmd);
                         }
                     } else {
                         // Hash is provided / computed, need to update it in hashChunk
@@ -279,7 +282,7 @@ public final class VirtualHasher {
                         }
                     }
 
-                    ins[i] = merkleHasher.internalNodeHashBytes(left, right);
+                    ins[i] = MerkleHasher.internalNodeHashBytes(left, right, wmd);
                 }
                 rankPath = MerklePathUtils.getParentPath(rankPath);
                 currentRank--;
@@ -318,7 +321,8 @@ public final class VirtualHasher {
 
         @Override
         protected boolean onExecute() {
-            out.setHash(path, MerkleHasher.threadSafeDefault().leafNodeHashBytes(leaf));
+            final WritableMessageDigest wmd = getWritableMessageDigest();
+            out.setHash(path, MerkleHasher.leafNodeHashBytes(leaf, wmd));
             return true;
         }
     }
@@ -630,5 +634,13 @@ public final class VirtualHasher {
         chunkTasks.clear();
 
         return rootTask;
+    }
+
+    private WritableMessageDigest getWritableMessageDigest() {
+        return switch (Cryptography.DEFAULT_DIGEST_TYPE) {
+            case DigestType.SHA_256 -> ThreadLocalStorage.getWritableMessageDigest256();
+            case DigestType.SHA_384 -> ThreadLocalStorage.getWritableMessageDigest384();
+            default -> throw new IllegalStateException("Only SHA-256 and SHA-384 are supported");
+        };
     }
 }

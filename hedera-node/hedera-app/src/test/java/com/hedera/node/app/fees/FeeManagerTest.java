@@ -124,30 +124,30 @@ class FeeManagerTest {
     }
 
     @Test
-    void updateSimpleFeesRejectsScheduleThatDoesNotPriceRegisteredTransactionType() {
+    void updateSimpleFeesRequiringFullCoverageRejectsScheduleThatDoesNotPriceRegisteredTransactionType() {
         given(topicCreateCalculator.getTransactionType())
                 .willReturn(TransactionBody.DataOneOfType.CONSENSUS_CREATE_TOPIC);
         subject = new FeeManager(exchangeRateManager, congestionMultipliers, Set.of(topicCreateCalculator), Set.of());
         final var complete =
                 scheduleWith(makeServiceFee(CRYPTO_CREATE, 100), makeServiceFee(CONSENSUS_CREATE_TOPIC, 100));
-        assertEquals(SUCCESS, subject.updateSimpleFees(toBytes(complete)));
+        assertEquals(SUCCESS, subject.updateSimpleFees(toBytes(complete), true));
 
         final var incomplete = scheduleWith(makeServiceFee(CRYPTO_CREATE, 100));
 
-        assertEquals(FEE_SCHEDULE_FILE_PART_UPLOADED, subject.updateSimpleFees(toBytes(incomplete)));
+        assertEquals(FEE_SCHEDULE_FILE_PART_UPLOADED, subject.updateSimpleFees(toBytes(incomplete), true));
         assertEquals(complete, subject.getSimpleFeesSchedule());
     }
 
     @Test
-    void updateSimpleFeesRejectsScheduleThatDoesNotPriceRegisteredQueryType() {
+    void updateSimpleFeesRequiringFullCoverageRejectsScheduleThatDoesNotPriceRegisteredQueryType() {
         given(fileGetInfoCalculator.getQueryType()).willReturn(Query.QueryOneOfType.FILE_GET_INFO);
         subject = new FeeManager(exchangeRateManager, congestionMultipliers, Set.of(), Set.of(fileGetInfoCalculator));
         final var complete = scheduleWith(makeServiceFee(CRYPTO_CREATE, 100), makeServiceFee(FILE_GET_INFO, 100));
-        assertEquals(SUCCESS, subject.updateSimpleFees(toBytes(complete)));
+        assertEquals(SUCCESS, subject.updateSimpleFees(toBytes(complete), true));
 
         final var incomplete = scheduleWith(makeServiceFee(CRYPTO_CREATE, 100));
 
-        assertEquals(FEE_SCHEDULE_FILE_PART_UPLOADED, subject.updateSimpleFees(toBytes(incomplete)));
+        assertEquals(FEE_SCHEDULE_FILE_PART_UPLOADED, subject.updateSimpleFees(toBytes(incomplete), true));
         assertEquals(complete, subject.getSimpleFeesSchedule());
     }
 
@@ -161,13 +161,19 @@ class FeeManagerTest {
     }
 
     @Test
-    void updateSimpleFeesCanInstallScheduleThatLeavesRegisteredTypeUnpriced() {
+    void updateSimpleFeesInstallsScheduleThatLeavesRegisteredTypeUnpriced() {
         given(topicCreateCalculator.getTransactionType())
                 .willReturn(TransactionBody.DataOneOfType.CONSENSUS_CREATE_TOPIC);
-        subject = new FeeManager(exchangeRateManager, congestionMultipliers, Set.of(topicCreateCalculator), Set.of());
+        given(fileGetInfoCalculator.getQueryType()).willReturn(Query.QueryOneOfType.FILE_GET_INFO);
+        subject = new FeeManager(
+                exchangeRateManager,
+                congestionMultipliers,
+                Set.of(topicCreateCalculator),
+                Set.of(fileGetInfoCalculator));
         final var incomplete = scheduleWith(makeServiceFee(CRYPTO_CREATE, 100));
 
-        assertEquals(SUCCESS, subject.updateSimpleFees(toBytes(incomplete), false));
+        // Same result as a restart that reads this schedule from state, so all nodes keep the same schedule
+        assertEquals(SUCCESS, subject.updateSimpleFees(toBytes(incomplete)));
         assertEquals(incomplete, subject.getSimpleFeesSchedule());
     }
 

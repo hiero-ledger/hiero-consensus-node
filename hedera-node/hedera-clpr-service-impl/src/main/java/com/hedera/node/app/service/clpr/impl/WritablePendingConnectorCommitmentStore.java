@@ -11,8 +11,11 @@ import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
- * Store for CLPR pending connector ownership commitments.
+ * Store for CLPR connector ownership commitments.
  * Acts as a set — the key and value are both the commitment hash.
+ *
+ * <p>Holds commitments pending reveal as well as commitments already used to create a Connector.
+ * Entries are never deleted, so a deregistered or banned Connector cannot be registered again.
  */
 public class WritablePendingConnectorCommitmentStore {
 

@@ -35,18 +35,6 @@ enum ClprMessageReplyStatus {
      * The source Connector is slashed.
      */
     CONNECTOR_UNDERFUNDED = 3;
-
-    /**
-     * The message was redacted before delivery.
-     */
-    REDACTED = 4;
-
-    /**
-     * Reserved. Never generated — Data Messages arriving on CLOSING or DRAINED
-     * channels are always dispatched normally. Retained for wire-format
-     * compatibility only. Implementations MUST NOT generate this status.
-     */
-    CHANNEL_CLOSED = 5;
 }
 
 /**
@@ -131,31 +119,9 @@ message ClprConfigUpdate {
 }
 
 /**
- * Marker payload for a slot whose original contents were administratively
- * redacted before delivery. Carries the SHA-256 of the original serialized
- * ClprMessagePayload bytes so the receiver can extend the running-hash chain
- * deterministically and the sender address so source-side response dispatch
- * can still deliver the REDACTED reply to the originating application.
- */
-message ClprRedactedMessage {
-    /**
-     * SHA-256 of the serialized ClprMessagePayload that occupied this slot
-     * before redaction.
-     */
-    bytes message_hash = 1;
-
-    /**
-     * The sender address from the original ClprMessage so the source ledger
-     * can still deliver the REDACTED response callback to the originating
-     * application after the reply round-trips.
-     */
-    bytes sender = 2;
-}
-
-/**
  * All-inclusive payload for a queued message. Distinguishes Data, Response,
- * Control, and Redacted variants. All share the queue, running hash chain,
- * and bundle transport.
+ * and Control variants. All share the queue, running hash chain, and bundle
+ * transport.
  */
 message ClprMessagePayload {
     oneof payload {
@@ -173,13 +139,6 @@ message ClprMessagePayload {
          * Control Message — protocol management.
          */
         ClprControlMessage control = 3;
-
-        /**
-         * Redacted Message — carries the running-hash contribution of the original
-         * payload plus the sender address so source-side response dispatch can still
-         * deliver the REDACTED reply to the originating application.
-         */
-        ClprRedactedMessage redacted_message = 4;
     }
 }
 

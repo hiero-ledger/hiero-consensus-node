@@ -9,8 +9,8 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoCreate;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BAD_ENCODING;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_TOO_MANY_LAYERS;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.google.protobuf.ByteString;
@@ -37,14 +37,21 @@ import org.junit.jupiter.api.Tag;
 @Tag(CRYPTO)
 public class DeeplyNestedKeyListSuite {
     private static final int MAX_TRANSACTION_BYTES = 6 * 1024;
-    // HAPI re-parses submitted transactions with Google protobuf while resolving status, so stay below
-    // its recursion limit while still exceeding the node's semantic key depth cap.
-    private static final int PROTOBUF_CLIENT_SAFE_OVER_SEMANTIC_KEY_LIST_LEVELS = 40;
+    // Over the semantic key-depth cap (MAX_NESTED_KEY_LEVELS) but within the node's proto-depth parse cap, so it
+    // parses at ingest and is instead rejected at handle with BAD_ENCODING.
+    private static final int OVER_SEMANTIC_WITHIN_PROTO_DEPTH_KEY_LIST_LEVELS = MAX_NESTED_KEY_LEVELS + 5;
+    // HAPI re-parses submitted transactions with Google protobuf while resolving status, so stay below its recursion
+    // limit while still exceeding the node's proto-depth parse cap (rejected at ingest with
+    // TRANSACTION_TOO_MANY_LAYERS).
+    private static final int OVER_PROTO_DEPTH_CLIENT_PARSEABLE_KEY_LIST_LEVELS = 40;
     private static final int PBJ_MESSAGE_FRAMES_PER_KEY_LIST_LEVEL = 2;
-    private static final int DEEPEST_DEFAULT_ALLOWED_KEY_LIST_LEVELS =
+    // Derived from PBJ's built-in DEFAULT_MAX_DEPTH, NOT the node's stricter hedera.transaction.maxProtoMessageDepth
+    // (default 50). The raw over-depth test nests one level past PBJ's own default, which is comfortably beyond the
+    // node cap, so it is rejected at ingest with TRANSACTION_TOO_MANY_LAYERS.
+    private static final int DEEPEST_KEY_LIST_LEVELS_WITHIN_PBJ_DEFAULT_DEPTH =
             DEFAULT_MAX_DEPTH / PBJ_MESSAGE_FRAMES_PER_KEY_LIST_LEVEL;
-    private static final int FIRST_KEY_LIST_LEVEL_REJECTED_BY_DEFAULT_DEPTH =
-            DEEPEST_DEFAULT_ALLOWED_KEY_LIST_LEVELS + 1;
+    private static final int KEY_LIST_LEVELS_PAST_PBJ_DEFAULT_DEPTH =
+            DEEPEST_KEY_LIST_LEVELS_WITHIN_PBJ_DEFAULT_DEPTH + 1;
     private static final int TRANSACTION_BODY_TRANSACTION_ID_TAG = 10;
     private static final int TRANSACTION_BODY_NODE_ACCOUNT_ID_TAG = 18;
     private static final int TRANSACTION_BODY_TRANSACTION_FEE_TAG = 24;
@@ -67,22 +74,33 @@ public class DeeplyNestedKeyListSuite {
     }
 
     @HapiTest
-    final Stream<DynamicTest> rejectsOverSemanticKeyListWithoutOverflowing() {
-        final var deeplyNestedKeyList = deepKeyList(PROTOBUF_CLIENT_SAFE_OVER_SEMANTIC_KEY_LIST_LEVELS);
-        if (deeplyNestedKeyList.getSerializedSize() > MAX_TRANSACTION_BYTES) {
-            throw new IllegalStateException("Deeply nested key list exceeds max transaction bytes");
-        }
-
-        return hapiTest(cryptoCreate("overlyNestedKeyList")
-                .key(deeplyNestedKeyList)
+    final Stream<DynamicTest> rejectsKeyOverSemanticDepthAtHandle() {
+        // Parses at ingest (within the proto-depth cap) but exceeds MAX_NESTED_KEY_LEVELS, so the handler rejects it.
+        return hapiTest(cryptoCreate("overSemanticNestedKeyList")
+                .key(deepKeyList(OVER_SEMANTIC_WITHIN_PROTO_DEPTH_KEY_LIST_LEVELS))
                 .payingWith(GENESIS)
                 .signedBy(GENESIS)
                 .hasKnownStatus(BAD_ENCODING));
     }
 
     @HapiTest
-    final Stream<DynamicTest> rejectsPbjOverDepthKeyWithInvalidTransactionBody() {
-        return hapiTest(new RawCryptoCreateWithPbjOverDepthKey().noLogging().hasPrecheckFrom(INVALID_TRANSACTION_BODY));
+    final Stream<DynamicTest> rejectsKeyOverProtoDepthAtIngestWithTooManyLayers() {
+        final var deeplyNestedKeyList = deepKeyList(OVER_PROTO_DEPTH_CLIENT_PARSEABLE_KEY_LIST_LEVELS);
+        if (deeplyNestedKeyList.getSerializedSize() > MAX_TRANSACTION_BYTES) {
+            throw new IllegalStateException("Deeply nested key list exceeds max transaction bytes");
+        }
+
+        return hapiTest(cryptoCreate("overProtoDepthNestedKeyList")
+                .key(deeplyNestedKeyList)
+                .payingWith(GENESIS)
+                .signedBy(GENESIS)
+                .hasPrecheck(TRANSACTION_TOO_MANY_LAYERS));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> rejectsRawOverDepthKeyWithTooManyLayers() {
+        return hapiTest(
+                new RawCryptoCreateWithPbjOverDepthKey().noLogging().hasPrecheckFrom(TRANSACTION_TOO_MANY_LAYERS));
     }
 
     private static Key deepKeyList(final int additionalKeyListLevels) {
@@ -114,7 +132,7 @@ public class DeeplyNestedKeyListSuite {
 
         @Override
         protected Transaction finalizedTxn(final HapiSpec spec, final Consumer<TransactionBody.Builder> opDef) {
-            return cryptoCreateWithRawKey(spec, keyListNest(FIRST_KEY_LIST_LEVEL_REJECTED_BY_DEFAULT_DEPTH));
+            return cryptoCreateWithRawKey(spec, keyListNest(KEY_LIST_LEVELS_PAST_PBJ_DEFAULT_DEPTH));
         }
     }
 

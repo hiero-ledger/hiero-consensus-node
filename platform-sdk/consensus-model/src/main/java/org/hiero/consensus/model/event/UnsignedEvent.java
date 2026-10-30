@@ -47,15 +47,23 @@ public class UnsignedEvent implements Hashable {
     private final Instant timeTransactionsTaken;
 
     /**
+     * The times the transactions of the event without priority were received by the transaction pool. It is neither
+     * hashed nor serialized.
+     */
+    private final List<Instant> transactionReceivedTimes;
+
+    /**
      * Create a UnsignedEvent object
      *
-     * @param creatorId             ID of this event's creator
-     * @param allParents            all parent event descriptors
-     * @param birthRound            the round in which this event was created.
-     * @param timeCreated           creation time, as claimed by its creator
-     * @param transactions          list of transactions included in this event instance
-     * @param coin                  a random number, see {@link EventCore#coin()} for more details
-     * @param timeTransactionsTaken the time the transactions were taken from the transaction pool
+     * @param creatorId                ID of this event's creator
+     * @param allParents               all parent event descriptors
+     * @param birthRound               the round in which this event was created.
+     * @param timeCreated              creation time, as claimed by its creator
+     * @param transactions             list of transactions included in this event instance
+     * @param coin                     a random number, see {@link EventCore#coin()} for more details
+     * @param timeTransactionsTaken    the time the transactions were taken from the transaction pool
+     * @param transactionReceivedTimes the times the transactions without priority were received by the transaction
+     *                                 pool
      */
     public UnsignedEvent(
             @NonNull final NodeId creatorId,
@@ -64,12 +72,15 @@ public class UnsignedEvent implements Hashable {
             @NonNull final Instant timeCreated,
             @NonNull final List<Bytes> transactions,
             final long coin,
-            @NonNull final Instant timeTransactionsTaken) {
+            @NonNull final Instant timeTransactionsTaken,
+            @NonNull final List<Instant> transactionReceivedTimes) {
         this.transactions = requireNonNull(transactions, "transactions must not be null");
         this.metadata = new EventMetadata(creatorId, allParents, timeCreated, transactions, birthRound);
         this.parents = new ArrayList<>(allParents);
         this.eventCore = new EventCore(creatorId.id(), birthRound, HapiUtils.asTimestamp(timeCreated), coin);
         this.timeTransactionsTaken = requireNonNull(timeTransactionsTaken, "timeTransactionsTaken must not be null");
+        this.transactionReceivedTimes =
+                requireNonNull(transactionReceivedTimes, "transactionReceivedTimes must not be null");
     }
 
     /**
@@ -90,6 +101,14 @@ public class UnsignedEvent implements Hashable {
     @NonNull
     public Instant getTimeTransactionsTaken() {
         return timeTransactionsTaken;
+    }
+
+    /**
+     * @return the times the transactions of this event without priority were received by the transaction pool
+     */
+    @NonNull
+    public List<Instant> getTransactionReceivedTimes() {
+        return transactionReceivedTimes;
     }
 
     /**

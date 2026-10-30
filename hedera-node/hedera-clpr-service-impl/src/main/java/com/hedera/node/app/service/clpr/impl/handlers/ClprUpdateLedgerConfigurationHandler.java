@@ -10,7 +10,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.clpr.ClprThrottles;
-import com.hedera.node.app.service.clpr.impl.ClprStateProofManager;
 import com.hedera.node.app.service.clpr.impl.WritableLedgerConfigurationStore;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -46,12 +45,8 @@ public class ClprUpdateLedgerConfigurationHandler extends AbstractClprHandler {
      */
     private static final long MIN_PROOF_OVERHEAD_BYTES = 65_536L;
 
-    private final ClprStateProofManager stateProofManager;
-
     @Inject
-    public ClprUpdateLedgerConfigurationHandler(@NonNull final ClprStateProofManager stateProofManager) {
-        this.stateProofManager = requireNonNull(stateProofManager);
-    }
+    public ClprUpdateLedgerConfigurationHandler() {}
 
     @Override
     public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
@@ -105,12 +100,11 @@ public class ClprUpdateLedgerConfigurationHandler extends AbstractClprHandler {
         final var existing = configStore.getConfiguration();
 
         // Build the updated configuration, preserving immutable fields from genesis.
-        // initial_trust_anchor is sourced from the latest signed snapshot's ledger_id (the
-        // genesis-rooted Hiero TSS identity for this ledger) so peers registering against
-        // this config see a self-describing trust anchor; if the snapshot is not yet
-        // available, we preserve whatever was previously stored (empty at genesis).
+        // Source the trust anchor from this transaction's consensus state. Signed snapshot
+        // availability is node-local and must never decide a state write. Until the history
+        // ledger id is established, preserve the prior anchors (empty at genesis).
         final var consensusNow = context.consensusNow();
-        final var ledgerId = stateProofManager.latestLedgerId();
+        final var ledgerId = context.historyLedgerId();
         final Bytes initialTrustAnchor;
         final Bytes initialTrustAnchorId;
         if (ledgerId.length() > 0) {

@@ -4,6 +4,7 @@ package com.hedera.node.app.history;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.state.history.HintsKeyProvenance;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
@@ -42,6 +43,42 @@ public interface WritableHistoryStore extends ReadableHistoryStore {
             boolean freshGenesisRequested);
 
     /**
+     * Gets or creates a construction bound to the given metadata when it is available. A construction
+     * bound to different metadata is replaced with a new ID, even when its roster hashes still match.
+     * Null metadata leaves the existing binding unchanged while hinTS preprocessing is pending.
+     *
+     * @param activeRosters the active rosters
+     * @param now the current time
+     * @param tssConfig the TSS configuration
+     * @param freshGenesisRequested whether a fresh genesis proof is requested
+     * @param metadata the target metadata, or null while it is unavailable
+     * @return the current construction for the rosters and metadata
+     */
+    @NonNull
+    HistoryProofConstruction getOrCreateConstruction(
+            @NonNull ActiveRosters activeRosters,
+            @NonNull Instant now,
+            @NonNull TssConfig tssConfig,
+            boolean freshGenesisRequested,
+            @Nullable Bytes metadata);
+
+    /**
+     * Also creates a new candidate when a matching construction's provenance
+     * binding refers to different signing generations, or when pre-feature WRAPS
+     * work began without a binding. A completed active construction is preserved
+     * while its successor is created in the next slot. The expected binding's history construction ID is ignored
+     * because replacement may allocate a new history construction.
+     */
+    @NonNull
+    HistoryProofConstruction getOrCreateConstruction(
+            @NonNull ActiveRosters activeRosters,
+            @NonNull Instant now,
+            @NonNull TssConfig tssConfig,
+            boolean freshGenesisRequested,
+            @Nullable Bytes metadata,
+            @Nullable HintsKeyProvenance expectedBinding);
+
+    /**
      * Includes the given proof key for the given node, assigning the given adoption time if the key
      * is immediately in use.
      *
@@ -67,20 +104,6 @@ public interface WritableHistoryStore extends ReadableHistoryStore {
     void addProofVote(long nodeId, long constructionId, @NonNull HistoryProofVote vote);
 
     /**
-     * Removes any persisted proof votes for the given construction cast by the given nodes.
-     *
-     * <p>Used when a proof is completed to mirror the in-memory clearing of votes that lets the
-     * network vote again (for example, to convert a freshly built proof into a WRAPS-extensible
-     * one). Without this, a node that restarts or reconnects while a conversion is in flight would
-     * rebuild its controller from the now-superseded persisted votes and treat the subsequent
-     * conversion vote as already counted, diverging the active construction from the live network.
-     *
-     * @param constructionId the construction ID
-     * @param nodeIds the IDs of the nodes whose votes should be removed
-     */
-    void clearProofVotes(long constructionId, @NonNull SortedSet<Long> nodeIds);
-
-    /**
      * Adds a node's signature on a particular assembled history proof for the given construction.
      */
     void addWrapsMessage(long constructionId, @NonNull WrapsMessagePublication publication);
@@ -92,6 +115,30 @@ public interface WritableHistoryStore extends ReadableHistoryStore {
      * @return the updated construction
      */
     HistoryProofConstruction completeProof(long constructionId, @NonNull HistoryProof proof);
+
+    /**
+     * Freezes the source and target signing generations before collecting WRAPS
+     * messages. The binding has an empty signature until consensus validates an
+     * aggregate; restart and WRAPS retries preserve it.
+     *
+     * @param constructionId the history construction ID
+     * @param provenance the unsigned generation binding
+     * @return the updated construction
+     */
+    @NonNull
+    HistoryProofConstruction bindKeyProvenance(long constructionId, @NonNull HintsKeyProvenance provenance);
+
+    /**
+     * Persists an already verified authorization of this construction's target key.
+     * The link must match the construction's bound metadata; an existing link may
+     * only be completed once, or written again unchanged. Does not append to the adoption queue.
+     *
+     * @param constructionId the history construction ID
+     * @param provenance the verified previous-generation authorization
+     * @return the updated construction
+     */
+    @NonNull
+    HistoryProofConstruction setKeyProvenance(long constructionId, @NonNull HintsKeyProvenance provenance);
 
     /**
      * Fails the construction with the given ID, providing a reason.
@@ -117,12 +164,6 @@ public interface WritableHistoryStore extends ReadableHistoryStore {
     void setLedgerId(@NonNull Bytes bytes);
 
     /**
-     * Sets the expected WRAPS proving key hash.
-     * @param hash the hash
-     */
-    void setWrapsProvingKeyHash(@NonNull Bytes hash);
-
-    /**
      * Hands off from the active construction to the next construction if appropriate.
      * @param fromRoster the roster to hand off from
      * @param toRoster if applicable, the roster to hand off to
@@ -132,15 +173,11 @@ public interface WritableHistoryStore extends ReadableHistoryStore {
     boolean handoff(@NonNull Roster fromRoster, @Nullable Roster toRoster, @Nullable Bytes toRosterHash);
 
     /**
-     * Hands off from the active construction to the next construction if appropriate.
-     * @param fromRoster the roster to hand off from
-     * @param toRoster if applicable, the roster to hand off to
-     * @param toRosterHash if applicable, the hash of the roster to hand off to
-     * @param forceHandoff whether to force the handoff when the roster hash doesn't match the next construction
-     * @return whether the handoff happened
+     * Rebinds a completed active construction after the caller verifies that the adopted roster has
+     * exactly the same node IDs and weights as its prepared target. Preserves the proof and source
+     * identity. Returns false without mutation if the expected active target is not complete.
      */
-    boolean handoff(
-            @NonNull Roster fromRoster, @Nullable Roster toRoster, @Nullable Bytes toRosterHash, boolean forceHandoff);
+    boolean rebindActiveTargetRosterHash(@NonNull Bytes expectedOldHash, @NonNull Bytes newHash);
 
     /**
      * Updates the WRAPS signing state with the given specification.

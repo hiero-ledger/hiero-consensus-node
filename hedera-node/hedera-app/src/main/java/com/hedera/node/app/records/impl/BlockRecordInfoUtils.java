@@ -8,6 +8,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import org.hiero.base.crypto.DigestType;
 
 /**
  * A utility class that provides methods for getting information from the {@link BlockInfo} object in order to
@@ -17,10 +18,10 @@ import java.time.Instant;
  */
 public final class BlockRecordInfoUtils {
     /**
-     * The size in bytes of a single SHA-384 block hash. Re-exported from {@link BlockImplUtils#HASH_SIZE}, the
-     * canonical (block-format agnostic) definition, to avoid churning the many existing references to this constant.
+     * The size in bytes of one record-file running hash in {@code BlockInfo.blockHashes}. The record stream stays on
+     * SHA-384 regardless of {@code blockStream.digestType}.
      */
-    public static final int HASH_SIZE = BlockImplUtils.HASH_SIZE;
+    public static final int RECORD_HASH_SIZE = DigestType.SHA_384.digestLength();
 
     private BlockRecordInfoUtils() {
         throw new UnsupportedOperationException("Utility Class");
@@ -57,7 +58,8 @@ public final class BlockRecordInfoUtils {
      */
     @Nullable
     public static Bytes blockHashByBlockNumber(@NonNull final BlockInfo blockInfo, final long blockNo) {
-        return BlockImplUtils.blockHashByBlockNumber(blockInfo.blockHashes(), blockInfo.lastBlockNumber(), blockNo);
+        return BlockImplUtils.blockHashByBlockNumber(
+                blockInfo.blockHashes(), blockInfo.lastBlockNumber(), blockNo, RECORD_HASH_SIZE);
     }
 
     // ========================================================================================================
@@ -73,8 +75,8 @@ public final class BlockRecordInfoUtils {
     private static Bytes getLastBlockHash(@Nullable final BlockInfo blockInfo) {
         if (blockInfo != null) {
             Bytes runningBlockHashes = blockInfo.blockHashes();
-            if (runningBlockHashes != null && runningBlockHashes.length() >= HASH_SIZE) {
-                return runningBlockHashes.slice(runningBlockHashes.length() - HASH_SIZE, HASH_SIZE);
+            if (runningBlockHashes != null && runningBlockHashes.length() >= RECORD_HASH_SIZE) {
+                return runningBlockHashes.slice(runningBlockHashes.length() - RECORD_HASH_SIZE, RECORD_HASH_SIZE);
             }
         }
         return null;

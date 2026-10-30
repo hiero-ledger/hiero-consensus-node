@@ -1707,5 +1707,5 @@ to develop and may result in Channels with only one or two active endpoints — 
 5. **Endpoint signing certificate renewal.** The RSA certificate used for TLS has an expiry date. Renewal requires
    updating the TLS certificate. The plugin should detect impending certificate expiry and alert the operator.
    Since peer authentication is proof-based (not certificate-based), the new certificate does not need to be
-   registered with peers — it simply starts being used for TLS. Peers discover updated endpoint info via the
-   gossip-based `discoverEndpoints` RPC.
+   registered with peers — it simply starts being used for TLS. Peers learn updated endpoint info from the
+   ledger's endpoint manifest.

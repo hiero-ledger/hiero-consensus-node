@@ -18,6 +18,7 @@ import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema;
 import com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.internal.network.PendingProof;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
@@ -45,6 +46,7 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.hashgraph.Round;
@@ -131,7 +133,11 @@ public class BlockStreamManagerWrapper {
                 null,
                 new BlockStreamingObs(configProvider));
 
-        manager.init(state, BlockStreamManager.HASH_OF_ZERO);
+        final DigestType digestType = configProvider
+                .getConfiguration()
+                .getConfigData(BlockStreamConfig.class)
+                .digestType();
+        manager.init(state, BlockStreamManager.hashOfZero(digestType));
     }
 
     public void startBlock(long blockNumber, BlockItem header) {

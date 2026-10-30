@@ -267,7 +267,7 @@ public class IdFuzzingProviderFactory {
                     .via(BASE_APPROVE_TXN)
                     .logged()
                     .signedBy(UNIQUE_PAYER_ACCOUNT, OWNER)
-                    .fee(ONE_HBAR)
+                    .fee(10 * ONE_HBAR)
         };
     }
 

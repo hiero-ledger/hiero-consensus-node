@@ -91,6 +91,6 @@ class SimpleFeeScheduleCoverageTest {
 
         assertThat(feeManager.unpricedFunctions(FeeSchedule.PROTOBUF.parseStrict(genesisBytes)))
                 .isEmpty();
-        assertEquals(SUCCESS, feeManager.updateSimpleFees(genesisBytes));
+        assertEquals(SUCCESS, feeManager.updateSimpleFees(genesisBytes, true));
     }
 }

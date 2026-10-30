@@ -18,11 +18,12 @@ public final class FeeKeyUtils {
      * Useful for calculating KEYS extra fees per HIP-1261.
      *
      * @param key The key structure to count
-     * @return The total number of simple keys (ED25519, ECDSA_SECP256K1, ECDSA_384)
+     * @return The total number of simple keys (ED25519, ECDSA_SECP256K1, ECDSA_384, CONTRACT_ID,
+     *     DELEGATABLE_CONTRACT_ID)
      */
     public static long countKeys(@NonNull final Key key) {
         return switch (key.key().kind()) {
-            case ED25519, ECDSA_SECP256K1, ECDSA_384 -> 1L;
+            case ED25519, ECDSA_SECP256K1, ECDSA_384, CONTRACT_ID, DELEGATABLE_CONTRACT_ID -> 1L;
             case THRESHOLD_KEY ->
                 key.thresholdKeyOrThrow().keys().keys().stream()
                         .mapToLong(FeeKeyUtils::countKeys)

@@ -276,16 +276,19 @@ public final class LatencyGauges {
          */
         @NonNull
         public Config withPercentiles(@NonNull final double... percentiles) {
+            return withPercentiles(Arrays.stream(percentiles).boxed().toList());
+        }
+
+        /**
+         * Sets the reported percentiles, such as a list read from the configuration. Defaults to 50, 90, 99, and 99.9.
+         *
+         * @param percentiles the reported percentiles, each above 0 and below 100; the maximum is always reported
+         * @return a new instance with the updated percentiles
+         */
+        @NonNull
+        public Config withPercentiles(@NonNull final List<Double> percentiles) {
             return new Config(
-                    category,
-                    name,
-                    description,
-                    precisionBits,
-                    rangeBits,
-                    window,
-                    snapshots,
-                    Arrays.stream(percentiles).boxed().toList(),
-                    unit);
+                    category, name, description, precisionBits, rangeBits, window, snapshots, percentiles, unit);
         }
 
         /**

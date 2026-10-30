@@ -7,12 +7,14 @@ import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
 import com.hedera.hapi.node.state.history.WrapsPhase;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.hapi.services.auxiliary.hints.HintsPartialSignatureTransactionBody;
 import com.hedera.hapi.services.auxiliary.history.HistoryProofKeyPublicationTransactionBody;
 import com.hedera.hapi.services.auxiliary.history.HistoryProofVoteTransactionBody;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.tss.TssSubmissions;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
@@ -58,14 +60,31 @@ public class HistorySubmissions extends TssSubmissions {
      */
     public CompletableFuture<Void> submitWrapsSigningMessage(
             @NonNull final WrapsPhase phase, @NonNull final Bytes message, final long constructionId) {
+        return submitWrapsSigningMessage(phase, message, constructionId, null);
+    }
+
+    /**
+     * Submits a WRAPS message with the source epoch's hinTS authorization of the successor key in the same
+     * transaction. Only rotation R1 messages carry the companion; its construction ID identifies the source
+     * hinTS scheme, independently of the history construction ID on the outer transaction.
+     */
+    public CompletableFuture<Void> submitWrapsSigningMessage(
+            @NonNull final WrapsPhase phase,
+            @NonNull final Bytes message,
+            final long constructionId,
+            @Nullable final HintsPartialSignatureTransactionBody hintsPartialSignature) {
         requireNonNull(phase);
         requireNonNull(message);
+        if (hintsPartialSignature != null && phase != WrapsPhase.R1) {
+            throw new IllegalArgumentException("Only WRAPS R1 carries a hinTS key-provenance share");
+        }
         logger.info("Submitting WRAPS {} message for construction #{}", phase, constructionId);
         return submitIfActive(
                 b -> b.historyProofKeyPublication(HistoryProofKeyPublicationTransactionBody.newBuilder()
                         .phase(phase)
                         .wrapsMessage(message)
                         .constructionId(constructionId)
+                        .hintsPartialSignature(hintsPartialSignature)
                         .build()),
                 onFailure);
     }

@@ -343,6 +343,18 @@ public class FrameUtils {
     }
 
     /**
+     * Returns true if the given address is the coinbase of the given frame.
+     *
+     * @param frame the current message frame
+     * @param address the address to check
+     * @return true if the address is the coinbase
+     */
+    public static boolean isCoinbase(@NonNull final MessageFrame frame, @NonNull final Address address) {
+        final var coinbase = frame.getMiningBeneficiary();
+        return coinbase != null && address.getBytes().equals(coinbase.getBytes());
+    }
+
+    /**
      * Returns true if the given recipient address to the frame is of the expected entity type.
      * @param frame current message frame
      * @param expectedEntity expected entity type

@@ -31,18 +31,15 @@ public class ClprUpdateLedgerConfigurationSuite {
 
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
     final Stream<DynamicTest> canUpdateLedgerConfigurationAsSystemAdmin() {
-        return hapiTest(
-                overriding("clpr.enabled", "true"),
-                clprUpdateLedgerConfiguration()
-                        .serviceAddress(CLPR_SERVICE_ADDRESS_20)
-                        .throttles(HapiClprUpdateLedgerConfiguration.defaultThrottles())
-                        .payingWith(GENESIS));
+        return hapiTest(clprUpdateLedgerConfiguration()
+                .serviceAddress(CLPR_SERVICE_ADDRESS_20)
+                .throttles(HapiClprUpdateLedgerConfiguration.defaultThrottles())
+                .payingWith(GENESIS));
     }
 
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
     final Stream<DynamicTest> nonAdminCannotUpdateLedgerConfiguration() {
         return hapiTest(
-                overriding("clpr.enabled", "true"),
                 cryptoCreate("civilian").balance(ONE_HUNDRED_HBARS),
                 clprUpdateLedgerConfiguration()
                         .serviceAddress(CLPR_SERVICE_ADDRESS_20)
@@ -51,7 +48,9 @@ public class ClprUpdateLedgerConfigurationSuite {
                         .hasKnownStatusFrom(AUTHORIZATION_FAILED, NOT_SUPPORTED));
     }
 
-    @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
+    @LeakyHapiTest(
+            requirement = PROPERTY_OVERRIDES,
+            overrides = {"clpr.enabled"})
     final Stream<DynamicTest> rejectsConfigurationWhenDisabled() {
         return hapiTest(
                 overriding("clpr.enabled", "false"),
@@ -64,43 +63,37 @@ public class ClprUpdateLedgerConfigurationSuite {
 
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
     final Stream<DynamicTest> rejectsInvalidThrottles() {
-        return hapiTest(
-                overriding("clpr.enabled", "true"),
-                clprUpdateLedgerConfiguration()
-                        .serviceAddress(CLPR_SERVICE_ADDRESS_20)
-                        .throttles(ClprThrottles.newBuilder()
-                                .setMaxMessagesPerBundle(0)
-                                .setMaxMessagePayloadBytes(65536)
-                                .setMaxQueueDepth(1000)
-                                .build())
-                        .payingWith(GENESIS)
-                        .hasPrecheck(INVALID_CLPR_CONFIGURATION));
+        return hapiTest(clprUpdateLedgerConfiguration()
+                .serviceAddress(CLPR_SERVICE_ADDRESS_20)
+                .throttles(ClprThrottles.newBuilder()
+                        .setMaxMessagesPerBundle(0)
+                        .setMaxMessagePayloadBytes(65536)
+                        .setMaxQueueDepth(1000)
+                        .build())
+                .payingWith(GENESIS)
+                .hasPrecheck(INVALID_CLPR_CONFIGURATION));
     }
 
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
     final Stream<DynamicTest> rejectsServiceAddressOtherThanClprSystemContract() {
         // Peers verify this config against the ledger's endpoint manifest, whose service address
         // is fixed to the CLPR system contract's (spec §4.8), so any other address is rejected.
-        return hapiTest(
-                overriding("clpr.enabled", "true"),
-                clprUpdateLedgerConfiguration()
-                        .serviceAddress(new byte[] {0, 0, 1})
-                        .throttles(HapiClprUpdateLedgerConfiguration.defaultThrottles())
-                        .payingWith(GENESIS)
-                        .hasPrecheck(INVALID_CLPR_CONFIGURATION));
+        return hapiTest(clprUpdateLedgerConfiguration()
+                .serviceAddress(new byte[] {0, 0, 1})
+                .throttles(HapiClprUpdateLedgerConfiguration.defaultThrottles())
+                .payingWith(GENESIS)
+                .hasPrecheck(INVALID_CLPR_CONFIGURATION));
     }
 
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
     final Stream<DynamicTest> ignoresImmutableFieldsOnUpdate() {
-        return hapiTest(
-                overriding("clpr.enabled", "true"),
-                clprUpdateLedgerConfiguration()
-                        .configuration(ClprLedgerConfiguration.newBuilder()
-                                .setChainId("should-be-ignored")
-                                .setProtocolVersion(999)
-                                .setServiceAddress(com.google.protobuf.ByteString.copyFrom(CLPR_SERVICE_ADDRESS_20))
-                                .setThrottles(HapiClprUpdateLedgerConfiguration.defaultThrottles())
-                                .build())
-                        .payingWith(GENESIS));
+        return hapiTest(clprUpdateLedgerConfiguration()
+                .configuration(ClprLedgerConfiguration.newBuilder()
+                        .setChainId("should-be-ignored")
+                        .setProtocolVersion(999)
+                        .setServiceAddress(com.google.protobuf.ByteString.copyFrom(CLPR_SERVICE_ADDRESS_20))
+                        .setThrottles(HapiClprUpdateLedgerConfiguration.defaultThrottles())
+                        .build())
+                .payingWith(GENESIS));
     }
 }

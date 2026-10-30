@@ -82,6 +82,7 @@ public class TurtleGossipModule implements GossipModule {
         final SimulatedGossip gossip = (SimulatedGossip) additionalParameters.get("simulatedGossip");
         gossipWiring.bind(gossip);
         gossip.provideIntakeEventCounter(intakeEventCounter);
+        gossip.provideFallenBehindMonitor(fallenBehindMonitor);
     }
 
     /**

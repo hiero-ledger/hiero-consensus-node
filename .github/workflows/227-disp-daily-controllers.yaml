@@ -64,6 +64,5 @@ jobs:
           ref: ${{ inputs.ref }}
           token: ${{ secrets.GH_ACCESS_TOKEN }}
           inputs: '{
-            "ref": "${{ inputs.ref }}",
             "build-tag": "${{ inputs.ref }}"
             }'

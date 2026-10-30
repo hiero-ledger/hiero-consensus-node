@@ -71,7 +71,8 @@ public class RandomEventUtils {
                 timestamp,
                 convertedTransactions,
                 random.nextLong(0, Long.MAX_VALUE),
-                timestamp);
+                timestamp,
+                List.of());
 
         if (fakeHash) {
             unsignedEvent.setHash(CryptoRandomUtils.randomHash(random));

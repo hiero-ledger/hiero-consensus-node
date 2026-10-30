@@ -75,7 +75,9 @@ public class EventPipelineTracker {
     private final boolean averageAndMaxEnabled;
     private final boolean latencyEnabled;
     private final Duration window;
+    private final List<Double> percentiles;
     private final Duration selfEventsWindow;
+    private final List<Double> selfEventsPercentiles;
     private final Map<MetricKey, StageMetrics> metricMap = new HashMap<>();
     private final Map<EventOrigin, Integer> stepCounters = new EnumMap<>(EventOrigin.class);
 
@@ -107,7 +109,9 @@ public class EventPipelineTracker {
         this.averageAndMaxEnabled = config.averageAndMaxEnabled();
         this.latencyEnabled = config.latencyEnabled();
         this.window = config.latencyWindow();
+        this.percentiles = config.latencyPercentiles();
         this.selfEventsWindow = config.selfEventsLatencyWindow();
+        this.selfEventsPercentiles = config.selfEventsLatencyPercentiles();
     }
 
     /**
@@ -149,8 +153,9 @@ public class EventPipelineTracker {
 
     /**
      * Registers the latency gauges of a stage, shared by all origins except {@link EventOrigin#STORAGE}. A stage that
-     * only self events pass sees far fewer events than the others, so its window is longer and its percentiles end at
-     * p99. Must be called before the step counters of the stage's origins are advanced.
+     * only self events pass sees far fewer events than the others, so it has its own window and percentiles; by default
+     * the window is longer and the percentiles end at p99. Must be called before the step counters of the stage's
+     * origins are advanced.
      *
      * @param name    the name of the stage
      * @param origins the event origins expected to pass through this stage
@@ -170,9 +175,9 @@ public class EventPipelineTracker {
                 .withDescription("event pipeline delay from the previous stage until after " + name);
         final Config config;
         if (measured.equals(List.of(EventOrigin.RUNTIME))) {
-            config = baseConfig.withWindow(selfEventsWindow).withPercentiles(50, 90, 99);
+            config = baseConfig.withWindow(selfEventsWindow).withPercentiles(selfEventsPercentiles);
         } else {
-            config = baseConfig.withWindow(window).withPercentiles(50, 90, 99, 99.9);
+            config = baseConfig.withWindow(window).withPercentiles(percentiles);
         }
         return LatencyGauges.register(metrics, configuration, time, config);
     }

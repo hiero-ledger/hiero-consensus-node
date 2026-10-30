@@ -43,6 +43,7 @@ import com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.TargetNetworkType;
 import com.hedera.services.bdd.spec.infrastructure.HapiClients;
+import com.hedera.services.bdd.spec.props.MapPropertySource;
 import com.hedera.services.bdd.spec.utilops.FakeNmt;
 import com.hederahashgraph.api.proto.java.ServiceEndpoint;
 import com.hederahashgraph.api.proto.java.Transaction;
@@ -268,11 +269,30 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      */
     @Override
     public void start() {
+        startAllNodes(HederaNode::start);
+    }
+
+    /**
+     * Starts all nodes in the network with the given config (software) version, instead of the JVM-global
+     * {@code LifecycleTest.CURRENT_CONFIG_VERSION} that {@link #start()} uses.
+     *
+     * <p>Multi-network tests start each network at version 0: a network may boot after another network's
+     * upgrade restart has bumped the global counter, and its genesis state must not carry that higher version,
+     * or a later same-version restart (e.g. {@code FakeNmt.restartNode}, which uses version 0) is refused as a
+     * downgrade.
+     *
+     * @param configVersion the config version to start the nodes with
+     */
+    public void start(final int configVersion) {
+        startAllNodes(node -> ((SubProcessNode) node).startWithConfigVersion(configVersion));
+    }
+
+    private void startAllNodes(@NonNull final Consumer<HederaNode> startAction) {
         nodes.forEach(node -> {
             node.initWorkingDir(network);
             writeNodeSigningKey(node);
             executePostInitWorkingDirActions(node);
-            node.start();
+            startAction.accept(node);
         });
     }
 
@@ -935,6 +955,39 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
 
     public Map<Long, List<String>> getApplicationPropertyOverrides() {
         return applicationPropertyOverrides;
+    }
+
+    /**
+     * Returns the effective startup properties as seen by the given node, in the node's own precedence: the
+     * per-task PR-check overrides (process environment) beat that node's per-node application-property
+     * overrides (e.g. those supplied by {@code @GenesisSubprocessTest}/{@code @HapiBlockNode}), which beat
+     * the rest of this network's {@link #startupProperties() startup properties}.
+     *
+     * <p>This reads the <em>in-memory</em> per-node override map, not the node's on-disk
+     * {@code application.properties}. That file also carries the {@code configuration/dev} base config
+     * (e.g. {@code blockStream.streamMode}), which would otherwise mask the
+     * per-task PR-check {@code streamMode}/{@code writerMode} overrides that reach the node only via the
+     * process environment (and so are present in {@code startupProperties()} but not in the file).
+     *
+     * @param nodeId the node whose effective startup properties to resolve
+     * @return startup properties with that node's per-node overrides layered under the PR-check overrides
+     */
+    @NonNull
+    public HapiPropertySource effectiveStartupProperties(final long nodeId) {
+        final var overrides = applicationPropertyOverrides.get(nodeId);
+        if (overrides == null || overrides.isEmpty()) {
+            return startupProperties();
+        }
+        // Overrides are a flat [key, value, key, value, ...] list (see configureApplicationProperties).
+        final Map<String, String> overrideMap = new LinkedHashMap<>();
+        for (int i = 0; i + 1 < overrides.size(); i += 2) {
+            overrideMap.put(overrides.get(i), overrides.get(i + 1));
+        }
+        // The node gets PR-check overrides as environment variables, which beat its application.properties
+        return HapiPropertySource.inPriorityOrder(
+                new MapPropertySource(ProcessUtils.prCheckOverrides()),
+                new MapPropertySource(overrideMap),
+                startupProperties());
     }
 
     public Map<NodeId, KeysAndCerts> getNodeKeys() {

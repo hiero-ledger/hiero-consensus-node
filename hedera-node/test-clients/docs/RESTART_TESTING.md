@@ -107,10 +107,28 @@ Restart tests depend on deterministic state and stream byte-for-byte output to v
 behaviour. Real-time embedded mode could produce timing variations that make the saved-state
 assertions flaky, so `@RestartHapiTest` is locked to repeatable mode.
 
+## TSS readiness when overriding a roster
+
+A roster override must preserve cryptographic readiness: its completed hinTS construction must be
+bound to a completed CRS of sufficient capacity, and, when history is enabled, its completed history
+proof must match the hinTS verification key. There is no configuration bypass for these requirements.
+
+A transport-only override may reuse compatible completed material when every node ID and weight is
+unchanged. The node verifies this against the persisted prepared roster before rebinding the active
+construction's target identity; changing endpoints does not require a new signing generation.
+Membership or weight changes require the target transition to finish before the override is adopted.
+An override during incomplete bootstrap can still be rejected; transport-only reuse requires the
+compatible constructions to have completed.
+
+For a disposable dev/test network where waiting for a prepared transition is inappropriate, explicitly
+reset/rebootstrap the environment with a new genesis network and regenerate its TSS startup assets and
+keys. This starts a new ledger identity and proof chain; it is not a production migration procedure and
+must not be used when continuity of the existing ledger's proofs is required.
+
 ## Related Gradle tasks
 
 `hapiTestRestart` is the PR-check task. It runs in subprocess mode (filter `RESTART|UPGRADE`) and
-also receives `quiescence.enabled=true`, `tss.forceHandoffs=true`, and a 1s `blockStream.blockPeriod`
+also receives `quiescence.enabled=true` and a 1s `blockStream.blockPeriod`
 via the per-task overrides — see `prCheckPropOverrides` in `build.gradle.kts`.
 
 > Note: `hapiTestRestart` (subprocess) and `@RestartHapiTest` (repeatable embedded) are two

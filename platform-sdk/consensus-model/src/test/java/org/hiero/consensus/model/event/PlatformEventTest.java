@@ -101,7 +101,14 @@ class PlatformEventTest {
     void lastStageTimeOfANewEventIsTheTimeItsTransactionsWereTaken() {
         final Instant timeTransactionsTaken = Instant.parse("2026-01-01T00:00:00Z");
         final UnsignedEvent unsignedEvent = new UnsignedEvent(
-                NodeId.of(0), List.of(), 1, timeTransactionsTaken.minusSeconds(1), List.of(), 0, timeTransactionsTaken);
+                NodeId.of(0),
+                List.of(),
+                1,
+                timeTransactionsTaken.minusSeconds(1),
+                List.of(),
+                0,
+                timeTransactionsTaken,
+                List.of());
         final PlatformEvent event = new PlatformEvent(unsignedEvent, Bytes.EMPTY, EventOrigin.RUNTIME);
         assertThat(event.getLastStageTime())
                 .describedAs("The last stage time of a new event should be the time its transactions were taken")
@@ -115,6 +122,40 @@ class PlatformEventTest {
         assertThat(gossipedEvent.getLastStageTime())
                 .describedAs("The last stage time of a gossiped event should be the time it was received")
                 .isEqualTo(gossipedEvent.getTimeReceived());
+    }
+
+    @Test
+    void newEventKeepsTheTimesItsTransactionsWereReceived() {
+        final Instant timeTransactionsTaken = Instant.parse("2026-01-01T00:00:00Z");
+        final List<Instant> transactionReceivedTimes =
+                List.of(timeTransactionsTaken.minusMillis(3), timeTransactionsTaken.minusMillis(1));
+        final UnsignedEvent unsignedEvent = new UnsignedEvent(
+                NodeId.of(0),
+                List.of(),
+                1,
+                timeTransactionsTaken,
+                List.of(Bytes.wrap(new byte[] {1}), Bytes.wrap(new byte[] {2})),
+                0,
+                timeTransactionsTaken,
+                transactionReceivedTimes);
+        final PlatformEvent event = new PlatformEvent(unsignedEvent, Bytes.EMPTY, EventOrigin.RUNTIME);
+        assertThat(event.getTransactionReceivedTimes())
+                .describedAs("A new event should keep the times its transactions were received")
+                .isEqualTo(transactionReceivedTimes);
+        assertThat(event.copyGossipedData().getTransactionReceivedTimes())
+                .describedAs("A copy of the gossiped data should not have the times the transactions were received")
+                .isEmpty();
+    }
+
+    @Test
+    void gossipedEventHasNoTransactionReceivedTimes() {
+        final PlatformEvent createdEvent = new TestingEventBuilder(Randotron.create())
+                .setAppTransactionCount(2)
+                .build();
+        final PlatformEvent gossipedEvent = new PlatformEvent(createdEvent.getGossipEvent(), EventOrigin.GOSSIP);
+        assertThat(gossipedEvent.getTransactionReceivedTimes())
+                .describedAs("A gossiped event should not have the times its transactions were received")
+                .isEmpty();
     }
 
     @Test

@@ -296,6 +296,16 @@ public interface HandleContext {
     }
 
     /**
+     * Returns the genesis-rooted TSS ledger id from this transaction's consensus state, or empty bytes
+     * if it has not been established. Unlike {@link #ledgerId()}, this never falls back to the configured
+     * network id, which cannot serve as a cryptographic trust anchor.
+     *
+     * @return the history ledger id in consensus state, or empty bytes
+     */
+    @NonNull
+    Bytes historyLedgerId();
+
+    /**
      * Returns information on current block and record file
      *
      * @return current BlockRecordInfo

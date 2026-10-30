@@ -43,8 +43,10 @@ side-effects.
 
 - Functionality: `CLPR_REGISTER_CHANNEL`. Spec §5.1.2 / §6.2 (`registerChannel`).
 - Body: `ClprRegisterChannelTransactionBody`.
-- Validates: payer pays the registration fee; commitment hash well-formed.
-- Writes: `PENDING_COMMITMENTS[commitment_hash] = registrant_account`.
+- Validates: payer pays the registration fee; commitment hash well-formed; commitment not
+  already in `PENDING_COMMITMENTS` (pending reveal, or bound to an existing Channel in any
+  status, including `CLOSED`) — otherwise `CLPR_CHANNEL_ALREADY_EXISTS`.
+- Writes: `PENDING_COMMITMENTS[commitment_hash] = commitment_hash`.
 - No channel record is created in this phase.
 
 ### `ClprCompleteChannelHandler` — reveal phase
@@ -53,7 +55,10 @@ side-effects.
 - Validates: preimage matches the prior `PENDING_COMMITMENTS` entry; signer key matches
   preimage; verifier contract resolves; chain ID, throttles, etc. on the candidate config
   pass `verifyConfig`. Re-derives `channelId`.
-- Writes: removes pending commitment; `CHANNELS[channelId] = ClprChannel{ status: ACTIVE, … }`.
+- Writes: `CHANNELS[channelId] = ClprChannel{ status: ACTIVE, ownership_commitment, … }`. The
+  commitment is **not** removed: it stays in `PENDING_COMMITMENTS` for as long as the Channel
+  record exists. Channel records are kept in every status, including `CLOSED`, so a Channel
+  can never be created again.
 - **Lifecycle hook:** calls `ClprChannelLifecycle.onChannelActivated(channelId)`
   → `ClprChannelManager` adds the channel to its sync schedule. (In the standalone
   executor module the lifecycle is a no-op.)
@@ -76,13 +81,18 @@ side-effects.
 - Stake: `complete` requires the connector's `min_locked_stake` (`ClprConfig.minLockedStake`)
   to be transferred from payer to `ClprConfig.stakingAccount` via the transaction's
   crypto-transfer list.
-- Writes: `CONNECTORS[ClprConnectorKey] = ClprConnector{...}`.
+- Register rejects a commitment already in `PENDING_CONNECTOR_COMMITMENTS` with
+  `CLPR_CONNECTOR_ALREADY_EXISTS`.
+- Writes: `CONNECTORS[ClprConnectorKey] = ClprConnector{...}`. The commitment stays in
+  `PENDING_CONNECTOR_COMMITMENTS` permanently, so the same Connector can never be created again.
 
 ### `ClprDeregisterConnectorHandler`
 
 - Functionality: `CLPR_DEREGISTER_CONNECTOR`. Spec §6.3.
 - Removes connector record; releases locked stake back to the connector owner via system
-  transfer.
+  transfer. The `PENDING_CONNECTOR_COMMITMENTS` entry is kept, so the same connector ID cannot
+  be registered again (a new salt yields a new connector ID). The same holds for a connector
+  removed by a slashing ban.
 - **Known gap (see [drift-from-spec.md §2.5](drift-from-spec.md)):** spec §6.3 requires
   "MUST NOT deregister if the Connector has unresolved in-flight messages." Hiero does
   not currently enforce this — deregister succeeds even with messages still queued for

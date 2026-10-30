@@ -21,6 +21,7 @@ import com.swirlds.virtualmap.sync.LearnerTreeExchanger;
 import com.swirlds.virtualmap.sync.MerkleSynchronizationException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.time.Duration;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -65,6 +66,10 @@ public final class VirtualMapLearner {
     private static final Logger logger = LogManager.getLogger(VirtualMapLearner.class);
 
     private static final int MAX_RECONNECT_HASHING_BUFFER_SIZE = 10_000_000;
+
+    // How long abortOnException() waits for a running flush before closing the data source. A single flush
+    // normally takes a few seconds, but an abort may be caused by a slow disk
+    private static final Duration FLUSHER_TERMINATION_TIMEOUT = Duration.ofMinutes(1);
 
     // ---- State captured from the original map at creation time ----
 
@@ -113,6 +118,10 @@ public final class VirtualMapLearner {
      * The original map's data source is shut down and an independent copy is created for the reconnect process,
      * which will be updated with new leaves and hashes as they are received from the teacher.
      *
+     * <p> Creating the copy takes long for large maps, and it depends only on the original map, so a learner
+     * may be created before the reconnect starts. If the reconnect never starts, {@link #abortOnException()}
+     * must be called to close the copy.
+     *
      * @param originalMap the learner's current virtual map; must not be {@code null}
      * @param flushInterval the number of hashed items to collect before they are flushed to disk, see
      *                      {@link VirtualMapLearnerSyncConfig#flushInterval()}
@@ -140,7 +149,7 @@ public final class VirtualMapLearner {
         this.dataSource = originalMap.detachAsDataSourceCopy();
         this.dataSource.copyStatisticsFrom(originalMap.getDataSource());
 
-        reconnectFlusher = new HashLeafFlusher(dataSource, flushInterval, statistics, RECONNECT.getMarker());
+        reconnectFlusher = new HashLeafFlusher(dataSource, flushInterval, statistics, RECONNECT.getMarker(), true);
     }
 
     /**
@@ -149,6 +158,14 @@ public final class VirtualMapLearner {
     @NonNull
     public VirtualMap.Metadata getOriginalMetadata() {
         return originalMetadata;
+    }
+
+    /**
+     * @return the configuration of the original map on the learner.
+     */
+    @NonNull
+    public VirtualMapConfig getVirtualMapConfig() {
+        return virtualMapConfig;
     }
 
     @Nullable
@@ -472,12 +489,28 @@ public final class VirtualMapLearner {
     public void abortOnException() {
         logger.info(RECONNECT.getMarker(), "Aborting reconnect and cleaning up resources");
 
+        // Release threads blocked on flusher backpressure, and stop the flusher thread. The hashing thread isn't
+        // interrupted by cancelling its future, so without this it would wait till the running flush completes
+        reconnectFlusher.cancel();
         reconnectIterator.close();
         if (leafDeletionTask != null) {
             leafDeletionTask.cancel(true);
         }
         if (reconnectHashingFuture != null) {
             reconnectHashingFuture.cancel(true);
+        }
+        // A flush that is already running isn't stopped by cancel(), and it must not write to the data source
+        // while it's being closed below. The wait is bounded by a single flush
+        try {
+            if (!reconnectFlusher.awaitTermination(FLUSHER_TERMINATION_TIMEOUT)) {
+                logger.warn(
+                        RECONNECT.getMarker(),
+                        "Reconnect flush didn't complete in {}, closing the data source anyway",
+                        FLUSHER_TERMINATION_TIMEOUT);
+            }
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            logger.warn(RECONNECT.getMarker(), "Interrupted while waiting for reconnect flush to complete", e);
         }
         try {
             dataSource.close();

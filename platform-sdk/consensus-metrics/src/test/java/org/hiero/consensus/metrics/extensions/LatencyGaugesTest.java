@@ -15,6 +15,8 @@ import com.swirlds.metrics.api.Metric.ValueType;
 import com.swirlds.metrics.api.Metrics;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
 import org.hiero.consensus.metrics.FunctionGauge;
 import org.hiero.consensus.metrics.config.MetricsConfig;
@@ -124,6 +126,21 @@ class LatencyGaugesTest {
         assertThat(config.getSnapshots()).isEqualTo(20);
         assertThat(config.getPercentiles()).containsExactly(50.0, 90.0, 99.0, 99.9);
         assertThat(config.getUnit()).isEqualTo(ChronoUnit.MICROS);
+    }
+
+    @Test
+    void percentilesCanBeGivenAsAList() {
+        final List<Double> percentiles = new ArrayList<>(List.of(25.0, 99.99));
+        final LatencyGauges.Config changed = config.withPercentiles(percentiles);
+        percentiles.add(75.0);
+
+        assertThat(changed.getPercentiles())
+                .as("a copy of the list at the time it was set")
+                .containsExactly(25.0, 99.99);
+        LatencyGauges.register(metrics, configuration, time, changed);
+        assertThat(metrics.getAll())
+                .extracting(Metric::getName)
+                .containsExactlyInAnyOrder("foo_p25", "foo_p99_99", "foo_max");
     }
 
     @Test

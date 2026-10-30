@@ -68,7 +68,7 @@ Until Chewie owns workflow dispatching, the crons make the `226`, `227` and `107
 Chewie owns workflow dispatching):
 
 ```
-301 deploy ── 302 tags xts-candidate
+307 deploy ── 302 tags xts-candidate
 900 every 3 h ──dispatch──▶ 226 (inputs.ref = xts-candidate commit), unless the commit already passed XTS,
                             is part of a build, is not on main, or has a 226 run queued or in progress
 901 Tue–Sat 01:00 UTC ── newest xts-pass-* → build-NNNNN ──dispatch──▶ 227 (inputs.ref = build-NNNNN)
@@ -310,7 +310,7 @@ Changes that depend on Chewie reaching a later state:
 - **MDLT gate on manual dispatch — decided.** `224` checks the `sdpt-pass-`/`sdlt-pass-` tags, so it refuses a build
   that has not passed SDPT and SDLT. The adhoc `203` deliberately does not: a human chooses what it runs on, and is
   trusted to have chosen a valid build.
-- **Retire the crons when Chewie owns workflow dispatching.** Deprecate `302`, `900`, `901` and `903` (and `301`'s
+- **Retire the crons when Chewie owns workflow dispatching.** Deprecate `302`, `900`, `901` and `903` (and `307`'s
   dispatch of `302`) once Chewie dispatches `226`, `227` and `107` and runs promotion.
 - **Retire the git result tags.** Chewie's reports are already the source of record; the tags are secondary. Remove
   `tag-for-promotion` from `226` once the crons are retired and Chewie's promotion has run in production for a while,

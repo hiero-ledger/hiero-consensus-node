@@ -187,7 +187,8 @@ public class TransactionPoolNexus implements EventTransactionSupplier {
             transactionPoolMetrics.recordAcceptedAppTransaction();
         }
 
-        final TimestampedTransaction timestampedTransaction = new TimestampedTransaction(transaction, time.instant());
+        final TimestampedTransaction timestampedTransaction =
+                new TimestampedTransaction(transaction, time.instant(), priority);
 
         if (priority) {
             priorityBufferedTransactions.add(timestampedTransaction);

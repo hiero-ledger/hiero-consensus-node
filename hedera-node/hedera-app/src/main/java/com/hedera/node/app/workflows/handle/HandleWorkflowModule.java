@@ -212,7 +212,6 @@ public interface HandleWorkflowModule {
                 clprHandlers.clprCompleteChannelHandler(),
                 clprHandlers.clprCloseChannelHandler(),
                 clprHandlers.clprSubmitBundleHandler(),
-                clprHandlers.clprRedactMessageHandler(),
                 clprHandlers.clprRegisterConnectorHandler(),
                 clprHandlers.clprCompleteConnectorHandler(),
                 clprHandlers.clprDeregisterConnectorHandler(),

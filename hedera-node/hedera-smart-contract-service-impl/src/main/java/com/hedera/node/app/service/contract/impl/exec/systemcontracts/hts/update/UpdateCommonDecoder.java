@@ -6,6 +6,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TREASURY_ACCOUNT_FOR_TOKEN;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_IS_IMMUTABLE;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
+import static com.hedera.node.app.service.contract.impl.utils.ConstantUtils.ZERO_ACCOUNT_ID;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asNumericContractId;
 
 import com.esaulpaugh.headlong.abi.Tuple;
@@ -104,11 +105,14 @@ public abstract class UpdateCommonDecoder {
         if (tokenSymbol != null) {
             txnBodyBuilder.symbol(tokenSymbol);
         }
-        if (memo != null) {
+        // A blank memo from a contract means "unchanged", so don't externalize it
+        if (memo != null && !memo.isBlank()) {
             txnBodyBuilder.memo(memo);
         }
-
-        txnBodyBuilder.treasury(tokenTreasury);
+        // A zero treasury means "unchanged", so don't externalize it as an update to 0.0.0
+        if (!ZERO_ACCOUNT_ID.equals(tokenTreasury)) {
+            txnBodyBuilder.treasury(tokenTreasury);
+        }
 
         if (tokenExpiry.second() != 0) {
             txnBodyBuilder.expiry(

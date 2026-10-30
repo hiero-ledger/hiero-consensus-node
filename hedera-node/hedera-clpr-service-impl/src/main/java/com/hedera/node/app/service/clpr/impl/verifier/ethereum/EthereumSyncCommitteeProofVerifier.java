@@ -2,11 +2,11 @@
 package com.hedera.node.app.service.clpr.impl.verifier.ethereum;
 
 import static com.hedera.node.app.service.clpr.impl.verifier.evm.ProofBytes.endpointManifestCommitmentSlot;
-import static com.hedera.node.app.service.clpr.impl.verifier.evm.ProofBytes.keccak256;
 import static com.hedera.node.app.service.clpr.impl.verifier.evm.ProofBytes.leftPad32;
 
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.service.clpr.impl.verifier.BlsSignatureVerifier;
 import com.hedera.node.app.service.clpr.impl.verifier.ProofException;
 import com.hedera.node.app.service.clpr.impl.verifier.Rlp;
@@ -152,7 +152,7 @@ public final class EthereumSyncCommitteeProofVerifier {
             for (int i = 0; i < orderedStorageProof.size(); i++) {
                 final StorageProofEntry entry = orderedStorageProof.get(i);
                 final byte[] slotKey = leftPad32(entry.key(), "storageProof[" + i + "].key");
-                final byte[] storageKey = keccak256(slotKey);
+                final byte[] storageKey = MiscCryptoUtils.keccak256DigestOf(slotKey);
                 slotKeys[i] = slotKey;
                 provenSlotValues[i] = RlpDecoder.decodeMerklePatriciaTrie(
                                 provenAccount.storageRoot32(), entry.proofNodes())
@@ -274,14 +274,14 @@ public final class EthereumSyncCommitteeProofVerifier {
             throw EthProofs.fail("manifest storage proof is not for the endpoint-manifest commitment slot");
         }
         // Prove the committed value at that slot against the account's storage root.
-        final byte[] storageKey = keccak256(slot32);
+        final byte[] storageKey = MiscCryptoUtils.keccak256DigestOf(slot32);
         final byte[] provenCommitment = RlpDecoder.decodeMerklePatriciaTrie(
                         provenAccount.storageRoot32(), entry.proofNodes())
                 .provenValue(storageKey)
                 .map(Rlp::decodeTrieStorageValueAsBytes32)
                 .orElseThrow(() -> EthProofs.fail("endpoint-manifest commitment slot absent from the storage trie"));
         // The on-chain commitment is keccak256 of the manifest protobuf preimage.
-        if (!Arrays.equals(provenCommitment, keccak256(manifestBytes))) {
+        if (!Arrays.equals(provenCommitment, MiscCryptoUtils.keccak256DigestOf(manifestBytes))) {
             throw EthProofs.fail("endpoint-manifest preimage does not match the proven commitment");
         }
         // Reconstruct the manifest and enforce spec §4.8 invariants.
@@ -433,7 +433,7 @@ public final class EthereumSyncCommitteeProofVerifier {
             @NonNull final byte[] contractAddress20,
             @NonNull final byte[][] accountProof,
             @NonNull final String absentMessage) {
-        final byte[] accountKey = keccak256(contractAddress20);
+        final byte[] accountKey = MiscCryptoUtils.keccak256DigestOf(contractAddress20);
         final byte[] accountRlp = RlpDecoder.decodeMerklePatriciaTrie(stateRoot32, accountProof)
                 .provenValue(accountKey)
                 .orElseThrow(() -> EthProofs.fail(absentMessage));

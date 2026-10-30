@@ -32,6 +32,12 @@ class OpsDurationScheduleTest {
         assertEquals(0, opsDurationSchedule.opCodeCost(245)); // CREATE2
         assertEquals(2091, opsDurationSchedule.opCodeCost(250));
         assertEquals(0, opsDurationSchedule.opCodeCost(253)); // REVERT
+        assertEquals(0, opsDurationSchedule.opCodeCost(49)); // BALANCE
+        assertEquals(0, opsDurationSchedule.opCodeCost(59)); // EXTCODESIZE
+        assertEquals(0, opsDurationSchedule.opCodeCost(63)); // EXTCODEHASH
+        assertEquals(0, opsDurationSchedule.opCodeCost(84)); // SLOAD
+        assertEquals(0, opsDurationSchedule.opCodeCost(85)); // SSTORE
+        assertEquals(0, opsDurationSchedule.opCodeCost(253)); // REVERT
 
         assertEquals(3332, opsDurationSchedule.accountLazyCreationOpsDurationMultiplier());
         assertEquals(1575, opsDurationSchedule.opsGasBasedDurationMultiplier());

@@ -13,6 +13,7 @@ import java.util.function.Supplier;
 import org.assertj.core.data.Percentage;
 import org.hiero.consensus.test.fixtures.io.RealisticPingSamples;
 import org.hiero.otter.fixtures.InstrumentedNode;
+import org.hiero.otter.fixtures.MiniNode;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.network.BandwidthLimit;
 import org.hiero.otter.fixtures.network.MeshTopology;
@@ -24,9 +25,11 @@ import org.hiero.otter.fixtures.network.PredefinedPingTopologyConfiguration;
  */
 public class PredefinedPingTopologyImpl implements MeshTopology {
 
-    private final Function<Integer, List<? extends Node>> nodeFactory;
+    private final Function<Integer, List<Node>> nodeFactory;
     private final Supplier<InstrumentedNode> instrumentedNodeFactory;
+    private final Function<Integer, List<MiniNode>> miniNodeFactory;
     private final List<Node> nodes = new ArrayList<>();
+    private final List<MiniNode> allNodes = new ArrayList<>();
     private final PredefinedPingTopologyConfiguration configuration;
 
     /**
@@ -37,11 +40,13 @@ public class PredefinedPingTopologyImpl implements MeshTopology {
      * @param instrumentedNodeFactory a supplier that creates an instrumented node
      */
     public PredefinedPingTopologyImpl(
-            @NonNull final Function<Integer, List<? extends Node>> nodeFactory,
-            @NonNull final Supplier<InstrumentedNode> instrumentedNodeFactory) {
+            @NonNull final Function<Integer, List<Node>> nodeFactory,
+            @NonNull final Supplier<InstrumentedNode> instrumentedNodeFactory,
+            @NonNull final Function<Integer, List<MiniNode>> miniNodeFactory) {
         this(
                 nodeFactory,
                 instrumentedNodeFactory,
+                miniNodeFactory,
                 new PredefinedPingTopologyConfiguration(
                         RealisticPingSamples.MAINNET,
                         Percentage.withPercentage(10),
@@ -53,15 +58,18 @@ public class PredefinedPingTopologyImpl implements MeshTopology {
      *
      * @param nodeFactory             a function that creates a list of nodes given the count
      * @param instrumentedNodeFactory a supplier that creates an instrumented node
+     * @param miniNodeFactory         a function that creates a list of mini nodes given the count
      * @param configuration           the mesh topology configuration
      */
     public PredefinedPingTopologyImpl(
-            @NonNull final Function<Integer, List<? extends Node>> nodeFactory,
+            @NonNull final Function<Integer, List<Node>> nodeFactory,
             @NonNull final Supplier<InstrumentedNode> instrumentedNodeFactory,
+            @NonNull final Function<Integer, List<MiniNode>> miniNodeFactory,
             @NonNull final PredefinedPingTopologyConfiguration configuration) {
         this.nodeFactory = requireNonNull(nodeFactory);
         this.instrumentedNodeFactory = requireNonNull(instrumentedNodeFactory);
-        this.configuration = configuration;
+        this.miniNodeFactory = requireNonNull(miniNodeFactory);
+        this.configuration = requireNonNull(configuration);
     }
 
     /**
@@ -70,12 +78,13 @@ public class PredefinedPingTopologyImpl implements MeshTopology {
     @Override
     @NonNull
     public List<Node> addNodes(final int count) {
-        if (nodes.size() + count > configuration.pingMatrix().length) {
+        if (allNodes.size() + count > configuration.pingMatrix().length) {
             throw new IllegalArgumentException(
                     "Predefined ping matrix supports only " + configuration.pingMatrix().length + " nodes");
         }
-        final List<? extends Node> newNodes = nodeFactory.apply(count);
+        final List<Node> newNodes = nodeFactory.apply(count);
         nodes.addAll(newNodes);
+        allNodes.addAll(newNodes);
         return Collections.unmodifiableList(newNodes);
     }
 
@@ -85,13 +94,29 @@ public class PredefinedPingTopologyImpl implements MeshTopology {
     @Override
     @NonNull
     public InstrumentedNode addInstrumentedNode() {
-        if (nodes.size() >= configuration.pingMatrix().length) {
+        if (allNodes.size() >= configuration.pingMatrix().length) {
             throw new IllegalArgumentException(
                     "Predefined ping matrix supports only " + configuration.pingMatrix().length + " nodes");
         }
         final InstrumentedNode instrumentedNode = instrumentedNodeFactory.get();
         nodes.add(instrumentedNode);
+        allNodes.add(instrumentedNode);
         return instrumentedNode;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public List<MiniNode> addMiniNodes(final int count) {
+        if (allNodes.size() + count > configuration.pingMatrix().length) {
+            throw new IllegalArgumentException(
+                    "Predefined ping matrix supports only " + configuration.pingMatrix().length + " nodes");
+        }
+        final List<MiniNode> newNodes = miniNodeFactory.apply(count);
+        allNodes.addAll(newNodes);
+        return Collections.unmodifiableList(newNodes);
     }
 
     /**
@@ -108,11 +133,20 @@ public class PredefinedPingTopologyImpl implements MeshTopology {
      */
     @Override
     @NonNull
-    public ConnectionState getConnectionData(@NonNull final Node sender, @NonNull final Node receiver) {
+    public List<MiniNode> allNodes() {
+        return Collections.unmodifiableList(allNodes);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public ConnectionState getConnectionData(@NonNull final MiniNode sender, @NonNull final MiniNode receiver) {
         // latency is half of ping
         return new ConnectionState(
                 true,
-                Duration.ofMillis(configuration.pingMatrix()[nodes.indexOf(sender)][nodes.indexOf(receiver)] / 2),
+                Duration.ofMillis(configuration.pingMatrix()[allNodes.indexOf(sender)][allNodes.indexOf(receiver)] / 2),
                 configuration.jitter(),
                 configuration.bandwidth());
     }

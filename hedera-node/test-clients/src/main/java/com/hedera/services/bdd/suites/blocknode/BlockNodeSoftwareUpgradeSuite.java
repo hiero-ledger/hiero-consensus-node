@@ -2,11 +2,18 @@
 package com.hedera.services.bdd.suites.blocknode;
 
 import static com.hedera.services.bdd.junit.TestTags.BLOCK_NODE;
+import static com.hedera.services.bdd.junit.hedera.NodeSelector.allNodes;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertBlockNodeCommsLogContainsTimeframe;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.awaitBlockNodeCommsLogContainsText;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.untilHgcaaLogContainsText;
+import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
+import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 
 import com.hedera.services.bdd.HapiBlockNode;
 import com.hedera.services.bdd.HapiBlockNode.BlockNodeConfig;
@@ -14,6 +21,7 @@ import com.hedera.services.bdd.HapiBlockNode.SubProcessNodeConfig;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
+import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import java.time.Duration;
 import java.time.Instant;
@@ -30,6 +38,15 @@ import org.junit.jupiter.api.Tag;
 @Tag(BLOCK_NODE)
 @OrderedInIsolation
 public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
+    /**
+     * The ledger id is only established by the genesis WRAPS proof grounding the chain of trust.
+     */
+    private static final Duration LEDGER_ID_TIMEOUT = Duration.ofMinutes(5);
+
+    /**
+     * Logged for each block the block node acknowledges, which it only does once the block's proof verifies.
+     */
+    private static final String BLOCK_ACK = "BlockAcknowledgement received for block";
 
     @HapiTest
     @HapiBlockNode(
@@ -49,8 +66,6 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                             "tss.hintsEnabled",
                             "true",
                             "tss.historyEnabled",
-                            "true",
-                            "tss.forceHandoffs",
                             "true",*/
                             "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk",
                             "false",
@@ -58,12 +73,8 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                             "true",
                             "blockNode.blockNodeStatusTimeout",
                             "10s",
-                            "blockStream.enableCutover",
-                            "false",
-                            "blockStream.streamWrappedRecordBlocks",
-                            "true",
                             "tss.forceMockSignatures",
-                            "true"
+                            "false"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 1,
@@ -78,8 +89,6 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                             "tss.hintsEnabled",
                             "true",
                             "tss.historyEnabled",
-                            "true",
-                            "tss.forceHandoffs",
                             "true",*/
                             "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk",
                             "false",
@@ -87,12 +96,8 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                             "true",
                             "blockNode.blockNodeStatusTimeout",
                             "10s",
-                            "blockStream.enableCutover",
-                            "false",
-                            "blockStream.streamWrappedRecordBlocks",
-                            "true",
                             "tss.forceMockSignatures",
-                            "true"
+                            "false"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 2,
@@ -107,8 +112,6 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                             "tss.hintsEnabled",
                             "true",
                             "tss.historyEnabled",
-                            "true",
-                            "tss.forceHandoffs",
                             "true",*/
                             "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk",
                             "false",
@@ -116,12 +119,8 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                             "true",
                             "blockNode.blockNodeStatusTimeout",
                             "10s",
-                            "blockStream.enableCutover",
-                            "false",
-                            "blockStream.streamWrappedRecordBlocks",
-                            "true",
                             "tss.forceMockSignatures",
-                            "true"
+                            "false"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 3,
@@ -136,8 +135,6 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                             "tss.hintsEnabled",
                             "true",
                             "tss.historyEnabled",
-                            "true",
-                            "tss.forceHandoffs",
                             "true",*/
                             "hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk",
                             "false",
@@ -145,52 +142,64 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                             "true",
                             "blockNode.blockNodeStatusTimeout",
                             "10s",
-                            "blockStream.enableCutover",
-                            "false",
-                            "blockStream.streamWrappedRecordBlocks",
-                            "true",
                             "tss.forceMockSignatures",
-                            "true"
+                            "false"
                         }),
             })
     @Order(0)
     final Stream<DynamicTest> multiUpgradeGrpcWriterTss() {
         final AtomicReference<Instant> timeRef = new AtomicReference<>();
-        // After each upgrade, verify the connection manager started and established a connection.
-        // Use "Streaming connection update requested" (INFO level) which appears reliably at
-        // startup when the monitor first runs.
+        // Taken once each upgrade returns, so acks for blocks closed while the network was freezing don't count
+        final AtomicReference<Instant> ackTimeRef = new AtomicReference<>();
+        // After each upgrade, verify the node reconnected to the block node and that the block node
+        // verified (acknowledged) the blocks it streamed
         final AtomicInteger blockNodePort = new AtomicInteger();
         return hapiTest(
                 doingContextual(spec -> {
                     blockNodePort.set(spec.getBlockNodePortById(0));
                     timeRef.set(Instant.now());
                 }),
+                // An upgrade adopts the override network's roster, which needs completed TSS state once the
+                // hinTS scheme exists; so finish the genesis TSS ceremony before the first upgrade
+                untilHgcaaLogContainsText(
+                        allNodes(), "Externalizing ledger id", LEDGER_ID_TIMEOUT, Duration.ofSeconds(1), () ->
+                                new SpecOperation[] {cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L))}),
+                awaitBlockNodeCommsLogContainsText(allNodes(), BLOCK_ACK, Duration.ofMinutes(2)),
                 prepareFakeUpgrade(),
                 doingContextual(spec -> timeRef.set(Instant.now())),
                 upgradeToNextConfigVersion(),
+                doingContextual(spec -> ackTimeRef.set(Instant.now())),
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
                         byNodeId(0),
                         timeRef::get,
                         Duration.ofMinutes(3),
                         Duration.ofMinutes(3),
                         String.format("Selected new block node for streaming: localhost:%s", blockNodePort.get()))),
+                assertBlockNodeCommsLogContainsTimeframe(
+                        byNodeId(0), ackTimeRef::get, Duration.ofMinutes(3), Duration.ofMinutes(3), BLOCK_ACK),
                 prepareFakeUpgrade(),
                 doingContextual(spec -> timeRef.set(Instant.now())),
                 upgradeToNextConfigVersion(),
+                doingContextual(spec -> ackTimeRef.set(Instant.now())),
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
                         byNodeId(0),
                         timeRef::get,
                         Duration.ofMinutes(3),
                         Duration.ofMinutes(3),
                         String.format("Selected new block node for streaming: localhost:%s", blockNodePort.get()))),
+                assertBlockNodeCommsLogContainsTimeframe(
+                        byNodeId(0), ackTimeRef::get, Duration.ofMinutes(3), Duration.ofMinutes(3), BLOCK_ACK),
                 prepareFakeUpgrade(),
                 doingContextual(spec -> timeRef.set(Instant.now())),
                 upgradeToNextConfigVersion(),
+                doingContextual(spec -> ackTimeRef.set(Instant.now())),
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
                         byNodeId(0),
                         timeRef::get,
                         Duration.ofMinutes(3),
                         Duration.ofMinutes(3),
-                        String.format("Selected new block node for streaming: localhost:%s", blockNodePort.get()))));
+                        String.format("Selected new block node for streaming: localhost:%s", blockNodePort.get()))),
+                assertBlockNodeCommsLogContainsTimeframe(
+                        byNodeId(0), ackTimeRef::get, Duration.ofMinutes(3), Duration.ofMinutes(3), BLOCK_ACK));
     }
 }

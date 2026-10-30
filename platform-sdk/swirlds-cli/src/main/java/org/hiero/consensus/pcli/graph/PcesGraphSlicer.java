@@ -248,7 +248,8 @@ public class PcesGraphSlicer {
                 timeCreated,
                 transactions,
                 newEventCore.coin(),
-                timeCreated);
+                timeCreated,
+                List.of());
         // Calculate new hash
         eventHasher.hashUnsignedEvent(unsignedEvent);
         final Hash newHash = unsignedEvent.getHash();
