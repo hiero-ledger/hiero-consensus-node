@@ -14,7 +14,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.*;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.toConfigProofBytes;
@@ -23,9 +23,12 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVER
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hederahashgraph.api.proto.java.ClprLedgerConfiguration;
 import com.hederahashgraph.api.proto.java.ClprSignatureScheme;
 import com.hederahashgraph.api.proto.java.ClprThrottles;
+
+import java.time.Duration;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -43,6 +46,7 @@ public class ClprSendMessageSuite {
     private static final String CLPR_CONTRACT = "ClprSystemContract";
     private static final String VERIFIER_CONTRACT = "ClprPassThroughVerifier";
     private static final String CONNECTOR_CONTRACT = "PassThroughAuth";
+    private static final String RE_CALL_CONNECTOR_CONTRACT = "ReCallSendMessage";
     private static final String SEND_MESSAGE = "sendMessage";
     private static final long GAS_TO_OFFER = 500_000L;
     private static final long MIN_LOCKED_STAKE = 100L;
@@ -169,6 +173,68 @@ public class ClprSendMessageSuite {
                         .gas(GAS_TO_OFFER)
                         .payingWith("caller")
                         .hasKnownStatus(CONTRACT_REVERT_EXECUTED));
+    }
+
+    @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
+    final Stream<DynamicTest> sendMessageReentrantFromAuthorizeOutboundMessageCallback() {
+        final var crypto = new ClprChannelCrypto();
+        return hapiTest(
+                overridingTwo("clpr.enabled", "true", "clpr.minLockedStake", String.valueOf(MIN_LOCKED_STAKE)),
+                overriding("clpr.stakingAccount", "2"),
+                clprUpdateLedgerConfiguration()
+                        .configuration(defaultLedgerConfig())
+                        .payingWith(GENESIS),
+                uploadInitCode(VERIFIER_CONTRACT),
+                contractCreate(VERIFIER_CONTRACT),
+                uploadInitCode(RE_CALL_CONNECTOR_CONTRACT),
+                contractCreate(RE_CALL_CONNECTOR_CONTRACT),
+                uploadInitCode(CLPR_CONTRACT),
+                contractCreate(CLPR_CONTRACT),
+                cryptoCreate("caller").balance(ONE_HUNDRED_HBARS),
+                // §5.1 commit-reveal channel setup
+                clprRegisterChannel().ownershipCommitment(crypto.commitment()).payingWith(GENESIS),
+                clprCompleteChannel()
+                        .channelId(crypto.channelId())
+                        .publicKey(crypto.publicKey())
+                        .signature(crypto.signature())
+                        .signatureScheme(ClprSignatureScheme.ED25519)
+                        .verifierContract(VERIFIER_CONTRACT)
+                        .configProofBytes(toConfigProofBytes(defaultLedgerConfig()))
+                        .payingWith(GENESIS),
+                // §6.3 commit-reveal connector setup, using the malicious ReentrantAuth contract
+                clprRegisterConnector().commitment(crypto.connectorCommitment()).payingWith(GENESIS),
+                clprCompleteConnector()
+                        .connectorId(crypto.connectorId())
+                        .publicKey(crypto.publicKey())
+                        .signature(crypto.connectorSignature())
+                        .signatureScheme(ClprSignatureScheme.ED25519)
+                        .salt(crypto.connectorSalt())
+                        .channelId(crypto.channelId())
+                        .connectorContract(RE_CALL_CONNECTOR_CONTRACT)
+                        .adminKeyName(GENESIS)
+                        .lockedStake(MIN_LOCKED_STAKE)
+                        .payingWith(GENESIS),
+                // Tell the connector which channel/connector to reenter with
+                contractCall(
+                        RE_CALL_CONNECTOR_CONTRACT,
+                        "setReentryTarget",
+                        crypto.channelId(),
+                        crypto.connectorId())
+                        .payingWith("caller"),
+                contractCall(
+                        CLPR_CONTRACT,
+                        SEND_MESSAGE,
+                        crypto.channelId(),
+                        crypto.connectorId(),
+                        new byte[] {10, 20, 30},
+                        new byte[] {1, 2, 3, 4, 5})
+                        .gas(GAS_TO_OFFER)
+                        .payingWith("caller")
+                        .via("attackTxn")
+                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED),
+                getTxnRecord("attackTxn").logged(),
+                assertHgcaaLogContainsPattern(
+                        NodeSelector.allNodes(), "responseCode=CLPR_AUTHORIZATION_FAILED", Duration.ofSeconds(10)));
     }
 
     // ---- Helpers ----a
