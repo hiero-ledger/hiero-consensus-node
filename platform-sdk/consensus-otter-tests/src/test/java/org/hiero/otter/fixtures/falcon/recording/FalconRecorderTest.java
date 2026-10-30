@@ -28,6 +28,7 @@ import org.hiero.base.crypto.SigningSchema;
 import org.hiero.consensus.benchmark.tools.event.EventShape;
 import org.hiero.consensus.event.creator.impl.DefaultEventCreationManager;
 import org.hiero.consensus.event.creator.impl.EventCreationManager;
+import org.hiero.consensus.event.creator.impl.tipset.DefaultTipsetTracker;
 import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
@@ -215,6 +216,7 @@ class FalconRecorderTest {
             final long creatorSeed,
             @NonNull final EventTransactionSupplier transactionSupplier) {
         final Metrics metrics = new NoOpMetrics();
+        final DefaultTipsetTracker tipsetTracker = new DefaultTipsetTracker(time, nodeId, roster);
         final TipsetEventCreator eventCreator = new TipsetEventCreator(
                 configuration,
                 metrics,
@@ -223,7 +225,8 @@ class FalconRecorderTest {
                 _ -> Bytes.EMPTY,
                 roster,
                 nodeId,
-                transactionSupplier);
+                transactionSupplier,
+                tipsetTracker);
         return new DefaultEventCreationManager(configuration, metrics, time, () -> false, eventCreator, roster, nodeId);
     }
 
