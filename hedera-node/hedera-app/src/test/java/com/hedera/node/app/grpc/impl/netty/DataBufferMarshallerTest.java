@@ -20,12 +20,15 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mockito;
 
 final class DataBufferMarshallerTest {
+    private static final ThreadLocal<BufferedData> BUFFER_THREAD_LOCAL = new ThreadLocal<>();
+
     private static final int MAX_MESSAGE_SIZE = 6144;
     private static final int BUFFER_CAPACITY = 133120;
     private static final int JUMBO_MAX_MESSAGE_SIZE = 133120;
-    private final DataBufferMarshaller marshaller = new DataBufferMarshaller(BUFFER_CAPACITY, MAX_MESSAGE_SIZE);
+    private final DataBufferMarshaller marshaller =
+            new DataBufferMarshaller(BUFFER_THREAD_LOCAL, BUFFER_CAPACITY, MAX_MESSAGE_SIZE);
     private final DataBufferMarshaller jumboMarshaller =
-            new DataBufferMarshaller(JUMBO_MAX_MESSAGE_SIZE + 1, JUMBO_MAX_MESSAGE_SIZE);
+            new DataBufferMarshaller(BUFFER_THREAD_LOCAL, JUMBO_MAX_MESSAGE_SIZE + 1, JUMBO_MAX_MESSAGE_SIZE);
 
     @Test
     void nullBufferThrows() {
@@ -153,21 +156,21 @@ final class DataBufferMarshallerTest {
     void constructorThrowsWhenBufferCapacityLessThanMaxMessageSize() {
         assertThrows(
                 IllegalArgumentException.class,
-                () -> new DataBufferMarshaller(100, 200),
+                () -> new DataBufferMarshaller(BUFFER_THREAD_LOCAL, 100, 200),
                 "Buffer capacity must be greater than or equal to the maximum message size.");
     }
 
     @Test
     @DisplayName("Constructor accepts buffer capacity equal to max message size")
     void constructorAcceptsEqualCapacityAndMaxSize() {
-        final var m = new DataBufferMarshaller(100, 100);
+        final var m = new DataBufferMarshaller(BUFFER_THREAD_LOCAL, 100, 100);
         assertNotNull(m);
     }
 
     @Test
     @DisplayName("Constructor accepts buffer capacity greater than max message size")
     void constructorAcceptsGreaterCapacityThanMaxSize() {
-        final var m = new DataBufferMarshaller(200, 100);
+        final var m = new DataBufferMarshaller(BUFFER_THREAD_LOCAL, 200, 100);
         assertNotNull(m);
     }
 
@@ -220,7 +223,7 @@ final class DataBufferMarshallerTest {
     @DisplayName("Marshaller with capacity equal to max size plus one (NettyGrpcServerManager pattern)")
     void marshallerWithNettyGrpcServerManagerPattern() {
         final int maxTxnSize = 6144;
-        final var m = new DataBufferMarshaller(MAX_MESSAGE_SIZE + 1, MAX_MESSAGE_SIZE);
+        final var m = new DataBufferMarshaller(BUFFER_THREAD_LOCAL, MAX_MESSAGE_SIZE + 1, MAX_MESSAGE_SIZE);
 
         // Parse a stream exactly at the limit
         final var exactArr = TestUtils.randomBytes(MAX_MESSAGE_SIZE);
@@ -233,5 +236,26 @@ final class DataBufferMarshallerTest {
         final var overStream = new ByteArrayInputStream(overArr);
         final var overBuff = m.parse(overStream);
         assertThat(overBuff.length()).isEqualTo(maxTxnSize + 1);
+    }
+
+    @Test
+    @DisplayName("Jumbo message is not truncated after a regular message was parsed on the same thread")
+    void jumboMessageNotTruncatedAfterRegularMessageOnSameThread() {
+        ThreadLocal<BufferedData> localRegularBuffer = new ThreadLocal<>();
+        ThreadLocal<BufferedData> localJumboBuffer = new ThreadLocal<>();
+        final var regular = new DataBufferMarshaller(localRegularBuffer, MAX_MESSAGE_SIZE + 1, MAX_MESSAGE_SIZE);
+        final var jumbo =
+                new DataBufferMarshaller(localJumboBuffer, JUMBO_MAX_MESSAGE_SIZE + 1, JUMBO_MAX_MESSAGE_SIZE);
+
+        // Poison this thread's cache with the small marshaller first
+        assertEquals(
+                100,
+                regular.parse(new ByteArrayInputStream(TestUtils.randomBytes(100)))
+                        .remaining());
+
+        final var jumboBytes = TestUtils.randomBytes(JUMBO_MAX_MESSAGE_SIZE);
+        final var parsed = jumbo.parse(new ByteArrayInputStream(jumboBytes));
+        assertEquals(JUMBO_MAX_MESSAGE_SIZE, parsed.remaining());
+        assertArrayEquals(jumboBytes, parsed.getBytes(0, JUMBO_MAX_MESSAGE_SIZE).toByteArray());
     }
 }

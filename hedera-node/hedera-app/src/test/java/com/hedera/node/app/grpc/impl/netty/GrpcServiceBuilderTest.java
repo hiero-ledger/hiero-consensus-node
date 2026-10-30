@@ -15,6 +15,7 @@ import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.VersionedConfiguration;
 import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.metrics.api.Metrics;
 import java.io.ByteArrayInputStream;
 import org.junit.jupiter.api.BeforeEach;
@@ -45,8 +46,12 @@ final class GrpcServiceBuilderTest {
     private static final int MAX_MESSAGE_SIZE = 6144;
     private static final int MAX_JUMBO_TXN_SIZE = 133120;
     private static final int BUFFER_CAPACITY = 133120;
-    private final DataBufferMarshaller MARSHALLER = new DataBufferMarshaller(BUFFER_CAPACITY, MAX_MESSAGE_SIZE);
-    private final DataBufferMarshaller JUMBO_MARSHALLER = new DataBufferMarshaller(BUFFER_CAPACITY, MAX_JUMBO_TXN_SIZE);
+    private static final ThreadLocal<BufferedData> BUFFER_THREAD_LOCAL = new ThreadLocal<>();
+
+    private final DataBufferMarshaller MARSHALLER =
+            new DataBufferMarshaller(BUFFER_THREAD_LOCAL, BUFFER_CAPACITY, MAX_MESSAGE_SIZE);
+    private final DataBufferMarshaller JUMBO_MARSHALLER =
+            new DataBufferMarshaller(BUFFER_THREAD_LOCAL, BUFFER_CAPACITY, MAX_JUMBO_TXN_SIZE);
 
     @BeforeEach
     void setUp() {

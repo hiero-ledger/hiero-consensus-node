@@ -22,20 +22,27 @@ final class DataBufferMarshaller implements MethodDescriptor.Marshaller<Buffered
 
     /**
      * Per-thread shared ByteBuffer for reading. We store these in a thread local, because we do not
-     * have control over the thread pool used by the underlying gRPC server.
+     * have control over the thread pool used by the underlying gRPC server. Marshallers with different
+     * buffer capacities (e.g. regular vs. jumbo transactions) must NOT share the same thread local, otherwise
+     * a small cached buffer could be used to read a large message and silently truncate it.
      */
-    @SuppressWarnings(
-            "java:S5164") // looks like a false positive ("ThreadLocal" variables should be cleaned up when no longer
-    // used), but these threads are long-lived and the lifetime of the thread local is the same as
-    // the application
-    private static final ThreadLocal<BufferedData> BUFFER_THREAD_LOCAL = new ThreadLocal<>();
+    private final ThreadLocal<BufferedData> bufferThreadLocal;
 
-    /** Constructs a new {@link DataBufferMarshaller}. Only called by {@link GrpcServiceBuilder}. */
-    DataBufferMarshaller(final int bufferCapacity, final int maxMessageSize) {
+    /**
+     * Constructs a new {@link DataBufferMarshaller}. Only called by {@link NettyGrpcServerManager}.
+     *
+     * @param bufferThreadLocal the per-thread buffer cache; may be shared only between marshallers of the same
+     * kind (i.e. the same buffer capacity)
+     */
+    DataBufferMarshaller(
+            @NonNull final ThreadLocal<BufferedData> bufferThreadLocal,
+            final int bufferCapacity,
+            final int maxMessageSize) {
         if (bufferCapacity < maxMessageSize) {
             throw new IllegalArgumentException(
                     "Buffer capacity must be greater than or equal to the maximum message size.");
         }
+        this.bufferThreadLocal = requireNonNull(bufferThreadLocal);
         this.bufferCapacity = bufferCapacity + 1;
         this.tooBigMessageSize = maxMessageSize + 1;
     }
@@ -58,10 +65,10 @@ final class DataBufferMarshaller implements MethodDescriptor.Marshaller<Buffered
         requireNonNull(stream);
 
         // Each thread has a single buffer instance that gets reused over and over.
-        BufferedData buffer = BUFFER_THREAD_LOCAL.get();
+        BufferedData buffer = bufferThreadLocal.get();
         if (buffer == null) {
             buffer = BufferedData.wrap(ByteBuffer.allocate(bufferCapacity));
-            BUFFER_THREAD_LOCAL.set(buffer);
+            bufferThreadLocal.set(buffer);
         }
         buffer.reset();
 
