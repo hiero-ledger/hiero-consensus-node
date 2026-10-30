@@ -12,6 +12,7 @@ import java.net.Socket;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import org.hiero.base.crypto.config.CryptoConfig_;
 import org.hiero.consensus.gossip.config.SocketConfig;
 import org.hiero.consensus.gossip.config.SocketConfig_;
 
@@ -25,10 +26,14 @@ class ConnectivityTestBase {
     protected static final byte[] TEST_DATA = new byte[] {1, 2, 3};
 
     static {
-        TLS_NO_IP_TOS_CONFIG =
-                new TestConfigBuilder().withValue(SocketConfig_.IP_TOS, "-1").getOrCreateConfig();
-        TLS_IP_TOS_CONFIG =
-                new TestConfigBuilder().withValue(SocketConfig_.IP_TOS, "100").getOrCreateConfig();
+        TLS_NO_IP_TOS_CONFIG = new TestConfigBuilder()
+                .withValue(SocketConfig_.IP_TOS, "-1")
+                .withValue(CryptoConfig_.KEYSTORE_PASSWORD, "password")
+                .getOrCreateConfig();
+        TLS_IP_TOS_CONFIG = new TestConfigBuilder()
+                .withValue(SocketConfig_.IP_TOS, "100")
+                .withValue(CryptoConfig_.KEYSTORE_PASSWORD, "password")
+                .getOrCreateConfig();
 
         final Configuration configurationNoIpTos =
                 new TestConfigBuilder().withValue(SocketConfig_.IP_TOS, "-1").getOrCreateConfig();
