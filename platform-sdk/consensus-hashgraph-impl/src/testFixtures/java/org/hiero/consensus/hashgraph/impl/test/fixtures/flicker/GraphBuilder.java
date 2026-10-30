@@ -21,7 +21,7 @@ import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
  * Turns a list of {@link EventSpec} into built events, in order.
  * <p>
  * Specs must be listed bottom-up: an event may only name parents defined above it in the list. That is also the order
- * the events must be fed to {@code FlickerIntake}, so the returned list is the feed order. Note this is the reverse of
+ * the events must be fed to {@link FlickerIntake}, so the returned list is the feed order. Note this is the reverse of
  * a {@code .graph} file's row order, which reads like the hashgraph diagram with genesis at the bottom;
  * {@code GraphParser} does the reversal.
  * <p>
