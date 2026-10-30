@@ -17,6 +17,6 @@ import org.hiero.consensus.orphan.OrphanBuffer;
 public record SimulatedNode(
         @NonNull NodeId nodeId,
         @NonNull OrphanBuffer orphanBuffer,
-        @NonNull TipsetTracker tipsetTracker,
+        @NonNull DefaultTipsetTracker tipsetTracker,
         @NonNull EventCreator eventCreator,
         @NonNull TipsetWeightCalculator tipsetWeightCalculator) {}

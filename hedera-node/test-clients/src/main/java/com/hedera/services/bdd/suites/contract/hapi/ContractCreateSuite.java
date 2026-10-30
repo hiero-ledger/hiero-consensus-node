@@ -156,15 +156,13 @@ public class ContractCreateSuite {
     final Stream<DynamicTest> createDeterministicDeployer() {
         final var creatorAddress = ByteString.copyFrom(Objects.requireNonNull(CommonUtils.unhex(DEPLOYMENT_SIGNER)));
         final var transaction = ByteString.copyFrom(Objects.requireNonNull(CommonUtils.unhex(DEPLOYMENT_TRANSACTION)));
-        final var systemFileId = FileID.newBuilder().setFileNum(159).build();
 
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoCreate(PAYER).balance(6 * ONE_MILLION_HBARS),
                 cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
                 cryptoTransfer(tinyBarsFromTo(PAYER, creatorAddress, ONE_HUNDRED_HBARS)),
-                explicitEthereumTransaction(DEPLOYER, (spec, b) -> b.setCallData(systemFileId)
-                                .setEthereumData(transaction))
+                explicitEthereumTransaction(DEPLOYER, (spec, b) -> b.setEthereumData(transaction))
                         .payingWith(PAYER),
                 getContractInfo(DEPLOYER)
                         .has(contractWith().addressOrAlias(EXPECTED_DEPLOYER_ADDRESS))

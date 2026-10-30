@@ -19,6 +19,7 @@ import com.hedera.node.config.data.ClprConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import io.grpc.Status;
 import java.time.Duration;
 import java.util.List;
 import javax.inject.Inject;
@@ -160,10 +161,18 @@ public final class ClprStreamingSynchronizer implements ClprSynchronizer {
                 peerSelector.recordFailure(peerId);
             }
         } catch (final ClprSyncException | ClientException e) {
+            final var code = Status.fromThrowable(e).getCode();
+            if (code == Status.Code.NOT_FOUND) {
+                // The peer is reachable but has not registered or completed this channel yet, which is expected
+                // while the two ledgers set the channel up; retry next cycle without counting a peer failure
+                logger.debug("Peer {} does not have channel {} yet: {}", peerId, channelId, e.getMessage());
+                return;
+            }
             // ClprSyncException: stream failure. ClientException: TLS channel could not be built. Both are
             // peer-level failures for the breaker.
             peerSelector.recordFailure(peerId);
-            logger.error("Streaming sync failed for channel {} via peer {}", channelId, peerId, e);
+            // The status is in the message (not only in the stack trace) so failures can be told apart per line
+            logger.error("Streaming sync failed for channel {} via peer {} with status {}", channelId, peerId, code, e);
         }
     }
 
@@ -208,8 +217,8 @@ public final class ClprStreamingSynchronizer implements ClprSynchronizer {
          * Drives the whole cycle.
          *
          * @return {@code true} when the exchange ran to a clean close and every inbound bundle was accepted for
-         * submission; {@code false} when the peer closed early, exceeded the inbound message limit, or a submission was
-         * refused
+         * submission; {@code false} when the peer closed early, sent another channel's payload, exceeded the inbound
+         * message limit, or a submission was refused
          * @throws ClprSyncException if a write or read on the stream fails
          */
         private boolean run(final long localEndpointManifestVersion, final long peerObservedManifestVersion)
@@ -230,7 +239,7 @@ public final class ClprStreamingSynchronizer implements ClprSynchronizer {
          * Messages 1 and 2: writes our one-shot request — no bundle yet, ours can only be shaped once the peer's
          * request is known — then reads the peer's request plus its bundle for us, and submits that bundle.
          *
-         * @return the peer's opening message, or {@code null} when it closed the stream instead of replying
+         * @return the peer's opening message, or {@code null} when it closed the stream or sent an invalid reply
          */
         @Nullable
         private ClprStreamingSyncPayload open() throws ClprSyncException {
@@ -247,9 +256,7 @@ public final class ClprStreamingSynchronizer implements ClprSynchronizer {
                         peerId);
                 return null;
             }
-            inboundMessages++;
-            submitInbound(opening);
-            return opening;
+            return receive(opening) ? opening : null;
         }
 
         /**
@@ -339,11 +346,21 @@ public final class ClprStreamingSynchronizer implements ClprSynchronizer {
         }
 
         /**
-         * Counts one message from the peer and submits the bundle it carries.
+         * Checks and counts one message from the peer, then submits the bundle it carries.
          *
-         * @return {@code false} when the message exceeds the inbound limit; the stream should then be abandoned
+         * @return {@code false} when the message belongs to another channel or exceeds the inbound limit; the stream
+         * should then be abandoned
          */
         private boolean receive(@NonNull final ClprStreamingSyncPayload message) {
+            if (!channelIdBytes.equals(message.channelId())) {
+                logger.warn(
+                        "[CLPR-SYNC-OUTBOUND] peer sent payload for another channel conn={} peer={} "
+                                + "receivedChannel={}; abandoning the stream",
+                        channelId,
+                        peerId,
+                        message.channelId());
+                return false;
+            }
             inboundMessages++;
             if (inboundMessages > ClprStreamingSyncSession.MAX_INBOUND_MESSAGES) {
                 logger.warn(

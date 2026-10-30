@@ -9,6 +9,7 @@ import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_SERVICE
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.DISPATCH_ONLY_NOOP_FEE_CHARGING;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_DISPATCH;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.EXPLICIT_WRITE_TRACING;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REMOVABLE;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static java.util.Objects.requireNonNull;
@@ -43,6 +44,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -70,8 +73,13 @@ public class EvmClprVerifier implements ClprVerifier {
 
     private static final Logger log = LoggerFactory.getLogger(EvmClprVerifier.class);
 
-    private static final DispatchMetadata CLPR_DISPATCH_METADATA = new DispatchMetadata(
-            CLPR_DISPATCH, new ClprDispatchMetadata(CLPR_SERVICE_ACCOUNT_ID, CLPR_EVM_ADDRESS_BYTES));
+    // A CLPR transaction may dispatch several EVM calls in one transactional unit, so their written storage
+    // slots must be traced explicitly for the block stream to say which call wrote which value
+    private static final DispatchMetadata CLPR_DISPATCH_METADATA = new DispatchMetadata(Map.of(
+            CLPR_DISPATCH,
+            new ClprDispatchMetadata(CLPR_SERVICE_ACCOUNT_ID, CLPR_EVM_ADDRESS_BYTES),
+            EXPLICIT_WRITE_TRACING,
+            true));
 
     // Config with manifest: verifyConfig(bytes,bytes32,bytes) → config fields + ClprEndpointManifest.
     // The manifest-aware return type is shared with all EVM verifiers — see
@@ -152,18 +160,66 @@ public class EvmClprVerifier implements ClprVerifier {
             @NonNull final Bytes channelContext,
             @NonNull final HandleContext context)
             throws HandleException {
+        requireNonNull(context);
+        return verifyBundleUsing(
+                bundlePayload,
+                trustAnchor,
+                channelContext,
+                callData -> dispatchRaw(callData.toByteArray(), CLPR_BUNDLE_VERIFICATION_FAILED, context));
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The call data and return decoding are identical to {@link #verifyBundle}; only the execution
+     * of the call differs.
+     */
+    @Override
+    @NonNull
+    public ClprBundleContent verifyBundleLocally(
+            @NonNull final Bytes bundlePayload,
+            @NonNull final Bytes trustAnchor,
+            @NonNull final Bytes channelContext,
+            @NonNull final Function<Bytes, Bytes> contractCall)
+            throws HandleException {
+        return verifyBundleUsing(bundlePayload, trustAnchor, channelContext, contractCall);
+    }
+
+    /**
+     * Encodes a {@code verifyBundle(bytes,bytes,bytes)} call, executes it with {@code contractCall},
+     * and decodes the verifier's return. Consensus dispatch and local verification share this path,
+     * so both encode and decode identically.
+     *
+     * @param bundlePayload opaque proof bytes from the peer
+     * @param trustAnchor the Channel's current signing-authority material
+     * @param channelContext opaque channel identity
+     * @param contractCall executes ABI call data against the verifier and returns raw EVM result bytes
+     * @return the verified bundle content
+     * @throws HandleException with {@code CLPR_BUNDLE_VERIFICATION_FAILED} if the call returns no bytes
+     *     or its result cannot be decoded, or with the code {@code contractCall} throws
+     */
+    @NonNull
+    private ClprBundleContent verifyBundleUsing(
+            @NonNull final Bytes bundlePayload,
+            @NonNull final Bytes trustAnchor,
+            @NonNull final Bytes channelContext,
+            @NonNull final Function<Bytes, Bytes> contractCall) {
         requireNonNull(bundlePayload);
         requireNonNull(trustAnchor);
         requireNonNull(channelContext);
-        requireNonNull(context);
+        requireNonNull(contractCall);
         log.debug(
                 "[EvmClprVerifier] verifyBundle ENTER: verifierContract={} bundlePayload={} bytes trustAnchor={} bytes channelContext={} bytes",
                 verifierContract,
                 bundlePayload.length(),
                 trustAnchor.length(),
                 channelContext.length());
-        final var callData = encodeThreeBytesCall(VERIFY_BUNDLE_SELECTOR, bundlePayload, trustAnchor, channelContext);
-        final var rawReturn = dispatchRaw(callData, CLPR_BUNDLE_VERIFICATION_FAILED, context);
+        final var callData =
+                Bytes.wrap(encodeThreeBytesCall(VERIFY_BUNDLE_SELECTOR, bundlePayload, trustAnchor, channelContext));
+        final var rawReturn = contractCall.apply(callData);
+        if (rawReturn == null || rawReturn.length() == 0) {
+            throw new HandleException(CLPR_BUNDLE_VERIFICATION_FAILED);
+        }
         final var content = decodeVerifyBundleWithManifestReturn(rawReturn, CLPR_BUNDLE_VERIFICATION_FAILED);
         log.debug(
                 "[EvmClprVerifier] verifyBundle EXIT: messages={} newTrustAnchorBytes={} newTrustAnchorId={}",
@@ -279,7 +335,7 @@ public class EvmClprVerifier implements ClprVerifier {
                 result.status(),
                 evmResultSummary(result));
         if (result.status() != SUCCESS) {
-            log.warn(
+            log.debug(
                     "Verifier dispatchRaw failed: contract={} status={} (translated to {}) payer={} gasLimit={}",
                     verifierContract,
                     result.status(),

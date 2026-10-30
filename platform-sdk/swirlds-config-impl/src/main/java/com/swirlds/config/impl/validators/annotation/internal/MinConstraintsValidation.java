@@ -22,8 +22,14 @@ public class MinConstraintsValidation implements ConfigValidator {
     public Stream<ConfigViolation> validate(@NonNull final Configuration configuration) {
         return ConfigReflectionUtils.getAllMatchingPropertiesForConstraintAnnotation(Min.class, configuration).stream()
                 .filter(property -> ConfigNumberUtils.isNumber(property.propertyType()))
-                .filter(property -> property.annotation(Min.class).value()
-                        > ConfigNumberUtils.getLongValue(property.propertyValue()))
+                .filter(property -> {
+                    final Object value = property.propertyValue();
+                    return ConfigNumberUtils.isNaN(value)
+                            || ConfigNumberUtils.compareWithBound(
+                                            value,
+                                            property.annotation(Min.class).value())
+                                    < 0;
+                })
                 .map(property -> new DefaultConfigViolation(
                         property.propertyName(),
                         property.propertyValue() + "",

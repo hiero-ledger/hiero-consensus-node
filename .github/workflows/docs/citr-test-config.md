@@ -68,6 +68,59 @@ the time constraint. The time limit for MATS is critical because it is also run 
 | MATS - Dependency (Module Info)                        | [809: [CALL] Dependency Module Chk](/.github/workflows/809-call-dependency-module-check.yaml)    | `ref: <commit-sha>`                                                                                                     | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`                                                | build           |
 | MATS - Docker Determinism                              | [822: [CALL] Verify Docker Build](/.github/workflows/822-call-verify-docker-determinism.yaml)    | `ref: <commit-sha>`                                                                                                     | `gradle-cache-username`<br/>`gradle-cache-password`                                                                   | build           |
 | MATS - Gradle Determinism                              | [823: [CALL] Verify Gradle Build](/.github/workflows/823-call-verify-gradle-determinism.yaml)    | `ref: <commit-sha>`                                                                                                     | `gradle-cache-username`<br/>`gradle-cache-password`                                                                   | build           |
+| MATS - EVM Functional Tests                            | [871: [CALL] EVM Functional Tests](/.github/workflows/871-call-evm-functional-tests.yaml)        | `ref: <commit-sha>`<br/>`solo-version`, `mirror-node-version`, `json-rpc-relay-version`: from `.citr-env`               | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`                                                | build           |
+
+### EVM Functional Tests
+
+#### Purpose
+
+Runs the hardhat-based EVM functional suite of [hashgraph/hedera-evm-testing](https://github.com/hashgraph/hedera-evm-testing)
+(`evm-functional-testing/`, mirroring that repository's own `evm-functional-testing.yaml` workflow) through
+[871: [CALL] EVM Functional Tests](/.github/workflows/871-call-evm-functional-tests.yaml): in MATS for PRs with
+smart-contract changes, so EVM and system-contract regressions block the merge, and as a panel of every XTS run, so a
+regression that does get merged blocks promotion. Each shard deploys the consensus node build under test with solo
+(1 consensus node, mirror node and JSON-RPC relay on kind) and runs a group of hardhat suites; the shards follow
+`hedera-evm-testing`'s own `evm-functional-testing.yaml` at the pinned `evm-testing-ref`.
+
+#### Environment
+
+- Runs on `hl-cn-rpc-relay-lin-lg` runners (shared with the XTS JSON-RPC relay panel and the adhoc solo tests), one
+  solo deployment per shard, at most 6 shards in parallel and 90 minutes per shard.
+- **Part of MATS, so it gates `CI Complete`.**
+  [800: [CALL] Exec MATS Tests](/.github/workflows/800-call-mats-tests.yaml) runs it next to the other MATS jobs once
+  the build compiles, with per-shard check runs
+  (`MATS / EVM Functional Tests / Standard (<shard>)`); a failed shard fails MATS and therefore `CI Complete`. To keep
+  its solo deployments (one per shard) on the shared runner pool to the changes it covers, PR checks enable it only
+  for the changes below. MATS on pushes to `main` (300) does not run it, and the MATS dry run (000) runs it only when
+  `enable-evm-functional-tests` is ticked.
+- **Blocking in XTS.** A failed shard fails [815: [CALL] Exec XTS Tests](/.github/workflows/815-call-xts-tests.yaml),
+  so the candidate is not tagged `xts-pass` and is not promoted. XTS runs it on every candidate; the file and label
+  gate below applies to PR checks only.
+- In PR checks it runs only for PRs into the default branch (`main`): `hedera-evm-testing` follows the consensus node's
+  `main`, so on a release branch it would eventually fail for reasons unrelated to the backport. For those PRs it
+  runs only when a non-documentation file under `hedera-node/hedera-smart-contract-service/` or
+  `hedera-node/hedera-smart-contract-service-impl/` changed, when the PR carries the `Run EVM Tests` or `Run Full CI`
+  label, or when the PR has 0 or 100+ changed files, which the classifier treats as full CI (see
+  [classify-changed-files.js](/.github/workflows/support/scripts/classify-changed-files.js)); 600 passes the result
+  to 800 as `enable-evm-functional-tests`. Changes elsewhere that affect EVM behaviour, for example `ContractsConfig`
+  in `hedera-node/hedera-config`, the HTS system-contract handlers in `hedera-node/hedera-token-service-impl`,
+  `hedera-node/configuration/` or `hapi/`, rely on the label. The `Run EVM Tests` label must exist in the repository
+  settings; 600 already re-runs on `labeled` events.
+- Versions: solo, the mirror node and the JSON-RPC relay come from
+  [.citr-env](/.github/workflows/support/citr/.citr-env) (`citr-solo-version`, `citr-mirror-node-version`,
+  `json-rpc-relay-version`) through [855: [CALL] Extract CITR Vars](/.github/workflows/855-call-extract-citr-vars.yaml).
+  On PRs, MATS reads `.citr-env` from the PR's merge commit (800's `citr-vars-ref`), so a PR that is behind its base
+  branch still runs with the base branch's current versions; XTS reads it from the candidate. The suite needs mirror node
+  0.163 or later (for contract results) and relay 0.79.0-rc1 or later (`TX_TYPE_4_ENABLED`, for the HIP-1340 shards),
+  so keep `.citr-env` at or above both. `json-rpc-relay-version` is the relay's git tag (`v`-prefixed, because the
+  relay panel 818 checks it out); 871 strips the `v` before passing it to solo. With `--mirror-node-version`, solo
+  sets every mirror node image tag, web3 included, to that version, so the web3 tag in `hedera-evm-testing`'s
+  [mn-values.yaml](https://github.com/hashgraph/hedera-evm-testing/blob/main/evm-functional-testing/local/mn-values.yaml)
+  has no effect.
+- `hedera-evm-testing` is checked out at `evm-testing-ref`, which defaults to a pinned commit SHA for now because
+  that repository has no tags yet; it will be resolved back to a release tag once that is sorted out. Upstream test
+  changes take effect only when a PR here bumps that default in 871 (neither 800 nor 815 passes it); give that PR the
+  `Run EVM Tests` label so MATS runs the suite against the new revision.
 
 ## XTS
 
@@ -109,7 +162,9 @@ catching regressions without being unnecessarily long-running.
 | SDK TCK Regression Panel                  | [819: [CALL] TCK Regression](/.github/workflows/819-call-tck-regression.yaml)                    | `ref: <commit-sha>`<br/>`solo-version: vars.CITR_SOLO_VERSION`                                                                                                                                                                                                                                                              | `access-token`<br/>`slack-tck-report-webhook`<br/>`slack-detailed-report-webhook`                                                                                                                                                                        | Fetch XTS Candidate<br/>Compile Code |
 | Mirror Node Regression Panel              | [820: [CALL] Mirror Node Regress](/.github/workflows/820-call-mirror-node-regression.yaml)       | `ref: <commit-sha>`<br/>`solo-version: vars.CITR_SOLO_VERSION`<br/>`helm-release-name: mirror or mirror-1`                                                                                                                                                                                                                  | `access-token`<br/>`slack-detailed-report-webhook`                                                                                                                                                                                                       | Fetch XTS Candidate<br/>Compile Code |
 | Block Node Regression Panel               | [821: [CALL] Block Node Regression](/.github/workflows/821-call-block-node-regression.yaml)      | `ref: <commit-sha>`<br/>`solo-version: vars.CITR_SOLO_VERSION`                                                                                                                                                                                                                                                              | `access-token`<br/>`slack-detailed-report-webhook`                                                                                                                                                                                                       | Fetch XTS Candidate<br/>Compile Code |
-| Solo Three-Stage Block Stream Cutover Panel           | [826: [CALL] Solo 3-Stage Cutover](/.github/workflows/826-call-solo-three-stage-cutover.yaml)     | `ref: <commit-sha>`<br/>`solo-version: vars.CITR_SOLO_VERSION`                                                                                                                                                                                                                                                              |                                                                                                                                                                                                                                                          | Fetch XTS Candidate<br/>Compile Code |
+| Solo 3-Stage Block Stream Cutover Panel   | [826: [CALL] Solo 3-Stage Cutover](/.github/workflows/826-call-solo-three-stage-cutover.yaml)    | `ref: <commit-sha>`<br/>`solo-version: vars.CITR_SOLO_VERSION`                                                                                                                                                                                                                                                              |                                                                                                                                                                                                                                                          | Fetch XTS Candidate<br/>Compile Code |
+| EVM Functional Tests Panel                | [871: [CALL] EVM Functional Tests](/.github/workflows/871-call-evm-functional-tests.yaml)        | `ref: <commit-sha>`<br/>`solo-version: <citr-solo-version>`<br/>`mirror-node-version: <citr-mirror-node-version>`<br/>`json-rpc-relay-version: <json-rpc-relay-version>`                                                                                                                                                    | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`                                                                                                                                                                                   | Fetch XTS Candidate<br/>Compile Code |
+
 
 ## SDCT 
 

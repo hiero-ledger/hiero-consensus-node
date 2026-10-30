@@ -53,6 +53,8 @@ import com.swirlds.state.BinaryState;
 import com.swirlds.state.State;
 import com.swirlds.state.binary.MerkleProof;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -418,6 +420,45 @@ class ClprStreamingSynchronizerTest {
     class Failures {
 
         @Test
+        @DisplayName("given an opening reply for another channel, then no bundle is submitted and the stream ends")
+        void givenOpeningReplyForAnotherChannel_thenNothingIsSubmittedAndStreamEnds() throws Exception {
+            givenPeerMessages(payload(request(0L), INBOUND_BUNDLE)
+                    .copyBuilder()
+                    .channelId(Bytes.wrap(new byte[32]))
+                    .build());
+
+            synchronize(channel(6L, 0L, 0L));
+
+            verifyNoInteractions(bundleSubmitter, stateProofManager);
+            verify(streamingCall, times(1)).read();
+            verify(streamingCall, times(1)).write(any());
+            verify(streamingCall, never()).halfClose();
+            verify(streamingCall).close();
+            thenFailureIsRecorded();
+        }
+
+        @Test
+        @DisplayName("given a trailing reply for another channel, then its bundle is not submitted and draining ends")
+        void givenTrailingReplyForAnotherChannel_thenNothingIsSubmittedAndDrainingEnds() throws Exception {
+            givenMessageQueueIsEmpty();
+            givenPeerMessages(
+                    payload(request(0L), null),
+                    payload(null, INBOUND_BUNDLE)
+                            .copyBuilder()
+                            .channelId(Bytes.wrap(new byte[32]))
+                            .build(),
+                    payload(null, INBOUND_BUNDLE));
+
+            synchronize(channel(1L, 0L, 0L));
+
+            verifyNoInteractions(bundleSubmitter);
+            verify(streamingCall).halfClose();
+            verify(streamingCall, times(2)).read();
+            verify(streamingCall).close();
+            thenFailureIsRecorded();
+        }
+
+        @Test
         @DisplayName("given a write fails, then the peer is penalized and the stream is released")
         void givenWriteFails_thenPeerIsPenalizedAndStreamReleased() throws Exception {
             willThrow(new ClprSyncException("simulated write failure"))
@@ -428,6 +469,21 @@ class ClprStreamingSynchronizerTest {
 
             verify(streamingCall).close();
             thenFailureIsRecorded();
+            verifyNoInteractions(bundleSubmitter);
+        }
+
+        @Test
+        @DisplayName("given the peer does not have the channel yet, then the peer is not penalized")
+        void givenPeerDoesNotHaveChannelYet_thenPeerIsNotPenalized() throws Exception {
+            given(streamingCall.read())
+                    .willThrow(new ClprSyncException(
+                            "Streaming sync read failed",
+                            new StatusRuntimeException(Status.NOT_FOUND.withDescription("Channel not found"))));
+
+            synchronize(channel(6L, 0L, 0L));
+
+            verify(streamingCall).close();
+            thenNoOutcomeIsRecorded();
             verifyNoInteractions(bundleSubmitter);
         }
 
