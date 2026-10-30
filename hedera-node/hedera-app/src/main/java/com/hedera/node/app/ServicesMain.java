@@ -80,11 +80,13 @@ import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.PathsConfig;
 import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.hiero.consensus.io.RecycleBinImpl;
+import org.hiero.consensus.metrics.NodeMetricRegistries;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.ConsensusLayerRosterInputs;
 import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.metrics.core.MetricRegistry;
 
 /**
  * Main entry point.
@@ -171,7 +173,13 @@ public class ServicesMain {
         setupGlobalMetrics(platformConfig);
         final var time = Time.getCurrent();
         metrics = getMetricsProvider().createPlatformMetrics(selfId);
-        hedera = newHedera(platformConfig, fileSystemManager, metrics, time, selfId);
+        // Closed by SwirldsPlatform.destroy(). In production main() never returns and nothing destroys the
+        // platform, so the exporter is released by process exit - exactly as the old framework's Prometheus
+        // endpoint is today (DefaultMetricsProvider.stop() has no callers).
+        final var metricRegistry = NodeMetricRegistries.builder(selfId.id())
+                .discoverMetricsExporter(platformConfig)
+                .build();
+        hedera = newHedera(platformConfig, fileSystemManager, metrics, metricRegistry, time, selfId);
         final var version = hedera.getSemanticVersion();
         logger.info("Starting node {} with version {}", selfId, version);
 
@@ -262,6 +270,7 @@ public class ServicesMain {
         final var platform = new PlatformBuilder<>(
                         platformConfig,
                         platformContext.getMetrics(),
+                        metricRegistry,
                         platformContext.getTime(),
                         rosterInputs,
                         keysAndCerts,
@@ -337,6 +346,7 @@ public class ServicesMain {
      * @param configuration the configuration to use
      * @param fileSystemManager the file system manager to use
      * @param metrics the platform metric instance to use when creating the new instance of state
+     * @param metricRegistry the registry of the new metrics framework
      * @param time the time instance to use when creating the new instance of state
      * @param selfId the node id of this node
      * @return the {@link Hedera} instance
@@ -345,10 +355,12 @@ public class ServicesMain {
             @NonNull final Configuration configuration,
             @NonNull final FileSystemManager fileSystemManager,
             @NonNull final Metrics metrics,
+            @NonNull final MetricRegistry metricRegistry,
             @NonNull final Time time,
             @NonNull final NodeId selfId) {
         requireNonNull(configuration);
         requireNonNull(metrics);
+        requireNonNull(metricRegistry);
         requireNonNull(time);
         requireNonNull(selfId);
         return new Hedera(
@@ -377,6 +389,7 @@ public class ServicesMain {
                 configuration,
                 fileSystemManager,
                 metrics,
+                metricRegistry,
                 time);
     }
 

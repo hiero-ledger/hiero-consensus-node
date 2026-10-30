@@ -103,6 +103,7 @@ module org.hiero.otter.fixtures {
     requires org.hiero.consensus.reconnect;
     requires org.hiero.consensus.roster;
     requires org.hiero.consensus.state;
+    requires org.hiero.metrics;
     requires com.fasterxml.jackson.annotation;
     requires com.fasterxml.jackson.core;
     requires com.fasterxml.jackson.databind;

@@ -42,6 +42,16 @@ public class ContainerConstants {
     public static final String METRICS_OTHER = "data/stats/metrics.txt";
 
     /**
+     * Directory the file exporter of the new metrics framework writes to, kept apart from the old {@code data/stats}
+     */
+    public static final String METRICS_EXPORT_DIRECTORY = "data/metrics";
+
+    /**
+     * Path to the file written by the file exporter of the new metrics framework
+     */
+    public static final String METRICS_EXPORT_PATH = METRICS_EXPORT_DIRECTORY + "/metrics.txt.gz";
+
+    /**
      * Path to the event stream directory
      */
     public static final String EVENT_STREAM_DIRECTORY = "hgcapp";

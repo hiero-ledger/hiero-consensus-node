@@ -109,7 +109,7 @@ class MyModuleService implements MetricsBinder {
 ```java
 // module-info.java
 module my.module {
-    requires org.hiero.metrics.core;
+    requires org.hiero.metrics;
 
     provides org.hiero.metrics.core.MetricsRegistrationProvider with
             org.hiero.metrics.MyModuleMetrics;

@@ -35,6 +35,7 @@ import org.hiero.consensus.ConsensusLayerBuildingBlocks;
 import org.hiero.consensus.PathsConfig;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.io.RecycleBinImpl;
+import org.hiero.consensus.metrics.NodeMetricRegistries;
 import org.hiero.consensus.metrics.platform.SnapshotEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -46,6 +47,7 @@ import org.hiero.consensus.platformstate.ReadablePlatformStateStore;
 import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.roster.WritableRosterStore;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.metrics.core.MetricRegistry;
 import org.hiero.sloth.fixtures.SlothTransactionType;
 import org.hiero.sloth.fixtures.app.SlothApp;
 import org.hiero.sloth.fixtures.app.SlothExecutionLayer;
@@ -96,6 +98,11 @@ public class ConsensusNodeManager {
 
         setupGlobalMetrics(platformConfig);
         final Metrics metrics = getMetricsProvider().createPlatformMetrics(selfId);
+        // One node per container, so the exporter discovered here cannot collide with another node.
+        // Mirrors the file export the old framework performs via ToFilePrometheusExporter below.
+        final MetricRegistry metricRegistry = NodeMetricRegistries.builder(selfId.id())
+                .discoverMetricsExporter(platformConfig)
+                .build();
 
         log.info(STARTUP.getMarker(), "Creating node {} with version {}", selfId, version);
 
@@ -144,6 +151,7 @@ public class ConsensusNodeManager {
         final TestPlatformBuilder builder = new TestPlatformBuilder(
                 platformConfig,
                 platformContext.getMetrics(),
+                metricRegistry,
                 platformContext.getTime(),
                 rosterInputs,
                 keysAndCerts,

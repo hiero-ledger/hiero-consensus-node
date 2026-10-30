@@ -142,17 +142,16 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
      * if their range overlaps any prior reservation (including ranges outside the pool). Repeat
      * lookups for the same name return the cached base.
      *
-     * <p>Slot width of 100 accommodates any {@code size <= 16} (each node reserves 6 ports);
-     * larger sizes must pin {@code firstGrpcPort} explicitly.
+     * <p>Slot width of 100 accommodates any {@code size <= 14} (each node reserves
+     * {@link SubProcessNetwork#PORTS_PER_NODE} = 7 ports); larger sizes must pin {@code firstGrpcPort} explicitly.
      *
      * <p>Constants must stay inside {@link SubProcessNetwork}'s {@code [30000, 40000)} candidate
-     * range; {@code PORTS_PER_NODE} mirrors the private constant of the same name in that class.
+     * range.
      */
     private static final int SHARED_PORT_BASE = 32000;
 
     private static final int SHARED_PORT_SLOT = 100;
     private static final int SHARED_POOL_SLOTS = 80;
-    private static final int PORTS_PER_NODE = 6;
 
     private record Reservation(String name, int base, int footprint) {
         int end() {
@@ -626,7 +625,7 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
         if (cached != null) {
             return cached.base();
         }
-        final int footprint = cfg.size() * PORTS_PER_NODE;
+        final int footprint = cfg.size() * SubProcessNetwork.PORTS_PER_NODE;
 
         if (cfg.firstGrpcPort() > 0) {
             final int base = cfg.firstGrpcPort();

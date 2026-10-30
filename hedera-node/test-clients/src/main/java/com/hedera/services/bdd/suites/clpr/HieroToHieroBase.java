@@ -577,7 +577,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
 
     /**
      * Returns an operation that blocks until every TCP port the given nodes rebind on a
-     * {@code ReassignPorts.NO} restart (gRPC, node-operator gRPC, internal/external gossip, prometheus) is
+     * {@code ReassignPorts.NO} restart (gRPC, node-operator gRPC, internal/external gossip, prometheus, OpenMetrics) is
      * actually releasable, so the restarted process can bind without a {@link java.net.BindException}.
      *
      * <p>Replaces a blind fixed unbinding sleep: it probes each port by attempting a throwaway bind and
@@ -592,7 +592,8 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                             n.metadata().grpcNodeOperatorPort(),
                             n.metadata().internalGossipPort(),
                             n.metadata().externalGossipPort(),
-                            n.metadata().prometheusPort()))
+                            n.metadata().prometheusPort(),
+                            n.metadata().openMetricsPort()))
                     .distinct()
                     .toList();
             final var deadline = Instant.now().plus(PORT_FREE_TIMEOUT);

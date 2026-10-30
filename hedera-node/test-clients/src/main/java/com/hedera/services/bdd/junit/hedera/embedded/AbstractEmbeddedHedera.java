@@ -54,11 +54,13 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.fakes.noop.NoOpMetricRegistries;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
 import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
 import org.hiero.consensus.metrics.platform.PlatformMetricsFactoryImpl;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.metrics.core.MetricRegistry;
 
 /**
  * Implementation support for {@link EmbeddedHedera}.
@@ -88,6 +90,7 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
     protected final NodeId defaultNodeId;
     protected final AtomicInteger nextNano = new AtomicInteger(0);
     protected final Metrics metrics;
+    protected final MetricRegistry metricRegistry;
     protected final ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
     // Held so stop() can unregister it; otherwise the hook pins this instance for the life of the JVM
     private final Thread shutdownHook = new Thread(executorService::shutdownNow);
@@ -148,6 +151,9 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
                 executorService,
                 new PlatformMetricsFactoryImpl(metricsConfig),
                 metricsConfig);
+        // No exporter, mirroring the old framework: an embedded node builds DefaultPlatformMetrics directly
+        // rather than going through DefaultMetricsProvider, so it has never exposed a metrics endpoint.
+        metricRegistry = NoOpMetricRegistries.create(defaultNodeId.id());
         state = new FakeState();
         rebuildHedera();
         Runtime.getRuntime().addShutdownHook(shutdownHook);
@@ -193,6 +199,11 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
         fakePlatform().notifyListeners(FREEZE_COMPLETE_NOTIFICATION);
         hedera.newPlatformStatus(FREEZE_COMPLETE_NOTIFICATION.getNewStatus());
         executorService.shutdownNow();
+        try {
+            metricRegistry.close();
+        } catch (final IOException e) {
+            log.warn("Failed to close metric registry of embedded node {}", defaultNodeId, e);
+        }
         try {
             Runtime.getRuntime().removeShutdownHook(shutdownHook);
         } catch (final IllegalStateException ignore) {
@@ -313,6 +324,7 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
                 PLATFORM_CONFIG,
                 FILE_SYSTEM_MANAGER,
                 metrics,
+                metricRegistry,
                 new FakeTime());
         version = hedera.getSemanticVersion();
         blockStreamEnabled = hedera.isBlockStreamEnabled();

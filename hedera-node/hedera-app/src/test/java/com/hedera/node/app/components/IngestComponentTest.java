@@ -66,6 +66,7 @@ import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ForkJoinPool;
+import org.hiero.consensus.fakes.noop.NoOpMetricRegistries;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.transaction.TransactionPoolNexus;
@@ -127,7 +128,6 @@ class IngestComponentTest {
                 UNAVAILABLE_GOSSIP,
                 () -> configuration,
                 () -> DEFAULT_NODE_INFO,
-                () -> NO_OP_METRICS,
                 throttleFactory,
                 () -> UNIVERSAL_NOOP_FEE_CHARGING,
                 new AppEntityIdFactory(configuration));
@@ -161,6 +161,7 @@ class IngestComponentTest {
                 .instantSource(InstantSource.system())
                 .softwareVersion(mock(SemanticVersion.class))
                 .metrics(metrics)
+                .metricRegistry(NoOpMetricRegistries.create())
                 .immediateStateChangeListener(new ImmediateStateChangeListener())
                 .boundaryStateChangeListener(new BoundaryStateChangeListener(
                         new StoreMetricsServiceImpl(metrics), configProvider::getConfiguration))
