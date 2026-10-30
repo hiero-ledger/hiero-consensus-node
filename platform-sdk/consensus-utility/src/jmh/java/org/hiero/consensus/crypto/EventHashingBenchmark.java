@@ -79,26 +79,25 @@ import org.openjdk.jmh.annotations.Warmup;
  * although receiving allocates several kilobytes per event. A pass during which one does is discarded and replaced by
  * the next invocation, so the latency results and {@code latency.mean} exclude garbage collection.
  *
- * <p>Each fork settles at its own latency level and keeps it. On the benchmark machine, {@code latency.mean} varies by
- * 1.9% between forks without transactions and by 0.7% with two, against 0.07% and 0.18% between the iterations of one
- * fork, although every fork allocates the same and the machine was quiet. The difference is about the same in
- * nanoseconds in both parameter sets. Its cause is unknown
- * (<a href="https://github.com/hiero-ledger/hiero-consensus-node/issues/27940">#27940</a>), and it sets the number of
- * forks.
+ * <p>Each fork settles at its own latency level and keeps it. On the benchmark machine, in four runs of 10 forks each,
+ * {@code latency.mean} varied by 1.9–3.5% between forks without transactions and by 0.7–3.1% with two, against less
+ * than 0.2% between the iterations of one fork, although every fork allocates the same and the machine was quiet. The
+ * cause is unknown (<a href="https://github.com/hiero-ledger/hiero-consensus-node/issues/27940">#27940</a>), and it
+ * sets the number of forks.
  *
  * <p>Run with {@code -prof org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler}.
  *
  * <h2>Calibration</h2>
  * <ul>
- *   <li>Date / commit: 2026-10-28, bf9d6a86f4</li>
+ *   <li>Date / commit: 2026-10-30, c86eb4c04f</li>
  *   <li>Machine: hl-cn-benchmark-lin, AS-2115GT-HNTR, AMD EPYC 9254 24-Core Processor, JDK 25.0.2, -XX:ActiveProcessorCount=12 -Xms1g -Xmx1g -XX:+AlwaysPreTouch</li>
  *   <li>Parameter sets: transactionsPerEvent=0 / transactionsPerEvent=2</li>
  *   <li>Steady state after: 5 s / 0 s</li>
- *   <li>Noise (latency.mean, CV): 0.07% / 0.18% per 10 s iteration, 1.92% / 0.66% between forks, - / - between runs (1 of 1 / 1 of 1 runs quiet)</li>
- *   <li>Expected detectable regression: 1.18% / 0.41% (95 % CI half-width of one run)</li>
- *   <li>Samples per iteration: 2.9 M / 1.7 M; expected stable: mean, p50, p90, p99, p99.99 / mean, p50, p90, p99.9, p99.99</li>
+ *   <li>Noise (latency.mean, CV): 0.08% / 0.07% per 10 s iteration, 3.28% / 1.17% between forks, - / - between runs (1 of 1 / 1 of 1 runs quiet)</li>
+ *   <li>Expected detectable regression: 2.02% / 0.72% (95 % CI half-width of one run)</li>
+ *   <li>Samples per iteration: 2.5 M / 1.6 M; expected stable: mean, p50, p90, p99, p99.99 / mean, p50, p90, p99, p99.9, p99.99</li>
  *   <li>Runtime: 5.1 / 5.1 min per parameter set</li>
- *   <li>Raw data: https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/40678159284, https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/40687277605</li>
+ *   <li>Raw data: https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/40678159284, https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/41018710598</li>
  * </ul>
  */
 @State(Scope.Thread)
