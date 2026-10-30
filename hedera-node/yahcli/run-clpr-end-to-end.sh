@@ -240,10 +240,10 @@ echo "  CONNECTOR_ID:         ${CONNECTOR_ID}"
 header "[9/13] register-connector on both networks"
 yh "register-connector on ${NET_A}" "${LOG_DIR}/08a-register-connector.log" \
     -n "${NET_A}" -p "${PAYER}" \
-    clpr register-connector --commitment "${CONNECTOR_COMMIT}"
+    clpr register-connector --channel-id "${CHANNEL_ID}" --commitment "${CONNECTOR_COMMIT}"
 yh "register-connector on ${NET_B}" "${LOG_DIR}/08b-register-connector.log" \
     -n "${NET_B}" -p "${PAYER}" \
-    clpr register-connector --commitment "${CONNECTOR_COMMIT}"
+    clpr register-connector --channel-id "${CHANNEL_ID}" --commitment "${CONNECTOR_COMMIT}"
 
 # === [10/13] deploy PassThroughAuth (becomes the connector contract) =======
 header "[10/13] contracts create — PassThroughAuth on both networks"

@@ -338,7 +338,10 @@ public class ClprEthSyncCommitteeVerifierSuite {
                 assertTrue(conn.trustAnchor().length() > 0, "trust anchor should be seeded");
                 assertEquals(0L, conn.receivedMessageId(), "no inbound messages yet");
             }),
-            clprRegisterConnector().commitment(crypto.connectorCommitment()).payingWith(GENESIS),
+            clprRegisterConnector()
+                    .channelId(crypto.channelId())
+                    .commitment(crypto.connectorCommitment())
+                    .payingWith(GENESIS),
             clprCompleteConnector()
                     .connectorId(crypto.connectorId())
                     .publicKey(crypto.publicKey())

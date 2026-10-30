@@ -21,11 +21,17 @@ import java.util.function.Function;
 public class HapiClprRegisterConnector extends HapiTxnOp<HapiClprRegisterConnector> {
 
     private byte[] commitment;
+    private byte[] channelId;
 
     public HapiClprRegisterConnector() {}
 
     public HapiClprRegisterConnector commitment(final byte[] commitment) {
         this.commitment = commitment;
+        return this;
+    }
+
+    public HapiClprRegisterConnector channelId(final byte[] channelId) {
+        this.channelId = channelId;
         return this;
     }
 
@@ -63,6 +69,9 @@ public class HapiClprRegisterConnector extends HapiTxnOp<HapiClprRegisterConnect
                         ClprRegisterConnectorTransactionBody.class, b -> {
                             if (commitment != null) {
                                 b.setCommitment(ByteString.copyFrom(commitment));
+                            }
+                            if (channelId != null) {
+                                b.setChannelId(ByteString.copyFrom(channelId));
                             }
                         });
         return b -> b.setClprRegisterConnector(opBody);

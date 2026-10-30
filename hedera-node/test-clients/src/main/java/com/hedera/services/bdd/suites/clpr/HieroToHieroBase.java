@@ -1208,6 +1208,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                         }),
                         // Connector commit-reveal
                         clprRegisterConnector()
+                                .channelId(crypto.channelId)
                                 .commitment(crypto.connectorCommitment)
                                 .payingWith(GENESIS),
                         clprCompleteConnector()

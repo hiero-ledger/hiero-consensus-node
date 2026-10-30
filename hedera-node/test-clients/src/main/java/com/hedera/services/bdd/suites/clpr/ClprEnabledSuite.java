@@ -411,7 +411,9 @@ public class ClprEnabledSuite {
                         .signature(crypto.signature())
                         .verifierContract(VERIFIER_CONTRACT)
                         .configProofBytes(toConfigProofBytes(ledgerConfig())));
-        txns.put("registerConnector", clprRegisterConnector().commitment(crypto.connectorCommitment()));
+        txns.put(
+                "registerConnector",
+                clprRegisterConnector().channelId(crypto.channelId()).commitment(crypto.connectorCommitment()));
         txns.put(
                 "completeConnector",
                 clprCompleteConnector()

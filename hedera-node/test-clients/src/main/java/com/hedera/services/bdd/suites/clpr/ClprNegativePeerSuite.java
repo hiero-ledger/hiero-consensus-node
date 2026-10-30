@@ -225,7 +225,10 @@ public class ClprNegativePeerSuite {
                     .verifierContract(VERIFIER_CONTRACT)
                     .configProofBytes(toConfigProofBytes(config))
                     .payingWith(GENESIS),
-            clprRegisterConnector().commitment(crypto.connectorCommitment()).payingWith(GENESIS),
+            clprRegisterConnector()
+                    .channelId(crypto.channelId())
+                    .commitment(crypto.connectorCommitment())
+                    .payingWith(GENESIS),
             clprCompleteConnector()
                     .connectorId(crypto.connectorId())
                     .publicKey(crypto.publicKey())

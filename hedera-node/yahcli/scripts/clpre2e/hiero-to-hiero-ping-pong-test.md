@@ -465,8 +465,8 @@ principle as the channel's commit phase — locks in the hash before revealing
 the identity.
 
 ```bash
-./yahcli -n alice -p 2 clpr register-connector --commitment "$CONNECTOR_COMMIT"
-./yahcli -n bob   -p 2 clpr register-connector --commitment "$CONNECTOR_COMMIT"
+./yahcli -n alice -p 2 clpr register-connector --channel-id "$CHANNEL_ID" --commitment "$CONNECTOR_COMMIT"
+./yahcli -n bob   -p 2 clpr register-connector --channel-id "$CHANNEL_ID" --commitment "$CONNECTOR_COMMIT"
 ```
 
 ---

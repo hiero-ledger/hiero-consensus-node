@@ -144,11 +144,13 @@ public class ClprChannelCommitRevealSuite {
                         .payingWith(GENESIS)
                         .hasKnownStatus(SUCCESS),
                 clprRegisterConnector()
+                        .channelId(crypto.channelId())
                         .commitment(crypto.connectorCommitment())
                         .payingWith(GENESIS)
                         .hasKnownStatus(SUCCESS),
                 // Pending reveal
                 clprRegisterConnector()
+                        .channelId(crypto.channelId())
                         .commitment(crypto.connectorCommitment())
                         .payingWith(GENESIS)
                         .hasKnownStatus(CLPR_CONNECTOR_ALREADY_EXISTS),
@@ -166,6 +168,7 @@ public class ClprChannelCommitRevealSuite {
                         .hasKnownStatus(SUCCESS),
                 // Connector exists
                 clprRegisterConnector()
+                        .channelId(crypto.channelId())
                         .commitment(crypto.connectorCommitment())
                         .payingWith(GENESIS)
                         .hasKnownStatus(CLPR_CONNECTOR_ALREADY_EXISTS),
@@ -178,6 +181,7 @@ public class ClprChannelCommitRevealSuite {
                         .hasKnownStatus(SUCCESS),
                 // Connector deregistered: the commitment is never released
                 clprRegisterConnector()
+                        .channelId(crypto.channelId())
                         .commitment(crypto.connectorCommitment())
                         .payingWith(GENESIS)
                         .hasKnownStatus(CLPR_CONNECTOR_ALREADY_EXISTS));

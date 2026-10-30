@@ -13,6 +13,7 @@ option java_multiple_files = true;
  * Permissionless. Stores
  * keccak256(connectorId || pubKey) on-ledger so the reveal phase can verify it.
  * Anyone may call; only the holder of the matching private key can complete.
+ * The referenced Channel must already exist.
  *
  * Fails with CLPR_CONNECTOR_ALREADY_EXISTS if the commitment is
  * already pending reveal or was already used to create a Connector, even one
@@ -25,4 +26,10 @@ message ClprRegisterConnectorTransactionBody {
      * Must be exactly 32 bytes.
      */
     bytes commitment = 1;
+
+    /**
+     * The 32-byte ID of the existing Channel this Connector is intended for.
+     * The commitment preimage is verified during completeConnector.
+     */
+    bytes channel_id = 2;
 }

@@ -192,7 +192,7 @@ run_on_network() {
     # 6) Phase 1 of the connector commit/reveal.
     print_step "[6/11] register-connector (commit)"
     run_yahcli "register-connector on ${net}" \
-        -n "${net}" clpr register-connector --commitment "${COMMITMENT_CONNECTOR_HEX}"
+        -n "${net}" clpr register-connector --channel-id "${CHANNEL_ID_HEX}" --commitment "${COMMITMENT_CONNECTOR_HEX}"
 
     # 7) Phase 2 reveal for the connector.
     print_step "[7/11] complete-connector (reveal, placeholder signature)"

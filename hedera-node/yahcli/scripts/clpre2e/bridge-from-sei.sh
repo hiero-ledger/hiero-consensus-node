@@ -311,7 +311,7 @@ fi
 header "[8/10] register-connector on ${NET}"
 yh "register-connector" "${LOG_DIR}/07-register-connector.log" \
     -n "${NET}" -p "${PAYER}" \
-    clpr register-connector --commitment "${CONNECTOR_COMMIT}"
+    clpr register-connector --channel-id "${CHANNEL_ID}" --commitment "${CONNECTOR_COMMIT}"
 
 header "[9/10] deploy PassThroughAuth on ${NET}"
 yh "contracts create PassThroughAuth" "${LOG_DIR}/08-create-pta.log" \
