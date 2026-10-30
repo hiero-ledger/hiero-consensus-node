@@ -19,6 +19,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -52,6 +53,10 @@ public class EventualRecordStreamAssertion extends AbstractEventualStreamAsserti
     private RecordStreamAssertion assertion;
 
     private boolean needsBackgroundTraffic = false;
+
+    // Serialize live validation with the final pending-item check on the spec thread.
+    private final Object assertionLock = new Object();
+    private boolean assertionFailed;
 
     /**
      * Returns an {@link EventualRecordStreamAssertion} that will pass as long as the given assertion does not
@@ -137,11 +142,16 @@ public class EventualRecordStreamAssertion extends AbstractEventualStreamAsserti
 
     @Override
     protected boolean submitOp(final HapiSpec spec) throws Throwable {
+        unsubscribe = STREAM_FILE_ACCESS.subscribe(recordStreamLocFor(spec), listenerFor(spec));
+        return false;
+    }
+
+    StreamDataListener listenerFor(final HapiSpec spec) {
         assertion = requireNonNull(assertionFactory.apply(spec));
         final long shard = spec.setup().shard();
         final long realm = spec.setup().realm();
         blockTranslator = new BlockTransactionalUnitTranslator(shard, realm);
-        unsubscribe = STREAM_FILE_ACCESS.subscribe(recordStreamLocFor(spec), new StreamDataListener() {
+        return new StreamDataListener() {
             @Override
             public boolean replayExistingFiles() {
                 return replayExistingFiles;
@@ -150,18 +160,8 @@ public class EventualRecordStreamAssertion extends AbstractEventualStreamAsserti
             @Override
             public void onNewItem(@NonNull final RecordStreamItem item) {
                 requireNonNull(item);
-                if (assertion.isApplicableTo(item)) {
-                    try {
-                        if (assertion.test(item)) {
-                            result.pass();
-                            if (stopAfterFirstSuccess) {
-                                unsubscribe.run();
-                            }
-                        }
-                    } catch (final AssertionError | RuntimeException e) {
-                        result.fail(e.getMessage());
-                    }
-                }
+                final boolean passed = evaluate(() -> assertion.isApplicableTo(item) && assertion.test(item));
+                stopIfRequested(passed);
             }
 
             @Override
@@ -173,14 +173,7 @@ public class EventualRecordStreamAssertion extends AbstractEventualStreamAsserti
                         final var records = blockTranslator.translate(unit.withBatchTransactionParts());
                         for (final var record : records) {
                             final var item = toRecordStreamItem(record);
-                            if (assertion.isApplicableTo(item)) {
-                                if (assertion.test(item)) {
-                                    result.pass();
-                                    if (stopAfterFirstSuccess) {
-                                        unsubscribe.run();
-                                    }
-                                }
-                            }
+                            onNewItem(item);
                         }
                     }
                 } catch (final AssertionError e) {
@@ -192,23 +185,58 @@ public class EventualRecordStreamAssertion extends AbstractEventualStreamAsserti
 
             @Override
             public void onNewSidecar(TransactionSidecarRecord sidecar) {
-                if (assertion.isApplicableToSidecar(sidecar)) {
-                    try {
-                        if (assertion.testSidecar(sidecar)) {
-                            result.pass();
-                        }
-                    } catch (final AssertionError e) {
-                        result.fail(e.getMessage());
-                    }
-                }
+                evaluate(() -> assertion.isApplicableToSidecar(sidecar) && assertion.testSidecar(sidecar));
             }
 
             @Override
             public String name() {
                 return assertion.toString();
             }
-        });
-        return false;
+        };
+    }
+
+    private boolean evaluate(final BooleanSupplier validation) {
+        synchronized (assertionLock) {
+            if (isDone() || assertionFailed) {
+                return false;
+            }
+            try {
+                if (validation.getAsBoolean()) {
+                    result.pass();
+                    return true;
+                }
+            } catch (final AssertionError | RuntimeException e) {
+                // A later matching record must not overwrite a genuine failure with a pass.
+                assertionFailed = true;
+                result.fail(e.toString());
+            }
+            return false;
+        }
+    }
+
+    private void stopIfRequested(final boolean passed) {
+        // Unsubscription may wait for the stream monitor; never do it while holding assertionLock.
+        if (passed && stopAfterFirstSuccess && unsubscribe != null) {
+            unsubscribe.run();
+        }
+    }
+
+    @Override
+    public void assertHasPassed() {
+        // The spec's operations have finished, so .via() IDs should now be registered. Retry before
+        // waiting to avoid paying the full timeout when the matching record arrived early.
+        if (assertion != null) {
+            evaluate(assertion::recheckPending);
+        }
+        super.assertHasPassed();
+    }
+
+    @Override
+    protected boolean recoveredAfterTimeout() {
+        synchronized (assertionLock) {
+            // Preserve the original assertion and its failures; only retry buffered candidates.
+            return assertion != null && !assertionFailed && assertion.recheckPending();
+        }
     }
 
     @Override

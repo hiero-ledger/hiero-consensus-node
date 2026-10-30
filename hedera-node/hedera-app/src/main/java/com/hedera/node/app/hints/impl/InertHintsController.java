@@ -35,11 +35,6 @@ public class InertHintsController implements HintsController {
     }
 
     @Override
-    public boolean hasNumParties(final int numParties) {
-        return false;
-    }
-
-    @Override
     public void advanceConstruction(
             @NonNull final Instant now, @NonNull final WritableHintsStore hintsStore, final boolean isActive) {
         requireNonNull(now);
@@ -90,16 +85,6 @@ public class InertHintsController implements HintsController {
             final long creatorId) {
         requireNonNull(publication);
         requireNonNull(consensusTime);
-        requireNonNull(hintsStore);
-        // No-op
-    }
-
-    @Override
-    public void verifyCrsUpdate(
-            @NonNull final CrsPublicationTransactionBody publication,
-            @NonNull final ReadableHintsStore hintsStore,
-            final long creatorId) {
-        requireNonNull(publication);
         requireNonNull(hintsStore);
         // No-op
     }

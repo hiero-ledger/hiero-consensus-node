@@ -40,9 +40,9 @@ import org.apache.logging.log4j.Logger;
  *     <li><b>If both hinTS and history proofs are enabled:</b>
  *     <ul>
  *         <li>Is not ready to sign during bootstrap phase until the genesis hinTS construction has completed
- *         preprocessing and reached a consensus verification key; and until the history service has collected
- *         a sufficient set of Schnorr signatures on the genesis TSS address book hash concatenated with the
- *         genesis hinTS verification key to serve as witnesses for the genesis SNARK.</li>
+ *         preprocessing and reached a consensus verification key; and until the history service has a genesis
+ *         WRAPS proof grounding the network's chain of trust (and so its ledger id) in the genesis TSS address
+ *         book and that hinTS verification key.</li>
  *         <li>To sign, initiates async aggregation of partial hinTS signatures from the active construction,
  *         packaging this async delivery into a full TSS signature with chain-of-trust proof of the hinTS
  *         verification key used for signing.</li>
@@ -79,6 +79,27 @@ public class TssBlockHashSigner implements BlockHashSigner {
                 .streamMode();
         this.hintsService = (tssConfig.hintsEnabled() && streamMode != RECORDS) ? hintsService : null;
         this.historyService = (tssConfig.historyEnabled() && streamMode != RECORDS) ? historyService : null;
+    }
+
+    /**
+     * Returns whether block proofs carry a chain-of-trust proof from the history service, rather than a mock
+     * signature; that is, whether the network's ledger id is what verifiers anchor block proofs on.
+     * <p>
+     * Mirrors the branching in {@link #sign(Bytes, Request)}, but reads configuration live rather than the
+     * snapshot taken at construction, so a network configured to cut over answers true from that point on.
+     *
+     * @param tssConfig the TSS configuration
+     * @param blockStreamConfig the block stream configuration
+     * @return whether block proofs currently carry a chain-of-trust proof
+     */
+    public static boolean usesChainOfTrustProof(
+            @NonNull final TssConfig tssConfig, @NonNull final BlockStreamConfig blockStreamConfig) {
+        requireNonNull(tssConfig);
+        requireNonNull(blockStreamConfig);
+        return !tssConfig.forceMockSignatures()
+                && blockStreamConfig.streamMode() != RECORDS
+                && tssConfig.hintsEnabled()
+                && tssConfig.historyEnabled();
     }
 
     @Override

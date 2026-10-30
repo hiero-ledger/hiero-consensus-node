@@ -188,6 +188,7 @@ public class TokenInfoHTSSuite {
                                 OptionalLong.of(MAXIMUM_TO_COLLECT),
                                 TOKEN_TREASURY))
                         .via(CREATE_TXN),
+                exposeTargetLedgerIdTo(targetLedgerId::set),
                 withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCall(
@@ -202,7 +203,6 @@ public class TokenInfoHTSSuite {
                                 GET_INFORMATION_FOR_TOKEN,
                                 HapiParserUtil.asHeadlongAddress(
                                         asAddress(spec.registry().getTokenID(PRIMARY_TOKEN_NAME)))))),
-                exposeTargetLedgerIdTo(targetLedgerId::set),
                 withOpContext((spec, opLog) -> {
                     final var getTokenInfoQuery = getTokenInfo(PRIMARY_TOKEN_NAME);
                     allRunFor(spec, getTokenInfoQuery);
@@ -289,6 +289,7 @@ public class TokenInfoHTSSuite {
                                 OptionalLong.of(MAXIMUM_TO_COLLECT),
                                 TOKEN_TREASURY))
                         .via(CREATE_TXN),
+                exposeTargetLedgerIdTo(targetLedgerId::set),
                 withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCall(
@@ -303,7 +304,6 @@ public class TokenInfoHTSSuite {
                                 GET_INFORMATION_FOR_FUNGIBLE_TOKEN,
                                 HapiParserUtil.asHeadlongAddress(
                                         asAddress(spec.registry().getTokenID(FUNGIBLE_TOKEN_NAME)))))),
-                exposeTargetLedgerIdTo(targetLedgerId::set),
                 withOpContext((spec, opLog) -> {
                     final var getTokenInfoQuery = getTokenInfo(FUNGIBLE_TOKEN_NAME);
                     allRunFor(spec, getTokenInfoQuery);
@@ -400,6 +400,7 @@ public class TokenInfoHTSSuite {
                         .logged()
                         .signedBy(DEFAULT_PAYER, NFT_OWNER)
                         .fee(ONE_HBAR),
+                exposeTargetLedgerIdTo(targetLedgerId::set),
                 withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         contractCall(
@@ -416,7 +417,6 @@ public class TokenInfoHTSSuite {
                                 HapiParserUtil.asHeadlongAddress(
                                         asAddress(spec.registry().getTokenID(NON_FUNGIBLE_TOKEN_NAME))),
                                 1L))),
-                exposeTargetLedgerIdTo(targetLedgerId::set),
                 withOpContext((spec, opLog) -> {
                     final var getTokenInfoQuery = getTokenInfo(NON_FUNGIBLE_TOKEN_NAME);
                     allRunFor(spec, getTokenInfoQuery);
@@ -1035,6 +1035,7 @@ public class TokenInfoHTSSuite {
                                 TOKEN_TREASURY))
                         .via(CREATE_TXN),
                 tokenAssociate(ACCOUNT, FUNGIBLE_TOKEN_NAME),
+                exposeTargetLedgerIdTo(targetLedgerId::set),
                 withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         newKeyNamed(CONTRACT_KEY).shape(TRESHOLD_KEY_SHAPE.signedWith(sigs(ON, TOKEN_INFO_CONTRACT))),
@@ -1056,7 +1057,6 @@ public class TokenInfoHTSSuite {
                                 .payingWith(ACCOUNT)
                                 .via(UPDATE_ANG_GET_TOKEN_INFO_TXN)
                                 .gas(1_000_000L))),
-                exposeTargetLedgerIdTo(targetLedgerId::set),
                 withOpContext((spec, opLog) -> {
                     final var getTokenInfoQuery = getTokenInfo(FUNGIBLE_TOKEN_NAME);
                     allRunFor(spec, getTokenInfoQuery);
@@ -1146,6 +1146,7 @@ public class TokenInfoHTSSuite {
                                 TOKEN_TREASURY))
                         .via(CREATE_TXN),
                 tokenAssociate(ACCOUNT, FUNGIBLE_TOKEN_NAME),
+                exposeTargetLedgerIdTo(targetLedgerId::set),
                 withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         newKeyNamed(CONTRACT_KEY).shape(TRESHOLD_KEY_SHAPE.signedWith(sigs(ON, TOKEN_INFO_CONTRACT))),
@@ -1167,7 +1168,6 @@ public class TokenInfoHTSSuite {
                                 .payingWith(ACCOUNT)
                                 .via(UPDATE_ANG_GET_FUNGIBLE_TOKEN_INFO_TXN)
                                 .gas(1_000_000L))),
-                exposeTargetLedgerIdTo(targetLedgerId::set),
                 withOpContext((spec, opLog) -> {
                     final var getTokenInfoQuery = getTokenInfo(FUNGIBLE_TOKEN_NAME);
                     allRunFor(spec, getTokenInfoQuery);
@@ -1265,6 +1265,7 @@ public class TokenInfoHTSSuite {
                         .logged()
                         .signedBy(DEFAULT_PAYER, NFT_OWNER)
                         .fee(ONE_HBAR),
+                exposeTargetLedgerIdTo(targetLedgerId::set),
                 withOpContext((spec, opLog) -> allRunFor(
                         spec,
                         newKeyNamed(CONTRACT_KEY).shape(TRESHOLD_KEY_SHAPE.signedWith(sigs(ON, TOKEN_INFO_CONTRACT))),
@@ -1286,7 +1287,6 @@ public class TokenInfoHTSSuite {
                                 .alsoSigningWithFullPrefix(ADMIN_KEY, UPDATED_TREASURY)
                                 .via(UPDATE_ANG_GET_NON_FUNGIBLE_TOKEN_INFO_TXN)
                                 .gas(1_000_000L))),
-                exposeTargetLedgerIdTo(targetLedgerId::set),
                 withOpContext((spec, opLog) -> {
                     final var getTokenInfoQuery = getTokenInfo(NON_FUNGIBLE_TOKEN_NAME);
                     allRunFor(spec, getTokenInfoQuery);

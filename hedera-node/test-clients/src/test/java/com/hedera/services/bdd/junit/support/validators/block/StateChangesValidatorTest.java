@@ -1,17 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.validators.block;
 
+import static com.hedera.services.bdd.junit.support.validators.block.StateChangesValidator.carriesCompressedWrapsProof;
 import static com.hedera.services.bdd.junit.support.validators.block.StateChangesValidator.currentBlockHashFromNextBlockFooter;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
+import com.hedera.hapi.block.stream.TssSignedBlockProof;
 import com.hedera.hapi.block.stream.output.BlockFooter;
 import com.hedera.hapi.block.stream.output.BlockHeader;
+import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -128,6 +132,32 @@ class StateChangesValidatorTest {
         assertThrows(IndexOutOfBoundsException.class, () -> blocks.get(i + 1));
     }
 
+    @Test
+    void detectsBlockSignedWithCompressedWrapsProof() {
+        final var block = blockBuilder()
+                .items(List.of(
+                        headerItem(437L),
+                        footerItem(PREV_BLOCK_ROOT_HASH),
+                        signedProofItem(437L, HintsLibraryImpl.VK_LENGTH + HintsLibraryImpl.SIGNATURE_LENGTH + 11368)))
+                .build();
+
+        assertTrue(carriesCompressedWrapsProof(block));
+    }
+
+    @Test
+    void doesNotDetectCompressedWrapsProofInMockOrMissingProof() {
+        final var mockSigned = blockBuilder()
+                .items(List.of(headerItem(443L), footerItem(PREV_BLOCK_ROOT_HASH), signedProofItem(443L, 48)))
+                .build();
+        final var incomplete = blockBuilder()
+                .items(List.of(headerItem(444L), footerItem(PREV_BLOCK_ROOT_HASH)))
+                .build();
+
+        assertFalse(carriesCompressedWrapsProof(mockSigned));
+        assertFalse(carriesCompressedWrapsProof(incomplete));
+        assertFalse(carriesCompressedWrapsProof(blockBuilder().build()));
+    }
+
     private static Block.Builder blockBuilder() {
         return Block.newBuilder();
     }
@@ -149,6 +179,17 @@ class StateChangesValidatorTest {
     private static BlockItem proofItem(final long blockNumber) {
         return BlockItem.newBuilder()
                 .blockProof(BlockProof.newBuilder().block(blockNumber).build())
+                .build();
+    }
+
+    private static BlockItem signedProofItem(final long blockNumber, final int signatureLength) {
+        return BlockItem.newBuilder()
+                .blockProof(BlockProof.newBuilder()
+                        .block(blockNumber)
+                        .signedBlockProof(TssSignedBlockProof.newBuilder()
+                                .blockSignature(Bytes.wrap(new byte[signatureLength]))
+                                .build())
+                        .build())
                 .build();
     }
 }

@@ -1030,7 +1030,7 @@ local networks:
 ```bash
 # Spin both networks up with the configured ledger ids, then drive
 # register → complete → message-send → bundle-sync.
-LEDGER_ID_A=<32-byte-hex> LEDGER_ID_B=<32-byte-hex> ./run-clpr-end-to-end.sh
+LEDGER_ID_A=<64-byte-hex> LEDGER_ID_B=<64-byte-hex> ./run-clpr-end-to-end.sh
 ```
 
 `run-clpr-demo.sh` is the short variant that exercises a single happy-path bundle.

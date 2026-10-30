@@ -4,6 +4,12 @@ package com.hedera.services.bdd.junit.extensions;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.WORKING_DIR;
 import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.awaitStatus;
+import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.prCheckOverrides;
+import static com.hedera.services.bdd.junit.hedera.subprocess.TssFixtures.CACHE_DIR;
+import static com.hedera.services.bdd.junit.hedera.subprocess.TssFixtures.fixturePresent;
+import static com.hedera.services.bdd.junit.hedera.subprocess.TssFixtures.generateNetworkFixture;
+import static com.hedera.services.bdd.junit.hedera.subprocess.TssFixtures.installFixture;
+import static com.hedera.services.bdd.junit.hedera.subprocess.TssFixtures.resolveCachedFixturePath;
 import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigRealm;
 import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigShard;
 import static com.hedera.services.bdd.spec.HapiSpec.networkHapiTest;
@@ -21,23 +27,18 @@ import com.hedera.services.bdd.junit.ConfigOverride;
 import com.hedera.services.bdd.junit.MultiNetworkHapiTest;
 import com.hedera.services.bdd.junit.MultiNetworkHapiTest.Network;
 import com.hedera.services.bdd.junit.hedera.HederaNetwork;
-import com.hedera.services.bdd.junit.hedera.HederaNode;
+import com.hedera.services.bdd.junit.hedera.NodeMetadata;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.spec.infrastructure.HapiClients;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -50,10 +51,9 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.zip.GZIPInputStream;
-import java.util.zip.GZIPOutputStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.roster.RosterUtils;
 import org.junit.jupiter.api.extension.AfterEachCallback;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
@@ -143,25 +143,6 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
 
     private static final Map<String, Reservation> RESERVATIONS_BY_NAME = new ConcurrentHashMap<>();
 
-    /**
-     * Where {@link Network#tssPreload tssPreload}-opted networks read cached fixtures from /
-     * write fresh ones to. Resolved against the project root (gradle/test working dir varies,
-     * so we walk up from CWD until we find a directory containing {@code tss-startup-assets/}).
-     * The dir is gitignored; co-locates with the extracted WRAPS artifacts
-     * ({@code wraps-vX.Y.Z/}, which {@code TSS_LIB_WRAPS_ARTIFACTS_PATH} points at).
-     */
-    private static final Path TSS_FIXTURE_CACHE_DIR = resolveTssFixtureCacheDir();
-
-    /**
-     * Where {@code BlockStreamManagerImpl} writes the network-info export. Dev defaults route
-     * here (see {@link com.hedera.node.config.data.NetworkAdminConfig#diskNetworkExportFile} =
-     * {@code output/network.json}). For cold-cache prep runs we override the mode to
-     * {@code EVERY_BLOCK} so the snapshot is continually refreshed; the opted-in prep test
-     * then settles a few seconds past WRAPS-extensible to ensure the snapshot captures a
-     * resume-safe {@code HistoryProofConstruction} (hasTargetProof=true).
-     */
-    private static final String EXPORTED_NETWORK_RELATIVE = "output/network.json";
-
     /** Filename consumed by DiskStartupNetworks during subprocess genesis. */
     private static final String GENESIS_NETWORK_JSON = "genesis-network.json";
 
@@ -181,10 +162,7 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
     private static final Pattern WRAPS_SYNC_POINT_PATTERN =
             Pattern.compile("\\[CLPR-SYNC-POINT\\] block #\\d+ is the first to embed the WRAPS recursive proof");
 
-    /** Extracts a node fixture's {@code blsPrivateKey} for the distinct-per-node TSS-key assertion. */
-    private static final Pattern BLS_PRIVATE_KEY = Pattern.compile("\"blsPrivateKey\"\\s*:\\s*\"([^\"]*)\"");
-
-    private static final Duration WRAPS_EXTENSIBLE_TIMEOUT = Duration.ofMinutes(25);
+    private static final Duration WRAPS_EXTENSIBLE_TIMEOUT = Duration.ofMinutes(10);
     /**
      * Upper bound on how long we'll wait between {@code WRAPS-extensible? true} and the
      * {@code [CLPR-SYNC-POINT]} log line. Typically fires within seconds (1-2 block-times after
@@ -392,14 +370,7 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
             // Collect setup overrides (defaults + annotation-declared + tssPreload-injected) into
             // one map so duplicates are merged predictably. Defaults are seeded first so a per-test
             // setupOverrides entry with the same key wins.
-            final var overrides = new LinkedHashMap<String, String>();
-            // Multi-network tests register connectors as part of setup; the prod default
-            // clpr.minLockedStake (100M tinybars) requires a hbar transfer to register, which the
-            // tests don't fund. Lower the threshold so simple test connectors succeed without
-            // forcing every test annotation to repeat this override.
-            overrides.put("clpr.minLockedStake", "100");
-            overrides.put("clpr.nodeSubmitBundleMaxFee", "10000000000");
-            overrides.put("clpr.verifierGasLimit", "5000000");
+            final var overrides = defaultSetupOverrides();
             for (final var o : cfg.setupOverrides()) {
                 overrides.put(o.key(), o.value());
             }
@@ -413,7 +384,7 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
                 overrides.put(CLPR_CA_CRT_PATH_KEY, CLPR_CA_CRT_PATH);
                 overrides.put(CLPR_CA_KEY_PATH_KEY, CLPR_CA_KEY_PATH);
             }
-            final boolean cacheHit = cfg.tssPreload() && allPerNodeFixturesPresent(resolveName(cfg), cfg.size());
+            final boolean cacheHit = cfg.tssPreload() && fixturePresent(resolveName(cfg));
             if (cfg.tssPreload() && !cacheHit) {
                 // Cold-cache run: trigger a single TSS-enriched export at the freeze block
                 // (after the WRAPS sync-point is reached). ONLY_FREEZE_BLOCK pays the export
@@ -425,19 +396,15 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
 
             // Preload TSS fixture (if cached): overwrite the default genesis-network.json that
             // initWorkingDir writes, BEFORE the subprocess JVM starts. With TSS metadata present,
-            // TssStartupNetworks pre-seeds constructions and skips the ~14-min WRAPS bootstrap.
+            // TssStartupNetworks pre-seeds constructions and skips WRAPS bootstrap.
             if (cacheHit) {
-                log.info("[CLPR-FIXTURE] per-node preload hit for '{}' ({} nodes)", resolveName(cfg), cfg.size());
+                log.info("[CLPR-FIXTURE] network preload hit for '{}' ({} nodes)", resolveName(cfg), cfg.size());
                 network.getPostInitWorkingDirActions().add(node -> {
                     try {
-                        // Install THIS node's own fixture (carrying its own TSS private key).
-                        final var src = resolvePerNodeCachedFixturePath(resolveName(cfg), node.getNodeId(), cfg.size());
+                        // Install the merged fixture; startup selects this node's private key.
+                        final var src = resolveCachedFixturePath(resolveName(cfg));
                         final var dst = node.getExternalPath(DATA_CONFIG_DIR).resolve(GENESIS_NETWORK_JSON);
                         installFixture(src, dst);
-                        // The fixture holds ports from cold-bootstrap capture time; every warm run
-                        // auto-allocates a fresh random base port. Without this rewrite,
-                        // Node.serviceEndpoint in state would keep the capture-time port while the
-                        // live gRPC server listens on the runtime port — peer dials would miss.
                         rewriteFixturePortsToRuntime(dst, network);
                     } catch (final IOException e) {
                         throw new UncheckedIOException(
@@ -446,11 +413,11 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
                 });
             } else if (cfg.tssPreload()) {
                 log.info(
-                        "[CLPR-FIXTURE] no complete per-node fixture set for '{}' ({} nodes) in {} — "
+                        "[CLPR-FIXTURE] no complete network fixture for '{}' ({} nodes) in {} — "
                                 + "will cache after passing test",
                         resolveName(cfg),
                         cfg.size(),
-                        TSS_FIXTURE_CACHE_DIR);
+                        CACHE_DIR);
             }
 
             // Provision the per-network CLPR mTLS CA (cert/key PEMs into the working dir + DER stashed
@@ -485,7 +452,7 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
             // Second pass: per-network TSS-readiness gate for tssPreload-opted networks.
             // Warm path (cached fixture preloaded at JVM start): returns ~immediately once the
             // preload log fires + first signed block arrives. Cold path (no fixture): waits up to
-            // 25 min for the runtime WRAPS-extensible event (~14 min on a 1-node subprocess),
+            // 10 min for the runtime WRAPS-extensible event (a few minutes on a 1-node subprocess),
             // polls for [CLPR-SYNC-POINT] (first WRAPS-carrying block, ~seconds later), settles
             // POST_SYNC_POINT_SETTLE so a few WRAPS-carrying blocks accumulate, triggers a
             // freezeOnly to fire ONLY_FREEZE_BLOCK export of a TSS-enriched output/network.json,
@@ -505,12 +472,12 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
                     // Trigger the single ONLY_FREEZE_BLOCK export, then harvest the fixture.
                     log.info("[CLPR-FIXTURE] '{}' triggering freeze to flush TSS-enriched snapshot", n.name());
                     runFreezeForExport(n);
-                    harvestFreshFixtureOrThrow(n);
-                    // Restart the network with the just-cached per-node fixtures preloaded so the test
+                    generateNetworkFixture(n);
+                    // Restart the network with the just-cached merged network fixture preloaded so the test
                     // runs against a warm-loaded network rather than a frozen one.
-                    if (!allPerNodeFixturesPresent(resolveName(cfg), cfg.size())) {
+                    if (!fixturePresent(resolveName(cfg))) {
                         throw new IllegalStateException(
-                                "Cold-bootstrap harvest reported success but per-node fixtures are missing for '"
+                                "Cold-bootstrap harvest reported success but merged network fixture are missing for '"
                                         + resolveName(cfg) + "'");
                     }
                     final var freshNetwork = restartWithFixture(cfg, n);
@@ -760,6 +727,25 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
     }
 
     /**
+     * Returns the setup overrides every multi-network test network starts with, before any test-declared
+     * {@code setupOverrides}; shared by the primary start path and {@link #restartWithFixture} so a network
+     * restarted warm after a cold bootstrap runs with the same configuration as one that started warm.
+     */
+    private static LinkedHashMap<String, String> defaultSetupOverrides() {
+        final var overrides = new LinkedHashMap<String, String>();
+        // Multi-network tests register connectors as part of setup; the prod default
+        // clpr.minLockedStake (100M tinybars) requires a hbar transfer to register, which the
+        // tests don't fund. Lower the threshold so simple test connectors succeed without
+        // forcing every test annotation to repeat this override.
+        overrides.put("clpr.minLockedStake", "100");
+        overrides.put("clpr.nodeSubmitBundleMaxFee", "10000000000");
+        overrides.put("clpr.verifierGasLimit", "5000000");
+        // Task defaults apply at genesis and fixture restart, while per-test setup overrides win.
+        overrides.putAll(prCheckOverrides());
+        return overrides;
+    }
+
+    /**
      * Terminates the cold-bootstrapped network and brings up a fresh {@link SubProcessNetwork}
      * with the just-cached fixture preloaded, so the upcoming test sees a warm-loaded network
      * (the warm-path code path, byte-for-byte identical to second-and-later runs). Reuses the
@@ -781,8 +767,7 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
         // re-inject the ONLY_FREEZE_BLOCK export overrides: with a cached fixture in place this
         // is now a warm run, and the test isn't expected to issue another freeze.
         // Same defaults shape as the primary path above.
-        final var overrides = new LinkedHashMap<String, String>();
-        overrides.put("clpr.minLockedStake", "100");
+        final var overrides = defaultSetupOverrides();
         for (final var o : cfg.setupOverrides()) {
             overrides.put(o.key(), o.value());
         }
@@ -798,7 +783,7 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
         // Preload each node's OWN fixture via the same postInitWorkingDirAction the warm-cache hit uses.
         fresh.getPostInitWorkingDirActions().add(node -> {
             try {
-                final var src = resolvePerNodeCachedFixturePath(resolveName(cfg), node.getNodeId(), cfg.size());
+                final var src = resolveCachedFixturePath(resolveName(cfg));
                 final var dst = node.getExternalPath(DATA_CONFIG_DIR).resolve(GENESIS_NETWORK_JSON);
                 installFixture(src, dst);
                 rewriteFixturePortsToRuntime(dst, fresh);
@@ -814,7 +799,7 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
             provisionClprMtls(cfg, fresh);
         }
         log.info(
-                "[CLPR-FIXTURE] '{}' restarting with just-cached per-node fixtures preloaded ({} nodes)",
+                "[CLPR-FIXTURE] '{}' restarting with just-cached merged network fixture preloaded ({} nodes)",
                 resolveName(cfg),
                 cfg.size());
         fresh.start();
@@ -866,6 +851,106 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
     }
 
     /**
+     * Rewrite the port fields of every {@code nodeMetadata} entry in a just-installed fixture at
+     * {@code fixturePath} so they match the runtime ports of {@code subNet} (random-allocated per
+     * run). Rebinds construction references to the changed roster while preserving TSS keys,
+     * proofs, weights, and gossip CA certificates so the fixture still skips WRAPS bootstrap.
+     *
+     * <p>Patches, per node: {@code node.serviceEndpoint[0]}, {@code node.gossipEndpoint[0..1]},
+     * and {@code rosterEntry.gossipEndpoint[0..1]}. IP address is reset to loopback (fixtures are
+     * captured on loopback and warm runs always come up on loopback too).
+     */
+    private static void rewriteFixturePortsToRuntime(
+            @NonNull final Path fixturePath, @NonNull final SubProcessNetwork subNet) throws IOException {
+        final var loaded = DiskStartupNetworks.loadNetworkFrom(fixturePath)
+                .orElseThrow(() ->
+                        new IllegalStateException("Failed to reload freshly-installed fixture at " + fixturePath));
+        final Map<Long, NodeMetadata> byId = new LinkedHashMap<>();
+        for (final var n : subNet.nodes()) {
+            byId.put(n.getNodeId(), n.metadata());
+        }
+        final var patched = withRuntimePorts(loaded, byId);
+        // FQN: `Network` is already imported as the `MultiNetworkHapiTest.Network` annotation,
+        // so the internal-network PBJ type must be spelled out inline for the JSON codec.
+        Files.writeString(fixturePath, com.hedera.node.internal.network.Network.JSON.toJSON(patched));
+    }
+
+    /** Applies transport-only fixture changes and keeps construction roster references consistent. */
+    static com.hedera.node.internal.network.Network withRuntimePorts(
+            @NonNull final com.hedera.node.internal.network.Network loaded,
+            @NonNull final Map<Long, NodeMetadata> byId) {
+        final var localhost = Bytes.wrap(new byte[] {127, 0, 0, 1});
+        final var patched = loaded.copyBuilder()
+                .nodeMetadata(loaded.nodeMetadata().stream()
+                        .map(md -> {
+                            final long id = md.rosterEntryOrThrow().nodeId();
+                            final var meta = byId.get(id);
+                            if (meta == null) {
+                                throw new IllegalStateException("Fixture references unknown runtime nodeId=" + id);
+                            }
+                            final var internal = ServiceEndpoint.newBuilder()
+                                    .ipAddressV4(localhost)
+                                    .port(meta.internalGossipPort())
+                                    .build();
+                            final var external = ServiceEndpoint.newBuilder()
+                                    .ipAddressV4(localhost)
+                                    .port(meta.externalGossipPort())
+                                    .build();
+                            final var service = ServiceEndpoint.newBuilder()
+                                    .ipAddressV4(localhost)
+                                    .port(meta.grpcPort())
+                                    .build();
+                            return md.copyBuilder()
+                                    .rosterEntry(md.rosterEntryOrThrow()
+                                            .copyBuilder()
+                                            .gossipEndpoint(List.of(internal, external))
+                                            .build())
+                                    .node(md.nodeOrThrow()
+                                            .copyBuilder()
+                                            .gossipEndpoint(List.of(internal, external))
+                                            .serviceEndpoint(List.of(service))
+                                            .build())
+                                    .build();
+                        })
+                        .toList())
+                .build();
+        if (!loaded.hasTssMetadata()) {
+            return patched;
+        }
+        final var oldRosterHash =
+                RosterUtils.hash(RosterUtils.rosterFrom(loaded)).getBytes();
+        final var newRosterHash =
+                RosterUtils.hash(RosterUtils.rosterFrom(patched)).getBytes();
+        if (oldRosterHash.equals(newRosterHash)) {
+            return patched;
+        }
+        final var metadata = loaded.tssMetadataOrThrow();
+        final var updatedMetadata = metadata.copyBuilder();
+        // Genesis reconciliation matches both source and target to the loaded platform roster.
+        // These references are bookkeeping: hinTS and WRAPS commit to keys, node IDs and weights,
+        // not transport ports. Preserve references to any different, historical roster.
+        if (metadata.hasActiveHintsConstruction()) {
+            final var hints = metadata.activeHintsConstructionOrThrow();
+            updatedMetadata.activeHintsConstruction(hints.copyBuilder()
+                    .sourceRosterHash(rebindFixtureHash(hints.sourceRosterHash(), oldRosterHash, newRosterHash))
+                    .targetRosterHash(rebindFixtureHash(hints.targetRosterHash(), oldRosterHash, newRosterHash))
+                    .build());
+        }
+        if (metadata.hasActiveProofConstruction()) {
+            final var history = metadata.activeProofConstructionOrThrow();
+            updatedMetadata.activeProofConstruction(history.copyBuilder()
+                    .sourceRosterHash(rebindFixtureHash(history.sourceRosterHash(), oldRosterHash, newRosterHash))
+                    .targetRosterHash(rebindFixtureHash(history.targetRosterHash(), oldRosterHash, newRosterHash))
+                    .build());
+        }
+        return patched.copyBuilder().tssMetadata(updatedMetadata).build();
+    }
+
+    private static Bytes rebindFixtureHash(final Bytes hash, final Bytes oldRosterHash, final Bytes newRosterHash) {
+        return hash.equals(oldRosterHash) ? newRosterHash : hash;
+    }
+
+    /**
      * Generates a per-network ECDSA P-384 CLPR CA and registers a post-init working-dir action that
      * drops its cert + PKCS#8 key PEMs into each node's working dir at {@code data/clpr/ca.crt} /
      * {@code data/clpr/ca.key} — the relative paths the suite advertises via {@code clpr.caCrtPath} /
@@ -897,310 +982,39 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
         });
     }
 
-    /**
-     * Mandatory variant of {@link #cacheTssFixtureIfMissing} used in the cold-bootstrap path
-     * where {@link #runFreezeForExport} has just successfully fired and the source file MUST
-     * exist. Throws on any failure so the test surfaces a clear error instead of silently
-     * proceeding to {@link #restartWithFixture} (which would then fail with a generic
-     * {@code NoSuchFileException} for the missing cache file).
-     */
-    private static void harvestFreshFixtureOrThrow(@NonNull final SubProcessNetwork network) {
-        try {
-            Files.createDirectories(TSS_FIXTURE_CACHE_DIR);
-            final int size = network.nodes().size();
-            // Harvest each node's OWN export: node<i>/output/network.json carries node<i>'s dev TSS
-            // private key. All nodes export at the same freeze block, so the public/aggregation material
-            // is identical across them; only the embedded private key differs. Installing each node's
-            // fixture back to that node is what makes a warm multi-node start work.
-            for (final var node : network.nodes()) {
-                final long nodeId = node.getNodeId();
-                final var src = node.getExternalPath(WORKING_DIR).resolve(EXPORTED_NETWORK_RELATIVE);
-                if (!Files.exists(src)) {
-                    throw new IllegalStateException("Cold-bootstrap harvest expected freeze export at " + src + " (node"
-                            + nodeId + ") — not found");
-                }
-                final var dst = TSS_FIXTURE_CACHE_DIR.resolve(perNodeFixtureBase(network.name(), nodeId, size) + ".gz");
-                gzipTo(src, dst);
-                log.info(
-                        "[CLPR-FIXTURE] harvested fresh '{}' node{} fixture to {} ({} bytes, from {} bytes raw)",
-                        network.name(),
-                        nodeId,
-                        dst,
-                        Files.size(dst),
-                        Files.size(src));
-            }
-        } catch (final IOException e) {
-            throw new UncheckedIOException("Failed to harvest fresh TSS fixture for '" + network.name() + "'", e);
-        }
-    }
-
-    /**
-     * Copy the network's exported-network.json (the TSS-enriched snapshot
-     * {@code BlockStreamManagerImpl} writes when {@code networkAdmin.diskNetworkExport*}
-     * are enabled) into the persistent fixture cache, but only if no fixture exists yet.
-     * First-writer-wins so a flaky later test can't corrupt a good fixture.
-     */
+    /** Caches a complete merged network fixture after a successful cold bootstrap. */
     private static void cacheTssFixtureIfMissing(@NonNull final SubProcessNetwork network) {
+        if (fixturePresent(network.name())) {
+            return;
+        }
         try {
-            // First-writer-wins: if every node already has a cached per-node fixture, leave them be.
-            if (allPerNodeFixturesPresent(network.name(), network.nodes().size())) {
-                return;
-            }
-            Files.createDirectories(TSS_FIXTURE_CACHE_DIR);
-            final int size = network.nodes().size();
-            // Harvest each node's own export (node<i>/output/network.json), which carries node<i>'s TSS
-            // private key. Written by BlockStreamManagerImpl on the freeze block — if absent, the
-            // opted-in test didn't trigger a freeze before terminating; warn and skip.
-            for (final var node : network.nodes()) {
-                final long nodeId = node.getNodeId();
-                if (resolvePerNodeCachedFixturePath(network.name(), nodeId, size) != null) {
-                    continue;
-                }
-                final var src = node.getExternalPath(WORKING_DIR).resolve(EXPORTED_NETWORK_RELATIVE);
-                if (!Files.exists(src)) {
-                    log.warn(
-                            "[CLPR-FIXTURE] '{}' node{} passed but no {} — opted-in test should run "
-                                    + "freezeOnly()+waitForFrozenNetwork() as its last step",
-                            network.name(),
-                            nodeId,
-                            src);
-                    return;
-                }
-                final var dst = TSS_FIXTURE_CACHE_DIR.resolve(perNodeFixtureBase(network.name(), nodeId, size) + ".gz");
-                gzipTo(src, dst);
-                log.info(
-                        "[CLPR-FIXTURE] cached '{}' node{} fixture to {} ({} bytes, from {} bytes raw)",
-                        network.name(),
-                        nodeId,
-                        dst,
-                        Files.size(dst),
-                        Files.size(src));
-            }
-        } catch (final IOException e) {
+            generateNetworkFixture(network);
+        } catch (RuntimeException e) {
             log.warn("[CLPR-FIXTURE] failed to cache fixture for '{}': {}", network.name(), e.getMessage());
         }
     }
 
-    /**
-     * Fixture base filename for one node. <b>Size-1</b> networks keep the legacy single-file name
-     * {@code <network>-genesis-network.json} (backward-compatible with every committed size-1 fixture);
-     * <b>multi-node</b> networks use {@code <network>-node<id>-genesis-network.json}, because each
-     * node's fixture carries only <em>its own</em> TSS private key and one shared file can't warm-start
-     * the others.
-     */
-    private static String perNodeFixtureBase(@NonNull final String networkName, final long nodeId, final int size) {
-        return size == 1
-                ? networkName + "-" + GENESIS_NETWORK_JSON
-                : networkName + "-node" + nodeId + "-" + GENESIS_NETWORK_JSON;
-    }
-
-    /**
-     * Locate the cached fixture for a single node of {@code networkName} ({@code size} nodes total),
-     * preferring the gzipped form (the committed CI source-of-truth) over a stale uncompressed local
-     * copy. Returns {@code null} if neither exists.
-     *
-     * <p>For multi-node networks the fixtures are <b>per node</b>: each carries only that node's TSS
-     * private key (harvested per node — see {@link #harvestFreshFixtureOrThrow}). A single shared
-     * fixture cannot warm-start a size&gt;1 network, because the harvesting node cannot know the other
-     * nodes' secrets, so those nodes would find no usable private key and generate non-matching ones
-     * (invalid hinTS signatures → no block proof completes). Size-1 networks are unaffected and keep
-     * the legacy single-file name.
-     */
-    @Nullable
-    private static Path resolvePerNodeCachedFixturePath(
-            @NonNull final String networkName, final long nodeId, final int size) {
-        final var base = perNodeFixtureBase(networkName, nodeId, size);
-        final var gz = TSS_FIXTURE_CACHE_DIR.resolve(base + ".gz");
-        if (Files.exists(gz)) return gz;
-        final var raw = TSS_FIXTURE_CACHE_DIR.resolve(base);
-        return Files.exists(raw) ? raw : null;
-    }
-
-    /** True iff every node of a {@code size}-node {@code networkName} has a cached fixture. */
-    private static boolean allPerNodeFixturesPresent(@NonNull final String networkName, final int size) {
-        for (long id = 0; id < size; id++) {
-            if (resolvePerNodeCachedFixturePath(networkName, id, size) == null) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /**
-     * Test hook: verifies the per-node TSS fixtures for {@code networkName} each carry exactly one
-     * {@code blsPrivateKey} and that those keys are pairwise <b>distinct</b> — proving the per-node
-     * harvest captured each node's own secret rather than a single shared node0 key (which is what
-     * silently broke multi-node warm start). Throws {@link AssertionError} otherwise. Call after the
-     * network is up (fixtures are harvested during network start).
-     */
+    /** Verifies that the merged fixture retains every node's distinct private key. */
     public static void assertPerNodeFixturesHaveDistinctKeys(@NonNull final String networkName, final int size) {
-        final Set<String> keys = new HashSet<>();
-        for (long id = 0; id < size; id++) {
-            final var path = resolvePerNodeCachedFixturePath(networkName, id, size);
-            if (path == null) {
-                throw new AssertionError("Missing per-node TSS fixture for '" + networkName + "' node" + id);
+        final var path = resolveCachedFixturePath(networkName);
+        if (path == null) {
+            throw new AssertionError("Missing TSS fixture for '" + networkName + "'");
+        }
+        try (var file = Files.newInputStream(path);
+                var in = path.toString().endsWith(".gz") ? new java.util.zip.GZIPInputStream(file) : file) {
+            final var network = com.hedera.node.internal.network.Network.JSON.parse(
+                    new com.hedera.pbj.runtime.io.stream.ReadableStreamingData(in));
+            final var keys = network.nodeTssMetadata().stream()
+                    .filter(md -> md.nodeId() >= 0 && md.nodeId() < size)
+                    .map(com.hedera.node.internal.network.NodeTssMetadata::blsPrivateKey)
+                    .filter(key -> key.length() > 0)
+                    .collect(Collectors.toSet());
+            if (keys.size() != size) {
+                throw new AssertionError("Expected " + size + " distinct TSS private keys for '" + networkName + "'");
             }
-            final String key = extractSingleBlsPrivateKey(readFixtureJson(path), networkName, id);
-            if (!keys.add(key)) {
-                throw new AssertionError("Per-node TSS fixtures for '" + networkName + "' share a blsPrivateKey — "
-                        + "node" + id + " duplicates another node's key (harvest is not per-node)");
-            }
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to read TSS fixture " + path, e);
         }
-        log.info("[CLPR-FIXTURE] verified {} distinct per-node blsPrivateKeys for '{}'", size, networkName);
-    }
-
-    private static String readFixtureJson(@NonNull final Path path) {
-        try {
-            if (path.getFileName().toString().endsWith(".gz")) {
-                try (var in = new GZIPInputStream(Files.newInputStream(path))) {
-                    return new String(in.readAllBytes(), StandardCharsets.UTF_8);
-                }
-            }
-            return Files.readString(path);
-        } catch (final IOException e) {
-            throw new UncheckedIOException("Failed to read TSS fixture " + path, e);
-        }
-    }
-
-    private static String extractSingleBlsPrivateKey(
-            @NonNull final String json, @NonNull final String networkName, final long nodeId) {
-        final var m = BLS_PRIVATE_KEY.matcher(json);
-        if (!m.find()) {
-            throw new AssertionError("No blsPrivateKey in '" + networkName + "' node" + nodeId + " fixture");
-        }
-        final String key = m.group(1);
-        if (key.isEmpty()) {
-            throw new AssertionError("Empty blsPrivateKey in '" + networkName + "' node" + nodeId + " fixture");
-        }
-        if (m.find()) {
-            throw new AssertionError("Multiple blsPrivateKey entries in '" + networkName + "' node" + nodeId
-                    + " fixture — expected exactly one (this node's own key)");
-        }
-        return key;
-    }
-
-    /**
-     * Install a cached fixture at {@code dst}, decompressing on the fly if {@code src} is gzipped.
-     * The subprocess's DiskStartupNetworks always reads plain JSON, so the destination is always
-     * uncompressed regardless of the cached form.
-     */
-    private static void installFixture(@NonNull final Path src, @NonNull final Path dst) throws IOException {
-        if (src.getFileName().toString().endsWith(".gz")) {
-            try (var in = new GZIPInputStream(Files.newInputStream(src))) {
-                Files.copy(in, dst, StandardCopyOption.REPLACE_EXISTING);
-            }
-        } else {
-            Files.copy(src, dst, StandardCopyOption.REPLACE_EXISTING);
-        }
-    }
-
-    /**
-     * Rewrite the port fields of every {@code nodeMetadata} entry in a just-installed fixture at
-     * {@code fixturePath} so they match the runtime ports of {@code subNet} (random-allocated per
-     * run). Keeps every other field — TSS keys, rosters, weights, gossip CA cert — intact, so the
-     * whole point of the fixture (skip the ~14-min WRAPS bootstrap) is preserved.
-     *
-     * <p>Patches, per node: {@code node.serviceEndpoint[0]}, {@code node.gossipEndpoint[0..1]},
-     * and {@code rosterEntry.gossipEndpoint[0..1]}. IP address is reset to loopback (fixtures are
-     * captured on loopback and warm runs always come up on loopback too).
-     */
-    private static void rewriteFixturePortsToRuntime(
-            @NonNull final Path fixturePath, @NonNull final SubProcessNetwork subNet) throws IOException {
-        final var loaded = DiskStartupNetworks.loadNetworkFrom(fixturePath)
-                .orElseThrow(() ->
-                        new IllegalStateException("Failed to reload freshly-installed fixture at " + fixturePath));
-        final Map<Long, HederaNode> byId = new LinkedHashMap<>();
-        for (final var n : subNet.nodes()) {
-            byId.put(n.getNodeId(), n);
-        }
-        final var localhost = Bytes.wrap(new byte[] {127, 0, 0, 1});
-        final var patched = loaded.copyBuilder()
-                .nodeMetadata(loaded.nodeMetadata().stream()
-                        .map(md -> {
-                            final long id = md.rosterEntryOrThrow().nodeId();
-                            final var live = byId.get(id);
-                            if (live == null) {
-                                throw new IllegalStateException("Fixture references unknown nodeId=" + id
-                                        + " (runtime network '" + subNet.name() + "' has "
-                                        + subNet.nodes().size() + " nodes)");
-                            }
-                            final var meta = live.metadata();
-                            final var internal = ServiceEndpoint.newBuilder()
-                                    .ipAddressV4(localhost)
-                                    .port(meta.internalGossipPort())
-                                    .build();
-                            final var external = ServiceEndpoint.newBuilder()
-                                    .ipAddressV4(localhost)
-                                    .port(meta.externalGossipPort())
-                                    .build();
-                            final var service = ServiceEndpoint.newBuilder()
-                                    .ipAddressV4(localhost)
-                                    .port(meta.grpcPort())
-                                    .build();
-                            return md.copyBuilder()
-                                    .rosterEntry(md.rosterEntryOrThrow()
-                                            .copyBuilder()
-                                            .gossipEndpoint(List.of(internal, external))
-                                            .build())
-                                    .node(md.nodeOrThrow()
-                                            .copyBuilder()
-                                            .gossipEndpoint(List.of(internal, external))
-                                            .serviceEndpoint(List.of(service))
-                                            .build())
-                                    .build();
-                        })
-                        .toList())
-                .build();
-        // FQN: `Network` is already imported as the `MultiNetworkHapiTest.Network` annotation,
-        // so the internal-network PBJ type must be spelled out inline for the JSON codec.
-        Files.writeString(fixturePath, com.hedera.node.internal.network.Network.JSON.toJSON(patched));
-    }
-
-    /**
-     * Stream-gzip {@code src} into {@code dst}. Used by the cold-bootstrap harvest so the
-     * harvested fixture lands in the cache directory already in committable form — no manual
-     * {@code gzip} step needed before {@code git add}.
-     */
-    private static void gzipTo(@NonNull final Path src, @NonNull final Path dst) throws IOException {
-        try (var in = Files.newInputStream(src);
-                var out = new GZIPOutputStream(Files.newOutputStream(dst))) {
-            in.transferTo(out);
-        }
-    }
-
-    /**
-     * Walk up from the test JVM's working dir to find {@code tss-startup-assets/} — the
-     * developer-local dir holding warm-cache fixtures alongside the extracted WRAPS proving
-     * artifacts. Canonical location is {@code hedera-node/test-clients/tss-startup-assets/}
-     * (it's used only by HAPI tests). The walk-up handles both:
-     *
-     * <ul>
-     *   <li>{@code :test-clients:testSubprocess} — CWD is the test-clients project dir, so
-     *       {@code tss-startup-assets/} is found on iteration 0;</li>
-     *   <li>any other invocation — walks up until it finds either {@code tss-startup-assets/}
-     *       directly or the canonical {@code hedera-node/test-clients/tss-startup-assets/}
-     *       path under a parent.</li>
-     * </ul>
-     *
-     * <p>Falls back to a plain relative path if neither is found; the cache then won't
-     * persist across runs, which is harmless (just slow).
-     */
-    private static Path resolveTssFixtureCacheDir() {
-        var dir = Paths.get("").toAbsolutePath();
-        for (int i = 0; i < 6; i++) {
-            if (Files.isDirectory(dir.resolve("tss-startup-assets"))) {
-                return dir.resolve("tss-startup-assets");
-            }
-            final var canonical =
-                    dir.resolve("hedera-node").resolve("test-clients").resolve("tss-startup-assets");
-            if (Files.isDirectory(canonical)) {
-                return canonical;
-            }
-            final var parent = dir.getParent();
-            if (parent == null) break;
-            dir = parent;
-        }
-        return Paths.get("tss-startup-assets");
     }
 
     /**
