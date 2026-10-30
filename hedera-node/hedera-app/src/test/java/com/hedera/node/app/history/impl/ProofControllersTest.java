@@ -10,12 +10,19 @@ import static com.hedera.node.app.history.impl.ProofControllers.groundsChainOfTr
 import static com.hedera.node.app.history.impl.ProofControllers.groundsGenesisProof;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.state.hints.HintsConstruction;
+import com.hedera.hapi.node.state.hints.HintsScheme;
+import com.hedera.hapi.node.state.hints.NodePartyId;
+import com.hedera.hapi.node.state.hints.PreprocessedKeys;
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
+import com.hedera.hapi.node.state.history.HintsKeyProvenance;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
+import com.hedera.node.app.hints.KeyProvenanceSigner;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.ReadableHistoryStore;
@@ -28,6 +35,10 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import java.time.Instant;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.BeforeEach;
@@ -88,6 +99,9 @@ class ProofControllersTest {
 
     @Mock
     private ProofController controller;
+
+    @Mock
+    private KeyProvenanceSigner sourceSigner;
 
     private ProofControllers subject;
 
@@ -153,6 +167,132 @@ class ProofControllersTest {
     }
 
     @Test
+    void usesPersistedSourceWeightsAndReplaysMessagesFromSourceRatherThanTargetNodes() {
+        final var sourceVk = Bytes.wrap("source VK");
+        final var targetVk = Bytes.wrap("target VK");
+        final var sourceHints = HintsConstruction.newBuilder()
+                .constructionId(7)
+                .hintsScheme(HintsScheme.newBuilder()
+                        .preprocessedKeys(new PreprocessedKeys(Bytes.wrap("source AK"), sourceVk))
+                        .nodePartyIds(new NodePartyId(10, 1, 3), new NodePartyId(20, 2, 5)))
+                .build();
+        final var sourceWeights = new TreeMap<>(Map.of(10L, 3L, 20L, 5L));
+        final var sourceIds = new TreeSet<>(Set.of(10L, 20L));
+        final var targetIds = Set.of(20L, 30L);
+        given(activeRosters.transitionWeights(sourceWeights)).willReturn(weights);
+        given(weights.sourceNodesHaveTargetThreshold()).willReturn(true);
+        given(weights.sourceNodeIds()).willReturn(sourceIds);
+        given(weights.targetNodeIds()).willReturn(targetIds);
+        given(keyAccessor.getOrCreateSchnorrKeyPair(1L)).willReturn(MOCK_KEY_PAIR);
+        given(selfNodeInfoSupplier.get()).willReturn(selfNodeInfo);
+        given(sourceSigner.constructionId()).willReturn(7L);
+        given(sourceSigner.verificationKey()).willReturn(sourceVk);
+
+        final var result = subject.getOrCreateFor(
+                activeRosters,
+                boundConstruction(sourceVk, targetVk),
+                historyStore,
+                sourceHints,
+                HistoryProofConstruction.DEFAULT,
+                DEFAULT_CONFIG.getConfigData(TssConfig.class),
+                sourceSigner);
+
+        assertInstanceOf(ProofControllerImpl.class, result);
+        verify(activeRosters).transitionWeights(sourceWeights);
+        verify(historyStore).getProofKeyPublications(targetIds);
+        verify(historyStore).getWrapsMessagePublications(1, sourceIds);
+        verify(historyStore, never()).getWrapsMessagePublications(1, targetIds);
+        verify(historyStore).getVotes(1, sourceIds);
+    }
+
+    @Test
+    void installingPendingBindingRecreatesControllerEvenWhenConstructionIdIsUnchanged() throws Exception {
+        final var sourceVk = Bytes.wrap("source VK");
+        final var bound = boundConstruction(sourceVk, Bytes.wrap("target VK"));
+        given(controller.constructionId()).willReturn(1L);
+        setController(controller);
+        given(activeRosters.transitionWeights(null)).willReturn(weights);
+        given(weights.sourceNodesHaveTargetThreshold()).willReturn(true);
+        given(keyAccessor.getOrCreateSchnorrKeyPair(1L)).willReturn(MOCK_KEY_PAIR);
+        given(selfNodeInfoSupplier.get()).willReturn(selfNodeInfo);
+        given(sourceSigner.constructionId()).willReturn(7L);
+        given(sourceSigner.verificationKey()).willReturn(sourceVk);
+
+        final var replacement = subject.getOrCreateFor(
+                activeRosters,
+                bound,
+                historyStore,
+                HintsConstruction.DEFAULT,
+                HistoryProofConstruction.DEFAULT,
+                DEFAULT_CONFIG.getConfigData(TssConfig.class),
+                sourceSigner);
+        final var reused = subject.getOrCreateFor(
+                activeRosters,
+                bound,
+                historyStore,
+                HintsConstruction.DEFAULT,
+                HistoryProofConstruction.DEFAULT,
+                DEFAULT_CONFIG.getConfigData(TssConfig.class),
+                sourceSigner);
+
+        assertNotSame(controller, replacement);
+        assertSame(replacement, reused);
+        verify(controller).cancelPendingWork();
+        verify(keyAccessor).getOrCreateSchnorrKeyPair(1L);
+    }
+
+    @Test
+    void genesisAndReanchorDoNotPassUnusedSourceSignerIntoProver() {
+        given(activeRosters.transitionWeights(null)).willReturn(weights);
+        given(weights.sourceNodesHaveTargetThreshold()).willReturn(true);
+        given(keyAccessor.getOrCreateSchnorrKeyPair(1L)).willReturn(MOCK_KEY_PAIR);
+        given(selfNodeInfoSupplier.get()).willReturn(selfNodeInfo);
+
+        final var result = assertDoesNotThrow(() -> subject.getOrCreateFor(
+                activeRosters,
+                ONE_CONSTRUCTION,
+                historyStore,
+                HintsConstruction.DEFAULT,
+                HistoryProofConstruction.DEFAULT,
+                DEFAULT_CONFIG.getConfigData(TssConfig.class),
+                sourceSigner));
+
+        assertInstanceOf(ProofControllerImpl.class, result);
+        verifyNoInteractions(sourceSigner);
+    }
+
+    @Test
+    void boundRotationCannotReplayWithoutMatchingSourceGeneration() {
+        given(activeRosters.transitionWeights(null)).willReturn(weights);
+        given(weights.sourceNodesHaveTargetThreshold()).willReturn(true);
+        given(keyAccessor.getOrCreateSchnorrKeyPair(1L)).willReturn(MOCK_KEY_PAIR);
+        given(selfNodeInfoSupplier.get()).willReturn(selfNodeInfo);
+        final var bound = boundConstruction(Bytes.wrap("source VK"), Bytes.wrap("target VK"));
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> subject.getOrCreateFor(
+                        activeRosters,
+                        bound,
+                        historyStore,
+                        HintsConstruction.DEFAULT,
+                        HistoryProofConstruction.DEFAULT,
+                        DEFAULT_CONFIG.getConfigData(TssConfig.class),
+                        null));
+        given(sourceSigner.constructionId()).willReturn(99L);
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> subject.getOrCreateFor(
+                        activeRosters,
+                        bound,
+                        historyStore,
+                        HintsConstruction.DEFAULT,
+                        HistoryProofConstruction.DEFAULT,
+                        DEFAULT_CONFIG.getConfigData(TssConfig.class),
+                        sourceSigner));
+    }
+
+    @Test
     void stopCancelsAndRefreshesControllerForSameConstructionId() throws Exception {
         final var learnedConstruction = HistoryProofConstruction.newBuilder()
                 .constructionId(1L)
@@ -191,6 +331,19 @@ class ProofControllersTest {
         assertFalse(groundsChainOfTrust(constructionFor(A_ROSTER_HASH, B_ROSTER_HASH, null)));
         // A construction that does not exist yet grounds nothing
         assertFalse(groundsChainOfTrust(HistoryProofConstruction.DEFAULT));
+    }
+
+    @Test
+    void boundKeyRotationExtendsTheExistingChainEvenWhenRosterHashesMatch() {
+        final var rotation = boundConstruction(Bytes.wrap("source VK"), Bytes.wrap("target VK"))
+                .copyBuilder()
+                .sourceRosterHash(A_ROSTER_HASH)
+                .targetRosterHash(A_ROSTER_HASH)
+                .build();
+
+        assertFalse(groundsChainOfTrust(rotation));
+        assertFalse(freshGenesisInProgress(rotation));
+        assertFalse(activeProofNeedsWork(constructionFor(A_ROSTER_HASH, A_ROSTER_HASH, WRAPS_PROOF), rotation, false));
     }
 
     @Test
@@ -288,6 +441,19 @@ class ProofControllersTest {
             builder.targetProof(targetProof);
         }
         return builder.build();
+    }
+
+    private static HistoryProofConstruction boundConstruction(final Bytes sourceVk, final Bytes targetVk) {
+        return ONE_CONSTRUCTION
+                .copyBuilder()
+                .targetMetadata(targetVk)
+                .keyProvenance(HintsKeyProvenance.newBuilder()
+                        .historyConstructionId(1)
+                        .sourceHintsConstructionId(7)
+                        .targetHintsConstructionId(9)
+                        .sourceVerificationKey(sourceVk)
+                        .targetVerificationKey(targetVk))
+                .build();
     }
 
     private static Configuration configWith(final String... keysAndValues) {

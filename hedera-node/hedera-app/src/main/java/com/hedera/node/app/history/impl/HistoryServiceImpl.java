@@ -10,9 +10,11 @@ import static java.util.Objects.requireNonNull;
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
+import com.hedera.hapi.node.state.history.HintsKeyProvenance;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
+import com.hedera.node.app.hints.KeyProvenanceSigner;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.WritableHistoryStore;
@@ -100,6 +102,29 @@ public class HistoryServiceImpl implements HistoryService {
         return component.library().ledgerIdOf(proof.targetHistoryOrThrow());
     }
 
+    @VisibleForTesting
+    void reconcile(
+            @NonNull final ActiveRosters activeRosters,
+            @Nullable final Bytes metadata,
+            @NonNull final WritableHistoryStore historyStore,
+            @NonNull final Instant now,
+            @NonNull final TssConfig tssConfig,
+            final boolean isActive,
+            @Nullable final HintsConstruction activeHintsConstruction,
+            final boolean freshGenesisRequested) {
+        reconcile(
+                activeRosters,
+                metadata,
+                historyStore,
+                now,
+                tssConfig,
+                isActive,
+                activeHintsConstruction,
+                freshGenesisRequested,
+                null,
+                0);
+    }
+
     @Override
     public void reconcile(
             @NonNull final ActiveRosters activeRosters,
@@ -109,15 +134,63 @@ public class HistoryServiceImpl implements HistoryService {
             @NonNull final TssConfig tssConfig,
             final boolean isActive,
             @Nullable final HintsConstruction activeHintsConstruction,
-            final boolean freshGenesisRequested) {
+            final boolean freshGenesisRequested,
+            @Nullable final KeyProvenanceSigner sourceSigner,
+            final long targetHintsConstructionId) {
         requireNonNull(activeRosters);
         requireNonNull(historyStore);
         requireNonNull(now);
         requireNonNull(tssConfig);
         switch (activeRosters.phase()) {
             case BOOTSTRAP, TRANSITION -> {
-                final var construction = historyStore.getOrCreateConstruction(
-                        activeRosters, now, tssConfig, freshGenesisRequested, metadata);
+                if (targetHintsConstructionId > 0) {
+                    if (activeHintsConstruction == null
+                            || (!activeHintsConstruction.hasHintsScheme()
+                                    && (targetHintsConstructionId != activeHintsConstruction.constructionId()
+                                            || sourceSigner != null))) {
+                        throw new IllegalArgumentException(
+                                "Cannot certify a successor without its persisted source scheme");
+                    }
+                    if (activeHintsConstruction.hasHintsScheme()
+                            && (sourceSigner == null
+                                    || sourceSigner.constructionId() != activeHintsConstruction.constructionId()
+                                    || !sourceSigner
+                                            .verificationKey()
+                                            .equals(activeHintsConstruction
+                                                    .hintsSchemeOrThrow()
+                                                    .preprocessedKeysOrThrow()
+                                                    .verificationKey()))) {
+                        throw new IllegalArgumentException(
+                                "Key provenance signer must match the persisted source scheme");
+                    }
+                }
+                final HintsKeyProvenance expectedBinding;
+                if (sourceSigner != null
+                        && targetHintsConstructionId > 0
+                        && targetHintsConstructionId != sourceSigner.constructionId()
+                        && metadata != null) {
+                    expectedBinding = HintsKeyProvenance.newBuilder()
+                            .sourceHintsConstructionId(sourceSigner.constructionId())
+                            .targetHintsConstructionId(targetHintsConstructionId)
+                            .sourceVerificationKey(sourceSigner.verificationKey())
+                            .targetVerificationKey(metadata)
+                            .build();
+                } else {
+                    expectedBinding = null;
+                }
+                var construction = expectedBinding == null
+                        ? historyStore.getOrCreateConstruction(
+                                activeRosters, now, tssConfig, freshGenesisRequested, metadata)
+                        : historyStore.getOrCreateConstruction(
+                                activeRosters, now, tssConfig, freshGenesisRequested, metadata, expectedBinding);
+                if (expectedBinding != null && !construction.hasKeyProvenance()) {
+                    construction = historyStore.bindKeyProvenance(
+                            construction.constructionId(),
+                            expectedBinding
+                                    .copyBuilder()
+                                    .historyConstructionId(construction.constructionId())
+                                    .build());
+                }
                 if (!isCompleted(construction)) {
                     final var controller = component
                             .controllers()
@@ -127,7 +200,8 @@ public class HistoryServiceImpl implements HistoryService {
                                     historyStore,
                                     activeHintsConstruction,
                                     historyStore.getActiveConstruction(),
-                                    tssConfig);
+                                    tssConfig,
+                                    sourceSigner);
                     controller.advanceConstruction(now, metadata, historyStore, isActive, tssConfig);
                 }
             }

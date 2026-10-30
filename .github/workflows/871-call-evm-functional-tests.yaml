@@ -376,18 +376,46 @@ jobs:
             exit 1
           fi
 
+      # WORKAROUND for hiero-ledger/hiero-json-rpc-relay#5933 (hiero-ledger/hiero-consensus-node#27992): while the
+      # mirror node holds a transaction's logs but not yet its contract result, the relay answers
+      # eth_getTransactionByHash with an empty signature, and hardhat-ethers then hangs until Mocha's 120 s timeout
+      # (NomicFoundation/hardhat#8789). When every failure of the first attempt is that timeout, the tests run once
+      # more against the same network (they deploy their own contracts) and the step's result is the second
+      # attempt's; any other failure fails the step at once. Remove the retry, and
+      # support/scripts/evm-timeout-only-failures.sh, once citr-json-rpc-relay-version moves to a relay release that
+      # includes the fix.
       - name: Run the tests
         id: run-tests
-        # test_args lists several files and globs, so it is inlined for the shell to split and expand (as upstream
-        # does).
-        run: |
-          mkdir -p "$(dirname "${HARDHAT_ETHERS_DIAGNOSTICS_FILE}")"
-          npx hardhat test ${{ matrix.test_args }} --network solo
         working-directory: ${{ env.EVM_TESTING_DIR }}
         env:
           # Empty unless the shard sets a profile -> hardhat.config.js falls back to "auto".
           EVM_TESTING_PROFILE: ${{ matrix.profile }}
           HARDHAT_ETHERS_DIAGNOSTICS_FILE: ${{ github.workspace }}/${{ env.SHARD_LOGS_DIR }}/transaction-lookup-failures.jsonl
+          # Several files and globs, left unquoted below for the shell to split and expand (as upstream does).
+          TEST_ARGS: ${{ matrix.test_args }}
+        run: |
+          set -o pipefail
+          # Kept with the diagnostics, which are uploaded when the shard fails.
+          logs_dir="${GITHUB_WORKSPACE}/${SHARD_LOGS_DIR}"
+          mkdir -p "${logs_dir}"
+          run_tests() {
+            # shellcheck disable=SC2086
+            npx hardhat test ${TEST_ARGS} --network solo 2>&1 | tee "${logs_dir}/hardhat-attempt-${1}.log"
+          }
+
+          if run_tests 1; then
+            exit 0
+          fi
+          if ! timed_out=$(bash "${GITHUB_WORKSPACE}/.github/workflows/support/scripts/evm-timeout-only-failures.sh" \
+              "${logs_dir}/hardhat-attempt-1.log"); then
+            echo "Not retrying: the first attempt has failures other than the relay-induced 120 s timeout."
+            exit 1
+          fi
+
+          # Workflow command data must escape % and newlines.
+          timed_out="${timed_out//'%'/%25}"
+          echo "::warning title=EVM tests retried (hiero-json-rpc-relay#5933)::Every failure of the first attempt was a 120 s timeout, the known relay-induced hang (https://github.com/hiero-ledger/hiero-json-rpc-relay/issues/5933). Retrying once. Timed out: ${timed_out//$'\n'/; }"
+          run_tests 2
 
       # Diagnostics for a failed shard: pod state and events, container logs, the consensus node's application
       # logs and solo's own CLI logs. The job log already holds the hardhat output.

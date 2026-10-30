@@ -7,6 +7,7 @@ import static com.hedera.node.app.hints.HintsService.partySizeForRosterNodeCount
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -114,6 +115,9 @@ class HintsServiceImplTest {
     private HintsSubmissions submissions;
 
     @Mock
+    private HintsKeyAccessor keyAccessor;
+
+    @Mock
     private HintsHandlers handlers;
 
     @Mock
@@ -190,6 +194,44 @@ class HintsServiceImplTest {
         given(component.signingContext()).willReturn(context);
 
         assertSame(HintsConstruction.DEFAULT, subject.activeConstruction());
+    }
+
+    @Test
+    void noProvenanceSignerBeforePersistedActiveSchemeCompletes() {
+        given(hintsStore.getActiveConstruction()).willReturn(HintsConstruction.DEFAULT);
+
+        assertNull(subject.keyProvenanceFor(hintsStore));
+
+        verifyNoInteractions(component, context, library, keyAccessor);
+    }
+
+    @Test
+    void provenanceSignerCapturesPersistedActiveSchemeWithoutConsultingSigningContext() {
+        final var vk = Bytes.wrap(new byte[HintsLibraryImpl.VK_LENGTH]);
+        final var active = HintsConstruction.newBuilder()
+                .constructionId(7)
+                .crsId(3)
+                .numParties(4)
+                .hintsScheme(HintsScheme.newBuilder()
+                        .preprocessedKeys(new PreprocessedKeys(Bytes.wrap("aggregation key"), vk))
+                        .nodePartyIds(new NodePartyId(10, 1, 1)))
+                .build();
+        final var crs = CRSState.newBuilder()
+                .ceremonyId(3)
+                .numParties(4)
+                .stage(COMPLETED)
+                .crs(Bytes.wrap(new byte[304 + 4 * 288]))
+                .build();
+        given(hintsStore.getActiveConstruction()).willReturn(active);
+        given(hintsStore.getCrsStateFor(active)).willReturn(crs);
+        given(component.keyAccessor()).willReturn(keyAccessor);
+
+        final var signer = subject.keyProvenanceFor(hintsStore);
+
+        assertEquals(7, signer.constructionId());
+        assertEquals(vk, signer.verificationKey());
+        verify(component, never()).signingContext();
+        verifyNoInteractions(context, library, keyAccessor);
     }
 
     @Test

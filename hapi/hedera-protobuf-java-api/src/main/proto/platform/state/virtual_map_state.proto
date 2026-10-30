@@ -315,6 +315,9 @@ message StateKey {
     proto.ProtoBytes ClprService_I_PENDING_CONNECTOR_COMMITMENTS = 64;
 
     // Queue states
+    /** Queue index for adopted hinTS verification-key provenance. */
+    uint64 HistoryService_I_HINTS_KEY_PROVENANCE = 69;
+
     /**
      * Queue index for the round receipts queue.
      */
@@ -729,6 +732,9 @@ message StateValue {
      */
     proto.TransactionReceiptEntries RecordCache_I_TRANSACTION_RECEIPTS = 126;
 
+    /** Explicit authorization links between adopted hinTS generations. */
+    com.hedera.hapi.node.state.history.HintsKeyProvenance HistoryService_I_HINTS_KEY_PROVENANCE = 69;
+
     /**
      * Metadata of the queue state.<br/>
      * Reasons for the field number:
@@ -944,6 +950,9 @@ enum SingletonType {
   ClprService_I_ENDPOINT_MANIFEST_CONSTRUCTION = 67;
 
   // Queue metadata
+
+  /** Metadata of the adopted hinTS verification-key provenance queue. */
+  HistoryService_I_HINTS_KEY_PROVENANCE = 69;
 
   /**
    * Metadata of the round receipts queue.

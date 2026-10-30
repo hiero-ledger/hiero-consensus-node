@@ -46,9 +46,10 @@ class BlockStreamUtilsTest {
     @CsvSource({
         "STATE_ID_CLPR_PENDING_CONNECTOR_COMMITMENTS, ClprService.PENDING_CONNECTOR_COMMITMENTS",
         "STATE_ID_CLPR_ENDPOINT_MANIFEST, ClprService.ENDPOINT_MANIFEST",
-        "STATE_ID_CLPR_ENDPOINT_MANIFEST_CONSTRUCTION, ClprService.ENDPOINT_MANIFEST_CONSTRUCTION"
+        "STATE_ID_CLPR_ENDPOINT_MANIFEST_CONSTRUCTION, ClprService.ENDPOINT_MANIFEST_CONSTRUCTION",
+        "STATE_ID_HINTS_KEY_PROVENANCE, HistoryService.HINTS_KEY_PROVENANCE"
     })
-    void mapsAllClprStateIdentifiers(final StateIdentifier stateIdentifier, final String expectedStateName) {
+    void mapsStateIdentifiers(final StateIdentifier stateIdentifier, final String expectedStateName) {
         assertEquals(expectedStateName, BlockStreamUtils.stateNameOf(stateIdentifier.protoOrdinal()));
     }
 }

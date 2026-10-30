@@ -13,6 +13,7 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
@@ -22,11 +23,13 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.history.AggregatedNodeSignatures;
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
+import com.hedera.hapi.node.state.history.HintsKeyProvenance;
 import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
 import com.hedera.hapi.node.state.history.WrapsSigningState;
+import com.hedera.node.app.hints.KeyProvenanceSigner;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.ReadableHistoryStore.ProofKeyPublication;
@@ -80,6 +83,9 @@ class ProofControllerImplTest {
 
     @Mock
     private HistoryLibrary historyLibrary;
+
+    @Mock
+    private KeyProvenanceSigner sourceSigner;
 
     @Mock
     private HistoryProver.Factory proverFactory;
@@ -881,7 +887,13 @@ class ProofControllerImplTest {
     }
 
     @Test
-    void addWrapsMessagePublicationDelegatesToProverOtherwise() {
+    void addWrapsMessagePublicationDelegatesToProverOtherwise() throws Exception {
+        construction = construction
+                .copyBuilder()
+                .assemblyStartTime(asTimestamp(Instant.EPOCH))
+                .build();
+        setField("construction", construction);
+        setField("targetMetadata", METADATA);
         final var publication = new WrapsMessagePublication(SELF_ID, Bytes.EMPTY, R1, Instant.EPOCH);
 
         given(prover.addWrapsSigningMessage(eq(CONSTRUCTION_ID), eq(publication), eq(writableHistoryStore)))
@@ -1559,6 +1571,204 @@ class ProofControllerImplTest {
                 DEFAULT_TSS_CONFIG);
         rebuilt.advanceConstruction(cutoff.plusSeconds(1), METADATA, writableHistoryStore, true, DEFAULT_TSS_CONFIG);
         verify(prover).advance(any(), any(), eq(METADATA), eq(accepted), any(), any(), eq(true));
+    }
+
+    @Test
+    void rejectsWrapsBeforeTargetIsBoundAndAssemblyStarts() {
+        assertFalse(subject.addWrapsMessagePublication(
+                new WrapsMessagePublication(SELF_ID, Bytes.wrap("r1"), R1, Instant.EPOCH), writableHistoryStore));
+        verify(prover, never()).addWrapsSigningMessage(anyLong(), any(), any());
+    }
+
+    @Test
+    void voteCarriedCertificateCompletesWithoutLocalSharesAndIsPersistedBeforeCallback() {
+        final var binding = givenProvenanceSubject();
+        final var signature = Bytes.wrap("aggregate");
+        final var proof = certifiedProof(signature);
+        final var completedBinding = binding.copyBuilder().signature(signature).build();
+        final var completed = construction
+                .copyBuilder()
+                .keyProvenance(completedBinding)
+                .targetProof(proof)
+                .build();
+        given(sourceSigner.verifyAggregate(METADATA, signature)).willReturn(true);
+        given(historyLibrary.verifyCompressedProof(any(), any(), any())).willReturn(true);
+        given(weights.sourceWeightOf(SELF_ID)).willReturn(10L);
+        given(weights.sourceWeightThreshold()).willReturn(5L);
+        given(writableHistoryStore.completeProof(CONSTRUCTION_ID, proof)).willReturn(completed);
+        final var vote = HistoryProofVote.newBuilder().proof(proof).build();
+
+        subject.addProofVote(SELF_ID, vote, Instant.EPOCH, writableHistoryStore, tssConfig);
+        subject.addProofVote(OTHER_NODE_ID, vote, Instant.EPOCH, writableHistoryStore, tssConfig);
+
+        final var ordered = inOrder(writableHistoryStore, historyService);
+        ordered.verify(writableHistoryStore).setKeyProvenance(CONSTRUCTION_ID, completedBinding);
+        ordered.verify(writableHistoryStore).completeProof(CONSTRUCTION_ID, proof);
+        ordered.verify(historyService).onFinished(eq(writableHistoryStore), eq(completed), any());
+        verify(historyService, times(1)).onFinished(any(), any(), any());
+        verify(prover, never()).replayWrapsSigningMessage(anyLong(), any());
+    }
+
+    @Test
+    void missingOrInvalidCertificateCannotCompleteEvenWithEnoughWrappersVotes() {
+        givenProvenanceSubject();
+        given(weights.sourceWeightThreshold()).willReturn(5L);
+        given(weights.sourceWeightOf(anyLong())).willReturn(10L);
+        subject.addProofVote(
+                SELF_ID,
+                HistoryProofVote.newBuilder().proof(certifiedProof(Bytes.EMPTY)).build(),
+                Instant.EPOCH,
+                writableHistoryStore,
+                tssConfig);
+        subject.addProofVote(
+                OTHER_NODE_ID,
+                HistoryProofVote.newBuilder()
+                        .proof(certifiedProof(Bytes.wrap("bad")))
+                        .build(),
+                Instant.EPOCH,
+                writableHistoryStore,
+                tssConfig);
+        verify(writableHistoryStore, never()).completeProof(anyLong(), any());
+        verify(writableHistoryStore, never()).setKeyProvenance(anyLong(), any());
+        verify(historyLibrary, never()).verifyCompressedProof(any(), any(), any());
+        verify(historyService, never()).onFinished(any(), any(), any());
+    }
+
+    @Test
+    void certificateBytesAreIncludedInProofValidationCacheIdentity() {
+        givenProvenanceSubject();
+        final var validSignature = Bytes.wrap("good");
+        final var invalidSignature = Bytes.wrap("bad");
+        given(sourceSigner.verifyAggregate(METADATA, validSignature)).willReturn(true);
+        given(historyLibrary.verifyCompressedProof(any(), any(), any())).willReturn(true);
+        given(weights.sourceWeightThreshold()).willReturn(3L);
+        given(weights.sourceWeightOf(anyLong())).willReturn(2L);
+        subject.addProofVote(
+                SELF_ID,
+                HistoryProofVote.newBuilder()
+                        .proof(certifiedProof(validSignature))
+                        .build(),
+                Instant.EPOCH,
+                writableHistoryStore,
+                tssConfig);
+        subject.addProofVote(
+                OTHER_NODE_ID,
+                HistoryProofVote.newBuilder()
+                        .proof(certifiedProof(invalidSignature))
+                        .build(),
+                Instant.EPOCH,
+                writableHistoryStore,
+                tssConfig);
+        verify(sourceSigner).verifyAggregate(METADATA, validSignature);
+        verify(sourceSigner).verifyAggregate(METADATA, invalidSignature);
+        verify(writableHistoryStore, never()).completeProof(anyLong(), any());
+        verify(historyLibrary, times(1)).verifyCompressedProof(any(), any(), any());
+    }
+
+    @Test
+    void certificateForDifferentTargetCannotCompleteAndBindingCannotChangeInPlace() {
+        givenProvenanceSubject();
+        given(weights.sourceWeightThreshold()).willReturn(1L);
+        final var proof = certifiedProof(Bytes.wrap("aggregate"))
+                .copyBuilder()
+                .targetHistory(new History(TARGET_BOOK_HASH, Bytes.wrap("different-vk")))
+                .build();
+        subject.addProofVote(
+                SELF_ID,
+                HistoryProofVote.newBuilder().proof(proof).build(),
+                Instant.EPOCH,
+                writableHistoryStore,
+                tssConfig);
+        verify(sourceSigner, never()).verifyAggregate(any(), any());
+        verify(writableHistoryStore, never()).completeProof(anyLong(), any());
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> subject.advanceConstruction(
+                        Instant.EPOCH, Bytes.wrap("different-vk"), writableHistoryStore, true, DEFAULT_TSS_CONFIG));
+    }
+
+    @Test
+    void localProverCompletionCannotBypassCertificateValidation() {
+        givenProvenanceSubject();
+        final var proof = certifiedProof(Bytes.EMPTY);
+        given(prover.advance(any(), any(), any(), any(), any(), any(), anyBoolean()))
+                .willReturn(new HistoryProver.Outcome.Completed(proof));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> subject.advanceConstruction(
+                        Instant.EPOCH, METADATA, writableHistoryStore, true, DEFAULT_TSS_CONFIG));
+        verify(writableHistoryStore, never()).completeProof(anyLong(), any());
+    }
+
+    @Test
+    void restartRecoversBindingAndCertificateVotesWithoutLocalTranscript() {
+        final var signature = Bytes.wrap("aggregate");
+        final var proof = certifiedProof(signature);
+        existingVotes.put(SELF_ID, HistoryProofVote.newBuilder().proof(proof).build());
+        final var binding = givenProvenanceSubject();
+        given(sourceSigner.verifyAggregate(METADATA, signature)).willReturn(true);
+        given(historyLibrary.verifyCompressedProof(any(), any(), any())).willReturn(true);
+        given(weights.sourceWeightThreshold()).willReturn(3L);
+        given(weights.sourceWeightOf(anyLong())).willReturn(2L);
+        given(writableHistoryStore.completeProof(CONSTRUCTION_ID, proof))
+                .willReturn(construction.copyBuilder().targetProof(proof).build());
+        subject.addProofVote(
+                OTHER_NODE_ID,
+                HistoryProofVote.newBuilder().congruentNodeId(SELF_ID).build(),
+                Instant.EPOCH,
+                writableHistoryStore,
+                tssConfig);
+        verify(writableHistoryStore)
+                .setKeyProvenance(
+                        CONSTRUCTION_ID,
+                        binding.copyBuilder().signature(signature).build());
+        verify(writableHistoryStore).completeProof(CONSTRUCTION_ID, proof);
+        verify(historyService).onFinished(any(), any(), any());
+    }
+
+    private HintsKeyProvenance givenProvenanceSubject() {
+        final var binding = HintsKeyProvenance.newBuilder()
+                .sourceHintsConstructionId(7L)
+                .targetHintsConstructionId(8L)
+                .sourceVerificationKey(Bytes.wrap("source-vk"))
+                .targetVerificationKey(METADATA)
+                .historyConstructionId(CONSTRUCTION_ID)
+                .build();
+        given(sourceSigner.constructionId()).willReturn(7L);
+        given(sourceSigner.verificationKey()).willReturn(binding.sourceVerificationKey());
+        construction = construction
+                .copyBuilder()
+                .targetMetadata(METADATA)
+                .keyProvenance(binding)
+                .assemblyStartTime(asTimestamp(Instant.EPOCH))
+                .build();
+        subject = new ProofControllerImpl(
+                SELF_ID,
+                keyPair,
+                construction,
+                weights,
+                executor,
+                submissions,
+                machine,
+                keyPublications,
+                wrapsMessagePublications,
+                existingVotes,
+                historyService,
+                historyLibrary,
+                proverFactory,
+                null,
+                historyProofMetrics,
+                DEFAULT_TSS_CONFIG,
+                sourceSigner);
+        return binding;
+    }
+
+    private HistoryProof certifiedProof(final Bytes signature) {
+        return recursiveProof("compressed", "uncompressed")
+                .copyBuilder()
+                .targetHistory(new History(TARGET_BOOK_HASH, METADATA))
+                .keyProvenanceSignature(signature)
+                .build();
     }
 
     private void givenGroundingSubject() {

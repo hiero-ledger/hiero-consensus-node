@@ -98,6 +98,13 @@ public interface HintsService extends Service {
     HintsConstruction activeConstruction();
 
     /**
+     * Captures the persisted active scheme and its CRS for certifying a successor verification key. Returns null
+     * before the first scheme is complete; the returned signer is independent of the block-signing context.
+     */
+    @Nullable
+    KeyProvenanceSigner keyProvenanceFor(@NonNull ReadableHintsStore hintsStore);
+
+    /**
      * Sets a completed active construction into the signing context during startup.
      *
      * @param construction the active construction to use for signing

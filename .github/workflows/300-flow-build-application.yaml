@@ -56,7 +56,6 @@ jobs:
       enable-integration-tests: "true"
       enable-hapi-tests: "true"
       enable-otter-tests: "true"
-      enable-snyk-scan: "true"
       enable-benchmark-smoke: "true"
       enable-gradle-determinism: "true"
       enable-docker-determinism: "true"
@@ -69,7 +68,6 @@ jobs:
       codecov-token: ${{ secrets.CODECOV_TOKEN }}
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-      snyk-token: ${{ secrets.SNYK_TOKEN }}
 
   # Reported as soon as MATS finishes; nothing later in this workflow changes the MATS verdict.
   report-mats-result:

@@ -23,6 +23,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import com.hedera.cryptography.wraps.Proof;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
+import com.hedera.hapi.node.state.history.HintsKeyProvenance;
 import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
@@ -30,10 +31,13 @@ import com.hedera.hapi.node.state.history.HistoryProofVote;
 import com.hedera.hapi.node.state.history.ProofKey;
 import com.hedera.hapi.node.state.history.WrapsPhase;
 import com.hedera.hapi.node.state.history.WrapsSigningState;
+import com.hedera.hapi.services.auxiliary.hints.HintsPartialSignatureTransactionBody;
+import com.hedera.node.app.hints.KeyProvenanceSigner;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.ReadableHistoryStore.WrapsMessagePublication;
 import com.hedera.node.app.history.WritableHistoryStore;
 import com.hedera.node.app.service.roster.impl.RosterTransitionWeights;
+import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -43,11 +47,13 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import org.apache.logging.log4j.LogManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -62,6 +68,12 @@ class WrapsHistoryProverTest {
     private static final long THIRD_NODE_ID = 3L;
     private static final long OFFLINE_NODE_ID = 0L;
     private static final long CONSTRUCTION_ID = 123L;
+    private static final long SOURCE_HINTS_ID = 41L;
+    private static final long TARGET_HINTS_ID = 42L;
+    private static final Bytes SOURCE_VERIFICATION_KEY = Bytes.wrap("source-vk");
+    private static final Bytes KEY_PROVENANCE_SIGNATURE = Bytes.wrap("key-provenance-signature");
+    private static final Bytes SELF_PARTIAL = Bytes.wrap("self-partial");
+    private static final Bytes OTHER_PARTIAL = Bytes.wrap("other-partial");
     private static final Bytes LEDGER_ID =
             Bytes.wrap("0123456789abcdef0123456789abcdef".getBytes(UTF_8)).append(Bytes.wrap(new byte[32]));
     private static final Bytes TARGET_METADATA = Bytes.wrap("meta");
@@ -96,6 +108,9 @@ class WrapsHistoryProverTest {
 
     @Mock
     private TssConfig tssConfig;
+
+    @Mock
+    private KeyProvenanceSigner provenanceSigner;
 
     private final SortedMap<Long, Long> sourceWeights = new TreeMap<>();
     private final SortedMap<Long, Long> targetWeights = new TreeMap<>();
@@ -421,6 +436,7 @@ class WrapsHistoryProverTest {
         final var captor = ArgumentCaptor.forClass(HistoryProof.class);
         verify(submissions).submitExplicitProofVote(eq(CONSTRUCTION_ID), captor.capture());
         final var proof = captor.getValue();
+        assertEquals(Bytes.EMPTY, proof.keyProvenanceSignature());
         assertEquals(COMPRESSED, proof.chainOfTrustProofOrThrow().wrapsProofOrThrow());
         assertEquals(UNCOMPRESSED, proof.uncompressedWrapsProof());
         assertEquals(new History(TARGET_BOOK_HASH, TARGET_METADATA), proof.targetHistory());
@@ -550,7 +566,7 @@ class WrapsHistoryProverTest {
 
         assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
         verifyNoInteractions(submissions);
-        assertNull(getField("phaseNeedingWrapsReadinessRetry"));
+        assertNull(getField("phaseNeedingRetry"));
     }
 
     @Test
@@ -578,14 +594,14 @@ class WrapsHistoryProverTest {
         verify(historyLibrary, never()).runAggregationPhase(any(), any(), any(), any(), any(), any());
         assertSame(
                 AGGREGATE,
-                getField("phaseNeedingWrapsReadinessRetry"),
+                getField("phaseNeedingRetry"),
                 "Deferring because WRAPS is not ready must flag the phase so the next round retries");
 
         final var secondOutcome =
                 subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, null, true);
         assertSame(HistoryProver.Outcome.InProgress.INSTANCE, secondOutcome);
         verify(submissions).submitExplicitProofVote(eq(CONSTRUCTION_ID), any());
-        assertNull(getField("phaseNeedingWrapsReadinessRetry"));
+        assertNull(getField("phaseNeedingRetry"));
     }
 
     @Test
@@ -611,7 +627,7 @@ class WrapsHistoryProverTest {
                 subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, null, true);
         assertSame(HistoryProver.Outcome.InProgress.INSTANCE, firstOutcome);
         verifyNoInteractions(submissions);
-        assertSame(AGGREGATE, getField("phaseNeedingWrapsReadinessRetry"));
+        assertSame(AGGREGATE, getField("phaseNeedingRetry"));
 
         final var secondOutcome =
                 subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, null, true);
@@ -635,7 +651,7 @@ class WrapsHistoryProverTest {
             assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
             assertSame(
                     AGGREGATE,
-                    getField("phaseNeedingWrapsReadinessRetry"),
+                    getField("phaseNeedingRetry"),
                     "Iteration " + i + ": phase must remain flagged while WRAPS is not ready");
         }
         verifyNoInteractions(submissions);
@@ -906,6 +922,302 @@ class WrapsHistoryProverTest {
     }
 
     @Test
+    void rotationRequiresValidPairedR1BeforeItCanAdvance() {
+        subject = newRotationSubject(executor);
+        final var valid = provenancePublication(SELF_ID, R1, R1_MESSAGE, SELF_PARTIAL);
+        assertFalse(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R1_MESSAGE, R1, EPOCH), writableHistoryStore));
+        assertFalse(subject.addWrapsSigningMessage(CONSTRUCTION_ID, valid, writableHistoryStore));
+        assertFalse(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(
+                        SELF_ID,
+                        R1_MESSAGE,
+                        R1,
+                        EPOCH,
+                        valid.hintsPartialSignature()
+                                .copyBuilder()
+                                .message(Bytes.wrap("wrong-key"))
+                                .build()),
+                writableHistoryStore));
+        assertFalse(subject.addWrapsSigningMessage(CONSTRUCTION_ID + 1, valid, writableHistoryStore));
+        assertFalse(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(
+                        SELF_ID,
+                        R1_MESSAGE,
+                        R1,
+                        EPOCH,
+                        valid.hintsPartialSignature()
+                                .copyBuilder()
+                                .constructionId(SOURCE_HINTS_ID + 1)
+                                .build()),
+                writableHistoryStore));
+        verifyNoInteractions(writableHistoryStore);
+
+        given(provenanceSigner.verify(SELF_ID, SOURCE_HINTS_ID, TARGET_METADATA, SELF_PARTIAL))
+                .willReturn(true);
+        given(provenanceSigner.verify(OTHER_NODE_ID, SOURCE_HINTS_ID, TARGET_METADATA, OTHER_PARTIAL))
+                .willReturn(true);
+        assertTrue(subject.addWrapsSigningMessage(CONSTRUCTION_ID, valid, writableHistoryStore));
+        assertFalse(subject.addWrapsSigningMessage(CONSTRUCTION_ID, valid, writableHistoryStore));
+        verifyNoInteractions(writableHistoryStore);
+        assertTrue(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                provenancePublication(OTHER_NODE_ID, R1, R1_MESSAGE, OTHER_PARTIAL),
+                writableHistoryStore));
+        verify(writableHistoryStore).advanceWrapsSigningPhase(CONSTRUCTION_ID, R2, EPOCH.plus(GRACE_PERIOD));
+    }
+
+    @Test
+    void rotationReplaysValidPairedR1WithoutWritingState() {
+        subject = newRotationSubject(executor);
+        givenValidProvenancePartials();
+        subject.replayWrapsSigningMessage(
+                CONSTRUCTION_ID, provenancePublication(SELF_ID, R1, R1_MESSAGE, SELF_PARTIAL));
+        subject.replayWrapsSigningMessage(
+                CONSTRUCTION_ID, provenancePublication(OTHER_NODE_ID, R1, R1_MESSAGE, OTHER_PARTIAL));
+        verifyNoInteractions(writableHistoryStore);
+        assertFalse(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(
+                        SELF_ID,
+                        R2_MESSAGE,
+                        R2,
+                        EPOCH,
+                        provenancePublication(SELF_ID, R1, R1_MESSAGE, SELF_PARTIAL)
+                                .hintsPartialSignature()),
+                writableHistoryStore));
+        assertTrue(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R2_MESSAGE, R2, EPOCH), writableHistoryStore));
+    }
+
+    @Test
+    void genesisDoesNotAcceptUnvalidatedCompanionBytes() {
+        assertFalse(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID, provenancePublication(SELF_ID, R1, R1_MESSAGE, SELF_PARTIAL), writableHistoryStore));
+        verifyNoInteractions(writableHistoryStore, provenanceSigner);
+    }
+
+    @Test
+    void rotationPublishesSourceHintsShareAlongsideItsR1() {
+        subject = newRotationSubject(Runnable::run);
+        givenWrapsMessage();
+        given(historyLibrary.runWrapsPhaseR1(any(), any(), any())).willReturn(R1_MESSAGE.toByteArray());
+        given(provenanceSigner.isEligibleSigner(SELF_ID)).willReturn(true);
+        given(provenanceSigner.sign(SELF_ID, TARGET_METADATA)).willReturn(SELF_PARTIAL);
+        given(submissions.submitWrapsSigningMessage(eq(R1), any(), eq(CONSTRUCTION_ID), any()))
+                .willReturn(CompletableFuture.completedFuture(null));
+
+        subject.advance(
+                EPOCH, transitionConstruction(R1, null), TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID, true);
+
+        final var captor = ArgumentCaptor.forClass(HintsPartialSignatureTransactionBody.class);
+        verify(submissions).submitWrapsSigningMessage(eq(R1), eq(R1_MESSAGE), eq(CONSTRUCTION_ID), captor.capture());
+        final var partial = captor.getValue();
+        assertEquals(SOURCE_HINTS_ID, partial.constructionId());
+        assertEquals(TARGET_METADATA, partial.message());
+        assertEquals(SELF_PARTIAL, partial.partialSignature());
+        verify(submissions, never()).submitWrapsSigningMessage(any(), any(), anyLong());
+    }
+
+    @Test
+    void rotationSkipsR1ForNodesIneligibleInTheSourceScheme() {
+        final var manualExecutor = new ManualExecutor();
+        subject = newRotationSubject(manualExecutor);
+        givenWrapsMessage();
+        final var logs = new LogCaptor(LogManager.getLogger(WrapsHistoryProver.class));
+        try {
+            // Eligibility is fixed by the source scheme, so repeated rounds remain a quiet no-op.
+            for (int round = 0; round < 2; round++) {
+                assertSame(
+                        HistoryProver.Outcome.InProgress.INSTANCE,
+                        subject.advance(
+                                EPOCH.plusSeconds(round),
+                                transitionConstruction(R1, null),
+                                TARGET_METADATA,
+                                targetProofKeys,
+                                tssConfig,
+                                LEDGER_ID,
+                                true));
+            }
+            assertEquals(0, manualExecutor.pendingTasks());
+            verify(provenanceSigner, never()).sign(anyLong(), any());
+            verify(historyLibrary, never()).runWrapsPhaseR1(any(), any(), any());
+            verifyNoInteractions(submissions);
+            assertTrue(logs.warnLogs().isEmpty());
+            assertTrue(logs.errorLogs().isEmpty());
+        } finally {
+            logs.stopCapture();
+        }
+    }
+
+    @Test
+    void rotationDoesNotPublishUnpairedR1WhenItsPreviousPrivateKeyIsUnavailable() {
+        subject = newRotationSubject(Runnable::run);
+        givenWrapsMessage();
+        given(historyLibrary.runWrapsPhaseR1(any(), any(), any())).willReturn(R1_MESSAGE.toByteArray());
+        given(provenanceSigner.isEligibleSigner(SELF_ID)).willReturn(true);
+        given(provenanceSigner.sign(SELF_ID, TARGET_METADATA)).willReturn(null);
+        final var logs = new LogCaptor(LogManager.getLogger(WrapsHistoryProver.class));
+        try {
+            subject.advance(
+                    EPOCH,
+                    transitionConstruction(R1, null),
+                    TARGET_METADATA,
+                    targetProofKeys,
+                    tssConfig,
+                    LEDGER_ID,
+                    true);
+
+            verify(provenanceSigner).sign(SELF_ID, TARGET_METADATA);
+            verifyNoInteractions(submissions);
+            assertEquals(
+                    List.of("Cannot contribute WRAPS R1 without a valid source hinTS share for construction #"
+                            + CONSTRUCTION_ID),
+                    logs.warnLogs());
+        } finally {
+            logs.stopCapture();
+        }
+    }
+
+    @Test
+    void rotationProofVoteCarriesAggregateOfItsFrozenR1Companions() {
+        subject = newRotationSubject(Runnable::run);
+        givenWrapsMessage();
+        givenValidAggregateSignature();
+        given(tssConfig.wrapsVoteJitterPerRank()).willReturn(JITTER_PER_RANK);
+        given(historyLibrary.constructIncrementalWrapsProof(any(), any(), any(), any(), any(), any(), any()))
+                .willReturn(new Proof(UNCOMPRESSED.toByteArray(), COMPRESSED.toByteArray()));
+        given(submissions.submitExplicitProofVote(eq(CONSTRUCTION_ID), any()))
+                .willReturn(CompletableFuture.completedFuture(null));
+        given(provenanceSigner.aggregate(TARGET_METADATA, Map.of(SELF_ID, SELF_PARTIAL, OTHER_NODE_ID, OTHER_PARTIAL)))
+                .willReturn(Optional.of(KEY_PROVENANCE_SIGNATURE));
+        replayProvenanceSigningRounds();
+
+        subject.advance(
+                EPOCH,
+                transitionConstruction(AGGREGATE, null),
+                TARGET_METADATA,
+                targetProofKeys,
+                tssConfig,
+                LEDGER_ID,
+                true);
+
+        final var captor = ArgumentCaptor.forClass(HistoryProof.class);
+        verify(submissions).submitExplicitProofVote(eq(CONSTRUCTION_ID), captor.capture());
+        assertEquals(KEY_PROVENANCE_SIGNATURE, captor.getValue().keyProvenanceSignature());
+        assertEquals(COMPRESSED, captor.getValue().chainOfTrustProofOrThrow().wrapsProofOrThrow());
+        verify(provenanceSigner)
+                .aggregate(TARGET_METADATA, Map.of(SELF_ID, SELF_PARTIAL, OTHER_NODE_ID, OTHER_PARTIAL));
+        verifyNoInteractions(writableHistoryStore);
+    }
+
+    @Test
+    void rotationNeverPublishesAProofWhenCompanionAggregationFails() {
+        subject = newRotationSubject(Runnable::run);
+        givenWrapsMessage();
+        givenValidAggregateSignature();
+        given(tssConfig.wrapsVoteJitterPerRank()).willReturn(JITTER_PER_RANK);
+        given(provenanceSigner.aggregate(TARGET_METADATA, Map.of(SELF_ID, SELF_PARTIAL, OTHER_NODE_ID, OTHER_PARTIAL)))
+                .willReturn(Optional.empty());
+        replayProvenanceSigningRounds();
+
+        subject.advance(
+                EPOCH,
+                transitionConstruction(AGGREGATE, null),
+                TARGET_METADATA,
+                targetProofKeys,
+                tssConfig,
+                LEDGER_ID,
+                true);
+
+        verifyNoInteractions(submissions);
+        verify(historyLibrary, never()).constructIncrementalWrapsProof(any(), any(), any(), any(), any(), any(), any());
+        assertSame(AGGREGATE, getField("phaseNeedingRetry"));
+    }
+
+    @Test
+    void newSigningGenerationExtendsExistingProofEvenWhenRosterHashesMatch() {
+        subject = newRotationSubject(Runnable::run);
+        givenWrapsMessage();
+        givenValidAggregateSignature();
+        given(tssConfig.wrapsVoteJitterPerRank()).willReturn(JITTER_PER_RANK);
+        given(historyLibrary.constructIncrementalWrapsProof(any(), any(), any(), any(), any(), any(), any()))
+                .willReturn(new Proof(UNCOMPRESSED.toByteArray(), COMPRESSED.toByteArray()));
+        given(submissions.submitExplicitProofVote(eq(CONSTRUCTION_ID), any()))
+                .willReturn(CompletableFuture.completedFuture(null));
+        given(provenanceSigner.aggregate(TARGET_METADATA, Map.of(SELF_ID, SELF_PARTIAL, OTHER_NODE_ID, OTHER_PARTIAL)))
+                .willReturn(Optional.of(KEY_PROVENANCE_SIGNATURE));
+        replayProvenanceSigningRounds();
+        final var construction = groundingConstruction(AGGREGATE, null)
+                .copyBuilder()
+                .keyProvenance(provenanceBinding())
+                .build();
+
+        subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID, true);
+
+        verify(historyLibrary)
+                .constructIncrementalWrapsProof(
+                        aryEq(LEDGER_ID.toByteArray()),
+                        aryEq(UNCOMPRESSED.toByteArray()),
+                        any(),
+                        any(),
+                        aryEq(TARGET_METADATA.toByteArray()),
+                        aryEq(AGG_SIG.toByteArray()),
+                        eq(Set.of(SELF_ID, OTHER_NODE_ID)));
+        verify(historyLibrary, never()).constructGenesisWrapsProof(any(), any(), any(), any(), any());
+        final var captor = ArgumentCaptor.forClass(HistoryProof.class);
+        verify(submissions).submitExplicitProofVote(eq(CONSTRUCTION_ID), captor.capture());
+        assertEquals(KEY_PROVENANCE_SIGNATURE, captor.getValue().keyProvenanceSignature());
+    }
+
+    @Test
+    void rotationRetriesTransientCompanionAggregationFailureWithoutRepeatingSigningRounds() {
+        subject = newRotationSubject(Runnable::run);
+        givenWrapsMessage();
+        givenValidAggregateSignature();
+        given(tssConfig.wrapsVoteJitterPerRank()).willReturn(JITTER_PER_RANK);
+        given(historyLibrary.constructIncrementalWrapsProof(any(), any(), any(), any(), any(), any(), any()))
+                .willReturn(new Proof(UNCOMPRESSED.toByteArray(), COMPRESSED.toByteArray()));
+        given(submissions.submitExplicitProofVote(eq(CONSTRUCTION_ID), any()))
+                .willReturn(CompletableFuture.completedFuture(null));
+        given(provenanceSigner.aggregate(TARGET_METADATA, Map.of(SELF_ID, SELF_PARTIAL, OTHER_NODE_ID, OTHER_PARTIAL)))
+                .willReturn(Optional.empty(), Optional.of(KEY_PROVENANCE_SIGNATURE));
+        replayProvenanceSigningRounds();
+        final var construction = transitionConstruction(AGGREGATE, null);
+
+        subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID, true);
+        verifyNoInteractions(submissions);
+        assertSame(AGGREGATE, getField("phaseNeedingRetry"));
+        subject.advance(
+                EPOCH.plusSeconds(1), construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID, true);
+
+        final var captor = ArgumentCaptor.forClass(HistoryProof.class);
+        verify(submissions).submitExplicitProofVote(eq(CONSTRUCTION_ID), captor.capture());
+        assertEquals(KEY_PROVENANCE_SIGNATURE, captor.getValue().keyProvenanceSignature());
+        assertNull(getField("phaseNeedingRetry"));
+        verify(submissions, never()).submitWrapsSigningMessage(any(), any(), anyLong());
+        verify(submissions, never()).submitWrapsSigningMessage(any(), any(), anyLong(), any());
+        verifyNoInteractions(writableHistoryStore);
+    }
+
+    @Test
+    void rotationRejectsChangedTargetBindingBeforeStartingWork() {
+        subject = newRotationSubject(Runnable::run);
+        final var outcome = subject.advance(
+                EPOCH,
+                transitionConstruction(R1, null),
+                Bytes.wrap("replacement-key"),
+                targetProofKeys,
+                tssConfig,
+                LEDGER_ID,
+                true);
+        assertInstanceOf(HistoryProver.Outcome.Failed.class, outcome);
+        verifyNoInteractions(historyLibrary, submissions);
+    }
+
+    @Test
     void cancelPendingWorkCancelsFutures() {
         final var r1Future = new CompletableFuture<Void>();
         final var r2Future = new CompletableFuture<Void>();
@@ -1041,6 +1353,71 @@ class WrapsHistoryProverTest {
                 historyLibrary,
                 submissions,
                 new WrapsMpcStateMachine());
+    }
+
+    private WrapsHistoryProver newRotationSubject(final Executor executor) {
+        given(provenanceSigner.constructionId()).willReturn(SOURCE_HINTS_ID);
+        given(provenanceSigner.verificationKey()).willReturn(SOURCE_VERIFICATION_KEY);
+        return new WrapsHistoryProver(
+                SELF_ID,
+                GRACE_PERIOD,
+                KEY_PAIR,
+                wrapsExtensibleProof(),
+                weights,
+                proofKeys,
+                delayer,
+                executor,
+                historyLibrary,
+                submissions,
+                new WrapsMpcStateMachine(),
+                provenanceSigner,
+                provenanceBinding());
+    }
+
+    private static HintsKeyProvenance provenanceBinding() {
+        return HintsKeyProvenance.newBuilder()
+                .sourceHintsConstructionId(SOURCE_HINTS_ID)
+                .targetHintsConstructionId(TARGET_HINTS_ID)
+                .sourceVerificationKey(SOURCE_VERIFICATION_KEY)
+                .targetVerificationKey(TARGET_METADATA)
+                .historyConstructionId(CONSTRUCTION_ID)
+                .build();
+    }
+
+    private void givenValidProvenancePartials() {
+        given(provenanceSigner.verify(SELF_ID, SOURCE_HINTS_ID, TARGET_METADATA, SELF_PARTIAL))
+                .willReturn(true);
+        given(provenanceSigner.verify(OTHER_NODE_ID, SOURCE_HINTS_ID, TARGET_METADATA, OTHER_PARTIAL))
+                .willReturn(true);
+    }
+
+    private void replayProvenanceSigningRounds() {
+        givenValidProvenancePartials();
+        for (final var phaseAndMessage :
+                List.of(Map.entry(R1, R1_MESSAGE), Map.entry(R2, R2_MESSAGE), Map.entry(R3, R3_MESSAGE))) {
+            for (final var entry :
+                    Map.of(SELF_ID, SELF_PARTIAL, OTHER_NODE_ID, OTHER_PARTIAL).entrySet()) {
+                subject.replayWrapsSigningMessage(
+                        CONSTRUCTION_ID,
+                        provenancePublication(
+                                entry.getKey(),
+                                phaseAndMessage.getKey(),
+                                phaseAndMessage.getValue(),
+                                entry.getValue()));
+            }
+        }
+    }
+
+    private static WrapsMessagePublication provenancePublication(
+            final long nodeId, final WrapsPhase phase, final Bytes message, final Bytes signature) {
+        final var partial = phase == R1
+                ? HintsPartialSignatureTransactionBody.newBuilder()
+                        .constructionId(SOURCE_HINTS_ID)
+                        .message(TARGET_METADATA)
+                        .partialSignature(signature)
+                        .build()
+                : null;
+        return new WrapsMessagePublication(nodeId, message, phase, EPOCH, partial);
     }
 
     private void givenWrapsMessage() {
