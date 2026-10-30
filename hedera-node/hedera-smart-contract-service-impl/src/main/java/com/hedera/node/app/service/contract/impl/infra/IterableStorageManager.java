@@ -15,6 +15,7 @@ import com.hedera.hapi.node.state.contract.SlotValue;
 import com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaOperations;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater.Enhancement;
 import com.hedera.node.app.service.contract.impl.state.ContractStateStore;
+import com.hedera.node.app.service.contract.impl.state.StorageAccess;
 import com.hedera.node.app.service.contract.impl.state.StorageAccess.StorageAccessType;
 import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
 import com.hedera.node.app.service.contract.impl.state.StorageSizeChange;
@@ -29,6 +30,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.tuweni.units.bigints.UInt256;
 
 /**
  * Provides the logic for maintaining per-contract linked lists of owned storage, and keeping the
@@ -42,6 +44,60 @@ public class IterableStorageManager {
     @Inject
     public IterableStorageManager() {
         // Dagger2
+    }
+
+    /**
+     * Returns storage changes relative to the slots already included in the linked lists and usage counters.
+     * An enclosing EVM execution can have pending writes when a nested execution commits, and can resume
+     * after that commit. Its original values therefore do not identify which slots still need to be linked
+     * or unlinked. Keep those original values for tracing, but use current linked-list membership for
+     * persistence, size validation, and rent.
+     *
+     * <p>EVM writes preserve existing links until persistence. A slot belongs to the list if it is the head
+     * or has a previous/next link; a newly written, unlinked slot has neither. These facts are in savepoint
+     * state, so a nested rollback also restores the accounting baseline. All classifications are captured
+     * before persistence changes any pointers.
+     *
+     * @param enhancement the current transaction's operations
+     * @param allAccesses execution-scope storage accesses, retained unchanged for tracing
+     * @param store the current storage state
+     * @return accesses whose old-value zero/nonzero classification represents accounted membership
+     */
+    public List<StorageAccesses> getPersistenceChanges(
+            @NonNull final Enhancement enhancement,
+            @NonNull final List<StorageAccesses> allAccesses,
+            @NonNull final ContractStateStore store) {
+        final List<StorageAccesses> persistenceChanges = new ArrayList<>();
+        for (final var contractAccesses : allAccesses) {
+            final var contractId = contractAccesses.contractID();
+            if (contractId.contractNumOrThrow() == HTS_HOOKS_CONTRACT_NUM) {
+                // Hook storage has its own linked-list and usage management.
+                persistenceChanges.add(contractAccesses);
+                continue;
+            }
+            final var firstKey = contractFirstKeyOf(enhancement, contractId);
+            final List<StorageAccess> accesses = new ArrayList<>();
+            for (final var access : contractAccesses.accesses()) {
+                if (access.isReadOnly()) {
+                    accesses.add(access);
+                    continue;
+                }
+                final var key = tuweniToPbjBytes(access.key());
+                final var slot = store.getSlotValue(new SlotKey(contractId, key));
+                final boolean alreadyLinked = slot != null
+                        && (key.equals(firstKey)
+                                || !slot.previousKey().equals(Bytes.EMPTY)
+                                || !slot.nextKey().equals(Bytes.EMPTY));
+                // Only zero/nonzero matters to persistence. Preserve the real original value whenever
+                // its classification already agrees, without changing the execution-scope trace itself.
+                final var accountedValue =
+                        alreadyLinked ? (access.value().isZero() ? UInt256.ONE : access.value()) : UInt256.ZERO;
+                accesses.add(
+                        StorageAccess.newWrite(access.key(), accountedValue, requireNonNull(access.writtenValue())));
+            }
+            persistenceChanges.add(new StorageAccesses(contractId, accesses));
+        }
+        return persistenceChanges;
     }
 
     /**

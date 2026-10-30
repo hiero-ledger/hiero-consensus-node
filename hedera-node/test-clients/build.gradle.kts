@@ -83,6 +83,8 @@ mainModuleInfo {
     runtimeOnly("org.junit.platform.launcher")
 }
 
+testModuleInfo { requires("org.junit.jupiter.params") }
+
 sourceSets { create("rcdiff") }
 
 tasks.withType<JavaCompile>().configureEach { options.compilerArgs.add("-Xlint:-exports") }

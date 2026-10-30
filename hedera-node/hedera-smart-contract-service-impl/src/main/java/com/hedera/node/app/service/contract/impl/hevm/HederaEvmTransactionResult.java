@@ -27,6 +27,7 @@ import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
+import com.hedera.hapi.node.contract.CreatedContractIds;
 import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.node.contract.InternalCallContext;
 import com.hedera.hapi.streams.ContractAction;
@@ -446,6 +447,7 @@ public record HederaEvmTransactionResult(
                 .gasUsed(gasUsed)
                 .resultData(output)
                 .contractId(recipientId)
+                .createdContractIds(new CreatedContractIds(updater.getCreatedContractIds()))
                 .contractNonces(updater.getUpdatedContractNonces())
                 .errorMessage("");
     }
