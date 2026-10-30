@@ -10,7 +10,7 @@ The main classes:
 |-----------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------|
 | `MultiNetworkHapiTest` / `@Network`                       | Declares the networks a test needs (name, size, setup overrides, HAPI TLS, `tssPreload`).                                         |
 | `SharedMultiNetworkLauncherSessionListener`               | Collects the declared networks and their groups at test-plan start and reserves their ports; stops any still running at plan end. |
-| `MultiNetworkGroupQueue` / `NetworkGroup`                 | Admits network groups under a node budget, so only as many groups run at once as the budget allows.                               |
+| `MultiNetworkGroupQueue` / `NetworkGroup`                 | Moves network groups through their `GroupPhase`s under a node budget, so no more than the budget's nodes run at once.             |
 | `ClprNetworkLocksProvider` / `@MultiNetworkLeakyHapiTest` | Locks each test's networks: `READ` by default (tests on a network run concurrently), `READ_WRITE` for leaky tests (run alone).    |
 | `MultiNetworkExtension`                                   | Boots a group's networks on its first test and tears them down after its last, then applies test overrides.                       |
 
@@ -54,8 +54,8 @@ networks never share a lock.
 
 - Fails the test if any of its networks was not declared by the listener (e.g. the test is `@Disabled`);
   networks are never started per test.
-- Waits for the test's group to be admitted by `MultiNetworkGroupQueue`, which runs groups concurrently
-  while their total node count fits the budget, lighter groups first.
+- Waits for the test's group to get a slot from `MultiNetworkGroupQueue`: a group gets one as soon as its nodes fit
+  the free budget, so groups that fit together run together.
 - Boots the group's networks on its first test (Phase 1) and keeps them in `SHARED_NETWORKS`; later tests
   reuse them and re-check each node is `ACTIVE` (an earlier test may have frozen or restarted it). If the
   boot fails, the group's nodes are freed and its remaining tests fail fast. Concurrent tests of a group
@@ -66,7 +66,34 @@ networks never share a lock.
 
 `MultiNetworkExtension.afterEach` restores the snapshotted values and clears each node's CLPR peer-endpoint
 cache so the next test starts clean. After a group's last test (including tests that were skipped or never
-ran), its networks are torn down and its nodes are returned to the budget.
+ran), the group goes through its validation phases, if any, and then its networks are torn down and its nodes are
+returned to the budget.
+
+### Group lifecycle
+
+Each group moves through these `GroupPhase`s, only forward:
+
+```
+WAITING_FOR_SLOT → RUNNING_TESTS → AWAITING_VALIDATION → VALIDATING → TEARDOWN → DONE
+```
+
+A group holds its nodes from `RUNNING_TESTS` until `DONE`, so no more than the budget's nodes ever run at once. The
+validation phases are skipped when validation is not enabled. A group that cannot run (it does not fit the budget,
+its networks failed to start, or none of its tests ran) still moves through the phases, holding no nodes, so the
+validation test reports it as not validated.
+
+### Validation
+
+`MultiNetworkValidationTest` is the multi-network counterpart of `LogValidationTest` and `StreamValidationTest`.
+When it is in the plan, every group awaits validation after its tests. The test is a `@TestFactory` that starts
+alongside the suites, takes the groups as they get there, and reports one container per group: the logs of each of
+its networks, then their streams (stream validation freezes a network, which makes its peers log sync failures, so
+logs come first). Closing the container moves the group on to teardown. To validate a single test's group, select
+the validation test too, e.g. `--tests "<test>" --tests "*MultiNetworkValidationTest"`.
+
+The validation test runs alongside the groups, so it needs classes to run concurrently, as
+`hapiTestClprMultinetwork` does. In a run that executes classes one at a time, `ClassesRunConcurrentlyCondition`
+skips it and groups go straight from their tests to teardown.
 
 ## Phase 3 — test-plan end
 

@@ -143,7 +143,7 @@ class TipsetWeightCalculatorTests {
                 ConfigurationBuilder.create().autoDiscoverExtensions().build();
         final Time time = Time.getCurrent();
 
-        final TipsetTracker tipsetTracker = new TipsetTracker(Time.getCurrent(), selfId, roster);
+        final DefaultTipsetTracker tipsetTracker = new DefaultTipsetTracker(Time.getCurrent(), selfId, roster);
         final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
         final TipsetWeightCalculator calculator =
                 new TipsetWeightCalculator(configuration, time, roster, selfId, tipsetTracker, childlessEventTracker);
@@ -282,7 +282,7 @@ class TipsetWeightCalculatorTests {
                 ConfigurationBuilder.create().autoDiscoverExtensions().build();
         final Time time = Time.getCurrent();
 
-        final TipsetTracker tipsetTracker = new TipsetTracker(Time.getCurrent(), nodeA, roster);
+        final DefaultTipsetTracker tipsetTracker = new DefaultTipsetTracker(Time.getCurrent(), nodeA, roster);
         final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
         final TipsetWeightCalculator calculator =
                 new TipsetWeightCalculator(configuration, time, roster, nodeA, tipsetTracker, childlessEventTracker);
@@ -497,7 +497,7 @@ class TipsetWeightCalculatorTests {
                 ConfigurationBuilder.create().autoDiscoverExtensions().build();
         final Time time = Time.getCurrent();
 
-        final TipsetTracker builder = new TipsetTracker(Time.getCurrent(), nodeA, roster);
+        final DefaultTipsetTracker builder = new DefaultTipsetTracker(Time.getCurrent(), nodeA, roster);
         final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
         final TipsetWeightCalculator calculator =
                 new TipsetWeightCalculator(configuration, time, roster, nodeA, builder, childlessEventTracker);
@@ -579,7 +579,7 @@ class TipsetWeightCalculatorTests {
                 ConfigurationBuilder.create().autoDiscoverExtensions().build();
         final Time time = Time.getCurrent();
 
-        final TipsetTracker tipsetTracker = new TipsetTracker(Time.getCurrent(), nodeA, roster);
+        final DefaultTipsetTracker tipsetTracker = new DefaultTipsetTracker(Time.getCurrent(), nodeA, roster);
         final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
         final TipsetWeightCalculator tipsetWeightCalculator =
                 new TipsetWeightCalculator(configuration, time, roster, nodeA, tipsetTracker, childlessEventTracker);

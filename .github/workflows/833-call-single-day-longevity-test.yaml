@@ -631,6 +631,10 @@ jobs:
           sed -e "s@%PVC_SIZE%@100Mi@g" -e "s@%PVC_NAME%@sentinel-data-solo-shared-resources-redis-node-0@g" "${{ github.workspace }}"/.github/workflows/support/citr/mirror-node-pvc.yaml > mirror-node-pvc-sentinel.yaml
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" create -f mirror-node-pvc-sentinel.yaml
 
+          #redis-master-0
+          sed -e "s@%PVC_SIZE%@100Mi@g" -e "s@%PVC_NAME%@redis-data-solo-shared-resources-redis-master-0@g" "${{ github.workspace }}"/.github/workflows/support/citr/mirror-node-pvc.yaml > mirror-node-pvc-master.yaml
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" create -f mirror-node-pvc-master.yaml
+
       - name: Add Mirror Node
         run: |
           set +x
@@ -1043,7 +1047,7 @@ jobs:
         run: |
           set +x
           set +e
-          KUBECTL_TIMEOUT=60m kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" \
+          KUBECTL_TIMEOUT=90m kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" \
             exec -it network-node1-0 -c root-container -- bash -c "cd /opt/hgcapp/services-hedera/HapiApp2.0; bash checkValidatorNode.sh 0" 2>&1 | tee "${{ github.workspace }}"/report/validator_status.log
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" \
             cp network-node1-0:/opt/hgcapp/services-hedera/HapiApp2.0/data/saved/validation.tmp/validator.log "${{ github.workspace }}"/report/validator.log
@@ -1094,16 +1098,18 @@ jobs:
           grep -E 'Finished SmartContractLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' | grep -E 'value=[0-9][0-9]*'
 
       - name: Authenticate to Google Cloud
+        if: ${{ !cancelled() && always() }}
         uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
         with:
           workload_identity_provider: "projects/716789254648/locations/global/workloadIdentityPools/perf-eng-reports-pool/providers/gh-provider"
           service_account: "gh-perf-report-writer@perf-engineering-reports.iam.gserviceaccount.com"
 
       - name: Setup Google Cloud SDK
+        if: ${{ !cancelled() && always() }}
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
 
       - name: Publish logs
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && always() }}
         env:
           REF: ${{ inputs.ref }}
         run: |
@@ -1256,7 +1262,7 @@ jobs:
         run: |
           set +x
           set +e
-          KUBECTL_TIMEOUT=60m kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" \
+          KUBECTL_TIMEOUT=90m kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" \
             exec -it network-node1-0 -c root-container -- bash -c "cd /opt/hgcapp/services-hedera/HapiApp2.0; bash checkValidatorNode.sh 0" 2>&1 | tee "${{ github.workspace }}"/report/reconnect/validator_status.log
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" \
             cp network-node1-0:/opt/hgcapp/services-hedera/HapiApp2.0/data/saved/validation.tmp/validator.log "${{ github.workspace }}"/report/reconnect/validator.log
@@ -1266,12 +1272,14 @@ jobs:
           grep -E 'validation .* is OK' "${{ github.workspace }}"/report/reconnect/validator_status.log
 
       - name: Authenticate to Google Cloud
+        if: ${{ !cancelled() && always() }}
         uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
         with:
           workload_identity_provider: "projects/716789254648/locations/global/workloadIdentityPools/perf-eng-reports-pool/providers/gh-provider"
           service_account: "gh-perf-report-writer@perf-engineering-reports.iam.gserviceaccount.com"
 
       - name: Setup Google Cloud SDK
+        if: ${{ !cancelled() && always() }}
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
 
       - name: Copy logs
@@ -1285,7 +1293,7 @@ jobs:
           cp -r podlog_"${{ needs.acquire-kubernetes-resources.outputs.namespace }}" "${{ github.workspace }}"/report/reconnect/
 
       - name: Publish logs
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && always() }}
         env:
           REF: ${{ inputs.ref }}
         run: |

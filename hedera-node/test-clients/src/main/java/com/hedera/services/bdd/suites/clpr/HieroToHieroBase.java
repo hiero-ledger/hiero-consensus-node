@@ -43,6 +43,7 @@ import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
+import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNode;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.queries.QueryVerbs;
@@ -488,12 +489,16 @@ public abstract class HieroToHieroBase implements LifecycleTest {
      * any node's local config. So node {@code nodeId} carrying a different port than its peers does not
      * diverge the state hash.
      *
-     * <p><b>Why the other nodes must stay up.</b> Only {@code nodeId} restarts (via
-     * {@code shutdownWithin}/{@code restartNode} on {@code byNodeId}, a same-port {@code ReassignPorts.NO}
-     * path — no freeze, no config-version bump, no roster/TSS change), so nodes 1..n keep their in-memory
-     * CLPR state ({@code peerObservedManifestVersions}) and continue driving the manifest proof outbound
-     * to the peer, and the peer keeps reaching this ledger through them while {@code nodeId} returns on
-     * its new port (the peer's stale entry for {@code nodeId} simply trips its circuit breaker).
+     * <p><b>Why the other nodes stay up.</b> Only {@code nodeId} restarts (a same-port
+     * {@code ReassignPorts.NO} path — no freeze, no config-version bump, no roster/TSS change), so the
+     * other nodes keep their in-memory CLPR state ({@code peerObservedManifestVersions}) and continue
+     * driving the manifest proof outbound to the peer once the ledger reaches consensus again.
+     *
+     * <p><b>Why it stops gracefully.</b> The node is asked to exit (SIGTERM) rather than killed, so its
+     * preconsensus event writer flushes its file on shutdown. A killed node can lose its newest events,
+     * which its peers already have, and on restart branch its own event chain. (With a 2-node ledger it
+     * cannot reconnect from its peer instead: the remaining node alone cannot reach consensus, so the
+     * restarted node never falls behind.)
      *
      * <p><b>Mechanism.</b> The new value is written into node {@code nodeId}'s
      * {@code data/config/application.properties} while it is stopped; the single-node start path does not
@@ -508,8 +513,11 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                         "Rotate " + network.name() + " node" + nodeId + " grpc.tlsPort -> " + newTlsPort,
                         network,
                         blockingOrder(
-                                // Kill only this node; nodes 1..n keep running (and keep their #335 state).
-                                FakeNmt.shutdownWithin(byNodeId(nodeId), SHUTDOWN_TIMEOUT),
+                                // Stop only this node, gracefully so it keeps every event it created; the other
+                                // nodes keep running (and keep their #335 state).
+                                doAdhoc(() -> ((SubProcessNode) network.getRequiredNode(byNodeId(nodeId)))
+                                        .gracefulStopFuture(SHUTDOWN_TIMEOUT)
+                                        .join()),
                                 // Rewrite its per-node tlsPort while it is stopped.
                                 doAdhoc(() -> setNodeHapiTlsPort(network, nodeId, newTlsPort)),
                                 // Wait until this node's reused ports (gossip/gRPC/prometheus) are actually
@@ -984,7 +992,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
      * binds the necessary material into the captured snapshot. Warm path already loads a
      * fully-baked fixture so no settle is needed there.
      */
-    private static DynamicTest captureConfigProof(
+    public static DynamicTest captureConfigProof(
             final SubProcessNetwork network,
             final AtomicReference<ByteString> sink,
             final int expectedMaxMessagesPerBundle,

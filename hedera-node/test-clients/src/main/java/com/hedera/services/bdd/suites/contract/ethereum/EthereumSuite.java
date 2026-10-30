@@ -53,6 +53,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordedChildBodyWithId;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePassFrom;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.inventory.SpecKeyFromEcdsaFile.createAndLinkEcdsaKey;
 import static com.hedera.services.bdd.spec.utilops.inventory.SpecKeyFromEcdsaFile.ecdsaFrom;
@@ -584,6 +585,9 @@ public class EthereumSuite {
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
+                // via() only registers the id once the receipt resolves, possibly after the stream assertion
+                // has already seen (and skipped) the child, so register it before submitting
+                usableTxnIdNamed(ethCreateTxn).payerId(RELAYER),
                 ethereumContractCreate(PAY_RECEIVABLE_CONTRACT)
                         .type(EthTxData.EthTransactionType.EIP1559)
                         .signingWith(SECP_256K1_SOURCE_KEY)
@@ -592,6 +596,7 @@ public class EthereumSuite {
                         .gasPrice(10L)
                         .maxGasAllowance(ONE_HUNDRED_HBARS)
                         .gasLimit(1_000_000L)
+                        .txnId(ethCreateTxn)
                         .via(ethCreateTxn)
                         .hasKnownStatus(SUCCESS),
                 getTxnRecord(ethCreateTxn)
