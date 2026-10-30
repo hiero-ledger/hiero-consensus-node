@@ -128,8 +128,10 @@ class MarkdownRenderer:
     # Joining (rather than trailing each section with "\n") leaves exactly one
     # newline at end of file.
     lines = []
-    if self._notes.has_lines(self._top_level_keys) or has_other:
-      lines.append("# Release Notes")
+    if not (self._notes.has_lines(self._top_level_keys) or has_other):
+      out.write("# Release Notes\n\nNo changes.")
+      return
+    lines.append("# Release Notes")
 
     for key in self._top_level_keys:
       self._append_section(lines, key, level=2)
@@ -170,6 +172,10 @@ def main():
 
   with open(json_file) as f:
     data = json.load(f)
+
+  # git-semver prints "null" instead of "[]" when there are no commits between the two tags
+  if data is None:
+    data = []
 
   formatter = DescriptionFormatter(repo, PrAuthorResolver(repo, token))
   notes = ReleaseNotes()
