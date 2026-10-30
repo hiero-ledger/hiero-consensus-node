@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.roster;
 
+import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.consensus.roster.RosterStateId.ROSTERS_STATE_ID;
 import static org.hiero.consensus.roster.RosterStateId.ROSTERS_STATE_LABEL;
@@ -197,9 +198,91 @@ class WritableRosterStoreRehashTest {
                 .isEqualTo(hashOf(CURRENT, DigestType.SHA_384));
     }
 
+    @Test
+    void stakePeriodReweightAfterRehashingReplacesAWeightRotationCandidate() {
+        final var candidate = withWeight(CURRENT, 20L);
+        givenStoredWith(DigestType.SHA_384, candidate, CURRENT, PREVIOUS);
+        rehash(DigestType.SHA_256);
+
+        final var store = new WritableRosterStore(states);
+        assertThat(store.getCandidateRoster()).isEqualTo(candidate);
+        assertThat(store.candidateIsWeightRotation()).isTrue();
+
+        final var reweighted = reweightAtStakePeriodBoundary(30L);
+
+        assertThat(reweighted).isEqualTo(withWeight(CURRENT, 30L));
+        assertThat(storedRosterState.get().candidateRosterHash()).isEqualTo(hashOf(reweighted, DigestType.SHA_256));
+        assertThat(storedRosters)
+                .containsExactlyInAnyOrderEntriesOf(Map.of(
+                        keyOf(CURRENT, DigestType.SHA_256), CURRENT,
+                        keyOf(PREVIOUS, DigestType.SHA_256), PREVIOUS,
+                        keyOf(reweighted, DigestType.SHA_256), reweighted));
+    }
+
+    @Test
+    void stakePeriodReweightAfterRehashingKeepsACandidateThatIsAlsoActive() {
+        givenStoredWith(DigestType.SHA_384, CURRENT, CURRENT, PREVIOUS);
+        rehash(DigestType.SHA_256);
+
+        final var reweighted = reweightAtStakePeriodBoundary(30L);
+
+        assertThat(new ReadableRosterStoreImpl(states).getActiveRoster()).isEqualTo(CURRENT);
+        assertThat(storedRosterState.get().candidateRosterHash()).isEqualTo(hashOf(reweighted, DigestType.SHA_256));
+        assertThat(storedRosters)
+                .containsExactlyInAnyOrderEntriesOf(Map.of(
+                        keyOf(CURRENT, DigestType.SHA_256), CURRENT,
+                        keyOf(PREVIOUS, DigestType.SHA_256), PREVIOUS,
+                        keyOf(reweighted, DigestType.SHA_256), reweighted));
+    }
+
+    @Test
+    void stakePeriodReweightAfterRehashingAndAdoptingTheCandidateReweightsTheNewActiveRoster() {
+        givenStoredWith(DigestType.SHA_384, CANDIDATE, CURRENT, PREVIOUS);
+        rehash(DigestType.SHA_256);
+        new WritableRosterStore(states).adoptCandidateRoster(30L);
+        states.commit();
+
+        final var reweighted = reweightAtStakePeriodBoundary(40L);
+
+        assertThat(reweighted).isEqualTo(withWeight(CANDIDATE, 40L));
+        assertThat(storedRosterState.get())
+                .isEqualTo(rosterState(
+                        hashOf(reweighted, DigestType.SHA_256),
+                        List.of(
+                                new RoundRosterPair(30L, hashOf(CANDIDATE, DigestType.SHA_256)),
+                                new RoundRosterPair(20L, hashOf(CURRENT, DigestType.SHA_256)))));
+        assertThat(storedRosters)
+                .containsAllEntriesOf(Map.of(
+                        keyOf(CANDIDATE, DigestType.SHA_256), CANDIDATE,
+                        keyOf(CURRENT, DigestType.SHA_256), CURRENT,
+                        keyOf(reweighted, DigestType.SHA_256), reweighted));
+        // putActiveRoster keeps the roster it drops from the history in the map, so only check the digest of its key
+        assertThat(storedRosters.keySet())
+                .allSatisfy(
+                        key -> assertThat(key.value().length()).isEqualTo((long) DigestType.SHA_256.digestLength()));
+    }
+
     private void rehash(final DigestType digestType) {
         new WritableRosterStore(states).rehashRosters(digestType);
         states.commit();
+    }
+
+    /**
+     * Sets a reweighted candidate roster like {@code StakePeriodChanges} does at a staking period boundary: it
+     * reweights the candidate roster if that only rotates weights, or the active roster if there is no candidate.
+     */
+    private Roster reweightAtStakePeriodBoundary(final long weight) {
+        final var store = new WritableRosterStore(states);
+        assertThat(store.getCandidateRosterHash() == null || store.candidateIsWeightRotation())
+                .as("the stake period boundary only reweights a missing or weight-rotation candidate")
+                .isTrue();
+        final var rosterToReweight = store.getCandidateRosterHash() == null
+                ? requireNonNull(store.getActiveRoster())
+                : requireNonNull(store.getCandidateRoster());
+        final var reweighted = withWeight(rosterToReweight, weight);
+        store.putCandidateRoster(reweighted);
+        states.commit();
+        return reweighted;
     }
 
     /** Stores the rosters under their hashes with the given digest, the newest first. */
@@ -244,6 +327,12 @@ class WritableRosterStoreRehashTest {
                                 .port(50211)
                                 .build())
                         .build())
+                .toList());
+    }
+
+    private static Roster withWeight(final Roster roster, final long weight) {
+        return new Roster(roster.rosterEntries().stream()
+                .map(entry -> entry.copyBuilder().weight(weight).build())
                 .toList());
     }
 }
