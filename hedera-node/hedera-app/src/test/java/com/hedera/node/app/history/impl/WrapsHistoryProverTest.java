@@ -77,6 +77,7 @@ class WrapsHistoryProverTest {
     private static final Bytes CHECK_R1_MESSAGE = Bytes.wrap("check-r1");
     private static final Bytes CHECK_R2_MESSAGE = Bytes.wrap("check-r2");
     private static final Bytes R2_MESSAGE = Bytes.wrap("r2");
+    private static final Bytes STALE_R2_MESSAGE = Bytes.wrap("stale-r2");
     private static final Bytes R3_MESSAGE = Bytes.wrap("r3");
     private static final Bytes TARGET_BOOK_HASH = Bytes.wrap("HASH");
     private static final Bytes AGG_SIG = Bytes.wrap("aggSig");
@@ -129,7 +130,12 @@ class WrapsHistoryProverTest {
 
         weights = new RosterTransitionWeights(sourceWeights, targetWeights);
 
-        // Checks of other nodes' R1 and R2 messages pass unless a test says otherwise
+        // No node is excluded, and checks of other nodes' R1 and R2 messages pass, unless a test says otherwise
+        lenient()
+                .when(writableHistoryStore.getConstructionOrThrow(CONSTRUCTION_ID))
+                .thenReturn(HistoryProofConstruction.newBuilder()
+                        .constructionId(CONSTRUCTION_ID)
+                        .build());
         lenient()
                 .when(historyLibrary.runWrapsPhaseR2(any(), any(), any(), checkKey(), any(), any()))
                 .thenReturn(CHECK_R2_MESSAGE.toByteArray());
@@ -390,6 +396,9 @@ class WrapsHistoryProverTest {
 
     @Test
     void rejectsR1MessageTheNextRoundCannotReadAndIgnoresItsSender() {
+        // Without node 2, nodes 1 and 3 still have the weight to complete R1
+        givenThreeNodeNetwork(Map.of(SELF_ID, 2L, OTHER_NODE_ID, 1L, THIRD_NODE_ID, 1L));
+        subject = newSubject(null, executor, delayer);
         given(historyLibrary.runWrapsPhaseR1(any(), any(), any())).willReturn(CHECK_R1_MESSAGE.toByteArray());
         assertTrue(subject.addWrapsSigningMessage(
                 CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R1_MESSAGE, R1, EPOCH), writableHistoryStore));
@@ -417,6 +426,8 @@ class WrapsHistoryProverTest {
 
     @Test
     void rejectsR2MessageThatDoesNotOpenItsSendersR1AndIgnoresItsSender() {
+        givenThreeNodeNetwork(Map.of(SELF_ID, 2L, OTHER_NODE_ID, 1L, THIRD_NODE_ID, 1L));
+        subject = newSubject(null, executor, delayer);
         given(historyLibrary.runWrapsPhaseR1(any(), any(), any())).willReturn(CHECK_R1_MESSAGE.toByteArray());
         assertTrue(subject.addWrapsSigningMessage(
                 CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R1_MESSAGE, R1, EPOCH), writableHistoryStore));
@@ -444,6 +455,46 @@ class WrapsHistoryProverTest {
                 new WrapsMessagePublication(OTHER_NODE_ID, R2_MESSAGE, R2, EPOCH),
                 writableHistoryStore));
         verify(writableHistoryStore).excludeFromWrapsSigning(CONSTRUCTION_ID, Set.of(OTHER_NODE_ID));
+    }
+
+    @Test
+    void keepsTheSenderOfAnUnusableMessageWhenTheRestCouldNotCompleteR1() {
+        givenThreeNodeNetwork(Map.of(SELF_ID, 2L, OTHER_NODE_ID, 1L, THIRD_NODE_ID, 1L));
+        subject = newSubject(null, executor, delayer);
+        // With node 3 already excluded, nodes 1 and 2 are needed to complete R1
+        given(writableHistoryStore.getConstructionOrThrow(CONSTRUCTION_ID))
+                .willReturn(HistoryProofConstruction.newBuilder()
+                        .constructionId(CONSTRUCTION_ID)
+                        .wrapsExcludedNodeIds(List.of(THIRD_NODE_ID))
+                        .build());
+        assertTrue(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R1_MESSAGE, R1, EPOCH), writableHistoryStore));
+        assertTrue(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(OTHER_NODE_ID, OTHER_R1_MESSAGE, R1, EPOCH),
+                writableHistoryStore));
+        // For example, a copy of node 2's R2 from an earlier attempt, which does not open its new R1 commitment
+        given(historyLibrary.runWrapsPhaseR3(
+                        any(),
+                        any(),
+                        any(),
+                        argThat(r2s -> Arrays.equals(r2s[0], STALE_R2_MESSAGE.toByteArray())),
+                        checkKey(),
+                        any(),
+                        any()))
+                .willReturn(null);
+
+        assertFalse(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(OTHER_NODE_ID, STALE_R2_MESSAGE, R2, EPOCH),
+                writableHistoryStore));
+
+        verify(writableHistoryStore, never()).excludeFromWrapsSigning(anyLong(), any());
+        // So its usable R2 still counts
+        assertTrue(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(OTHER_NODE_ID, R2_MESSAGE, R2, EPOCH),
+                writableHistoryStore));
     }
 
     @Test

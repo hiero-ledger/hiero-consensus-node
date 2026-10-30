@@ -9,7 +9,6 @@ import static com.hedera.node.app.history.impl.ProofControllers.groundsChainOfTr
 import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
 import static com.hedera.node.app.history.impl.ProofVoteCategory.INVALID;
 import static com.hedera.node.app.history.impl.ProofVoteCategory.VALID;
-import static com.hedera.node.app.service.roster.impl.RosterTransitionWeights.moreThanHalfOfTotal;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.summingLong;
@@ -655,20 +654,15 @@ public class ProofControllerImpl implements ProofController {
      */
     private SortedSet<Long> excludedNodeIdsAfter(@NonNull final Set<Long> missingNodeIds) {
         final var excludedNodeIds = new TreeSet<>(construction.wrapsExcludedNodeIds());
+        // Every node was excluded only if the rest could still complete R1, so the exclusions so far can stay
         if (excludedNodeIds.containsAll(missingNodeIds)) {
             return excludedNodeIds;
         }
         final var withMissing = new TreeSet<>(excludedNodeIds);
         withMissing.addAll(missingNodeIds);
-        // The prover ignores WRAPS messages from nodes without a proof key, so their weight cannot help complete R1
-        final var sourceProofKeys = sourceProofKeys();
-        final long remainingWeight = weights.sourceNodeWeights().entrySet().stream()
-                .filter(entry -> !withMissing.contains(entry.getKey())
-                        && !MISSING_SCHNORR_KEY.equals(
-                                sourceProofKeys.getOrDefault(entry.getKey(), MISSING_SCHNORR_KEY)))
-                .mapToLong(Map.Entry::getValue)
-                .sum();
-        return remainingWeight >= moreThanHalfOfTotal(weights.sourceNodeWeights()) ? withMissing : excludedNodeIds;
+        return WrapsHistoryProver.canCompleteR1Without(withMissing, weights, sourceProofKeys())
+                ? withMissing
+                : excludedNodeIds;
     }
 
     /**

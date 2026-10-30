@@ -12,6 +12,7 @@ import static com.hedera.node.app.history.HistoryLibrary.MISSING_SCHNORR_KEY;
 import static com.hedera.node.app.history.impl.ProofControllers.groundsChainOfTrust;
 import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
 import static com.hedera.node.app.history.impl.WrapsMpcStateMachine.POST_MPC_PHASES;
+import static com.hedera.node.app.service.roster.impl.RosterTransitionWeights.moreThanHalfOfTotal;
 import static java.util.Collections.emptySortedMap;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -42,6 +43,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -70,7 +72,7 @@ public class WrapsHistoryProver implements HistoryProver {
     public static final String MISSING_MESSAGES_FAILURE_PREFIX = "Still missing messages from R1 nodes ";
     public static final String AGGREGATION_FAILURE_PREFIX = "WRAPS aggregation failed for R1 nodes ";
     public static final String R1_TIMEOUT_FAILURE_PREFIX =
-            "R1 did not reach the signing threshold before the end of" + " its grace period, with messages from nodes ";
+            "R1 did not reach the signing threshold before the end of its grace period, with messages from nodes ";
     public static final String WRAPS_NOT_READY_FAILURE_PREFIX = "WRAPS library is not ready";
     public static final String NOT_WRAPS_EXTENSIBLE_FAILURE_PREFIX = "Source proof is not WRAPS-extensible";
     public static final String ADDRESS_BOOK_TOO_LARGE_FAILURE_PREFIX = "Address book too large for a WRAPS proof";
@@ -367,6 +369,31 @@ public class WrapsHistoryProver implements HistoryProver {
                 || reason.startsWith(R1_TIMEOUT_FAILURE_PREFIX);
     }
 
+    /**
+     * Returns whether the source nodes with proof keys, other than the given excluded nodes, have enough weight to
+     * complete R1. (The prover ignores WRAPS messages from nodes without a proof key, so their weight cannot help.)
+     *
+     * @param excludedNodeIds the ids of the excluded nodes
+     * @param weights the roster transition weights
+     * @param sourceProofKeys the proof keys of the source nodes
+     * @return whether the other source nodes can complete R1
+     */
+    public static boolean canCompleteR1Without(
+            @NonNull final Set<Long> excludedNodeIds,
+            @NonNull final RosterTransitionWeights weights,
+            @NonNull final Map<Long, Bytes> sourceProofKeys) {
+        requireNonNull(excludedNodeIds);
+        requireNonNull(weights);
+        requireNonNull(sourceProofKeys);
+        final long remainingWeight = weights.sourceNodeWeights().entrySet().stream()
+                .filter(entry -> !excludedNodeIds.contains(entry.getKey())
+                        && !MISSING_SCHNORR_KEY.equals(
+                                sourceProofKeys.getOrDefault(entry.getKey(), MISSING_SCHNORR_KEY)))
+                .mapToLong(Map.Entry::getValue)
+                .sum();
+        return remainingWeight >= moreThanHalfOfTotal(weights.sourceNodeWeights());
+    }
+
     @Override
     public boolean addWrapsSigningMessage(
             final long constructionId,
@@ -462,13 +489,22 @@ public class WrapsHistoryProver implements HistoryProver {
         }
         // A replayed message was already checked when it was first accepted
         if (writableHistoryStore != null && !isUsableInNextRound(publication)) {
+            final long nodeId = publication.nodeId();
+            // Excluding the sender in state stops every node from checking its repeats; but an honest node's stale R2
+            // fails the check too, so like a missing node it is only excluded if the rest can still complete R1
+            final var excludedNodeIds = new HashSet<>(
+                    writableHistoryStore.getConstructionOrThrow(constructionId).wrapsExcludedNodeIds());
+            excludedNodeIds.add(nodeId);
+            final boolean excluded = canCompleteR1Without(excludedNodeIds, weights, proofKeys);
+            if (excluded) {
+                writableHistoryStore.excludeFromWrapsSigning(constructionId, Set.of(nodeId));
+            }
             log.warn(
-                    "Rejected unusable {} message from node{} for construction #{}, ignoring its later messages",
+                    "Rejected unusable {} message from node{} for construction #{}{}",
                     publication.phase(),
-                    publication.nodeId(),
-                    constructionId);
-            // Excluding the sender in state stops every node from checking its repeats
-            writableHistoryStore.excludeFromWrapsSigning(constructionId, Set.of(publication.nodeId()));
+                    nodeId,
+                    constructionId,
+                    excluded ? ", ignoring its later messages" : "");
             return false;
         }
         final var transition = machine.onNext(publication, wrapsPhase, weights, wrapsMessageGracePeriod, phaseMessages);
