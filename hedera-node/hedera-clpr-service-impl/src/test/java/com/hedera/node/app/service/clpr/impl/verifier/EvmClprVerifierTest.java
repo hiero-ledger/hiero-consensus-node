@@ -8,6 +8,7 @@ import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_SERVICE
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.DISPATCH_ONLY_NOOP_FEE_CHARGING;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_DISPATCH;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_VERIFIER;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -103,6 +104,8 @@ class EvmClprVerifierTest {
         verify(context).dispatch(optionsCaptor.capture());
         final var options = optionsCaptor.getValue();
         assertThat(options.customFeeCharging()).isSameAs(DISPATCH_ONLY_NOOP_FEE_CHARGING);
+        assertThat(options.dispatchMetadata().getMetadata(CLPR_VERIFIER, Boolean.class))
+                .contains(true);
         final var metadata = options.dispatchMetadata()
                 .getMetadata(CLPR_DISPATCH, ClprDispatchMetadata.class)
                 .orElseThrow();

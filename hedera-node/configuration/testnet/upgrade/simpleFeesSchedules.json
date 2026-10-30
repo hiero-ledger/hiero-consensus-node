@@ -788,6 +788,16 @@
           "extras": []
         }
       ]
+    },
+    {
+      "name": "Clpr",
+      "schedule": [
+        {
+          "name": "ClprEvictPeerEndpoint",
+          "baseFee": 10000000,
+          "extras": []
+        }
+      ]
     }
   ]
 }

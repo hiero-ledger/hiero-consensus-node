@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.files;
 
-import static com.swirlds.merkledb.files.DataFileCommon.getSizeOfFiles;
-import static com.swirlds.merkledb.files.DataFileCommon.getSizeOfFilesByPath;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_MERKLE_DB_CONFIG;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -682,7 +680,6 @@ class DataFileCollectionCompactionTest {
         final int half = bucketCount / 2;
         final String storeName = "testDedup";
         final Path testDir = tempFileDir.resolve(storeName);
-        final int metadataSizeDiff = 4;
         final DataFileCollection store = new DataFileCollection(DEFAULT_MERKLE_DB_CONFIG, testDir, storeName, null);
 
         // Create a LongList to act as bucket index
@@ -712,13 +709,13 @@ class DataFileCollectionCompactionTest {
                 new DataFileCompactor(store, index, null, null, null, null, true, bucketCount);
 
         final List<DataFileReader> filesToCompact = store.getAllCompletedFiles();
-        final List<Path> newFiles = compactor.compactFiles(index, filesToCompact, 1);
+        compactor.compactFiles(index, filesToCompact, 1);
 
-        // Verify: output should not be larger than input
-        final long inputSize = getSizeOfFiles(filesToCompact);
-        final long outputSize = getSizeOfFilesByPath(newFiles);
+        // Compare payload sizes: metadata includes variable-length timestamps and file indexes.
+        final long inputSize = getDataSizeOfFiles(filesToCompact);
+        final long outputSize = getDataSizeOfFiles(store.getAllCompletedFiles());
         assertTrue(
-                outputSize <= inputSize + metadataSizeDiff,
+                outputSize <= inputSize,
                 "Output (" + outputSize + ") should not exceed input (" + inputSize + ") with dedup");
 
         // Verify: both halves of the index point to the SAME new location
@@ -790,7 +787,6 @@ class DataFileCollectionCompactionTest {
     void testCompactionDedupMixedEntries() throws Exception {
         final int bucketCount = 8;
         final int half = bucketCount / 2;
-        final int metadataSizeDiff = 4;
         String storeName = "testDedupMixed";
         final Path testDir = tempFileDir.resolve(storeName);
         final DataFileCollection store = new DataFileCollection(DEFAULT_MERKLE_DB_CONFIG, testDir, storeName, null);
@@ -826,7 +822,7 @@ class DataFileCollectionCompactionTest {
                 new DataFileCompactor(store, index, null, null, null, null, true, bucketCount);
 
         final List<DataFileReader> filesToCompact = store.getAllCompletedFiles();
-        final List<Path> newFiles = compactor.compactFiles(index, filesToCompact, 1);
+        compactor.compactFiles(index, filesToCompact, 1);
 
         // Mirrored entries should point to same new location
         assertEquals(index.get(0, 0), index.get(half, 0), "Mirrored pair 0 should share location");
@@ -836,14 +832,18 @@ class DataFileCollectionCompactionTest {
         assertNotEquals(index.get(2, 0), index.get(2 + half, 0), "Sanitized pair 2 should have distinct locations");
         assertNotEquals(index.get(3, 0), index.get(3 + half, 0), "Sanitized pair 3 should have distinct locations");
 
-        // Output should be smaller than without dedup (6 items written instead of 8)
-        final long inputSize = getSizeOfFiles(filesToCompact);
-        final long outputSize = getSizeOfFilesByPath(newFiles);
-        assertTrue(
-                outputSize <= inputSize + metadataSizeDiff,
-                "Output should not exceed input with dedup on mixed entries");
+        // Compare payload sizes independently of the metadata encoding.
+        final long inputSize = getDataSizeOfFiles(filesToCompact);
+        final long outputSize = getDataSizeOfFiles(store.getAllCompletedFiles());
+        assertTrue(outputSize <= inputSize, "Output should not exceed input with dedup on mixed entries");
 
         store.close();
+    }
+
+    private static long getDataSizeOfFiles(final List<DataFileReader> files) {
+        return files.stream()
+                .mapToLong(file -> file.getSize() - file.getMetadata().metadataSizeInBytes())
+                .sum();
     }
 
     private static List<DataFileReader> getFilesToMerge(DataFileCollection store) {

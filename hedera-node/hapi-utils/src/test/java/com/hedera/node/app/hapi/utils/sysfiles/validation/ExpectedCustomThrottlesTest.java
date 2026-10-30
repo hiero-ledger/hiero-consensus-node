@@ -6,6 +6,7 @@ import static com.hedera.node.app.hapi.utils.sysfiles.validation.ExpectedCustomT
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprCloseChannel;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprCompleteChannel;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprDeregisterConnector;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprEvictPeerEndpoint;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprGetLedgerConfiguration;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprRegisterChannel;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprRegisterConnector;
@@ -76,7 +77,7 @@ class ExpectedCustomThrottlesTest {
     // Suppress the warning that we use too many assets
     @SuppressWarnings("java:S5961")
     void releaseTwentyHasExpected() {
-        assertEquals(63, ACTIVE_OPS.size());
+        assertEquals(64, ACTIVE_OPS.size());
 
         assertTrue(ACTIVE_OPS.contains(CryptoCreate), "Missing CryptoCreate!");
         assertTrue(ACTIVE_OPS.contains(CryptoTransfer), "Missing CryptoTransfer!");
@@ -137,6 +138,7 @@ class ExpectedCustomThrottlesTest {
         assertTrue(ACTIVE_OPS.contains(ClprRegisterChannel), "Missing ClprRegisterChannel!");
         assertTrue(ACTIVE_OPS.contains(ClprCompleteChannel), "Missing ClprCompleteChannel!");
         assertTrue(ACTIVE_OPS.contains(ClprCloseChannel), "Missing ClprCloseChannel!");
+        assertTrue(ACTIVE_OPS.contains(ClprEvictPeerEndpoint), "Missing ClprEvictPeerEndpoint!");
         assertTrue(ACTIVE_OPS.contains(ClprGetLedgerConfiguration), "Missing ClprGetLedgerConfiguration!");
         assertTrue(ACTIVE_OPS.contains(ClprSubmitBundle), "Missing ClprSubmitBundle!");
         assertTrue(ACTIVE_OPS.contains(ClprRegisterConnector), "Missing ClprRegisterConnector!");
