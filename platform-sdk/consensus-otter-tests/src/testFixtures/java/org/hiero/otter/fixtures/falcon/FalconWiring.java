@@ -129,15 +129,7 @@ public class FalconWiring implements TimeTickReceiver {
                 configuration.getConfigData(EventCreationWiringConfig.class);
         final DefaultTipsetTracker tipsetTracker = new DefaultTipsetTracker(time, selfId, roster);
         final EventCreator eventCreator = new TipsetEventCreator(
-                configuration,
-                metrics,
-                time,
-                secureRandom,
-                signer,
-                roster,
-                selfId,
-                transactionSupplier,
-                tipsetTracker);
+                configuration, metrics, time, secureRandom, signer, roster, selfId, transactionSupplier, tipsetTracker);
         final SignatureTransactionCheck signatureTransactionCheck = () -> false;
         final EventCreationManager eventCreationManager = new DefaultEventCreationManager(
                 configuration, metrics, time, signatureTransactionCheck, eventCreator, roster, selfId);
