@@ -1045,7 +1045,7 @@ class HandleWorkflowTest {
                 .state(construction)
                 .build();
         given(state.getWritableStates(ClprService.NAME)).willReturn(clprStates);
-        givenSubjectWith(mode, BlockStreamWriterMode.FILE, emptyList(), Map.of("clpr.chainId", "upgrade-chain"));
+        givenSubjectWith(mode, BlockStreamWriterMode.FILE, emptyList(), Map.of("contracts.chainId", "299"));
         final var method = HandleWorkflow.class.getDeclaredMethod(
                 "initializeMissingClprSingletons",
                 com.swirlds.state.State.class,
@@ -1072,7 +1072,7 @@ class HandleWorkflowTest {
                         }),
                         eq(NOW.minusNanos(100)));
         assertEquals(ClprEndpointManifestConstruction.DEFAULT, construction.get());
-        assertEquals("upgrade-chain", ledgerConfig.get().chainId());
+        assertEquals("eip155:299", ledgerConfig.get().chainId());
         assertEquals(new Timestamp(1, 0), ledgerConfig.get().timestamp());
         assertEquals(1, manifest.get().version());
 

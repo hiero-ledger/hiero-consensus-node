@@ -1,6 +1,6 @@
 {
   "protocol_version": 1,
-  "chain_id": "hiero:localneta",
+  "chain_id": "eip155:298",
   "serviceAddress": "AAAAAAAAAAAAAAAAAAAAAAAAAW4=",
   "initialTrustAnchor":   "i4W1a3NJ64i9rrFrPqOWJm5GgrU7oN+O90vysno38Ag=",
   "initialTrustAnchorId": "i4W1a3NJ64i9rrFrPqOWJm5GgrU7oN+O90vysno38Ag=",

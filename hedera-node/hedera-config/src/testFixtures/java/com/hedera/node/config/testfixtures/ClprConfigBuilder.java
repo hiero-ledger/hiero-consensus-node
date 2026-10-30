@@ -11,8 +11,9 @@ import java.time.Duration;
  */
 public final class ClprConfigBuilder {
     private boolean enabled = true;
-    private String chainId = "hiero:localnet";
     private int protocolVersion = 1;
+    private String ledgerConfigurationFile = "data/config/clprLedgerConfiguration.json";
+    private String upgradeLedgerConfigurationFile = "clprLedgerConfiguration.json";
     private long minLockedStake = 100_000_000L;
     private long stakingAccount = 803L;
     private long slashBasePenalty = 10_000_000L;
@@ -53,13 +54,18 @@ public final class ClprConfigBuilder {
         return this;
     }
 
-    public ClprConfigBuilder chainId(final String chainId) {
-        this.chainId = chainId;
+    public ClprConfigBuilder protocolVersion(final int protocolVersion) {
+        this.protocolVersion = protocolVersion;
         return this;
     }
 
-    public ClprConfigBuilder protocolVersion(final int protocolVersion) {
-        this.protocolVersion = protocolVersion;
+    public ClprConfigBuilder ledgerConfigurationFile(final String ledgerConfigurationFile) {
+        this.ledgerConfigurationFile = ledgerConfigurationFile;
+        return this;
+    }
+
+    public ClprConfigBuilder upgradeLedgerConfigurationFile(final String upgradeLedgerConfigurationFile) {
+        this.upgradeLedgerConfigurationFile = upgradeLedgerConfigurationFile;
         return this;
     }
 
@@ -206,8 +212,9 @@ public final class ClprConfigBuilder {
     public ClprConfig build() {
         return new ClprConfig(
                 enabled,
-                chainId,
                 protocolVersion,
+                ledgerConfigurationFile,
+                upgradeLedgerConfigurationFile,
                 minLockedStake,
                 stakingAccount,
                 slashBasePenalty,

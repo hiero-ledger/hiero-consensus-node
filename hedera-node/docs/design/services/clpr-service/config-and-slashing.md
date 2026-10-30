@@ -12,11 +12,27 @@ others are node-local.
 
 ### Top-level
 
-|        Key        |     Default      | Network? |                                                 Purpose                                                  |
-|-------------------|------------------|----------|----------------------------------------------------------------------------------------------------------|
-| `enabled`         | `false`          | yes      | Master flag. When `false`, CLPR APIs are inert and CLPR system contracts behave as nonexistent accounts. |
-| `chainId`         | `hiero:localnet` | yes      | CAIP-2 chain ID seeded into `LEDGER_CONFIGURATION` at genesis.                                           |
-| `protocolVersion` | `1`              | yes      | CLPR protocol version seeded into `LEDGER_CONFIGURATION`.                                                |
+|        Key        | Default | Network? |                                                 Purpose                                                  |
+|-------------------|---------|----------|----------------------------------------------------------------------------------------------------------|
+| `enabled`         | `false` | yes      | Master flag. When `false`, CLPR APIs are inert and CLPR system contracts behave as nonexistent accounts. |
+| `protocolVersion` | `1`     | yes      | CLPR protocol version seeded into `LEDGER_CONFIGURATION`.                                                |
+
+There is no CLPR chain ID property. The CAIP-2 `chain_id` seeded into `LEDGER_CONFIGURATION` at genesis is
+derived from the network's HIP-26 EVM chain ID, `contracts.chainId`, as `eip155:<contracts.chainId>`:
+
+|   Network   | `contracts.chainId` | CLPR `chain_id` |
+|-------------|---------------------|-----------------|
+| mainnet     | `295`               | `eip155:295`    |
+| testnet     | `296`               | `eip155:296`    |
+| previewnet  | `297`               | `eip155:297`    |
+| dev/preprod | `298`               | `eip155:298`    |
+
+### Ledger configuration file (see [Throttles inside `ClprLedgerConfiguration`](#throttles-inside-clprledgerconfiguration))
+
+|               Key                |                  Default                   | Network? |                                        Purpose                                         |
+|----------------------------------|--------------------------------------------|----------|----------------------------------------------------------------------------------------|
+| `ledgerConfigurationFile`        | `data/config/clprLedgerConfiguration.json` | no       | File whose throttles are seeded into `LEDGER_CONFIGURATION` at genesis.                |
+| `upgradeLedgerConfigurationFile` | `clprLedgerConfiguration.json`             | no       | File in `networkAdmin.upgradeSysFilesLoc` whose throttles are applied at each upgrade. |
 
 ### Stake / slashing economics (consumed by `ClprSlashingUtils`)
 
@@ -78,11 +94,48 @@ others are node-local.
 
 ## Throttles inside `ClprLedgerConfiguration`
 
-Distinct from `ClprConfig` — these are *protocol-level* limits stored in state, set by
-the genesis migration and editable only via `CLPR_UPDATE_LEDGER_CONFIGURATION`. See
-[`state-and-protobufs.md`](state-and-protobufs.md) for default values. They are spec
-§7 fields (`max_messages_per_bundle`, `max_message_payload_bytes`, etc.) and are enforced
-in `ClprServiceApiImpl.sendMessage` and `ClprSubmitBundleHandler`.
+Distinct from `ClprConfig` — these are *protocol-level* limits stored in state, changed
+only by `CLPR_UPDATE_LEDGER_CONFIGURATION`. They are spec §7 fields
+(`max_messages_per_bundle`, `max_message_payload_bytes`, etc.) and are enforced in
+`ClprServiceApiImpl.sendMessage` and `ClprSubmitBundleHandler`.
+
+Like `throttles.json` and the fee schedules, they are loaded from a file on disk
+(`ClprLedgerConfigurationFile`). The file is a `ClprLedgerConfiguration` in protobuf JSON
+that sets **only** `throttles`; the node fixes every other field (`chain_id`,
+`protocol_version`, `service_address`, `timestamp`, trust anchors), and a file that sets any
+of them is rejected:
+
+```json
+{
+  "throttles": {
+    "maxMessagesPerBundle": 1000,
+    "maxMessagePayloadBytes": 65536,
+    "maxGasPerMessage": 15000000,
+    "maxQueueDepth": 10000,
+    "maxSyncBytes": 4194304
+  }
+}
+```
+
+|              |              Throttles              |                    CLPR ledger configuration                     |
+|--------------|-------------------------------------|------------------------------------------------------------------|
+| Genesis file | `bootstrap.throttleDefsJson.file`   | `clpr.ledgerConfigurationFile`                                   |
+| Fallback     | classpath `genesis/throttles.json`  | classpath `clpr/clprLedgerConfiguration.json` (the values above) |
+| Upgrade file | `networkAdmin.upgradeThrottlesFile` | `clpr.upgradeLedgerConfigurationFile`                            |
+| Applied by   | synthetic `FileUpdate`              | synthetic `ClprUpdateLedgerConfiguration` (payer `0.0.50`)       |
+
+- **Genesis.** The throttles come from `clpr.ledgerConfigurationFile` if it exists and is valid,
+  otherwise from the bundled resource. An invalid file (malformed JSON, unknown fields,
+  non-throttle fields, or throttles that fail validation) is logged as an error and ignored.
+- **Upgrade.** A file in `networkAdmin.upgradeSysFilesLoc` is applied by
+  `SystemTransactions.doPostUpgradeSetup`, but only if its throttles differ from the current
+  ones: every update sets a new `timestamp`, which queues a `ConfigUpdate` on every Channel.
+  It is skipped while CLPR is disabled (and applied at the next upgrade with CLPR enabled),
+  and when `LEDGER_CONFIGURATION` does not exist yet (it is then seeded from the same file).
+- `max_gas_per_message` is capped at `contracts.maxGasPerTransaction` in both cases, and the
+  throttles are validated like `CLPR_UPDATE_LEDGER_CONFIGURATION` validates them.
+- The file is node-local. As with `throttles.json`, every node must have an identical file, or
+  nodes seed different state and ISS.
 
 > Two throttle layers: `ClprConfig` for node behaviour (sync rate, retries),
 > `ClprLedgerConfiguration.throttles` for protocol-observable bundle/queue/payload
@@ -194,8 +247,8 @@ When you change CLPR economics:
 1. Decide whether the lever is per-node (`ClprConfig` non-network) or
    network-consensus (`@NetworkProperty` or `ClprThrottles` in
    `LEDGER_CONFIGURATION`).
-2. For network-consensus levers, change requires either an upgrade with revised genesis
-   defaults *or* a `CLPR_UPDATE_LEDGER_CONFIGURATION` admin tx (for throttles only —
-   stake/slashing live in `ClprConfig`).
+2. For network-consensus levers, change requires either an upgrade with a revised
+   `clprLedgerConfiguration.json` *or* a `CLPR_UPDATE_LEDGER_CONFIGURATION` admin tx (for
+   throttles only — stake/slashing live in `ClprConfig`).
 3. Update unit tests in `ClprSlashingUtils` test class and any handler tests that pin
    default values.

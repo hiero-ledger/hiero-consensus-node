@@ -6,6 +6,7 @@ import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.GENESIS_
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.NONE;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.LEDGER_CONFIGURATION_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILES_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
@@ -39,6 +40,8 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.NodeMigrationRootHashVote;
+import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
+import com.hedera.hapi.node.state.clpr.ClprThrottles;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.state.token.Account;
@@ -51,6 +54,7 @@ import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.impl.WrappedRecordBlockHashMigration;
+import com.hedera.node.app.service.clpr.ClprService;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.file.FileService;
@@ -85,10 +89,15 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableKVState;
+import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
 import java.util.function.Consumer;
@@ -96,6 +105,7 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
@@ -110,6 +120,17 @@ class SystemTransactionsTest {
     private static final AccountID PAYER_ID =
             AccountID.newBuilder().accountNum(800L).build();
     private static final long CLPR_STAKING_ACCOUNT_NUM = 803L;
+    private static final ClprThrottles CLPR_THROTTLES = ClprThrottles.newBuilder()
+            .maxMessagesPerBundle(1_000)
+            .maxMessagePayloadBytes(65_536)
+            .maxGasPerMessage(15_000_000L)
+            .maxQueueDepth(10_000)
+            .maxSyncBytes(4_194_304L)
+            .build();
+    private static final ClprLedgerConfiguration CLPR_LEDGER_CONFIGURATION = ClprLedgerConfiguration.newBuilder()
+            .chainId("eip155:298")
+            .throttles(CLPR_THROTTLES)
+            .build();
     private static final AccountID CLPR_STAKING_ACCOUNT_ID =
             AccountID.newBuilder().accountNum(CLPR_STAKING_ACCOUNT_NUM).build();
 
@@ -569,6 +590,122 @@ class SystemTransactionsTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
+    void postUpgradeAppliesChangedClprLedgerConfigurationFile(@TempDir final Path upgradeDir) throws IOException {
+        given(givenAccountsState().get(CLPR_STAKING_ACCOUNT_ID)).willReturn(Account.DEFAULT);
+        writeClprLedgerConfigurationFile(upgradeDir, 500);
+
+        final var systemContext =
+                doPostUpgradeSetupWithMockContext(true, CLPR_LEDGER_CONFIGURATION, upgradeDir.toString());
+
+        final ArgumentCaptor<Consumer<TransactionBody.Builder>> spec = ArgumentCaptor.forClass(Consumer.class);
+        verify(systemContext).dispatchAdmin(spec.capture());
+        final var builder = TransactionBody.newBuilder();
+        spec.getValue().accept(builder);
+        final var update =
+                builder.build().clprUpdateLedgerConfigurationOrThrow().configurationOrThrow();
+        assertEquals(
+                ClprLedgerConfiguration.newBuilder()
+                        .throttles(CLPR_THROTTLES
+                                .copyBuilder()
+                                .maxMessagesPerBundle(500)
+                                .build())
+                        .build(),
+                update);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void postUpgradeSkipsUnchangedClprLedgerConfigurationFile(@TempDir final Path upgradeDir) throws IOException {
+        given(givenAccountsState().get(CLPR_STAKING_ACCOUNT_ID)).willReturn(Account.DEFAULT);
+        writeClprLedgerConfigurationFile(upgradeDir, CLPR_THROTTLES.maxMessagesPerBundle());
+
+        final var systemContext =
+                doPostUpgradeSetupWithMockContext(true, CLPR_LEDGER_CONFIGURATION, upgradeDir.toString());
+
+        verify(systemContext, never()).dispatchAdmin(any(Consumer.class));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void postUpgradeSkipsClprLedgerConfigurationFileWhileClprIsDisabled(@TempDir final Path upgradeDir)
+            throws IOException {
+        writeClprLedgerConfigurationFile(upgradeDir, 500);
+
+        final var systemContext =
+                doPostUpgradeSetupWithMockContext(false, CLPR_LEDGER_CONFIGURATION, upgradeDir.toString());
+
+        verify(systemContext, never()).dispatchAdmin(any(Consumer.class));
+        verify(state, never()).getReadableStates(ClprService.NAME);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void postUpgradeSkipsClprLedgerConfigurationFileBeforeLedgerConfigurationExists(@TempDir final Path upgradeDir)
+            throws IOException {
+        given(givenAccountsState().get(CLPR_STAKING_ACCOUNT_ID)).willReturn(Account.DEFAULT);
+        writeClprLedgerConfigurationFile(upgradeDir, 500);
+
+        final var systemContext = doPostUpgradeSetupWithMockContext(true, null, upgradeDir.toString());
+
+        verify(systemContext, never()).dispatchAdmin(any(Consumer.class));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void postUpgradeSkipsInvalidClprLedgerConfigurationFile(@TempDir final Path upgradeDir) throws IOException {
+        given(givenAccountsState().get(CLPR_STAKING_ACCOUNT_ID)).willReturn(Account.DEFAULT);
+        // A file may only set throttles
+        Files.writeString(
+                upgradeDir.resolve("clprLedgerConfiguration.json"),
+                ClprLedgerConfiguration.JSON.toJSON(CLPR_LEDGER_CONFIGURATION
+                        .copyBuilder()
+                        .throttles(CLPR_THROTTLES
+                                .copyBuilder()
+                                .maxMessagesPerBundle(500)
+                                .build())
+                        .build()));
+
+        final var systemContext =
+                doPostUpgradeSetupWithMockContext(true, CLPR_LEDGER_CONFIGURATION, upgradeDir.toString());
+
+        verify(systemContext, never()).dispatchAdmin(any(Consumer.class));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void postUpgradeCapsClprMaxGasPerMessageAtMaxGasPerTransaction(@TempDir final Path upgradeDir) throws IOException {
+        given(givenAccountsState().get(CLPR_STAKING_ACCOUNT_ID)).willReturn(Account.DEFAULT);
+        Files.writeString(
+                upgradeDir.resolve("clprLedgerConfiguration.json"),
+                ClprLedgerConfiguration.JSON.toJSON(ClprLedgerConfiguration.newBuilder()
+                        .throttles(CLPR_THROTTLES
+                                .copyBuilder()
+                                .maxGasPerMessage(30_000_000L)
+                                .build())
+                        .build()));
+
+        // The file's 30M gas is capped at the default contracts.maxGasPerTransaction of 15M, matching the
+        // existing throttles, so nothing is dispatched
+        final var systemContext =
+                doPostUpgradeSetupWithMockContext(true, CLPR_LEDGER_CONFIGURATION, upgradeDir.toString());
+
+        verify(systemContext, never()).dispatchAdmin(any(Consumer.class));
+    }
+
+    private static void writeClprLedgerConfigurationFile(@NonNull final Path dir, final int maxMessagesPerBundle)
+            throws IOException {
+        Files.writeString(
+                dir.resolve("clprLedgerConfiguration.json"),
+                ClprLedgerConfiguration.JSON.toJSON(ClprLedgerConfiguration.newBuilder()
+                        .throttles(CLPR_THROTTLES
+                                .copyBuilder()
+                                .maxMessagesPerBundle(maxMessagesPerBundle)
+                                .build())
+                        .build()));
+    }
+
+    @Test
     void testFirstReservedSystemTimeForWithZeroReservedNanos() {
         // Create config with 0 reserved nanos
         final var config = HederaTestConfigBuilder.create()
@@ -905,13 +1042,30 @@ class SystemTransactionsTest {
         return accounts;
     }
 
-    @SuppressWarnings("unchecked")
     private SystemContext doPostUpgradeSetupWithMockContext(final boolean clprEnabled) {
+        return doPostUpgradeSetupWithMockContext(clprEnabled, CLPR_LEDGER_CONFIGURATION, "data/config");
+    }
+
+    @SuppressWarnings("unchecked")
+    private SystemContext doPostUpgradeSetupWithMockContext(
+            final boolean clprEnabled,
+            @Nullable final ClprLedgerConfiguration ledgerConfiguration,
+            @NonNull final String upgradeSysFilesLoc) {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("blockStream.streamMode", "BLOCKS")
                 .withValue("nodes.enableDAB", "false")
                 .withValue("clpr.enabled", clprEnabled)
+                .withValue("networkAdmin.upgradeSysFilesLoc", upgradeSysFilesLoc)
                 .getOrCreateConfig();
+        if (clprEnabled) {
+            final var clprStates = mock(ReadableStates.class);
+            final ReadableSingletonState<ClprLedgerConfiguration> ledgerConfigurationState =
+                    mock(ReadableSingletonState.class);
+            given(state.getReadableStates(ClprService.NAME)).willReturn(clprStates);
+            given(clprStates.<ClprLedgerConfiguration>getSingleton(LEDGER_CONFIGURATION_STATE_ID))
+                    .willReturn(ledgerConfigurationState);
+            given(ledgerConfigurationState.get()).willReturn(ledgerConfiguration);
+        }
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
         final var selfNodeInfo = mock(NodeInfo.class);
         given(selfNodeInfo.accountId()).willReturn(NODE_ACCOUNT_ID);

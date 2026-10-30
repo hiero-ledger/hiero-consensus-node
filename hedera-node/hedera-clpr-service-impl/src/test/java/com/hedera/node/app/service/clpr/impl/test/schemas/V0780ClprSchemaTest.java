@@ -13,15 +13,20 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifestConstruction;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
+import com.hedera.hapi.node.state.clpr.ClprThrottles;
 import com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -51,7 +56,7 @@ class V0780ClprSchemaTest {
         subject = new V0780ClprSchema();
         configuration = HederaTestConfigBuilder.create()
                 .withValue("clpr.enabled", false)
-                .withValue("clpr.chainId", "hiero:test")
+                .withValue("contracts.chainId", 299)
                 .withValue("clpr.protocolVersion", "1")
                 .getOrCreateConfig();
     }
@@ -84,13 +89,52 @@ class V0780ClprSchemaTest {
                 .isTrue();
 
         verify(configurationState).put(org.mockito.ArgumentMatchers.assertArg(ledgerConfig -> {
-            assertThat(ledgerConfig.chainId()).isEqualTo("hiero:test");
+            assertThat(ledgerConfig.chainId()).isEqualTo("eip155:299");
             final var throttles = ledgerConfig.throttlesOrThrow();
             assertThat(throttles.maxMessagesPerBundle()).isEqualTo(1000);
             assertThat(throttles.maxGasPerMessage()).isEqualTo(15_000_000L);
+            assertThat(throttles.maxQueueDepth()).isEqualTo(10_000);
+            assertThat(throttles.maxMessagePayloadBytes()).isEqualTo(65_536);
+            assertThat(throttles.maxSyncBytes()).isEqualTo(4_194_304L);
         }));
         verify(manifestState).put(org.mockito.ArgumentMatchers.any(ClprEndpointManifest.class));
         verify(constructionState).put(ClprEndpointManifestConstruction.DEFAULT);
+    }
+
+    @Test
+    void seedsThrottlesFromLedgerConfigurationFile(@TempDir final Path tempDir) throws IOException {
+        final var file = tempDir.resolve("clprLedgerConfiguration.json");
+        Files.writeString(file, """
+                {"throttles": {"maxMessagesPerBundle": 500, "maxMessagePayloadBytes": 65536,
+                  "maxGasPerMessage": 20000000, "maxQueueDepth": 20000, "maxSyncBytes": 4194304}}
+                """);
+        final var fileConfiguration = HederaTestConfigBuilder.create()
+                .withValue("contracts.chainId", 299)
+                .withValue("contracts.maxGasPerTransaction", 15_000_000L)
+                .withValue("clpr.ledgerConfigurationFile", file.toString())
+                .getOrCreateConfig();
+        given(writableStates.<ClprLedgerConfiguration>getSingleton(LEDGER_CONFIGURATION_STATE_ID))
+                .willReturn(configurationState);
+        given(writableStates.<ClprEndpointManifest>getSingleton(ENDPOINT_MANIFEST_STATE_ID))
+                .willReturn(manifestState);
+        given(writableStates.<ClprEndpointManifestConstruction>getSingleton(ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID))
+                .willReturn(constructionState);
+
+        assertThat(V0780ClprSchema.initializeSingletons(writableStates, fileConfiguration))
+                .isTrue();
+
+        verify(configurationState).put(org.mockito.ArgumentMatchers.assertArg(ledgerConfig -> {
+            assertThat(ledgerConfig.chainId()).isEqualTo("eip155:299");
+            assertThat(ledgerConfig.throttlesOrThrow())
+                    .isEqualTo(ClprThrottles.newBuilder()
+                            .maxMessagesPerBundle(500)
+                            .maxMessagePayloadBytes(65_536)
+                            // Capped at contracts.maxGasPerTransaction
+                            .maxGasPerMessage(15_000_000L)
+                            .maxQueueDepth(20_000)
+                            .maxSyncBytes(4_194_304L)
+                            .build());
+        }));
     }
 
     @Test
