@@ -16,7 +16,6 @@ import com.swirlds.config.api.ConfigProperty;
  * @param timeoutSyncClientSocket    timeout when waiting for data
  * @param timeoutSyncClientConnect   timeout when establishing a connection
  * @param timeoutServerAcceptConnect timeout when server is waiting for another member to create a connection
- * @param useLoopbackIp              should be set to true when using the internet simulator
  * @param tcpNoDelay                 if true, then Nagel's algorithm is disabled, which helps latency, hurts bandwidth
  *                                   usage
  * @param gzipCompression            whether to use gzip compression over the network
@@ -33,7 +32,6 @@ public record SocketConfig(
         @ConfigProperty(defaultValue = "5000") int timeoutSyncClientSocket,
         @ConfigProperty(defaultValue = "5000") int timeoutSyncClientConnect,
         @ConfigProperty(defaultValue = "5000") int timeoutServerAcceptConnect,
-        @ConfigProperty(defaultValue = "false") boolean useLoopbackIp,
         @ConfigProperty(defaultValue = "true") boolean tcpNoDelay,
         @ConfigProperty(defaultValue = "false") boolean gzipCompression,
         @ConfigProperty(defaultValue = "10") int waitBetweenConnectionRetries,

@@ -37,6 +37,7 @@ import org.hyperledger.besu.evm.contractvalidation.PrefixCodeRule;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
+import org.hyperledger.besu.evm.gascalculator.StateGasCostCalculator;
 import org.hyperledger.besu.evm.internal.EvmConfiguration;
 import org.hyperledger.besu.evm.tracing.OperationTracer;
 import org.junit.jupiter.api.BeforeEach;
@@ -290,6 +291,8 @@ class CustomContractCreationProcessorTest {
         given(frame.getOutputData()).willReturn(Bytes.EMPTY);
         given(evm.getGasCalculator()).willReturn(gasCalculator);
         given(gasCalculator.codeDepositGasCost(0)).willReturn(0L);
+        given(gasCalculator.stateGasCostCalculator()).willReturn(StateGasCostCalculator.NONE);
+        given(frame.consumeStateGas(0L)).willReturn(true);
         given(frame.getRemainingGas()).willReturn(100L);
         given(frame.getWorldUpdater()).willReturn(worldUpdater);
         given(worldUpdater.getOrCreate(any())).willReturn(contract);

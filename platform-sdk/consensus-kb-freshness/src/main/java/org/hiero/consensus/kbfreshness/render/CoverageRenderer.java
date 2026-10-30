@@ -6,10 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import org.hiero.consensus.kbfreshness.engine.RunResult;
-import org.hiero.consensus.kbfreshness.extract.KbDocument;
-import org.hiero.consensus.kbfreshness.findings.InterfaceDiffAssembler;
 import org.hiero.consensus.kbfreshness.model.AnchorKind;
-import org.hiero.consensus.kbfreshness.model.EntryType;
 import org.hiero.consensus.kbfreshness.model.Finding;
 import org.hiero.consensus.kbfreshness.model.Lane;
 import org.hiero.consensus.kbfreshness.model.Outcome;
@@ -17,12 +14,11 @@ import org.hiero.consensus.kbfreshness.worklist.WorklistEntry;
 
 /**
  * Renders the coverage lane: documentation gaps that are the inverse of drift and so are kept out of the
- * drift report by design. Five kinds are surfaced, each tracked separately for a curator closing gaps:
+ * drift report by design. Four kinds are surfaced, each tracked separately for a curator closing gaps:
  * <ul>
- *   <li>code that exists but the KB does not document (e.g. an interface method absent from its entry);</li>
+ *   <li>code that exists but the KB does not document (e.g. a config key absent from its tunables section);</li>
  *   <li>in-scope config records the tunables catalog has no section for at all;</li>
  *   <li>architecture topics that anchor no source — no mechanically-checkable claim;</li>
- *   <li>interface docs that do not opt into the Tier-2 method-set diff, so it never runs for them;</li>
  *   <li>cited topic slugs whose document does not exist — the topic may be worth writing.</li>
  * </ul>
  * None of these is drift; none is ever asserted.
@@ -46,7 +42,6 @@ public final class CoverageRenderer {
         renderUndocumentedCode(sb, result);
         renderUndocumentedRecords(sb, result);
         renderUnanchoredTopics(sb, result);
-        renderUncheckedInterfaces(sb, result);
         renderMissingTopicDocs(sb, result);
         return sb.toString();
     }
@@ -69,8 +64,8 @@ public final class CoverageRenderer {
         Md.bulletedSection(
                 sb,
                 "Undocumented code",
-                "Code that exists but the KB does not document (e.g. an interface method not listed in "
-                        + "its entry).",
+                "Code that exists but the KB does not document (e.g. a config key its tunables section "
+                        + "does not list).",
                 items);
     }
 
@@ -101,8 +96,7 @@ public final class CoverageRenderer {
     /**
      * Section: architecture topics that anchor no source. A topic doc citing no resolvable source file has
      * no code-anchored claim the engine (or the semantic pass) can check against, so it is a documentation
-     * gap worth closing. Interface docs are excluded — their coverage is reported by
-     * {@link #renderUncheckedInterfaces}.
+     * gap worth closing.
      *
      * @param sb     the buffer to append to.
      * @param result the run result.
@@ -155,29 +149,6 @@ public final class CoverageRenderer {
                 "Cited topic slugs with no document",
                 "Frontmatter `topics:` tags (and topic links) whose target document does not exist — "
                         + "candidate topics to write, or slugs to retarget (see `suggestions.md`).",
-                items);
-    }
-
-    /**
-     * Section: interface docs that do not opt into the Tier-2 method-set diff. Without {@code interface:}
-     * and {@code methods:} frontmatter the diff never runs, so "no interface findings" would otherwise be
-     * indistinguishable from "the check never fired". Surfacing them makes the dormancy visible.
-     *
-     * @param sb     the buffer to append to.
-     * @param result the run result.
-     */
-    private static void renderUncheckedInterfaces(final StringBuilder sb, final RunResult result) {
-        final List<String> items = new ArrayList<>();
-        for (final KbDocument doc : result.documents()) {
-            if (doc.entry().type() == EntryType.ARCHITECTURE_INTERFACE && !InterfaceDiffAssembler.optsIntoTier2(doc)) {
-                items.add("`" + doc.entry().key() + "` — `" + doc.entry().relativePath() + "`");
-            }
-        }
-        Md.bulletedSection(
-                sb,
-                "Interface docs not checked at Tier-2",
-                "`architecture/interfaces/*` docs without `interface:`/`methods:` frontmatter: their "
-                        + "method set is never mechanically diffed (left entirely to the semantic pass).",
                 items);
     }
 }

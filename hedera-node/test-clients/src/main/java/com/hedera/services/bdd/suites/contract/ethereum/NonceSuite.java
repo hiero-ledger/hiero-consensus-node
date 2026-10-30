@@ -85,7 +85,7 @@ public class NonceSuite {
     private static final String TX = "tx";
 
     @HapiTest
-    final Stream<DynamicTest> nonceNotUpdatedWhenSignerDoesExistPrecheckFailed() {
+    final Stream<DynamicTest> nonceNotUpdatedWhenSignerDoesExistHandlerCheckFailed() {
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoCreate(RELAYER).balance(ONE_HUNDRED_HBARS),
@@ -98,7 +98,7 @@ public class NonceSuite {
                         .hasRetryPrecheckFrom(BUSY)
                         .nonce(0)
                         .gasLimit(ENOUGH_GAS_LIMIT)
-                        .hasPrecheck(INVALID_ACCOUNT_ID),
+                        .hasKnownStatus(INVALID_ACCOUNT_ID),
                 getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).hasCostAnswerPrecheck(INVALID_ACCOUNT_ID));
     }
 
@@ -121,7 +121,7 @@ public class NonceSuite {
     }
 
     @HapiTest
-    final Stream<DynamicTest> nonceNotUpdatedWhenNegativeMaxGasAllowancePrecheckFailed() {
+    final Stream<DynamicTest> nonceNotUpdatedWhenNegativeMaxGasAllowanceHandlerCheckFailed() {
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoCreate(RELAYER).balance(ONE_HUNDRED_HBARS),
@@ -135,7 +135,7 @@ public class NonceSuite {
                         .nonce(0)
                         .maxGasAllowance(-1L)
                         .gasLimit(ENOUGH_GAS_LIMIT)
-                        .hasPrecheck(NEGATIVE_ALLOWANCE_AMOUNT),
+                        .hasKnownStatus(NEGATIVE_ALLOWANCE_AMOUNT),
                 getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).has(accountWith().nonce(0L)));
     }
 

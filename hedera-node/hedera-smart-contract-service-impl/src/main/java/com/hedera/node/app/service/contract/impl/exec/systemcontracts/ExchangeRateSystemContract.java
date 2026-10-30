@@ -16,6 +16,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.Optional;
 import javax.inject.Inject;
+import javax.inject.Singleton;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
 import org.hyperledger.besu.datatypes.Address;
@@ -23,6 +24,7 @@ import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 
+@Singleton
 public class ExchangeRateSystemContract extends AbstractFullContract implements HederaSystemContract {
     private static final String PRECOMPILE_NAME = "ExchangeRate";
     private static final BigIntegerType WORD_DECODER = TypeFactory.create("uint256");
@@ -39,8 +41,6 @@ public class ExchangeRateSystemContract extends AbstractFullContract implements 
             .contractNum(numberOfLongZero(Address.fromHexString(EXCHANGE_RATE_SYSTEM_CONTRACT_ADDRESS)))
             .build();
 
-    private long gasRequirement;
-
     @Inject
     public ExchangeRateSystemContract(@NonNull final GasCalculator gasCalculator) {
         super(PRECOMPILE_NAME, gasCalculator);
@@ -52,18 +52,18 @@ public class ExchangeRateSystemContract extends AbstractFullContract implements 
             @NonNull ContractID contractID, @NonNull Bytes input, @NonNull MessageFrame messageFrame) {
         requireNonNull(input);
         requireNonNull(messageFrame);
+        final long gasRequirement = contractsConfigOf(messageFrame).precompileExchangeRateGasCost();
         try {
             validateTrue(input.size() >= 4, INVALID_TRANSACTION_BODY);
-            gasRequirement = contractsConfigOf(messageFrame).precompileExchangeRateGasCost();
             final var selector = input.getInt(0);
             final var amount = biValueFrom(input);
             final var activeRate = proxyUpdaterFor(messageFrame).currentExchangeRate();
             final var result =
                     switch (selector) {
-                        case TO_TINYBARS_SELECTOR -> padded(
-                                ConversionUtils.fromAToB(amount, activeRate.hbarEquiv(), activeRate.centEquiv()));
-                        case TO_TINYCENTS_SELECTOR -> padded(
-                                ConversionUtils.fromAToB(amount, activeRate.centEquiv(), activeRate.hbarEquiv()));
+                        case TO_TINYBARS_SELECTOR ->
+                            padded(ConversionUtils.fromAToB(amount, activeRate.hbarEquiv(), activeRate.centEquiv()));
+                        case TO_TINYCENTS_SELECTOR ->
+                            padded(ConversionUtils.fromAToB(amount, activeRate.centEquiv(), activeRate.hbarEquiv()));
                         default -> null;
                     };
             requireNonNull(result);

@@ -39,11 +39,10 @@ public class LocalConsensusGeneration {
 
         final Map<EventDescriptorWrapper, EventImpl> parentMap = new HashMap<>();
         for (final EventImpl event : events) {
-            final int maxParentGen = event.getBaseEvent().getAllParents().stream()
-                    .map(parentMap::get)
-                    .mapToInt(LocalConsensusGeneration::getGeneration)
-                    .max()
-                    .orElse(GENERATION_UNDEFINED);
+            int maxParentGen = GENERATION_UNDEFINED;
+            for (final EventDescriptorWrapper parent : event.getBaseEvent().getAllParents()) {
+                maxParentGen = Math.max(maxParentGen, LocalConsensusGeneration.getGeneration(parentMap.get(parent)));
+            }
             event.setCGen(maxParentGen == GENERATION_UNDEFINED ? FIRST_GENERATION : maxParentGen + 1);
             parentMap.put(event.getBaseEvent().getDescriptor(), event);
         }

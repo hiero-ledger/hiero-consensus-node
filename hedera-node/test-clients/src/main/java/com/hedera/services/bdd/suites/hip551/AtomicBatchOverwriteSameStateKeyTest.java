@@ -5,14 +5,9 @@ import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.keys.KeyShape.CONTRACT;
-import static com.hedera.services.bdd.spec.keys.KeyShape.PREDEFINED_SHAPE;
-import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.burnToken;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -22,28 +17,21 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.submitMessageTo
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUpdate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.wipeTokenAccount;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
-import static com.hedera.services.bdd.suites.contract.precompile.ContractBurnHTSSuite.ALICE;
-import static com.hedera.services.bdd.suites.utils.MiscEETUtils.genRandomBytes;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import static java.lang.String.valueOf;
 
-import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.spec.keys.KeyShape;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
@@ -286,60 +274,6 @@ class AtomicBatchOverwriteSameStateKeyTest {
                 cryptoCreate(topicSubmitter).balance(ONE_HUNDRED_HBARS),
                 createTopic(topic).submitKeyName(submitKey),
                 atomicBatch(submit1, submit2).signedByPayerAnd(batchOperator));
-    }
-
-    /**
-     * Multiple mint precompile calls
-     * @return HAPI test
-     */
-    @HapiTest
-    @DisplayName("Multiple mint precompile calls")
-    Stream<DynamicTest> multipleMintPrecompileCalls() {
-        final var nft = "nft";
-        final var gasToOffer = 2_000_000L;
-        final var mintContract = "MintContract";
-        final var supplyKey = "supplyKey";
-        final AtomicReference<Address> tokenAddress = new AtomicReference<>();
-        final KeyShape listOfPredefinedAndContract = KeyShape.threshOf(1, PREDEFINED_SHAPE, CONTRACT);
-        final var nftMetadata = (Object) new byte[][] {genRandomBytes(100)};
-        return hapiTest(
-                cryptoCreate(ALICE).balance(10 * ONE_HUNDRED_HBARS),
-                tokenCreate(nft)
-                        .tokenType(NON_FUNGIBLE_UNIQUE)
-                        .initialSupply(0L)
-                        .supplyKey(ALICE)
-                        .adminKey(ALICE)
-                        .treasury(ALICE)
-                        .exposingAddressTo(tokenAddress::set),
-                uploadInitCode(mintContract),
-                sourcing(() -> contractCreate(mintContract, tokenAddress.get())
-                        .payingWith(ALICE)
-                        .gas(gasToOffer)),
-                newKeyNamed(supplyKey).shape(listOfPredefinedAndContract.signedWith(sigs(ALICE, mintContract))),
-                tokenUpdate(nft).supplyKey(supplyKey).signedByPayerAnd(ALICE),
-
-                // mint NFT via precompile as inner batch txn
-                atomicBatch(
-                                contractCall(mintContract, "mintNonFungibleToken", nftMetadata)
-                                        .batchKey(ALICE)
-                                        .payingWith(ALICE)
-                                        .alsoSigningWithFullPrefix(supplyKey)
-                                        .gas(gasToOffer),
-                                contractCall(mintContract, "mintNonFungibleToken", nftMetadata)
-                                        .batchKey(ALICE)
-                                        .payingWith(ALICE)
-                                        .alsoSigningWithFullPrefix(supplyKey)
-                                        .gas(gasToOffer),
-                                contractCall(mintContract, "mintNonFungibleToken", nftMetadata)
-                                        .batchKey(ALICE)
-                                        .payingWith(ALICE)
-                                        .alsoSigningWithFullPrefix(supplyKey)
-                                        .gas(gasToOffer),
-                                burnToken(nft, List.of(1L, 2L, 3L))
-                                        .batchKey(ALICE)
-                                        .payingWith(ALICE)
-                                        .signedBy(ALICE, supplyKey))
-                        .payingWith(ALICE));
     }
 
     /**

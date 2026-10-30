@@ -8,6 +8,7 @@ import com.swirlds.config.api.validation.annotation.Max;
 import com.swirlds.config.extensions.reflection.ConfigReflectionUtils;
 import com.swirlds.config.impl.internal.ConfigNumberUtils;
 import com.swirlds.config.impl.validators.DefaultConfigViolation;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.stream.Stream;
 
 /**
@@ -16,16 +17,23 @@ import java.util.stream.Stream;
  */
 public class MaxConstraintsValidation implements ConfigValidator {
 
+    @NonNull
     @Override
-    public Stream<ConfigViolation> validate(final Configuration configuration) {
+    public Stream<ConfigViolation> validate(@NonNull final Configuration configuration) {
         return ConfigReflectionUtils.getAllMatchingPropertiesForConstraintAnnotation(Max.class, configuration).stream()
                 .filter(property -> ConfigNumberUtils.isNumber(property.propertyType()))
-                .filter(property ->
-                        property.annotation().value() < ConfigNumberUtils.getLongValue(property.propertyValue()))
+                .filter(property -> {
+                    final Object value = property.propertyValue();
+                    return ConfigNumberUtils.isNaN(value)
+                            || ConfigNumberUtils.compareWithBound(
+                                            value,
+                                            property.annotation(Max.class).value())
+                                    > 0;
+                })
                 .map(property -> new DefaultConfigViolation(
                         property.propertyName(),
                         property.propertyValue() + "",
                         true,
-                        "Value must be <= " + property.annotation().value()));
+                        "Value must be <= " + property.annotation(Max.class).value()));
     }
 }

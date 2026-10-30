@@ -1,0 +1,73 @@
+syntax = "proto3";
+
+package com.hedera.hapi.node.state.clpr;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.state.clpr">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/basic_types.proto";
+
+/**
+ * Key for the CONNECTORS state.
+ * Uniquely identifies a Connector within a specific Channel.
+ */
+message ClprConnectorKey {
+    /**
+     * The 32-byte Channel ID this connector is bound to.
+     */
+    bytes channel_id = 1;
+
+    /**
+     * The 32-byte Connector ID: keccak256(channelId || pubKey || salt).
+     */
+    bytes connector_id = 2;
+}
+
+/**
+ * On-ledger state for a single CLPR Connector.
+ * Keyed by ClprConnectorKey (channel_id + connector_id).
+ *
+ * A Connector maps a per-channel identity to a local authorization
+ * contract. The connector contract is a smart contract with its own balance
+ * used to pay for inbound message execution.
+ */
+message ClprConnector {
+    /**
+     * 32-byte Connector ID: keccak256(channelId || pubKey || salt).
+     * Same on every ledger where the operator registers this Connector.
+     */
+    bytes connector_id = 1;
+
+    /**
+     * 32-byte Channel ID this Connector is bound to.
+     */
+    bytes channel_id = 2;
+
+    /**
+     * Local authorization contract that governs message dispatch.
+     */
+    proto.ContractID connector_contract = 3;
+
+    /**
+     * Key that authorizes administrative operations (deregister, topUp).
+     */
+    proto.Key admin_key = 4;
+
+    /**
+     * Slashable bond (in tinybars).
+     */
+    uint64 locked_stake = 5;
+
+    /**
+     * Cumulative slash count for penalty escalation.
+     */
+    uint32 slash_count = 6;
+
+    /**
+     * Number of outbound DATA messages currently in-flight (enqueued but not yet
+     * acknowledged by a terminal reply). Must be zero before deregistration.
+     */
+    uint64 in_flight_message_count = 7;
+}

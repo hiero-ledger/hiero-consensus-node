@@ -3,7 +3,6 @@ package org.hiero.consensus.hashgraph.impl;
 
 import static org.hiero.consensus.model.status.PlatformStatus.REPLAYING_EVENTS;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
@@ -29,6 +28,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.round.EventWindowUtils;
 
@@ -54,6 +54,8 @@ public class DefaultConsensusEngine implements ConsensusEngine {
 
     private final ConsensusEngineMetrics consensusEngineMetrics;
 
+    private final ConsensusMetrics consensusMetrics;
+
     private final FreezeRoundController freezeRoundController;
 
     /**
@@ -62,7 +64,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
      * @param configuration          the configuration
      * @param metrics                the metrics registry
      * @param time                   the time source
-     * @param roster                 the current roster
+     * @param roster                 the active roster
      * @param selfId                 the ID of the node
      * @param freezeChecker          checks if the consensus time has reached the freeze period
      * @param transactionOffsetNanos nanoseconds to add to the first transaction's timestamp in an event
@@ -71,12 +73,12 @@ public class DefaultConsensusEngine implements ConsensusEngine {
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
             @NonNull final Time time,
-            @NonNull final Roster roster,
+            @NonNull final RosterWrapper roster,
             @NonNull final NodeId selfId,
             @NonNull final FreezePeriodChecker freezeChecker,
             final long transactionOffsetNanos) {
 
-        final ConsensusMetrics consensusMetrics = new ConsensusMetricsImpl(selfId, metrics);
+        consensusMetrics = new ConsensusMetricsImpl(selfId, metrics, configuration, time);
         consensus = new ConsensusImpl(configuration, time, consensusMetrics, roster, transactionOffsetNanos);
 
         linker = new ConsensusLinker(new DefaultLinkerLogsAndMetrics(metrics, time));
@@ -197,6 +199,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
         // we need to freeze on the first one. this means discarding the rest of the rounds.
         final List<ConsensusRound> modifiedRounds = freezeRoundController.filterAndModify(allConsensusRounds);
         staleEvents.forEach(consensusEngineMetrics::reportStaleEvent);
+        modifiedRounds.forEach(consensusMetrics::consensusRoundEmitted);
         return new ConsensusEngineOutput(modifiedRounds, preConsensusEvents, staleEvents);
     }
 

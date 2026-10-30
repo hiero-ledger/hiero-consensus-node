@@ -45,10 +45,10 @@ import org.hiero.consensus.fakes.noop.NoOpMetricRegistries;
 import org.hiero.consensus.io.RecycleBinImpl;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.ConsensusLayerRosterInputs;
 import org.hiero.consensus.pces.impl.common.PcesUtilities;
 import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.consensus.roster.ReadableRosterStoreImpl;
-import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.state.SignedStateFileReader;
 import org.hiero.consensus.state.SignedStateFileWriter;
@@ -165,7 +165,7 @@ public final class ReplayPcesWorkflow {
         // --- Roster + keys (same derivation the platform uses at restart/reconnect) ---
         final ReadableRosterStore rosterStore =
                 new ReadableRosterStoreImpl(state.getReadableStates(RosterStateId.SERVICE_NAME));
-        final RosterHistory rosterHistory = rosterStore.getRosterHistory();
+        final ConsensusLayerRosterInputs rosterInputs = rosterStore.getConsensusLayerRosterInputs();
 
         // --- Generate ephemeral keys for this node ---
         final KeysAndCerts keysAndCerts =
@@ -190,7 +190,7 @@ public final class ReplayPcesWorkflow {
                 platformContext.getMetrics(),
                 metricRegistry,
                 platformContext.getTime(),
-                rosterHistory,
+                rosterInputs,
                 keysAndCerts,
                 selfId,
                 platformContext.getRecycleBin(),

@@ -44,6 +44,11 @@ is to gather the required signatures for the scheduled transaction, the `waitFor
 - `GetScheduledTokenInfoCall` - This class provides methods and constants for decoding the `ScheduleGetInfoResponse` into a `PricedResult`.
 - `GetScheduledNonFungibleTokenInfoCall` - This class provides methods and constants for decoding the `ScheduleGetInfoResponse` into a `PricedResult`.
 
+HIP-756 removes a schedule upon execution, and a deleted schedule is likewise no longer pending, so neither describes a pending token creation.
+For such a schedule, regardless of its scheduled transaction type, `getScheduledCreateFungibleTokenInfo` and `getScheduledCreateNonFungibleTokenInfo`
+complete without reverting and return `SCHEDULE_ALREADY_EXECUTED` or `SCHEDULE_ALREADY_DELETED` as the response code, together with an empty token info.
+Once the schedule expires and is removed from state, the functions revert with `RECORD_NOT_FOUND`.
+
 ### Supported Function Calls
 
 In order to maintain control over which functions are supported by the `scheduleNative` function, the call data will be validated to ensure that the function selector matches the following function definitions:
@@ -119,4 +124,8 @@ The throttles for `ScheduledCreate` and `ScheduledGetInfo` will be applied to th
 
 - validate that `getScheduledCreateFungibleTokenInfo` returns an error for a non-existing schedule address.
 - validate that `getScheduledCreateNonFungibleTokenInfo` returns an error for a non-existing schedule address.
+- validate that `getScheduledCreateFungibleTokenInfo` returns `SCHEDULE_ALREADY_DELETED` and an empty token info for a deleted schedule.
+- validate that `getScheduledCreateNonFungibleTokenInfo` returns `SCHEDULE_ALREADY_DELETED` and an empty token info for a deleted schedule.
+- validate that `getScheduledCreateFungibleTokenInfo` returns `SCHEDULE_ALREADY_EXECUTED` and an empty token info for an executed schedule.
+- validate that `getScheduledCreateNonFungibleTokenInfo` returns `SCHEDULE_ALREADY_EXECUTED` and an empty token info for an executed schedule.
 - validate that the create/update functions would not be executed if the required signers did not sign the schedules.

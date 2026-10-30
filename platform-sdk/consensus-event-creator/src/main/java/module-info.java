@@ -6,7 +6,6 @@ module org.hiero.consensus.event.creator {
     exports org.hiero.consensus.event.creator.config;
     exports org.hiero.consensus.event.creator;
 
-    requires transitive com.hedera.node.hapi;
     requires transitive com.swirlds.base;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;

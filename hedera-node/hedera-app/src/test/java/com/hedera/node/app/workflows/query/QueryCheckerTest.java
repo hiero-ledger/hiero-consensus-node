@@ -9,6 +9,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BA
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_AMOUNTS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_QUERY_HEADER;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_RECEIVING_NODE_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.estimatedFee;
@@ -27,6 +28,8 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SignatureMap;
+import com.hedera.hapi.node.base.TokenID;
+import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.token.Account;
@@ -288,6 +291,39 @@ class QueryCheckerTest extends AppTestBase {
             assertThatThrownBy(() -> checker.validateCryptoTransfer(store, transactionInfo, configuration))
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(INVALID_ACCOUNT_AMOUNTS));
+        }
+
+        @Test
+        void testValidateCryptoTransferRejectsTokenTransfers() {
+            // A query payment must be a pure HBAR transfer; a payment carrying token transfers is rejected,
+            // because the query path does not validate the token leg (signatures, association, balance).
+            final var tokenLeg = TokenTransferList.newBuilder()
+                    .token(TokenID.newBuilder().tokenNum(1234L).build())
+                    .transfers(
+                            AccountAmount.newBuilder()
+                                    .accountID(ERIN.accountID())
+                                    .amount(-1L)
+                                    .build(),
+                            AccountAmount.newBuilder()
+                                    .accountID(ALICE.accountID())
+                                    .amount(1L)
+                                    .build())
+                    .build();
+            final var txBody = TransactionBody.newBuilder()
+                    .transactionID(TransactionID.newBuilder()
+                            .accountID(AccountID.DEFAULT)
+                            .build())
+                    .cryptoTransfer(CryptoTransferTransactionBody.newBuilder()
+                            .transfers(TransferList.newBuilder().build())
+                            .tokenTransfers(tokenLeg)
+                            .build())
+                    .build();
+            final var transactionInfo = new TransactionInfo(
+                    SignedTransaction.DEFAULT, txBody, SignatureMap.DEFAULT, Bytes.EMPTY, CRYPTO_TRANSFER, null);
+
+            assertThatThrownBy(() -> checker.validateCryptoTransfer(store, transactionInfo, configuration))
+                    .isInstanceOf(PreCheckException.class)
+                    .has(responseCode(INVALID_QUERY_HEADER));
         }
     }
 

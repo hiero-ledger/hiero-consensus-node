@@ -178,22 +178,6 @@ class EngineFixtureTest {
     }
 
     @Test
-    void interfaceMethodRemovedIsAssertAndPresentMethodIsNot() {
-        final Finding removed = require(AnchorKind.INTERFACE_METHOD, t -> t.equals("removed"));
-        assertThat(removed.outcome()).isEqualTo(Outcome.ABSENT);
-        assertThat(removed.lane()).isEqualTo(Lane.ASSERT);
-        assertThat(byKind(AnchorKind.INTERFACE_METHOD, t -> t.equals("present")))
-                .isEmpty();
-    }
-
-    @Test
-    void undocumentedInterfaceMethodIsCoverageGapNotDrift() {
-        final Finding coverage = require(AnchorKind.INTERFACE_METHOD, t -> t.equals("extra"));
-        assertThat(coverage.lane()).isEqualTo(Lane.COVERAGE_GAP);
-        assertThat(coverage.lane()).isNotEqualTo(Lane.ASSERT);
-    }
-
-    @Test
     void repeatedDeadSymbolCollapsesToOneFindingWithAllOccurrences() {
         final Finding f = require(AnchorKind.SOURCE_PATH, t -> t.endsWith("GhostFile.java"));
         assertThat(f.outcome()).isEqualTo(Outcome.ABSENT);
@@ -519,15 +503,6 @@ class EngineFixtureTest {
     }
 
     @Test
-    void interfaceDocWithoutTier2FrontmatterSurfacesInCoverageLane() {
-        // loose-api.md declares no interface:/methods: so the Tier-2 diff never runs; my-api.md opts in.
-        final String coverage = CoverageRenderer.render(result);
-        assertThat(coverage).contains("## Interface docs not checked at Tier-2");
-        assertThat(coverage).contains("architecture/interfaces/loose-api.md");
-        assertThat(coverage).doesNotContain("architecture/interfaces/my-api.md");
-    }
-
-    @Test
     void configPrefixMoveSubsumesTheSourcePathGoneFinding() {
         // The fix.b section's Source: link cites the gone OldNameConfig.java; the CONFIG_PREFIX finding
         // already asserts that citation as a class move with a ready rewrite, so the Tier-0 source-path
@@ -718,6 +693,22 @@ class EngineFixtureTest {
         final String report = ReportRenderer.render(result, "");
         assertThat(report).contains("Distinct anchor checks (one per entry × target × check kind):");
         assertThat(report).contains("A target cited by N entries counts as N checks");
+    }
+
+    @Test
+    void citedTestSourceResolvesInsteadOfReadingAsGone() {
+        // The KB cites regression tests as an invariant's verification; a main-only file index made
+        // every such citation a false GONE, which no correct citation could avoid.
+        assertThat(byKind(AnchorKind.SOURCE_PATH, t -> t.contains("RegressionFixtureTest.java")))
+                .isEmpty();
+    }
+
+    @Test
+    void configRecordOutsideMainSourcesStaysOutOfTheCatalogScan() {
+        // The file index spans every source set, so `isMainSource` is the only thing keeping a
+        // test-tree record out of the tunables lane.
+        final String coverage = CoverageRenderer.render(result);
+        assertThat(coverage).doesNotContain("TestOnlyConfig");
     }
 
     // ---- helpers ----

@@ -29,7 +29,7 @@ public class DefaultReconnectModule implements ReconnectModule {
     public void initialize(
             @NonNull final Configuration configuration,
             @NonNull final Time time,
-            @NonNull final Roster currentRoster,
+            @NonNull final Roster activeRoster,
             @NonNull final ConsensusLayerBuildingBlocks buildingBlocks,
             @NonNull final Platform platform,
             @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
@@ -40,7 +40,7 @@ public class DefaultReconnectModule implements ReconnectModule {
         final ReconnectController reconnectController = new ReconnectController(
                 configuration,
                 time,
-                currentRoster,
+                activeRoster,
                 platform,
                 reconnectCoordinator,
                 stateLifecycleManager,

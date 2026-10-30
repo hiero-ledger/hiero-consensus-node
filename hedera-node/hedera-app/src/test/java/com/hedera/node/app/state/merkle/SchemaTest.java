@@ -7,7 +7,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.node.app.spi.fixtures.TestSchema;
 import com.swirlds.state.lifecycle.Schema;
-import com.swirlds.state.test.fixtures.MapWritableStates;
 import com.swirlds.state.test.fixtures.StateTestBase;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -109,11 +108,10 @@ class SchemaTest extends StateTestBase {
     }
 
     @Test
-    @DisplayName("passing null context to migrate throws NPE")
-    void nullNewStatesThrows() {
+    @DisplayName("passing null context to restart throws NPE")
+    void nullContextThrows() {
         final var schema1 = new TestSchema(1);
-        final var prevStates = new MapWritableStates(Collections.emptyMap());
         //noinspection DataFlowIssue
-        assertThatThrownBy(() -> schema1.migrate(null)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> schema1.restart(null)).isInstanceOf(NullPointerException.class);
     }
 }

@@ -40,7 +40,7 @@ public abstract class SimulatedNetwork extends AbstractNetwork implements TimeTi
         super(random, useRandomNodeIds);
         this.timeManager = requireNonNull(timeManager);
         this.transactionGenerator = requireNonNull(transactionGenerator);
-        this.simulatedNetworkConnectivity = new SimulatedNetworkConnectivity(this.random);
+        this.simulatedNetworkConnectivity = new SimulatedNetworkConnectivity(this.random, timeManager.now());
     }
 
     /**

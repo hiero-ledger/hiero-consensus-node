@@ -18,9 +18,12 @@ import org.hiero.base.utility.test.fixtures.io.ResourceExtractor;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.ConsensusOutput;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.TestIntake;
 import org.hiero.consensus.io.IOIterator;
+import org.hiero.consensus.model.event.EventHashFactory;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.pces.impl.test.fixtures.PcesFileIteratorFactory;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -44,6 +47,11 @@ public class MaxRoundCreatedTest {
         Files.move(tempDir, testDataDirectory, REPLACE_EXISTING);
     }
 
+    @AfterEach
+    void tearDown() {
+        EventHashFactory.initialize(Long.MAX_VALUE);
+    }
+
     /**
      * <p>
      * This test exercises a very specific scenario that previously caused consensus to get stuck.
@@ -65,7 +73,10 @@ public class MaxRoundCreatedTest {
     void testMaxRoundCreated() throws IOException, ParseException {
         final Path pcesDir = testDataDirectory.resolve(PCES_DIR);
         final Path rosterPath = testDataDirectory.resolve(ROSTER_FILE);
-        final Roster roster = Roster.JSON.parse(new ReadableStreamingData(new FileInputStream(rosterPath.toFile())));
+        final RosterWrapper roster = RosterWrapper.of(
+                Roster.JSON.parse(new ReadableStreamingData(new FileInputStream(rosterPath.toFile()))));
+
+        EventHashFactory.initialize(1);
 
         final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
 

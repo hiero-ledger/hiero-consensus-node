@@ -8,8 +8,11 @@ import com.hedera.hapi.node.transaction.TransactionResponse;
 import com.hedera.node.app.grpc.impl.netty.NettyGrpcServerManager;
 import com.hedera.node.app.services.ServicesRegistryImpl;
 import com.hedera.node.app.spi.RpcService;
+import com.hedera.node.app.workflows.clpr.ClprStreamingSyncSession;
+import com.hedera.node.app.workflows.clpr.ClprSyncWorkflow;
 import com.hedera.node.app.workflows.ingest.IngestWorkflow;
 import com.hedera.node.app.workflows.query.QueryWorkflow;
+import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.data.GrpcConfig;
 import com.hedera.node.config.data.GrpcUsageTrackerConfig;
@@ -194,12 +197,20 @@ public abstract class GrpcTestBase extends TestBase {
         final var servicesRegistry = new ServicesRegistryImpl(ConstructableRegistry.getInstance(), configuration);
         servicesRegistry.register(testService);
         final var config = createConfig(new TestSource().withNodeOperatorPortEnabled(withNodeOperatorPort));
+        final ConfigProvider configProvider = () -> new VersionedConfigImpl(config, 1);
         this.grpcServer = new NettyGrpcServerManager(
-                () -> new VersionedConfigImpl(config, 1),
+                configProvider,
                 servicesRegistry,
                 ingestWorkflow,
                 userQueryWorkflow,
                 operatorQueryWorkflow,
+                new ClprSyncWorkflow() {
+
+                    @Override
+                    public ClprStreamingSyncSession openStreamingSync() {
+                        throw new UnsupportedOperationException();
+                    }
+                },
                 metrics);
 
         grpcServer.start();
@@ -287,6 +298,7 @@ public abstract class GrpcTestBase extends TestBase {
                 .withConfigDataType(HederaConfig.class)
                 .withConfigDataType(JumboTransactionsConfig.class)
                 .withConfigDataType(GrpcUsageTrackerConfig.class)
+                .withConfigDataType(com.hedera.node.config.data.ClprConfig.class)
                 .withSource(testConfig)
                 .build();
     }

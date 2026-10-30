@@ -55,6 +55,10 @@ public class HapiAtomicBatch extends HapiTxnOp<HapiAtomicBatch> {
 
     @Override
     protected Consumer<TransactionBody.Builder> opBodyDef(final HapiSpec spec) throws Throwable {
+        // A transient precheck can rebuild the batch with new inner transaction IDs. Only the
+        // current attempt can have receipts; retaining earlier IDs corrupts status and state updates.
+        innerOpsByTxnId.clear();
+        innerTnxsByTxnId.clear();
         final AtomicBatchTransactionBody opBody = spec.txns()
                 .<AtomicBatchTransactionBody, AtomicBatchTransactionBody.Builder>body(
                         AtomicBatchTransactionBody.class, b -> {

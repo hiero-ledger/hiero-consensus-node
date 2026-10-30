@@ -22,6 +22,7 @@ jobs:
   prime-workflow:
     name: Prime workflow
     runs-on: hl-cn-default-lin-ss
+    if: ${{ github.event.repository.visibility == 'public' }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
@@ -35,7 +36,7 @@ jobs:
   check-trigger:
     name: Check Trigger Conditions
     runs-on: hl-cn-default-lin-sm
-    if: ${{ !github.event.workflow_dispatch.repository.fork }}
+    if: ${{ github.event.repository.visibility == 'public' && !github.event.workflow_dispatch.repository.fork }}
     outputs:
       triggered: ${{ steps.evaluate.outputs.triggered }}
     steps:
@@ -201,6 +202,7 @@ jobs:
   extract-jdk-version:
     name: Extract Java Version
     uses: ./.github/workflows/854-call-extract-jdk-version.yaml
+    if: ${{ github.event.repository.visibility == 'public' }}
     with:
       ref: ${{ github.ref }}
     secrets:
@@ -231,7 +233,7 @@ jobs:
 
       - name: Import GPG key for commit signoff
         id: gpg_import
-        uses: step-security/ghaction-import-gpg@c86c374c0659a6c2d1284bccf8af889e73ce8fe0 # v6.3.0
+        uses: step-security/ghaction-import-gpg@c0b4a334b9b72bfaaebec86ef022a78a5b17f828 # v7.0.0
         with:
           gpg_private_key: ${{ secrets.PLATFORM_GPG_KEY_CONTENTS }}
           passphrase: ${{ secrets.PLATFORM_GPG_KEY_PASSPHRASE }}

@@ -129,6 +129,17 @@ final class GrpcServiceBuilderTest {
     }
 
     /**
+     * A {@link GrpcServiceBuilder} may define queries which will be created on the
+     * {@link io.grpc.ServerServiceDefinition}.
+     */
+    @Test
+    @DisplayName("The built ServiceDescriptor includes a method with the name of the defined query")
+    void singleQuery() {
+        final var sd = builder.query("qA").build(metrics, configProvider);
+        assertNotNull(sd.getMethod(SERVICE_NAME + "/qA"));
+    }
+
+    /**
      * A {@link GrpcServiceBuilder} may define transactions which will be created on the
      * {@link io.grpc.ServerServiceDefinition}.
      */

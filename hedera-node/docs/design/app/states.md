@@ -56,9 +56,8 @@ All other copies are immutable, and will throw exceptions if you attempt to modi
 modification to the tree permitted after the fast copy is made, and that is to apply the hashes to the nodes in
 the tree during the hash phase).
 
-The next-most recent version of the tree is the "latest immutable state". This is the state used for answering queries
-made by customers of the consensus nodes. It is also the state used in `pre-handle` (more on this later) for preparing
-asynchronously, and ahead of time, transactions for processing.
+The next-most recent version of the tree is the "latest immutable state". This is the state used in `pre-handle`
+(more on this later) for preparing asynchronously, and ahead of time, transactions for processing.
 
 Another older state known as the "latest signed state" is the most recent state for which the consensus node has
 gathered enough signatures to prove to a third party that the state is "final" and correct. This state is used when
@@ -121,18 +120,30 @@ service module (so two service implementations could use the same state key and 
 
 ### States used with Queries
 
-The HAPI supports a number of queries. Queries are always answered either from **the latest immutable state** or the
-**latest signed state** (if a state proof is requested). Query logic only needs a read-only view of the state, and so
-queries use `ReadableKVState`. It is not important to keep track of the different keys queries use. The application
-module reuses instances of states as appropriate to cut down on object allocation rates.
+The HAPI supports a number of queries. Queries are answered from **the current working state**. Query logic only needs
+a read-only view of the state, and so queries use `ReadableKVState`. It is not important to keep track of the different
+keys queries use. The application module reuses instances of states as appropriate to cut down on object allocation
+rates.
+
+Queries were originally answered from the **latest immutable state**, but that state trails the working state by a
+round, so a query issued right after a transaction reached consensus could still return the pre-transaction answer.
+Queries were switched to the working state in
+[#9143](https://github.com/hiero-ledger/hiero-consensus-node/pull/9143). The trade-off is that a query gets no
+snapshot: the _handle transaction_ thread commits into the same state object while the query reads it, so a query that
+performs several reads may observe a round partially applied. This is tolerable because query answers are node-local
+and never feed consensus, so they cannot cause an ISS. Note that `pre-handle`, which *can* cause an ISS, still uses a
+properly reserved **latest immutable state**.
+
+State proofs would require the **latest signed state** and are not supported. `QueryWorkflowImpl` rejects
+`ANSWER_STATE_PROOF` and `COST_ANSWER_STATE_PROOF` with `NOT_SUPPORTED` before any state is read.
 
 ### States used during Ingestion
 
 When clients send a transaction to a node, the node must perform pre-check logic before sending the transaction
-to the hashgraph platform for consensus. The pre-check logic needs access to **the latest immutable state**. It never
-performs any modification to the state. The [Ingest Workflow](workflows.md#ingest-workflow) needs access to key
-information on the transaction payer, and uses a `ReadableKVState` to get this information, by delegating to the
-token service.
+to the hashgraph platform for consensus. The pre-check logic reads from **the current working state**, for the same
+reason queries do (see above). It never performs any modification to the state. The
+[Ingest Workflow](workflows.md#ingest-workflow) needs access to key information on the transaction payer, and uses a
+`ReadableKVState` to get this information, by delegating to the token service.
 
 ### States used during Pre-Handle
 
@@ -199,97 +210,81 @@ using `Schema`s, and the `SchemaRegistry`. When a `Service` instance is created,
 instance, which has been scoped to just this service module. Through this interface, the service is able to `register`
 multiple `Schema`s. Our design for `Schema`s is based on the concepts used with (Flyway)[https://flywaydb.org/].
 
-Each `Schema` defines a version number (aligned with the application version numbering), the set of states that are
-created within that schema, a migration method for migrating from any previous `Schema` to this one, and the set
-of states that should be dropped as part of this `Schema`.
+Each `Schema` defines a version number, the set of states that are created within that schema, and the set of
+states that should be dropped as part of this `Schema`. A schema's version only orders it among the other schemas of
+its service; it has no relationship to the application's software version.
 
-The service module must register **every `Schema` that it has ever used**. During genesis (initial bootstrapping of
-a new consensus node), every single `Schema` is processed, with each latter `Schema` building up the former until we
-get to the correct final configuration of states. During upgrade, only those `Schema`s that have not yet been executed
-will be executed.
+The service module must register **every `Schema` that it has ever used**. Every time a node initializes its state
+(at genesis, and on every restart or reconnect), every single `Schema` is processed, in version order, with each
+latter `Schema` building up the former until we get to the correct final configuration of states. Neither the
+software version nor the version of the state loaded from disk changes which `Schema`s are processed.
 
-The following code is an example of a `Schema` which defines a single k/v state, and pre-populates it with some data.
+A schema does not populate its states. Values a state needs at genesis are written by the service's
+`Service#doGenesisSetup`, which runs in the first round of a new network; and any work the service needs on startup
+(for example, backfilling a new singleton in a state created before the singleton existed) is done by the `restart`
+hook of the service's **latest** `Schema`, which is the only one restarted. Since `restart` runs on every startup, what
+it writes must be a deterministic, idempotent function of the state.
+
+The following code is an example of a `Schema` which defines a single k/v state.
 
 ```java
-public class SchemaV1 extends Schema {
-    public SchemaV1() {
-       super(new BasicSoftwareVersion(1));
+public class V010AccountsSchema extends Schema<SemanticVersion> {
+    public V010AccountsSchema() {
+        super(new SemanticVersion(0, 1, 0, "", ""), SEMANTIC_VERSION_COMPARATOR);
     }
 
     @Override
     public Set<StateDefinition> statesToCreate() {
-       return Set.of(
-               new StateDefinition(
-                       "ACCOUNTS",
-                       new AccountIDSerdes(),
-                       new AccountSerdes(),
-                       10_000_000,
-                       false));
-    }
-
-    @Override
-    public abstract void migrate(
-            @NonNull ReadableStates previousStates,
-            @NonNull WritableStates newStates) {
-
-       final var accounts = newStates.get("ACCOUNTS");
-       accounts.put(new AccountID("0.0.1"), new Account(...));
-       accounts.put(new AccountID("0.0.2"), new Account(...));
-       accounts.put(new AccountID("0.0.3"), new Account(...));
+        return Set.of(StateDefinition.keyValue(ACCOUNTS_STATE_ID, "ACCOUNTS", AccountID.PROTOBUF, Account.PROTOBUF));
     }
 }
 ```
 
-This next example shows what a second schema might look like, which moves the map to disk, and adds some more accounts.
+This next example shows what a second schema might look like, which adds a singleton that must hold a value; its
+`restart` backfills that value into any state created before the schema existed.
 
 ```java
-public class SchemaV2 extends Schema {
-    public SchemaV2() {
-       super(new BasicSoftwareVersion(2));
+public class V020AccountsSchema extends Schema<SemanticVersion> {
+    public V020AccountsSchema() {
+        super(new SemanticVersion(0, 2, 0, "", ""), SEMANTIC_VERSION_COMPARATOR);
     }
 
     @Override
     public Set<StateDefinition> statesToCreate() {
-       return Set.of(
-               new StateDefinition(
-                       "ACCOUNTS",
-                       new AccountIDSerdes(),
-                       new AccountSerdes(),
-                       10_000_000_000,
-                       true));
+        return Set.of(StateDefinition.singleton(ACCOUNT_COUNT_STATE_ID, "ACCOUNT_COUNT", ProtoLong.PROTOBUF));
     }
 
     @Override
-    public abstract void migrate(
-            @NonNull ReadableStates previousStates,
-            @NonNull WritableStates newStates) {
-
-        final var oldAccounts = previousStates.get("ACCOUNTS");
-        final var accounts = newStates.get("ACCOUNTS");
-        for (final var accountID : oldAccounts.keys().toIterable()) {
-           accounts.put(accountID, oldAccounts.get(accountID));
+    public void restart(@NonNull final MigrationContext<SemanticVersion> ctx) {
+        if (!ctx.isGenesis()) {
+            final var count = ctx.newStates().<ProtoLong>getSingleton(ACCOUNT_COUNT_STATE_ID);
+            if (count.get() == null) {
+                count.put(new ProtoLong(ctx.newStates().get(ACCOUNTS_STATE_ID).size()));
+            }
         }
-
-        accounts.put(new AccountID("0.0.800"), new Account(...));
-        accounts.put(new AccountID("0.0.801"), new Account(...));
-        accounts.put(new AccountID("0.0.802"), new Account(...));
     }
 }
 ```
 
-These schemas are then both registered with the `SchemaRegistry` when the service is created:
+These schemas are then both registered with the `SchemaRegistry`, and the service seeds its genesis values:
 
 ```java
 public class MyService implements Service {
-   public MyService(@NonNull final SchemaRegistry registry) {
-       register.register(new SchemaV1());
-       register.register(new SchemaV2());
-   }
+    @Override
+    public void registerSchemas(@NonNull final SchemaRegistry registry) {
+        registry.register(new V010AccountsSchema());
+        registry.register(new V020AccountsSchema());
+    }
+
+    @Override
+    public boolean doGenesisSetup(@NonNull final WritableStates writableStates, @NonNull final Configuration config) {
+        writableStates.<ProtoLong>getSingleton(ACCOUNT_COUNT_STATE_ID).put(new ProtoLong(0));
+        return true;
+    }
 }
 ```
 
-The application is responsible for calling each needed schema in the correct order based on the knowledge the
-application has of the version of state it loaded from disk, or if it is a genesis condition where no state was
-available.
+The application is responsible for applying every registered schema in order each time it initializes a state, and
+for calling `doGenesisSetup` at genesis.
 
 **NEXT: [Throttles](throttles.md)**

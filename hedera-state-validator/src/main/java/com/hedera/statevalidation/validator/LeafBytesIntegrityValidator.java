@@ -7,6 +7,7 @@ import static com.hedera.statevalidation.util.LogUtils.printFileDataLocationErro
 import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.hashing.WritableMessageDigest;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.statevalidation.validator.util.ValidationException;
@@ -26,6 +27,8 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.ThreadLocalStorage;
+import org.hiero.base.crypto.Cryptography;
 
 /**
  * @see LeafBytesValidator
@@ -124,8 +127,9 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
             }
 
             // Check leaf hash against the hash stored in the hash chunk
-            MerkleHasher merkleHasher = MerkleHasher.threadSafeDefault();
-            final byte[] leafHash = merkleHasher.leafNodeHashBytes(leafBytes);
+            final WritableMessageDigest messageDigest =
+                    ThreadLocalStorage.getWritableMessageDigest(Cryptography.DEFAULT_DIGEST_TYPE.algorithmName());
+            final byte[] leafHash = MerkleHasher.leafNodeHashBytes(leafBytes, messageDigest);
             final long hashChunkPath = VirtualHashChunk.pathToChunkPath(p2KvPath, hashChunkHeight);
             final VirtualHashChunk hashChunk;
             final VirtualHashChunk lastLoadedChunk = lastChunk.get();
@@ -136,7 +140,7 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
                 hashChunk = vds.loadHashChunk(hashChunkId);
                 lastChunk.set(hashChunk);
             }
-            final byte[] storedHash = hashChunk.calcHashBytes(merkleHasher, p2KvPath, firstLeafPath, lastLeafPath);
+            final byte[] storedHash = hashChunk.calcHashBytes(p2KvPath, firstLeafPath, lastLeafPath, messageDigest);
             if (!Arrays.equals(leafHash, storedHash)) {
                 hashMismatchCount.incrementAndGet();
                 log.error("Leaf hash mismatch at path={}. calculated={} vs stored={}", p2KvPath, leafHash, storedHash);

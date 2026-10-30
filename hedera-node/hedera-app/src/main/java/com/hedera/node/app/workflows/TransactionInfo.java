@@ -67,4 +67,12 @@ public record TransactionInfo(
     public @NonNull Bytes serializedSignedTxOrThrow() {
         return requireNonNull(serializedSignedTx);
     }
+
+    /**
+     * Returns the bytes this transaction actually costs the network. The retained wire slice when there is one.
+     * Synthetic dispatches have no wire slice to retain.
+     */
+    public int wireSize() {
+        return serializedSignedTx != null ? (int) serializedSignedTx.length() : signedTx.protobufSize();
+    }
 }

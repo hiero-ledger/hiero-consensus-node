@@ -1,0 +1,18 @@
+# Grafana dashboard provider. Points at the internal dashboards-out volume
+# that dashboards-init writes into - dashboard JSON files never live under
+# services/grafana/provisioning directly. Point GRAFANA_DASHBOARDS_DIR (in
+# local.env) at your own directory to provision your own dashboards; see
+# README.md.
+apiVersion: 1
+
+providers:
+  - name: local
+    type: file
+    # Without this, Grafana reverts any panel edit made in the UI on its
+    # next provisioning sweep - maddening locally. With it, a UI edit
+    # persists until dashboards-init is re-run and changes the underlying
+    # file again, at which point the file wins. See README.md.
+    allowUiUpdates: true
+    options:
+      path: /dashboards-out
+      foldersFromFilesStructure: true

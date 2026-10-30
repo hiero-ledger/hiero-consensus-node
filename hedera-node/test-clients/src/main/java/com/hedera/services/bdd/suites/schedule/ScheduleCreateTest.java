@@ -248,7 +248,7 @@ public class ScheduleCreateTest {
     final Stream<DynamicTest> failsWithTooLongMemo() {
         return hapiTest(scheduleCreate("invalidMemo", cryptoCreate("secondary"))
                 .withEntityMemo(nAscii(101))
-                .hasPrecheck(MEMO_TOO_LONG));
+                .hasKnownStatus(MEMO_TOO_LONG));
     }
 
     @HapiTest
@@ -340,7 +340,7 @@ public class ScheduleCreateTest {
     final Stream<DynamicTest> rejectsSentinelKeyListAsAdminKey() {
         return hapiTest(scheduleCreate(CREATION, cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1)))
                 .usingSentinelKeyListForAdminKey()
-                .hasPrecheck(INVALID_ADMIN_KEY));
+                .hasKnownStatus(INVALID_ADMIN_KEY));
     }
 
     @HapiTest
@@ -352,12 +352,12 @@ public class ScheduleCreateTest {
                                 CREATION,
                                 cryptoTransfer(tinyBarsFromTo(SENDER, FUNDING, 1))
                                         .memo(nAscii(101)))
-                        .hasPrecheck(MEMO_TOO_LONG),
+                        .hasKnownStatus(MEMO_TOO_LONG),
                 scheduleCreate(
                                 "creationPartDeux",
                                 cryptoTransfer(tinyBarsFromTo(SENDER, FUNDING, 1))
                                         .memo("Here's s\u0000 to chew on!"))
-                        .hasPrecheck(INVALID_ZERO_BYTE_IN_STRING));
+                        .hasKnownStatus(INVALID_ZERO_BYTE_IN_STRING));
     }
 
     @HapiTest

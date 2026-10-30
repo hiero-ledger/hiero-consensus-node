@@ -15,7 +15,6 @@ import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.util.Random;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -80,42 +79,6 @@ class StateItemTest {
             final var bytes = serialize(item);
             final var parsed = deserialize(bytes);
             assertEquals(item, parsed);
-        }
-
-        @Test
-        @DisplayName("fastEquals matches parse equality for same bytes")
-        void fastEqualsTrue() throws IOException, ParseException {
-            final var key = Bytes.wrap(new byte[] {10, 11, 12});
-            final var value = Bytes.wrap(new byte[] {42});
-            final var item = new StateItem(key, value);
-            final var bytes = serialize(item);
-            final var in = wrap(bytes);
-            assertThat(StateItem.CODEC.fastEquals(item, in)).isTrue();
-        }
-
-        @Test
-        @DisplayName("fastEquals is false when bytes differ")
-        void fastEqualsFalse() throws IOException, ParseException {
-            final var item = new StateItem(Bytes.wrap(new byte[] {1}), Bytes.wrap(new byte[] {2}));
-            final var other = new StateItem(Bytes.wrap(new byte[] {3}), Bytes.wrap(new byte[] {4}));
-            final var bytes = serialize(other);
-            final var in = wrap(bytes);
-            assertThat(StateItem.CODEC.fastEquals(item, in)).isFalse();
-        }
-
-        @Test
-        @DisplayName("measure equals actual encoded length")
-        void measureMatchesEncodedLength() throws IOException, ParseException {
-            final var rnd = new Random(1234);
-            final byte[] keyArr = new byte[17];
-            rnd.nextBytes(keyArr);
-            final byte[] valArr = new byte[31];
-            rnd.nextBytes(valArr);
-            final var item = new StateItem(Bytes.wrap(keyArr), Bytes.wrap(valArr));
-
-            final var bytes = serialize(item);
-            final var measured = StateItem.CODEC.measure(wrap(bytes));
-            assertEquals(bytes.length, measured);
         }
 
         @Test

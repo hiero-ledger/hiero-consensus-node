@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.gossip.impl.network.communication;
 
-import com.swirlds.base.time.Time;
 import java.io.IOException;
-import java.time.Duration;
 import java.util.List;
 import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
-import org.hiero.base.concurrent.throttle.RateLimiter;
+import org.hiero.base.concurrent.throttle.StackTraceDeduplicator;
 import org.hiero.consensus.gossip.impl.network.Connection;
 import org.hiero.consensus.gossip.impl.network.ConnectionManager;
 import org.hiero.consensus.gossip.impl.network.NetworkProtocolException;
@@ -17,9 +15,6 @@ import org.hiero.consensus.gossip.impl.network.protocol.ProtocolRunnable;
  * Continuously runs protocol negotiation and protocols over connections supplied by the connection manager
  */
 public class ProtocolNegotiatorThread implements InterruptableRunnable {
-    /** A duration between reporting full stack traces for socket exceptions. */
-    private static final Duration SOCKET_EXCEPTION_DURATION = Duration.ofMinutes(1);
-
     /**
      * The number of milliseconds to sleep if a negotiation fails
      */
@@ -28,27 +23,27 @@ public class ProtocolNegotiatorThread implements InterruptableRunnable {
     private final ConnectionManager connectionManager;
     private final List<ProtocolRunnable> handshakeProtocols;
     private final NegotiationProtocols protocols;
-    private final RateLimiter socketExceptionRateLimiter;
+    private final StackTraceDeduplicator socketExceptionDeduplicator;
 
     /**
-     * @param connectionManager  supplies network connections
-     * @param sleepMillis        the number of milliseconds to sleep if a negotiation fails
-     * @param handshakeProtocols the list of protocols to execute when a new connection is established
-     * @param protocols          the protocols to negotiate and run
-     * @param time               the Time object
+     * @param connectionManager           supplies network connections
+     * @param sleepMillis                 the number of milliseconds to sleep if a negotiation fails
+     * @param handshakeProtocols          the list of protocols to execute when a new connection is established
+     * @param protocols                   the protocols to negotiate and run
+     * @param socketExceptionDeduplicator remembers which socket exception stack traces were already logged in full
      */
     public ProtocolNegotiatorThread(
             final ConnectionManager connectionManager,
             final int sleepMillis,
             final List<ProtocolRunnable> handshakeProtocols,
             final NegotiationProtocols protocols,
-            final Time time) {
+            final StackTraceDeduplicator socketExceptionDeduplicator) {
 
         this.connectionManager = connectionManager;
         this.sleepMillis = sleepMillis;
         this.handshakeProtocols = handshakeProtocols;
         this.protocols = protocols;
-        this.socketExceptionRateLimiter = new RateLimiter(time, SOCKET_EXCEPTION_DURATION);
+        this.socketExceptionDeduplicator = socketExceptionDeduplicator;
     }
 
     @Override
@@ -65,7 +60,7 @@ public class ProtocolNegotiatorThread implements InterruptableRunnable {
                 negotiator.execute();
             }
         } catch (final RuntimeException | IOException | NetworkProtocolException | NegotiationException e) {
-            NetworkUtils.handleNetworkException(e, currentConn, socketExceptionRateLimiter);
+            NetworkUtils.handleNetworkException(e, currentConn, socketExceptionDeduplicator);
         }
     }
 }

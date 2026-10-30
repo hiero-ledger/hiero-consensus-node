@@ -289,7 +289,7 @@ public class UniqueTokenManagementSpecs {
                 // This ID range needs to be exclusively positive (i.e. not zero)
                 .then(burnToken(NFT, LongStream.range(1, 1001).boxed().collect(Collectors.toList()))
                         .via(BURN_TXN)
-                        .hasPrecheck(BATCH_SIZE_LIMIT_EXCEEDED));
+                        .hasKnownStatus(BATCH_SIZE_LIMIT_EXCEEDED));
     }
 
     @HapiTest
@@ -466,7 +466,8 @@ public class UniqueTokenManagementSpecs {
                                 .supplyKey(SUPPLY_KEY)
                                 .treasury(TOKEN_TREASURY))
                 .when()
-                .then(mintToken(NFT, List.of(metadataOfLength(101))).hasPrecheck(ResponseCodeEnum.METADATA_TOO_LONG));
+                .then(mintToken(NFT, List.of(metadataOfLength(101)))
+                        .hasKnownStatus(ResponseCodeEnum.METADATA_TOO_LONG));
     }
 
     @HapiTest
@@ -483,7 +484,7 @@ public class UniqueTokenManagementSpecs {
                                 .treasury(TOKEN_TREASURY))
                 .when()
                 .then(mintToken(NFT, List.of(metadataOfLength(101), metadataOfLength(1)))
-                        .hasPrecheck(ResponseCodeEnum.METADATA_TOO_LONG));
+                        .hasKnownStatus(ResponseCodeEnum.METADATA_TOO_LONG));
     }
 
     @HapiTest
@@ -499,7 +500,7 @@ public class UniqueTokenManagementSpecs {
                                 .supplyKey(SUPPLY_KEY)
                                 .treasury(TOKEN_TREASURY))
                 .when()
-                .then(mintToken(NFT, batchOfSize(BIGGER_THAN_LIMIT)).hasPrecheck(BATCH_SIZE_LIMIT_EXCEEDED));
+                .then(mintToken(NFT, batchOfSize(BIGGER_THAN_LIMIT)).hasKnownStatus(BATCH_SIZE_LIMIT_EXCEEDED));
     }
 
     @HapiTest
@@ -708,7 +709,7 @@ public class UniqueTokenManagementSpecs {
                 .then(wipeTokenAccount(
                                 // This ID range needs to be exclusively positive (i.e. not zero)
                                 NFT, ACCOUNT, LongStream.range(1, 1001).boxed().collect(Collectors.toList()))
-                        .hasPrecheck(BATCH_SIZE_LIMIT_EXCEEDED));
+                        .hasKnownStatus(BATCH_SIZE_LIMIT_EXCEEDED));
     }
 
     @HapiTest // here

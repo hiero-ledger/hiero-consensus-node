@@ -10,6 +10,7 @@ module com.hedera.node.app.spi {
     exports com.hedera.node.app.spi.migrate;
     exports com.hedera.node.app.spi.records;
     exports com.hedera.node.app.spi.signatures;
+    exports com.hedera.node.app.spi.state;
     exports com.hedera.node.app.spi.store;
     exports com.hedera.node.app.spi.throttle;
     exports com.hedera.node.app.spi.validation;

@@ -89,6 +89,26 @@ public class BlockRecordSource implements RecordSource {
         outputs.forEach(output -> output.forEachItem(action));
     }
 
+    /**
+     * Returns all block items in this source in externalization order.
+     *
+     * @return the block items in externalization order
+     */
+    public @NonNull List<BlockItem> blockItems() {
+        final var items = new ArrayList<BlockItem>();
+        outputs.forEach(output -> items.addAll(output.blockItems()));
+        return items;
+    }
+
+    /**
+     * Returns whether this source contains any block-stream outputs.
+     *
+     * @return whether this source contains any block-stream outputs
+     */
+    public boolean hasOutputs() {
+        return !outputs.isEmpty();
+    }
+
     @Override
     public List<IdentifiedReceipt> identifiedReceipts() {
         return computedReceipts();

@@ -217,7 +217,7 @@ public class Hip17UnhappyTokensSuite {
                 tokenUpdate(NFTdeleted)
                         .entityMemo(ZERO_BYTE_MEMO)
                         .signedByPayerAnd(ADMIN_KEY)
-                        .hasPrecheck(INVALID_ZERO_BYTE_IN_STRING),
+                        .hasKnownStatus(INVALID_ZERO_BYTE_IN_STRING),
                 tokenUpdate(NFTdeleted)
                         .name(NEW_SALTED_NAME)
                         .entityMemo(SECOND_MEMO)

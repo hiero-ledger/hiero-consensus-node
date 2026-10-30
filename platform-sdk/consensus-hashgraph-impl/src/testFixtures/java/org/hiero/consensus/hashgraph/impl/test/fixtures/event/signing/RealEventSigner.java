@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.hashgraph.impl.test.fixtures.event.signing;
 
-import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.security.KeyPair;
 import java.util.HashMap;
@@ -10,7 +9,8 @@ import org.hiero.base.crypto.BytesSigner;
 import org.hiero.base.crypto.SigningFactory;
 import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.roster.test.fixtures.RosterWithKeys;
+import org.hiero.consensus.model.roster.RosterEntryWrapper;
+import org.hiero.consensus.model.test.fixtures.roster.RosterWithKeys;
 
 /**
  * An {@link GeneratorEventSigner} that produces real cryptographic signatures using the private keys from a
@@ -26,9 +26,9 @@ public class RealEventSigner implements GeneratorEventSigner {
      */
     public RealEventSigner(final RosterWithKeys rosterWithKeys) {
         this.signers = new HashMap<>();
-        for (final RosterEntry entry : rosterWithKeys.getRoster().rosterEntries()) {
-            final NodeId nodeId = NodeId.of(entry.nodeId());
-            final KeyPair keyPair = rosterWithKeys.getKeysAndCerts(nodeId).sigKeyPair();
+        for (final RosterEntryWrapper entry : rosterWithKeys.roster().rosterEntries()) {
+            final NodeId nodeId = entry.nodeId();
+            final KeyPair keyPair = rosterWithKeys.privateKey(nodeId).sigKeyPair();
             final BytesSigner signer = SigningFactory.createSigner(keyPair);
             signers.put(nodeId, signer);
         }

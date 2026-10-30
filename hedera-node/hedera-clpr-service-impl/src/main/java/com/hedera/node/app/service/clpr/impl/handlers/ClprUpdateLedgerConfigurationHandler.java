@@ -1,0 +1,133 @@
+// SPDX-License-Identifier: Apache-2.0
+package com.hedera.node.app.service.clpr.impl.handlers;
+
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CLPR_CONFIGURATION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CLPR_SERVICE_ADDRESS;
+import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
+import static java.util.Objects.requireNonNull;
+
+import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
+import com.hedera.hapi.node.state.clpr.ClprThrottles;
+import com.hedera.node.app.service.clpr.impl.WritableLedgerConfigurationStore;
+import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import javax.inject.Inject;
+import javax.inject.Singleton;
+
+/**
+ * Handler for {@link HederaFunctionality#CLPR_UPDATE_LEDGER_CONFIGURATION} transactions.
+ *
+ * <p>Updates the local CLPR ledger configuration. Requires the CLPR admin key
+ * (network admin / superuser). The handler preserves the immutable chain_id and
+ * protocol_version (set at genesis) and auto-sets the timestamp. The service_address
+ * must be the CLPR system contract's EVM address ({@code 0x16e}, the value this ledger's
+ * endpoint manifest carries) and defaults to it when omitted.
+ */
+@Singleton
+public class ClprUpdateLedgerConfigurationHandler extends AbstractClprHandler {
+
+    /**
+     * Conservative floor on the headroom max_sync_bytes must reserve above max_message_payload_bytes
+     * for the proof envelope (channel leaf + one message leaf + sibling chain to block root +
+     * TSS signature + ClprSyncPayload framing). Spec §1.1 explicitly warns that if max_sync_bytes
+     * cannot carry a single max-sized message plus its proof overhead, the Channel deadlocks —
+     * the sender can never build a bundle that fits, the peer never acks, and the queue stalls
+     * forever. This is a floor, not a sizing recommendation; operators should size generously per
+     * the spec's rule of thumb {@code max_message_payload_bytes * max_messages_per_bundle +
+     * worst_case_proof_overhead}.
+     */
+    private static final long MIN_PROOF_OVERHEAD_BYTES = 65_536L;
+
+    @Inject
+    public ClprUpdateLedgerConfigurationHandler() {}
+
+    @Override
+    public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+        requireNonNull(context);
+        final var body = context.body();
+        final var op = body.clprUpdateLedgerConfigurationOrThrow();
+
+        validateTruePreCheck(op.hasConfiguration(), INVALID_TRANSACTION_BODY);
+        final var config = op.configurationOrThrow();
+
+        // A peer's verifier (e.g. the native Hiero TSS verifier) requires config.service_address ==
+        // manifest.service_address (spec §4.8), and this ledger's endpoint manifest fixes
+        // service_address at genesis to the CLPR system contract address. Any other value would make
+        // this ledger unverifiable by its peers, so reject it; an empty value is allowed and
+        // defaults to that address in doHandle.
+        final var serviceAddress = config.serviceAddress();
+        validateTruePreCheck(
+                serviceAddress.length() == 0 || serviceAddress.equals(CLPR_SERVICE_ADDRESS),
+                INVALID_CLPR_CONFIGURATION);
+
+        // Validate throttles — all fields must be positive
+        final var throttles = config.throttlesOrElse(ClprThrottles.DEFAULT);
+        validateTruePreCheck(throttles.maxMessagesPerBundle() > 0, INVALID_CLPR_CONFIGURATION);
+        validateTruePreCheck(throttles.maxMessagePayloadBytes() > 0, INVALID_CLPR_CONFIGURATION);
+        validateTruePreCheck(throttles.maxQueueDepth() > 0, INVALID_CLPR_CONFIGURATION);
+        validateTruePreCheck(throttles.maxGasPerMessage() > 0, INVALID_CLPR_CONFIGURATION);
+        validateTruePreCheck(throttles.maxSyncBytes() > 0, INVALID_CLPR_CONFIGURATION);
+        // Spec §1.1 deadlock guard: max_sync_bytes MUST leave room for one max-sized message
+        // plus its proof+envelope overhead. Otherwise the first oversized message enqueued
+        // stalls the Channel — sender can never assemble a bundle that fits, peer never
+        // acks, queue never drains.
+        validateTruePreCheck(
+                throttles.maxSyncBytes() >= (long) throttles.maxMessagePayloadBytes() + MIN_PROOF_OVERHEAD_BYTES,
+                INVALID_CLPR_CONFIGURATION);
+    }
+
+    @Override
+    public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
+        requireNonNull(context);
+        // Authorization enforced by PrivilegesVerifier.checkClprAdmin — only
+        // treasury and system admin accounts are permitted.
+    }
+
+    @Override
+    protected void doHandle(@NonNull final HandleContext context) throws HandleException {
+        final var op = context.body().clprUpdateLedgerConfigurationOrThrow();
+        final var supplied = op.configurationOrThrow();
+
+        final var storeFactory = context.storeFactory();
+        final var configStore = storeFactory.writableStore(WritableLedgerConfigurationStore.class);
+        final var existing = configStore.getConfiguration();
+
+        // Build the updated configuration, preserving immutable fields from genesis.
+        // Source the trust anchor from this transaction's consensus state. Signed snapshot
+        // availability is node-local and must never decide a state write. Until the history
+        // ledger id is established, preserve the prior anchors (empty at genesis).
+        final var consensusNow = context.consensusNow();
+        final var ledgerId = context.historyLedgerId();
+        final Bytes initialTrustAnchor;
+        final Bytes initialTrustAnchorId;
+        if (ledgerId.length() > 0) {
+            initialTrustAnchor = ledgerId;
+            initialTrustAnchorId = ledgerId;
+        } else {
+            initialTrustAnchor = existing.initialTrustAnchor();
+            initialTrustAnchorId = existing.initialTrustAnchorId();
+        }
+        // An omitted service_address defaults to the CLPR system contract address (pureChecks
+        // rejects any other value; see there for why).
+        final var serviceAddress =
+                supplied.serviceAddress().length() > 0 ? supplied.serviceAddress() : CLPR_SERVICE_ADDRESS;
+        final var updatedConfig = ClprLedgerConfiguration.newBuilder()
+                .protocolVersion(existing.protocolVersion())
+                .chainId(existing.chainId())
+                .serviceAddress(serviceAddress)
+                .timestamp(toTimestamp(consensusNow))
+                .throttles(supplied.throttles())
+                .initialTrustAnchor(initialTrustAnchor)
+                .initialTrustAnchorId(initialTrustAnchorId)
+                .build();
+
+        configStore.put(updatedConfig);
+    }
+}

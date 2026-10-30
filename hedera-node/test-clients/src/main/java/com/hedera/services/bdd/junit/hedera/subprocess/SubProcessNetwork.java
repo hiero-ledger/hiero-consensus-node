@@ -43,6 +43,7 @@ import com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.TargetNetworkType;
 import com.hedera.services.bdd.spec.infrastructure.HapiClients;
+import com.hedera.services.bdd.spec.props.MapPropertySource;
 import com.hedera.services.bdd.spec.utilops.FakeNmt;
 import com.hederahashgraph.api.proto.java.ServiceEndpoint;
 import com.hederahashgraph.api.proto.java.Transaction;
@@ -210,6 +211,50 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     }
 
     /**
+     * Creates a new isolated subprocess network. Unlike {@link #newSharedNetwork}, multiple
+     * isolated networks may coexist in the same launcher session. Used by
+     * {@link com.hedera.services.bdd.junit.extensions.MultiNetworkExtension}.
+     *
+     * @param name         unique network name (used for working directory isolation)
+     * @param size         number of nodes
+     * @param shard        shard number
+     * @param realm        realm number
+     * @param firstGrpcPort starting gRPC port; pass -1 to auto-allocate
+     * @return the new (not yet started) network
+     */
+    public static synchronized SubProcessNetwork newIsolatedNetwork(
+            @NonNull final String name, final int size, final long shard, final long realm, final int firstGrpcPort) {
+        if (firstGrpcPort > 0) {
+            initializeNextPortsForNetwork(size, firstGrpcPort);
+        } else {
+            initializeNextPortsForNetwork(size);
+        }
+        final var network = new SubProcessNetwork(
+                name,
+                IntStream.range(0, size)
+                        .mapToObj(nodeId -> new SubProcessNode(
+                                classicMetadataFor(
+                                        nodeId,
+                                        name,
+                                        SUBPROCESS_HOST,
+                                        name,
+                                        nextGrpcPort,
+                                        nextNodeOperatorPort,
+                                        nextInternalGossipPort,
+                                        nextExternalGossipPort,
+                                        nextPrometheusPort,
+                                        shard,
+                                        realm),
+                                GRPC_PINGER,
+                                PROMETHEUS_CLIENT))
+                        .toList(),
+                shard,
+                realm);
+        Runtime.getRuntime().addShutdownHook(new Thread(network::terminate));
+        return network;
+    }
+
+    /**
      * Returns the network type; for now this is always
      * {@link TargetNetworkType#SUBPROCESS_NETWORK}.
      *
@@ -225,11 +270,30 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      */
     @Override
     public void start() {
+        startAllNodes(HederaNode::start);
+    }
+
+    /**
+     * Starts all nodes in the network with the given config (software) version, instead of the JVM-global
+     * {@code LifecycleTest.CURRENT_CONFIG_VERSION} that {@link #start()} uses.
+     *
+     * <p>Multi-network tests start each network at version 0: a network may boot after another network's
+     * upgrade restart has bumped the global counter, and its genesis state must not carry that higher version,
+     * or a later same-version restart (e.g. {@code FakeNmt.restartNode}, which uses version 0) is refused as a
+     * downgrade.
+     *
+     * @param configVersion the config version to start the nodes with
+     */
+    public void start(final int configVersion) {
+        startAllNodes(node -> ((SubProcessNode) node).startWithConfigVersion(configVersion));
+    }
+
+    private void startAllNodes(@NonNull final Consumer<HederaNode> startAction) {
         nodes.forEach(node -> {
             node.initWorkingDir(network);
             writeNodeSigningKey(node);
             executePostInitWorkingDirActions(node);
-            node.start();
+            startAction.accept(node);
         });
     }
 
@@ -310,25 +374,25 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     private void awaitLedgerIdReady(@NonNull final Instant deadline) {
         final var accountId = fromPbj(nodes.getFirst().getAccountId());
         final var ledgerIdDeadline = earlierOf(deadline, Instant.now().plus(LEDGER_ID_TIMEOUT));
-        var status = WAITING_FOR_LEDGER_ID;
         while (!Instant.now().isAfter(ledgerIdDeadline)) {
             try {
-                status = requireNonNull(this.clients)
+                final var status = requireNonNull(this.clients)
                         .getCryptoSvcStub(accountId, false, false)
                         .cryptoTransfer(Transaction.getDefaultInstance())
                         .getNodeTransactionPrecheckCode();
+                if (status != WAITING_FOR_LEDGER_ID) {
+                    return;
+                }
             } catch (Throwable t) {
-                throw new IllegalStateException("Unable to probe ledger-id readiness for network '" + name() + "'", t);
-            }
-            if (status != WAITING_FOR_LEDGER_ID) {
-                return;
+                // gRPC server may not be fully ready immediately after the port binds; retry
+                log.info(
+                        "Transient error probing ledger-id readiness for '{}', will retry: {}", name(), t.getMessage());
             }
             abortAndThrowIfInterrupted(
                     () -> TimeUnit.MILLISECONDS.sleep(LEDGER_ID_RETRY_BACKOFF.toMillis()),
                     "Interrupted while waiting for ledger id readiness");
         }
-        throw new IllegalStateException(
-                "Network '" + name() + "' remained in " + WAITING_FOR_LEDGER_ID + " until " + ledgerIdDeadline);
+        throw new IllegalStateException("Network '" + name() + "' did not resolve ledger-id by " + ledgerIdDeadline);
     }
 
     private static @NonNull Instant earlierOf(@NonNull final Instant first, @NonNull final Instant second) {
@@ -698,8 +762,19 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     public void configureApplicationProperties(HederaNode node) {
         // Update bootstrap properties for the node from bootstrapPropertyOverrides if there are any
         final var nodeId = node.getNodeId();
-        if (applicationPropertyOverrides.containsKey(nodeId)) {
-            final var properties = applicationPropertyOverrides.get(nodeId);
+        // Overridable per-task defaults (build.gradle.kts prCheckDefaultOverrides -> hapi.spec.test.defaultOverrides,
+        // e.g. clpr.enabled=true) are applied via application.properties (ordinal 100), not the environment
+        // (ordinal 300, used by ProcessUtils for the forced prCheckOverrides), so a spec can still override them with
+        // overriding(...) / @ConfigOverride (ordinal 101). Merge them with any per-node overrides; a per-node override
+        // wins.
+        final var properties = new ArrayList<>(applicationPropertyOverrides.getOrDefault(nodeId, List.of()));
+        ProcessUtils.prCheckDefaultOverrides().forEach((key, value) -> {
+            if (!properties.contains(key)) {
+                properties.add(key);
+                properties.add(value);
+            }
+        });
+        if (!properties.isEmpty()) {
             log.info("Configuring application properties for node {}: {}", nodeId, properties);
             Path appPropertiesPath = node.getExternalPath(APPLICATION_PROPERTIES);
             log.info(
@@ -886,6 +961,39 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
 
     public Map<Long, List<String>> getApplicationPropertyOverrides() {
         return applicationPropertyOverrides;
+    }
+
+    /**
+     * Returns the effective startup properties as seen by the given node, in the node's own precedence: the
+     * per-task PR-check overrides (process environment) beat that node's per-node application-property
+     * overrides (e.g. those supplied by {@code @GenesisSubprocessTest}/{@code @HapiBlockNode}), which beat
+     * the rest of this network's {@link #startupProperties() startup properties}.
+     *
+     * <p>This reads the <em>in-memory</em> per-node override map, not the node's on-disk
+     * {@code application.properties}. That file also carries the {@code configuration/dev} base config
+     * (e.g. {@code blockStream.streamMode}), which would otherwise mask the
+     * per-task PR-check {@code streamMode}/{@code writerMode} overrides that reach the node only via the
+     * process environment (and so are present in {@code startupProperties()} but not in the file).
+     *
+     * @param nodeId the node whose effective startup properties to resolve
+     * @return startup properties with that node's per-node overrides layered under the PR-check overrides
+     */
+    @NonNull
+    public HapiPropertySource effectiveStartupProperties(final long nodeId) {
+        final var overrides = applicationPropertyOverrides.get(nodeId);
+        if (overrides == null || overrides.isEmpty()) {
+            return startupProperties();
+        }
+        // Overrides are a flat [key, value, key, value, ...] list (see configureApplicationProperties).
+        final Map<String, String> overrideMap = new LinkedHashMap<>();
+        for (int i = 0; i + 1 < overrides.size(); i += 2) {
+            overrideMap.put(overrides.get(i), overrides.get(i + 1));
+        }
+        // The node gets PR-check overrides as environment variables, which beat its application.properties
+        return HapiPropertySource.inPriorityOrder(
+                new MapPropertySource(ProcessUtils.prCheckOverrides()),
+                new MapPropertySource(overrideMap),
+                startupProperties());
     }
 
     public Map<NodeId, KeysAndCerts> getNodeKeys() {

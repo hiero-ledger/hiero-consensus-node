@@ -7,6 +7,7 @@ import static com.hedera.hapi.block.stream.output.StateChange.ChangeOperationOne
 import static com.hedera.hapi.block.stream.output.StateChange.ChangeOperationOneOfType.QUEUE_PUSH;
 import static com.swirlds.state.StateChangeListener.StateType.MAP;
 import static com.swirlds.state.StateChangeListener.StateType.QUEUE;
+import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -25,6 +26,10 @@ import com.hedera.hapi.node.base.TimestampSeconds;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TopicID;
 import com.hedera.hapi.node.state.addressbook.Node;
+import com.hedera.hapi.node.state.clpr.ClprConnector;
+import com.hedera.hapi.node.state.clpr.ClprConnectorKey;
+import com.hedera.hapi.node.state.clpr.ClprMessageKey;
+import com.hedera.hapi.node.state.clpr.ClprMessageValue;
 import com.hedera.hapi.node.state.common.EntityIDPair;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.consensus.Topic;
@@ -57,6 +62,7 @@ import com.hedera.hapi.node.state.tss.TssVoteMapKey;
 import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.services.auxiliary.tss.TssMessageTransactionBody;
 import com.hedera.hapi.services.auxiliary.tss.TssVoteTransactionBody;
+import com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
 import java.util.Set;
@@ -250,6 +256,16 @@ class ImmediateStateChangeListenerTest {
                                 StateIdentifier.STATE_ID_EVM_HOOK_STORAGE.protoOrdinal(),
                                 EvmHookSlotKey.DEFAULT,
                                 SlotValue.DEFAULT);
+
+                    case CLPR_MESSAGE_KEY ->
+                        new MapUpdateScenario<>(
+                                V0780ClprSchema.MESSAGE_QUEUE_STATE_ID,
+                                ClprMessageKey.DEFAULT,
+                                ClprMessageValue.DEFAULT);
+
+                    case CLPR_CONNECTOR_KEY ->
+                        new MapUpdateScenario<>(
+                                V0780ClprSchema.CONNECTORS_STATE_ID, ClprConnectorKey.DEFAULT, ClprConnector.DEFAULT);
                 };
         if (scenario != null) {
             assertDoesNotThrow(() -> listener.mapUpdateChange(scenario.stateId, scenario.key, scenario.value));
@@ -260,7 +276,7 @@ class ImmediateStateChangeListenerTest {
 
     @Test
     void targetTypeIsMapAndQueue() {
-        assertEquals(Set.of(MAP, QUEUE), listener.stateTypes());
+        assertEquals(Set.of(MAP, QUEUE, SINGLETON), listener.stateTypes());
     }
 
     @Test

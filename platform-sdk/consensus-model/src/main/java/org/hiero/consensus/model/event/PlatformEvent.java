@@ -40,6 +40,16 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     private final EventOrigin origin;
     /** The time this event was received via gossip */
     private Instant timeReceived;
+    /**
+     * The time this event left the last stage of the event pipeline that measured it, or the time it entered the
+     * pipeline. The latency of a stage is the time from this value until the event leaves the stage.
+     */
+    private Instant lastStageTime;
+    /**
+     * The times the transactions of this event without priority were received by the transaction pool, if this node
+     * created the event in this run, otherwise empty. They are neither hashed nor serialized.
+     */
+    private final List<Instant> transactionReceivedTimes;
 
     /**
      * The id of the node which sent us this event
@@ -97,7 +107,10 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
                 unsignedEvent.getMetadata(),
                 // for a newly created event, the time received is the same as the time created
                 unsignedEvent.getTimeCreated(),
-                Objects.requireNonNull(origin, "The origin must not be null"));
+                Objects.requireNonNull(origin, "The origin must not be null"),
+                unsignedEvent.getTransactionReceivedTimes());
+        // the first stage (event creation) starts when its transactions are taken from the pool
+        this.lastStageTime = unsignedEvent.getTimeTransactionsTaken();
     }
 
     /**
@@ -111,18 +124,22 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
                 Objects.requireNonNull(gossipEvent, "The gossipEvent must not be null"),
                 new EventMetadata(gossipEvent),
                 Instant.now(),
-                Objects.requireNonNull(origin, "The origin must not be null"));
+                Objects.requireNonNull(origin, "The origin must not be null"),
+                List.of());
     }
 
     private PlatformEvent(
             @NonNull final GossipEvent gossipEvent,
             @NonNull final EventMetadata metadata,
             @NonNull final Instant timeReceived,
-            @NonNull final EventOrigin origin) {
+            @NonNull final EventOrigin origin,
+            @NonNull final List<Instant> transactionReceivedTimes) {
         this.gossipEvent = gossipEvent;
         this.metadata = metadata;
         this.origin = origin;
         this.timeReceived = timeReceived;
+        this.lastStageTime = timeReceived;
+        this.transactionReceivedTimes = transactionReceivedTimes;
         this.senderId = null;
         this.consensusData = NO_CONSENSUS;
         Objects.requireNonNull(gossipEvent.eventCore(), "The eventCore must not be null");
@@ -284,6 +301,37 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
      */
     public void setTimeReceived(@NonNull final Instant timeReceived) {
         this.timeReceived = timeReceived;
+    }
+
+    /**
+     * Get the time this event left the last stage of the event pipeline that measured it. Until a stage measures it,
+     * this is the time the event entered the pipeline, initially the time it was received.
+     *
+     * @return the time this event left the last measured stage
+     */
+    public @NonNull Instant getLastStageTime() {
+        return lastStageTime;
+    }
+
+    /**
+     * Set the time this event left the last stage of the event pipeline that measured it, or the time it entered the
+     * pipeline.
+     *
+     * @param lastStageTime the time this event left the last measured stage
+     */
+    public void setLastStageTime(@NonNull final Instant lastStageTime) {
+        this.lastStageTime = lastStageTime;
+    }
+
+    /**
+     * Get the times the transactions of this event without priority were received by the transaction pool. Only an
+     * event this node created in this run has them; for any other event, including one read back from storage, the
+     * list is empty.
+     *
+     * @return the times the transactions without priority were received
+     */
+    public @NonNull List<Instant> getTransactionReceivedTimes() {
+        return transactionReceivedTimes;
     }
 
     /**

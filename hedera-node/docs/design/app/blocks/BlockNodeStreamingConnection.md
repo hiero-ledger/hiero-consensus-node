@@ -155,68 +155,81 @@ To support traceability between CN and BN logs, CN sends a correlation ID in gRP
 
 ### Correlation ID format
 
-Connection-level IDs:
+Connection-level IDs (sent in the `hiero-correlation-id` header):
 
-- `N#-STR#` for block streaming connections
-- `N#-SVC#` for block node service/status connections
+- `N#-STR#-JVM<token>` for block streaming connections
+- `N#-SVC#-JVM<token>` for block node service/status connections
 
 Where:
 
 - `N#` is the consensus node **node ID** (`NodeInfo.nodeId()`)
-- `STR#` and `SVC#` are monotonically increasing connection sequence numbers per type
+- `STR#` and `SVC#` are monotonically increasing connection sequence numbers per type. They restart at 1 whenever the
+  JVM restarts.
+- `JVM<token>` is a JVM instance token: exactly 8 random base-36 characters (`[0-9a-z]{8}`), generated once per JVM
+  start and shared by every connection in that JVM. It tells apart connections with the same sequence number that were
+  made by different JVMs (e.g. after a restart, or by two processes running with the same node ID). The token is logged
+  each time the block node connection manager starts (`Starting block node connection manager (jvmId: <token>)...`).
+  This is not necessarily when the JVM started: the manager may start later, or be stopped and started again, which
+  logs the same token again. If the token cannot be created, a warning is logged and the `-JVM<token>` part is omitted.
 
-Block request IDs (streaming requests only):
+Block request IDs (streaming requests only, CN logs only):
 
-- `N#-STR#-BLK#-BAN#-REQ#`
+- `N#-STR#-JVM<token>-BLK#-BAN#-REQ#-CRN#`
 
 Where:
 
 - `BLK#` is the block number being sent
 - `BAN#` is the number of times this block has been tried
 - `REQ#` is the request number within that block
+- `CRN#` is the request number within the connection
 
 ### Logging format
 
-When sending requests to a block node, all requests have a correlation ID that is unique to the connection. The format
-of the correlation ID is:
+When sending requests to a block node, all requests have a correlation ID that is unique to the connection. Every
+request-level correlation ID starts with the connection-level correlation ID, so searching the logs for a connection's
+correlation ID finds all of its requests too. The format of the correlation ID is:
 
 ```
-N{NodeId}-STR{ConnectionId}-BLK{BlockNumber}-BAN{BlockAttemptNumber}-REQ{BlockRequestNumber}-CRN{ConnectionRequestNumber}
+N{NodeId}-STR{ConnectionId}-JVM{JvmToken}-BLK{BlockNumber}-BAN{BlockAttemptNumber}-REQ{BlockRequestNumber}-CRN{ConnectionRequestNumber}
 ```
 
 - Node ID: the ID of the current consensus node where the request originated from
-- Connection ID: the unique ID of the stream/connection established (unique within the lifespan of the JVM)
+- Connection ID: the ID of the stream/connection established (unique within the lifespan of the JVM)
+- JVM Token: the JVM instance token (unique per JVM start)
 - Block Number: the block number associated with the request
 - Block Attempt Number: the number of times the block has been attempted (happy path will be '1', but if a block is being retried then this number will increment for each retry)
 - Block Request Number: the request number unique to the block
 - Connection Request Number: unique ID for the request (unique within the lifespan of the connection)
 
 An example of this correlation ID is:
-`[N3-STR1-BLK0-BAN1-REQ2-CRN1391/localhost:37753/ACTIVE] ...`
+`[N3-STR1-JVMk3f9x02a-BLK0-BAN1-REQ2-CRN1391/localhost:37753/ACTIVE] ...`
 
 Some requests are not associated with a block, such as sending an EndStream request, and therefore they will lack
 block-specific details. These will have a format of:
 
 ```
-N{NodeId}-[STR|SVC]{ConnectionId}-CRN{ConnectionRequestNumber}
+N{NodeId}-[STR|SVC]{ConnectionId}-JVM{JvmToken}-CRN{ConnectionRequestNumber}
 ```
 
 An example of this correlation ID is:
-`[N3-SVC1-CRN12/localhost:37753/ACTIVE] ...`
+`[N3-SVC1-JVMk3f9x02a-CRN12/localhost:37753/ACTIVE] ...`
 
 For general purpose logging, all logs should be identified by the node and stream with the format:
 
 ```
-N{NodeId}-[STR|SVC]{ConnectionId}
+N{NodeId}-[STR|SVC]{ConnectionId}-JVM{JvmToken}
 ```
 
 An example of the correlation ID:
-`[N3-SVC1/localhost:37753/ACTIVE] ...`
+`[N3-SVC1-JVMk3f9x02a/localhost:37753/ACTIVE] ...`
+
+The connection worker thread is named `bn-conn-worker-N{NodeId}-STR{ConnectionId}-JVM{JvmToken}`.
 
 ### Notes
 
 - The metadata value is attached via PBJ `RequestOptions.metadata()`.
-- For service/status requests, metadata uses the connection-level ID (`N#-SVC#`) without `REQ#`.
+- Metadata always carries the connection-level ID (`N#-STR#-JVM<token>` or `N#-SVC#-JVM<token>`). Request-level IDs
+  are only used in CN logs.
 - For streaming block-item sends, logs carry `BLK#` and `REQ#` to make searching for a specific block/request straightforward.
 
 ### Graceful Connection Close

@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.dispatch;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_SIGN;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.SCHEDULED;
 import static java.util.Collections.emptySet;
 import static java.util.Objects.requireNonNull;
 
@@ -48,17 +51,35 @@ public class RecordFinalizer {
      */
     public void finalizeRecord(@NonNull final Dispatch dispatch) {
         requireNonNull(dispatch);
+        final var txnInfo = dispatch.txnInfo();
         if (dispatch.stack().permitsStakingRewards()) {
             recordFinalizer.finalizeStakingRecord(
                     dispatch.finalizeContext(),
-                    dispatch.txnInfo().functionality(),
-                    extraRewardReceivers(
-                            dispatch.txnInfo().txBody(), dispatch.txnInfo().functionality(), dispatch.streamBuilder()),
+                    txnInfo.functionality(),
+                    txnInfo.txBody(),
+                    extraRewardReceivers(dispatch),
                     dispatch.handleContext().dispatchPaidRewards());
         } else {
             recordFinalizer.finalizeNonStakingRecord(
-                    dispatch.finalizeContext(), dispatch.txnInfo().functionality());
+                    dispatch.finalizeContext(), txnInfo.functionality(), txnInfo.txBody());
         }
+    }
+
+    private Set<AccountID> extraRewardReceivers(@NonNull final Dispatch dispatch) {
+        final var txnInfo = dispatch.txnInfo();
+        final var function = txnInfo.functionality();
+        final var receivers = extraRewardReceivers(txnInfo.txBody(), function, dispatch.streamBuilder());
+        if (function != SCHEDULE_CREATE && function != SCHEDULE_SIGN) {
+            return receivers;
+        }
+        // A schedule executed immediately doesn't settle its own rewards, so its trigger includes its extra receivers
+        final Set<AccountID> withScheduled = new LinkedHashSet<>(receivers);
+        dispatch.stack().forEachNonBaseBuilder(StreamBuilder.class, child -> {
+            if (child.category() == SCHEDULED) {
+                withScheduled.addAll(extraRewardReceivers(child.transactionBody(), child.functionality(), child));
+            }
+        });
+        return withScheduled;
     }
 
     /**
@@ -92,9 +113,10 @@ public class RecordFinalizer {
             return emptySet();
         }
         return switch (function) {
-            case CRYPTO_TRANSFER -> zeroAdjustIdsFrom(body.cryptoTransferOrThrow()
-                    .transfersOrElse(TransferList.DEFAULT)
-                    .accountAmounts());
+            case CRYPTO_TRANSFER ->
+                zeroAdjustIdsFrom(body.cryptoTransferOrThrow()
+                        .transfersOrElse(TransferList.DEFAULT)
+                        .accountAmounts());
             case ETHEREUM_TRANSACTION, CONTRACT_CALL, CONTRACT_CREATE -> recordBuilder.explicitRewardSituationIds();
             default -> emptySet();
         };

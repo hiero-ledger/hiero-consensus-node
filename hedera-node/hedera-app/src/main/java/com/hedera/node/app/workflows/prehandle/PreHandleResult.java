@@ -17,6 +17,8 @@ import com.hedera.node.app.workflows.TransactionInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -147,6 +149,19 @@ public record PreHandleResult(
     public PreHandleResult {
         requireNonNull(status);
         requireNonNull(responseCode);
+        // Defensively snapshot the exposed collections so a consumer cannot mutate them, and so later mutation
+        // of the caller's original collection is not visible through these. LinkedHashSet/LinkedHashMap preserve
+        // insertion order, which is load-bearing: hollowAccounts order drives the order of the synthetic
+        // CryptoUpdate dispatches in HollowAccountCompletions#finalizeHollowAccounts.
+        // innerResults is intentionally left mutable: atomic-batch pre-handle appends inner results to it
+        // after construction (see PreHandleWorkflow#preHandleTransaction).
+        requiredKeys = requiredKeys == null ? null : Collections.unmodifiableSet(new LinkedHashSet<>(requiredKeys));
+        optionalKeys = optionalKeys == null ? null : Collections.unmodifiableSet(new LinkedHashSet<>(optionalKeys));
+        hollowAccounts =
+                hollowAccounts == null ? null : Collections.unmodifiableSet(new LinkedHashSet<>(hollowAccounts));
+        verificationResults = verificationResults == null
+                ? null
+                : Collections.unmodifiableMap(new LinkedHashMap<>(verificationResults));
     }
 
     /**

@@ -18,10 +18,21 @@ public interface ExecutorFactory {
      * Create a ForkJoinPool with the given parallelism.
      *
      * @param parallelism the parallelism
+     * @param asyncMode whether to use async mode (if true, establishes local first-in-first-out scheduling mode for forked tasks that are never joined)
      * @return the ForkJoinPool
      */
     @NonNull
-    ForkJoinPool createForkJoinPool(int parallelism);
+    ForkJoinPool createForkJoinPool(int parallelism, boolean asyncMode);
+
+    /**
+     * Create a ForkJoinPool with the given parallelism and async mode set to true.
+     *
+     * @param parallelism the parallelism
+     * @return the ForkJoinPool
+     */
+    default ForkJoinPool createForkJoinPool(int parallelism) {
+        return createForkJoinPool(parallelism, true);
+    }
 
     /**
      * Create an ExecutorService with the given thread count.

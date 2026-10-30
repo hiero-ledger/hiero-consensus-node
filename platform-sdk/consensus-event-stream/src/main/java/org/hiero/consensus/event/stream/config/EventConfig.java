@@ -7,11 +7,14 @@ import com.swirlds.config.api.ConfigProperty;
 /**
  * Configuration for event handling inside the platform.
  *
- * @param eventStreamQueueCapacity      capacity of the blockingQueue from which we take events and write to EventStream
- *                                      files
- * @param eventsLogPeriod               period of generating eventStream file
- * @param eventsLogDir                  eventStream files will be generated in this directory.
- * @param enableEventStreaming          enable stream event to server.
+ * @param eventStreamQueueCapacity capacity of the blockingQueue from which we take events and write to EventStream
+ *                                 files
+ * @param eventsLogPeriod          period of generating eventStream file
+ * @param eventsLogDir             eventStream files will be generated in this directory.
+ * @param enableEventStreaming     enable stream event to server.
+ * @param enableEventCutover       enable event cutover. This can apply to any event change that requires a certain
+ *                                 birth round and higher of events to be treated differently than older events (i.e.
+ *                                 hashing change, structural change, etc.)
  */
 @ConfigData("event")
 public record EventConfig(
@@ -21,4 +24,5 @@ public record EventConfig(
         @ConfigProperty(defaultValue = "/opt/hgcapp/eventsStreams")
         String eventsLogDir,
 
-        @ConfigProperty(defaultValue = "true") boolean enableEventStreaming) {}
+        @ConfigProperty(defaultValue = "true") boolean enableEventStreaming,
+        @ConfigProperty(defaultValue = "true") boolean enableEventCutover) {}

@@ -98,6 +98,7 @@ jobs:
   prime-workflow:
     name: Prime workflow
     runs-on: hl-cn-default-lin-ss
+    if: ${{ github.event.repository.visibility == 'public' }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
@@ -110,6 +111,7 @@ jobs:
 
   delete-selected-namespaces:
     runs-on: hl-cn-default-lin-sm
+    if: ${{ github.event.repository.visibility == 'public' }}
     env:
       Dallas_n1: ${{ github.event_name == 'schedule' && 'true' || github.event.inputs.Dallas_n1 }}
       Dallas_n2: ${{ github.event_name == 'schedule' && 'true' || github.event.inputs.Dallas_n2 }}

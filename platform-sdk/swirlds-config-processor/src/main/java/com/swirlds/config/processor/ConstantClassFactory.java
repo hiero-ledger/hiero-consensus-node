@@ -10,6 +10,8 @@ import java.io.IOException;
 import java.io.Writer;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import javax.lang.model.element.Modifier;
 import javax.tools.JavaFileObject;
@@ -60,26 +62,48 @@ public final class ConstantClassFactory {
                         DateTimeFormatter.ISO_DATE_TIME.format(LocalDateTime.now()),
                         originalRecordClassName);
 
+        final Map<String, String> propertyNamesByConstantName = new HashMap<>();
         configDataRecordDefinition.propertyDefinitions().forEach(propertyDefinition -> {
             final String name = toConstantName(
-                    propertyDefinition.name().replace(configDataRecordDefinition.configDataName() + ".", ""));
+                    removePrefix(propertyDefinition.name(), configDataRecordDefinition.configDataName()));
+
+            // two property names can map onto one constant name, for example "leaf.value" and "leafValue". Adding the
+            // field twice would produce a class that does not compile, so the clash is reported here instead.
+            final String clashing = propertyNamesByConstantName.put(name, propertyDefinition.name());
+            if (clashing != null) {
+                throw new IllegalArgumentException("Error processing record: "
+                        + configDataRecordDefinition.simpleClassName() + " properties \"" + clashing + "\" and \""
+                        + propertyDefinition.name() + "\" both map onto the constant name \"" + name
+                        + "\". Rename one of them.");
+            }
 
             try {
+
+                // A property of a nested config data object is declared by that nested record, so referring to the
+                // config data record that is being processed would name the component holding the group instead of the
+                // property, and every property of one group would be documented as the very same member.
+                final ConfigDataPropertyDefinition.DeclaringComponent declaringComponent =
+                        propertyDefinition.declaringComponent();
+                final String declaringClassName =
+                        declaringComponent != null ? declaringComponent.recordClassName() : originalRecordClassName;
+                final String declaringComponentName = declaringComponent != null
+                        ? declaringComponent.componentName()
+                        : propertyDefinition.fieldName();
 
                 FieldSpec fieldSpec = FieldSpec.builder(
                                 String.class, name, Modifier.PUBLIC, Modifier.STATIC, Modifier.FINAL)
                         .initializer("$S", propertyDefinition.name())
                         .addJavadoc(
                                 "Name of the {@link $L#$L} property\n@see $L#$L\n",
-                                originalRecordClassName,
-                                propertyDefinition.fieldName(),
-                                originalRecordClassName,
-                                propertyDefinition.fieldName())
+                                declaringClassName,
+                                declaringComponentName,
+                                declaringClassName,
+                                declaringComponentName)
                         .build();
                 constantsClassBuilder.addField(fieldSpec);
             } catch (Exception e) {
                 throw new IllegalArgumentException(
-                        "Error processing record:"
+                        "Error processing record: "
                                 + configDataRecordDefinition.simpleClassName() + " field:"
                                 + propertyDefinition.fieldName() + " annotation value:\"" + propertyDefinition.name()
                                 + "\" cannot be used as a valid constant name. Check if should be a " + DEFAULT_VALUE
@@ -98,7 +122,41 @@ public final class ConstantClassFactory {
     }
 
     /**
-     * Converts a property name into a constant name. The conversion is based on changing from camel case to snake case
+     * Removes the prefix that a config data record defines for its properties from the name of one of its properties,
+     * so that the constant is named after the property alone.
+     * <p>
+     * Exactly one leading prefix is removed, and only when it is followed by the separator. A prefix that occurs again
+     * further along the name belongs to a property of a nested config data object and has to be kept, and a record
+     * without a prefix has nothing to remove at all: removing {@code "."} from every position would run the segments of
+     * a nested property together.
+     *
+     * @param propertyName the full name of the property. Must not be {@code null}.
+     * @param prefix       the prefix of the config data record, which is empty when it defines none. Must not be
+     *                     {@code null}.
+     *
+     * @return the name of the property without the prefix. Never {@code null}.
+     */
+    @NonNull
+    public static String removePrefix(@NonNull final String propertyName, @NonNull final String prefix) {
+        Objects.requireNonNull(propertyName, "propertyName must not be null");
+        Objects.requireNonNull(prefix, "prefix must not be null");
+
+        if (prefix.isEmpty() || !propertyName.startsWith(prefix + ".")) {
+            return propertyName;
+        }
+        return propertyName.substring(prefix.length() + 1);
+    }
+
+    /**
+     * Converts a property name into a constant name. The conversion is based on changing from camel case to snake case.
+     * The dots that separate the segments of the name of a property of a nested config data object become underscores
+     * as well, since a dot is not valid in a constant name.
+     * <p>
+     * A camel case boundary, a dot and an underscore are all read as one and the same word separator and each produces
+     * exactly one underscore, so {@code "fooBar"}, {@code "foo.Bar"}, {@code "foo.bar"}, {@code "foo_Bar"} and
+     * {@code "foo_bar"} all become {@code "FOO_BAR"}. Two property names of one record that collapse onto the same
+     * constant name this way are reported by {@link #doWork(ConfigDataRecordDefinition, JavaFileObject)} rather than
+     * generating a class that declares the same field twice.
      *
      * @param propertyName The property name to be converted. Must not be {@code null}.
      *
@@ -111,7 +169,9 @@ public final class ConstantClassFactory {
         final StringBuilder builder = new StringBuilder();
         for (int i = 0; i < propertyName.length(); i++) {
             final char character = propertyName.charAt(i);
-            if (i > 0 && Character.isUpperCase(character)) {
+            if (character == '.') {
+                builder.append("_");
+            } else if (i > 0 && Character.isUpperCase(character) && builder.charAt(builder.length() - 1) != '_') {
                 builder.append("_");
                 builder.append(character);
             } else {

@@ -54,7 +54,9 @@ public class ThrottleReqsManager {
             final var req = allReqs.get(i);
             final var opsRequired = req.getRight();
             final var bucket = req.getLeft();
-            bucket.leakCapacity(nTransactions * opsRequired * BucketThrottle.capacityUnitsPerTxn());
+            // Widen before multiplying: nTransactions * opsRequired is an int*int product that could
+            // wrap before it is widened by the long capacityUnitsPerTxn().
+            bucket.leakCapacity((long) nTransactions * opsRequired * BucketThrottle.capacityUnitsPerTxn());
         }
     }
 
@@ -68,7 +70,11 @@ public class ThrottleReqsManager {
             var req = allReqs.get(i);
             var opsRequired = req.getRight();
             if (scaleFactor != null) {
-                opsRequired = scaleFactor.scaling(nTransactions * opsRequired);
+                // Compute in long and clamp: nTransactions * opsRequired is an int*int product that could
+                // wrap to a small/negative value before scaling(); clamping to Integer.MAX_VALUE keeps
+                // scaling()'s existing large-input cap.
+                opsRequired =
+                        scaleFactor.scaling((int) Math.min((long) nTransactions * opsRequired, Integer.MAX_VALUE));
             }
             passedReq[i] = req.getLeft().allow(opsRequired, now);
             if (throttleUsages != null && passedReq[i]) {

@@ -13,23 +13,25 @@ import com.swirlds.base.time.Time;
 import com.swirlds.metrics.api.LongAccumulator;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
-import java.util.Iterator;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.throttle.RateLimitedLogger;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.model.event.EventHashFactory;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.transaction.Transaction;
+import org.hiero.consensus.model.transaction.TransactionWrapper;
 import org.hiero.consensus.transaction.TransactionLimits;
 
 /**
  * Validates the internal fields of an event: null checks, byte field lengths, transaction byte
  * limits, parent uniqueness, and birth round consistency.
  */
+@SuppressWarnings("ForLoopReplaceableByForEach")
 public class DefaultEventFieldValidator implements EventFieldValidator {
     private static final Logger logger = LogManager.getLogger(DefaultEventFieldValidator.class);
 
@@ -108,9 +110,9 @@ public class DefaultEventFieldValidator implements EventFieldValidator {
             nullField = "eventCore";
         } else if (eventCore.timeCreated() == null) {
             nullField = "timeCreated";
-        } else if (gossipEvent.parents().stream().anyMatch(Objects::isNull)) {
+        } else if (containsNullParent(gossipEvent.parents())) {
             nullField = "parent";
-        } else if (gossipEvent.transactions().stream().anyMatch(DefaultEventFieldValidator::isTransactionNull)) {
+        } else if (containsNullTransaction(gossipEvent.transactions())) {
             nullField = "transaction";
         }
         if (nullField != null) {
@@ -121,30 +123,50 @@ public class DefaultEventFieldValidator implements EventFieldValidator {
         return true;
     }
 
-    private static boolean isTransactionNull(@Nullable final Bytes transaction) {
-        return transaction == null || transaction.length() == 0;
+    private static boolean containsNullParent(@NonNull final List<EventDescriptor> parents) {
+        for (int i = 0, parentSize = parents.size(); i < parentSize; i++) {
+            if (parents.get(i) == null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean containsNullTransaction(@NonNull final List<Bytes> transactions) {
+        for (int i = 0, transactionSize = transactions.size(); i < transactionSize; i++) {
+            final Bytes transaction = transactions.get(i);
+            if (transaction == null || transaction.length() == 0) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean areByteFieldsCorrectLength(@NonNull final PlatformEvent event) {
         final GossipEvent gossipEvent = event.getGossipEvent();
-        if (gossipEvent.parents().stream()
-                .map(EventDescriptor::hash)
-                .anyMatch(hash -> hash.length() != DigestType.SHA_384.digestLength())) {
-            fieldLengthLogger.error(
-                    EXCEPTION.getMarker(),
-                    "Event parent descriptor has a hash that is the wrong length {}",
-                    gossipEvent);
-            fieldLengthAccumulator.update(1);
-            return false;
+        final List<EventDescriptor> parents = gossipEvent.parents();
+        for (int i = 0, parentSize = parents.size(); i < parentSize; i++) {
+            final EventDescriptor parent = parents.get(i);
+            final DigestType expectedDigestType = EventHashFactory.getTypeForBirthRound(parent.birthRound());
+            if (parent.hash().length() != expectedDigestType.digestLength()) {
+                fieldLengthLogger.error(
+                        EXCEPTION.getMarker(),
+                        "Event parent descriptor has a hash that is the wrong length in event {}. Expected {}, but was {}",
+                        gossipEvent,
+                        expectedDigestType.digestLength(),
+                        parent.hash().length());
+                fieldLengthAccumulator.update(1);
+                return false;
+            }
         }
         return true;
     }
 
     private boolean isTransactionByteCountValid(@NonNull final PlatformEvent event) {
         long totalTransactionBytes = 0;
-        final Iterator<Transaction> iterator = event.transactionIterator();
-        while (iterator.hasNext()) {
-            totalTransactionBytes += iterator.next().getSize();
+        final List<TransactionWrapper> transactions = event.getTransactions();
+        for (int i = 0, transactionSize = transactions.size(); i < transactionSize; i++) {
+            totalTransactionBytes += transactions.get(i).getSize();
         }
 
         if (totalTransactionBytes > transactionLimits.maxTransactionBytesPerEvent()) {
@@ -160,12 +182,19 @@ public class DefaultEventFieldValidator implements EventFieldValidator {
     }
 
     private boolean areParentsFromUniqueCreators(@NonNull final PlatformEvent event) {
-        final long numUniqueParentCreators = event.getAllParents().stream()
-                .map(EventDescriptorWrapper::creator)
-                .distinct()
-                .count();
+        // Checking uniqueness manually as this is slightly faster for small lists.
+        final List<EventDescriptorWrapper> parents = event.getAllParents();
+        final long[] creators = new long[parents.size()];
+        for (int i = 0, creatorsLength = creators.length; i < creatorsLength; i++) {
+            creators[i] = parents.get(i).creator().id();
+        }
+        Arrays.sort(creators);
+        boolean unique = true;
+        for (int i = 1, creatorsLength = creators.length; i < creatorsLength && unique; i++) {
+            unique = creators[i] != creators[i - 1];
+        }
 
-        if (numUniqueParentCreators < event.getAllParents().size()) {
+        if (!unique) {
             invalidParentsAccumulator.update(1);
             invalidParentsLogger.error(
                     EXCEPTION.getMarker(),
@@ -181,8 +210,9 @@ public class DefaultEventFieldValidator implements EventFieldValidator {
         final long eventBirthRound = event.getDescriptor().birthRound();
 
         long maxParentBirthRound = ROUND_NEGATIVE_INFINITY;
-        for (final EventDescriptorWrapper parent : event.getAllParents()) {
-            maxParentBirthRound = Math.max(maxParentBirthRound, parent.birthRound());
+        final List<EventDescriptorWrapper> parents = event.getAllParents();
+        for (int i = 0, parentSize = parents.size(); i < parentSize; i++) {
+            maxParentBirthRound = Math.max(maxParentBirthRound, parents.get(i).birthRound());
         }
 
         if (eventBirthRound < maxParentBirthRound) {

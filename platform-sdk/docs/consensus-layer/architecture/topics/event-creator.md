@@ -35,9 +35,12 @@ The default implementation is `TipsetEventCreator`
 (`consensus-event-creator-impl/.../tipset/TipsetEventCreator.java`), which
 holds four collaborating objects:
 
-- **Per-event tipsets** — `TipsetTracker`
-  (`consensus-event-creator-impl/.../tipset/TipsetTracker.java`) keeps a
-  `SequenceMap<EventDescriptorWrapper, Tipset>` of every non-ancient
+- **Per-event tipsets** — a `TipsetTracker`
+  (`consensus-event-creator-impl/.../tipset/TipsetTracker.java`), passed to
+  the `TipsetEventCreator` constructor. The default implementation,
+  `DefaultTipsetTracker`
+  (`consensus-event-creator-impl/.../tipset/DefaultTipsetTracker.java`),
+  keeps a `SequenceMap<EventDescriptorWrapper, Tipset>` of every non-ancient
   event's tipset, plus a `latestGenerations` tipset summarising the
   highest sequence number observed per node.
 - **Snapshot and score accumulators** — `TipsetWeightCalculator`
@@ -73,9 +76,9 @@ input and output wires plus an `EventTransactionSupplier` passed at
   delivers `PlatformEvent`s; they pass through `FutureEventBuffer` in
   `DefaultEventCreationManager#registerEvent` and reach
   `TipsetEventCreator#registerEvent`, which routes peer events to
-  `TipsetTracker#addPeerEvent` (advancing both the per-event tipset and
+  `DefaultTipsetTracker#addPeerEvent` (advancing both the per-event tipset and
   `latestGenerations` using the event's sequence number) and adopted
-  self-events to `TipsetTracker#addSelfEvent` — self-events are adopted
+  self-events to `DefaultTipsetTracker#addSelfEvent` — self-events are adopted
   selectively, see [Latest self event](#latest-self-event). See
   [event-intake.md](event-intake.md).
 - **Event window from hashgraph** — `consensusRoundInputWire` delivers each
@@ -129,9 +132,9 @@ of an event is the per-node maximum over its parents' tipsets, with the
 event's own creator entry advanced to the event's sequence number.
 
 The data structure is `Tipset` (`tipset/Tipset.java`). Two operations
-matter most: `Tipset#merge(List<Tipset>)` (lines 63–80) takes the
+matter most: `Tipset#merge(List<Tipset>)` takes the
 per-node maximum across a list of parent tipsets, and `Tipset#advance(NodeId, long)`
-(lines 113–117) raises a single entry to the supplied sequence number.
+raises a single entry to the supplied sequence number.
 
 ### Advancement score
 
@@ -146,8 +149,8 @@ The score is a `TipsetAdvancementWeight` record
 `advancementWeight` for non-zero-weight nodes (which contribute to
 quorum) and `zeroWeightAdvancementCount` for zero-weight nodes (which
 must still be allowed to advance, but separately). The score itself is
-computed by `Tipset#getTipAdvancementWeight(NodeId selfId, Tipset that)`
-(lines 140–163), which iterates the roster and skips the self index.
+computed by `Tipset#getTipAdvancementWeight(NodeId selfId, Tipset that)`,
+which iterates the roster and skips the self index.
 
 ### Snapshot updates
 
@@ -155,7 +158,7 @@ The snapshot is the moving baseline against which improvement is
 measured. `TipsetWeightCalculator` holds the current `snapshot` and a
 bounded `snapshotHistory` (sized by `tipsetSnapshotHistorySize`, TUN-136).
 Whenever `TipsetWeightCalculator#addEventAndGetAdvancementWeight`
-(lines 165–198) is called for a new self-event, it computes the
+is called for a new self-event, it computes the
 partial-weighted score of that event's tipset against the current
 snapshot and, when the score plus this node's own weight reaches
 super-majority of total weight, replaces the snapshot with the new
@@ -173,9 +176,9 @@ if (SUPER_MAJORITY.isSatisfiedBy(advancementWeight.advancementWeight() + selfWei
 ```
 
 Per-event tipsets for peer events are constructed in
-`TipsetTracker#addPeerEvent` (lines 125–138); the call
+`DefaultTipsetTracker#addPeerEvent`; the call
 `new Tipset(roster).merge(parentTipsets).advance(event.getCreatorId(), event.getSequenceNumber())`
-shows that tipset entries are event sequence numbers.
+shows that its tipset entries are event sequence numbers.
 
 The >2/3 threshold mirrors the super-majority that hashgraph consensus
 itself requires to strongly see another node's event, so a snapshot
@@ -204,9 +207,9 @@ consensus is reached in fewer rounds. This is the
 snapshot-improvement-score gate from the source doc.
 
 The gate is implemented in
-`TipsetEventCreator#createEventCombinedAlgorithm` (lines 273–352): the
-non-zero filter is at line 287, and the no-eligible-parent branch is at
-lines 301–312 (returns `null` unless this is the genesis event). The
+`TipsetEventCreator#createEventCombinedAlgorithm`: the non-zero
+filter runs first, and the no-eligible-parent branch returns `null`
+unless this is the genesis event. The
 actual snapshot-update happens later in
 `TipsetWeightCalculator#addEventAndGetAdvancementWeight` once the event
 has been assembled.
@@ -227,12 +230,12 @@ swaps the lowest-scoring tipset parent for an event from an ignored
 peer, weighted by the peer's selfishness score.
 
 The score is computed in
-`TipsetWeightCalculator#getSelfishnessScoreForNode` (lines 275–315);
-the maximum across all childless peers is `getMaxSelfishnessScore`
-(lines 255–261). The pity-pick selection is
-`TipsetEventCreator#selectParentToReduceSelfishness` (lines 374–439),
+`TipsetWeightCalculator#getSelfishnessScoreForNode`;
+the maximum across all childless peers is `getMaxSelfishnessScore`.
+The pity-pick selection is
+`TipsetEventCreator#selectParentToReduceSelfishness`,
 called probabilistically with `beNiceChance = (selfishness - 1) / antiSelfishnessFactor`
-(line 319, with `antiSelfishnessFactor` defaulting to `10`).
+(`antiSelfishnessFactor` defaults to `10`).
 
 The value `10` is a heuristic. It has no derivation in the code,
 comments, or commit history, and has been carried forward unchanged
@@ -255,9 +258,9 @@ with no coordination between nodes.
 ## Permission gates
 
 Before delegating to the tipset algorithm,
-`DefaultEventCreationManager#maybeCreateEvent` (lines 133–157) consults
-an `AggregateEventCreationRules` chain assembled in the constructor
-(lines 106–115). Each rule independently vetoes event creation when
+`DefaultEventCreationManager#maybeCreateEvent` consults
+an `AggregateEventCreationRules` chain assembled in the constructor.
+Each rule independently vetoes event creation when
 its condition is not met; the chain permits creation only when every
 rule agrees. The rules cover distinct concerns.
 

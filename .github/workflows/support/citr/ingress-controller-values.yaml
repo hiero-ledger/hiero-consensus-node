@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+controller:
+  config:
+    path-type-order: exact,regex,prefix,begin
+  nodeSelector:
+    chewie-group: aux

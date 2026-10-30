@@ -6,9 +6,11 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BA
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNRESOLVABLE_REQUIRED_SIGNERS;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static com.hedera.node.app.workflows.prehandle.PreHandleContextListUpdatesTest.A_COMPLEX_KEY;
+import static com.hedera.node.app.workflows.prehandle.PreHandleResult.Status.SO_FAR_SO_GOOD;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -41,12 +43,18 @@ import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
+import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.UnaryOperator;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -133,6 +141,53 @@ class PreHandleContextImplTest implements Scenarios {
         assertThat(result).isEqualTo(creatorInfo);
     }
 
+    @Test
+    @DisplayName("Key/account sets exposed to PreHandleResult are unmodifiable")
+    void exposedKeyAndAccountSetsAreUnmodifiable() throws PreCheckException {
+        subject.requireKey(otherKey);
+
+        // PreHandleContextImpl exposes unmodifiable views, so a consumer cannot mutate them.
+        assertThatThrownBy(() -> subject.requiredNonPayerKeys().add(payerKey))
+                .isInstanceOf(UnsupportedOperationException.class);
+        assertThatThrownBy(() -> subject.optionalNonPayerKeys().add(payerKey))
+                .isInstanceOf(UnsupportedOperationException.class);
+        assertThatThrownBy(() -> subject.requiredHollowAccounts().add(account))
+                .isInstanceOf(UnsupportedOperationException.class);
+
+        // Feeding raw, mutable sets (not the unmodifiable views above) proves PreHandleResult does the wrapping
+        // itself: the exposed collections still reject mutation...
+        final var rawRequiredKeys = new LinkedHashSet<>(subject.requiredNonPayerKeys());
+        final var rawOptionalKeys = new LinkedHashSet<>(subject.optionalNonPayerKeys());
+        final var rawHollowAccounts = new LinkedHashSet<>(subject.requiredHollowAccounts());
+        final var result = new PreHandleResult(
+                PAYER,
+                payerKey,
+                SO_FAR_SO_GOOD,
+                OK,
+                null,
+                rawRequiredKeys,
+                rawOptionalKeys,
+                rawHollowAccounts,
+                Map.of(),
+                null,
+                0L);
+        assertThatThrownBy(() -> result.getRequiredKeys().add(payerKey))
+                .isInstanceOf(UnsupportedOperationException.class);
+        assertThatThrownBy(() -> result.getOptionalKeys().add(payerKey))
+                .isInstanceOf(UnsupportedOperationException.class);
+        assertThatThrownBy(() -> result.getHollowAccounts().add(account))
+                .isInstanceOf(UnsupportedOperationException.class);
+
+        // ...and that it snapshots them, so mutating the source sets after construction is not visible through
+        // the exposed collections.
+        rawRequiredKeys.add(payerKey);
+        rawOptionalKeys.add(payerKey);
+        rawHollowAccounts.add(account);
+        assertThat(result.getRequiredKeys()).doesNotContain(payerKey);
+        assertThat(result.getOptionalKeys()).doesNotContain(payerKey);
+        assertThat(result.getHollowAccounts()).doesNotContain(account);
+    }
+
     @Nested
     @DisplayName("Optional keys methods")
     class OptionalKeysTests {
@@ -199,6 +254,51 @@ class PreHandleContextImplTest implements Scenarios {
 
             verify(account).receiverSigRequired();
             verifyNoMoreInteractions(account);
+        }
+
+        @ParameterizedTest
+        @MethodSource("degenerateKeys")
+        void requireKeyIfReceiverSigRequiredForAccountIDThrowsForDegenerateKey(final Key degenerateKey) {
+            final var accountId = AccountID.newBuilder().accountNum(1234L).build();
+            final var account = mock(Account.class);
+            final var accountsConfig = mock(AccountsConfig.class);
+            given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
+            given(accountsConfig.stakingRewardAccount()).willReturn(800L);
+            given(accountsConfig.nodeRewardAccount()).willReturn(801L);
+            given(accountStore.getAccountById(accountId)).willReturn(account);
+            given(account.receiverSigRequired()).willReturn(true);
+            given(account.accountIdOrThrow()).willReturn(accountId);
+            given(account.keyOrElse(any())).willReturn(degenerateKey);
+            given(account.key()).willReturn(degenerateKey);
+
+            // A key that cannot be satisfied must not be silently dropped by requireKey(), leaving the
+            // receiverSigRequired flag unenforced
+            assertThatThrownBy(() -> subject.requireKeyIfReceiverSigRequired(accountId, INVALID_ACCOUNT_ID))
+                    .isInstanceOf(PreCheckException.class)
+                    .has(responseCode(INVALID_ACCOUNT_ID));
+            assertThat(subject.requiredNonPayerKeys()).isEmpty();
+        }
+
+        static Stream<Key> degenerateKeys() {
+            final var goodEd25519 =
+                    Key.newBuilder().ed25519(Bytes.wrap(new byte[32])).build();
+            final var emptyKeyList = Key.newBuilder().keyList(KeyList.DEFAULT).build();
+            return Stream.of(
+                    emptyKeyList,
+                    Key.newBuilder()
+                            .keyList(KeyList.newBuilder().keys(emptyKeyList).build())
+                            .build(),
+                    Key.newBuilder()
+                            .keyList(KeyList.newBuilder()
+                                    .keys(emptyKeyList, goodEd25519)
+                                    .build())
+                            .build(),
+                    Key.newBuilder()
+                            .thresholdKey(ThresholdKey.newBuilder()
+                                    .threshold(0)
+                                    .keys(KeyList.newBuilder().keys(goodEd25519).build()))
+                            .build(),
+                    Key.newBuilder().ed25519(Bytes.wrap(new byte[5])).build());
         }
 
         @Test
@@ -421,6 +521,111 @@ class PreHandleContextImplTest implements Scenarios {
             assertThatThrownBy(() -> subject.allKeysForTransaction(TransactionBody.DEFAULT, ERIN.accountID()))
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(UNRESOLVABLE_REQUIRED_SIGNERS));
+        }
+    }
+
+    @Nested
+    class ForeignContractIdPayerKeyTests {
+        // PAYER is account 0.0.3, so a self-referential contract key names contract 0.0.3.
+        private static final ContractID SELF =
+                ContractID.newBuilder().contractNum(3L).build();
+        private static final ContractID FOREIGN =
+                ContractID.newBuilder().contractNum(10002L).build();
+
+        @Test
+        void foreignContractIdPayerKeyIsRequired() throws PreCheckException {
+            final var foreignKey = Key.newBuilder().contractID(FOREIGN).build();
+            final var context = subjectWithPayerKey(foreignKey);
+            context.requireKey(foreignKey);
+            assertThat(context.requiredNonPayerKeys()).containsExactly(foreignKey);
+        }
+
+        @Test
+        void selfContractIdPayerKeyIsElided() throws PreCheckException {
+            final var selfKey = Key.newBuilder().contractID(SELF).build();
+            final var context = subjectWithPayerKey(selfKey);
+            context.requireKey(selfKey);
+            assertThat(context.requiredNonPayerKeys()).isEmpty();
+        }
+
+        @Test
+        void foreignDelegatableContractIdPayerKeyIsRequired() throws PreCheckException {
+            final var foreignKey =
+                    Key.newBuilder().delegatableContractId(FOREIGN).build();
+            final var context = subjectWithPayerKey(foreignKey);
+            context.requireKey(foreignKey);
+            assertThat(context.requiredNonPayerKeys()).containsExactly(foreignKey);
+        }
+
+        @Test
+        void selfDelegatableContractIdPayerKeyIsElided() throws PreCheckException {
+            final var selfKey = Key.newBuilder().delegatableContractId(SELF).build();
+            final var context = subjectWithPayerKey(selfKey);
+            context.requireKey(selfKey);
+            assertThat(context.requiredNonPayerKeys()).isEmpty();
+        }
+
+        @Test
+        void cryptoPayerKeyIsStillElided() throws PreCheckException {
+            final var context = subjectWithPayerKey(payerKey);
+            context.requireKey(payerKey);
+            assertThat(context.requiredNonPayerKeys()).isEmpty();
+        }
+    }
+
+    private PreHandleContextImpl subjectWithPayerKey(final Key key) throws PreCheckException {
+        given(account.keyOrThrow()).willReturn(key);
+        return new PreHandleContextImpl(
+                storeFactory, createAccountTransaction(), configuration, dispatcher, transactionChecker, creatorInfo);
+    }
+
+    @Nested
+    @DisplayName("requireKeyOrThrow with a finisher")
+    class RequireKeyOrThrowWithFinisherTests {
+
+        private static final AccountID TARGET =
+                AccountID.newBuilder().accountNum(456L).build();
+        private static final Key VALID_STATE_KEY = Key.newBuilder()
+                .ed25519(Bytes.wrap("12345678901234567890123456789012"))
+                .build();
+
+        @BeforeEach
+        void setup() {
+            final var accountsConfig = mock(AccountsConfig.class);
+            given(accountStore.getAccountById(TARGET)).willReturn(account);
+            given(account.deleted()).willReturn(false);
+            given(account.accountIdOrThrow()).willReturn(TARGET);
+            given(account.keyOrThrow()).willReturn(VALID_STATE_KEY);
+            given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
+            given(accountsConfig.stakingRewardAccount()).willReturn(789L);
+            given(accountsConfig.nodeRewardAccount()).willReturn(987L);
+        }
+
+        @Test
+        @DisplayName("throws the caller's status when the finisher yields a structurally invalid key")
+        void finisherProducingInvalidKeyFailsClosed() {
+            final UnaryOperator<Key> finisher =
+                    ignore -> Key.newBuilder().keyList(KeyList.DEFAULT).build();
+
+            assertThatThrownBy(() -> subject.requireKeyOrThrow(TARGET, finisher, UNRESOLVABLE_REQUIRED_SIGNERS))
+                    .isInstanceOf(PreCheckException.class)
+                    .has(responseCode(UNRESOLVABLE_REQUIRED_SIGNERS));
+            assertThat(subject.requiredNonPayerKeys()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("adds the transformed key when the finisher yields a valid key")
+        void finisherProducingValidKeyIsRequired() throws PreCheckException {
+            final var transformedKey = Key.newBuilder()
+                    .thresholdKey(ThresholdKey.newBuilder()
+                            .threshold(1)
+                            .keys(KeyList.newBuilder().keys(VALID_STATE_KEY)))
+                    .build();
+            final UnaryOperator<Key> finisher = ignore -> transformedKey;
+
+            subject.requireKeyOrThrow(TARGET, finisher, UNRESOLVABLE_REQUIRED_SIGNERS);
+
+            assertThat(subject.requiredNonPayerKeys()).containsExactly(transformedKey);
         }
     }
 }

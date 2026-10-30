@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.base.crypto.test.fixtures;
 
+import static org.hiero.base.crypto.Cryptography.DEFAULT_DIGEST_TYPE;
+
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -34,7 +36,7 @@ public final class MessageDigestPool {
         this.messages = new ArrayList<>(poolSize);
         this.readPosition = new AtomicInteger(0);
         this.random = new Random();
-        this.digest = MessageDigest.getInstance("SHA-384");
+        this.digest = MessageDigest.getInstance(DEFAULT_DIGEST_TYPE.algorithmName());
 
         init();
     }
@@ -86,7 +88,7 @@ public final class MessageDigestPool {
 
             final byte[] hash = digest.digest();
 
-            messages.add(new KnownDigest(hash, new Message(payload)));
+            messages.add(new KnownDigest(hash, new Message(payload, DEFAULT_DIGEST_TYPE)));
         }
     }
 

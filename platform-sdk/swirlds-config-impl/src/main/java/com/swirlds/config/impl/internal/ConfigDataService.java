@@ -57,7 +57,7 @@ class ConfigDataService implements ConfigLifecycle {
     @Override
     public void init() {
         throwIfInitialized();
-        registeredTypes.stream().forEach(type -> {
+        registeredTypes.forEach(type -> {
             try {
                 final Record dataInstance = configDataFactory.createConfigInstance(type);
                 configDataCache.put(type, dataInstance);
@@ -89,6 +89,7 @@ class ConfigDataService implements ConfigLifecycle {
      * @return the instance of the given config data type
      */
     @NonNull
+    @SuppressWarnings("unchecked")
     <T extends Record> T getConfigData(@NonNull final Class<T> type) {
         Objects.requireNonNull(type, "type must not be null");
         throwIfNotInitialized();

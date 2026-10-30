@@ -274,6 +274,22 @@ class UtilPrngHandlerTest {
     }
 
     @Test
+    void missingHashInBlocksModeReturnsZerosOfTheBlockDigestLength() {
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("blockStream.streamMode", "BLOCKS")
+                .withValue("blockStream.digestType", "SHA_256")
+                .getOrCreateConfig();
+        given(handleContext.configuration()).willReturn(config);
+        givenTxnWithRange(0);
+        given(handleContext.blockRecordInfo()).willReturn(blockRecordInfo);
+        given(blockRecordInfo.prngSeed()).willReturn(null);
+
+        subject.handle(handleContext);
+
+        verify(recordBuilder).entropyBytes(Bytes.wrap(new byte[32]));
+    }
+
+    @Test
     void verifyModThrowException() {
         assertThatThrownBy(() -> UtilPrngHandler.mod(0, 0)).isInstanceOf(ArithmeticException.class);
     }

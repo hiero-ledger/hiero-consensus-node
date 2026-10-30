@@ -1,0 +1,112 @@
+// SPDX-License-Identifier: Apache-2.0
+package com.hedera.node.config.data;
+
+import com.hedera.node.config.NetworkProperty;
+import com.swirlds.config.api.ConfigData;
+import com.swirlds.config.api.ConfigProperty;
+import java.time.Duration;
+
+/**
+ * Configuration for the CLPR (Cross Ledger Protocol) service.
+ */
+@ConfigData("clpr")
+public record ClprConfig(
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        boolean enabled,
+
+        @ConfigProperty(defaultValue = "hiero:mainnet") @NetworkProperty
+        String chainId,
+
+        @ConfigProperty(defaultValue = "1") @NetworkProperty int protocolVersion,
+
+        @ConfigProperty(defaultValue = "100000000") @NetworkProperty
+        long minLockedStake,
+
+        @ConfigProperty(defaultValue = "803") @NetworkProperty
+        long stakingAccount,
+
+        @ConfigProperty(defaultValue = "10000000") @NetworkProperty
+        long slashBasePenalty,
+
+        @ConfigProperty(defaultValue = "2") @NetworkProperty int slashMultiplier,
+        @ConfigProperty(defaultValue = "5") @NetworkProperty int slashBanThreshold,
+
+        @ConfigProperty(defaultValue = "5000000") @NetworkProperty
+        long endpointPayoutCapTinybars,
+
+        @ConfigProperty(defaultValue = "5000000") @NetworkProperty
+        long endpointMisbehaviorPenaltyTinybars,
+
+        @ConfigProperty(defaultValue = "1000000") @NetworkProperty
+        long messageExecutionCost,
+
+        @ConfigProperty(defaultValue = "10") @NetworkProperty
+        int endpointMarginPercent,
+        // --- Sync orchestration (CLPR-4.3) ---
+        @ConfigProperty(defaultValue = "4") int maxConcurrentSyncs,
+        @ConfigProperty(defaultValue = "30") int syncTimeoutSeconds,
+        @ConfigProperty(defaultValue = "300") int reputationDecaySeconds,
+        @ConfigProperty(defaultValue = "1000") long retryInitialDelayMs,
+        @ConfigProperty(defaultValue = "30000") long retryMaxDelayMs,
+        @ConfigProperty(defaultValue = "5") @NetworkProperty int retryMaxAttempts,
+        @ConfigProperty(defaultValue = "120") int circuitBreakerCooldownSeconds,
+        // --- Local peer exclusion heuristics ---
+        // When false, CLPR does not reject inbound requests or remove outbound candidates
+        // due to local shunning or open circuit-breaker state.
+        @ConfigProperty(defaultValue = "false") boolean syncPeerExclusionEnabled,
+        // --- Queue monopolization protection (CLPR-3.5) ---
+        @ConfigProperty(defaultValue = "50") @NetworkProperty
+        int connectorQueueQuotaPct,
+
+        // --- Verifier contract dispatch (CLPR-5.3) ---
+        // The dispatched call's gas must cover the EIP-7623 calldata floor (~40 gas per proof byte); a Hiero
+        // state proof carrying a WRAPS proof is ~15 KB, so even a single-message bundle needs ~640K gas
+        @ConfigProperty(defaultValue = "2000000") @NetworkProperty
+        long verifierGasLimit,
+
+        // --- Node-submitted ClprSubmitBundle fee cap (tinybars) ---
+        // Maximum fee the node will pay when submitting an inbound bundle for consensus.
+        @ConfigProperty(defaultValue = "1000000000") @NetworkProperty
+        long nodeSubmitBundleMaxFee,
+
+        // --- Sender-side state-proof verification (bring-up sanity check) ---
+        // When true, re-parses every freshly built bundle/config StateProof and verifies its TSS
+        // signature against the recomputed block root before submitting the bytes to the network
+        // (assertValidBundleOrNull / assertValidOrEmpty). Useful during bring-up to fail loudly
+        // on a buggy proof builder; can be turned off in steady state to save CPU since the
+        // receiver verifies independently.
+        @ConfigProperty(defaultValue = "true") boolean verifyProofsAtSender,
+
+        // --- Restart rehydration (node-local, CLPR-4.3) ---
+        // Node-local file recording the outbound sync orchestrator's per-channel peer endpoints
+        // (and the channel ids themselves), so a restarted node can re-register channels and
+        // re-seed endpoints without iterating consensus state. Path is relative to the node working
+        // directory; serialized as JSON. This is NOT consensus state.
+        @ConfigProperty(defaultValue = "data/clpr/peer-endpoints.json")
+        String peerEndpointsFile,
+
+        // --- Endpoint manifest construction lifecycle (design doc §8.1) ---
+        // Grace period, extension size, and extension budget for the manifest construction that
+        // gathers per-node endpoint publications. Defaults mirror the TssConfig envelope so day-one
+        // behavior matches the well-tested TSS bootstrap window; independent knobs let CLPR tune
+        // without perturbing TSS.
+        @ConfigProperty(defaultValue = "300s") @NetworkProperty
+        Duration manifestGracePeriod,
+
+        @ConfigProperty(defaultValue = "300s") @NetworkProperty
+        Duration manifestGraceExtension,
+
+        @ConfigProperty(defaultValue = "2") @NetworkProperty int manifestMaxGraceExtensions,
+
+        // --- Endpoint publication submission (design doc §8.2) ---
+        // Retry knobs for a node's outbound ClprEndpointPublication. Defaults mirror
+        // NetworkAdminConfig.{timesToTrySubmission, retryDelay, distinctTxnIdsToTry} so behavior
+        // matches the retry envelope TssSubmissions already relies on.
+        @ConfigProperty(defaultValue = "50") @NetworkProperty
+        int manifestSubmissionRetries,
+
+        @ConfigProperty(defaultValue = "5s") @NetworkProperty
+        Duration manifestSubmissionRetryDelay,
+
+        @ConfigProperty(defaultValue = "10") @NetworkProperty
+        int manifestSubmissionDistinctTxnIds) {}

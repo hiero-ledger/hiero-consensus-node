@@ -7,7 +7,7 @@
           "type": "header",
           "text": {
             "type": "plain_text",
-            "text": ":exclamation: Hiero Consensus Node - Deploy Production Release Failure Report",
+            "text": {{ printf ":exclamation: Hiero Consensus Node - %s Failure Report" (getenv "REPORT_TITLE" | required "REPORT_TITLE must be set") | data.ToJSON }},
             "emoji": true
           }
         },
@@ -18,16 +18,12 @@
           "type": "section",
           "text": {
             "type": "mrkdwn",
-            "text": {{ printf "*Deploy Production Release job resulted in failure on `%s`. See status below.* " (getenv "REF_NAME" | required "REF_NAME must be set") (getenv "REF_NAME") | data.ToJSON }}
+            "text": {{ printf "*%s job resulted in failure on `%s`. See status below.* " (getenv "REPORT_TITLE") (getenv "REF_NAME" | required "REF_NAME must be set") | data.ToJSON }}
           },
           "fields": [
             {
               "type": "mrkdwn",
-              "text": {{ printf "*Release [Branch]*: %s" (getenv "RELEASE_BRANCH_RESULT" | required "RELEASE_BRANCH_RESULT must be set") | data.ToJSON }}
-            },
-            {
-              "type": "mrkdwn",
-              "text": {{ printf "*Deploy XTS CI Trigger*: %s" (getenv "DEPLOY_XTS_TRIGGER_RESULT" | required "DEPLOY_XTS_TRIGGER_RESULT must be set") | data.ToJSON }}
+              "text": {{ getenv "JOB_RESULTS" | required "JOB_RESULTS must be set" | data.ToJSON }}
             }
           ]
         },

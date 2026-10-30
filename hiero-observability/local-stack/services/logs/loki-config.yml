@@ -1,0 +1,102 @@
+# Loki - minimal single-binary, filesystem-backed configuration.
+#
+# DO NOT EDIT. Copy this file anywhere, edit your copy, and point LOKI_CONFIG
+# at it in `local.env`.
+#
+# Run with `-config.expand-env=true`, which expands ${VAR} from the container's
+# environment. Note that Loki uses ${VAR} while VictoriaMetrics uses %{VAR};
+# they are different syntaxes for different tools, do not unify them.
+
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9096
+  log_level: warn
+
+common:
+  instance_addr: 127.0.0.1
+  path_prefix: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+
+schema_config:
+  configs:
+    - from: 2024-01-01
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+limits_config:
+  # This is the whole point of the stack: a test run that finished hours ago
+  # must still be ingestible. `reject_old_samples: true` with the usual 1h
+  # max age silently drops exactly that.
+  reject_old_samples: false
+  retention_period: ${LOGS_RETENTION}
+  volume_enabled: true
+
+  # Loki's defaults here (4 MB/s, 6 MB burst, 3 MB/s per stream) exist to
+  # protect a shared, multi-tenant cluster from a noisy neighbor - there is
+  # no neighbor here, only auth_enabled: false and a single fake tenant.
+  # Backfilling a run's logs at once easily bursts well past those and gets
+  # rejected with "ingestion rate limit exceeded", which is exactly the
+  # historical-import use case this stack exists for. Raised, not disabled,
+  # so a runaway tail (e.g. a misconfigured LOG_INCLUDE matching a
+  # rapidly-growing file) still hits a ceiling instead of being unbounded.
+  ingestion_rate_mb: 1024
+  ingestion_burst_size_mb: 2048
+  per_stream_rate_limit: 1024MB
+  per_stream_rate_limit_burst: 2048MB
+
+ingester:
+  # Separate from reject_old_samples above: within a single stream, Loki only
+  # accepts an out-of-order write if its timestamp is no more than half of
+  # max_chunk_age behind the highest timestamp already seen in that stream
+  # (pkg/ingester/stream.go) - the default max_chunk_age (2h) is a 1h window.
+  # A fresh, never-before-tailed file never needs more than that (Alloy reads
+  # it top to bottom, so timestamps only ever increase); this only matters if
+  # two files land in the *same* stream, which means the same log_name and
+  # the same LOG_LABELS - see README's "same basename" note and
+  # scripts/import-logs.sh, the documented way to avoid that collision with
+  # an explicit label. Raised here (not disabled - there is no way to disable
+  # it) purely as a cheap safety net for the case someone hits that collision
+  # anyway: 24h gives a 12h window instead of 1h, still bounded, at the cost
+  # of a stream's active chunk staying in memory that much longer before a
+  # forced flush.
+  max_chunk_age: 24h
+
+  # A stream only becomes queryable from an old time range once its chunk is
+  # flushed out of the ingester's memory into the filesystem store (verified
+  # empirically against this pinned Loki version - a query for an old range
+  # returns nothing until that flush happens, no matter how the query itself
+  # is shaped). Loki's 30m default chunk_idle_period means a small,
+  # already-finished historical import - which stops receiving writes the
+  # moment the import ends - can sit invisible for up to that long. Lowered
+  # to 1m: harmless for an actively-tailed stream (still-running processes
+  # write far more often than once a minute, so they never go idle long
+  # enough to trigger it), but turns "wait 30 minutes" into "wait about a
+  # minute" for the case this stack exists for.
+  chunk_idle_period: 1m
+
+compactor:
+  working_directory: /loki/compactor
+  retention_enabled: true
+  retention_delete_delay: 1h
+  # Required whenever retention is enabled.
+  delete_request_store: filesystem
+
+query_range:
+  results_cache:
+    cache:
+      embedded_cache:
+        enabled: true
+        max_size_mb: 100

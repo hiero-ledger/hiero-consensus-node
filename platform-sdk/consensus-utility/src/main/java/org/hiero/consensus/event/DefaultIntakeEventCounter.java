@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.HashMap;
@@ -10,6 +9,7 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntUnaryOperator;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterWrapper;
 
 /**
  * Default implementation of {@link IntakeEventCounter}.
@@ -42,10 +42,9 @@ public class DefaultIntakeEventCounter implements IntakeEventCounter {
      *
      * @param roster the roster
      */
-    public DefaultIntakeEventCounter(@NonNull final Roster roster) {
+    public DefaultIntakeEventCounter(@NonNull final RosterWrapper roster) {
         this.unprocessedEventCounts = new HashMap<>();
-        roster.rosterEntries()
-                .forEach(entry -> unprocessedEventCounts.put(NodeId.of(entry.nodeId()), new AtomicInteger(0)));
+        roster.rosterEntries().forEach(entry -> unprocessedEventCounts.put(entry.nodeId(), new AtomicInteger(0)));
     }
 
     /**

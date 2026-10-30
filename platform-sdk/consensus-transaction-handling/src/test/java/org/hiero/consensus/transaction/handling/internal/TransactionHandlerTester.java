@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.transaction.handling.internal;
 
+import static org.hiero.consensus.platformstate.PlatformStateAccessor.GENESIS_ROUND;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.bulkUpdateOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.same;
@@ -25,6 +26,7 @@ import java.util.ArrayList;
 import java.util.List;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.file.FileSystemManager;
+import org.hiero.consensus.event.stream.config.EventConfig_;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
@@ -54,18 +56,33 @@ public class TransactionHandlerTester implements AutoCloseable {
      * Constructs a new {@link TransactionHandlerTester} with the given {@link Roster}.
      *
      */
-    @SuppressWarnings("unchecked")
     public TransactionHandlerTester() {
+        this(true, false);
+    }
+
+    /**
+     * Constructs a new {@link TransactionHandlerTester}.
+     *
+     * @param eventCutoverEnabled whether the event cutover is enabled in the configuration
+     * @param startFromGenesis    whether the handler starts from a genesis state
+     */
+    @SuppressWarnings("unchecked")
+    public TransactionHandlerTester(final boolean eventCutoverEnabled, final boolean startFromGenesis) {
 
         freezeTime = Instant.now();
         consensusTimestamp = freezeTime.minusMillis(1);
 
         final Metrics metrics = new NoOpMetrics();
         final Time time = Time.getCurrent();
-        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
+        final Configuration configuration = new TestConfigBuilder()
+                .withValue(EventConfig_.ENABLE_EVENT_CUTOVER, eventCutoverEnabled)
+                .getOrCreateConfig();
         final FileSystemManager fileSystemManager = new FileSystemManager();
         platformState = new PlatformStateValueAccumulator();
         final RandomSignedStateGenerator randomSignedStateGenerator = new RandomSignedStateGenerator();
+        if (startFromGenesis) {
+            randomSignedStateGenerator.setRound(GENESIS_ROUND);
+        }
         final SignedState state = randomSignedStateGenerator.build();
 
         statusMonitorModule = mock(StatusMonitorModule.class);

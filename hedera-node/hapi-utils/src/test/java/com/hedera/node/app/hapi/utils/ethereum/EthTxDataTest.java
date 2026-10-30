@@ -445,14 +445,14 @@ class EthTxDataTest {
         assertNull(EthTxData.populateEthTxData(Arrays.copyOf(canonical, canonical.length + 1)));
     }
 
-    byte[][] normalRlpData() {
+    Object[] normalRlpData() {
         final var oneByte = new byte[] {1};
-        final byte[][] rlpArray = new byte[][] {
+        final var emptyObjectArray = new Object[] {};
+        return new Object[] {
             oneByte, oneByte, oneByte, oneByte,
             oneByte, oneByte, oneByte, oneByte,
-            oneByte, oneByte, oneByte, oneByte
+            emptyObjectArray, oneByte, oneByte, oneByte
         };
-        return rlpArray;
     }
 
     @Test

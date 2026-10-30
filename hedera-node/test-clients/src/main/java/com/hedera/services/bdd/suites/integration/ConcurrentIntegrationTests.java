@@ -14,16 +14,19 @@ import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFu
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountRecords;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.invalidMintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.wipeTokenAccount;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewAccount;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createHollow;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usingEventBirthRound;
@@ -38,10 +41,13 @@ import static com.hedera.services.bdd.suites.contract.Utils.aaWith;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_SIZE_LIMIT_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_AMOUNTS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECORD_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
+import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.google.protobuf.ByteString;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.TransactionResult;
 import com.hedera.hapi.node.base.AccountAmount;
@@ -99,6 +105,29 @@ public class ConcurrentIntegrationTests {
                         .setNode("4")
                         .hasKnownStatus(INVALID_ACCOUNT_AMOUNTS),
                 validateChargedAccount(dueDiligenceTxn, "4"));
+    }
+
+    @EmbeddedHapiTest(MUST_SKIP_INGEST)
+    final Stream<DynamicTest> mixedFungibleAndNftMintIsChargedToSubmittingNode() {
+        final var dueDiligenceTxn = "mixedMintDueDiligenceTxn";
+        final var supplyKey = "supplyKey";
+        final var nft = "nft";
+
+        return hapiTest(
+                cryptoTransfer(tinyBarsFromTo(GENESIS, "4", ONE_HBAR)),
+                newKeyNamed(supplyKey),
+                tokenCreate(nft)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(supplyKey)
+                        .treasury(DEFAULT_PAYER)
+                        .initialSupply(0),
+                invalidMintToken(nft, List.of(ByteString.copyFromUtf8("m1"), ByteString.copyFromUtf8("m2")), 1)
+                        .signedBy(DEFAULT_PAYER, supplyKey)
+                        .via(dueDiligenceTxn)
+                        .setNode("4")
+                        .hasKnownStatus(INVALID_TRANSACTION_BODY),
+                validateChargedAccount(dueDiligenceTxn, "4"),
+                getTokenInfo(nft).hasTotalSupply(0));
     }
 
     @HapiTest

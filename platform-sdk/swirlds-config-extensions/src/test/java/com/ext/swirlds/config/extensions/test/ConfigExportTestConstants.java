@@ -2,6 +2,8 @@
 package com.ext.swirlds.config.extensions.test;
 
 import com.swirlds.config.api.ConfigData;
+import com.swirlds.config.api.ConfigProperty;
+import com.swirlds.config.api.NestedConfig;
 
 /**
  * Helper for {@code ConfigExportTest}
@@ -16,4 +18,16 @@ public class ConfigExportTestConstants {
 
     @ConfigData("prefix")
     public record PrefixedConfigExportTestRecord(String property) {}
+
+    @ConfigData("nested")
+    public record NestedConfigExportTestRecord(NestedLeaf leaf) {}
+
+    @NestedConfig
+    public record NestedLeaf(
+            @ConfigProperty(defaultValue = "defaultValue") String value, int count) {}
+
+    @ConfigData("nullable")
+    public record NullableConfigExportTestRecord(
+            @ConfigProperty(defaultValue = ConfigProperty.NULL_DEFAULT_VALUE)
+            String value) {}
 }

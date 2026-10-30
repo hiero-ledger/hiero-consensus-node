@@ -9,6 +9,7 @@ import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
 import com.swirlds.config.api.validation.annotation.Min;
 import java.time.Duration;
+import org.hiero.base.crypto.DigestType;
 
 /**
  * Configuration for the block stream.
@@ -17,12 +18,16 @@ import java.time.Duration;
  * @param blockFileDir directory to store block files
  * @param roundsPerBlock the number of rounds per block
  * @param blockPeriod the block period
+ * @param maxBlockSizeBytes the maximum serialized preview block size in bytes before savepoint output is suppressed;
+ *                          zero disables the circuit breaker
  * @param receiptEntriesBatchSize the maximum number of receipts to accumulate in a {@link com.hedera.hapi.node.state.recordcache.TransactionReceiptEntries} wrapper before writing a queue state changes item to the block stream
  * @param maxReadDepth the max allowed depth of nested protobuf messages
  * @param maxReadBytesSize the max size in bytes of protobuf messages to read
  * @param blockFileBufferOuterSizeKb block file writer outer buffer size (in kilobytes) (see FileBlockItemWriter#openBlock(long) for details)
  * @param blockFileBufferInnerSizeKb block file writer inner buffer size (in kilobytes) (see FileBlockItemWriter#openBlock(long) for details)
  * @param blockFileBufferGzipSizeKb block file writer GZIP buffer size (in kilobytes) (see FileBlockItemWriter#openBlock(long) for details)
+ * @param digestType the digest algorithm to use for block-root Merkle hashing; {@code SHA_256} enables 32-byte
+ *                   SHA-256 hashing, {@code SHA_384} (the default) uses 48-byte SHA-384
  */
 @ConfigData("blockStream")
 public record BlockStreamConfig(
@@ -39,6 +44,9 @@ public record BlockStreamConfig(
 
         @ConfigProperty(defaultValue = "2s") @Min(0) @NetworkProperty
         Duration blockPeriod,
+
+        @ConfigProperty(defaultValue = "20971520") @Min(0) @NetworkProperty
+        long maxBlockSizeBytes,
 
         @ConfigProperty(defaultValue = "8192") @Min(1) @NetworkProperty
         int receiptEntriesBatchSize,
@@ -68,6 +76,9 @@ public record BlockStreamConfig(
 
         @ConfigProperty(defaultValue = "false") @NetworkProperty
         boolean enableCutover,
+
+        @ConfigProperty(defaultValue = "SHA_256") @NetworkProperty
+        DigestType digestType,
 
         @ConfigProperty(defaultValue = "true") @NetworkProperty
         boolean streamWrappedRecordBlocks,

@@ -53,6 +53,7 @@ public final class ExchangeRateManager {
     private static final Logger log = LogManager.getLogger(ExchangeRateManager.class);
 
     private static final BigInteger ONE_HUNDRED = BigInteger.valueOf(100);
+    private static final BigInteger LONG_MAX = BigInteger.valueOf(Long.MAX_VALUE);
 
     private final ConfigProvider configProvider;
 
@@ -110,6 +111,14 @@ public final class ExchangeRateManager {
         if (!(proposedRates.hasCurrentRate()
                 && proposedRates.currentRateOrThrow().hasExpirationTime()
                 && proposedRates.hasNextRate())) {
+            throw new HandleException(ResponseCodeEnum.INVALID_EXCHANGE_RATE_FILE);
+        }
+
+        // Reject degenerate rates: a non-positive hbarEquiv/centEquiv would make fee conversion divide by
+        // zero (see getAFromB) or yield a nonsensical price, so such a rate must never become the live rate.
+        final var current = proposedRates.currentRateOrThrow();
+        final var next = proposedRates.nextRateOrThrow();
+        if (current.hbarEquiv() <= 0 || current.centEquiv() <= 0 || next.hbarEquiv() <= 0 || next.centEquiv() <= 0) {
             throw new HandleException(ResponseCodeEnum.INVALID_EXCHANGE_RATE_FILE);
         }
 
@@ -266,11 +275,15 @@ public final class ExchangeRateManager {
     }
 
     private static long getAFromB(final long bAmount, final int aEquiv, final int bEquiv) {
-        final var aMultiplier = BigInteger.valueOf(aEquiv);
-        final var bDivisor = BigInteger.valueOf(bEquiv);
-        return BigInteger.valueOf(bAmount)
-                .multiply(aMultiplier)
-                .divide(bDivisor)
-                .longValueExact();
+        // A degenerate exchange rate would either divide by zero (non-positive divisor) or make the result
+        // free/negative (non-positive multiplier); saturate to Long.MAX_VALUE instead so a malformed rate
+        // yields an unpayable fee and cannot halt fee conversion network-wide.
+        if (aEquiv <= 0 || bEquiv <= 0) {
+            return Long.MAX_VALUE;
+        }
+        final var result =
+                BigInteger.valueOf(bAmount).multiply(BigInteger.valueOf(aEquiv)).divide(BigInteger.valueOf(bEquiv));
+        // longValueExact() throws when the result exceeds the long range; saturate to the maximum instead.
+        return result.compareTo(LONG_MAX) >= 0 ? Long.MAX_VALUE : result.longValue();
     }
 }

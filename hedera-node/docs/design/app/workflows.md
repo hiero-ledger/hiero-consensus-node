@@ -30,7 +30,7 @@ The ingest workflow consists of the following steps:
    The checks performed here are independent of the state and configuration.
    This check will be removed in the future from IngestWorkflow. It is important to note that `pureChecks`
    and `Transaction Prechecks` found [here](transaction-prechecks.md) are different.
-9. **Get payer account.** The account data of the payer is read from the latest immutable state.
+9. **Get payer account.** The account data of the payer is read from the current working state.
 10. **Verify payer's signature.** The signature of the payer is checked. (Please note: other signatures are not checked here, but in later stages)
 11. **Estimate fee** Compute the fee that is required to pay for the transaction.
 12. **Payer Solvency*** Check the account balance of the payer to ensure it is able to pay the fee.

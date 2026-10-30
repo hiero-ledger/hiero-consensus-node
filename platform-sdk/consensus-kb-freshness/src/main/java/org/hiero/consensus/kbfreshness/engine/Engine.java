@@ -18,7 +18,6 @@ import org.hiero.consensus.kbfreshness.extract.TunablesCatalog;
 import org.hiero.consensus.kbfreshness.findings.Baseline;
 import org.hiero.consensus.kbfreshness.findings.BaselineJoin;
 import org.hiero.consensus.kbfreshness.findings.FindingAssembler;
-import org.hiero.consensus.kbfreshness.findings.InterfaceDiffAssembler;
 import org.hiero.consensus.kbfreshness.findings.TunablesDiffAssembler;
 import org.hiero.consensus.kbfreshness.git.Git;
 import org.hiero.consensus.kbfreshness.model.Anchor;
@@ -66,7 +65,6 @@ public final class Engine {
                 new AnchorResolver(config.repoRoot(), config.kbRoot(), index, config.allowlist());
         final FindingAssembler assembler = new FindingAssembler(extractor, resolver);
         final List<Finding> findings = new ArrayList<>(assembler.assembleAll(docs));
-        findings.addAll(new InterfaceDiffAssembler(index).assembleAll(docs));
         findings.addAll(new TunablesDiffAssembler(index).assembleAll(docs));
         subsumeConfigClassMoves(findings);
         findings.sort(FindingAssembler.ORDER);
@@ -192,8 +190,8 @@ public final class Engine {
 
     /**
      * Collects the run's scan-coverage statistics: entries by type, extracted anchors by kind, distinct
-     * per-anchor checks, findings by lane, and the Tier-2 diff surfaces (interface opt-ins, tunables
-     * sections/rows). Extraction is repeated here — it is cheap relative to resolution, and keeping the
+     * per-anchor checks, findings by lane, and the Tier-2 diff surface (tunables sections/rows).
+     * Extraction is repeated here — it is cheap relative to resolution, and keeping the
      * counting out of the assembler keeps both single-purpose.
      *
      * @param docs      the scanned documents.
@@ -206,7 +204,6 @@ public final class Engine {
         final Map<EntryType, Integer> entriesByType = new EnumMap<>(EntryType.class);
         final Map<AnchorKind, Integer> anchorsByKind = new EnumMap<>(AnchorKind.class);
         final Set<String> groups = new HashSet<>();
-        int interfaceOptIns = 0;
         int tunableSections = 0;
         int tunableRows = 0;
         for (final KbDocument doc : docs) {
@@ -214,9 +211,6 @@ public final class Engine {
             for (final Anchor a : extractor.extract(doc)) {
                 anchorsByKind.merge(a.kind(), 1, Integer::sum);
                 groups.add(doc.entry().key() + "|" + a.kind().name() + "|" + a.target());
-            }
-            if (doc.entry().type() == EntryType.ARCHITECTURE_INTERFACE && InterfaceDiffAssembler.optsIntoTier2(doc)) {
-                interfaceOptIns++;
             }
             if (doc.entry().type() == EntryType.TUNABLE_CATALOG) {
                 for (final TunablesCatalog.Section s : TunablesCatalog.parse(doc)) {
@@ -229,13 +223,6 @@ public final class Engine {
         for (final Finding f : findings) {
             findingsByLane.merge(f.lane(), 1, Integer::sum);
         }
-        return new ScanStats(
-                entriesByType,
-                anchorsByKind,
-                groups.size(),
-                findingsByLane,
-                interfaceOptIns,
-                tunableSections,
-                tunableRows);
+        return new ScanStats(entriesByType, anchorsByKind, groups.size(), findingsByLane, tunableSections, tunableRows);
     }
 }

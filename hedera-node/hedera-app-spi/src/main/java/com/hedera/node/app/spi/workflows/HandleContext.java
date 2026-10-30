@@ -194,9 +194,24 @@ public interface HandleContext {
              */
             BATCH_ROLLBACK_CALLBACK_CONSUMER,
             /**
+             * Metadata for a contract child dispatch executed by the native CLPR service.
+             */
+            CLPR_DISPATCH,
+            /**
+             * Boolean marker set by the app when dispatching a trusted internal system transaction.
+             * Never populate this from a submitted transaction or propagate it to child dispatches.
+             */
+            INTERNAL_SYSTEM_TRANSACTION,
+            /**
              * An entity num to be created by transplant system transactions.
              */
-            SYSTEM_TXN_CREATION_ENTITY_NUM
+            SYSTEM_TXN_CREATION_ENTITY_NUM,
+            /**
+             * The {@link com.hedera.hapi.node.base.TransactionID} of the atomic batch inner transaction a dispatch
+             * belongs to, when that cannot be inferred from the dispatching stack; used to attribute the side effects
+             * an inner transaction is replayed with after the batch has already unwound its savepoints.
+             */
+            ATTRIBUTED_BATCH_INNER_ID
         }
     }
 
@@ -279,6 +294,16 @@ public interface HandleContext {
     default Bytes ledgerId() {
         return configuration().getConfigData(LedgerConfig.class).id();
     }
+
+    /**
+     * Returns the genesis-rooted TSS ledger id from this transaction's consensus state, or empty bytes
+     * if it has not been established. Unlike {@link #ledgerId()}, this never falls back to the configured
+     * network id, which cannot serve as a cryptographic trust anchor.
+     *
+     * @return the history ledger id in consensus state, or empty bytes
+     */
+    @NonNull
+    Bytes historyLedgerId();
 
     /**
      * Returns information on current block and record file

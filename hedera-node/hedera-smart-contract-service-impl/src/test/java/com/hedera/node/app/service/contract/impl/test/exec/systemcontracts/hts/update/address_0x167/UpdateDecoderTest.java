@@ -5,7 +5,10 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBL
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_HEADLONG_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
+import static com.hedera.node.app.service.contract.impl.utils.ConstantUtils.ZERO_ACCOUNT_ID;
+import static com.hedera.node.app.service.contract.impl.utils.ConstantUtils.ZERO_ADDRESS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.BDDMockito.given;
 
@@ -22,6 +25,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -73,6 +78,26 @@ class UpdateDecoderTest {
             final var body = subject.decodeTokenUpdateV1(attempt);
             final var tokenUpdate = body.tokenUpdateOrThrow();
             assertEquals(tokenUpdate.name(), newName);
+            assertEquals(OWNER_ID, tokenUpdate.treasury());
+            assertEquals("memo", tokenUpdate.memo());
+        }
+
+        @ParameterizedTest
+        @ValueSource(strings = {"", "   "})
+        void updateOmitsZeroTreasuryAndBlankMemo(final String memo) {
+            final var nameOnlyToken =
+                    Tuple.from(newName, "", ZERO_ADDRESS, memo, true, 1000L, false, new Tuple[] {}, expiry);
+            final var encoded = Bytes.wrapByteBuffer(UpdateTranslator.TOKEN_UPDATE_INFO_FUNCTION_V3.encodeCallWithArgs(
+                    FUNGIBLE_TOKEN_HEADLONG_ADDRESS, nameOnlyToken));
+            given(attempt.input()).willReturn(encoded);
+            given(attempt.nativeOperations()).willReturn(nativeOperations);
+            given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
+            given(addressIdConverter.convert(ZERO_ADDRESS)).willReturn(ZERO_ACCOUNT_ID);
+
+            final var tokenUpdate = subject.decodeTokenUpdateV3(attempt).tokenUpdateOrThrow();
+            assertEquals(newName, tokenUpdate.name());
+            assertFalse(tokenUpdate.hasTreasury());
+            assertFalse(tokenUpdate.hasMemo());
         }
 
         @Test

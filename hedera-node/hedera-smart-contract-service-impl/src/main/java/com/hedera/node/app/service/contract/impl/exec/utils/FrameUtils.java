@@ -40,6 +40,7 @@ public class FrameUtils {
     public static final String OPS_DURATION_COUNTER = "opsDurationCounter";
     public static final String INVALID_ADDRESS_CONTEXT_VARIABLE = "invalidAddressContext";
     public static final String HOOK_OWNER_ADDRESS = "hookOwnerAddress";
+    public static final String CLPR_DISPATCH_CONTEXT_VARIABLE = "clprDispatch";
 
     public enum EntityType {
         TOKEN,
@@ -71,6 +72,13 @@ public class FrameUtils {
      */
     public static @NonNull HederaConfig hederaConfigOf(@NonNull final MessageFrame frame) {
         return configOf(frame).getConfigData(HederaConfig.class);
+    }
+
+    /**
+     * Returns whether this EVM execution was initiated by an internal CLPR dispatch.
+     */
+    public static boolean isClprDispatch(@NonNull final MessageFrame frame) {
+        return Boolean.TRUE.equals(initialFrameOf(frame).getContextVariable(CLPR_DISPATCH_CONTEXT_VARIABLE));
     }
 
     public static boolean hasBytecodeSidecarsEnabled(@NonNull final MessageFrame frame) {
@@ -332,6 +340,18 @@ public class FrameUtils {
         }
         return !featureFlags.isAllowCallsToNonContractAccountsEnabled(
                 contractsConfigOf(frame), maybeGrandfatheredNumber);
+    }
+
+    /**
+     * Returns true if the given address is the coinbase of the given frame.
+     *
+     * @param frame the current message frame
+     * @param address the address to check
+     * @return true if the address is the coinbase
+     */
+    public static boolean isCoinbase(@NonNull final MessageFrame frame, @NonNull final Address address) {
+        final var coinbase = frame.getMiningBeneficiary();
+        return coinbase != null && address.getBytes().equals(coinbase.getBytes());
     }
 
     /**

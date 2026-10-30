@@ -57,9 +57,13 @@ jobs:
             exit 1
           fi
 
+  # Temporary and secondary: Chewie's report (report-mdlt-result) is the source of record. This tag is
+  # kept until Chewie's reporting has run in production for a while; when this job is removed, drop its
+  # TAG_RESULT payload fields, Rootly summary line, and `needs` entries in report-success/failure.
   tag-mdlt-result:
     name: Tag MDLT Result
     runs-on: hl-cn-mdlt-lin-sm
+    continue-on-error: true # optional: Chewie's suite report (864) is the source of record
     needs:
       - verify-build
     steps:
@@ -153,7 +157,6 @@ jobs:
       - tag-mdlt-result
       - get-commit-info
     if: ${{ (needs.verify-build.result == 'success' &&
-      needs.tag-mdlt-result.result == 'success' &&
       inputs.result == 'success' &&
       needs.get-commit-info.result == 'success') &&
       !cancelled() }}
@@ -202,7 +205,6 @@ jobs:
       - get-commit-info
       - report-success
     if: ${{ (needs.verify-build.result != 'success' ||
-      needs.tag-mdlt-result.result != 'success' ||
       inputs.result != 'success' ||
       needs.get-commit-info.result != 'success' ||
       needs.report-success.result != 'success') &&
@@ -248,7 +250,6 @@ jobs:
         run: |
           CREATE_ALERT="false"
           if [[ "${{ needs.verify-build.result }}" =~ ^(cancelled|failure)$ ]] \
-            || [[ "${{ needs.tag-mdlt-result.result }}" =~ ^(cancelled|failure)$ ]] \
             || [[ "${{ needs.get-commit-info.result }}" =~ ^(cancelled|failure)$ ]] \
             || [[ "${{ needs.report-success.result }}" =~ ^(cancelled|failure)$ ]]; then
             CREATE_ALERT="true"
@@ -324,3 +325,19 @@ jobs:
           webhook-type: incoming-webhook
           payload-templated: true
           payload-file-path: slack_payload.json
+
+  # The verdict comes from Chewie's dispatch input; this run's own conclusion only reflects the
+  # tagging and notifications, so the result is reported explicitly as the terminal MDLT row.
+  report-mdlt-result:
+    name: Report MDLT Result to Chewie
+    needs:
+      - verify-build
+    if: ${{ always() && needs.verify-build.result == 'success' }}
+    uses: ./.github/workflows/864-call-report-suite-result.yaml
+    with:
+      suite-type: mdlt
+      build-number: ${{ inputs.build-tag }}
+      disposition: ${{ inputs.result == 'success' && 'passed' || 'failed' }}
+    secrets:
+      chewie-key: ${{ secrets.CHEWIE_REPO_IDENTITY_KEY }}
+      chewie-host: ${{ secrets.CHEWIE_HOST }}

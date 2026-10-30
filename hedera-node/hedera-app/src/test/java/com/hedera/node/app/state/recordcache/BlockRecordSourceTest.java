@@ -101,6 +101,26 @@ class BlockRecordSourceTest {
     }
 
     @Test
+    void returnsAllItemsInExternalizationOrder() {
+        subjectWith(List.of(
+                new BlockStreamBuilder.Output(
+                        List.of(TRANSACTION_RESULT, FIRST_OUTPUT), translationContext, BLOCK_NUMBER),
+                new BlockStreamBuilder.Output(List.of(TRANSACTION_RESULT), translationContext, BLOCK_NUMBER)));
+
+        assertThat(subject.blockItems()).containsExactly(TRANSACTION_RESULT, FIRST_OUTPUT, TRANSACTION_RESULT);
+    }
+
+    @Test
+    void reportsWhetherItHasOutputs() {
+        subjectWith(List.of());
+        assertThat(subject.hasOutputs()).isFalse();
+
+        subjectWith(
+                List.of(new BlockStreamBuilder.Output(List.of(TRANSACTION_RESULT), translationContext, BLOCK_NUMBER)));
+        assertThat(subject.hasOutputs()).isTrue();
+    }
+
+    @Test
     void hasDefaultBlockItemTranslator() {
         assertDoesNotThrow(() -> new BlockRecordSource(List.of()));
     }

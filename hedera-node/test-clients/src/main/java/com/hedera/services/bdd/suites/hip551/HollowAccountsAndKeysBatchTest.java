@@ -487,7 +487,7 @@ public class HollowAccountsAndKeysBatchTest {
                                 .payingWith(batchOperator))
                         .payingWith(batchOperator)
                         .signedBy(batchOperator)
-                        .hasPrecheck(INVALID_SIGNATURE));
+                        .hasKnownStatus(INVALID_SIGNATURE));
     }
 
     @HapiTest

@@ -21,7 +21,7 @@ on:
         description: "NodeJS Version:"
         type: string
         required: false
-        default: "20"
+        default: "24"
       enable-network-log-capture:
         description: "Network Log Capture Enabled"
         type: string
@@ -33,7 +33,7 @@ on:
         required: false
         default: "false"
       enable-hapi-tests-cutover:
-        description: "HAPI Cutover & Wraps Download Testing Enabled"
+        description: "HAPI Cutover Testing Enabled"
         type: string
         required: false
         default: "false"

@@ -43,6 +43,8 @@ public class FalconTestEnvironment implements TestEnvironment {
      * @param randomSeed the seed for the random number generator used in the test environment
      */
     public FalconTestEnvironment(final long randomSeed) {
+        FalconLogConfigBuilder.configure();
+
         final Randotron randotron = Randotron.create(randomSeed);
         final FakeTime time = new FakeTime(randotron.nextInstant(), Duration.ZERO);
         timeManager = new SimulatorTimeManager(time, GRANULARITY);

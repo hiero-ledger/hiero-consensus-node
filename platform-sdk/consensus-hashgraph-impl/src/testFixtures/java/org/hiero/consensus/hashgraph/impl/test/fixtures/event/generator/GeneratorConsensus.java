@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -15,6 +14,7 @@ import org.hiero.consensus.hashgraph.impl.linking.NoOpLinkerLogsAndMetrics;
 import org.hiero.consensus.hashgraph.impl.metrics.NoOpConsensusMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;
 import org.hiero.consensus.orphan.OrphanBuffer;
 
@@ -44,7 +44,7 @@ public class GeneratorConsensus {
      * @param roster        the roster of network nodes
      */
     public GeneratorConsensus(
-            @NonNull final Configuration configuration, @NonNull final Time time, @NonNull final Roster roster) {
+            @NonNull final Configuration configuration, @NonNull final Time time, @NonNull final RosterWrapper roster) {
         consensus = new ConsensusImpl(configuration, time, new NoOpConsensusMetrics(), roster, 0L);
         linker = new ConsensusLinker(NoOpLinkerLogsAndMetrics.getInstance());
         orphanBuffer = new DefaultOrphanBuffer(new NoOpMetrics(), new NoOpIntakeEventCounter());

@@ -47,8 +47,10 @@ graph sooner, speeding the progression to consensus.
 
 The linked hashgraph node is
 [`EventImpl`](../../../consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/EventImpl.java),
-which holds parent pointers in an `allParents` array. Parent
-descriptors travel with each event via `PlatformEvent.getAllParents()`
+which holds parent pointers in an `allParents` list on its superclass
+[`LinkedEvent`](../../../consensus-model/src/main/java/org/hiero/consensus/model/event/LinkedEvent.java#getAllParents).
+Parent descriptors travel with each event via
+`PlatformEvent.getAllParents()`
 ([`PlatformEvent.java`](../../../consensus-model/src/main/java/org/hiero/consensus/model/event/PlatformEvent.java)).
 The other-parent count is bounded by
 `EventCreationConfig.maxOtherParents`

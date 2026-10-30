@@ -6,6 +6,7 @@ import com.hedera.cryptography.libsecp256k1.Libsecp256k1;
 import com.hedera.cryptography.libxkcp.Libxkcp;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.lang.foreign.MemorySegment;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
 public class MiscCryptoUtils {
@@ -104,6 +105,10 @@ public class MiscCryptoUtils {
         return Bytes.wrap(keccak256DigestOf(msg.toMemorySegment()));
     }
 
+    public static byte[] keccak256DigestOf(final String msg) {
+        return keccak256DigestOf(msg.getBytes(StandardCharsets.UTF_8));
+    }
+
     /**
      * Given a 33-byte compressed ECDSA(secp256k1) public key, returns the uncompressed key as a
      * 64-byte array whose first 32 bytes are the x-coordinate of the key and second 32 bytes are
@@ -130,6 +135,33 @@ public class MiscCryptoUtils {
         final var rawKey = new byte[64];
         System.arraycopy(cache.uncompressedPublicKeyByteBuffer, 1, rawKey, 0, rawKey.length);
         return rawKey;
+    }
+
+    /**
+     * Given a 64-byte decompressed ECDSA(secp256k1) public key, returns the compressed key as a
+     * 33-byte array whose first byte is the parity of the y coordinate and the following 32 bytes
+     * are the x-coordinate of the key.
+     *
+     * @param decompressedKey a decompressed ECDSA(secp256k1) public key
+     * @return the compressed public key bytes
+     * @throws IllegalArgumentException if the decompressed key is not parsable
+     */
+    public static byte[] compressSecp256k1(final byte[] decompressedKey) {
+        final ThreadLocalCache cache = CACHE.get();
+        System.arraycopy(decompressedKey, 0, cache.uncompressedPublicKeyInput, 1, ECDSA_UNCOMPRESSED_KEY_SIZE);
+        final int keyParseResult = LIBSECP256K1.secp256k1EcPubkeyParse(
+                cache.pubKeySeg, cache.uncompressedPublicKeyInputSeg, cache.uncompressedPublicKeyInput.length);
+        if (keyParseResult != 1) throw new IllegalArgumentException("Failed to parse public key");
+
+        final byte[] compressedKey = new byte[33];
+        final long[] compressedKeyLength = {compressedKey.length};
+        final int keySerializeResult = LIBSECP256K1.secp256k1EcPubkeySerialize(
+                MemorySegment.ofArray(compressedKey),
+                MemorySegment.ofArray(compressedKeyLength),
+                cache.pubKeySeg,
+                Libsecp256k1.SECP256K1_EC_COMPRESSED);
+        if (keySerializeResult != 1) throw new IllegalArgumentException("Failed to serialize public key");
+        return compressedKey;
     }
 
     /**

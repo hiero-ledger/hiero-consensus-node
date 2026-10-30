@@ -10,6 +10,7 @@ import java.nio.file.Path;
 
 public record NodeMetadata(
         long nodeId,
+        String networkName,
         String name,
         AccountID accountId,
         String host,
@@ -42,6 +43,7 @@ public record NodeMetadata(
             final int openMetricsPort) {
         return new NodeMetadata(
                 nodeId,
+                networkName,
                 name,
                 accountId,
                 host,
@@ -63,6 +65,7 @@ public record NodeMetadata(
         requireNonNull(accountId);
         return new NodeMetadata(
                 nodeId,
+                networkName,
                 name,
                 accountId,
                 host,

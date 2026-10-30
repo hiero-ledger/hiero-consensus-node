@@ -132,7 +132,7 @@ public class DiskStartupNetworks implements StartupNetworks {
                     roundDir.resolve(OVERRIDE_NETWORK_JSON).toAbsolutePath().normalize();
             try {
                 Files.createDirectories(roundDir);
-                Files.move(path, scopedPath);
+                Files.move(path, scopedPath, StandardCopyOption.REPLACE_EXISTING);
                 if (cachedNetwork != null) {
                     cachedNetworks.put(scopedPath, cachedNetwork);
                 }
@@ -407,7 +407,10 @@ public class DiskStartupNetworks implements StartupNetworks {
                         Stream.concat(Stream.of(ARCHIVE), Stream.of(segments)).toArray(String[]::new);
                 final var dest = Paths.get(basePath.toAbsolutePath().toString(), archiveSegments);
                 createIfAbsent(dest.getParent());
-                Files.move(path, dest);
+                // Replace any same-named asset left in the archive by an earlier run of this node; without
+                // this the move fails, the startup asset survives in data/config, and a later reconnect or
+                // restart re-applies it as though it were a fresh override
+                Files.move(path, dest, StandardCopyOption.REPLACE_EXISTING);
             }
         } catch (IOException e) {
             log.warn("Failed to archive {}", segments, e);

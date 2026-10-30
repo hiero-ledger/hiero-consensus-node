@@ -10,6 +10,11 @@ Implements the [`consensus-event-creator`](../consensus-event-creator) API. Prod
 should depend on the API, not this module directly. For how the event creator works, see the
 [event-creator topic](../docs/consensus-layer/architecture/topics/event-creator.md).
 
+## Benchmarks
+
+The JMH benchmarks in `src/jmh` follow the
+[benchmark conventions](../docs/consensus-layer/benchmarks/README.md).
+
 ## Dependency Rules
 
 May depend on:
@@ -23,7 +28,4 @@ Must not depend on:
 - `swirlds-metrics-impl`, `swirlds-logging-log4j-appender`,
 `swirlds-state-api`, `swirlds-state-impl`, `swirlds-virtualmap`
 
-Known violation — `requires org.hiero.consensus.roster`: `consensus-roster` is a
-structural-transitional module that nothing outside that category should depend on (rules 3 and
-7). This does not resolve on its own — the dependency has to be removed before `consensus-roster`
-can move to the execution layer.
+No known violations.

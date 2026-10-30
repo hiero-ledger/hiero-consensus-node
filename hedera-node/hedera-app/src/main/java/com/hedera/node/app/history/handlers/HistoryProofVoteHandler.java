@@ -47,7 +47,7 @@ public class HistoryProofVoteHandler implements TransactionHandler {
         final long constructionId = op.constructionId();
         final var vote = op.voteOrElse(HistoryProofVote.DEFAULT);
         final var tssConfig = context.configuration().getConfigData(TssConfig.class);
-        controllers.getInProgressById(constructionId, tssConfig).ifPresent(controller -> {
+        controllers.getInProgressById(constructionId).ifPresent(controller -> {
             final long nodeId = context.creatorInfo().nodeId();
             final var historyStore = context.storeFactory().writableStore(WritableHistoryStore.class);
             log.info(

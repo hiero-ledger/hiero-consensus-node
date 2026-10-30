@@ -144,8 +144,7 @@ public final class ReportRenderer {
                 .append(countList(s.anchorsByKind()))
                 .append('\n');
         final long anchorFindings = result.findings().stream()
-                .filter(f -> f.kind() != AnchorKind.INTERFACE_METHOD
-                        && f.kind() != AnchorKind.CONFIG_KEY
+                .filter(f -> f.kind() != AnchorKind.CONFIG_KEY
                         && f.kind() != AnchorKind.CONFIG_PREFIX
                         && f.kind() != AnchorKind.CONFIG_DEFAULT)
                 .count();
@@ -156,11 +155,9 @@ public final class ReportRenderer {
                 .append(" produced a finding, ")
                 .append(s.checkGroups() - anchorFindings)
                 .append(" resolved clean. A target cited by N entries counts as N checks; the Tier-2 "
-                        + "catalog/interface diff checks are separate and appear only in the lane counts below.\n");
+                        + "catalog diff checks are separate and appear only in the lane counts below.\n");
         sb.append("- Findings by lane: ").append(countList(s.findingsByLane())).append('\n');
-        sb.append("- Tier-2 diff surfaces: ")
-                .append(s.interfaceDocsOptedIn())
-                .append(" interface doc(s) opted in; tunables catalog ")
+        sb.append("- Tier-2 diff surface: tunables catalog ")
                 .append(s.tunableSections())
                 .append(" section(s) / ")
                 .append(s.tunableRows())

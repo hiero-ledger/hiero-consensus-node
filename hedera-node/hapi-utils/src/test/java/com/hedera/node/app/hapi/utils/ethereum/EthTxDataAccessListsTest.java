@@ -4,6 +4,7 @@ package com.hedera.node.app.hapi.utils.ethereum;
 import static com.hedera.node.app.hapi.utils.ethereum.CodeDelegationTest.fillBytes;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.esaulpaugh.headlong.rlp.RLPEncoder;
@@ -20,7 +21,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 class EthTxDataAccessListsTest {
 
     // EIP2930
-    private static byte[] buildDefaultType1RawTransaction(final byte[] accessList) {
+    private static byte[] buildDefaultType1RawTransaction(final Object accessList) {
         return RLPEncoder.sequence(
                 Integers.toBytes(0x01),
                 List.of(
@@ -38,7 +39,7 @@ class EthTxDataAccessListsTest {
     }
 
     // EIP1559
-    private static byte[] buildDefaultType2RawTransaction(final byte[] accessList) {
+    private static byte[] buildDefaultType2RawTransaction(final Object accessList) {
         return RLPEncoder.sequence(
                 Integers.toBytes(0x02),
                 List.of(
@@ -57,7 +58,7 @@ class EthTxDataAccessListsTest {
     }
 
     // EIP7702
-    private static byte[] buildDefaultType4RawTransaction(final byte[] accessList) {
+    private static byte[] buildDefaultType4RawTransaction(final Object accessList) {
         return RLPEncoder.sequence(
                 Integers.toBytes(0x04),
                 List.of(
@@ -70,7 +71,7 @@ class EthTxDataAccessListsTest {
                         Integers.toBytesUnsigned(BigInteger.ZERO),
                         new byte[] {},
                         accessList,
-                        fillBytes(5, 0x40),
+                        new Object[] {}, // authorizationList (empty, canonically encoded as a list)
                         Integers.toBytes(27),
                         fillBytes(32, 0x05),
                         fillBytes(32, 0x06)));
@@ -78,7 +79,7 @@ class EthTxDataAccessListsTest {
 
     private record RawTransactionHolder(EthTxData.EthTransactionType type, byte[] data) {
 
-        public static RawTransactionHolder of(final EthTxData.EthTransactionType type, final byte[] accessList) {
+        public static RawTransactionHolder of(final EthTxData.EthTransactionType type, final Object accessList) {
             return new RawTransactionHolder(
                     type,
                     switch (type) {
@@ -105,11 +106,10 @@ class EthTxDataAccessListsTest {
             new Object[] {addr1, new Object[] {key1, key2}},
             new Object[] {addr2, new Object[] {}}
         };
-        final byte[] accessListBytes = RLPEncoder.sequence(accessList);
         return Stream.of(
-                RawTransactionHolder.of(EthTxData.EthTransactionType.EIP2930, accessListBytes),
-                RawTransactionHolder.of(EthTxData.EthTransactionType.EIP1559, accessListBytes),
-                RawTransactionHolder.of(EthTxData.EthTransactionType.EIP7702, accessListBytes));
+                RawTransactionHolder.of(EthTxData.EthTransactionType.EIP2930, accessList),
+                RawTransactionHolder.of(EthTxData.EthTransactionType.EIP1559, accessList),
+                RawTransactionHolder.of(EthTxData.EthTransactionType.EIP7702, accessList));
     }
 
     @MethodSource("provideTransactionsWithCorrectAccessList")
@@ -137,7 +137,7 @@ class EthTxDataAccessListsTest {
     }
 
     private static Stream<RawTransactionHolder> provideTransactionsWhereAccessListIsNotList() {
-        final byte[] accessListIsNotAList = {0x01};
+        final Object[] accessListIsNotAList = {new byte[] {0x01}};
         return Stream.of(
                 RawTransactionHolder.of(EthTxData.EthTransactionType.EIP2930, accessListIsNotAList),
                 RawTransactionHolder.of(EthTxData.EthTransactionType.EIP1559, accessListIsNotAList),
@@ -155,13 +155,31 @@ class EthTxDataAccessListsTest {
         assertEquals("Access list item should be a list", thrown.getMessage());
     }
 
+    private static Stream<RawTransactionHolder> provideTransactionsWhereAccessListIsEmptyButNotList() {
+        // Encodes to the RLP empty byte-string token 0x80, not the canonical empty list token 0xc0.
+        // Same total length, same signature bytes, but a different, non-canonical wire encoding of
+        // "no access list".
+        final byte[] accessListIsEmptyByteString = new byte[0];
+        return Stream.of(
+                RawTransactionHolder.of(EthTxData.EthTransactionType.EIP2930, accessListIsEmptyByteString),
+                RawTransactionHolder.of(EthTxData.EthTransactionType.EIP1559, accessListIsEmptyByteString),
+                RawTransactionHolder.of(EthTxData.EthTransactionType.EIP7702, accessListIsEmptyByteString));
+    }
+
+    @MethodSource("provideTransactionsWhereAccessListIsEmptyButNotList")
+    @ParameterizedTest(name = "Transaction.AccessListIsEmptyButNotList {0}")
+    void rejectsAccessListThatIsEmptyButNotACanonicalList(final RawTransactionHolder raw) {
+        // the transaction should be rejected at parse time rather than silently accepted with an empty access list.
+        final EthTxData tx = EthTxData.populateEthTxData(raw.data());
+        assertNull(tx);
+    }
+
     private static Stream<RawTransactionHolder> provideTransactionsWhereAccessListHasWrongItems() {
         final Object[] accessList = {new Object[] {new byte[] {0x01}, new byte[] {0x01}, new byte[] {0x01}}};
-        final byte[] accessListBytes = RLPEncoder.sequence(accessList);
         return Stream.of(
-                RawTransactionHolder.of(EthTxData.EthTransactionType.EIP2930, accessListBytes),
-                RawTransactionHolder.of(EthTxData.EthTransactionType.EIP1559, accessListBytes),
-                RawTransactionHolder.of(EthTxData.EthTransactionType.EIP7702, accessListBytes));
+                RawTransactionHolder.of(EthTxData.EthTransactionType.EIP2930, accessList),
+                RawTransactionHolder.of(EthTxData.EthTransactionType.EIP1559, accessList),
+                RawTransactionHolder.of(EthTxData.EthTransactionType.EIP7702, accessList));
     }
 
     @MethodSource("provideTransactionsWhereAccessListHasWrongItems")
@@ -178,11 +196,10 @@ class EthTxDataAccessListsTest {
     private static Stream<RawTransactionHolder> provideTransactionsWhereAccessListHasWrongAddress() {
         final byte[] addr1 = fillBytes(17, 0x10);
         final Object[] accessList = {new Object[] {addr1, new byte[] {0x01}}};
-        final byte[] accessListBytes = RLPEncoder.sequence(accessList);
         return Stream.of(
-                RawTransactionHolder.of(EthTxData.EthTransactionType.EIP2930, accessListBytes),
-                RawTransactionHolder.of(EthTxData.EthTransactionType.EIP1559, accessListBytes),
-                RawTransactionHolder.of(EthTxData.EthTransactionType.EIP7702, accessListBytes));
+                RawTransactionHolder.of(EthTxData.EthTransactionType.EIP2930, accessList),
+                RawTransactionHolder.of(EthTxData.EthTransactionType.EIP1559, accessList),
+                RawTransactionHolder.of(EthTxData.EthTransactionType.EIP7702, accessList));
     }
 
     @MethodSource("provideTransactionsWhereAccessListHasWrongAddress")
@@ -199,11 +216,10 @@ class EthTxDataAccessListsTest {
     private static Stream<RawTransactionHolder> provideTransactionsWhereStorageKeyIsNotList() {
         final byte[] addr1 = fillBytes(20, 0x10);
         final Object[] accessList = {new Object[] {addr1, new byte[] {0x01}}};
-        final byte[] accessListBytes = RLPEncoder.sequence(accessList);
         return Stream.of(
-                RawTransactionHolder.of(EthTxData.EthTransactionType.EIP2930, accessListBytes),
-                RawTransactionHolder.of(EthTxData.EthTransactionType.EIP1559, accessListBytes),
-                RawTransactionHolder.of(EthTxData.EthTransactionType.EIP7702, accessListBytes));
+                RawTransactionHolder.of(EthTxData.EthTransactionType.EIP2930, accessList),
+                RawTransactionHolder.of(EthTxData.EthTransactionType.EIP1559, accessList),
+                RawTransactionHolder.of(EthTxData.EthTransactionType.EIP7702, accessList));
     }
 
     @MethodSource("provideTransactionsWhereStorageKeyIsNotList")
@@ -221,11 +237,10 @@ class EthTxDataAccessListsTest {
         final byte[] addr1 = fillBytes(20, 0x10);
         final byte[] key1 = fillBytes(17, 0x10);
         final Object[] accessList = {new Object[] {addr1, new Object[] {key1}}};
-        final byte[] accessListBytes = RLPEncoder.sequence(accessList);
         return Stream.of(
-                RawTransactionHolder.of(EthTxData.EthTransactionType.EIP2930, accessListBytes),
-                RawTransactionHolder.of(EthTxData.EthTransactionType.EIP1559, accessListBytes),
-                RawTransactionHolder.of(EthTxData.EthTransactionType.EIP7702, accessListBytes));
+                RawTransactionHolder.of(EthTxData.EthTransactionType.EIP2930, accessList),
+                RawTransactionHolder.of(EthTxData.EthTransactionType.EIP1559, accessList),
+                RawTransactionHolder.of(EthTxData.EthTransactionType.EIP7702, accessList));
     }
 
     @MethodSource("provideTransactionsWhereStorageKeyHasWrongKey")

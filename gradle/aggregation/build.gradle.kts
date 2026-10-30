@@ -15,8 +15,6 @@ dependencies {
     implementation(project(":swirlds-config-processor"))
     implementation(project(":swirlds-logging-log4j-appender"))
 
-    // examples that also contain tests we would like to run
-    implementation(project(":swirlds-platform-base-example"))
     // projects that only contain tests (and no production code)
     implementation(project(":test-clients"))
     implementation(project(":yahcli"))
@@ -73,7 +71,7 @@ fun filteredClassFiles(projectPath: String? = null) =
         .files
         .asFileTree
         .filter { file ->
-            listOf("test-clients", "testFixtures", "example-apps").none { file.path.contains(it) }
+            listOf("test-clients", "testFixtures").none { file.path.contains(it) }
         }
 
 // execution data setup copied from

@@ -86,6 +86,7 @@ public class DefaultTransactionPrehandler implements TransactionPrehandler {
         try {
             latestImmutableState = signedStateNexus.getState(RESERVATION_LABEL);
             while (latestImmutableState == null) {
+                Thread.yield();
                 latestImmutableState = signedStateNexus.getState(RESERVATION_LABEL);
             }
 
@@ -101,8 +102,9 @@ public class DefaultTransactionPrehandler implements TransactionPrehandler {
             }
         } finally {
             event.signalPrehandleCompletion();
-            latestImmutableState.close();
-
+            if (latestImmutableState != null) {
+                latestImmutableState.close();
+            }
             preHandleTime.update(startTime, time.nanoTime());
         }
 

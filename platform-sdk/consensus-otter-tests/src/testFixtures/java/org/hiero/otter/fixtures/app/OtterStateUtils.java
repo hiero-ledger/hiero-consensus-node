@@ -2,7 +2,6 @@
 package org.hiero.otter.fixtures.app;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.merkle.VirtualMapState;
@@ -10,8 +9,6 @@ import com.swirlds.state.merkle.VirtualMapStateImpl;
 import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import org.hiero.consensus.roster.RosterStateId;
-import org.hiero.consensus.roster.WritableRosterStore;
 import org.hiero.otter.fixtures.app.state.OtterServiceStateSpecification;
 
 /**
@@ -24,7 +21,6 @@ public final class OtterStateUtils {
     /**
      * Creates an initialized {@code OtterAppState}.
      *
-     * @param roster          the initial roster stored in the state
      * @param version         the software version to set in the state
      * @param services        the services to initialize
      * @return state root
@@ -32,7 +28,6 @@ public final class OtterStateUtils {
     @NonNull
     public static VirtualMapState initGenesisState(
             @NonNull final VirtualMapState state,
-            @NonNull final Roster roster,
             @NonNull final SemanticVersion version,
             @NonNull final List<OtterService> services) {
 
@@ -43,9 +38,6 @@ public final class OtterStateUtils {
             final OtterServiceStateSpecification specification = service.stateSpecification();
             specification.setDefaultValues(state.getWritableStates(service.name()), version);
         }
-        final WritableRosterStore rosterStore =
-                new WritableRosterStore(state.getWritableStates(RosterStateId.SERVICE_NAME));
-        rosterStore.putActiveRoster(roster, 0L);
         commitState(state);
 
         return state;

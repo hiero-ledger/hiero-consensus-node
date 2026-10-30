@@ -39,6 +39,7 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doSeveralWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doSeveralWithStartupConfigNow;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sendModified;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.specOps;
@@ -325,7 +326,7 @@ public class TokenCreateSpecs {
                         tokenCreate(PRIMARY)
                                 .autoRenewAccount(AUTO_RENEW)
                                 .autoRenewPeriod(Long.MAX_VALUE)
-                                .hasPrecheck(INVALID_RENEWAL_PERIOD),
+                                .hasKnownStatus(INVALID_RENEWAL_PERIOD),
                         tokenCreate(PRIMARY)
                                 .signedBy(GENESIS)
                                 .autoRenewAccount(AUTO_RENEW)
@@ -583,7 +584,7 @@ public class TokenCreateSpecs {
         return defaultHapiSpec("CreationValidatesExpiry")
                 .given()
                 .when()
-                .then(tokenCreate(PRIMARY).expiry(1000).hasPrecheck(INVALID_EXPIRATION_TIME));
+                .then(tokenCreate(PRIMARY).expiry(1000).hasKnownStatus(INVALID_EXPIRATION_TIME));
     }
 
     @HapiTest
@@ -599,7 +600,7 @@ public class TokenCreateSpecs {
         return defaultHapiSpec("CreationValidatesMemo")
                 .given()
                 .when()
-                .then(tokenCreate(PRIMARY).entityMemo("N\u0000!!!").hasPrecheck(INVALID_ZERO_BYTE_IN_STRING));
+                .then(tokenCreate(PRIMARY).entityMemo("N\u0000!!!").hasKnownStatus(INVALID_ZERO_BYTE_IN_STRING));
     }
 
     @HapiTest
@@ -881,17 +882,17 @@ public class TokenCreateSpecs {
     final Stream<DynamicTest> creationValidatesName() {
         return hapiTest(
                 cryptoCreate(TOKEN_TREASURY).balance(0L),
-                tokenCreate(PRIMARY).name("").logged().hasPrecheck(MISSING_TOKEN_NAME),
-                tokenCreate(PRIMARY).name("T\u0000ken").logged().hasPrecheck(INVALID_ZERO_BYTE_IN_STRING),
+                tokenCreate(PRIMARY).name("").logged().hasKnownStatus(MISSING_TOKEN_NAME),
+                tokenCreate(PRIMARY).name("T\u0000ken").logged().hasKnownStatus(INVALID_ZERO_BYTE_IN_STRING),
                 doSeveralWithStartupConfig("tokens.maxTokenNameUtf8Bytes", value -> {
                     final var maxLen = parseInt(value);
                     return specOps(
                             tokenCreate("tooLong")
                                     .name(TxnUtils.nAscii(maxLen + 1))
-                                    .hasPrecheck(TOKEN_NAME_TOO_LONG),
+                                    .hasKnownStatus(TOKEN_NAME_TOO_LONG),
                             tokenCreate("tooLongAgain")
                                     .name(nCurrencySymbols(maxLen / 3 + 1))
-                                    .hasPrecheck(TOKEN_NAME_TOO_LONG));
+                                    .hasKnownStatus(TOKEN_NAME_TOO_LONG));
                 }));
     }
 
@@ -899,17 +900,17 @@ public class TokenCreateSpecs {
     final Stream<DynamicTest> creationValidatesSymbol() {
         return hapiTest(
                 cryptoCreate(TOKEN_TREASURY).balance(0L),
-                tokenCreate("missingSymbol").symbol("").hasPrecheck(MISSING_TOKEN_SYMBOL),
-                tokenCreate(PRIMARY).name("T\u0000ken").logged().hasPrecheck(INVALID_ZERO_BYTE_IN_STRING),
+                tokenCreate("missingSymbol").symbol("").hasKnownStatus(MISSING_TOKEN_SYMBOL),
+                tokenCreate(PRIMARY).name("T\u0000ken").logged().hasKnownStatus(INVALID_ZERO_BYTE_IN_STRING),
                 doSeveralWithStartupConfig("tokens.maxSymbolUtf8Bytes", value -> {
                     final var maxLen = parseInt(value);
                     return specOps(
                             tokenCreate("tooLong")
                                     .symbol(TxnUtils.nAscii(maxLen + 1))
-                                    .hasPrecheck(TOKEN_SYMBOL_TOO_LONG),
+                                    .hasKnownStatus(TOKEN_SYMBOL_TOO_LONG),
                             tokenCreate("tooLongAgain")
                                     .symbol(nCurrencySymbols(maxLen / 3 + 1))
-                                    .hasPrecheck(TOKEN_SYMBOL_TOO_LONG));
+                                    .hasKnownStatus(TOKEN_SYMBOL_TOO_LONG));
                 }));
     }
 
@@ -1176,7 +1177,7 @@ public class TokenCreateSpecs {
                         .treasury(TOKEN_TREASURY)
                         .autoRenewAccount("autoRenewAccount")
                         .autoRenewPeriod(-1L)
-                        .hasPrecheck(INVALID_RENEWAL_PERIOD));
+                        .hasKnownStatus(INVALID_RENEWAL_PERIOD));
     }
 
     @HapiTest
@@ -1191,7 +1192,7 @@ public class TokenCreateSpecs {
                         .treasury(TOKEN_TREASURY)
                         .autoRenewAccount("autoRenewAccount")
                         .autoRenewPeriod(-1)
-                        .hasPrecheck(INVALID_RENEWAL_PERIOD));
+                        .hasKnownStatus(INVALID_RENEWAL_PERIOD));
     }
 
     @HapiTest
@@ -1217,7 +1218,43 @@ public class TokenCreateSpecs {
                         .supplyKey(GENESIS)
                         .initialSupply(0L)
                         .treasury(TOKEN_TREASURY)
-                        .autoRenewPeriod(ONE_MONTH_IN_SECONDS));
+                        .autoRenewPeriod(ONE_MONTH_IN_SECONDS)
+                        .via(CREATE_TXN),
+                withOpContext((spec, opLog) -> {
+                    final var createTxn = getTxnRecord(CREATE_TXN);
+                    allRunFor(spec, createTxn);
+                    final var consensusSecond = createTxn
+                            .getResponseRecord()
+                            .getConsensusTimestamp()
+                            .getSeconds();
+                    spec.registry().saveExpiry(token, consensusSecond + ONE_MONTH_IN_SECONDS);
+                }),
+                getTokenInfo(token).hasValidExpiry());
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> tokenCreateWithNoExpiryAndNoAutoRenewSpec() {
+        return hapiTest(
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(token)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(GENESIS)
+                        .initialSupply(0L)
+                        .treasury(TOKEN_TREASURY)
+                        .omitExpiry()
+                        .via(CREATE_TXN),
+                doWithStartupConfig(
+                        "entities.maxLifetime",
+                        value -> withOpContext((spec, opLog) -> {
+                            final var createTxn = getTxnRecord(CREATE_TXN);
+                            allRunFor(spec, createTxn);
+                            final var consensusSecond = createTxn
+                                    .getResponseRecord()
+                                    .getConsensusTimestamp()
+                                    .getSeconds();
+                            spec.registry().saveExpiry(token, consensusSecond + Long.parseLong(value));
+                        })),
+                getTokenInfo(token).hasValidExpiry());
     }
 
     private final long hbarAmount = 1_234L;

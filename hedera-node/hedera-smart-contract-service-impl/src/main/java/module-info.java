@@ -4,6 +4,7 @@
  */
 module com.hedera.node.app.service.contract.impl {
     exports com.hedera.node.app.service.contract.impl.annotations;
+    exports com.hedera.node.app.service.contract.impl.api;
     exports com.hedera.node.app.service.contract.impl.exec.delegation;
     exports com.hedera.node.app.service.contract.impl.exec.metrics;
     exports com.hedera.node.app.service.contract.impl.exec.scope;
@@ -33,6 +34,7 @@ module com.hedera.node.app.service.contract.impl {
     exports com.hedera.node.app.service.contract.impl.exec.v038 to
             com.hedera.node.app.service.contract.impl.test;
     exports com.hedera.node.app.service.contract.impl.infra to
+            com.hedera.node.app,
             com.hedera.node.app.service.contract.impl.test;
     exports com.hedera.node.app.service.contract.impl.nativelibverification to
             com.hedera.node.app;
@@ -64,6 +66,8 @@ module com.hedera.node.app.service.contract.impl {
 
     requires transitive com.hedera.node.app.hapi.fees;
     requires transitive com.hedera.node.app.hapi.utils;
+    requires transitive com.hedera.node.app.service.clpr.impl;
+    requires transitive com.hedera.node.app.service.clpr;
     requires transitive com.hedera.node.app.service.contract;
     requires transitive com.hedera.node.app.service.entityid;
     requires transitive com.hedera.node.app.service.file;
@@ -87,6 +91,7 @@ module com.hedera.node.app.service.contract.impl {
     requires transitive tuweni.units;
     requires com.hedera.node.app.service.addressbook;
     requires com.swirlds.base;
+    requires org.hiero.base.crypto;
     requires org.hiero.base.utility;
     requires com.github.benmanes.caffeine;
     requires com.google.common;

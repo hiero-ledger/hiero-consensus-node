@@ -95,6 +95,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
@@ -236,14 +237,14 @@ public class Hip1259EnabledTests {
     final Stream<DynamicTest> nodeRewardsDistributedAfterFeeDistribution() {
         final AtomicReference<Instant> startConsensusTime = new AtomicReference<>();
         final AtomicLong initialNodeAccountBalance = new AtomicLong(0);
-        final AtomicLong nodeAccountBalanceAfterDistribution = new AtomicLong(0);
+        final CompletableFuture<Long> nodeAccountBalanceAfterDistribution = new CompletableFuture<>();
         return hapiTest(
                 getAccountBalance(NODE_ACCOUNT).exposingBalanceTo(initialNodeAccountBalance::set),
                 doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
                 streamMustIncludePassWithoutBackgroundTrafficFrom(
                         selectedItems(
                                 nodeRewardsWithFeeCollectionValidator(
-                                        initialNodeAccountBalance::get, nodeAccountBalanceAfterDistribution::get),
+                                        initialNodeAccountBalance::get, nodeAccountBalanceAfterDistribution),
                                 2,
                                 (spec, item) -> isNodeRewardOrFeeDistribution(item, startConsensusTime)),
                         Duration.ofSeconds(1)),
@@ -283,7 +284,7 @@ public class Hip1259EnabledTests {
                 doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),
                 getAccountBalance(FEE_COLLECTOR).logged(),
                 getAccountBalance(NODE_ACCOUNT)
-                        .exposingBalanceTo(nodeAccountBalanceAfterDistribution::set)
+                        .exposingBalanceTo(nodeAccountBalanceAfterDistribution::complete)
                         .logged());
     }
 

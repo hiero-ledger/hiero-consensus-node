@@ -150,7 +150,7 @@ class DependencyMigrationTest extends MerkleTestBase {
     void expectedMigrationOrdering() {
         final var orderedInvocations = new LinkedList<>();
 
-        // Given: register four services, each with their own schema migration, that will add an object to
+        // Given: register four services, each with a single schema whose restart hook will add an object to
         // orderedInvocations during migration. We'll do this to track the order of the service migrations
         final var servicesRegistry = new ServicesRegistryImpl(registry, DEFAULT_CONFIG);
         // Define the Entity ID Service:
@@ -166,8 +166,9 @@ class DependencyMigrationTest extends MerkleTestBase {
                                         ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_KEY, EntityCounts.PROTOBUF));
                     }
 
-                    public void migrate(@NonNull MigrationContext ctx) {
-                        orderedInvocations.add("EntityIdService#migrate");
+                    @Override
+                    public void restart(@NonNull MigrationContext ctx) {
+                        orderedInvocations.add("EntityIdService#restart");
                     }
                 });
             }
@@ -183,8 +184,9 @@ class DependencyMigrationTest extends MerkleTestBase {
             @Override
             public void registerSchemas(@NonNull final SchemaRegistry registry) {
                 registry.register(new Schema<>(VERSION, SEMANTIC_VERSION_COMPARATOR) {
-                    public void migrate(@NonNull MigrationContext ctx) {
-                        orderedInvocations.add("A-Service#migrate");
+                    @Override
+                    public void restart(@NonNull MigrationContext ctx) {
+                        orderedInvocations.add("A-Service#restart");
                     }
                 });
             }
@@ -200,8 +202,9 @@ class DependencyMigrationTest extends MerkleTestBase {
             @Override
             public void registerSchemas(@NonNull final SchemaRegistry registry) {
                 registry.register(new Schema<>(VERSION, SEMANTIC_VERSION_COMPARATOR) {
-                    public void migrate(@NonNull MigrationContext ctx) {
-                        orderedInvocations.add("B-Service#migrate");
+                    @Override
+                    public void restart(@NonNull MigrationContext ctx) {
+                        orderedInvocations.add("B-Service#restart");
                     }
                 });
             }
@@ -211,8 +214,9 @@ class DependencyMigrationTest extends MerkleTestBase {
             @Override
             public void registerSchemas(@NonNull final SchemaRegistry registry) {
                 registry.register(new Schema<>(VERSION, SEMANTIC_VERSION_COMPARATOR) {
-                    public void migrate(@NonNull MigrationContext ctx) {
-                        orderedInvocations.add("DependentService#migrate");
+                    @Override
+                    public void restart(@NonNull MigrationContext ctx) {
+                        orderedInvocations.add("DependentService#restart");
                     }
                 });
             }
@@ -238,11 +242,11 @@ class DependencyMigrationTest extends MerkleTestBase {
         Assertions.assertThat(orderedInvocations)
                 .containsExactly(
                         // EntityIdService should be migrated first
-                        "EntityIdService#migrate",
+                        "EntityIdService#restart",
                         // And the rest are migrated by service name
-                        "A-Service#migrate",
-                        "B-Service#migrate",
-                        "DependentService#migrate");
+                        "A-Service#restart",
+                        "B-Service#restart",
+                        "DependentService#restart");
     }
 
     // This class represents a service that depends on EntityIdService. This class will create a simple mapping from
@@ -269,7 +273,8 @@ class DependencyMigrationTest extends MerkleTestBase {
                             StateDefinition.keyValue(STATE_ID, STATE_KEY, EntityNumber.PROTOBUF, ProtoString.PROTOBUF));
                 }
 
-                public void migrate(@NonNull final MigrationContext ctx) {
+                @Override
+                public void restart(@NonNull final MigrationContext ctx) {
                     WritableStates dsWritableStates = ctx.newStates();
                     dsWritableStates
                             .get(STATE_ID)
@@ -282,7 +287,8 @@ class DependencyMigrationTest extends MerkleTestBase {
 
             // Schema #2 - schema that adds new mappings, dependent on EntityIdService
             registry.register(new Schema<>(SemanticVersion.newBuilder().major(2).build(), SEMANTIC_VERSION_COMPARATOR) {
-                public void migrate(@NonNull final MigrationContext ctx) {
+                @Override
+                public void restart(@NonNull final MigrationContext ctx) {
                     final WritableStates dsWritableStates = ctx.newStates();
                     dsWritableStates.get(STATE_ID).put(new EntityNumber(1L), new ProtoString("newly-added 1"));
                     dsWritableStates.get(STATE_ID).put(new EntityNumber(2L), new ProtoString("newly-added 2"));

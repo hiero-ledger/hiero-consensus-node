@@ -4,6 +4,7 @@ package org.hiero.otter.fixtures.assertions;
 import static org.hiero.otter.fixtures.internal.helpers.Utils.collectMarkers;
 
 import com.swirlds.logging.legacy.LogMarker;
+import com.swirlds.logging.legacy.payload.AbstractLogPayload;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
@@ -175,5 +176,44 @@ public class SingleNodeLogResultAssert extends AbstractAssert<SingleNodeLogResul
         logStatements.append("****************\n");
 
         failWithMessage(logStatements.toString());
+    }
+
+    /**
+     * Verifies that at least one log message carries a payload of the specified type.
+     *
+     * @param payloadType the payload class to look for
+     * @return this assertion object for method chaining
+     */
+    @NonNull
+    public SingleNodeLogResultAssert hasMessageWithPayload(
+            @NonNull final Class<? extends AbstractLogPayload> payloadType) {
+        isNotNull();
+        final String identifier = payloadType.getName();
+        final boolean found = actual.logs().stream()
+                .anyMatch(log -> identifier.equals(AbstractLogPayload.extractPayloadType(log.message())));
+        if (!found) {
+            failWithMessage("Expected to find a message with payload '%s', but did not", identifier);
+        }
+        return this;
+    }
+
+    /**
+     * Verifies that no log message carries a payload of the specified type.
+     *
+     * @param payloadType the payload class that must be absent
+     * @return this assertion object for method chaining
+     */
+    @NonNull
+    public SingleNodeLogResultAssert hasNoMessageWithPayload(
+            @NonNull final Class<? extends AbstractLogPayload> payloadType) {
+        isNotNull();
+        final String identifier = payloadType.getName();
+        final List<StructuredLog> logs = actual.logs().stream()
+                .filter(log -> identifier.equals(AbstractLogPayload.extractPayloadType(log.message())))
+                .toList();
+        if (!logs.isEmpty()) {
+            failWithMessage(String.format("Expected to find no message with payload '%s'", identifier), logs);
+        }
+        return this;
     }
 }

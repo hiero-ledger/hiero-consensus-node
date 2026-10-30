@@ -20,6 +20,7 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.otter.fixtures.InstrumentedNode;
+import org.hiero.otter.fixtures.MiniNode;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionGenerator;
@@ -167,6 +168,15 @@ public class ContainerNetwork extends AbstractNetwork {
                 jvmArgs);
         timeManager.addTimeTickReceiver(node);
         return node;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    protected MiniNode doCreateMiniNode(@NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
+        throw new UnsupportedOperationException("MiniNode is currently not supported in ContainerNetwork");
     }
 
     /**

@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers.staking;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.REVERTED_SUCCESS;
 import static com.hedera.node.app.service.token.api.AccountSummariesApi.SENTINEL_NODE_ID;
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakeIdChangeType.FROM_ACCOUNT_TO_ACCOUNT;
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakingRewardsHelper.getAllRewardReceivers;
+import static com.hedera.node.app.service.token.impl.handlers.staking.StakingRewardsHelper.requiresExternalization;
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakingUtilities.NOT_REWARDED_SINCE_LAST_STAKING_META_CHANGE;
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakingUtilities.hasStakeMetaChanges;
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakingUtilities.roundedToHbar;
@@ -25,9 +27,10 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
-import java.util.Objects;
+import java.util.SequencedSet;
 import java.util.Set;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -90,40 +93,235 @@ public class StakingRewardsHandlerImpl implements StakingRewardsHandler {
         rewardReceivers.removeAll(prePaidRewards.keySet());
         // Pay rewards to all possible reward receivers, returns all rewards paid
         final var recordBuilder = context.userTransactionRecordBuilder(DeleteCapableTransactionStreamBuilder.class);
-        final var rewardsPaid = rewardsPayer.payRewardsIfPending(
+        // Child dispatches (e.g. the inner CryptoDelete/ContractDelete/self-destruct of an atomic batch)
+        // record their deleted-account beneficiaries on their own dispatch builder, not the root builder
+        // consulted below. Fold those into the root builder so a reward owed to an account deleted inside a
+        // child dispatch is redirected to its beneficiary, instead of tripping the redirect loop. This map
+        // is transient staking scratch (it is not serialized into the record); any future record
+        // serialization must exclude these folded child-dispatch entries.
+        context.forEachChildRecord(DeleteCapableTransactionStreamBuilder.class, child -> {
+            // Only fold committed child dispatches. forEachChildRecord also hands back reverted
+            // REVERSIBLE children (rollback keeps them in the list and does not clear their
+            // beneficiary map); a reverted delete leaves the account non-deleted, so its stale entry
+            // would never be consulted, but skipping it keeps the redirect's bound exact and rules out
+            // any fold-order ambiguity if the same account were deleted more than once in one txn.
+            if (child.status() != REVERTED_SUCCESS) {
+                child.forEachDeletedAccountBeneficiary(recordBuilder::addBeneficiaryForDeletedAccount);
+            }
+        });
+        // Final recipients already paid by a SCHEDULED child dispatch must not be assessed for a
+        // reward of their own here -- not even if a deleted account's reward is redirected to one
+        // of them in this distribution. That dispatch ran this same distribution, so any own
+        // pending reward such a recipient had was assessed there; re-assessing it from its (still
+        // stale) original state would double-pay it. (That collision is defense-in-depth: it needs
+        // a scheduled dispatch and a delete in one staking-finalizing transaction, which today
+        // requires lifting the default atomicBatch.blacklist of schedule operations.)
+        final var distribution = rewardsPayer.payRewardsIfPending(
                 rewardReceivers,
+                prePaidRewards.keySet(),
                 stakingRewardAccountId,
                 writableStore,
                 stakingRewardsStore,
                 stakingInfoStore,
                 consensusNow,
                 recordBuilder);
+        final var rewardsPaid = distribution.rewardsPaidByRecipient();
 
         // Decrease staking reward account balance by rewardPaid amount
         decreaseStakeRewardAccountBalance(rewardsPaid, stakingRewardAccountId, writableStore);
 
         if (!context.isScheduleDispatch()) {
+            // Stake metadata must be keyed by the account that EARNED each reward: only a
+            // self-received assessment (earner equal to final recipient) proves the account's own
+            // reward lifecycle completed in this transaction, while a deleted earner's assessment
+            // was redirected away and advances nobody. Never use the recipient-keyed map here (a
+            // beneficiary's recipient entry can aggregate redirects from deleted earners with its
+            // own reward). Rewards prepaid in a SCHEDULED child dispatch cross the dispatch
+            // boundary only as (recipient, amount) pairs with the earner identity stripped; they
+            // are folded in as-is and covered by the own-stake eligibility gate in
+            // adjustStakeMetadata(). Since the child dispatch runs this same distribution, any own
+            // pending reward a prepaid recipient had was assessed there.
+            final var earnedRewards = new LinkedHashMap<AccountID, Long>();
+            addSelfReceivedAssessments(distribution, earnedRewards);
+
+            // The rewards just paid changed balances that the receiver snapshot above could not
+            // see, and adjustStakedToMeForAccountStakees() below turns those balance changes into
+            // stakedToMe changes. Assess any stakee that is about to gain stake this way but was
+            // never itself in a reward situation, before its stake goes up. Every assessment it
+            // makes is folded into earnedRewards by the same rule applied just above, so a settled
+            // stakee advances its own stake metadata exactly as a natural receiver does.
+            settleStakeesAffectedByRewardsPaid(
+                    writableStore,
+                    stakingRewardsStore,
+                    stakingInfoStore,
+                    stakingRewardAccountId,
+                    consensusNow,
+                    recordBuilder,
+                    rewardReceivers,
+                    prePaidRewards.keySet(),
+                    distribution,
+                    rewardsPaid,
+                    earnedRewards);
+
             // We only manage stake metadata once, at the end of a transaction; but to do
             // this correctly, we need to include information about any rewards paid during
             // a SCHEDULED dispatch
             rewardReceivers.addAll(prePaidRewards.keySet());
-            rewardsPaid.putAll(prePaidRewards);
+            earnedRewards.putAll(prePaidRewards);
             // Apply all changes related to stakedId changes, and adjust stakedToMe
             // for all accounts staking to an account
             adjustStakedToMeForAccountStakees(writableStore);
             // Adjust stakes for nodes and account's staking metadata
             adjustStakeMetadata(
-                    writableStore, stakingInfoStore, stakingRewardsStore, consensusNow, rewardsPaid, rewardReceivers);
-
-            // Don't double-report prepaid rewards in the parent record
-            if (!prePaidRewards.isEmpty()) {
-                for (AccountID accountID : prePaidRewards.keySet()) {
-                    rewardsPaid.remove(accountID);
-                }
-            }
+                    writableStore, stakingInfoStore, stakingRewardsStore, consensusNow, earnedRewards, rewardReceivers);
         }
 
+        // The recipient-keyed map never includes prepaid rewards (they were already externalized
+        // by the child dispatch that paid them), so they are not double-reported in the parent
         return rewardsPaid;
+    }
+
+    /**
+     * Assesses every account that is about to have its {@code stakedToMe} changed <i>because of a
+     * reward this transaction just paid</i>, and that this transaction has not already assessed.
+     *
+     * <p>The reward-receiver snapshot at the top of {@link #applyStakingRewards} is taken before
+     * any reward is paid, so it cannot see the balance changes the payment itself makes. A reward
+     * owed to a deleted account is redirected to its beneficiary, and that beneficiary may stake to
+     * a third account. {@link #adjustStakedToMeForAccountStakees} then raises the third account's
+     * {@code stakedToMe} even though it was never in a reward situation, so
+     * {@link #adjustStakeMetadata} leaves its {@code stakePeriodStart} and
+     * {@code stakeAtStartOfLastRewardedPeriod} where they were. The next transaction that touches
+     * it prices <i>every</i> one of its unpaid periods at the new, larger stake
+     * ({@code StakingRewardsApi#rewardFor}) and pays the difference out of the staking reward
+     * account for periods in which the added stake did not exist.
+     *
+     * <p>So before the bump happens, re-derive the stake-to-me reward receivers -- which now see
+     * the accounts the payment credited -- and assess the ones that are new. Each assessment reads
+     * the stakee's original, pre-transaction state, so it pays exactly what the stakee had accrued
+     * before the redirect, and {@link #adjustStakeMetadata} then advances its stake metadata. The
+     * outcome is the one an ordinary transfer of the same amount into the beneficiary would have
+     * produced.
+     *
+     * <p>The pass repeats because an assessment can itself redirect to an account-staked
+     * beneficiary. It terminates: each round assesses at least one account not assessed before,
+     * and every candidate is the stakee of an account this transaction modified, a finite set.
+     *
+     * <p>The staking reward account is debited after each round, so a later round already sees the
+     * reduced balance; the rounds together can never pay out more than the funding balance.
+     *
+     * <p>This runs only outside a SCHEDULED dispatch, which is where the {@code stakedToMe} bump
+     * happens. A redirect credited in a SCHEDULED child dispatch is an ordinary balance change by
+     * the time the root transaction finalizes, so the snapshot at the top of
+     * {@link #applyStakingRewards} already picks up its stakee.
+     *
+     * @param writableStore writable account store
+     * @param stakingRewardsStore writable network staking rewards store
+     * @param stakingInfoStore writable staking info store
+     * @param stakingRewardAccountId the staking reward funding account
+     * @param consensusNow consensus time
+     * @param recordBuilder the record builder holding the deleted-account beneficiary mappings
+     * @param rewardReceivers the accounts assessed so far; newly assessed accounts are added
+     * @param prePaidRecipients recipients already paid by a SCHEDULED child dispatch
+     * @param distribution the distribution already performed for this transaction
+     * @param rewardsPaid the rewards paid so far, keyed by recipient; new payments are merged in
+     * @param earnedRewards the earner-keyed own-reward outcomes; new assessments are folded in
+     */
+    private void settleStakeesAffectedByRewardsPaid(
+            @NonNull final WritableAccountStore writableStore,
+            @NonNull final WritableNetworkStakingRewardsStore stakingRewardsStore,
+            @NonNull final WritableStakingInfoStore stakingInfoStore,
+            @NonNull final AccountID stakingRewardAccountId,
+            @NonNull final Instant consensusNow,
+            @NonNull final DeleteCapableTransactionStreamBuilder recordBuilder,
+            @NonNull final Set<AccountID> rewardReceivers,
+            @NonNull final Set<AccountID> prePaidRecipients,
+            @NonNull final StakingRewardsDistributor.RewardsDistribution distribution,
+            @NonNull final Map<AccountID, Long> rewardsPaid,
+            @NonNull final Map<AccountID, Long> earnedRewards) {
+        // If nothing was credited, no account balance changed, so re-deriving the stake-to-me
+        // receivers would return exactly the set already folded into rewardReceivers and this pass
+        // could only find an empty remainder.
+        if (!requiresExternalization(rewardsPaid)) {
+            return;
+        }
+        // An account already assessed in this transaction must never be assessed twice; a reward
+        // prepaid by a SCHEDULED child dispatch was assessed by that dispatch, from the same
+        // original state we would read here, so re-assessing it would pay it a second time.
+        // Seeding from the completed assessments (not just from the receivers handed in) matters:
+        // payRewardsIfPending also assesses beneficiaries it enqueues itself, and those never
+        // appear in rewardReceivers. The receivers are still added, because one whose original
+        // value was null is skipped without producing an assessment and must not be retried.
+        final Set<AccountID> assessed = new LinkedHashSet<>(rewardReceivers);
+        assessed.addAll(prePaidRecipients);
+        assessed.addAll(distribution.assessmentsByEarner().keySet());
+        var newlyAffected = unassessedStakedToMeReceivers(writableStore, assessed);
+        while (!newlyAffected.isEmpty()) {
+            // Passing the whole assessed set as the already-assessed set keeps this round from
+            // assessing anyone twice, including when one of its redirects lands on an account
+            // assessed earlier; that redirect is still credited, exactly as in the first pass.
+            final var round = rewardsPayer.payRewardsIfPending(
+                    newlyAffected,
+                    assessed,
+                    stakingRewardAccountId,
+                    writableStore,
+                    stakingRewardsStore,
+                    stakingInfoStore,
+                    consensusNow,
+                    recordBuilder);
+            final var paid = round.rewardsPaidByRecipient();
+            decreaseStakeRewardAccountBalance(paid, stakingRewardAccountId, writableStore);
+            // A redirect in this round can land on an account already credited earlier, so sum
+            // instead of overwrite, exactly as the distributor does within a single round
+            paid.forEach((id, amount) -> rewardsPaid.merge(id, amount, Long::sum));
+            addSelfReceivedAssessments(round, earnedRewards);
+            rewardReceivers.addAll(newlyAffected);
+            assessed.addAll(newlyAffected);
+            assessed.addAll(round.assessmentsByEarner().keySet());
+            newlyAffected = unassessedStakedToMeReceivers(writableStore, assessed);
+        }
+    }
+
+    /**
+     * Folds the self-received assessments of one distribution into the earner-keyed map that
+     * drives stake-metadata bookkeeping. Only an assessment whose earner is also its final
+     * recipient may mark that account as rewarded on its own stake; a deleted earner's assessment
+     * was redirected away and advances nobody.
+     *
+     * <p>Every distribution performed in a transaction must pass through here, or an account paid
+     * its own reward would keep a stale {@code stakePeriodStart} and have its unpaid periods
+     * repriced at its new stake.
+     *
+     * @param distribution the completed distribution
+     * @param earnedRewards the earner-keyed map to fold into
+     */
+    private static void addSelfReceivedAssessments(
+            @NonNull final StakingRewardsDistributor.RewardsDistribution distribution,
+            @NonNull final Map<AccountID, Long> earnedRewards) {
+        distribution.assessmentsByEarner().forEach((earner, assessment) -> {
+            if (earner.equals(assessment.finalRecipient())) {
+                earnedRewards.put(earner, assessment.paidAmount());
+            }
+        });
+    }
+
+    /**
+     * Returns the accounts that {@link #getStakedToMeRewardReceivers} now reports as stake-to-me
+     * reward receivers and that are not in the given already-assessed set.
+     *
+     * @param writableStore writable account store
+     * @param assessed the accounts this transaction has already assessed
+     * @return the stake-to-me reward receivers still to be assessed, in discovery order, possibly
+     * empty. The {@link SequencedSet} type carries the encounter-order contract
+     * {@link StakingRewardsDistributor#payRewardsIfPending} relies on to decide who is clamped
+     * when the funding balance runs short.
+     */
+    @NonNull
+    private SequencedSet<AccountID> unassessedStakedToMeReceivers(
+            @NonNull final WritableAccountStore writableStore, @NonNull final Set<AccountID> assessed) {
+        final SequencedSet<AccountID> unassessed = new LinkedHashSet<>(getStakedToMeRewardReceivers(writableStore));
+        unassessed.removeAll(assessed);
+        return unassessed;
     }
 
     /**
@@ -252,7 +450,13 @@ public class StakingRewardsHandlerImpl implements StakingRewardsHandler {
         final var stakedAccountId = account.stakedAccountId();
         final var stakedAccount = accountStore.getOriginalValue(stakedAccountId);
         // if the special reward receiver account is not staked to a node, it will not need to receive reward
-        if (stakedAccount != null && !stakedAccount.deleted() && stakedAccount.hasStakedNodeId()) {
+        //
+        // A stakee deleted in a prior transaction still carries its stakedNodeId and stakedToMe, so it
+        // would otherwise be rediscovered here whenever one of its indirect stakers is touched. We must
+        // not treat it as a reward receiver: its reward can no longer be redirected to a beneficiary
+        // (the delete->beneficiary mapping lives only on the deleting transaction's record builder), so
+        // StakingRewardsDistributor#payRewardsIfPending would throw and fail the unrelated transaction.
+        if (stakedAccount != null && stakedAccount.hasStakedNodeId() && !stakedAccount.deleted()) {
             updatedSpecialRewardReceivers.add(stakedAccountId);
         }
         return updatedSpecialRewardReceivers;
@@ -266,7 +470,8 @@ public class StakingRewardsHandlerImpl implements StakingRewardsHandler {
      * @param stakingInfoStore   writable staking info store
      * @param stakingRewardStore writable staking reward store
      * @param consensusNow       consensus time
-     * @param paidRewards        map of account to rewards paid
+     * @param earnedRewards      earner-keyed own-reward outcomes assessed in this transaction,
+     *                           plus recipient-keyed rewards prepaid by SCHEDULED child dispatches
      * @param rewardReceivers   set of reward receivers
      */
     private void adjustStakeMetadata(
@@ -274,7 +479,7 @@ public class StakingRewardsHandlerImpl implements StakingRewardsHandler {
             final WritableStakingInfoStore stakingInfoStore,
             final WritableNetworkStakingRewardsStore stakingRewardStore,
             final Instant consensusNow,
-            final Map<AccountID, Long> paidRewards,
+            final Map<AccountID, Long> earnedRewards,
             final Set<AccountID> rewardReceivers) {
         // We need to assess all the accounts modified in state and also possible rewardReceivers
         Set<AccountID> accountsToBeReviewed = writableStore.modifiedAccountsInState();
@@ -289,8 +494,16 @@ public class StakingRewardsHandlerImpl implements StakingRewardsHandler {
             final var scenario = StakeIdChangeType.forCase(originalAccount, modifiedAccount);
             final var containStakeMetaChanges = hasStakeMetaChanges(originalAccount, modifiedAccount);
 
+            // A stakee deleted in a PRIOR transaction already had its node stake settled at delete time,
+            // but it can be pulled back into the modification set here when an orphaned indirect staker's
+            // balance change updates its stale stakedToMe. Re-running the node-stake adjustment would
+            // withdraw that stale stake again without re-awarding it (the award path is guarded by
+            // !modifiedAccount.deleted()), spuriously draining the node's stakeToReward on every such
+            // transaction. An account deleted in the CURRENT transaction is unaffected (its original
+            // value is not yet deleted), so its delete-time withdrawal still happens.
+            final var deletedBeforeThisTxn = originalAccount != null && originalAccount.deleted();
             // If this scenario is changing StakedId from a node or to a node, change stake of those nodes
-            if ((scenario.withdrawsFromNode() || scenario.awardsToNode())) {
+            if (!deletedBeforeThisTxn && (scenario.withdrawsFromNode() || scenario.awardsToNode())) {
                 adjustNodeStakes(
                         scenario,
                         originalAccount,
@@ -302,8 +515,20 @@ public class StakingRewardsHandlerImpl implements StakingRewardsHandler {
             }
 
             // If the account is rewarded. The reward can also be zero, if the account has zero stake
-            final var rewardSituation = paidRewards.containsKey(id);
-            final var reward = paidRewards.getOrDefault(id, 0L);
+            final var rewardSituation = earnedRewards.containsKey(id);
+            // For this transaction's own distribution, earnedRewards is keyed by the account that
+            // EARNED each assessed reward (StakingRewardsDistributor#payRewardsIfPending), so a
+            // redirect from a deleted earner never appears under its beneficiary's id here. The
+            // exception is a reward prepaid in a SCHEDULED child dispatch, which reaches us only as
+            // a (recipient, amount) pair with the earner's identity already stripped; re-deriving
+            // own-stake eligibility covers those, so a prepaid redirect cannot move the recipient's
+            // stakePeriodStart back a period and let it collect an unearned reward from 0.0.800
+            // next period. Own-stake rewardability is necessary but not sufficient for a positive
+            // reward (declineReward / deleted node / sub-hbar stake earn zero); advancing metadata
+            // in those cases is harmless, as such an account collects nothing next period
+            // regardless.
+            final var rewardableOnOwnStake = wasRewardableOnOwnStake(originalAccount, stakingRewardStore);
+            final var reward = rewardableOnOwnStake ? earnedRewards.getOrDefault(id, 0L) : 0L;
 
             // If account chose to change decline reward field or stakeId field, we don't need
             // to update stakeAtStartOfLastRewardedPeriod because it is not rewarded for that period
@@ -315,7 +540,7 @@ public class StakingRewardsHandlerImpl implements StakingRewardsHandler {
                 copy.stakeAtStartOfLastRewardedPeriod(NOT_REWARDED_SINCE_LAST_STAKING_META_CHANGE);
                 writableStore.put(copy.build());
             } else if (shouldUpdateStakeAtStartOfLastRewardPeriod(
-                    originalAccount, rewardSituation, reward, stakingRewardStore, consensusNow)) {
+                    originalAccount, rewardSituation, reward, stakingRewardStore)) {
                 final var copy = modifiedAccount.copyBuilder();
                 copy.stakeAtStartOfLastRewardedPeriod(roundedToHbar(totalStake(originalAccount)));
                 writableStore.put(copy.build());
@@ -324,13 +549,11 @@ public class StakingRewardsHandlerImpl implements StakingRewardsHandler {
             // Get latest account from store again since it is modified before
             modifiedAccount = writableStore.get(id);
 
-            // Update stakePeriodStart if account is rewarded or if reward is zero and account has zero stake
-            // If the account is autoCreated it will not be rewarded
-            final var wasRewarded = rewardSituation
-                    && (reward > 0
-                            || (reward == 0
-                                    && earnedZeroRewardsBecauseOfZeroStake(
-                                            originalAccount, stakingRewardStore, consensusNow)));
+            // Advance stakePeriodStart only for an account whose own pending reward was assessed
+            // (or prepaid) while it was rewardable on its own stake. This also covers rewardable
+            // accounts that earned zero because they had zero whole-hbar stake, while excluding
+            // prepaid redirect-only rewards and accounts with no original value.
+            final var wasRewarded = rewardSituation && rewardableOnOwnStake;
             final var stakePeriodStart = stakePeriodManager.startUpdateFor(
                     originalAccount, modifiedAccount, wasRewarded, containStakeMetaChanges);
             if (stakePeriodStart != -1) {
@@ -356,11 +579,27 @@ public class StakingRewardsHandlerImpl implements StakingRewardsHandler {
      * @return whether the zero rewards were due to having zero stake
      */
     private boolean earnedZeroRewardsBecauseOfZeroStake(
-            @NonNull final Account account,
-            @NonNull final ReadableNetworkStakingRewardsStore stakingRewardStore,
-            @NonNull final Instant consensusNow) {
-        return Objects.requireNonNull(account).stakePeriodStart()
-                < stakePeriodManager.firstNonRewardableStakePeriod(stakingRewardStore);
+            @NonNull final Account account, @NonNull final ReadableNetworkStakingRewardsStore stakingRewardStore) {
+        return stakePeriodManager.isRewardable(account, stakingRewardStore);
+    }
+
+    /**
+     * Returns whether the given account is rewardable on its own stake this period; i.e., whether a
+     * reward recorded against it could reflect its own stake rather than one redirected to it as the
+     * beneficiary of a deleted account. Delegates to the eligibility gate shared with
+     * {@link StakeRewardCalculatorImpl#computePendingReward} (see
+     * {@link StakePeriodManager#isRewardable(Account, ReadableNetworkStakingRewardsStore)}). This is a
+     * necessary condition for having earned a positive own reward, not a sufficient one: a rewardable
+     * account may still earn zero if it declines rewards, stakes to a deleted node, or holds less than
+     * one whole hbar.
+     *
+     * @param account the (original) account being reviewed, possibly null if created this transaction
+     * @param stakingRewardStore the network staking rewards store
+     * @return true if the account is rewardable on its own stake this period
+     */
+    private boolean wasRewardableOnOwnStake(
+            @Nullable final Account account, @NonNull final ReadableNetworkStakingRewardsStore stakingRewardStore) {
+        return account != null && stakePeriodManager.isRewardable(account, stakingRewardStore);
     }
 
     private void adjustNodeStakes(
@@ -408,21 +647,20 @@ public class StakingRewardsHandlerImpl implements StakingRewardsHandler {
      * @param isRewarded if the account is rewarded
      * @param reward the reward amount
      * @param stakingRewardStore the staking reward store
-     * @param consensusNow the consensus time
      * @return true if the account need to update stakeAtStartOfLastRewardedPeriod, false otherwise
      */
     public boolean shouldUpdateStakeAtStartOfLastRewardPeriod(
             @Nullable final Account account,
             final boolean isRewarded,
             final long reward,
-            @NonNull final ReadableNetworkStakingRewardsStore stakingRewardStore,
-            @NonNull final Instant consensusNow) {
+            @NonNull final ReadableNetworkStakingRewardsStore stakingRewardStore) {
         if (account == null
                 || account.stakedNodeIdOrElse(SENTINEL_NODE_ID) == SENTINEL_NODE_ID
-                || account.declineReward()) {
+                || account.declineReward()
+                || account.stakePeriodStart() < 0) {
             // If the account is created in this transaction, or it is not staking to a node,
-            // or it has chosen to decline reward, we don't need to remember stakeStart,
-            // because it can't receive reward today
+            // it has chosen to decline reward, or its stake period start is not initialized,
+            // we don't need to remember stakeStart, because it can't receive reward today
             return false;
         }
         if (!isRewarded) {
@@ -449,7 +687,7 @@ public class StakingRewardsHandlerImpl implements StakingRewardsHandler {
             // scenarios 1 and 3, but not 2 and 4. (As noted below, in scenario 2 we want to
             // preserve an already-recorded memory of her stake at the beginning of this period.
             // In scenario 4 there is no point in recording anything---her stake will go unused.)
-            if (earnedZeroRewardsBecauseOfZeroStake(account, stakingRewardStore, consensusNow)) {
+            if (earnedZeroRewardsBecauseOfZeroStake(account, stakingRewardStore)) {
                 return true;
             }
             if (account.stakeAtStartOfLastRewardedPeriod() != NOT_REWARDED_SINCE_LAST_STAKING_META_CHANGE) {

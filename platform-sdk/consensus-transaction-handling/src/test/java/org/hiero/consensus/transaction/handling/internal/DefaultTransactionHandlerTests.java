@@ -3,6 +3,7 @@ package org.hiero.consensus.transaction.handling.internal;
 
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.assertAllDatabasesClosed;
 import static org.hiero.consensus.model.PbjConverters.toPbjTimestamp;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.eventCutoverMinBirthRoundOf;
 import static org.hiero.consensus.state.test.fixtures.RandomSignedStateGenerator.releaseAllBuiltSignedStates;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -15,7 +16,6 @@ import static org.mockito.Mockito.atMostOnce;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -26,8 +26,9 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
-import org.hiero.consensus.roster.test.fixtures.RosterFactory;
+import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
 import org.hiero.consensus.status.monitor.actions.FreezePeriodEnteredAction;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.junit.jupiter.api.AfterAll;
@@ -42,12 +43,12 @@ import org.junit.jupiter.params.provider.CsvSource;
  */
 class DefaultTransactionHandlerTests {
     private Randotron random;
-    private Roster roster;
+    private RosterWrapper roster;
 
     @BeforeEach
     void setUp() {
         random = Randotron.create();
-        roster = RosterFactory.randomRoster(random, 4);
+        roster = RosterWrapperFactory.randomRoster(random, 4);
     }
 
     /**
@@ -191,6 +192,29 @@ class DefaultTransactionHandlerTests {
                             .getFutureHash()
                             .getAndRethrow(),
                     "the running hash should from the freeze round");
+        }
+    }
+
+    @DisplayName("Event cutover is recorded with the first round only at genesis with the cutover enabled")
+    @ParameterizedTest(name = "cutover enabled {0}, start from genesis {1} -> recorded cutover {2}")
+    @CsvSource({"true, true, 1", "true, false, 0", "false, true, 0", "false, false, 0"})
+    void genesisEventCutover(
+            final boolean eventCutoverEnabled, final boolean startFromGenesis, final long expectedCutover) {
+        try (final TransactionHandlerTester tester =
+                new TransactionHandlerTester(eventCutoverEnabled, startFromGenesis)) {
+            assertEquals(
+                    0,
+                    eventCutoverMinBirthRoundOf(
+                            tester.getStateLifecycleManager().getMutableState()),
+                    "no cutover should be recorded before the first round");
+
+            tester.getTransactionHandler().handleConsensusRound(newConsensusRound(false));
+
+            assertEquals(
+                    expectedCutover,
+                    eventCutoverMinBirthRoundOf(
+                            tester.getStateLifecycleManager().getMutableState()),
+                    "unexpected cutover recorded with the first round");
         }
     }
 

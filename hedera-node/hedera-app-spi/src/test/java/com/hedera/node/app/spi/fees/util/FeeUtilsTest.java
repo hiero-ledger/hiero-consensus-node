@@ -53,4 +53,45 @@ class FeeUtilsTest {
         long result = FeeUtils.tinycentsToTinybars(10, rate);
         assertEquals(25, result); // (10 * 5) / 2 = 25
     }
+
+    @Test
+    void tinycentsToTinybars_saturatesOnNonPositiveCentEquiv() {
+        ExchangeRate rate = mock(ExchangeRate.class);
+        when(rate.getHbarEquiv()).thenReturn(1);
+        when(rate.getCentEquiv()).thenReturn(0);
+
+        // A zero centEquiv would divide by zero; the conversion saturates instead of throwing.
+        assertEquals(Long.MAX_VALUE, FeeUtils.tinycentsToTinybars(100L, rate));
+    }
+
+    @Test
+    void tinycentsToTinybars_saturatesOnNonPositiveHbarEquiv() {
+        ExchangeRate zeroHbarRate = mock(ExchangeRate.class);
+        when(zeroHbarRate.getHbarEquiv()).thenReturn(0);
+        when(zeroHbarRate.getCentEquiv()).thenReturn(120);
+        // A zero hbarEquiv would make the fee free; saturate so a degenerate rate is unpayable, not free.
+        assertEquals(Long.MAX_VALUE, FeeUtils.tinycentsToTinybars(100L, zeroHbarRate));
+
+        ExchangeRate negativeHbarRate = mock(ExchangeRate.class);
+        when(negativeHbarRate.getHbarEquiv()).thenReturn(-1);
+        when(negativeHbarRate.getCentEquiv()).thenReturn(120);
+        assertEquals(Long.MAX_VALUE, FeeUtils.tinycentsToTinybars(100L, negativeHbarRate));
+    }
+
+    @Test
+    void feeResultToFeesTotalSaturatesOnDegenerateRate() {
+        ExchangeRate rate = mock(ExchangeRate.class);
+        when(rate.getHbarEquiv()).thenReturn(1);
+        when(rate.getCentEquiv()).thenReturn(0);
+
+        // End-to-end: each component conversion saturates on the degenerate rate, and the saturating total
+        // clamps to Long.MAX_VALUE instead of overflowing Math.addExact in Fees.totalFee().
+        FeeResult feeResult = new FeeResult(30, 10, 2);
+        Fees fees = FeeUtils.feeResultToFees(feeResult, rate);
+
+        assertEquals(Long.MAX_VALUE, fees.nodeFee());
+        assertEquals(Long.MAX_VALUE, fees.networkFee());
+        assertEquals(Long.MAX_VALUE, fees.serviceFee());
+        assertEquals(Long.MAX_VALUE, fees.totalFee());
+    }
 }

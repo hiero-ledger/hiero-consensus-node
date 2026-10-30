@@ -6,6 +6,8 @@ import static com.hedera.node.app.service.token.impl.comparator.TokenComparators
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakingRewardsHelper.asAccountAmounts;
 import static com.hedera.node.app.service.token.impl.handlers.staking.StakingRewardsHelper.requiresExternalization;
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptySet;
+import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
@@ -13,9 +15,12 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.NftID;
 import com.hedera.hapi.node.base.NftTransfer;
 import com.hedera.hapi.node.base.TokenID;
+import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.common.EntityIDPair;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.RecordFinalizerBase;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableNftStore;
@@ -33,6 +38,7 @@ import com.hedera.node.config.data.LedgerConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -82,30 +88,48 @@ public class FinalizeRecordHandler extends RecordFinalizerBase {
         return systemEntitiesCreatedFlag == null || systemEntitiesCreatedFlag.get();
     }
 
+    /**
+     * Finalizes the record of a dispatch eligible for staking rewards.
+     * @param context the finalize context
+     * @param functionality the functionality of the dispatched transaction
+     * @param body the body of the dispatched transaction
+     * @param explicitRewardReceivers the extra accounts to consider for staking rewards
+     * @param prePaidRewards the staking rewards already paid in this dispatch
+     */
     public void finalizeStakingRecord(
             @NonNull final FinalizeContext context,
             @NonNull final HederaFunctionality functionality,
+            @NonNull final TransactionBody body,
             @NonNull final Set<AccountID> explicitRewardReceivers,
             @NonNull final Map<AccountID, Long> prePaidRewards) {
-        finalizeRecord(context, functionality, explicitRewardReceivers, prePaidRewards);
+        finalizeRecord(context, functionality, body, explicitRewardReceivers, prePaidRewards);
     }
 
+    /**
+     * Finalizes the record of a dispatch not eligible for staking rewards.
+     * @param context the finalize context
+     * @param functionality the functionality of the dispatched transaction
+     * @param body the body of the dispatched transaction
+     */
     public void finalizeNonStakingRecord(
-            @NonNull final FinalizeContext context, @NonNull final HederaFunctionality functionality) {
-        finalizeRecord(context, functionality, null, null);
+            @NonNull final FinalizeContext context,
+            @NonNull final HederaFunctionality functionality,
+            @NonNull final TransactionBody body) {
+        finalizeRecord(context, functionality, body, null, null);
     }
 
     private void finalizeRecord(
             @NonNull final FinalizeContext context,
             @NonNull final HederaFunctionality functionality,
+            @NonNull final TransactionBody body,
             @Nullable final Set<AccountID> explicitRewardReceivers,
             @Nullable final Map<AccountID, Long> prePaidRewards) {
+        requireNonNull(body);
         final var recordBuilder = context.userTransactionRecordBuilder(CryptoTransferStreamBuilder.class);
 
-        // This handler won't ask the context for its transaction, but instead will determine the net hbar transfers and
-        // token transfers based on the original value from writable state, and based on changes made during this
-        // transaction via
-        // any relevant writable stores
+        // This handler determines the net hbar transfers and token transfers from the original values in writable
+        // state and the changes made during this transaction via any relevant writable stores; the transaction body
+        // is consulted only to restore the isApproval flag those net changes cannot carry
         final var writableAccountStore = context.writableStore(WritableAccountStore.class);
         final var writableTokenRelStore = context.writableStore(WritableTokenRelationStore.class);
         final var writableNftStore = context.writableStore(WritableNftStore.class);
@@ -161,12 +185,53 @@ public class FinalizeRecordHandler extends RecordFinalizerBase {
         }
         final var hasTokenTransferLists = !tokenRelChanges.isEmpty() || !nftChanges.isEmpty();
         if (hasTokenTransferLists) {
-            final var tokenTransferLists = asTokenTransferListFrom(tokenRelChanges, isCryptoTransfer);
+            final var approvedDebits = approvedFungibleDebitsFrom(body, writableAccountStore);
+            final var tokenTransferLists = asTokenTransferListFrom(tokenRelChanges, isCryptoTransfer, approvedDebits);
             final var nftTokenTransferLists = asTokenTransferListFromNftChanges(nftChanges);
             tokenTransferLists.addAll(nftTokenTransferLists);
             tokenTransferLists.sort(TOKEN_TRANSFER_LIST_COMPARATOR);
             recordBuilder.tokenTransferLists(tokenTransferLists);
         }
+    }
+
+    /**
+     * Returns the (account, token) pairs the given body debits via an allowance, so the net changes rebuilt from
+     * state can be externalized with the original {@code isApproval} flag. Owners named by alias are resolved to
+     * the numeric ids used in state; an alias that resolves to nothing cannot have been debited and is skipped.
+     * @param body the body of the dispatched transaction
+     * @param accountStore the account store to resolve aliases with
+     * @return the pairs debited via an allowance
+     */
+    private static Set<EntityIDPair> approvedFungibleDebitsFrom(
+            @NonNull final TransactionBody body, @NonNull final ReadableAccountStore accountStore) {
+        final List<TokenTransferList> tokenTransfers;
+        if (body.hasCryptoTransfer()) {
+            tokenTransfers = body.cryptoTransferOrThrow().tokenTransfers();
+        } else if (body.hasTokenAirdrop()) {
+            tokenTransfers = body.tokenAirdropOrThrow().tokenTransfers();
+        } else {
+            return emptySet();
+        }
+        final Set<EntityIDPair> approvedDebits = new HashSet<>();
+        for (final var xfers : tokenTransfers) {
+            for (final var aa : xfers.transfers()) {
+                if (aa.isApproval() && aa.amount() < 0) {
+                    final var ownerId = aa.accountIDOrElse(AccountID.DEFAULT);
+                    final var owner = ownerId.hasAccountNum() ? ownerId : resolvedIdOf(ownerId, accountStore);
+                    if (owner != null) {
+                        approvedDebits.add(new EntityIDPair(owner, xfers.tokenOrElse(TokenID.DEFAULT)));
+                    }
+                }
+            }
+        }
+        return approvedDebits;
+    }
+
+    @Nullable
+    private static AccountID resolvedIdOf(
+            @NonNull final AccountID aliasedId, @NonNull final ReadableAccountStore accountStore) {
+        final var account = accountStore.getAliasedAccountById(aliasedId);
+        return account == null ? null : account.accountId();
     }
 
     // invoke logger parameters conditionally
@@ -195,6 +260,9 @@ public class FinalizeRecordHandler extends RecordFinalizerBase {
             @NonNull final Map<TokenID, List<NftTransfer>> nftTransfers,
             @NonNull final Map<AccountID, Long> hbarChanges) {
         final Map<NftID, AccountID> childFinalNftOwners = new HashMap<>();
+        // Where the child records leave each serial once treasury changes are applied, and who they first moved it from
+        final Map<NftID, AccountID> childNftOwnersAfterTreasuryChanges = new HashMap<>();
+        final Map<NftID, AccountID> childFirstNftSenders = new HashMap<>();
         context.forEachChildRecord(ChildStreamBuilder.class, childRecord -> {
             final List<AccountAmount> childHbarChangesFromRecord = childRecord.transferList() == null
                     ? emptyList()
@@ -234,6 +302,19 @@ public class FinalizeRecordHandler extends RecordFinalizerBase {
                     for (final var ownershipChange : tokenTransfers.nftTransfers()) {
                         final var newOwnerId = ownershipChange.receiverAccountIDOrElse(ZERO_ACCOUNT_ID);
                         final var key = new NftID(tokenId, ownershipChange.serialNumber());
+                        if (ownershipChange.serialNumber() == -1) {
+                            // A serial a child sent to the old treasury has no owner, so it follows the treasury to
+                            // the new one (an account that owns serials cannot become an NFT treasury)
+                            final var oldTreasuryId = ownershipChange.senderAccountIDOrElse(ZERO_ACCOUNT_ID);
+                            childNftOwnersAfterTreasuryChanges.replaceAll(
+                                    (nftId, ownerId) -> tokenId.equals(nftId.tokenId()) && oldTreasuryId.equals(ownerId)
+                                            ? newOwnerId
+                                            : ownerId);
+                        } else {
+                            childFirstNftSenders.putIfAbsent(
+                                    key, ownershipChange.senderAccountIDOrElse(ZERO_ACCOUNT_ID));
+                            childNftOwnersAfterTreasuryChanges.put(key, newOwnerId);
+                        }
                         childFinalNftOwners.put(key, newOwnerId);
                     }
                 }
@@ -251,7 +332,9 @@ public class FinalizeRecordHandler extends RecordFinalizerBase {
                     // Remove this NFT transfer from our list if the child record's
                     // transfer list already shows it being transferred to the same
                     // final owner as in our list
-                    return childFinalOwner.equals(ourFinalOwner);
+                    return childFinalOwner.equals(ourFinalOwner)
+                            || (ourFinalOwner.equals(childNftOwnersAfterTreasuryChanges.get(key))
+                                    && transfer.senderAccountIDOrThrow().equals(childFirstNftSenders.get(key)));
                 }
                 return false;
             });

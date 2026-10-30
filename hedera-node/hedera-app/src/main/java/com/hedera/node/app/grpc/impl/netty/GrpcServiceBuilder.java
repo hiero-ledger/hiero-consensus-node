@@ -102,7 +102,7 @@ final class GrpcServiceBuilder {
      * @param queryWorkflow The workflow to use for handling all queries
      * @param marshaller The marshaller to use for reading/writing byte arrays to/from InputStreams
      * @param jumboMarshaller The marshaller to use for handling jumbo transactions
-     * @throws NullPointerException if any of the parameters are null
+     * @throws NullPointerException if any of the non-nullable parameters are null
      * @throws IllegalArgumentException if the serviceName is blank
      */
     public GrpcServiceBuilder(

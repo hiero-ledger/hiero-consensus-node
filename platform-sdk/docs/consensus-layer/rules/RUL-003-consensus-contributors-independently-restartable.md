@@ -65,8 +65,8 @@ persistence path, signed-state saving, and the reconnect gate.
 - **Steady state — persisted before observed.** Every validated event is written
   to PCES *before* any downstream component observes it: the writer's output wire
   is soldered ahead of consensus, gossip, and the event creator's parent-selection
-  input (`ConsensusLayerWiring.java:108-118`), and the inline writer writes the event to
-  the current file before emitting it (`DefaultInlinePcesWriter.java:71-75`). So
+  input (`ConsensusLayerWiring.java#wirePcesOutputs`), and the inline writer writes the event to
+  the current file before emitting it (`DefaultInlinePcesWriter.java#writeEvent`). So
   every event a node needs to reach consensus is durable on disk before consensus
   acts on it; on an ordinary restart the node rebuilds its hashgraph by replaying
   its own PCES, with no help from peers. Graceful shutdown additionally syncs and
@@ -78,7 +78,7 @@ persistence path, signed-state saving, and the reconnect gate.
   for the durability model.
 - **Periodic — a recent on-disk base state.** A signed state is produced at every
   block boundary (and at the freeze round) and marked for saving on a period
-  (`DefaultSavedStateController.java:111`), written to disk by
+  (`DefaultSavedStateController.java#shouldSaveToDisk`), written to disk by
   `SignedStateFileWriter` (see
   [signed-state-management.md](../architecture/topics/signed-state-management.md)).
   This gives the node a recent, complete on-disk state to restart from — the base
@@ -90,11 +90,11 @@ persistence path, signed-state saving, and the reconnect gate.
   learned one, leaving a PCES gap so its previous on-disk state is no longer a
   valid restart point. The node therefore persists the learned state before it
   resumes creating events — it enters `RECONNECT_COMPLETE` before the disk save
-  begins (`ReconnectController.java:247-250`), marks the learned state to be saved
-  with reason `RECONNECT` (`DefaultSavedStateController.java:62-67`), gossips but
+  begins (`ReconnectController.java#loadState`), marks the learned state to be saved
+  with reason `RECONNECT` (`DefaultSavedStateController.java#markSavedState`), gossips but
   does not create events while in that status (`PlatformStatusRule.java#isEventCreationPermitted`),
   and leaves it only when a `StateWrittenToDiskAction` reports the reconnect state
-  (or later) on disk (`ReconnectCompleteStatusLogic.java:156-187`). See
+  (or later) on disk (`ReconnectCompleteStatusLogic.java#onStateWrittenToDisk`). See
   ADR-007.
 
 The property is contingent on this combination. If event persistence stopped

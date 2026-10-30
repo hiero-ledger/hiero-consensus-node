@@ -4,8 +4,8 @@ package com.swirlds.platform;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
+import static com.swirlds.platform.metrics.RosterMetrics.registerRosterMetrics;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.roster.RosterMetrics.registerRosterMetrics;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.notification.NotificationEngine;
@@ -24,6 +24,7 @@ import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.wiring.framework.wires.input.NoInput;
 
 /**
@@ -42,7 +43,7 @@ public class SwirldsPlatform implements Platform {
     /**
      * the current nodes in the network and their information
      */
-    private final Roster currentRoster;
+    private final RosterWrapper activeRoster;
 
     /**
      * the object that contains all key pairs and CSPRNG state for this member
@@ -91,10 +92,10 @@ public class SwirldsPlatform implements Platform {
         selfId = inputs.selfId();
 
         notificationEngine = buildingBlocks.notificationEngine();
-        currentRoster = inputs.rosterHistory().getCurrentRoster();
+        activeRoster = buildingBlocks.rosterHistory().activeRoster();
 
         final Metrics metrics = inputs.metrics();
-        registerRosterMetrics(metrics, currentRoster, selfId);
+        registerRosterMetrics(metrics, activeRoster, selfId);
 
         RuntimeMetrics.setup(metrics);
 
@@ -190,6 +191,6 @@ public class SwirldsPlatform implements Platform {
     @Override
     @NonNull
     public Roster getRoster() {
-        return currentRoster;
+        return activeRoster.toPbj();
     }
 }

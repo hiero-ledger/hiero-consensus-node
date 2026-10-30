@@ -1,7 +1,7 @@
 %stat=();
 
 while (<>) {
-  if (/^\w+[\:]\d+$/) {
+  if (/^[\w\.]+[\:]\d+$/) {
     ($id, $counter)=split(/[\:]/,$_,2);
     $stat{"$id"}{"counter"}+=$counter;
   }

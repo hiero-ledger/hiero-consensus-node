@@ -11,6 +11,7 @@ import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.ADMIN_KEY;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.METADATA_KEY;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.PAUSE_KEY;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.SUPPLY_KEY;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.exposeTargetLedgerIdTo;
@@ -23,6 +24,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenSupplyType.INFINITE_VALUE;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.google.protobuf.ByteString;
@@ -48,6 +50,7 @@ import com.hederahashgraph.api.proto.java.Timestamp;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenInfo;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
@@ -377,7 +380,7 @@ public class TokenMetadataTest {
                 .setDecimals(4)
                 .setTokenType(FUNGIBLE_COMMON)
                 .setSupplyTypeValue(INFINITE_VALUE)
-                .setExpiry(Timestamp.newBuilder().setSeconds(-9223372036854775808L))
+                .setExpiry(Timestamp.newBuilder().setSeconds(storedExpiry(spec, newToken)))
                 .setAutoRenewPeriod(Duration.newBuilder().setSeconds(THREE_MONTHS_IN_SECONDS))
                 .setTreasury(spec.registry().getAccountID(contractTarget.name()))
                 .setMetadata(ByteString.copyFrom("testmeta".getBytes(StandardCharsets.UTF_8)));
@@ -393,11 +396,21 @@ public class TokenMetadataTest {
                         .build())
                 .setSymbol("nft")
                 .setTokenType(NON_FUNGIBLE_UNIQUE)
-                .setExpiry(Timestamp.newBuilder().setSeconds(-9223372036854775808L))
+                .setExpiry(Timestamp.newBuilder().setSeconds(storedExpiry(spec, newToken)))
                 .setSupplyKey(metaKey(spec))
                 .setAutoRenewPeriod(Duration.newBuilder().setSeconds(THREE_MONTHS_IN_SECONDS))
                 .setTreasury(spec.registry().getAccountID(contractTarget.name()))
                 .setMetadata(ByteString.copyFrom("testmeta".getBytes(StandardCharsets.UTF_8)));
+    }
+
+    private static long storedExpiry(final HapiSpec spec, final AtomicReference<Address> newToken) {
+        final var expiry = new AtomicLong();
+        allRunFor(
+                spec,
+                getTokenInfo(String.valueOf(newToken.get().value().longValue()))
+                        .getTokenInfo(info -> expiry.set(info.getExpiry().getSeconds())));
+        assertTrue(expiry.get() > 0, "Token expiry must be a real timestamp");
+        return expiry.get();
     }
 
     private com.hederahashgraph.api.proto.java.Key metaKey(final HapiSpec spec) {

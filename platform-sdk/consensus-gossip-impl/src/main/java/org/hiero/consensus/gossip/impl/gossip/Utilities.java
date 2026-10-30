@@ -1,22 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.gossip.impl.gossip;
 
+import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.crypto.KeyCertPurpose.SIGNING;
 
-import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterEntry;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.cert.Certificate;
 import java.util.Collection;
 import java.util.List;
-import java.util.Objects;
 import org.hiero.base.crypto.CryptoConstants;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.consensus.gossip.impl.network.PeerInfo;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.model.roster.RosterEntryWrapper;
+import org.hiero.consensus.model.roster.RosterWrapper;
+import org.hiero.consensus.model.roster.ServiceEndpointWrapper;
 
 /**
  * General purpose utilities related to the gossip protocol and peer information.
@@ -36,14 +36,14 @@ public class Utilities {
      * @return a list of PeerInfo
      */
     @NonNull
-    public static List<PeerInfo> createPeerInfoList(@NonNull final Roster roster, @NonNull final NodeId selfId) {
-        Objects.requireNonNull(roster);
-        Objects.requireNonNull(selfId);
+    public static List<PeerInfo> createPeerInfoList(@NonNull final RosterWrapper roster, @NonNull final NodeId selfId) {
+        requireNonNull(roster);
+        requireNonNull(selfId);
         return roster.rosterEntries().stream()
-                .filter(entry -> entry.nodeId() != selfId.id())
+                .filter(entry -> !selfId.equals(entry.nodeId()))
                 // Only include peers with valid gossip certificates
                 // https://github.com/hashgraph/hedera-services/issues/16648
-                .filter(entry -> CryptoUtils.checkCertificate((RosterUtils.fetchGossipCaCertificate(entry))))
+                .filter(entry -> CryptoUtils.checkCertificate((entry.gossipCaCertificate())))
                 .map(Utilities::toPeerInfo)
                 .toList();
     }
@@ -54,15 +54,13 @@ public class Utilities {
      * @return PeerInfo with extracted hostname, port and certificate for remote host
      */
     @NonNull
-    public static PeerInfo toPeerInfo(@NonNull final RosterEntry entry) {
-        Objects.requireNonNull(entry);
+    public static PeerInfo toPeerInfo(@NonNull final RosterEntryWrapper entry) {
+        requireNonNull(entry);
+        // Assume that the first ServiceEndpoint describes the external hostname,
+        // which is the same order in which RosterRetriever.buildRoster(AddressBook) lists them.
+        final ServiceEndpointWrapper serviceEndpoint = entry.gossipEndpoint().getFirst();
         return new PeerInfo(
-                NodeId.of(entry.nodeId()),
-                // Assume that the first ServiceEndpoint describes the external hostname,
-                // which is the same order in which RosterRetriever.buildRoster(AddressBook) lists them.
-                Objects.requireNonNull(RosterUtils.fetchHostname(entry, 0)),
-                RosterUtils.fetchPort(entry, 0),
-                Objects.requireNonNull(RosterUtils.fetchGossipCaCertificate(entry)));
+                entry.nodeId(), serviceEndpoint.hostName(), serviceEndpoint.port(), entry.gossipCaCertificate());
     }
 
     /**
@@ -74,7 +72,7 @@ public class Utilities {
      */
     public static @NonNull KeyStore createPublicKeyStore(@NonNull final Collection<PeerInfo> peers)
             throws KeyStoreException {
-        Objects.requireNonNull(peers);
+        requireNonNull(peers);
         final KeyStore store = CryptoUtils.createEmptyTrustStore();
         for (final PeerInfo peer : peers) {
             final Certificate sigCert = peer.signingCertificate();

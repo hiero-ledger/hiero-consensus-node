@@ -9,7 +9,6 @@ import com.swirlds.config.extensions.test.fixtures.ConfigUtils;
 import com.swirlds.logging.api.internal.configuration.InternalLoggingConfig;
 import com.swirlds.platform.builder.ModulesConfig;
 import com.swirlds.platform.health.OSHealthCheckConfig;
-import com.swirlds.platform.metrics.PlatformMetricsConfig;
 import java.util.Arrays;
 import java.util.Set;
 import org.hiero.consensus.BasicConfig;
@@ -50,7 +49,6 @@ class PlatformConfigurationExtensionTests {
                         ModulesConfig.class,
                         FallenBehindConfig.class,
                         OSHealthCheckConfig.class,
-                        PlatformMetricsConfig.class,
                         WiringConfig.class,
                         InternalLoggingConfig.class));
     }

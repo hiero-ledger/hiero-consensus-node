@@ -4,12 +4,17 @@ package com.hedera.node.app.grpc.impl.netty;
 import static io.netty.handler.ssl.SupportedCipherSuiteFilter.INSTANCE;
 import static java.util.Objects.requireNonNull;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.Transaction;
+import com.hedera.hapi.node.state.clpr.ClprStreamingSyncPayload;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.grpc.GrpcServerManager;
+import com.hedera.node.app.grpc.impl.ClprStreamingSyncMethod;
 import com.hedera.node.app.grpc.impl.usage.GrpcUsageTracker;
+import com.hedera.node.app.service.clpr.ClprEndpointServiceDefinition;
 import com.hedera.node.app.services.ServicesRegistry;
 import com.hedera.node.app.spi.RpcService;
+import com.hedera.node.app.workflows.clpr.ClprSyncWorkflow;
 import com.hedera.node.app.workflows.ingest.IngestWorkflow;
 import com.hedera.node.app.workflows.query.QueryWorkflow;
 import com.hedera.node.app.workflows.query.annotations.OperatorQueries;
@@ -22,14 +27,18 @@ import com.hedera.node.config.data.NettyConfig;
 import com.hedera.node.config.types.Profile;
 import com.hedera.pbj.runtime.RpcMethodDefinition;
 import com.hedera.pbj.runtime.RpcServiceDefinition;
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import io.grpc.MethodDescriptor;
+import io.grpc.MethodDescriptor.MethodType;
 import io.grpc.Server;
 import io.grpc.ServerServiceDefinition;
 import io.grpc.ServiceDescriptor;
 import io.grpc.netty.GrpcSslContexts;
 import io.grpc.netty.NettyServerBuilder;
+import io.grpc.stub.ServerCalls;
 import io.netty.channel.epoll.EpollEventLoopGroup;
 import io.netty.channel.epoll.EpollServerSocketChannel;
 import io.netty.handler.ssl.SslContextBuilder;
@@ -41,6 +50,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -93,6 +103,7 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
      * The configuration provider, so we can figure out ports and other information.
      */
     private final ConfigProvider configProvider;
+
     /**
      * The gRPC server listening on the plain (non-tls) port
      */
@@ -120,6 +131,7 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
      * @param ingestWorkflow The implementation of the {@link IngestWorkflow} to use for transaction rpc methods
      * @param userQueryWorkflow The implementation of the {@link QueryWorkflow} to use for user query rpc methods
      * @param operatorQueryWorkflow The implementation of the {@link QueryWorkflow} to use for node operator query rpc methods
+     * @param clprSyncWorkflow The implementation of the {@link ClprSyncWorkflow} to use for CLPR sync rpc methods
      * @param metrics Used to get/create metrics for each transaction and query method.
      */
     @Inject
@@ -129,11 +141,13 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
             @NonNull final IngestWorkflow ingestWorkflow,
             @NonNull @UserQueries final QueryWorkflow userQueryWorkflow,
             @NonNull @OperatorQueries final QueryWorkflow operatorQueryWorkflow,
+            @NonNull final ClprSyncWorkflow clprSyncWorkflow,
             @NonNull final Metrics metrics) {
         this.configProvider = requireNonNull(configProvider);
         requireNonNull(ingestWorkflow);
         requireNonNull(userQueryWorkflow);
         requireNonNull(operatorQueryWorkflow);
+        requireNonNull(clprSyncWorkflow);
         requireNonNull(metrics);
 
         final Supplier<Stream<RpcServiceDefinition>> rpcServiceDefinitions =
@@ -145,20 +159,21 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
                         .map(v -> (RpcService) v)
                         .flatMap(s -> s.rpcDefinitions().stream());
 
-        // Convert the various RPC service definitions into transaction or query endpoints using the
-        // GrpcServiceBuilder.
-        services =
-                buildServiceDefinitions(rpcServiceDefinitions, m -> true, ingestWorkflow, userQueryWorkflow, metrics);
+        // Convert the various RPC service definitions into transaction, query, or CLPR sync endpoints
+        // using the GrpcServiceBuilder. All of them, including CLPR sync, are served on the plain and TLS ports.
+        services = buildServiceDefinitions(
+                rpcServiceDefinitions, m -> true, ingestWorkflow, userQueryWorkflow, clprSyncWorkflow, metrics);
 
         final var grpcConfig = configProvider.getConfiguration().getConfigData(GrpcConfig.class);
         if (grpcConfig.nodeOperatorPortEnabled()) {
             // Convert the various RPC service definitions into query endpoints permitting unpaid queries for node
-            // operators
+            // operators. CLPR sync methods are not exposed on the node operator port.
             nodeOperatorServices = buildServiceDefinitions(
                     rpcServiceDefinitions,
                     m -> Query.class.equals(m.requestType()),
                     ingestWorkflow,
                     operatorQueryWorkflow,
+                    null,
                     metrics);
         }
 
@@ -178,6 +193,11 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
     @Override
     public int nodeOperatorPort() {
         return nodeOperatorServer == null || nodeOperatorServer.isTerminated() ? -1 : nodeOperatorServer.getPort();
+    }
+
+    @VisibleForTesting
+    Set<ServerServiceDefinition> hapiServices() {
+        return Collections.unmodifiableSet(services);
     }
 
     @Override
@@ -427,6 +447,7 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
             @NonNull final Predicate<RpcMethodDefinition> methodFilter,
             @NonNull final IngestWorkflow ingestWorkflow,
             @NonNull final QueryWorkflow queryWorkflow,
+            @Nullable final ClprSyncWorkflow clprSyncWorkflow,
             @NonNull final Metrics metrics) {
 
         final int maxTxnSize = configProvider
@@ -452,6 +473,7 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
         return rpcServiceDefinitions
                 .get()
                 .map(d -> {
+                    final var containsSyncEndpoint = new AtomicBoolean(false);
                     // create builder
                     final var builder = new GrpcServiceBuilder(
                             d.basePath(), ingestWorkflow, queryWorkflow, dataBufferMarshaller, jumboBufferMarshaller);
@@ -459,13 +481,51 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
                     d.methods().stream().filter(methodFilter).forEach(m -> {
                         if (Transaction.class.equals(m.requestType())) {
                             builder.transaction(m.path());
+                        } else if (ClprStreamingSyncPayload.class.equals(m.requestType())) {
+                            // The bidi-streaming sync is registered by hand below, not through the builder.
+                            containsSyncEndpoint.set(true);
                         } else {
                             builder.query(m.path());
                         }
                     });
                     // build service
-                    return builder.build(metrics, configProvider);
+                    final var service = builder.build(metrics, configProvider);
+                    if (containsSyncEndpoint.get()) {
+                        return addClprStreamingSync(service, requireNonNull(clprSyncWorkflow), jumboBufferMarshaller);
+                    }
+                    return service;
                 })
                 .collect(Collectors.toUnmodifiableSet());
+    }
+
+    /**
+     * Returns {@code service} with the bidirectional-streaming CLPR {@code sync} method added.
+     *
+     * <p>Registered by hand rather than through {@link GrpcServiceBuilder}: that path hardcodes
+     * {@link MethodType#UNARY} and dispatches on request type, so a streaming method routed through it would answer
+     * the first message and close with {@code OK} — a silently truncated exchange that looks healthy. It is also why
+     * the method is a bare constant on {@link ClprEndpointServiceDefinition} rather than an entry in its method set,
+     * which drives that same unary auto-registration.
+     *
+     * <p>The method is merged into the existing service definition rather than added as a second one, because a gRPC
+     * server keys its registry by service name and a second definition under the same name would displace the first.
+     */
+    @NonNull
+    static ServerServiceDefinition addClprStreamingSync(
+            @NonNull final ServerServiceDefinition service,
+            @NonNull final ClprSyncWorkflow clprSyncWorkflow,
+            @NonNull final DataBufferMarshaller marshaller) {
+        final var descriptor = MethodDescriptor.<BufferedData, BufferedData>newBuilder()
+                .setType(MethodType.BIDI_STREAMING)
+                .setFullMethodName(ClprEndpointServiceDefinition.SYNC_FULL_METHOD_NAME)
+                .setRequestMarshaller(marshaller)
+                .setResponseMarshaller(marshaller)
+                .build();
+        final var builder =
+                ServerServiceDefinition.builder(service.getServiceDescriptor().getName());
+        service.getMethods().forEach(builder::addMethod);
+        builder.addMethod(
+                descriptor, ServerCalls.asyncBidiStreamingCall(new ClprStreamingSyncMethod(clprSyncWorkflow)));
+        return builder.build();
     }
 }

@@ -125,6 +125,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongFunction;
 import java.util.function.Supplier;
@@ -680,7 +681,27 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
      * an embedded network.
      */
     public void commitEmbeddedState() {
-        embeddedStateOrThrow().commit();
+        final var state = embeddedStateOrThrow();
+        synchronized (state) {
+            state.commit();
+        }
+    }
+
+    /**
+     * Applies the given mutation to the embedded {@link FakeState} and commits it, holding the state's lock so
+     * the change cannot interleave with a round handled on a concurrent embedded network's platform thread
+     * (both share the same writable states, so a round could otherwise reset or commit the change half-way).
+     *
+     * @param mutation the mutation to apply
+     * @throws IllegalStateException if this spec is not targeting an embedded network
+     */
+    public void mutateEmbeddedState(@NonNull final Consumer<FakeState> mutation) {
+        requireNonNull(mutation);
+        final var state = embeddedStateOrThrow();
+        synchronized (state) {
+            mutation.accept(state);
+            state.commit();
+        }
     }
 
     public List<HederaNode> getNetworkNodes() {
@@ -705,6 +726,22 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
         } else {
             throw new IllegalStateException("Node " + nodeId + " is not a block node");
         }
+    }
+
+    /**
+     * The port on which the given block node serves its service API (server status). For real containers and the
+     * local node this is the same port as the streaming API; simulators serve the two APIs on separate ports.
+     *
+     * @param nodeId the block node id
+     * @return the service API port
+     */
+    public int getBlockNodeServicePortById(final long nodeId) {
+        final BlockNodeNetwork blockNodeNetwork = TARGET_BLOCK_NODE_NETWORK.get();
+        final BlockNodeMode mode = blockNodeNetwork.getBlockNodeModeById().get(nodeId);
+        if (mode == BlockNodeMode.SIMULATOR) {
+            return blockNodeNetwork.getSimulatedBlockNodeById().get(nodeId).getServicePort();
+        }
+        return getBlockNodePortById(nodeId);
     }
 
     public SimulatedBlockNodeServer getSimulatedBlockNodeById(final long nodeId) {
@@ -1298,6 +1335,52 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
         requireNonNull(setupOverrides);
         return propertyPreservingHapiTest(
                 Optional.ofNullable(PROPERTIES_TO_PRESERVE.get()).orElse(emptyList()), setupOverrides, ops);
+    }
+
+    /**
+     * Creates a dynamic test targeting a specific network.
+     * Used by multi-network tests to direct operations at an explicitly named network.
+     *
+     * @param targetNetwork the network to direct all operations to
+     * @param ops the operations to run
+     * @return a {@link Stream} of {@link DynamicTest}s (single element)
+     */
+    public static Stream<DynamicTest> networkHapiTest(
+            @NonNull final HederaNetwork targetNetwork, @NonNull final SpecOperation... ops) {
+        return networkHapiTest(null, targetNetwork, ops);
+    }
+
+    /**
+     * Variant of {@link #networkHapiTest(HederaNetwork, SpecOperation...)} that appends a
+     * human-readable {@code description} to the dynamic test's display name, yielding
+     * {@code <spec>@<network> - <description>}. Multi-network factories emit many steps against
+     * the same networks, so a per-step description keeps them distinguishable in test reports and
+     * IDE runners (otherwise every step shows the same {@code spec@<network>}).
+     *
+     * @param description short, human-readable label for this step (null/blank falls back to the
+     *                    bare {@code <spec>@<network>} name)
+     * @param targetNetwork the network to direct all operations to
+     * @param ops the operations to run
+     * @return a {@link Stream} of {@link DynamicTest}s (single element)
+     */
+    public static Stream<DynamicTest> networkHapiTest(
+            @Nullable final String description,
+            @NonNull final HederaNetwork targetNetwork,
+            @NonNull final SpecOperation... ops) {
+        requireNonNull(targetNetwork);
+        final var specName = SPEC_NAME.get();
+        final var base = specName != null ? specName.substring(specName.lastIndexOf('.') + 1) : "spec";
+        final var displayName = base + "@" + targetNetwork.name()
+                + (description == null || description.isBlank() ? "" : " - " + description);
+        final var spec = new HapiSpec(
+                displayName,
+                HapiSpecSetup.setupFrom(HapiSpecSetup.getDefaultPropertySource()),
+                new SpecOperation[0],
+                new SpecOperation[0],
+                ops,
+                Collections.emptyList());
+        doTargetSpec(spec, targetNetwork);
+        return Stream.of(DynamicTest.dynamicTest(displayName, spec));
     }
 
     /**

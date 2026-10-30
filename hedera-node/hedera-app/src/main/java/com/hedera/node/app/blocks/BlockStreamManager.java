@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks;
 
+import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowHashOf;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 
 import com.hedera.hapi.block.stream.BlockItem;
@@ -13,9 +14,11 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
+import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.hashgraph.Round;
 
@@ -31,8 +34,25 @@ import org.hiero.consensus.model.hashgraph.Round;
  * Merkle trees will be in the order they are written.
  */
 public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener {
+    // SHA-384-default: the block-root Merkle tree's hash algorithm is chosen per-call by BlockStreamConfig.digestType
+    // (see BlockStreamManagerImpl.digestOrThrow()); this constant is only the fallback for callers with no
+    // access to that config (e.g. Hedera.java's genesis sentinel, which is only ever compared for equality).
     byte[] HASH_OF_ZERO_BYTES = noThrowSha384HashOf(new byte[] {0x0});
-    Bytes HASH_OF_ZERO = Bytes.wrap(HASH_OF_ZERO_BYTES);
+    Bytes HASH_OF_ZERO_384 = Bytes.wrap(HASH_OF_ZERO_BYTES);
+
+    /**
+     * The genesis/empty-subtree sentinel {@code hash(0x00)} under the hash algorithm selected by
+     * {@code BlockStreamConfig.digestType}: {@code sha256(0x00)} (32 bytes) when {@code digestType} is
+     * {@link DigestType#SHA_256}, otherwise the {@link #HASH_OF_ZERO_384} default ({@code sha384(0x00)}, 48 bytes).
+     *
+     * @param digestType the digest algorithm selected by {@code BlockStreamConfig.digestType}
+     * @return the config-appropriate hash-of-zero sentinel
+     */
+    static Bytes hashOfZero(final DigestType digestType) {
+        return digestType == DigestType.SHA_256
+                ? Bytes.wrap(noThrowHashOf(new byte[] {0x0}, DigestType.SHA_256))
+                : HASH_OF_ZERO_384;
+    }
 
     /**
      * The number of sibling hashes on the path from a block's first branch up to its root: one per level
@@ -90,7 +110,7 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
     /**
      * Initializes the block stream manager after a restart or during reconnect with the hashes necessary to
      * infer the starting block tree states and the last block hash used in the restart or reconnect. At
-     * genesis, the last block hash should be the {@link #HASH_OF_ZERO}. In all other cases, this value should
+     * genesis, the last block hash should be the {@link #HASH_OF_ZERO_384}. In all other cases, this value should
      * be null, and the method should calculate it from the intermediate subtree states.
      *
      * @param state the state to use
@@ -201,6 +221,22 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
      * @throws IllegalStateException if the stream is closed
      */
     void writeItem(@NonNull Function<Timestamp, BlockItem> itemSpec);
+
+    /**
+     * Atomically writes all block items produced by a savepoint stack, unless the block-size circuit breaker has opened.
+     * Regardless of whether the items are written, advances the logical last-used consensus time to the supplied value.
+     *
+     * @param items the block items produced by a savepoint stack
+     * @param lastUsedConsensusTime the last consensus time assigned to the stack's output
+     */
+    void writeSavepointItems(@NonNull List<BlockItem> items, @NonNull Instant lastUsedConsensusTime);
+
+    /**
+     * Returns whether savepoint-stack block output is suppressed for the current block.
+     *
+     * @return whether savepoint-stack block output is suppressed
+     */
+    boolean isSavepointOutputSuppressed();
 
     /**
      * Signals that the platform has reached a catastrophic failure (e.g. following an ISS). Sets a flag that

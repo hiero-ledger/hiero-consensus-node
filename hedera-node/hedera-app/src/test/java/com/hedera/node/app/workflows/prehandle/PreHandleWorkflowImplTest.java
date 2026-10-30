@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.prehandle;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.AUTHORIZATION_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_KEY_SET_ON_NON_INNER_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_AMOUNTS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT;
@@ -35,7 +36,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.hedera.hapi.node.base.FileID;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
+import com.hedera.hapi.node.file.FileUpdateTransactionBody;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.platform.state.NodeId;
@@ -50,12 +54,15 @@ import com.hedera.node.app.signature.SignatureExpander;
 import com.hedera.node.app.signature.SignatureVerificationFuture;
 import com.hedera.node.app.signature.SignatureVerifier;
 import com.hedera.node.app.signature.impl.SignatureVerificationImpl;
+import com.hedera.node.app.spi.authorization.Authorizer;
+import com.hedera.node.app.spi.authorization.SystemPrivilege;
 import com.hedera.node.app.spi.fixtures.Scenarios;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.app.store.ReadableStoreFactoryImpl;
+import com.hedera.node.app.workflows.AuthorizationChecker;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionScenarioBuilder;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
@@ -122,6 +129,10 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
     @Mock
     private DeduplicationCache deduplicationCache;
 
+    /** A mocked {@link Authorizer} drives the real {@link AuthorizationChecker} used for the privileged-file check. */
+    @Mock(strictness = Strictness.LENIENT)
+    private Authorizer authorizer;
+
     /** We use a real functional store factory with our standard test data set. Needed by the workflow. */
     private ReadableStoreFactory storeFactory;
 
@@ -166,7 +177,8 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
                 signatureVerifier,
                 signatureExpander,
                 configProvider,
-                deduplicationCache);
+                deduplicationCache,
+                new AuthorizationChecker(authorizer));
     }
 
     /**
@@ -677,6 +689,34 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
 
             final PreHandleResult result = platformTx.getMetadata();
             assertThat(result.responseCode()).isEqualTo(BATCH_KEY_SET_ON_NON_INNER_TRANSACTION);
+        }
+
+        @Test
+        @DisplayName("Unauthorized privileged file op with a top-level batch key is charged to the node")
+        void preHandleUnauthorizedFileOpWithBatchKeyChargesNode() throws Exception {
+            // A privileged FILE_UPDATE by an unauthorized payer, carrying a top-level batchKey, reaching
+            // pre-handle without ingest. The authorization failure is decidable from the payer and body, so the
+            // submitting node must be charged (node due diligence); the stray batch key must not mask it and
+            // shift the charge to the payer.
+            final var body = TransactionScenarioBuilder.goodDefaultBody()
+                    .copyBuilder()
+                    .fileUpdate(FileUpdateTransactionBody.newBuilder()
+                            .fileID(FileID.newBuilder().fileNum(121L).build())
+                            .build())
+                    .batchKey(ALICE.keyInfo().publicKey())
+                    .build();
+            final var txInfo = new TransactionScenarioBuilder(body, HederaFunctionality.FILE_UPDATE).txInfo();
+            final Transaction platformTx = createAppPayloadWrapper(asByteArray(txInfo.signedTx()));
+            when(transactionChecker.parseSignedAndCheck(any(Bytes.class), anyInt()))
+                    .thenReturn(txInfo);
+            when(authorizer.hasPrivilegedAuthorization(any(), any(), any())).thenReturn(SystemPrivilege.UNAUTHORIZED);
+
+            workflow.preHandle(storeFactory, NODE_1.asInfo(), Stream.of(platformTx), (txns, bytes) -> {});
+
+            final PreHandleResult result = platformTx.getMetadata();
+            assertThat(result.status()).isEqualTo(NODE_DUE_DILIGENCE_FAILURE);
+            assertThat(result.responseCode()).isEqualTo(AUTHORIZATION_FAILED);
+            assertThat(result.payer()).isEqualTo(NODE_1.nodeAccountID());
         }
     }
 

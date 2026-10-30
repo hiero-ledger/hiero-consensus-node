@@ -1,0 +1,55 @@
+# SPDX-License-Identifier: Apache-2.0
+relay:
+  nodeSelector:
+    chewie-group: aux
+  config:
+    WORKERS_POOL_ENABLED: false
+    NODE_OPTIONS: --max-old-space-size=192
+    LOG_LEVEL: error
+    PRETTY_LOGS_ENABLED: false
+    REDIS_ENABLED: false
+    CACHE_MAX: 50
+    CACHE_TTL: 300
+    OPERATOR_BALANCE_STARTUP_MAX_ATTEMPTS: 600
+    OPERATOR_BALANCE_STARTUP_RETRY_DELAY_MS: 1000
+    MIRROR_NODE_STARTUP_MAX_ATTEMPTS: 600
+    MIRROR_NODE_STARTUP_RETRY_DELAY_MS: 1000
+  readinessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 120
+    timeoutSeconds: 2
+  livenessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 5
+    failureThreshold: 60
+  startupProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 660
+    timeoutSeconds: 2
+  resources:
+    requests:
+      cpu: 250m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 250Mi
+ws:
+  nodeSelector:
+    chewie-group: aux
+  enabled: true
+  config:
+    WORKERS_POOL_ENABLED: false
+    NODE_OPTIONS: --max-old-space-size=192
+    LOG_LEVEL: error
+    PRETTY_LOGS_ENABLED: false
+    REDIS_ENABLED: false
+    CACHE_MAX: 50
+    CACHE_TTL: 300
+    OPERATOR_BALANCE_STARTUP_MAX_ATTEMPTS: 600
+    OPERATOR_BALANCE_STARTUP_RETRY_DELAY_MS: 1000
+    MIRROR_NODE_STARTUP_MAX_ATTEMPTS: 600
+    MIRROR_NODE_STARTUP_RETRY_DELAY_MS: 1000
+  startupProbe:
+    failureThreshold: 660 # other probe timing fields inherit chart defaults

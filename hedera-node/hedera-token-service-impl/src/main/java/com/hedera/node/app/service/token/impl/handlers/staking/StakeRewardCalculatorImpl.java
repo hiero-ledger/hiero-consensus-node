@@ -37,8 +37,7 @@ public class StakeRewardCalculatorImpl implements StakeRewardCalculator {
             @NonNull final WritableStakingInfoStore stakingInfoStore,
             @NonNull final ReadableNetworkStakingRewardsStore rewardsStore,
             @NonNull final Instant consensusNow) {
-        final var effectiveStart = stakePeriodManager.effectivePeriod(account.stakePeriodStart());
-        if (!stakePeriodManager.isRewardable(effectiveStart, rewardsStore)) {
+        if (!stakePeriodManager.isRewardable(account, rewardsStore)) {
             return 0;
         }
 
@@ -49,6 +48,7 @@ public class StakeRewardCalculatorImpl implements StakeRewardCalculator {
         if (stakingInfo != null && stakingInfo.deleted()) {
             return 0;
         }
+        final var effectiveStart = stakePeriodManager.effectivePeriod(account.stakePeriodStart());
         final var rewardOffered =
                 computeRewardFromDetails(account, stakingInfo, stakePeriodManager.currentStakePeriod(), effectiveStart);
         return account.declineReward() ? 0 : rewardOffered;

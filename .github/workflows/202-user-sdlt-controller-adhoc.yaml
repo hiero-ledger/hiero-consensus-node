@@ -79,39 +79,28 @@ jobs:
     runs-on: hl-cn-sdlt-lin-sm
     continue-on-error: true
     outputs:
-      build-number: ${{ steps.verify-tag.outputs.build-number }}
+      build-number: ${{ steps.resolve-ref.outputs.build-number }}
+      commit: ${{ steps.resolve-ref.outputs.commit }}
+      branch: ${{ steps.resolve-ref.outputs.branch }}
+      build-tag-number: ${{ steps.resolve-ref.outputs.build-tag-number }}
     steps:
       - name: Prepare Runner
         id: prepare-runner
         uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
-          checkout-ref: "${{ github.ref }}"
+          checkout-ref: "${{ inputs.ref || github.ref }}"
           checkout-token: "${{ secrets.GITHUB_TOKEN }}"
 
-      - name: Verify Tag
-        id: verify-tag
+      # Chewie records AdHoc results against the commit under test, with its branch when the ref is a
+      # branch and its build number when the ref is a build tag.
+      - name: Resolve Ref
+        id: resolve-ref
         env:
-          PROMOTED_GREP_PATTERN: "build-(.{5})" # Pattern to match build tags (e.g., build-12345)
-          CHECK_TAG: "${{ inputs.ref || github.ref }}"
-        run: |
-          # Ensure the tag that we received is a build tag
-          # if the tag is a build tag then we can parse out the build number (the last 5 characters)
-          # return the build tag as an output
-          # if the tag is not a build tag then we will fail the workflow
-          if [[ "${CHECK_TAG}" =~ ${PROMOTED_GREP_PATTERN} ]]; then
-            echo "The tag is a valid build tag."
-            BUILD_NUMBER="${BASH_REMATCH[1]}"
-            echo "build-number=${BUILD_NUMBER}" >> "${GITHUB_OUTPUT}"
-
-            echo "### Running SDLT" >> "${GITHUB_STEP_SUMMARY}"
-            echo "Build number: ${BUILD_NUMBER}" >> "${GITHUB_STEP_SUMMARY}"
-          else
-            echo "::notice title=Invalid Build Tag::The provided tag (${CHECK_TAG}) is not a valid build tag."
-
-            echo "### Running SDLT" >> "${GITHUB_STEP_SUMMARY}"
-            echo "Ref: ${CHECK_TAG}" >> "${GITHUB_STEP_SUMMARY}"
-          fi
+          REF: "${{ inputs.ref || github.ref }}"
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch || 'main' }}
+          GH_TOKEN: ${{ github.token }}
+        run: ./.github/workflows/support/citr/resolve-ref.sh -r "${REF}" -d "${DEFAULT_BRANCH}" -l SDLT
 
   extract-jdk-version:
     name: Extract Java Version
@@ -188,6 +177,78 @@ jobs:
           echo "request-duration=${DEFAULT_DURATION}" >> "${GITHUB_OUTPUT}"
           echo "request-timeout=${DEFAULT_TIMEOUT}" >> "${GITHUB_OUTPUT}"
 
+  get-chewie-jwt:
+    name: Get Chewie JWT
+    uses: ./.github/workflows/858-call-get-chewie-jwt.yaml
+    secrets:
+      chewie-key: ${{ secrets.CHEWIE_REPO_IDENTITY_KEY }}
+      chewie-host: ${{ secrets.CHEWIE_HOST }}
+
+  get-sdlt-config:
+    name: Get SDLT Test Config
+    uses: ./.github/workflows/861-call-get-test-config.yaml
+    with:
+      test-type: "sdlt"
+      ref: ${{ github.ref }}
+    secrets:
+      checkout-token: ${{ secrets.GITHUB_TOKEN }}
+
+  validate-chewie-jwt:
+    name: Validate Chewie JWT
+    needs: get-chewie-jwt
+    uses: ./.github/workflows/860-call-validate-chewie-jwt.yaml
+    with:
+      ref: ${{ github.ref }}
+      chewie-expiration: ${{ needs.get-chewie-jwt.outputs.expiration }}
+    secrets:
+      chewie-jwt: ${{ needs.get-chewie-jwt.outputs.jwt }}
+      checkout-token: ${{ secrets.GITHUB_TOKEN }}
+
+  acquire-kubernetes-resources:
+    name: Acquire Kubernetes Resources
+    needs:
+      - validate-chewie-jwt
+      - get-chewie-jwt
+      - get-sdlt-config
+      - verify-citr-vars
+    uses: ./.github/workflows/859-call-create-chewie-request.yaml
+    with:
+      instances-cn-qty: ${{ fromJSON(needs.get-sdlt-config.outputs.cn-qty) }}
+      instances-cn-cpu: ${{ fromJSON(needs.get-sdlt-config.outputs.cn-cpu-request) }}
+      instances-cn-memory-mb: ${{ fromJSON(needs.get-sdlt-config.outputs.cn-mem-request-mb) }}
+      instances-aux-qty: ${{ fromJSON(needs.get-sdlt-config.outputs.aux-qty) }}
+      instances-aux-cpu: ${{ fromJSON(needs.get-sdlt-config.outputs.aux-cpu-request) }}
+      instances-aux-memory-mb: ${{ fromJSON(needs.get-sdlt-config.outputs.aux-mem-request-mb) }}
+      duration-minutes: ${{ fromJSON(needs.verify-citr-vars.outputs.request-duration) }}
+      request-timeout: ${{ fromJSON(needs.verify-citr-vars.outputs.request-timeout) }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+      chewie-token: ${{ needs.get-chewie-jwt.outputs.jwt }}
+      chewie-host: ${{ secrets.CHEWIE_HOST }}
+
+  # Required: a failed report fails the run. Starts together with the test: same needs, so it reports
+  # running when the test kicks off. Neither waits on the other. Reported whether or not notifications
+  # are disabled; that input only controls the tags and Slack.
+  report-adhoc-sdlt-running:
+    name: Report AdHoc SDLT Running to Chewie
+    needs:
+      - verify-tag
+      - extract-jdk-version
+      - extract-citr-vars
+      - verify-citr-vars
+      - acquire-kubernetes-resources
+    if: ${{ needs.verify-tag.outputs.commit != '' }}
+    uses: ./.github/workflows/864-call-report-suite-result.yaml
+    with:
+      suite-type: adhoc_sdlt
+      commit: ${{ needs.verify-tag.outputs.commit }}
+      branch: ${{ needs.verify-tag.outputs.branch }}
+      build-number: ${{ needs.verify-tag.outputs.build-tag-number }}
+      disposition: running
+    secrets:
+      chewie-key: ${{ secrets.CHEWIE_REPO_IDENTITY_KEY }}
+      chewie-host: ${{ secrets.CHEWIE_HOST }}
+
   run-single-day-longevity-test:
     name: Longevity Test
     needs:
@@ -195,25 +256,51 @@ jobs:
       - extract-jdk-version
       - extract-citr-vars
       - verify-citr-vars
+      - acquire-kubernetes-resources
     uses: ./.github/workflows/833-call-single-day-longevity-test.yaml
     if: ${{ needs.verify-tag.result == 'success' || inputs.disable-notifications == true }}
     with:
       ref: "${{ inputs.ref || github.ref }}"
       bnref: "${{ needs.extract-citr-vars.outputs.bn-release-version }}"
+      mirrorref: "${{ needs.extract-citr-vars.outputs.bn-mirror-node-version }}"
+      explorerref: "${{ needs.extract-citr-vars.outputs.mirror-node-explorer-version }}"
+      relayref: "${{ needs.extract-citr-vars.outputs.json-rpc-relay-version }}"
       solo-version: "${{ needs.extract-citr-vars.outputs.adhoc-solo-version }}"
       nlg-accounts: "${{ inputs.nlg-accounts }}"
       nlg-time: "${{ inputs.nlg-time }}"
       add-app-props: "${{ inputs.add-app-props }}"
       add-settings: "${{ inputs.add-settings }}"
       reconnect-uptime: "${{ inputs.reconnect-uptime }}"
-      duration-minutes: ${{ fromJSON(needs.verify-citr-vars.outputs.request-duration) }}
-      chewie-request-timeout: ${{ fromJSON(needs.verify-citr-vars.outputs.request-timeout) }}
+      allocation-id: ${{ needs.acquire-kubernetes-resources.outputs.allocation-id }}
       java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
       nlg-version: "${{ needs.extract-citr-vars.outputs.nlg-version }}"
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
       github-token: ${{ secrets.GITHUB_TOKEN }}
       chewie-id-key: ${{ secrets.CHEWIE_REPO_IDENTITY_KEY }}
+      chewie-host: ${{ secrets.CHEWIE_HOST }}
+
+  # Required: a failed report fails the run.
+  report-adhoc-sdlt-result:
+    name: Report AdHoc SDLT Result to Chewie
+    needs:
+      - verify-tag
+      - report-adhoc-sdlt-running # keeps the terminal report after the running one, so it is the latest
+      - run-single-day-longevity-test
+    if: ${{ always() && needs.verify-tag.outputs.commit != '' }}
+    uses: ./.github/workflows/864-call-report-suite-result.yaml
+    with:
+      suite-type: adhoc_sdlt
+      commit: ${{ needs.verify-tag.outputs.commit }}
+      branch: ${{ needs.verify-tag.outputs.branch }}
+      build-number: ${{ needs.verify-tag.outputs.build-tag-number }}
+      disposition:
+        ${{ needs.run-single-day-longevity-test.result == 'cancelled' && 'cancelled'
+        || needs.run-single-day-longevity-test.outputs.result == 'success' && 'passed'
+        || needs.run-single-day-longevity-test.result == 'skipped' && 'not_run'
+        || 'failed' }}
+    secrets:
+      chewie-key: ${{ secrets.CHEWIE_REPO_IDENTITY_KEY }}
       chewie-host: ${{ secrets.CHEWIE_HOST }}
 
   tag-sdlt-result:
@@ -235,7 +322,7 @@ jobs:
 
       - name: Import GPG Key
         id: gpg_importer
-        uses: step-security/ghaction-import-gpg@6c8fe4d0126a59d57c21f87c9ae5dd3451fa3cca # v6.1.0
+        uses: step-security/ghaction-import-gpg@c0b4a334b9b72bfaaebec86ef022a78a5b17f828 # v7.0.0
         with:
           git_commit_gpgsign: true
           git_tag_gpgsign: true

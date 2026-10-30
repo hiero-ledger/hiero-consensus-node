@@ -43,17 +43,12 @@ public class TokenSupplyChangeOpsValidator {
      */
     public void validateMint(
             final long fungibleCount, final List<Bytes> metaDataList, final TokensConfig tokensConfig) {
-        final var numNfts = metaDataList.size();
-        validateCommon(fungibleCount, numNfts, TokensConfig::nftsMaxBatchSizeMint, tokensConfig);
-
-        final var maxNftMetadataBytes = tokensConfig.nftsMaxMetadataBytes();
-        if (fungibleCount <= 0 && numNfts > 0) {
-            validateMetaData(metaDataList, maxNftMetadataBytes);
-        }
+        validateCommon(fungibleCount, metaDataList.size(), TokensConfig::nftsMaxBatchSizeMint, tokensConfig);
+        validateMetaData(metaDataList, tokensConfig.nftsMaxMetadataBytes());
     }
 
     /**
-     * Validate the transaction data for a token mint operation.
+     * Validate the transaction data for a token burn operation.
      *
      * @param fungibleCount the number of fungible tokens to burn
      * @param nftSerialNums the list of NFT serial numbers to burn
@@ -103,7 +98,7 @@ public class TokenSupplyChangeOpsValidator {
     }
 
     /**
-     * Validate the transaction data for a token mint operation.
+     * Validate the transaction data for a token wipe operation.
      *
      * @param fungibleCount the number of fungible tokens to wipe
      * @param nftSerialNums the list of NFT serial numbers to wipe
@@ -137,13 +132,16 @@ public class TokenSupplyChangeOpsValidator {
     }
 
     /**
-     * Validate the fungible amount and metadata size for a token mint or burn operation.
-     * @param nftCount  The number of nfts to mint/burn.
-     * @param fungibleCount The amount of fungible common token to mint/burn.
+     * Validate the NFT count for a token mint, burn or wipe operation. If there are NFTs, the fungible amount
+     * must not be positive and the NFT count must not exceed the max batch size.
+     * @param nftCount The number of nfts to mint/burn/wipe.
+     * @param fungibleCount The amount of fungible common token to mint/burn/wipe.
      * @param maxBatchSize The max batch size for the nft operation (based on config).
      */
     private void validateCounts(final int nftCount, final long fungibleCount, final long maxBatchSize) {
-        if (fungibleCount <= 0 && nftCount > 0) {
+        // Re-asserted here so the limits below don't depend on pureChecks having run first
+        if (nftCount > 0) {
+            validateTrue(fungibleCount <= 0, INVALID_TRANSACTION_BODY);
             validateTrue(nftCount <= maxBatchSize, BATCH_SIZE_LIMIT_EXCEEDED);
         }
     }

@@ -15,21 +15,21 @@ import java.time.Duration;
  *                                               Respects {@link #active} -- if active is false then reconnect is never
  *                                               allowed.
  * @param socketTimeout                          Socket timeout for input streams used during reconnect.
- * @param maxAckDelay                            The maximum amount of time to wait for an ACK message. If no ACK is
- *                                               received and sufficient time passes then send the potentially redundant
- *                                               node.
  * @param maximumReconnectFailuresBeforeShutdown The maximum number of failed reconnects in a row before shutdown.
  * @param minimumTimeBetweenReconnects           The minimum time that must pass before a node is willing to help
  *                                               another node to reconnect another time. This prevents a node from
  *                                               intentionally or unintentionally slowing another node down by
  *                                               continuously reconnecting with it. Time is measured starting from when
  *                                               a reconnect attempt is initialized.
+ * @param copyLearnerStateEarly                  If true, the learner starts copying its state's data source when the
+ *                                               reconnect starts, while it waits for the teacher's signatures. If
+ *                                               false, it copies the data source after the signatures are received.
  */
 @ConfigData("reconnect")
 public record ReconnectConfig(
         @ConfigProperty(defaultValue = "true") boolean active,
         @ConfigProperty(defaultValue = "-1") int reconnectWindowSeconds,
         @ConfigProperty(defaultValue = "60s") Duration socketTimeout,
-        @ConfigProperty(defaultValue = "10ms") Duration maxAckDelay,
         @ConfigProperty(defaultValue = "10") int maximumReconnectFailuresBeforeShutdown,
-        @ConfigProperty(defaultValue = "10m") Duration minimumTimeBetweenReconnects) {}
+        @ConfigProperty(defaultValue = "10m") Duration minimumTimeBetweenReconnects,
+        @ConfigProperty(defaultValue = "false") boolean copyLearnerStateEarly) {}

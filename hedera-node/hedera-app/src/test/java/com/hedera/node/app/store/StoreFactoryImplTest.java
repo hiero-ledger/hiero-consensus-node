@@ -6,10 +6,16 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.hedera.node.app.service.entityid.WritableEntityIdStore;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
+import com.hedera.node.app.spi.api.ServiceApiProvider;
+import com.hedera.node.app.spi.fees.NodeFeeAccumulator;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.state.State;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -19,6 +25,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class StoreFactoryImplTest {
 
+    private static final String SERVICE_NAME = "TokenService";
+    private static final Map<Class<?>, ServiceApiProvider<?>> API_PROVIDERS = Map.of();
+
     @Mock
     private ReadableStoreFactory readableStoreFactory;
 
@@ -27,6 +36,18 @@ class StoreFactoryImplTest {
 
     @Mock
     private ServiceApiFactory serviceApiFactory;
+
+    @Mock
+    private State state;
+
+    @Mock
+    private Configuration configuration;
+
+    @Mock
+    private WritableEntityIdStore writableEntityIdStore;
+
+    @Mock
+    private NodeFeeAccumulator nodeFeeAccumulator;
 
     private StoreFactoryImpl subject;
 
@@ -89,5 +110,28 @@ class StoreFactoryImplTest {
         assertThatThrownBy(() -> subject.readableStore(null)).isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> subject.writableStore(null)).isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> subject.serviceApi(null)).isInstanceOf(NullPointerException.class);
+    }
+
+    @SuppressWarnings("ConstantConditions")
+    @Test
+    void testCreateFromWithInvalidParameters() {
+        assertThatThrownBy(() -> StoreFactoryImpl.from(
+                        null, SERVICE_NAME, configuration, writableEntityIdStore, API_PROVIDERS, nodeFeeAccumulator))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> StoreFactoryImpl.from(
+                        state, null, configuration, writableEntityIdStore, API_PROVIDERS, nodeFeeAccumulator))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> StoreFactoryImpl.from(
+                        state, SERVICE_NAME, null, writableEntityIdStore, API_PROVIDERS, nodeFeeAccumulator))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> StoreFactoryImpl.from(
+                        state, SERVICE_NAME, configuration, null, API_PROVIDERS, nodeFeeAccumulator))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> StoreFactoryImpl.from(
+                        state, SERVICE_NAME, configuration, writableEntityIdStore, null, nodeFeeAccumulator))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> StoreFactoryImpl.from(
+                        state, SERVICE_NAME, configuration, writableEntityIdStore, API_PROVIDERS, null))
+                .isInstanceOf(NullPointerException.class);
     }
 }

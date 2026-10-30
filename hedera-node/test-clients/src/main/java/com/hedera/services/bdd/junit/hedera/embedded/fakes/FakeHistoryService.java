@@ -55,8 +55,17 @@ public class FakeHistoryService implements HistoryService {
             @NonNull final Instant now,
             @NonNull final TssConfig tssConfig,
             final boolean isActive,
-            @Nullable final HintsConstruction activeConstruction) {
-        delegate.reconcile(activeRosters, currentMetadata, historyStore, now, tssConfig, isActive, activeConstruction);
+            @Nullable final HintsConstruction activeConstruction,
+            final boolean freshGenesisRequested) {
+        delegate.reconcile(
+                activeRosters,
+                currentMetadata,
+                historyStore,
+                now,
+                tssConfig,
+                isActive,
+                activeConstruction,
+                freshGenesisRequested);
     }
 
     @NonNull
@@ -105,7 +114,7 @@ public class FakeHistoryService implements HistoryService {
     }
 
     @Override
-    public Bytes historyProofVerificationKey() {
-        return delegate.historyProofVerificationKey();
+    public @NonNull Bytes ledgerIdOf(@NonNull final HistoryProof proof) {
+        return delegate.ledgerIdOf(proof);
     }
 }

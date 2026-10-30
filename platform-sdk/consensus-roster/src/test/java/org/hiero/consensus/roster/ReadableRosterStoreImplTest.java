@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.roster;
 
+import static org.hiero.consensus.roster.ConsensusRosterInputAssertion.assertConsensusLayerRosterInputs;
 import static org.hiero.consensus.roster.RosterStateId.ROSTERS_STATE_ID;
 import static org.hiero.consensus.roster.RosterStateId.ROSTERS_STATE_LABEL;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -22,7 +23,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import org.hiero.base.utility.test.fixtures.RandomUtils;
+import org.hiero.consensus.model.roster.ConsensusLayerRosterInputs;
 import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -72,51 +73,31 @@ class ReadableRosterStoreImplTest {
     @Test
     void testCreateRosterHistory() {
         final Random random = new Random();
-        final Roster currentRoster = RosterFactory.randomRoster(random, 4);
+        final Roster activeRoster = RosterFactory.randomRoster(random, 4);
         final Roster previousRoster = RosterFactory.randomRoster(random, 3);
 
-        setup(currentRoster, 16L, previousRoster);
+        setup(activeRoster, 16L, previousRoster);
 
-        final RosterHistory rosterHistory = subject.getRosterHistory();
-        assertEquals(previousRoster, rosterHistory.getPreviousRoster());
-        assertEquals(currentRoster, rosterHistory.getCurrentRoster());
-    }
+        final ConsensusLayerRosterInputs rosterInputs = subject.getConsensusLayerRosterInputs();
 
-    @Test
-    void testCreateRosterHistoryVerifyRound() {
-        final Random random = RandomUtils.getRandomPrintSeed();
-        final Roster currentRoster = RosterFactory.randomRoster(random, 4);
-        final Roster previousRoster = RosterFactory.randomRoster(random, 3);
-        setup(currentRoster, 16L, previousRoster);
-
-        final RosterHistory rosterHistory = subject.getRosterHistory();
-        assertEquals(currentRoster, rosterHistory.getCurrentRoster());
-        assertEquals(previousRoster, rosterHistory.getPreviousRoster());
-
-        assertEquals(currentRoster, rosterHistory.getRosterForRound(16));
-        assertEquals(currentRoster, rosterHistory.getRosterForRound(18));
-        assertEquals(currentRoster, rosterHistory.getRosterForRound(100));
-        assertEquals(currentRoster, rosterHistory.getRosterForRound(Integer.MAX_VALUE));
-        assertEquals(previousRoster, rosterHistory.getRosterForRound(15));
-        assertEquals(previousRoster, rosterHistory.getRosterForRound(0));
-        assertNull(rosterHistory.getRosterForRound(-1));
+        assertConsensusLayerRosterInputs(rosterInputs, List.of(16L, 0L), List.of(activeRoster, previousRoster));
     }
 
     @Test
     void testCreateRosterHistoryNoRosters() {
-        assertThrows(NullPointerException.class, () -> subject.getRosterHistory());
+        assertThrows(NullPointerException.class, () -> subject.getConsensusLayerRosterInputs());
     }
 
-    private void setup(@NonNull final Roster currentRoster, final long round, @NonNull final Roster previousRoster) {
-        final Bytes currentRosterHash = RosterUtils.hash(currentRoster).getBytes();
+    private void setup(@NonNull final Roster activeRoster, final long round, @NonNull final Roster previousRoster) {
+        final Bytes activeRosterHash = RosterUtils.hash(activeRoster).getBytes();
         final Bytes previousRosterHash = RosterUtils.hash(previousRoster).getBytes();
 
-        rosterMap.put(new ProtoBytes(currentRosterHash), currentRoster);
+        rosterMap.put(new ProtoBytes(activeRosterHash), activeRoster);
         rosterMap.put(new ProtoBytes(previousRosterHash), previousRoster);
 
         final List<RoundRosterPair> roundRosterPairs = List.of(
                 RoundRosterPair.newBuilder()
-                        .activeRosterHash(currentRosterHash)
+                        .activeRosterHash(activeRosterHash)
                         .roundNumber(round)
                         .build(),
                 RoundRosterPair.newBuilder()

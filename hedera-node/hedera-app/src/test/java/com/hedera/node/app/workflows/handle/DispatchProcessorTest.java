@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SUBMIT_BUNDLE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
@@ -27,6 +28,7 @@ import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.new
 import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newPayerDuplicateError;
 import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newPayerError;
 import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newSuccess;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
@@ -83,8 +85,12 @@ import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 @ExtendWith(MockitoExtension.class)
 class DispatchProcessorTest {
@@ -118,6 +124,8 @@ class DispatchProcessorTest {
             SignedTransaction.DEFAULT, TXN_BODY, SignatureMap.DEFAULT, Bytes.EMPTY, ETHEREUM_TRANSACTION, null);
     private static final TransactionInfo NODE_CREATE_TXN_INFO = new TransactionInfo(
             SignedTransaction.DEFAULT, TXN_BODY, SignatureMap.DEFAULT, Bytes.EMPTY, NODE_CREATE, null);
+    private static final TransactionInfo CLPR_SUBMIT_BUNDLE_TXN_INFO = new TransactionInfo(
+            SignedTransaction.DEFAULT, TXN_BODY, SignatureMap.DEFAULT, Bytes.EMPTY, CLPR_SUBMIT_BUNDLE, null);
 
     @Mock
     private EthereumTransactionHandler ethereumTransactionHandler;
@@ -214,6 +222,73 @@ class DispatchProcessorTest {
         verify(recordBuilder).status(INVALID_PAYER_SIGNATURE);
         assertFinished(IsRootStack.NO);
         verify(opWorkflowMetrics, never()).incrementThrottled(any());
+    }
+
+    @Test
+    void clprSubmitBundleCreatorErrorChargesCreator() {
+        given(dispatch.fees()).willReturn(FEES);
+        given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
+        given(dispatch.txnInfo()).willReturn(CLPR_SUBMIT_BUNDLE_TXN_INFO);
+        given(dispatchValidator.validateFeeChargingScenario(dispatch))
+                .willReturn(newCreatorError(CREATOR_ACCOUNT_ID, INVALID_PAYER_SIGNATURE));
+        final var creatorInfo = mock(NodeInfo.class);
+        given(dispatch.creatorInfo()).willReturn(creatorInfo);
+        given(creatorInfo.accountId()).willReturn(CREATOR_ACCOUNT_ID);
+
+        subject.processDispatch(dispatch);
+
+        verify(feeAccumulator).chargeFee(CREATOR_ACCOUNT_ID, FEES.networkFee(), null);
+        verify(recordBuilder).status(INVALID_PAYER_SIGNATURE);
+        assertFinished(IsRootStack.NO);
+    }
+
+    @Test
+    void clprSubmitBundleHandleExceptionRollsBack() {
+        given(dispatch.fees()).willReturn(FEES);
+        given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
+        given(dispatchValidator.validateFeeChargingScenario(dispatch))
+                .willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
+        given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
+        given(dispatch.txnInfo()).willReturn(CLPR_SUBMIT_BUNDLE_TXN_INFO);
+        given(dispatch.handleContext()).willReturn(context);
+        givenAuthorization(CLPR_SUBMIT_BUNDLE_TXN_INFO);
+        doThrow(new HandleException(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT))
+                .when(dispatcher)
+                .dispatchHandle(context);
+        given(dispatch.txnCategory()).willReturn(USER);
+        doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
+        doCallRealMethod().when(dispatch).category();
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
+
+        subject.processDispatch(dispatch);
+
+        verify(recordBuilder).status(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT);
+        verify(stack).rollbackFullStack();
+    }
+
+    @Test
+    void clprSubmitBundleThrottledIncrementsMetric() throws ThrottleException {
+        given(dispatch.fees()).willReturn(FEES);
+        given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
+        given(dispatchValidator.validateFeeChargingScenario(dispatch))
+                .willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
+        given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
+        given(dispatch.txnInfo()).willReturn(CLPR_SUBMIT_BUNDLE_TXN_INFO);
+        given(dispatch.txnCategory()).willReturn(HandleContext.TransactionCategory.CHILD);
+        givenAuthorization(CLPR_SUBMIT_BUNDLE_TXN_INFO);
+        doThrow(ThrottleException.newGasThrottleException())
+                .when(dispatchUsageManager)
+                .screenForCapacity(dispatch);
+        doCallRealMethod().when(dispatch).charge(any(), any(), any());
+        doCallRealMethod().when(dispatch).category();
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+
+        subject.processDispatch(dispatch);
+
+        verify(recordBuilder).status(CONSENSUS_GAS_EXHAUSTED);
+        verify(opWorkflowMetrics).incrementThrottled(CLPR_SUBMIT_BUNDLE);
+        assertFinished(IsRootStack.NO);
     }
 
     @Test
@@ -435,9 +510,66 @@ class DispatchProcessorTest {
         inOrder.verify(feeAccumulator).reverseAccumulatedNodeFees();
         inOrder.verify(feeAccumulator).resetRefundableFees();
         inOrder.verify(feeAccumulator).chargeFees(PAYER_ACCOUNT_ID, CREATOR_ACCOUNT_ID, FEES, null);
+        // The rollback must precede the commit, so the failed handler's mutations are discarded before the
+        // stack is published. What remains committed is what legitimately accompanies a failed transaction:
+        // the fees re-charged after the rollback, the record, and usage tracking.
+        inOrder.verify(stack).commitFullStack();
         verify(opWorkflowMetrics, never()).incrementThrottled(any());
 
         assertFinished();
+    }
+
+    /**
+     * A throw from any recovery or pre-commit step must escape processDispatch so the trailing
+     * commitFullStack() is never reached: no state is ever committed alongside the failing receipt.
+     * The steps covered run from the start of stack rollback through the last statement before the
+     * commit.
+     */
+    @ParameterizedTest(name = "{0} throwing commits no state")
+    @EnumSource(RecoveryStep.class)
+    @MockitoSettings(strictness = Strictness.LENIENT)
+    void noStateIsCommittedWhenAnyRecoveryStepThrows(final RecoveryStep step) {
+        // One unchecked type is enough: the recovery path declares no checked exceptions (Mockito refuses
+        // to stub one that a method does not declare), and it does not branch on exception subtype -- every
+        // type takes the same path out of processDispatch.
+        final var thrown = new IllegalStateException("injected");
+        given(dispatch.fees()).willReturn(FEES);
+        given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
+        given(dispatchValidator.validateFeeChargingScenario(dispatch))
+                .willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
+        given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
+        given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
+        given(dispatch.handleContext()).willReturn(context);
+        givenAuthorization();
+        doThrow(new HandleException(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT))
+                .when(dispatcher)
+                .dispatchHandle(context);
+        given(dispatch.txnCategory()).willReturn(USER);
+        doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
+        doCallRealMethod().when(dispatch).category();
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
+        switch (step) {
+            case ROLLBACK_FULL_STACK -> doThrow(thrown).when(stack).rollbackFullStack();
+            case REVERSE_ACCUMULATED_NODE_FEES ->
+                doThrow(thrown).when(feeAccumulator).reverseAccumulatedNodeFees();
+            case RESET_REFUNDABLE_FEES -> doThrow(thrown).when(feeAccumulator).resetRefundableFees();
+            case FINALIZE_AND_SAVE_USAGE ->
+                doThrow(thrown).when(dispatchUsageManager).finalizeAndSaveUsage(dispatch);
+            case FINALIZE_RECORD -> doThrow(thrown).when(recordFinalizer).finalizeRecord(dispatch);
+        }
+
+        assertThatThrownBy(() -> subject.processDispatch(dispatch)).isSameAs(thrown);
+
+        verify(stack, never()).commitFullStack();
+    }
+
+    private enum RecoveryStep {
+        ROLLBACK_FULL_STACK,
+        REVERSE_ACCUMULATED_NODE_FEES,
+        RESET_REFUNDABLE_FEES,
+        FINALIZE_AND_SAVE_USAGE,
+        FINALIZE_RECORD
     }
 
     @Test

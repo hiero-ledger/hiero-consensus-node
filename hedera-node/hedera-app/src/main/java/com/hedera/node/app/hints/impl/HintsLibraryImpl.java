@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hints.impl;
 
+import static com.hedera.node.app.hints.HintsLibrary.isSupportedPartySize;
+import static com.hedera.node.app.hints.HintsLibrary.isValidPartyId;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.cryptography.hints.AggregationAndVerificationKeys;
@@ -21,12 +23,24 @@ public class HintsLibraryImpl implements HintsLibrary {
     private static final SecureRandom RANDOM = CryptoUtils.getNonDetRandom();
     private static final HintsLibraryBridge BRIDGE = HintsLibraryBridge.getInstance();
     private static final int MIN_AGGREGATION_KEY_LENGTH = 49;
+    // 3.23.0 keys the bounded native CRS/AK caches by their input bytes. Preparation
+    // and signing share this bridge without a Java cache-switch lock or extra native images.
 
     public static final int VK_LENGTH = 1096;
-    public static final int SIGNATURE_LENGTH = 1632;
+    public static final int SIGNATURE_LENGTH = HintsLibraryBridge.AGGREGATE_SIGNATURE_LENGTH_BYTES;
+
+    private void requireExactCapacity(@NonNull final Bytes crs, final int n) {
+        if (crsPartySize(crs) != n) {
+            throw new IllegalArgumentException(
+                    "hinTS party count must equal CRS capacity; implicit resizing is forbidden");
+        }
+    }
 
     @Override
     public Bytes newCrs(final short n) {
+        if (!isSupportedPartySize(n)) {
+            throw new IllegalArgumentException("Unsupported hinTS CRS party count: " + n);
+        }
         return Bytes.wrap(BRIDGE.initCRS(n));
     }
 
@@ -58,6 +72,8 @@ public class HintsLibraryImpl implements HintsLibrary {
     public Bytes computeHints(
             @NonNull final Bytes crs, @NonNull final Bytes blsPrivateKey, final int partyId, final int n) {
         requireNonNull(blsPrivateKey);
+        requireExactCapacity(crs, n);
+        requireValidPartyId(partyId, n);
         final var hints = BRIDGE.computeHints(crs.toByteArray(), blsPrivateKey.toByteArray(), partyId, n);
         return hints == null ? null : Bytes.wrap(hints);
     }
@@ -67,6 +83,10 @@ public class HintsLibraryImpl implements HintsLibrary {
             @NonNull final Bytes crs, @NonNull final Bytes hintsKey, final int partyId, final int n) {
         requireNonNull(crs);
         requireNonNull(hintsKey);
+        requireExactCapacity(crs, n);
+        if (!isValidPartyId(partyId, n)) {
+            return false;
+        }
         return BRIDGE.validateHintsKey(crs.toByteArray(), hintsKey.toByteArray(), partyId, n);
     }
 
@@ -79,9 +99,11 @@ public class HintsLibraryImpl implements HintsLibrary {
         requireNonNull(crs);
         requireNonNull(hintsKeys);
         requireNonNull(weights);
+        requireExactCapacity(crs, n);
         if (!hintsKeys.keySet().equals(weights.keySet())) {
             throw new IllegalArgumentException("The number of hint keys and weights must be the same");
         }
+        hintsKeys.keySet().forEach(partyId -> requireValidPartyId(partyId, n));
         final int[] parties =
                 hintsKeys.keySet().stream().mapToInt(Integer::intValue).toArray();
         final byte[][] hintsPublicKeys = Arrays.stream(parties)
@@ -112,7 +134,7 @@ public class HintsLibraryImpl implements HintsLibrary {
         requireNonNull(signature);
         requireNonNull(message);
         requireNonNull(aggregationKey);
-        if (aggregationKey.length() < MIN_AGGREGATION_KEY_LENGTH) {
+        if (aggregationKey.length() < MIN_AGGREGATION_KEY_LENGTH || !isValidPartyId(partyId, crsPartySize(crs))) {
             return false;
         }
         return BRIDGE.verifyBls(signature.toByteArray(), message.toByteArray(), aggregationKey.toByteArray(), partyId);
@@ -131,6 +153,10 @@ public class HintsLibraryImpl implements HintsLibrary {
         if (aggregationKey.length() < MIN_AGGREGATION_KEY_LENGTH) {
             return null;
         }
+        final int numParties = crsPartySize(crs);
+        if (partialSignatures.keySet().stream().anyMatch(partyId -> !isValidPartyId(partyId, numParties))) {
+            return null;
+        }
         final int[] parties =
                 partialSignatures.keySet().stream().mapToInt(Integer::intValue).toArray();
         final byte[][] signatures = Arrays.stream(parties)
@@ -144,6 +170,12 @@ public class HintsLibraryImpl implements HintsLibrary {
     @Override
     public void resetCache() {
         BRIDGE.resetCache();
+    }
+
+    private static void requireValidPartyId(final int partyId, final int n) {
+        if (!isValidPartyId(partyId, n)) {
+            throw new IllegalArgumentException("Unsupported hinTS party ID " + partyId + " for capacity " + n);
+        }
     }
 
     @Override

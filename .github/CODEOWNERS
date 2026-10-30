@@ -1,16 +1,13 @@
+# UPDATE BOTH THE `.codeowners` FILE AND THE `.github/CODEOWNERS` FILE WHEN MAKING CHANGES TO OWNERSHIP RULES
+# The `.codeowners` file controls the ownership of files within the repository (ensures the right people are requested for review when a PR is opened)
+# The `.github/CODEOWNERS` file controls PR file filtering (functional for only the PR File Filter feature when performing a code review)
+
 ###################################
 ##### Global Protection Rule ######
 ###################################
 # NOTE: This rule is overriden by the more specific rules below. This is the catch-all rule for all files not covered by the more specific rules below.
 *                                               @hiero-ledger/github-maintainers
 **/*.gradle*                                    @hiero-ledger/hiero-consensus-node-execution-codeowners @hiero-ledger/hiero-consensus-node-foundation-codeowners @hiero-ledger/github-maintainers
-
-#########################
-##### Example apps ######
-#########################
-# Foundation Base Example app
-/example-apps/**/module-info.java               @hiero-ledger/hiero-consensus-node-foundation-codeowners
-/example-apps/swirlds-platform-base-example/    @hiero-ledger/hiero-consensus-node-foundation-codeowners
 
 ############################
 ##### State Validator ######
@@ -163,6 +160,7 @@
 /.github/workflows/860-call-validate-chewie-jwt.yaml            @hiero-ledger/github-maintainers
 /.github/workflows/861-call-get-test-config.yaml                @hiero-ledger/github-maintainers
 /.github/workflows/862-call-get-chewie-properties.yaml          @hiero-ledger/github-maintainers
+/.github/workflows/863-call-get-chewie-allocation.yaml          @hiero-ledger/github-maintainers
 /.github/workflows/901-cron-promote-build-candidate.yaml        @hiero-ledger/github-maintainers
 /.github/workflows/902-cron-auto-namespace-delete.yaml          @hiero-ledger/github-maintainers
 /.github/workflows/903-cron-clean.yaml                          @hiero-ledger/github-maintainers
@@ -200,6 +198,10 @@ gradlew.bat                                         @hiero-ledger/github-maintai
 # Self-protection for root CODEOWNERS files (this file should not exist and should definitely require approval)
 /CODEOWNERS                                         @hiero-ledger/github-maintainers
 
+# Self-protection for actual CODEOWNERS files - changes to ownership itself must be approved
+/.github/CODEOWNERS                                 @hiero-ledger/github-maintainers
+.codeowners                                         @hiero-ledger/github-maintainers
+
 # Protect the repository root files
 /README.md                                          @hiero-ledger/github-maintainers @hiero-ledger/hiero-consensus-node-foundation-codeowners @hiero-ledger/hiero-consensus-node-execution-codeowners @hiero-ledger/hiero-consensus-node-consensus-codeowners
 **/LICENSE                                          @hiero-ledger/github-maintainers
@@ -212,5 +214,5 @@ gradlew.bat                                         @hiero-ledger/github-maintai
 **/.gitignore.*                                     @hiero-ledger/github-maintainers @hiero-ledger/hiero-consensus-node-foundation-codeowners @hiero-ledger/hiero-consensus-node-execution-codeowners @hiero-ledger/hiero-consensus-node-consensus-codeowners
 
 # Legacy CircleCI configuration
-.circleci.settings.xml                              @hiero-ledger/github-maintainers 
+.circleci.settings.xml                              @hiero-ledger/github-maintainers
 /.circleci/                                         @hiero-ledger/github-maintainers

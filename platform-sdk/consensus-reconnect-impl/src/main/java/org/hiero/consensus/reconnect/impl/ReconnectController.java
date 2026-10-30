@@ -234,8 +234,8 @@ public class ReconnectController implements Runnable {
         final long round = signedState.getRound();
         final Roster stateRoster = RosterRetriever.retrieveActive(state, round);
         if (!roster.equals(stateRoster)) {
-            throw new IllegalStateException("Current roster and state-based roster do not contain the same nodes "
-                    + " (currentRoster=" + Roster.JSON.toJSON(roster) + ") (stateRoster="
+            throw new IllegalStateException("Active roster and state-based roster do not contain the same nodes "
+                    + " (activeRoster=" + Roster.JSON.toJSON(roster) + ") (stateRoster="
                     + Roster.JSON.toJSON(stateRoster) + ")");
         }
 

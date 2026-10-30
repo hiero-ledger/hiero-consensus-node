@@ -5,6 +5,7 @@ import static java.util.Optional.ofNullable;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
 import static org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerType.SEQUENTIAL;
+import static org.hiero.otter.fixtures.internal.AbstractMiniNode.LifeCycle.INIT;
 
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
@@ -22,8 +23,9 @@ import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerConfiguration;
 import org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerType;
 import org.hiero.otter.fixtures.NodeConfiguration;
-import org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle;
+import org.hiero.otter.fixtures.internal.AbstractMiniNode.LifeCycle;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -34,13 +36,15 @@ import org.junit.jupiter.params.provider.ValueSource;
  */
 public class AbstractNodeConfigurationTest {
 
+    private static final long DEFAULT_LONG_VALUE = 1L;
+
     private LifeCycle lifeCycle;
 
     private NodeConfiguration subject;
 
     @BeforeEach
     void setUp() {
-        lifeCycle = LifeCycle.INIT;
+        lifeCycle = INIT;
         subject = new TestNodeConfiguration(() -> lifeCycle);
     }
 
@@ -219,19 +223,62 @@ public class AbstractNodeConfigurationTest {
                         TaskSchedulerType.SEQUENTIAL, Long.MAX_VALUE, true, null, true, true, true)));
     }
 
+    @Test
+    void testDefaultIsUsedIfNoValueIsSet() {
+        final NodeConfiguration configuration =
+                new TestNodeConfigurationWithDefault(() -> lifeCycle, new OverrideProperties());
+        final TestConfigData configData = configuration.current().getConfigData(TestConfigData.class);
+        assertThat(configData.myLongValue()).isEqualTo(DEFAULT_LONG_VALUE);
+    }
+
+    @Test
+    void testValueSetBeforeCreationOverridesDefault() {
+        final OverrideProperties networkProperties = new OverrideProperties().withConfigValue("myLongValue", 7L);
+        final NodeConfiguration configuration =
+                new TestNodeConfigurationWithDefault(() -> lifeCycle, networkProperties);
+        final TestConfigData configData = configuration.current().getConfigData(TestConfigData.class);
+        assertThat(configData.myLongValue()).isEqualTo(7L);
+    }
+
+    @Test
+    void testValueSetAfterCreationOverridesDefault() {
+        final NodeConfiguration configuration =
+                new TestNodeConfigurationWithDefault(() -> lifeCycle, new OverrideProperties());
+        configuration.withConfigValue("myLongValue", 7L);
+        final TestConfigData configData = configuration.current().getConfigData(TestConfigData.class);
+        assertThat(configData.myLongValue()).isEqualTo(7L);
+    }
+
     private static class TestNodeConfiguration extends AbstractNodeConfiguration {
 
         public TestNodeConfiguration(@NonNull final Supplier<LifeCycle> lifeCycleSupplier) {
             super(lifeCycleSupplier);
         }
 
+        public TestNodeConfiguration(
+                @NonNull final Supplier<LifeCycle> lifeCycleSupplier,
+                @NonNull final OverrideProperties overrideProperties) {
+            super(lifeCycleSupplier, overrideProperties);
+        }
+
         @NonNull
         @Override
         public Configuration current() {
             return new TestConfigBuilder()
-                    .withSource(new SimpleConfigSource(overrideProperties.properties()))
+                    .withSource(new SimpleConfigSource(effectiveProperties()))
                     .withConfigDataType(TestConfigData.class)
                     .getOrCreateConfig();
+        }
+    }
+
+    private static class TestNodeConfigurationWithDefault extends TestNodeConfiguration {
+
+        public TestNodeConfigurationWithDefault(
+                @NonNull final Supplier<LifeCycle> lifeCycleSupplier,
+                @NonNull final OverrideProperties overrideProperties) {
+            super(lifeCycleSupplier, overrideProperties);
+            // Like the node configurations of the environments, write the default after the overrides were applied
+            defaultProperties.withConfigValue("myLongValue", DEFAULT_LONG_VALUE);
         }
     }
 

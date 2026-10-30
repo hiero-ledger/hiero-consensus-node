@@ -125,7 +125,6 @@
 		{
 		  "opsPerSec": 100,
 		  "operations": [
-			"CryptoGetAccountBalance",
 			"TransactionGetReceipt"
 		  ]
 		}

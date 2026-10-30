@@ -39,11 +39,17 @@ import java.time.Duration;
  *                            floor may still be pruned to make room. When the block node is healthy, this floor allows
  *                            the buffer to remain small while still preserving a recent window of acknowledged blocks
  *                            in case the block node re-requests one.
+ * @param maxInProgressBlocks the maximum number of in-progress blocks to permit (an in-progress block is a block that
+ *                            has yet to be closed.) This must be 2 or greater.
+ * @param minAcksRequiredPerBlock the minimum number of unique acknowledgements (i.e. from different block nodes)
+ *                                required before a block is considered truly acknowledged
+ * @param disconnectedBlockNodeAckExpirationSeconds the number of seconds a block node's acknowledgement may be used
+ *                                                  after the node has disconnected.
  */
 // spotless:off
 @ConfigData("blockStream.buffer")
 public record BlockBufferConfig(
-        @ConfigProperty(defaultValue = "30") @Min(0) @NetworkProperty int maxBlocks,
+        @ConfigProperty(defaultValue = "150") @Min(0) @NetworkProperty int maxBlocks,
         @ConfigProperty(defaultValue = "15g") @NetworkProperty String maxBytes,
         @ConfigProperty(defaultValue = "1s") @Min(1) @NetworkProperty Duration workerInterval,
         @ConfigProperty(defaultValue = "50.0") @Min(0) @NetworkProperty double actionStageThreshold,
@@ -51,5 +57,8 @@ public record BlockBufferConfig(
         @ConfigProperty(defaultValue = "85.0") @Min(0) @NetworkProperty double recoveryThreshold,
         @ConfigProperty(defaultValue = "false") @NodeProperty boolean isBufferPersistenceEnabled,
         @ConfigProperty(defaultValue = "/opt/hgcapp/blockStreams/buffer") @NodeProperty String bufferDirectory,
-        @ConfigProperty(defaultValue = "10") @Min(0) @NetworkProperty int ackedBlocksToRetain) {}
+        @ConfigProperty(defaultValue = "10") @Min(0) @NetworkProperty int ackedBlocksToRetain,
+        @ConfigProperty(defaultValue = "5") @Min(2) @NetworkProperty int maxInProgressBlocks,
+        @ConfigProperty(defaultValue = "1") @Min(1) @NetworkProperty int minAcksRequiredPerBlock,
+        @ConfigProperty(defaultValue = "60") @Min(0) @NetworkProperty int disconnectedBlockNodeAckExpirationSeconds) {}
 // spotless:on

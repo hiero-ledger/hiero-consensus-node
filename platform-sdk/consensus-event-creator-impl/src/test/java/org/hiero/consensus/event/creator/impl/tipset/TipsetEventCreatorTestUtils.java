@@ -11,8 +11,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
@@ -42,6 +40,8 @@ import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterEntryWrapper;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.model.test.fixtures.transaction.TestingTransactions;
 import org.hiero.consensus.model.transaction.EventTransactionSupplier;
@@ -60,17 +60,29 @@ public class TipsetEventCreatorTestUtils {
     public static EventCreator buildEventCreator(
             @NonNull final Random random,
             @NonNull final Time time,
-            @NonNull final Roster roster,
+            @NonNull final RosterWrapper roster,
             @NonNull final NodeId nodeId,
             @NonNull final EventTransactionSupplier transactionSupplier,
             final int maxParents) {
-
         final Configuration configuration = ConfigurationBuilder.create()
                 .autoDiscoverExtensions()
                 .withValue("event.creation.maxOtherParents", Integer.toString(maxParents))
                 .build();
+        return buildEventCreator(random, time, roster, nodeId, transactionSupplier, configuration, new NoOpMetrics());
+    }
 
-        final Metrics metrics = new NoOpMetrics();
+    /**
+     * Build an event creator for a node, with the given configuration and metrics.
+     */
+    @NonNull
+    public static EventCreator buildEventCreator(
+            @NonNull final Random random,
+            @NonNull final Time time,
+            @NonNull final RosterWrapper roster,
+            @NonNull final NodeId nodeId,
+            @NonNull final EventTransactionSupplier transactionSupplier,
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics) {
 
         final BytesSigner signer = mock(BytesSigner.class);
         when(signer.sign(any()))
@@ -86,8 +98,9 @@ public class TipsetEventCreatorTestUtils {
         // Set a fixed seed for deterministic output
         secureRandom.setSeed(random.nextLong());
 
+        final DefaultTipsetTracker tipsetTracker = new DefaultTipsetTracker(time, nodeId, roster);
         return new TipsetEventCreator(
-                configuration, metrics, time, secureRandom, signer, roster, nodeId, transactionSupplier);
+                configuration, metrics, time, secureRandom, signer, roster, nodeId, transactionSupplier, tipsetTracker);
     }
 
     /**
@@ -97,36 +110,31 @@ public class TipsetEventCreatorTestUtils {
     public static Map<NodeId, SimulatedNode> buildSimulatedNodes(
             @NonNull final Random random,
             @NonNull final Time time,
-            @NonNull final Roster roster,
+            @NonNull final RosterWrapper roster,
             @NonNull final EventTransactionSupplier transactionSupplier) {
 
         final Map<NodeId, SimulatedNode> eventCreators = new HashMap<>();
         final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
         final Metrics metrics = new NoOpMetrics();
 
-        for (final RosterEntry address : roster.rosterEntries()) {
+        for (final RosterEntryWrapper address : roster.rosterEntries()) {
 
-            final NodeId selfId = NodeId.of(address.nodeId());
+            final NodeId selfId = address.nodeId();
             final EventCreator eventCreator = buildEventCreator(random, time, roster, selfId, transactionSupplier, 1);
 
             // Set a wide event window so that no events get stuck in the Future Event Buffer
             eventCreator.setEventWindow(EventWindow.getGenesisEventWindow());
 
-            final TipsetTracker tipsetTracker = new TipsetTracker(time, selfId, roster);
+            final DefaultTipsetTracker tipsetTracker = new DefaultTipsetTracker(time, selfId, roster);
 
             final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
             final TipsetWeightCalculator tipsetWeightCalculator = new TipsetWeightCalculator(
-                    configuration, time, roster, NodeId.of(address.nodeId()), tipsetTracker, childlessEventTracker);
+                    configuration, time, roster, selfId, tipsetTracker, childlessEventTracker);
             final OrphanBuffer orphanBuffer = new DefaultOrphanBuffer(metrics, mock(IntakeEventCounter.class));
 
             eventCreators.put(
                     selfId,
-                    new SimulatedNode(
-                            NodeId.of(address.nodeId()),
-                            orphanBuffer,
-                            tipsetTracker,
-                            eventCreator,
-                            tipsetWeightCalculator));
+                    new SimulatedNode(selfId, orphanBuffer, tipsetTracker, eventCreator, tipsetWeightCalculator));
         }
 
         return eventCreators;

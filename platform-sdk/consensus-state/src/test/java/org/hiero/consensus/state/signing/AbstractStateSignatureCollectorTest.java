@@ -46,7 +46,6 @@ public class AbstractStateSignatureCollectorTest {
     protected final AtomicLong highestCompleteRound = new AtomicLong(-1);
     protected final int roundsToKeepForSigning = 5;
     protected final int futureStateSignatureRounds = 16;
-    protected int roundsToKeepAfterSigning = 0;
 
     /**
      * true if an error occurs on a notification thread
@@ -58,7 +57,6 @@ public class AbstractStateSignatureCollectorTest {
         return new TestConfigBuilder()
                 .withValue(StateConfig_.ROUNDS_TO_KEEP_FOR_SIGNING, roundsToKeepForSigning)
                 .withValue(StateConfig_.MAX_AGE_OF_FUTURE_STATE_SIGNATURES, futureStateSignatureRounds)
-                .withValue(StateConfig_.ROUNDS_TO_KEEP_AFTER_SIGNING, roundsToKeepAfterSigning)
                 .getOrCreateConfig();
     }
 

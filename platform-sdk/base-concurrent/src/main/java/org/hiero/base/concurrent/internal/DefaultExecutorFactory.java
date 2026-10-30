@@ -70,11 +70,11 @@ public class DefaultExecutorFactory implements ExecutorFactory {
     }
 
     @Override
-    public ForkJoinPool createForkJoinPool(int parallelism) {
+    public ForkJoinPool createForkJoinPool(int parallelism, boolean asyncMode) {
         if (parallelism <= 0) {
             throw new IllegalArgumentException("parallelism must be greater than 0");
         }
-        return new ForkJoinPool(parallelism, forkJoinWorkerThreadFactory, handler, true);
+        return new ForkJoinPool(parallelism, forkJoinWorkerThreadFactory, handler, asyncMode);
     }
 
     @Override

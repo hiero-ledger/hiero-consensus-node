@@ -2,6 +2,20 @@
   "buckets": [
     {
       "burstPeriod": 0,
+      "burstPeriodMs": 1000,
+      "name": "ClprBundles",
+      "throttleGroups": [
+        {
+          "opsPerSec": 0,
+          "milliOpsPerSec": 10000,
+          "operations": [
+            "ClprSubmitBundle"
+          ]
+        }
+      ]
+    },
+    {
+      "burstPeriod": 0,
       "burstPeriodMs": 15000,
       "name": "ThroughputLimits",
       "throttleGroups": [
@@ -46,7 +60,16 @@
             "RegisteredNodeCreate",
             "RegisteredNodeUpdate",
             "RegisteredNodeDelete",
-            "AtomicBatch"
+            "AtomicBatch",
+            "ClprUpdateLedgerConfiguration",
+            "ClprRegisterChannel",
+            "ClprCompleteChannel",
+            "ClprCloseChannel",
+            "ClprRegisterConnector",
+            "ClprCompleteConnector",
+            "ClprDeregisterConnector",
+            "ClprGetLedgerConfiguration",
+            "ClprGetEndpointManifest"
           ]
         },
         {
@@ -194,20 +217,6 @@
           "milliOpsPerSec": 1000000000,
           "operations": [
             "TransactionGetReceipt"
-          ]
-        }
-      ]
-    },
-    {
-      "burstPeriod": 0,
-      "burstPeriodMs": 1000,
-      "name": "BalanceQueryLimits",
-      "throttleGroups": [
-        {
-          "opsPerSec": 0,
-          "milliOpsPerSec": 1000000,
-          "operations": [
-            "CryptoGetAccountBalance"
           ]
         }
       ]

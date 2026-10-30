@@ -58,6 +58,12 @@ import "services/auxiliary/tss/tss_vote.proto";
 import "services/state/tss/tss_encryption_keys.proto";
 import "services/state/tss/tss_message_map_key.proto";
 import "services/state/tss/tss_vote_map_key.proto";
+import "services/state/clpr/clpr_channel.proto";
+import "services/state/clpr/clpr_endpoint_manifest.proto";
+import "services/state/clpr/clpr_endpoint_manifest_construction.proto";
+import "services/state/clpr/clpr_ledger_configuration.proto";
+import "services/state/clpr/clpr_message.proto";
+import "services/state/clpr/clpr_connector.proto";
 import "services/state/hints/hints_types.proto";
 import "services/state/history/history_types.proto";
 import "services/state/entity/entity_counts.proto";
@@ -454,6 +460,9 @@ enum StateIdentifier {
      */
     STATE_ID_CRS_STATE = 48;
 
+    /** The next CRS ceremony, isolated from the active signing CRS. Singleton state. */
+    STATE_ID_NEXT_CRS_STATE = 68;
+
     /**
      * A state identifier for the CRS publications. Key/value state.
      */
@@ -503,6 +512,46 @@ enum StateIdentifier {
      * A state identifier for the expected WRAPS proving key hash. Singleton state.
      */
     STATE_ID_WRAPS_PROVING_KEY_HASH = 58;
+
+    /**
+     * A state identifier for the CLPR ledger configuration. Singleton state.
+     */
+    STATE_ID_CLPR_LEDGER_CONFIGURATION = 59;
+
+    /**
+     * A state identifier for the CLPR channels. Key/value state.
+     */
+    STATE_ID_CLPR_CHANNELS = 60;
+
+    /**
+     * A state identifier for the CLPR pending commitments. Key/value state.
+     */
+    STATE_ID_CLPR_PENDING_COMMITMENTS = 61;
+
+    /**
+     * A state identifier for the CLPR message queue. Key/value state.
+     */
+    STATE_ID_CLPR_MESSAGE_QUEUE = 62;
+
+    /**
+     * A state identifier for the CLPR connectors. Key/value state.
+     */
+    STATE_ID_CLPR_CONNECTORS = 63;
+
+    /**
+     * A state identifier for CLPR pending connector commitments. Key/value state.
+     */
+    STATE_ID_CLPR_PENDING_CONNECTOR_COMMITMENTS = 64;
+
+    /**
+     * A state identifier for the CLPR endpoint manifest. Singleton state.
+     */
+    STATE_ID_CLPR_ENDPOINT_MANIFEST = 66;
+
+    /**
+     * A state identifier for the CLPR endpoint manifest construction. Singleton state.
+     */
+    STATE_ID_CLPR_ENDPOINT_MANIFEST_CONSTRUCTION = 67;
 
     /**
      * A state identifier for the round receipts queue. Queue state.
@@ -600,6 +649,21 @@ message RemovedStateChange {
  * An update to a `Singleton` state.
  */
 message SingletonUpdateChange {
+    /**
+     * Whether new_value is a canonical delta, as defined for
+     * MapUpdateChange.partial. The baseline is the last emitted singleton
+     * value, including across block boundaries. Default false means full replacement.
+     * <p>
+     * The same reader rules apply as for MapUpdateChange.partial.
+     */
+    bool partial = 10001;
+
+    /** Sorted, unique top-level fields to reset; valid only when partial is true. */
+    repeated uint32 cleared_fields = 10002;
+
+    // Field numbers 24 through 10000 are intentionally left unused so that
+    // they remain available for future `new_value` singleton oneof members.
+
     oneof new_value {
         /**
          * A change to the block info singleton.
@@ -751,6 +815,23 @@ message SingletonUpdateChange {
          * A change to the highest node id singleton.
          */
         com.hedera.hapi.platform.state.NodeId node_id_value = 20;
+
+        /**
+         * A change to the CLPR ledger configuration singleton.
+         */
+        com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration clpr_ledger_configuration_value = 21;
+
+        /**
+         * A change to the CLPR endpoint manifest singleton.
+         */
+        com.hedera.hapi.node.state.clpr.ClprEndpointManifest clpr_endpoint_manifest_value = 22;
+
+        /**
+         * A change to the CLPR endpoint manifest construction singleton.
+         * Present while a manifest construction is gathering per-node publications;
+         * absent between constructions (deleted on close).
+         */
+        com.hedera.hapi.node.state.clpr.ClprEndpointManifestConstruction clpr_endpoint_manifest_construction_value = 23;
     }
 }
 
@@ -778,10 +859,11 @@ message MapUpdateChange {
     /**
      * A value in a virtual map.
      * <p>
-     * This value MUST correctly represent the state of the map entry
+     * If `partial` is false, this is the complete value of the map entry
      * _after_ the asserted update.<br/>
-     * This value MAY be reduced to only transmit fields that differ
-     * from the prior state.<br/>
+     * If `partial` is true, this value carries only the top-level fields
+     * that changed; together with `cleared_fields` and the preceding value
+     * it determines the complete value _after_ the update.<br/>
      * This field is REQUIRED.
      */
     MapChangeValue value = 2;
@@ -796,6 +878,44 @@ message MapUpdateChange {
      * additional list of changed keys.
      */
     bool identical = 3;
+
+    /**
+     * False means a complete replacement. True means a sparse top-level value,
+     * applied against the preceding value for this state and key. Supplied fields
+     * replace entire fields, including messages, bytes and repeated lists. Omitted
+     * fields remain unchanged unless listed in cleared_fields. A prior value is
+     * REQUIRED for partial updates. An empty partial with no clears is a no-op.
+     *
+     * Message presence and selected default-valued oneof members are significant.
+     * Switching a oneof member MUST explicitly clear its previously selected
+     * alternative. Clearing a oneof to unset also names the selected member.
+     * Encoded empty length-delimited fields retain their presence, including empty
+     * messages, optional wrappers, selected strings/bytes and repeated elements.
+     * <p>
+     * The preceding value is the one the reader holds after applying every
+     * earlier change for this state and key, in stream order; a reader that
+     * starts mid-stream MUST seed it from a full value or trusted state.<br/>
+     * An omitted field always means "unchanged", never "default". For example,
+     * a SlotValue partial without `value` keeps the slot's stored value; it
+     * does not set it to zero.<br/>
+     * A reader that does not implement partial updates MUST reject an update
+     * with `partial` set, rather than treat the sparse value as complete.
+     * <p>
+     * Producers MAY emit any update in full; when to emit a partial instead
+     * is producer policy, not part of this format.<br/>
+     * A block proof covers the encoded bytes. For a partial update, it proves
+     * the changed fields and clears only; the complete value is proven only
+     * together with the proven updates that established the preceding value.
+     */
+    bool partial = 4;
+
+    /**
+     * Sorted, unique top-level field numbers in the entity value to reset to
+     * default/absent/empty. Valid only for partial updates. A cleared field MUST
+     * NOT also be supplied in value. Clearing an already absent field is valid.
+     * A switch can clear an old oneof alternative and supply a different alternative.
+     */
+    repeated uint32 cleared_fields = 5;
 }
 
 /**
@@ -948,6 +1068,16 @@ message MapChangeKey {
          * token identifier.
          */
         proto.AccountTokenAssociation token_relationship_key = 25;
+
+        /**
+         * A CLPR message queue key (channel_id + message_id).
+         */
+        com.hedera.hapi.node.state.clpr.ClprMessageKey clpr_message_key = 26;
+
+        /**
+         * A CLPR connector key (channel_id, connector_id).
+         */
+        com.hedera.hapi.node.state.clpr.ClprConnectorKey clpr_connector_key = 27;
     }
 }
 
@@ -1133,6 +1263,26 @@ message MapChangeValue {
          * A registered node value.
          */
         com.hedera.hapi.node.state.addressbook.RegisteredNode registered_node_value = 32;
+
+        /**
+         * A CLPR channel value.
+         */
+        com.hedera.hapi.node.state.clpr.ClprChannel clpr_channel_value = 33;
+
+        /**
+         * A raw bytes value used as a map entry marker.
+         */
+        google.protobuf.BytesValue proto_bytes_value = 34;
+
+        /**
+         * A CLPR message queue value (payload + running_hash).
+         */
+        com.hedera.hapi.node.state.clpr.ClprMessageValue clpr_message_value = 35;
+
+        /**
+         * A CLPR connector value.
+         */
+        com.hedera.hapi.node.state.clpr.ClprConnector clpr_connector_value = 36;
     }
 }
 

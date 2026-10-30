@@ -28,6 +28,8 @@ import org.hyperledger.besu.evm.operation.Operation;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
@@ -79,6 +81,39 @@ class CustomExtCodeSizeOperationTest {
         verify(frame).pushStackItem(UInt256.ZERO);
     }
 
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void nonUserAccountChargedAtWarmCostOnlyWhenWarm(final boolean isWarm) {
+        final var address = Address.fromHexString("0x123");
+        given(addressChecks.isNonUserAccount(address)).willReturn(true);
+        givenWellKnownFrameWith(address);
+        if (isWarm) {
+            given(gasCalculator.getWarmStorageReadCost()).willReturn(100L);
+        } else {
+            given(gasCalculator.getColdAccountAccessCost()).willReturn(2600L);
+        }
+        // Exactly the priced cost remains, so a warm access must not be halted for lacking the cold cost
+        given(frame.getRemainingGas()).willReturn(isWarm ? 223L : 2723L);
+        given(frame.isAddressWarm(address)).willReturn(isWarm);
+        final var expected = new Operation.OperationResult(isWarm ? 223L : 2723L, null);
+        assertSameResult(expected, subject.execute(frame, evm));
+        verify(frame).warmUpAddress(address);
+        verify(frame).pushStackItem(UInt256.ZERO);
+    }
+
+    @Test
+    void precompileIsAlwaysWarm() {
+        final var precompile = Address.fromHexString("0x09");
+        given(addressChecks.isNonUserAccount(precompile)).willReturn(true);
+        givenWellKnownFrameWith(precompile);
+        given(gasCalculator.getWarmStorageReadCost()).willReturn(100L);
+        given(gasCalculator.isPrecompile(precompile)).willReturn(true);
+        given(frame.getRemainingGas()).willReturn(223L);
+        final var expected = new Operation.OperationResult(223L, null);
+        assertSameResult(expected, subject.execute(frame, evm));
+        verify(frame).pushStackItem(UInt256.ZERO);
+    }
+
     @Test
     void rejectsMissingNonSystemAddressIfAllowCallFeatureFlagOff() {
         try (MockedStatic<FrameUtils> frameUtils = Mockito.mockStatic(FrameUtils.class)) {
@@ -97,7 +132,7 @@ class CustomExtCodeSizeOperationTest {
     @Test
     void delegatesForPresentAddress() {
         try (MockedStatic<FrameUtils> frameUtils = Mockito.mockStatic(FrameUtils.class)) {
-            given(gasCalculator.getExtCodeSizeOperationGasCost()).willReturn(123L);
+            givenWellKnownFrameWith(Address.fromHexString("0x123"));
             frameUtils.when(() -> FrameUtils.proxyUpdaterFor(frame)).thenReturn(updater);
             final var expected = new Operation.OperationResult(123L, INSUFFICIENT_GAS);
             assertSameResult(expected, subject.execute(frame, evm));

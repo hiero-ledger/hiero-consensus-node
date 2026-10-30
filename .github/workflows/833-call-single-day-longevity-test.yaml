@@ -39,12 +39,27 @@ on:
         default: "600"
         description: "Reconnect uptime (secs). Downtime is Uptime x 3"
         type: string
-      duration-minutes:
+      allocation-id:
         required: true
-        description: "Expected duration of all tests in minutes"
-        type: number
+        description: "The Chewie Allocation ID already acquired by the caller."
+        type: string
       bnref:
         description: "BN version"
+        type: string
+        required: true
+        default: ""
+      mirrorref:
+        description: "Mirror version"
+        type: string
+        required: true
+        default: ""
+      explorerref:
+        description: "Explorer version"
+        type: string
+        required: false
+        default: ""
+      relayref:
+        description: "Relay version"
         type: string
         required: true
         default: ""
@@ -53,10 +68,6 @@ on:
         default: "0.14.3"
         description: "NLG Version:"
         type: string
-      chewie-request-timeout:
-        required: true
-        description: "Chewie request timeout in seconds"
-        type: number
       java-version:
         description: "Java JDK Version:"
         type: string
@@ -98,14 +109,6 @@ jobs:
       chewie-key: ${{ secrets.chewie-id-key }}
       chewie-host: ${{ secrets.chewie-host }}
 
-  get-sdlt-config:
-    uses: ./.github/workflows/861-call-get-test-config.yaml
-    with:
-      test-type: "sdlt"
-      ref: ${{ github.ref }}
-    secrets:
-      checkout-token: ${{ secrets.github-token }}
-
   validate-chewie-jwt:
     needs:
       - get-chewie-jwt
@@ -121,17 +124,9 @@ jobs:
     needs:
       - validate-chewie-jwt
       - get-chewie-jwt
-      - get-sdlt-config
-    uses: ./.github/workflows/859-call-create-chewie-request.yaml
+    uses: ./.github/workflows/863-call-get-chewie-allocation.yaml
     with:
-      instances-cn-qty: ${{ fromJSON(needs.get-sdlt-config.outputs.cn-qty) }}
-      instances-cn-cpu: ${{ fromJSON(needs.get-sdlt-config.outputs.cn-cpu-request) }}
-      instances-cn-memory-mb: ${{ fromJSON(needs.get-sdlt-config.outputs.cn-mem-request-mb) }}
-      instances-aux-qty: ${{ fromJSON(needs.get-sdlt-config.outputs.aux-qty) }}
-      instances-aux-cpu: ${{ fromJSON(needs.get-sdlt-config.outputs.aux-cpu-request) }}
-      instances-aux-memory-mb: ${{ fromJSON(needs.get-sdlt-config.outputs.aux-mem-request-mb) }}
-      duration-minutes: ${{ inputs.duration-minutes }}
-      request-timeout: ${{ inputs.chewie-request-timeout }}
+      allocation-id: ${{ inputs.allocation-id }}
     secrets:
       github-token: ${{ secrets.github-token }}
       chewie-token: ${{ needs.get-chewie-jwt.outputs.jwt }}
@@ -157,8 +152,7 @@ jobs:
           echo "- **FQDN**: ${{ needs.acquire-kubernetes-resources.outputs.fqdn }}" | tee -a  "${GITHUB_STEP_SUMMARY}"
           echo "- **CN Quantity**: ${{ needs.acquire-kubernetes-resources.outputs.cn-quantity }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "- **Aux Node Quantity**: ${{ needs.acquire-kubernetes-resources.outputs.aux-quantity }}" | tee -a "${GITHUB_STEP_SUMMARY}"
-          echo "- **Network ID**: ${{ needs.acquire-kubernetes-resources.outputs.network-id }}" | tee -a "${GITHUB_STEP_SUMMARY}"
-          echo "- **Owner**: ${{ needs.acquire-kubernetes-resources.outputs.owner }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "- **Allocation ID**: ${{ inputs.allocation-id }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "- **Request Expiration (UTC)**: ${{ needs.acquire-kubernetes-resources.outputs.request-expiration }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "::endgroup::"
 
@@ -172,6 +166,11 @@ jobs:
       waiterMatrix: ${{ steps.matrix.outputs.value }}
     needs:
       - acquire-kubernetes-resources
+    env:
+      CN_LABELS: ${{ needs.acquire-kubernetes-resources.outputs.cn-labels }}
+      CN_TOLERATIONS: ${{ needs.acquire-kubernetes-resources.outputs.cn-tolerations }}
+      AUX_LABELS: ${{ needs.acquire-kubernetes-resources.outputs.aux-labels }}
+      AUX_TOLERATIONS: ${{ needs.acquire-kubernetes-resources.outputs.aux-tolerations }}
     steps:
       - name: Prepare Runner
         id: prepare-runner
@@ -193,6 +192,22 @@ jobs:
           repository: "hiero-ledger/hiero-block-node"
           path: target_block_node
           ref: ${{ inputs.bnref }}
+
+      - name: Checkout target BN Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: "hiero-ledger/hiero-block-node"
+          path: target_block_node
+          ref: ${{ inputs.bnref }}
+
+      - name: Checkout Solo Code
+        if: false
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: hiero-ledger/solo
+          ref: "${{ inputs.solo-version }}"
+          token: ${{ secrets.github-token }}
+          path: solo
 
       - name: Set Kubernetes Cluster
         id: set-k8s-cluster
@@ -306,8 +321,7 @@ jobs:
           REF: ${{ inputs.ref }}
         run: |
           echo "inputs.ref=${REF}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
-          echo "Network-ID=${{ needs.acquire-kubernetes-resources.outputs.network-id }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
-          echo "Owner=${{ needs.acquire-kubernetes-resources.outputs.owner }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
+          echo "Allocation-ID=${{ inputs.allocation-id }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "inputs.solo-version=${{ inputs.solo-version }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "inputs.nlg-accounts=${{ inputs.nlg-accounts }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "inputs.nlg-time=${{ inputs.nlg-time }}m" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
@@ -351,9 +365,9 @@ jobs:
           cd "${{ github.workspace }}"
 
       - name: Setup Node
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22.23.2
+          node-version: "24"
 
       # Set up kind; needed for configuring the solo environment
       - name: Setup Kind
@@ -374,6 +388,38 @@ jobs:
 
           # verify the installation
           solo --version
+
+      - name: Build Solo
+        if: false
+        run: |
+          set +x
+          set +e
+          curdir=`pwd`
+          echo "${curdir}"
+          ls
+          curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+          export NVM_DIR="${HOME}/.nvm"
+          [ -s "${NVM_DIR}/nvm.sh" ] && \. "${NVM_DIR}/nvm.sh"  # This loads nvm
+          nvm install v24.14.0
+          nvm use v24.14.0
+
+          export PATH="${HOME}"/:"${PATH}"
+
+          #solo script
+          echo '#!/usr/bin/sh -f' > "${HOME}"/solo
+          echo "node \"${curdir}\"/solo/dist/solo.js \"\$@\"" >> "${HOME}"/solo
+          chmod a+rx "${HOME}"/solo
+          sudo mv "${HOME}"/solo /usr/bin/solo
+
+          cd "${{ github.workspace}}"/solo
+
+          task build:compile
+          #npm run build
+
+          which solo
+          solo --version
+
+          cd ..
 
       - name: Deploy with Solo
         env:
@@ -405,18 +451,19 @@ jobs:
           # Generate the block-node-values.yaml inline
           cp "${{ github.workspace }}"/.github/workflows/support/citr/block-node-values.yaml block-node-values.yaml
 
+          cp "${{ github.workspace }}"/.github/workflows/support/citr/mirror-node.yaml mirror-node.yaml
+          cp "${{ github.workspace }}"/.github/workflows/support/citr/explorer-node.yaml explorer-node.yaml
+          cp "${{ github.workspace }}"/.github/workflows/support/citr/relay-node.yaml relay-node.yaml
+          cp "${{ github.workspace }}"/.github/workflows/support/citr/ingress-controller-values.yaml ingress-controller-values.yaml
+
           # Update Taskfile values
           sed -i -e "s@%HOME%@${HOME}@g" -e "s@%SOLO_NAMESPACE%@${{ needs.acquire-kubernetes-resources.outputs.namespace }}@g" \
           -e "s@%HEDERA_SERVICES_ROOT%@${curdir}/target_consensus_node@g" Taskfile.yml
 
-          # Update Init Containers values
-          NETWORK_ID="${{ needs.acquire-kubernetes-resources.outputs.network-id }}"
-          sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" init-containers-values7.yaml
-          sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" block-node-values.yaml
-
-          NETWORK_OWNER="${{ needs.acquire-kubernetes-resources.outputs.owner }}"
-          sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" init-containers-values7.yaml
-          sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" block-node-values.yaml
+          # Schedule the pods onto the Chewie allocation's machines
+          "${{ github.workspace }}"/.github/workflows/support/chewie/apply-allocation-scheduling.sh \
+            init-containers-values7.yaml block-node-values.yaml mirror-node.yaml explorer-node.yaml \
+            relay-node.yaml ingress-controller-values.yaml || exit 1
 
           BN_tag=$(echo "${{ inputs.bnref }}" | sed -e 's/^v\(.*\)/\1/g')
           sed -i -e "s@%BN_IMAGE_TAG%@${BN_tag}@g" block-node-values.yaml
@@ -447,6 +494,11 @@ jobs:
 
           task
 
+      - name: kubectl wrapper for Solo
+        run: |
+          kubectl=$(which kubectl)
+          cp ${kubectl} ${HOME}/.solo/bin/kubectl
+
       - name: Add BlockNodes
         run: |
           set +x
@@ -457,8 +509,12 @@ jobs:
           mv block-node-values.yaml block-node-values.yaml.orig
 
           #dedicate top-3 nodes for BN
-          NETWORK_ID="${{ needs.acquire-kubernetes-resources.outputs.network-id }}"
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get nodes --show-labels | grep "network-id=${NETWORK_ID}," | grep 'consensus-node' | sort -n -k 1 | awk '{print $1}' | head -n 1  | grep -n -E '^' > firstNode.txt
+          CN_SELECTOR="$(jq -r 'to_entries | map("\(.key)=\(.value)") | join(",")' <<< "${CN_LABELS}")"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get nodes -l "${CN_SELECTOR}" --no-headers | sort -n -k 1 | awk '{print $1}' | head -n 1  | grep -n -E '^' > firstNode.txt
+          if [[ ! -s firstNode.txt ]]; then
+            echo "::error::No node carries the consensus group's labels (${CN_SELECTOR})"
+            exit 1
+          fi
 
           for i in $(seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }})
           do
@@ -557,6 +613,36 @@ jobs:
           cd "${{ github.workspace}}"/solo
           task start
 
+      - name: Add PVCs for MirrorNode
+        run: |
+          set +x
+          set +e
+          cd "${{ github.workspace}}"/solo
+
+          #postgres
+          sed -e "s@%PVC_SIZE%@60Gi@g" -e "s@%PVC_NAME%@data-solo-shared-resources-postgres-0@g" "${{ github.workspace }}"/.github/workflows/support/citr/mirror-node-pvc.yaml > mirror-node-pvc-postgres.yaml
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" create -f mirror-node-pvc-postgres.yaml
+
+          #redis
+          sed -e "s@%PVC_SIZE%@8Gi@g" -e "s@%PVC_NAME%@redis-data-solo-shared-resources-redis-node-0@g" "${{ github.workspace }}"/.github/workflows/support/citr/mirror-node-pvc.yaml > mirror-node-pvc-redis.yaml
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" create -f mirror-node-pvc-redis.yaml
+
+          #sentinel
+          sed -e "s@%PVC_SIZE%@100Mi@g" -e "s@%PVC_NAME%@sentinel-data-solo-shared-resources-redis-node-0@g" "${{ github.workspace }}"/.github/workflows/support/citr/mirror-node-pvc.yaml > mirror-node-pvc-sentinel.yaml
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" create -f mirror-node-pvc-sentinel.yaml
+
+          #redis-master-0
+          sed -e "s@%PVC_SIZE%@100Mi@g" -e "s@%PVC_NAME%@redis-data-solo-shared-resources-redis-master-0@g" "${{ github.workspace }}"/.github/workflows/support/citr/mirror-node-pvc.yaml > mirror-node-pvc-master.yaml
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" create -f mirror-node-pvc-master.yaml
+
+      - name: Add Mirror Node
+        run: |
+          set +x
+          set +e
+          cd "${{ github.workspace}}"/solo
+          export MIRROR_NODE_VERSION="${{ inputs.mirrorref }}"
+          task solo:mirror-node
+
       - name: Solo logs
         if: ${{ !cancelled() && always() }}
         env:
@@ -576,8 +662,8 @@ jobs:
           cp -r "${HOME}"/.solo/logs solo_deploy/
           sh "${{ github.workspace }}"/.github/workflows/support/citr/getClusterErrors.sh "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
           cp -r podlog_"${{ needs.acquire-kubernetes-resources.outputs.namespace }}" solo_deploy/
-          gcloud --no-user-output-enabled storage cp --recursive solo_deploy "${{ env.GS_ROOT_DIR }}/${REF}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{needs.acquire-kubernetes-resources.outputs.network-id }}_${{ github.run_number }}"/solo_deploy
-          echo Done: solo deploy logs  in "${{ env.GS_ROOT_HTTPS }}/${REF}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{needs.acquire-kubernetes-resources.outputs.network-id }}_${{ github.run_number }}"/solo_deploy
+          gcloud --no-user-output-enabled storage cp --recursive solo_deploy "${{ env.GS_ROOT_DIR }}/${REF}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{ inputs.allocation-id }}_${{ github.run_number }}"/solo_deploy
+          echo Done: solo deploy logs  in "${{ env.GS_ROOT_HTTPS }}/${REF}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{ inputs.allocation-id }}_${{ github.run_number }}"/solo_deploy
 
       - name: Check filesystem mounts
         run: |
@@ -609,20 +695,23 @@ jobs:
           # Generate the nlg-values.yaml file inline
           cp "${{ github.workspace }}"/.github/workflows/support/citr/nlg-values.yaml nlg-values.yaml
 
-          # Generate the merkledb-values.yaml file inline
-          cp "${{ github.workspace }}"/.github/workflows/support/citr/merkledb-values.yaml merkledb-values.yaml
-
           #Disable auto-start
           sed -i -e 's/NftTransferLoadTest/NftTransferLoadTestDONOTSTART/g' nlg-values.yaml
           grep -v 'x.y.z' nlg-values.yaml > new.yml
 
           cat networks.txt | awk '{print $3}' | perl -ne "~s/\n//g; print \"     - '\$_\\\:50211=0.0.\".(3+\$.-1).\"'\n\"" >> new.yml
+
+          for i in $(seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }})
+          do
+            echo "     - 'block-node-${i}.${{ needs.acquire-kubernetes-resources.outputs.namespace }}.svc.cluster.local\:40840=bn:${i}'" >> new.yml
+          done
+
+          # echo "     - 'mirror-1-rest.${{ needs.acquire-kubernetes-resources.outputs.namespace }}.svc.cluster.local=mn:1'" >> new.yml
+
           mv new.yml nlg-values.yaml
 
-          NETWORK_ID="${{ needs.acquire-kubernetes-resources.outputs.network-id }}"
-          sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" nlg-values.yaml
-          NETWORK_OWNER="${{ needs.acquire-kubernetes-resources.outputs.owner }}"
-          sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" nlg-values.yaml
+          # Schedule the pods onto the Chewie allocation's machines
+          "${{ github.workspace }}"/.github/workflows/support/chewie/apply-allocation-scheduling.sh nlg-values.yaml || exit 1
 
       - name: Deploy NLG test
         run: |
@@ -677,14 +766,14 @@ jobs:
 
       - name: Start Longevity test
         run: |
-          run_NLGDebugparams="-Dorg.slf4j.simpleLogger.defaultLogLevel=debug" # e.g. -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
+          run_NLGDebugparams="-XX:+UseZGC -XX:MaxDirectMemorySize=1G -Dorg.slf4j.simpleLogger.defaultLogLevel=debug" # e.g. -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
           nlgpod=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')
           n=$(expr ${{ inputs.nlg-accounts }} / 1000)
           NLG_c=32
 
           test=LongevityLoadTest
 
-          NLGargs="-K ECDSA -R -c ${NLG_c} -a ${{ inputs.nlg-accounts }}  -n ${n} -T 1000 -S hot -p 50"
+          NLGargs="-L -K ECDSA -R -c ${NLG_c} -a ${{ inputs.nlg-accounts }}  -n ${n} -T 1000 -S hot -p 50"
 
           echo kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g \
             ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${test} \
@@ -958,7 +1047,7 @@ jobs:
         run: |
           set +x
           set +e
-          KUBECTL_TIMEOUT=60m kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" \
+          KUBECTL_TIMEOUT=90m kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" \
             exec -it network-node1-0 -c root-container -- bash -c "cd /opt/hgcapp/services-hedera/HapiApp2.0; bash checkValidatorNode.sh 0" 2>&1 | tee "${{ github.workspace }}"/report/validator_status.log
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" \
             cp network-node1-0:/opt/hgcapp/services-hedera/HapiApp2.0/data/saved/validation.tmp/validator.log "${{ github.workspace }}"/report/validator.log
@@ -973,7 +1062,7 @@ jobs:
           sleep 300 # known: to let all benchmark write down logs
 
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp ${nlgpod}:/app/client.log "${{ github.workspace }}"/report/client.log
-          cat "${{ github.workspace }}"/report/client.log | perl -pne '~s/\b([A-Z_]+[\:]\d+)\b/\n$1\n/g' | perl "${{ github.workspace }}"/.github/workflows/support/citr/collectNLG_Errors.pl > "${{ github.workspace }}"/report/client.stats.txt
+          cat "${{ github.workspace }}"/report/client.log | perl -pne '~s/\b([A-Z_]+[\:]\d+)\b/\n$1\n/g; ~s/\b([\w\.]*Exception)\b/\n$1:1\n/g;' | perl "${{ github.workspace }}"/.github/workflows/support/citr/collectNLG_Errors.pl > "${{ github.workspace }}"/report/client.stats.txt
           sh "${{ github.workspace }}"/.github/workflows/support/citr/getClusterErrors.sh "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp ${nlgpod}:/app/version_run.txt "${{ github.workspace }}"/report/version_run.txt
           cp -r podlog_"${{ needs.acquire-kubernetes-resources.outputs.namespace }}" "${{ github.workspace }}"/report/
@@ -1009,16 +1098,18 @@ jobs:
           grep -E 'Finished SmartContractLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' | grep -E 'value=[0-9][0-9]*'
 
       - name: Authenticate to Google Cloud
+        if: ${{ !cancelled() && always() }}
         uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
         with:
           workload_identity_provider: "projects/716789254648/locations/global/workloadIdentityPools/perf-eng-reports-pool/providers/gh-provider"
           service_account: "gh-perf-report-writer@perf-engineering-reports.iam.gserviceaccount.com"
 
       - name: Setup Google Cloud SDK
+        if: ${{ !cancelled() && always() }}
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
 
       - name: Publish logs
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && always() }}
         env:
           REF: ${{ inputs.ref }}
         run: |
@@ -1034,8 +1125,8 @@ jobs:
           echo "Size of report dir:"
           du -sk report
 
-          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${REF}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{needs.acquire-kubernetes-resources.outputs.network-id }}_${{ github.run_number }}/report/longevity"
-          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${REF}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{needs.acquire-kubernetes-resources.outputs.network-id }}_${{ github.run_number }}/report/longevity"
+          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${REF}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{ inputs.allocation-id }}_${{ github.run_number }}/report/longevity"
+          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${REF}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{ inputs.allocation-id }}_${{ github.run_number }}/report/longevity"
 
   # Send this output back to the caller workflow
   longevity-test-reconnect:
@@ -1117,14 +1208,14 @@ jobs:
 
       - name: Start Longevity test
         run: |
-          run_NLGDebugparams="-Dorg.slf4j.simpleLogger.defaultLogLevel=debug" # e.g. -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
+          run_NLGDebugparams="-XX:+UseZGC -XX:MaxDirectMemorySize=1G -Dorg.slf4j.simpleLogger.defaultLogLevel=debug" # e.g. -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
           nlgpod=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep nlg-network-load-generator | awk '{print $1}')
           n=$(expr ${{ inputs.nlg-accounts }} / 1000)
           NLG_c=32
 
           test=LongevityLoadTest
 
-          NLGargs="-K ECDSA -R -c ${NLG_c} -a ${{ inputs.nlg-accounts }}  -n ${n} -T 1000 -S hot -p 50"
+          NLGargs="-L -K ECDSA -R -c ${NLG_c} -a ${{ inputs.nlg-accounts }}  -n ${n} -T 1000 -S hot -p 50"
 
           echo kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g \
             ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${test} \
@@ -1171,7 +1262,7 @@ jobs:
         run: |
           set +x
           set +e
-          KUBECTL_TIMEOUT=60m kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" \
+          KUBECTL_TIMEOUT=90m kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" \
             exec -it network-node1-0 -c root-container -- bash -c "cd /opt/hgcapp/services-hedera/HapiApp2.0; bash checkValidatorNode.sh 0" 2>&1 | tee "${{ github.workspace }}"/report/reconnect/validator_status.log
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" \
             cp network-node1-0:/opt/hgcapp/services-hedera/HapiApp2.0/data/saved/validation.tmp/validator.log "${{ github.workspace }}"/report/reconnect/validator.log
@@ -1181,12 +1272,14 @@ jobs:
           grep -E 'validation .* is OK' "${{ github.workspace }}"/report/reconnect/validator_status.log
 
       - name: Authenticate to Google Cloud
+        if: ${{ !cancelled() && always() }}
         uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
         with:
           workload_identity_provider: "projects/716789254648/locations/global/workloadIdentityPools/perf-eng-reports-pool/providers/gh-provider"
           service_account: "gh-perf-report-writer@perf-engineering-reports.iam.gserviceaccount.com"
 
       - name: Setup Google Cloud SDK
+        if: ${{ !cancelled() && always() }}
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
 
       - name: Copy logs
@@ -1194,13 +1287,13 @@ jobs:
           nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')"
 
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp ${nlgpod}:/app/client.log "${{ github.workspace }}"/report/reconnect/client.log
-          cat "${{ github.workspace }}"/report/client.log | perl -pne '~s/\b([A-Z_]+[\:]\d+)\b/\n$1\n/g' | perl "${{ github.workspace }}"/.github/workflows/support/citr/collectNLG_Errors.pl > "${{ github.workspace }}"/report/reconnect/client.stats.txt
+          cat "${{ github.workspace }}"/report/client.log | perl -pne '~s/\b([A-Z_]+[\:]\d+)\b/\n$1\n/g; ~s/\b([\w\.]*Exception)\b/\n$1:1\n/g;' | perl "${{ github.workspace }}"/.github/workflows/support/citr/collectNLG_Errors.pl > "${{ github.workspace }}"/report/reconnect/client.stats.txt
           sh "${{ github.workspace }}"/.github/workflows/support/citr/getClusterErrors.sh "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp ${nlgpod}:/app/version_run.txt "${{ github.workspace }}"/report/reconnect/version_run.txt
           cp -r podlog_"${{ needs.acquire-kubernetes-resources.outputs.namespace }}" "${{ github.workspace }}"/report/reconnect/
 
       - name: Publish logs
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && always() }}
         env:
           REF: ${{ inputs.ref }}
         run: |
@@ -1213,8 +1306,8 @@ jobs:
             gcloud --no-user-output-enabled storage ls gs://performance-engineering-reports | grep permanent >/dev/null
           fi
 
-          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${REF}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{needs.acquire-kubernetes-resources.outputs.network-id }}_${{ github.run_number }}/report/reconnect"
-          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${REF}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{needs.acquire-kubernetes-resources.outputs.network-id }}_${{ github.run_number }}/report/reconnect"
+          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${REF}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{ inputs.allocation-id }}_${{ github.run_number }}/report/reconnect"
+          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${REF}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{ inputs.allocation-id }}_${{ github.run_number }}/report/reconnect"
 
   # Send this output back to the caller workflow
   single-day-longevity-test-result:
@@ -1290,7 +1383,7 @@ jobs:
         env:
           REF: ${{ inputs.ref }}
         run: |
-          title="The Single Day Longevity Test workflow failed (SDLT ${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{needs.acquire-kubernetes-resources.outputs.network-id }} - ${REF})"
+          title="The Single Day Longevity Test workflow failed (SDLT ${{ needs.acquire-kubernetes-resources.outputs.namespace }} - ${REF})"
           echo "title=${title}" >> "${GITHUB_OUTPUT}"
           {
             echo 'summary<<EOF'

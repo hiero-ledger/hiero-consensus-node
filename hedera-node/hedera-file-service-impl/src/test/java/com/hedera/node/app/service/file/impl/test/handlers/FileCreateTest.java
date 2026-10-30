@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.file.impl.test.handlers;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.BAD_ENCODING;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_EXPIRATION_TIME;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILES_STATE_ID;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
+import static com.hedera.node.app.spi.fixtures.NestedKeys.nestedKeyList;
+import static com.hedera.node.app.spi.validation.AttributeValidator.MAX_NESTED_KEY_LEVELS;
 import static com.hedera.node.app.spi.validation.ExpiryMeta.NA;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -177,6 +180,16 @@ class FileCreateTest extends FileTestBase {
         assertThat(context.payerKey()).isEqualTo(payerKey);
         given(pureChecksContext.body()).willReturn(txn);
         assertThrowsPreCheck(() -> subject.pureChecks(pureChecksContext), INVALID_EXPIRATION_TIME);
+    }
+
+    @Test
+    @DisplayName("A WACL key nested beyond the depth cap is rejected at pureChecks with BAD_ENCODING")
+    void pureChecksRejectsOverlyDeepKey() {
+        final var deepKeys =
+                KeyList.newBuilder().keys(nestedKeyList(MAX_NESTED_KEY_LEVELS)).build();
+        final var txn = newCreateTxn(deepKeys, expirationTime);
+        given(pureChecksContext.body()).willReturn(txn);
+        assertThrowsPreCheck(() -> subject.pureChecks(pureChecksContext), BAD_ENCODING);
     }
 
     @Test

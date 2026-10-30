@@ -25,14 +25,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 public abstract class RecordFinalizerBase {
     protected static final AccountID ZERO_ACCOUNT_ID =
             AccountID.newBuilder().accountNum(0).build();
 
     /**
-     * Whether system entities are being created (which in particular requires non-zero sum
-     * hbar balance changes).
+     * Whether genesis system entity creation has finished. Until it has, net hbar changes may be
+     * non-zero (genesis mints the initial supply); afterward they must sum to zero.
      */
     protected abstract boolean systemEntitiesCreated();
 
@@ -134,11 +135,15 @@ public abstract class RecordFinalizerBase {
      *
      * @param fungibleChanges the map of {@link EntityIDPair} to {@link Long} representing the changes to the balances
      * @param isCryptoTransfer the {@link IsCryptoTransfer} representing if the transaction is a crypto transfer
+     * @param approvedDebits the (account, token) pairs debited via an allowance; their net debits are externalized
+     *                       with {@code isApproval=true}
      * @return a list of {@link TokenTransferList} representing the changes to the token relations
      */
     @NonNull
     protected List<TokenTransferList> asTokenTransferListFrom(
-            @NonNull final Map<EntityIDPair, Long> fungibleChanges, @NonNull final IsCryptoTransfer isCryptoTransfer) {
+            @NonNull final Map<EntityIDPair, Long> fungibleChanges,
+            @NonNull final IsCryptoTransfer isCryptoTransfer,
+            @NonNull final Set<EntityIDPair> approvedDebits) {
         final var fungibleTokenTransferLists = new ArrayList<TokenTransferList>();
         final var acctAmountsByTokenId = new HashMap<TokenID, HashMap<AccountID, Long>>();
         for (final var fungibleChange : fungibleChanges.entrySet()) {
@@ -157,8 +162,16 @@ public abstract class RecordFinalizerBase {
         for (final var acctAmountsForToken : acctAmountsByTokenId.entrySet()) {
             final var singleTokenTransfers = acctAmountsForToken.getValue();
             if (!singleTokenTransfers.isEmpty()) {
+                final var tokenId = acctAmountsForToken.getKey();
                 final var aaList = asAccountAmounts(singleTokenTransfers);
                 aaList.sort(ACCOUNT_AMOUNT_COMPARATOR);
+                if (!approvedDebits.isEmpty()) {
+                    // The net change loses the original isApproval flag, so restore it on debits that used an allowance
+                    aaList.replaceAll(
+                            aa -> aa.amount() < 0 && approvedDebits.contains(new EntityIDPair(aa.accountID(), tokenId))
+                                    ? aa.copyBuilder().isApproval(true).build()
+                                    : aa);
+                }
                 if (isCryptoTransfer == IsCryptoTransfer.YES) {
                     long netAdjustment = 0L;
                     for (final var aa : aaList) {
@@ -169,7 +182,7 @@ public abstract class RecordFinalizerBase {
                     }
                 }
                 fungibleTokenTransferLists.add(TokenTransferList.newBuilder()
-                        .token(acctAmountsForToken.getKey())
+                        .token(tokenId)
                         .transfers(aaList)
                         .build());
             }
@@ -310,32 +323,28 @@ public abstract class RecordFinalizerBase {
         currentNftChanges.add(nftTransfer);
         nftChanges.put(nftId.tokenId(), currentNftChanges);
 
-        if (!tokenRelChanges.isEmpty()) {
-            final var receiverEntityIdPair = EntityIDPair.newBuilder()
-                    .accountId(receiverAccountId)
-                    .tokenId(nftId.tokenId())
-                    .build();
-            final var senderEntityIdPair = EntityIDPair.newBuilder()
-                    .accountId(senderAccountId)
-                    .tokenId(nftId.tokenId())
-                    .build();
-            if (isMint || isWipeOrBurn || isTreasuryChange) {
-                // The mint amount is not shown in the token transfer list. So for a mint transaction we need not show
-                // the token transfer changes to treasury. If it is a treasury change, we need not show the transfer
-                // changes to treasury
+        final var receiverEntityIdPair = EntityIDPair.newBuilder()
+                .accountId(receiverAccountId)
+                .tokenId(nftId.tokenId())
+                .build();
+        final var senderEntityIdPair = EntityIDPair.newBuilder()
+                .accountId(senderAccountId)
+                .tokenId(nftId.tokenId())
+                .build();
+        if (isTreasuryChange) {
+            // If it is a treasury change, we need not show the transfer changes to treasury
+            tokenRelChanges.remove(receiverEntityIdPair);
+            tokenRelChanges.remove(senderEntityIdPair);
+        } else {
+            // Because the NFT transfer list already contains all information about how the
+            // sender/receiver # of owned NFT counts are changing, we don't repeat this in
+            // the tokenTransferLists; these merge() calls remove the duplicate information.
+            // The 0.0.0 side of a mint, burn or wipe has no token relation, so it is skipped.
+            if (!isWipeOrBurn && tokenRelChanges.merge(receiverEntityIdPair, -1L, Long::sum) == 0) {
                 tokenRelChanges.remove(receiverEntityIdPair);
+            }
+            if (!isMint && tokenRelChanges.merge(senderEntityIdPair, 1L, Long::sum) == 0) {
                 tokenRelChanges.remove(senderEntityIdPair);
-            } else {
-                // Because the NFT transfer list already contains all information about how the
-                // sender/receiver # of owned NFT counts are changing, we don't repeat this in
-                // the tokenTransferLists; these merge() calls remove the duplicate information
-                if (tokenRelChanges.merge(receiverEntityIdPair, -1L, Long::sum) == 0) {
-                    tokenRelChanges.remove(receiverEntityIdPair);
-                }
-                // We don't need to show the mint amounts in token transfer List
-                if (tokenRelChanges.merge(senderEntityIdPair, 1L, Long::sum) == 0) {
-                    tokenRelChanges.remove(senderEntityIdPair);
-                }
             }
         }
     }

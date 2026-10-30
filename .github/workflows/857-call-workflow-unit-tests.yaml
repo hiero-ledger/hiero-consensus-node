@@ -26,3 +26,16 @@ jobs:
 
       - name: Test Templates
         run: bash ./.github/workflows/support/tests/test-gomplate-templates.sh
+
+  test-resolve-ref:
+    name: Validate Ref Resolution
+    runs-on: hl-cn-default-lin-sm
+    steps:
+      - name: Initialize GitHub Job
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+        with:
+          checkout: "true"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Test Ref Resolution
+        run: bash ./.github/workflows/support/tests/test-resolve-ref.sh

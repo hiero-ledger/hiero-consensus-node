@@ -68,6 +68,59 @@ the time constraint. The time limit for MATS is critical because it is also run 
 | MATS - Dependency (Module Info)                        | [809: [CALL] Dependency Module Chk](/.github/workflows/809-call-dependency-module-check.yaml)    | `ref: <commit-sha>`                                                                                                     | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`                                                | build           |
 | MATS - Docker Determinism                              | [822: [CALL] Verify Docker Build](/.github/workflows/822-call-verify-docker-determinism.yaml)    | `ref: <commit-sha>`                                                                                                     | `gradle-cache-username`<br/>`gradle-cache-password`                                                                   | build           |
 | MATS - Gradle Determinism                              | [823: [CALL] Verify Gradle Build](/.github/workflows/823-call-verify-gradle-determinism.yaml)    | `ref: <commit-sha>`                                                                                                     | `gradle-cache-username`<br/>`gradle-cache-password`                                                                   | build           |
+| MATS - EVM Functional Tests                            | [871: [CALL] EVM Functional Tests](/.github/workflows/871-call-evm-functional-tests.yaml)        | `ref: <commit-sha>`<br/>`solo-version`, `mirror-node-version`, `json-rpc-relay-version`: from `.citr-env`               | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`                                                | build           |
+
+### EVM Functional Tests
+
+#### Purpose
+
+Runs the hardhat-based EVM functional suite of [hashgraph/hedera-evm-testing](https://github.com/hashgraph/hedera-evm-testing)
+(`evm-functional-testing/`, mirroring that repository's own `evm-functional-testing.yaml` workflow) through
+[871: [CALL] EVM Functional Tests](/.github/workflows/871-call-evm-functional-tests.yaml): in MATS for PRs with
+smart-contract changes, so EVM and system-contract regressions block the merge, and as a panel of every XTS run, so a
+regression that does get merged blocks promotion. Each shard deploys the consensus node build under test with solo
+(1 consensus node, mirror node and JSON-RPC relay on kind) and runs a group of hardhat suites; the shards follow
+`hedera-evm-testing`'s own `evm-functional-testing.yaml` at the pinned `evm-testing-ref`.
+
+#### Environment
+
+- Runs on `hl-cn-rpc-relay-lin-lg` runners (shared with the XTS JSON-RPC relay panel and the adhoc solo tests), one
+  solo deployment per shard, at most 6 shards in parallel and 90 minutes per shard.
+- **Part of MATS, so it gates `CI Complete`.**
+  [800: [CALL] Exec MATS Tests](/.github/workflows/800-call-mats-tests.yaml) runs it next to the other MATS jobs once
+  the build compiles, with per-shard check runs
+  (`MATS / EVM Functional Tests / Standard (<shard>)`); a failed shard fails MATS and therefore `CI Complete`. To keep
+  its solo deployments (one per shard) on the shared runner pool to the changes it covers, PR checks enable it only
+  for the changes below. MATS on pushes to `main` (300) does not run it, and the MATS dry run (000) runs it only when
+  `enable-evm-functional-tests` is ticked.
+- **Blocking in XTS.** A failed shard fails [815: [CALL] Exec XTS Tests](/.github/workflows/815-call-xts-tests.yaml),
+  so the candidate is not tagged `xts-pass` and is not promoted. XTS runs it on every candidate; the file and label
+  gate below applies to PR checks only.
+- In PR checks it runs only for PRs into the default branch (`main`): `hedera-evm-testing` follows the consensus node's
+  `main`, so on a release branch it would eventually fail for reasons unrelated to the backport. For those PRs it
+  runs only when a non-documentation file under `hedera-node/hedera-smart-contract-service/` or
+  `hedera-node/hedera-smart-contract-service-impl/` changed, when the PR carries the `Run EVM Tests` or `Run Full CI`
+  label, or when the PR has 0 or 100+ changed files, which the classifier treats as full CI (see
+  [classify-changed-files.js](/.github/workflows/support/scripts/classify-changed-files.js)); 600 passes the result
+  to 800 as `enable-evm-functional-tests`. Changes elsewhere that affect EVM behaviour, for example `ContractsConfig`
+  in `hedera-node/hedera-config`, the HTS system-contract handlers in `hedera-node/hedera-token-service-impl`,
+  `hedera-node/configuration/` or `hapi/`, rely on the label. The `Run EVM Tests` label must exist in the repository
+  settings; 600 already re-runs on `labeled` events.
+- Versions: solo, the mirror node and the JSON-RPC relay come from
+  [.citr-env](/.github/workflows/support/citr/.citr-env) (`citr-solo-version`, `citr-mirror-node-version`,
+  `json-rpc-relay-version`) through [855: [CALL] Extract CITR Vars](/.github/workflows/855-call-extract-citr-vars.yaml).
+  On PRs, MATS reads `.citr-env` from the PR's merge commit (800's `citr-vars-ref`), so a PR that is behind its base
+  branch still runs with the base branch's current versions; XTS reads it from the candidate. The suite needs mirror node
+  0.163 or later (for contract results) and relay 0.79.0-rc1 or later (`TX_TYPE_4_ENABLED`, for the HIP-1340 shards),
+  so keep `.citr-env` at or above both. `json-rpc-relay-version` is the relay's git tag (`v`-prefixed, because the
+  relay panel 818 checks it out); 871 strips the `v` before passing it to solo. With `--mirror-node-version`, solo
+  sets every mirror node image tag, web3 included, to that version, so the web3 tag in `hedera-evm-testing`'s
+  [mn-values.yaml](https://github.com/hashgraph/hedera-evm-testing/blob/main/evm-functional-testing/local/mn-values.yaml)
+  has no effect.
+- `hedera-evm-testing` is checked out at `evm-testing-ref`, which defaults to a pinned commit SHA for now because
+  that repository has no tags yet; it will be resolved back to a release tag once that is sorted out. Upstream test
+  changes take effect only when a PR here bumps that default in 871 (neither 800 nor 815 passes it); give that PR the
+  `Run EVM Tests` label so MATS runs the suite against the new revision.
 
 ## XTS
 
@@ -87,8 +140,10 @@ catching regressions without being unnecessarily long-running.
 
 ### Workflows
 
-- XTS is triggered by the [900: [CRON] CITR Ext Test Suite](/.github/workflows/900-cron-extended-test-suite.yaml)
-  workflow.
+- XTS runs in [226: [DISP] CITR XTS Controller](/.github/workflows/226-disp-citr-xts-controller.yaml), which reports
+  the result to Chewie. Every three hours
+  [900: [CRON] CITR Ext Test Suite](/.github/workflows/900-cron-extended-test-suite.yaml) dispatches it for the
+  `xts-candidate` commit; `900` is to be deprecated when Chewie owns workflow dispatching.
 - XTS Dry Run is triggered manually via
   the [001: [USER] CITR XTS Dry Run](/.github/workflows/001-user-dry-run-extended-test-suite.yaml) workflow.
 
@@ -107,9 +162,14 @@ catching regressions without being unnecessarily long-running.
 | SDK TCK Regression Panel                  | [819: [CALL] TCK Regression](/.github/workflows/819-call-tck-regression.yaml)                    | `ref: <commit-sha>`<br/>`solo-version: vars.CITR_SOLO_VERSION`                                                                                                                                                                                                                                                              | `access-token`<br/>`slack-tck-report-webhook`<br/>`slack-detailed-report-webhook`                                                                                                                                                                        | Fetch XTS Candidate<br/>Compile Code |
 | Mirror Node Regression Panel              | [820: [CALL] Mirror Node Regress](/.github/workflows/820-call-mirror-node-regression.yaml)       | `ref: <commit-sha>`<br/>`solo-version: vars.CITR_SOLO_VERSION`<br/>`helm-release-name: mirror or mirror-1`                                                                                                                                                                                                                  | `access-token`<br/>`slack-detailed-report-webhook`                                                                                                                                                                                                       | Fetch XTS Candidate<br/>Compile Code |
 | Block Node Regression Panel               | [821: [CALL] Block Node Regression](/.github/workflows/821-call-block-node-regression.yaml)      | `ref: <commit-sha>`<br/>`solo-version: vars.CITR_SOLO_VERSION`                                                                                                                                                                                                                                                              | `access-token`<br/>`slack-detailed-report-webhook`                                                                                                                                                                                                       | Fetch XTS Candidate<br/>Compile Code |
-| Solo 0.78 to 0.79 Cutover Panel           | [826: [CALL] Solo 078-079 Cutover](/.github/workflows/826-call-solo-078-to-079-cutover.yaml)     | `ref: <commit-sha>`<br/>`solo-version: vars.CITR_SOLO_VERSION`                                                                                                                                                                                                                                                              |                                                                                                                                                                                                                                                          | Fetch XTS Candidate<br/>Compile Code |
+| Solo 3-Stage Block Stream Cutover Panel   | [826: [CALL] Solo 3-Stage Cutover](/.github/workflows/826-call-solo-three-stage-cutover.yaml)    | `ref: <commit-sha>`<br/>`solo-version: vars.CITR_SOLO_VERSION`                                                                                                                                                                                                                                                              |                                                                                                                                                                                                                                                          | Fetch XTS Candidate<br/>Compile Code |
+| EVM Functional Tests Panel                | [871: [CALL] EVM Functional Tests](/.github/workflows/871-call-evm-functional-tests.yaml)        | `ref: <commit-sha>`<br/>`solo-version: <citr-solo-version>`<br/>`mirror-node-version: <citr-mirror-node-version>`<br/>`json-rpc-relay-version: <json-rpc-relay-version>`                                                                                                                                                    | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`                                                                                                                                                                                   | Fetch XTS Candidate<br/>Compile Code |
 
-## SDCT
+
+## SDCT 
+
+> **Note: Stop-gap Design.** The SDCT workflow, Jenkins job contract and test driver described below are a stop-gap
+> design that lets the GA workflow run unattended on perf1. The final design will come in the next CITR phase.
 
 ### Purpose
 
@@ -122,7 +182,8 @@ if the E2E SLA is met. It runs on a large, mainnet-like environment.
 
 - SDCT runs on the **performance** (**perf1**) network that has a Mirror node setup, hosted on GCP and various external
   server providers (**Latitude**, **OVH**, **AWS**, etc.).
-- SDCT is expected to complete around 20 hours after the test suite starts.
+- SDCT is expected to complete around 24 hours after the workflow starts: up to 22 hours of test driver time plus the
+  network reset.
 - SDCT supports artifacts built from any PR, tag, or branch.
 
 ### Workflows
@@ -130,23 +191,158 @@ if the E2E SLA is met. It runs on a large, mainnet-like environment.
 - SDCT is triggered by
   the [223: [DISP] CITR SDCT Controller](/.github/workflows/223-disp-sdct-controller.yaml)
   workflow
-  - The workflow is currently being updated with a fast-fail enhancement
+  - The workflow checks that the build artifact is in GCS (a missing artifact fails the run at once), starts the
+    external `SDCT` Jenkins job with [sdct.sh](/.github/workflows/support/scripts/sdct.sh) and follows it until
+    completion with [sdct-wait.sh](/.github/workflows/support/scripts/sdct-wait.sh)
+  - A full run lasts about a day, longer than the 6 h runner job limit. `canonical-test` ends as soon as the Jenkins
+    build has started; the build is then followed by a chain of jobs of at most 330 minutes each (`follow-1` …
+    `follow-6` through [864: [CALL] CITR SDCT Follow](/.github/workflows/864-call-sdct-follow.yaml)), and the
+    `SDCT Verdict` job decides the result
+  - The workflow selects one of the SDCT tests: `sdct` (the full test, default), `mini` (the same flow in about two
+    hours, for debugging and verification) or `custom` (an ad hoc test); each test is a profile of the test driver
+    maintained with the Jenkins job
+  - Result tags are disabled for every test, the full `sdct` test included: the `Tag SDCT Result` job only logs the
+    `sdct-pass-<build>` / `sdct-fail-<build>` tag and the `git tag` / `git push` commands it would run. Failures of the
+    full `sdct` test raise a Rootly
+    alert (`CITR SDCT` for test failures, `CI/CD Workflows` for infrastructure and setup failures); the optional
+    `skip-rootly` input (default `false`) suppresses the alert for any run. `mini` and `custom`
+    results are reported in the workflow summary and artifact only
+  - Slack reporting to the performance-test-reports channel is handled by the Jenkins job
+  - The full `sdct` test reports its status to Chewie: `running` once the Jenkins build has started, then the final
+    disposition (see [Chewie Reporting](#chewie-reporting))
 
-### Included Tests
+### Jenkins SDCT Job Contract
 
-These tests run sequentially with a Mirror node setup to measure E2E latency performance.
+The workflow relies on the following from the `SDCT` Jenkins job and its test driver.
 
-|                       Test                        | TPS |
-|---------------------------------------------------|-----|
-| Idle load                                         | 10  |
-| Crypto Transfer                                   | 200 |
-| Mixed Tx Types                                    | 2K  |
-| Mixed Tx Types with Smartcontract                 | 10K |
-| Crypto Transfer                                   | 10K |
-| HCS                                               | 10K |
-| HTS                                               | 10K |
-| Mixed Tx Types(1/2 HCS and Crypto/HTS rest)       | 10K |
-| Mixed Tx Types(equal weight among HCS/Crypto/HTS) | 10K |
+| #  | Requirement                                                                                                                         |
+|----|-------------------------------------------------------------------------------------------------------------------------------------|
+| J1 | Accept the build parameters `BUILD_TAG`, `BUILD_COMMIT`, `VERSION_SERVICE`, `VERSION_BLOCKNODE`, `VERSION_MIRRORNODE` (optional: not posted when empty, so the job default applies), `GH_RUN_ID`, `GH_RUN_URL` |
+|    | `BUILD_COMMIT` is the build artifact name used to reset the network; the `VERSION_*` parameters are used for reporting only |
+|    | `BUILD_TAG` is the `build-tag` input on `main` and the `ref` input otherwise (e.g. `ref=v0.77.4`, `build-tag=build-v0.77.4` → `BUILD_TAG=v0.77.4`, `BUILD_COMMIT=build-v0.77.4`) |
+|    | Accept `SDCT_TEST` (`sdct`, `mini`, `custom`) to select the test, defaulting to `sdct`                                        |
+| J2 | Print the console markers below, with a heartbeat at least every 15 minutes                                                         |
+|    | Every stage, including the network reset before the driver starts, prints at least one line every 60 minutes (the reset wait prints every 5 minutes) |
+| J3 | On a fail-fast decision, stop the load, set `currentBuild.result = 'FAILURE'` and finish the build                                  |
+| J4 | Always archive `sdct-result.json` (schema below) in a `post { always { ... } }` block                                               |
+| J5 | Provide a service account token with Job/Read, Job/Build and Job/Cancel on `nightly/sdct`                                           |
+
+Console markers (one per line):
+
+```text
+SDCT-STATUS: RUNNING phase=<setup|test|teardown> test=<i>/<n> name=<name> tps=<tps>
+SDCT-HEARTBEAT: <iso-timestamp>
+SDCT-STATUS: FAIL reason=<text>
+SDCT-STATUS: PASS
+```
+
+`SDCT-STATUS: FAIL` is printed as soon as the driver decides to abort; `SDCT-STATUS: PASS` or `FAIL` is printed once at
+the end of the run.
+
+`sdct-result.json`:
+
+```json
+{
+  "result": "PASS|FAIL|ERROR",
+  "reason": "text, empty on PASS",
+  "note": "optional text",
+  "scaled": { "factor": 0.9, "original": { "max_time_test_s": 72000, "max_time_setup_s": 21600, "end_grace_s": 900 },
+              "scaled": { "max_time_test_s": 64800, "max_time_setup_s": 19440, "end_grace_s": 810 } },
+  "tests": [
+    { "name": "Crypto Transfer", "tps": 10000, "p50_ms": 0, "p99_ms": 0, "sla_met": true, "result": "PASS|FAIL" }
+  ],
+  "started": "<iso-timestamp>",
+  "finished": "<iso-timestamp>"
+}
+```
+
+- `FAIL` is a test failure; `ERROR` is an infrastructure or setup failure (e.g. unclean environment, failed deployment).
+- `p50_ms`, `p99_ms` and `sla_met` are `null` until latency collection is available.
+- `note` (optional) is set when `MAX_TIME_HARD` stopped a healthy NLG in the second half of the load phase; the result
+  is still `PASS`.
+- `scaled` (optional) is set when the NLG pod became Ready after `POD_READY_TIMEOUT` and the driver shortened
+  `MAX_TIME_TEST`, `MAX_TIME_SETUP` and `END_GRACE` by `factor` to fit `MAX_TIME_HARD`.
+
+Workflow behavior:
+
+- **Queue**: the queue item returned by `buildWithParameters` is polled every minute; the run fails as an
+  infrastructure error if the build has not started after 10 minutes or the queue item is cancelled. Only one SDCT
+  build runs at a time, so the queue is empty in practice.
+- **Build**: every 5 minutes the workflow reads the build status and the new console output (`progressiveText`), and
+  echoes the `SDCT-*` markers. The first poll verifies that the build's `GH_RUN_ID` matches the workflow run.
+- **Fail-fast**: after a `SDCT-STATUS: FAIL` marker the workflow waits at most 30 minutes for the build to finish,
+  then reports a failure.
+- **Hang, errors**: no new console output for 60 minutes or 6 consecutive failed polls end the run as an
+  infrastructure error; hung builds are stopped. The workflow has no overall deadline: the test driver bounds the
+  SDCT run time.
+- **Handoff**: `canonical-test` hands the build to `follow-1` as soon as it has started. Each follow job follows the
+  build for at most 330 minutes, then hands it to the next job with the console offset and the fail-fast and hang
+  timers, so markers are not replayed and the timers run on. Six follow jobs cover about 33 hours; a build still
+  running after `follow-6` is stopped as an infrastructure error. The `SDCT Verdict` job
+  takes the result of the last job; if a job did not report (cancelled between jobs, runner lost), it stops the
+  build and reports an infrastructure error.
+- **Cancel**: cancelling the workflow run stops the Jenkins build, or cancels the queue item if the build has not
+  started yet, in whichever job is running at the time.
+- **Serialization**: SDCT runs on the single perf1 network, so runs of the workflow are serialized and the Jenkins job
+  does not run concurrent builds.
+- **Verdict**: Jenkins `SUCCESS` with `sdct-result.json` `PASS` (or no file) passes; `FAILURE`, `UNSTABLE`, a `FAIL`
+  marker or a `FAIL` result fails; an `ERROR` result or anything else (e.g. `ABORTED`) is an infrastructure error and
+  is not tagged. Once `SDCT-STATUS: PASS` is printed (and no `FAIL` marker), the run passes: a later Jenkins
+  failure, hang or unreachable build (e.g. in post-test processing) is reported as a warning in the reason only.
+  `sdct-result.json` and the last 5000 console lines are uploaded as the `sdct-results` artifact by the job that
+  decides the verdict.
+- **Shortened runs**: `POD_READY_TIMEOUT` is a soft limit. The driver keeps waiting for Ready, then scales the test
+  timers by `f = min(1, remaining / (MAX_TIME_TEST + END_GRACE))`. A shortened run that reaches `MAX_TIME_HARD` with a
+  healthy NLG and at least `MIN_LOAD_TEST_TIME` of load is a pass; the step summary shows the `note` and the scaled
+  timers. The console markers are unchanged.
+
+### Mock Runs
+
+Dispatching 223 with `mock=true` runs the same workflow against the `nightly/sdct-mock` Jenkins job instead of
+`nightly/sdct`. The mock job prints a synthetic network reset, ACTIVE check and test driver output (the same
+`SDCT-*` markers and `sdct-result.json`) and never touches perf1.
+
+- `mock-scenario` selects the outcome: `pass` (default), `fail`, `post-pass-failure`, `hang`, `exhaust`, `reset-fail`,
+  `not-active`, `driver-error`
+- The job budget is 6 minutes, with 2 minute polls, a 3 minute fail-fast grace and a 6 minute hang check; follow job
+  `k` hands off at `build start + 6k` minutes, so a scenario runs through all six follow jobs in about 35 minutes
+- Tags, Rootly alerts and Chewie reports are not executed: the jobs log the commands and payloads instead
+- The run name starts with `[MOCK]`
+
+### Chewie Reporting
+
+Only the full `sdct` test reports to Chewie, with
+[report-suite-result.sh](/.github/workflows/support/chewie/report-suite-result.sh), from two jobs on the
+`hl-cn-chewie-lin-sm` runner (the SDCT runner may not reach Chewie):
+
+- `Chewie Report Running`: after `canonical-test`, when the Jenkins build has started
+- `Chewie Report Final`: after `SDCT Verdict` and `Chewie Report Running` (`if: always()`), so the final status is
+  always posted last
+
+Each report gets its own token from `api/v1/auth/token` (a final report can be a day after the start), masks it, and
+posts to `api/v1/suites/results` without retries (Chewie appends results, a retry could record one twice). Only
+`201` is a success; any other answer is a warning with the HTTP status and Chewie's error `code` and `detail`. A Chewie
+failure never fails the run, the verdict, the tag or the Rootly alert. Each run records two results (`running`, then
+the final disposition); `GET api/v1/suites/results?build_number=<n>&suite_type=sdct` shows them.
+
+| Field | Value |
+|---|---|
+| `build_number` | `main` with a `build-NNNNN` tag only: integer, without leading zeros (`build-00401` → `401`) |
+| `branch`, `commit` | any other ref (branch `block-stream-tss`, release tag `v0.78.00-rc.13`, release branch `release/0.79`), or `main` without a `build-NNNNN` tag: `branch` is the `ref` input as typed, `commit` its 40-character head commit (a tag's commit for a tag); no `build_number`. An empty or invalid `branch` or `commit` is logged and left out, the report goes on with the other; with neither it is skipped with a warning |
+| `suite_type` | `"sdct"` |
+| `disposition` | see below |
+| `start_time` | Jenkins build start, RFC3339 UTC, the same in both reports; the decision time if the build never started |
+| `end_time` | `null` while `running`; the decision time in the final report, never before `start_time` (set to `start_time` on clock skew) |
+| `workflow_run_id`, `run_attempt` | the 223 run id and attempt |
+
+| Outcome | Disposition |
+|---|---|
+| Jenkins build started | `running` |
+| `pass` | `passed` |
+| `fail` | `failed` |
+| Infrastructure error, including a Jenkins build that never started | `not_run` (TODO: refine, e.g. `isolated_issue`, once the Chewie semantics are confirmed) |
+| Workflow run cancelled | `cancelled` |
+
 
 ## SDPT
 
@@ -287,8 +483,9 @@ as a longer running version of SDLT to catch potential issues that may not surfa
 
 Kickoff (Chewie allocates the cluster and namespace; the kickoff prints them to the job summary):
 
-- Automated: [224: [DISP] CITR MDLT Controller](/.github/workflows/224-disp-mdlt-controller.yaml) — takes a `build-tag`
-  and verifies the `sdpt-pass-XXXXX` and `sdlt-pass-XXXXX` tags exist before starting.
+- Automated: [224: [DISP] CITR MDLT Controller](/.github/workflows/224-disp-mdlt-controller.yaml) — dispatched by Chewie
+  with a `build-tag` once SDPT and SDLT have both passed for that build. Until Chewie dispatches it, the workflow also
+  checks for the `sdpt-pass-`/`sdlt-pass-` tags and refuses a build without both.
 - Manual: [203: [USER] CITR MDLT Ctrl Adhoc](/.github/workflows/203-user-mdlt-controller-adhoc.yaml).
 - Both call the reusable
   [835: [CALL] CITR Exec MDLT](/.github/workflows/835-call-multi-day-longevity-test.yaml) executor.

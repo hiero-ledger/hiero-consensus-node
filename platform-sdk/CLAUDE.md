@@ -69,6 +69,8 @@ principles as `consensus-*` modules.
 - **Prohibited everywhere — legacy modules being eliminated:** `swirlds-common`, `swirlds-platform-core`
 - **Prohibited everywhere — implementation modules; depend on the API instead:** `swirlds-metrics-impl`, `swirlds-logging-log4j-appender`
 
+**Benchmarks:** the JMH benchmarks in the `src/jmh` source sets of the `swirlds-*` modules follow the [benchmark conventions](docs/consensus-layer/benchmarks/README.md).
+
 ### consensus-* Module Categories
 
 **Supporting modules** — shared data model, helpers, and metrics consumed across the layer. They form a strict DAG; no circular dependencies are permitted. See
@@ -100,11 +102,12 @@ modules, other modules are expected to depend on them; the implementation stays 
 - `consensus-reconnect-impl` — reconnect implementation; moves with `consensus-reconnect`.
 
 **Tooling modules** — not part of the runtime module graph; have relaxed dependency rules:
-- `consensus-gui`, `consensus-network-simulation`, `consensus-otter-docker-app`, `consensus-otter-tests`, `consensus-sloth`
+- `consensus-benchmark-tools`, `consensus-gui`, `consensus-network-simulation`, `consensus-otter-docker-app`, `consensus-otter-tests`, `consensus-sloth`
 
 **Fake modules** — implementations for tools and tests only, never for production code: no-op
 implementations, deliberately insecure cryptographic entities, and the like. May depend on any
-consensus-layer module whose API they fake, plus `consensus-wiring-framework`. Must not depend
-on an impl module.
+supporting, functional-api, functional-impl, or self-contained functional module whose API they fake, plus
+`consensus-wiring-framework`. Must not depend on a structural-transitional module.
+- `consensus-event-creator-instrumented` — test-fixture event creator for Otter instrumented nodes; wraps `consensus-event-creator-impl`.
 - `consensus-fakes` — Transitional: also reached from production paths in
 `swirlds-platform-core` (`PlatformContext.create`, `DefaultSwirldMain`, `ConsensusNoOpModules`).

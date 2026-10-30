@@ -10,6 +10,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import org.hiero.base.crypto.AbstractHashable;
+import org.hiero.base.utility.ListUtils;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 
@@ -83,9 +84,8 @@ public class EventMetadata extends AbstractHashable {
             this.otherParents = allParents;
         }
         this.timeCreated = Objects.requireNonNull(timeCreated, "The timeCreated must not be null");
-        this.transactions = Objects.requireNonNull(transactions, "transactions must not be null").stream()
-                .map(TransactionWrapper::new)
-                .toList();
+        this.transactions = ListUtils.mapToCopy(
+                Objects.requireNonNull(transactions, "transactions must not be null"), TransactionWrapper::new);
         this.birthRound = birthRound;
     }
 
@@ -98,9 +98,7 @@ public class EventMetadata extends AbstractHashable {
         this(
                 NodeId.of(Objects.requireNonNull(gossipEvent.eventCore(), "The eventCore must not be null")
                         .creatorNodeId()),
-                gossipEvent.parents().stream()
-                        .map(EventDescriptorWrapper::fromPbj)
-                        .toList(),
+                ListUtils.mapToCopy(gossipEvent.parents(), EventDescriptorWrapper::fromPbj),
                 HapiUtils.asInstant(Objects.requireNonNull(
                         gossipEvent.eventCore().timeCreated(), "The timeCreated must not be null")),
                 gossipEvent.transactions(),
