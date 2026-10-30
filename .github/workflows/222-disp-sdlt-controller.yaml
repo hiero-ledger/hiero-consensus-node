@@ -140,7 +140,7 @@ jobs:
       instances-aux-qty: ${{ fromJSON(needs.get-sdlt-config.outputs.aux-qty) }}
       instances-aux-cpu: ${{ fromJSON(needs.get-sdlt-config.outputs.aux-cpu-request) }}
       instances-aux-memory-mb: ${{ fromJSON(needs.get-sdlt-config.outputs.aux-mem-request-mb) }}
-      duration-minutes: 1080 # 16 hours + 2 for post-mortem
+      duration-minutes: 1440 # to match adhoc SDLT
       request-timeout: ${{ fromJSON(needs.verify-citr-vars.outputs.request-timeout) }}
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
