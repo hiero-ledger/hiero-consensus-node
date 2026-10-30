@@ -32,8 +32,8 @@ import org.junit.jupiter.api.DynamicTest;
  * failed to reject it at ingest, so the submitting node is charged rather than the named payer.
  *
  * <p>The same scenario inside an atomic batch is also a node due-diligence failure: an honest node rejects
- * the batch at ingest, so letting it reach consensus makes the whole batch the node's fault. The batch still
- * fails with {@code INNER_TRANSACTION_FAILED}, but the submitting node — not the batch payer — is charged.
+ * the batch at ingest, so letting it reach consensus is the node's fault. The batch is rejected before any inner
+ * runs, with the inner's own status, and the submitting node — not the batch payer — is charged for it.
  */
 public class SystemFileUpdateDueDiligenceTest {
     // 0.0.4 is a non-default node; submitting to it bypasses ingest in embedded mode
@@ -99,18 +99,17 @@ public class SystemFileUpdateDueDiligenceTest {
                 cryptoTransfer(tinyBarsFromTo(GENESIS, SUBMITTING_NODE_ACCOUNT_ID, ONE_HBAR)),
                 // Ingest privilege-checks batch inner transactions too, so an honest node rejects this batch
                 // outright; submitting to a non-default node bypasses ingest and lets it reach consensus.
-                // Pre-handle flags the inner update as a node due-diligence failure, which makes the whole batch
-                // the node's fault: the batch fails with INNER_TRANSACTION_FAILED, but the submitting node — not
-                // the batch payer — is charged for it. See #26804.
+                // Pre-handle flags the inner update as a node due-diligence failure, and the batch repeats every
+                // inner's ingest-level checks before running any of them; so the batch is rejected with the inner's
+                // status, no inner runs, and the submitting node — not the batch payer — is charged. See #26804.
                 atomicBatch(fileUpdate(EXCHANGE_RATES)
                                 .contents("Should be impossible!")
                                 .payingWith(nonPrivilegedPayer)
-                                .batchKey(batchOperator)
-                                .hasKnownStatus(AUTHORIZATION_FAILED))
+                                .batchKey(batchOperator))
                         .payingWith(batchOperator)
                         .via(batchTxn)
                         .setNode(SUBMITTING_NODE_ACCOUNT_ID)
-                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                        .hasKnownStatus(AUTHORIZATION_FAILED),
                 validateChargedAccount(batchTxn, SUBMITTING_NODE_ACCOUNT_ID));
     }
 }

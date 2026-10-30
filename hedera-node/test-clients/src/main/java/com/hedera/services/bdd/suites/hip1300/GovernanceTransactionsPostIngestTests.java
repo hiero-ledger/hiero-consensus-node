@@ -141,7 +141,7 @@ public class GovernanceTransactionsPostIngestTests {
                         .hasKnownStatus(TRANSACTION_OVERSIZE));
     }
 
-    @EmbeddedHapiTest(MUST_SKIP_INGEST)
+    @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST, requirement = SYSTEM_ACCOUNT_BALANCES)
     @DisplayName("Governance account cannot submit more than 6KB batch transactions when only the atomic batch is paid")
     public Stream<DynamicTest> governanceAccountCannotSubmitWhenPaidOnlyBatchIfEnabled() {
         final HapiTopicCreate innerTxn = createTopic(TOPIC)
@@ -153,40 +153,45 @@ public class GovernanceTransactionsPostIngestTests {
         return hapiTest(
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 newKeyNamed(SUBMIT_KEY),
-                atomicBatch(innerTxn.hasKnownStatus(TRANSACTION_OVERSIZE))
-                        .setNode(4)
-                        .payingWith(GENESIS)
-                        // in AtomicBatch handle, inner transaction failures are mapped to INNER_TRANSACTION_FAILED
-                        .hasKnownStatus(INNER_TRANSACTION_FAILED));
-    }
-
-    @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST, requirement = SYSTEM_ACCOUNT_BALANCES)
-    @DisplayName("Ingest-decidable inner due-diligence failure in a batch charges the submitting node")
-    public Stream<DynamicTest> batchInnerIngestDecidableFailureChargesNode() {
-        return hapiTest(
-                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                cryptoCreate(RECEIVER),
-                // Fund the submitting node so its network-fee charge is observable.
                 cryptoTransfer(tinyBarsFromTo(GENESIS, SUBMITTING_NODE_ACCOUNT_ID, ONE_HBAR)),
                 balanceSnapshot("nodePre", SUBMITTING_NODE_ACCOUNT_ID),
-                // An unbalanced inner transfer is an ingest-decidable due-diligence failure (INVALID_ACCOUNT_AMOUNTS):
-                // an honest node rejects it at ingest, so its reaching consensus is the node's fault, not the payer's.
-                atomicBatch(cryptoTransfer(tinyBarsFromToWithInvalidAmounts(PAYER, RECEIVER, 1L))
-                                .payingWith(PAYER)
-                                .batchKey(PAYER)
-                                .hasKnownStatus(INVALID_ACCOUNT_AMOUNTS))
+                // An oversized inner is rejected at ingest, so a batch carrying one is rejected before any inner
+                // runs, with the inner's status, and the submitting node is charged for its due diligence
+                atomicBatch(innerTxn)
                         .setNode(SUBMITTING_NODE_ACCOUNT_ID)
-                        .payingWith(PAYER)
-                        // Batch resolution stays INNER_TRANSACTION_FAILED and the inner records its own status
-                        // (AC #3); only the charge for the ingest-decidable inner shifts to the node. See #26615.
-                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                // The submitting node is charged the network fee for the inner's due-diligence failure.
+                        .payingWith(GENESIS)
+                        .hasKnownStatus(TRANSACTION_OVERSIZE),
                 getAccountBalance(SUBMITTING_NODE_ACCOUNT_ID).hasTinyBars(reducedFromSnapshot("nodePre")));
     }
 
     @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST, requirement = SYSTEM_ACCOUNT_BALANCES)
-    @DisplayName("A batch inner drained by an earlier inner fails INSUFFICIENT_PAYER_BALANCE and charges the node")
-    public Stream<DynamicTest> batchInnerDrainedByEarlierInnerChargesNode() {
+    @DisplayName(
+            "A batch with an inner that ingest would reject is rejected with the inner's status and charged to the node")
+    public Stream<DynamicTest> batchWithIngestRejectableInnerIsRejectedUpFrontAndChargedToNode() {
+        return hapiTest(
+                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(RECEIVER),
+                // Fund the submitting node so its network-fee charge is observable
+                cryptoTransfer(tinyBarsFromTo(GENESIS, SUBMITTING_NODE_ACCOUNT_ID, ONE_HBAR)),
+                balanceSnapshot("nodePre", SUBMITTING_NODE_ACCOUNT_ID),
+                balanceSnapshot("payerPre", PAYER),
+                // An unbalanced inner transfer fails pure checks (INVALID_ACCOUNT_AMOUNTS), so an honest node rejects
+                // the batch at ingest. The batch repeats every inner's ingest-level checks before running any of them,
+                // so reaching consensus gets the batch rejected with the inner's status: no inner runs, no inner
+                // record exists, and the node -- not the batch payer -- pays the batch's network fee. See #26804.
+                atomicBatch(cryptoTransfer(tinyBarsFromToWithInvalidAmounts(PAYER, RECEIVER, 1L))
+                                .payingWith(PAYER)
+                                .batchKey(PAYER))
+                        .setNode(SUBMITTING_NODE_ACCOUNT_ID)
+                        .payingWith(PAYER)
+                        .hasKnownStatus(INVALID_ACCOUNT_AMOUNTS),
+                getAccountBalance(SUBMITTING_NODE_ACCOUNT_ID).hasTinyBars(reducedFromSnapshot("nodePre")),
+                getAccountBalance(PAYER).hasTinyBars(unchangedFromSnapshot("payerPre")));
+    }
+
+    @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST, requirement = SYSTEM_ACCOUNT_BALANCES)
+    @DisplayName("A batch inner drained by an earlier inner fails INSUFFICIENT_PAYER_BALANCE without charging the node")
+    public Stream<DynamicTest> batchInnerDrainedByEarlierInnerDoesNotChargeNode() {
         return hapiTest(
                 cryptoCreate(PAYER).balance(ONE_HBAR),
                 cryptoCreate(RECEIVER).balance(0L),
@@ -207,13 +212,15 @@ public class GovernanceTransactionsPostIngestTests {
                         .setNode(SUBMITTING_NODE_ACCOUNT_ID)
                         .payingWith(GENESIS)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                // A payer that cannot cover its network fee at handle is a node due-diligence failure, for an inner
-                // just as for a top-level transaction, so the node is charged. See #26615.
-                getAccountBalance(SUBMITTING_NODE_ACCOUNT_ID).hasTinyBars(reducedFromSnapshot("nodePre")));
+                // Every inner passed its ingest-level checks against the state the batch started from; the second
+                // only fails because the first drained its payer. That is the batch's own doing, so the batch fails
+                // as any user error does and the node is not charged for it. See #26804.
+                getAccountBalance(SUBMITTING_NODE_ACCOUNT_ID).hasTinyBars(unchangedFromSnapshot("nodePre")));
     }
 
     @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST, requirement = SYSTEM_ACCOUNT_BALANCES)
-    @DisplayName("A batch inner paid by a deleted account fails PAYER_ACCOUNT_DELETED and charges the node")
+    @DisplayName(
+            "A batch inner paid by a deleted account is rejected with PAYER_ACCOUNT_DELETED and charged to the node")
     public Stream<DynamicTest> batchInnerWithDeletedPayerChargesNode() {
         final var deletedPayer = "deletedPayer";
         return hapiTest(
@@ -223,22 +230,23 @@ public class GovernanceTransactionsPostIngestTests {
                 cryptoDelete(deletedPayer).transfer(RECEIVER),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, SUBMITTING_NODE_ACCOUNT_ID, ONE_HBAR)),
                 balanceSnapshot("nodePre", SUBMITTING_NODE_ACCOUNT_ID),
+                balanceSnapshot("payerPre", PAYER),
                 // An honest node rejects an inner whose payer is already deleted at ingest; submitting it anyway must
                 // cost the node, or a node could get such inners handled for free by wrapping them in a batch.
                 atomicBatch(cryptoTransfer(tinyBarsFromTo(PAYER, RECEIVER, 1))
                                 .payingWith(deletedPayer)
                                 .signedBy(deletedPayer, PAYER)
-                                .batchKey(PAYER)
-                                .hasKnownStatus(PAYER_ACCOUNT_DELETED))
+                                .batchKey(PAYER))
                         .setNode(SUBMITTING_NODE_ACCOUNT_ID)
                         .payingWith(PAYER)
-                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                getAccountBalance(SUBMITTING_NODE_ACCOUNT_ID).hasTinyBars(reducedFromSnapshot("nodePre")));
+                        .hasKnownStatus(PAYER_ACCOUNT_DELETED),
+                getAccountBalance(SUBMITTING_NODE_ACCOUNT_ID).hasTinyBars(reducedFromSnapshot("nodePre")),
+                getAccountBalance(PAYER).hasTinyBars(unchangedFromSnapshot("payerPre")));
     }
 
     @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST, requirement = SYSTEM_ACCOUNT_BALANCES)
-    @DisplayName("A batch inner node due-diligence failure charges the whole batch to the node, sparing every payer")
-    public Stream<DynamicTest> batchInnerNodeDueDiligenceFailureChargesWholeBatchToNode() {
+    @DisplayName("A batch rejected for a later inner runs no earlier inner and spares every payer")
+    public Stream<DynamicTest> batchRejectedForLaterInnerRunsNoEarlierInnerAndSparesEveryPayer() {
         final var innerPayer = "innerPayer";
         final var batchPayer = "batchPayer";
         return hapiTest(
@@ -251,45 +259,25 @@ public class GovernanceTransactionsPostIngestTests {
                 balanceSnapshot("innerPayerPre", innerPayer),
                 balanceSnapshot("batchPayerPre", batchPayer),
                 atomicBatch(
-                                // Inner #1 is a valid, fee-bearing op paid by innerPayer; it would normally charge
-                                // innerPayer, but the batch rolls back and the whole batch becomes the node's fault.
+                                // Inner #1 is a valid, fee-bearing op paid by innerPayer; it never runs, because
+                                // the batch is rejected for inner #2 before any inner runs
                                 createTopic(TOPIC)
                                         .submitKeyName(SUBMIT_KEY)
                                         .payingWith(innerPayer)
                                         .batchKey(batchPayer),
-                                // Inner #2 is an ingest-decidable node due-diligence failure (INVALID_ACCOUNT_AMOUNTS).
+                                // Inner #2 fails pure checks (INVALID_ACCOUNT_AMOUNTS), which ingest would have caught
                                 cryptoTransfer(tinyBarsFromToWithInvalidAmounts(innerPayer, RECEIVER, 1L))
                                         .payingWith(innerPayer)
-                                        .batchKey(batchPayer)
-                                        .hasKnownStatus(INVALID_ACCOUNT_AMOUNTS))
+                                        .batchKey(batchPayer))
                         .setNode(SUBMITTING_NODE_ACCOUNT_ID)
                         .payingWith(batchPayer)
-                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                // The submitting node pays for the whole batch: the earlier inner's fee and the batch fee are charged
-                // to the node, not to their payers. See #26615.
+                        .hasKnownStatus(INVALID_ACCOUNT_AMOUNTS),
+                // Only the submitting node pays, and only the batch's network fee; the earlier inner never ran,
+                // so neither its payer (who would have paid the topic creation) nor the batch payer is charged.
+                // See #26804.
                 getAccountBalance(SUBMITTING_NODE_ACCOUNT_ID).hasTinyBars(reducedFromSnapshot("nodePre")),
                 getAccountBalance(innerPayer).hasTinyBars(unchangedFromSnapshot("innerPayerPre")),
                 getAccountBalance(batchPayer).hasTinyBars(unchangedFromSnapshot("batchPayerPre")));
-    }
-
-    @EmbeddedHapiTest(MUST_SKIP_INGEST)
-    @DisplayName(
-            "Governance account cannot submit more than 6KB batch transactions when only the inner transaction is paid")
-    public Stream<DynamicTest> governanceAccountCannotSubmitWhenPaidOnlyInnerIfEnabled() {
-        final HapiTopicCreate innerTxn = createTopic(TOPIC)
-                .setNode(4)
-                .submitKeyName(SUBMIT_KEY)
-                .payingWith(GENESIS)
-                .memo(LARGE_SIZE_MEMO)
-                .batchKey(PAYER);
-
-        return hapiTest(
-                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                newKeyNamed(SUBMIT_KEY),
-                atomicBatch(innerTxn.hasKnownStatus(SUCCESS))
-                        .setNode(4)
-                        .payingWith(PAYER)
-                        .hasKnownStatus(TRANSACTION_OVERSIZE));
     }
 
     @EmbeddedHapiTest(MUST_SKIP_INGEST)

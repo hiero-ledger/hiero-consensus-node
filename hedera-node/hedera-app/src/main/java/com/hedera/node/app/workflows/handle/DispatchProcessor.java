@@ -134,7 +134,7 @@ public class DispatchProcessor {
         final var validation = validator.validateFeeChargingScenario(dispatch);
         if (!validation.creatorDidDueDiligence()) {
             if (isClprSubmitBundle(dispatch)) {
-                logger.warn(
+                logger.debug(
                         "[CLPR-DISPATCH] creator due diligence failed; charging creator txId={} status={}",
                         dispatch.txnInfo().transactionID(),
                         validation.errorStatusOrThrow());
@@ -184,7 +184,7 @@ public class DispatchProcessor {
             success = true;
         } catch (HandleException e) {
             if (isClprSubmitBundle(dispatch)) {
-                logger.warn(
+                logger.debug(
                         "[CLPR-DISPATCH] HandleException txId={} status={} message={}",
                         dispatch.txnInfo().transactionID(),
                         e.getStatus(),
@@ -193,19 +193,11 @@ public class DispatchProcessor {
             final var feeCharging = dispatch.feeChargingOrElse(appFeeCharging);
             feeCharging.rollback();
             rollback(e.getStatus(), dispatch.stack(), dispatch.streamBuilder(), dispatch.feeAccumulator());
-            if (e.isNodeDueDiligence()) {
-                // An atomic batch whose inner failed a node due-diligence check is the submitting node's fault, so
-                // the node -- not the batch payer -- pays the batch's fees. Route the charge through the fee-charging
-                // context (like a creator due-diligence charge) so it survives alongside the replayed inner fees,
-                // which e.maybeReplay below redirects to the same node. See #26615.
-                feeCharging.customized(dispatch).charge(dispatch.creatorInfo().accountId(), dispatch.fees(), null);
-            } else {
-                chargePayer(dispatch, validation, false);
-            }
+            chargePayer(dispatch, validation, false);
             e.maybeReplay(feeCharging.customized(dispatch), dispatch.handleContext());
         } catch (ThrottleException e) {
             if (isClprSubmitBundle(dispatch)) {
-                logger.warn(
+                logger.debug(
                         "[CLPR-DISPATCH] throttled txId={} status={} message={}",
                         dispatch.txnInfo().transactionID(),
                         e.getStatus(),
@@ -285,27 +277,15 @@ public class DispatchProcessor {
     private void chargeCreator(@NonNull final Dispatch dispatch, @NonNull final FeeCharging.Validation validation) {
         dispatch.streamBuilder().status(validation.errorStatusOrThrow());
         if (isClprSubmitBundle(dispatch)) {
-            logger.warn(
+            logger.debug(
                     "[CLPR-DISPATCH] charge creator txId={} creator={} networkFee={} status={}",
                     dispatch.txnInfo().transactionID(),
                     dispatch.creatorInfo().accountId(),
                     dispatch.fees().networkFee(),
                     validation.errorStatusOrThrow());
         }
+        // If the transaction is a batch inner transaction, we don't charge the creator
         if (dispatch.category() == BATCH_INNER) {
-            // Ingest re-runs every check on each inner, so a due-diligence failure here is charged to the node, as a
-            // top-level due-diligence failure would be. Route the charge through the (recorded) fee-charging context
-            // rather than the fee accumulator so it is captured by the batch's rollback-and-replay and survives the
-            // batch failing; a direct fee-accumulator charge would be discarded with the inner's savepoint. See #26615.
-            dispatch.feeChargingOrElse(appFeeCharging)
-                    .customized(dispatch)
-                    .charge(
-                            dispatch.creatorInfo().accountId(),
-                            new Fees(0, dispatch.fees().networkFee(), 0),
-                            null);
-            // Flag the inner so the batch handler recognizes the whole batch as the node's fault and charges the node
-            // (not the earlier inner payers or the batch payer) for it. See #26615.
-            dispatch.streamBuilder().nodeDueDiligenceFailure(true);
             return;
         }
         dispatch.feeAccumulator()
@@ -374,7 +354,7 @@ public class DispatchProcessor {
     private boolean alreadyFailed(@NonNull final Dispatch dispatch, @NonNull final FeeCharging.Validation validation) {
         if (validation.maybeErrorStatus() != null) {
             if (isClprSubmitBundle(dispatch)) {
-                logger.warn(
+                logger.debug(
                         "[CLPR-DISPATCH] skipping handler due to validation error txId={} status={}",
                         dispatch.txnInfo().transactionID(),
                         validation.errorStatusOrThrow());
@@ -385,7 +365,7 @@ public class DispatchProcessor {
         final var authorizationFailure = maybeAuthorizationFailure(dispatch);
         if (authorizationFailure != null) {
             if (isClprSubmitBundle(dispatch)) {
-                logger.warn(
+                logger.debug(
                         "[CLPR-DISPATCH] skipping handler due to authorization failure txId={} status={} "
                                 + "category={} payer={}",
                         dispatch.txnInfo().transactionID(),
@@ -398,7 +378,7 @@ public class DispatchProcessor {
         }
         if (failsSignatureVerification(dispatch)) {
             if (isClprSubmitBundle(dispatch)) {
-                logger.warn(
+                logger.debug(
                         "[CLPR-DISPATCH] skipping handler due to signature verification failure txId={} "
                                 + "requiredKeys={} hollowAccounts={}",
                         dispatch.txnInfo().transactionID(),

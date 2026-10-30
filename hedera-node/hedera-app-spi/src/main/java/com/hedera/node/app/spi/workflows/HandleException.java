@@ -25,13 +25,6 @@ public class HandleException extends RuntimeException {
     private final OnRollback onRollback;
 
     /**
-     * Whether this failure is attributable to the submitting node's due diligence. An atomic batch sets this when one
-     * of its inner transactions fails a node due-diligence check, so the dispatch processor charges the whole batch to
-     * the node rather than to the batch payer.
-     */
-    private final boolean nodeDueDiligence;
-
-    /**
      * A callback that can dispatch child transactions while replaying rollback side effects.
      */
     @FunctionalInterface
@@ -52,17 +45,9 @@ public class HandleException extends RuntimeException {
     }
 
     public HandleException(@NonNull final ResponseCodeEnum status, @Nullable final OnRollback onRollback) {
-        this(status, onRollback, false);
-    }
-
-    public HandleException(
-            @NonNull final ResponseCodeEnum status,
-            @Nullable final OnRollback onRollback,
-            final boolean nodeDueDiligence) {
         super(status.protoName());
         this.status = requireNonNull(status);
         this.onRollback = onRollback;
-        this.nodeDueDiligence = nodeDueDiligence;
     }
 
     /**
@@ -95,14 +80,6 @@ public class HandleException extends RuntimeException {
 
     public ResponseCodeEnum getStatus() {
         return status;
-    }
-
-    /**
-     * Returns whether this failure is attributable to the submitting node's due diligence.
-     * @return {@code true} if the node is at fault for this failure; otherwise {@code false}
-     */
-    public boolean isNodeDueDiligence() {
-        return nodeDueDiligence;
     }
 
     public static void validateTrue(final boolean flag, final ResponseCodeEnum errorStatus) {
