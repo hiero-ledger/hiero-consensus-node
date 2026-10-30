@@ -212,6 +212,7 @@ public class ChildDispatchFactory {
                 stack, options.reversingBehavior(), options.category(), options.signedTxCustomizer(), streamMode);
         final var streamBuilder =
                 initializedForChild(childStack.getBaseBuilder(StreamBuilder.class), requireNonNull(childTxnInfo));
+        childStack.configureEvmTraceForNestedDispatch();
         return newChildDispatch(
                 streamBuilder,
                 childTxnInfo,

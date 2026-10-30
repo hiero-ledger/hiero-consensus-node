@@ -82,11 +82,12 @@ public class RootProxyWorldUpdater extends ProxyWorldUpdater {
         final boolean explicitWriteTracing = Boolean.TRUE.equals(
                 context.dispatchMetadata().getMetadataIfPresent(EXPLICIT_WRITE_TRACING, Boolean.class));
         txStorageUsage = evmFrameState.getTxStorageUsage(!explicitWriteTracing);
-        final var writes = txStorageUsage.accesses();
+        final var writes = storageManager.getPersistenceChanges(
+                enhancement, txStorageUsage.accesses(), enhancement.operations().getStore());
         // Validate the effects on size are legal
         final var sizeEffects = summarizeSizeEffects(writes);
         storageSizeValidator.assertValid(
-                sizeEffects.finalSlotsUsed(), enhancement.operations(), sizeEffects.sizeChanges());
+                sizeEffects.finalSlotsUsed(), enhancement.nativeOperations(), sizeEffects.sizeChanges());
         // Charge rent for each increase in storage size
         chargeRentFor(sizeEffects);
         // "Rewrite" the pending storage changes to preserve per-contract linked lists
@@ -165,13 +166,13 @@ public class RootProxyWorldUpdater extends ProxyWorldUpdater {
     private record SizeEffects(long finalSlotsUsed, List<StorageSizeChange> sizeChanges) {}
 
     private SizeEffects summarizeSizeEffects(@NonNull final List<StorageAccesses> allChanges) {
-        // The initial K/V state will still include the slots being "zeroed out"; i.e., removed
+        // Usage counters include previously persisted nested changes, but not this commit's changes.
         var finalSlotsUsed = evmFrameState.getKvStateSize();
         final List<StorageSizeChange> sizeChanges = new ArrayList<>();
         for (final var changes : allChanges) {
             final var sizeChange = changes.summarizeSizeEffects();
             sizeChanges.add(sizeChange);
-            finalSlotsUsed -= sizeChange.numRemovals();
+            finalSlotsUsed += sizeChange.netChange();
         }
         return new SizeEffects(finalSlotsUsed, sizeChanges);
     }

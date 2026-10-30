@@ -64,7 +64,7 @@ public class ContractCreateTranslator implements BlockTransactionPartsTranslator
                                 final var derivedBuilder = resultBuilderFrom(evmResult);
                                 ContractID createdId = null;
                                 if (parts.status() == SUCCESS) {
-                                    if (parts.isTopLevel() || parts.isInnerBatchTxn()) {
+                                    if (parts.hasEnrichedLegacyRecord() || parts.isInnerBatchTxn()) {
                                         // If all sidecars are disabled and there were no logs for a top-level creation,
                                         // for parity we still need to fill in the result with empty logs and implied
                                         // bloom

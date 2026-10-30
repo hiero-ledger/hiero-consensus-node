@@ -28,11 +28,14 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pb
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniBytes;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.verifyNoInteractions;
 
+import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer;
 import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason;
@@ -47,6 +50,8 @@ import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -207,6 +212,49 @@ class HederaEvmTransactionResultTest {
         assertEquals(NONCES, protoResult.contractNonces());
 
         assertEquals(SUCCESS, result.finalStatus());
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void capturesScopeCreationsIncludingEmptyWithoutOptionalTracing(final boolean createsContracts) {
+        givenFrameStack(frame);
+        given(frame.getGasPrice()).willReturn(WEI_NETWORK_GAS_PRICE);
+        given(frame.getOutputData()).willReturn(pbjToTuweniBytes(OUTPUT_DATA));
+        final var createdIds =
+                createsContracts ? List.of(CALLED_CONTRACT_ID, CHILD_CONTRACT_ID) : List.<ContractID>of();
+        given(rootProxyWorldUpdater.getCreatedContractIds()).willReturn(createdIds);
+        final var result = HederaEvmTransactionResult.successFrom(
+                GAS_LIMIT / 2,
+                SENDER_ID,
+                CALLED_CONTRACT_ID,
+                CALLED_CONTRACT_EVM_ADDRESS,
+                frame,
+                tracer,
+                entityIdFactory);
+
+        final var evmResult = result.asEvmTxResultOf(null, rootProxyWorldUpdater, null, null);
+
+        assertTrue(evmResult.hasCreatedContractIds());
+        assertEquals(createdIds, evmResult.createdContractIdsOrThrow().contractIds());
+        verifyNoInteractions(tracer);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void unsuccessfulExecutionDoesNotCaptureCreations(final boolean reverts) {
+        givenFrameWithoutSidecars();
+        given(frame.getGasPrice()).willReturn(WEI_NETWORK_GAS_PRICE);
+        if (reverts) {
+            given(frame.getRevertReason()).willReturn(Optional.of(SOME_REVERT_REASON));
+        } else {
+            given(frame.getExceptionalHaltReason()).willReturn(Optional.of(ExceptionalHaltReason.INVALID_OPERATION));
+        }
+        final var result = HederaEvmTransactionResult.failureFrom(GAS_LIMIT / 2, SENDER_ID, frame, null, tracer);
+
+        final var evmResult = result.asEvmTxResultOf(null, rootProxyWorldUpdater, null, null);
+
+        assertFalse(evmResult.hasCreatedContractIds());
+        verifyNoInteractions(rootProxyWorldUpdater);
     }
 
     @Test

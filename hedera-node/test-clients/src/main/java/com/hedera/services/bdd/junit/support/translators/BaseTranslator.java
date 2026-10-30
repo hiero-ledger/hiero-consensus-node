@@ -45,9 +45,11 @@ import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.output.MapChangeKey;
 import com.hedera.hapi.block.stream.output.MapUpdateChange;
 import com.hedera.hapi.block.stream.output.StateChange;
+import com.hedera.hapi.block.stream.output.TransactionOutput;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
 import com.hedera.hapi.block.stream.trace.ExecutedInitcode;
+import com.hedera.hapi.block.stream.trace.SlotRead;
 import com.hedera.hapi.block.stream.trace.TraceData;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -502,7 +504,7 @@ public class BaseTranslator {
     }
 
     /**
-     * Adds the created IDs from the given state changes to the provided {@link ContractFunctionResult.Builder}.
+     * Adds the created IDs captured for this EVM scope, falling back to the given state changes when absent.
      *
      * @param resultBuilder the builder to populate with created IDs
      * @param parts         the block transaction data parts
@@ -515,6 +517,9 @@ public class BaseTranslator {
         requireNonNull(resultBuilder);
         requireNonNull(parts);
         requireNonNull(stateChanges);
+        if (addCapturedCreatedIdsTo(resultBuilder, parts)) {
+            return;
+        }
         var createdIds = stateChanges.stream()
                 .filter(change -> change.stateId() == STATE_ID_BYTECODE.protoOrdinal())
                 .filter(StateChange::hasMapUpdate)
@@ -540,6 +545,48 @@ public class BaseTranslator {
                     .toList();
         }
         resultBuilder.createdContractIDs(createdIds);
+    }
+
+    /**
+     * Adds authoritative creation IDs captured at completion of this EVM execution scope, if present.
+     * A present empty list is authoritative: creations from an enclosing or sibling scope must not leak into it.
+     *
+     * @param resultBuilder the legacy result to populate
+     * @param parts the block transaction data parts
+     * @return whether this scope supplied an authoritative list, including an empty one
+     */
+    public boolean addCapturedCreatedIdsTo(
+            @NonNull final ContractFunctionResult.Builder resultBuilder, @NonNull final BlockTransactionParts parts) {
+        requireNonNull(resultBuilder);
+        requireNonNull(parts);
+        if (parts.outputs() == null) {
+            return false;
+        }
+        for (final var output : parts.outputs()) {
+            final var result = evmResultFrom(output);
+            if (result != null && result.hasCreatedContractIds()) {
+                resultBuilder.createdContractIDs(
+                        result.createdContractIdsOrThrow().contractIds());
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static @Nullable EvmTransactionResult evmResultFrom(@NonNull final TransactionOutput output) {
+        if (output.hasContractCall()) {
+            return output.contractCallOrThrow().evmTransactionResult();
+        } else if (output.hasContractCreate()) {
+            return output.contractCreateOrThrow().evmTransactionResult();
+        } else if (output.hasEthereumCall()) {
+            final var ethereumOutput = output.ethereumCallOrThrow();
+            return switch (ethereumOutput.transactionResult().kind()) {
+                case EVM_CALL_TRANSACTION_RESULT -> ethereumOutput.evmCallTransactionResultOrThrow();
+                case EVM_CREATE_TRANSACTION_RESULT -> ethereumOutput.evmCreateTransactionResultOrThrow();
+                case UNSET -> null;
+            };
+        }
+        return null;
     }
 
     /**
@@ -629,7 +676,9 @@ public class BaseTranslator {
         } else {
             receiptBuilder.exchangeRate(activeRates);
         }
-        final boolean followsUserRecord = asInstant(parts.consensusTimestamp()).isAfter(userTimestamp);
+        // Null when the unit's only top-level part is a state signature, e.g. node transactions at a block's end
+        final boolean followsUserRecord =
+                userTimestamp != null && asInstant(parts.consensusTimestamp()).isAfter(userTimestamp);
         if ((!followsUserRecord
                         || parts.transactionIdOrThrow().scheduled()
                         || NODE_TSS_FUNCTIONS.contains(parts.functionality()))
@@ -729,33 +778,38 @@ public class BaseTranslator {
                         if (read.hasIndex()) {
                             final var writtenKey = writes.get(read.indexOrThrow());
                             final var slotKey = new SlotKey(contractId, ByteUtils.leftPad32(writtenKey));
-                            Bytes value = null;
+                            Bytes value = read.hasWrittenValue() ? read.writtenValueOrThrow() : null;
                             for (final var nextScopedEvmTraceData : followingScopedEvmTraces) {
+                                if (value != null) {
+                                    break;
+                                }
                                 final var nextEvmTraceData = nextScopedEvmTraceData.evmTraceDataOrThrow();
                                 final var nextHookId = nextScopedEvmTraceData.hookId();
-                                final Optional<ContractSlotUsage> nextTracedWriteUsage;
+                                final Optional<SlotRead> nextTracedWrite;
                                 if (executingHookId == null
                                         || contractId.contractNumOrThrow() != HTS_HOOKS_CONTRACT_NUM
                                         || executingHookId.equals(nextHookId)) {
-                                    nextTracedWriteUsage = nextEvmTraceData.contractSlotUsages().stream()
+                                    nextTracedWrite = nextEvmTraceData.contractSlotUsages().stream()
                                             .filter(nextUsages -> nextUsages
-                                                            .contractIdOrThrow()
-                                                            .equals(contractId)
-                                                    && writtenKeysFrom(nextUsages, remainingStateChanges).stream()
-                                                            .anyMatch(nextWrite -> nextWrite.equals(writtenKey)))
+                                                    .contractIdOrThrow()
+                                                    .equals(contractId))
+                                            .flatMap(nextUsages -> {
+                                                final var nextWrites =
+                                                        writtenKeysFrom(nextUsages, remainingStateChanges);
+                                                // An implicit list belongs to the entire transactional unit. Only
+                                                // indexed reads identify writes made by this particular execution.
+                                                return nextUsages.slotReads().stream()
+                                                        .filter(SlotRead::hasIndex)
+                                                        .filter(nextRead -> nextWrites
+                                                                .get(nextRead.indexOrThrow())
+                                                                .equals(writtenKey));
+                                            })
                                             .findFirst();
                                 } else {
-                                    nextTracedWriteUsage = Optional.empty();
+                                    nextTracedWrite = Optional.empty();
                                 }
-                                if (nextTracedWriteUsage.isPresent()) {
-                                    final int finalWriteIndex = writtenKeysFrom(
-                                                    nextTracedWriteUsage.get(), remainingStateChanges)
-                                            .indexOf(writtenKey);
-                                    final var nextRead = nextTracedWriteUsage.get().slotReads().stream()
-                                            .filter(r -> r.hasIndex() && r.indexOrThrow() == finalWriteIndex)
-                                            .findFirst()
-                                            .orElseThrow();
-                                    value = nextRead.readValue();
+                                if (nextTracedWrite.isPresent()) {
+                                    value = nextTracedWrite.get().readValue();
                                     break;
                                 }
                             }
@@ -866,7 +920,7 @@ public class BaseTranslator {
         if (slotUsage.hasWrittenSlotKeys()) {
             return slotUsage.writtenSlotKeysOrThrow().keys();
         } else {
-            // There was only one EVM tx in the top-level group, so we can recover written keys from state changes
+            // Implicit indexes reference the transactional unit's non-identical storage changes.
             final List<Bytes> writtenKeys = new LinkedList<>();
             final var contractId = slotUsage.contractIdOrThrow();
             for (final var stateChange : stateChanges) {
