@@ -32,6 +32,7 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.handleAnyRepeatableQueryPayment;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.mutateSingleton;
+import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewContract;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewSingleton;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.getEcdsaPrivateKeyFromSpec;
@@ -62,6 +63,7 @@ import com.hedera.hapi.node.base.SignaturePair;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshot;
 import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshots;
+import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.platform.state.SingletonType;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
@@ -213,7 +215,7 @@ public class RepeatableIntegrationTests {
     }
 
     @RepeatableHapiTest({NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW, NEEDS_STATE_ACCESS})
-    final Stream<DynamicTest> nestedScheduledContractCallCountsStorageSlotsOnce() {
+    final Stream<DynamicTest> nestedScheduledContractCallUpdatesStorageCounts() {
         final var scheduleIdRef = new AtomicReference<ScheduleID>();
         final var slotsBefore = new AtomicLong();
         final var factory = "NoncesExternalization";
@@ -238,13 +240,13 @@ public class RepeatableIntegrationTests {
                                 mirrorAddrWith(spec, scheduleIdRef.get().getScheduleNum()))
                         .gas(2_000_000L)),
                 getScheduleInfo("schedule").isExecuted(),
-                // The scheduled call inserts exactly one storage slot; the nested dispatch must count it once,
-                // not again when the enclosing dispatch commits.
+                // The scheduled call adds exactly one storage slot
                 viewSingleton(
                         EntityIdService.NAME,
                         ENTITY_COUNTS_STATE_ID,
-                        (EntityCounts counts) ->
-                                assertEquals(slotsBefore.get() + 1, counts.numContractStorageSlots())));
+                        (EntityCounts counts) -> assertEquals(slotsBefore.get() + 1, counts.numContractStorageSlots())),
+                // 4 slots from the constructor plus the pushed element
+                viewContract(factory, (Account contract) -> assertEquals(5, contract.contractKvPairsNumber())));
     }
 
     @RepeatableHapiTest(NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW)

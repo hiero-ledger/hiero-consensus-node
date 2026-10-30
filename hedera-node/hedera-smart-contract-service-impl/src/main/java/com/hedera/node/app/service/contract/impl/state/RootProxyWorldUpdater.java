@@ -71,7 +71,8 @@ public class RootProxyWorldUpdater extends ProxyWorldUpdater {
      *     <li>Gets the list of pending storage changes and summarizes their effects on size.</li>
      *     <li>Validates the effects on size are legal.</li>
      *     <li>For each increase in storage size, calculates rent and tries to charge the allocating contract.</li>
-     *     <li>"Rewrites" the pending storage changes to preserve per-contract linked lists.</li>
+     *     <li>"Rewrites" the pending storage changes to preserve per-contract linked lists (outermost execution
+     *     only).</li>
      * </ol>
      *
      * @throws ResourceExhaustedException if the storage size limit is exceeded or rent cannot be paid
@@ -90,10 +91,7 @@ public class RootProxyWorldUpdater extends ProxyWorldUpdater {
                 sizeEffects.finalSlotsUsed(), enhancement.operations(), sizeEffects.sizeChanges());
         // Charge rent for each increase in storage size
         chargeRentFor(sizeEffects);
-        // A nested contract dispatch commits its storage writes into this (enclosing) scope, so the outermost
-        // execution already sees and persists the net effect of the whole transactional unit; persisting again
-        // in a nested dispatch would double-count slots (both the network counter and each contract's kv-pair
-        // count). So only the outermost contract execution rewrites the per-contract linked lists and counts.
+        // Nested executions commit into the enclosing scope, whose outermost execution persists their changes
         if (!ContractExecutionDepth.isNested()) {
             storageManager.persistChanges(
                     enhancement,

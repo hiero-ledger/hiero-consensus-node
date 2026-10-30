@@ -10,10 +10,11 @@ import org.junit.jupiter.api.Test;
 class ContractExecutionDepthTest {
     @AfterEach
     void tearDown() {
-        // Leave the thread-local clean for other tests sharing this JVM
+        // Reset the depth so a failed test can't affect other tests
         while (ContractExecutionDepth.isNested()) {
             ContractExecutionDepth.exit();
         }
+        ContractExecutionDepth.exit();
     }
 
     @Test
@@ -44,7 +45,7 @@ class ContractExecutionDepthTest {
     void depthResetsAfterBalancedExitAndExtraExitIsHarmless() {
         ContractExecutionDepth.enter();
         ContractExecutionDepth.exit();
-        // An extra exit must not drive the depth negative or otherwise corrupt the next execution
+        // An extra exit must leave the depth at zero
         ContractExecutionDepth.exit();
         ContractExecutionDepth.enter();
         assertThat(ContractExecutionDepth.isNested()).isFalse();
