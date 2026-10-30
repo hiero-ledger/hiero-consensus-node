@@ -326,6 +326,12 @@ jobs:
               env:
                 SPRING_PROFILES_ACTIVE: 'blocknode'
                 HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_ENDPOINTS_0_HOST: "block-node-1.${{ env.SOLO_NAMESPACE }}.svc.cluster.local"
+              # Solo caps the importer at 220Mi, which was OOMKilled on block 0 once it carried the genesis WRAPS proof
+              resources:
+                requests:
+                  memory: 512Mi
+                limits:
+                  memory: 1Gi
           EOF
           fi
 
@@ -368,7 +374,8 @@ jobs:
       - name: Solo Nodes deployment (BN/CN/MN)
         timeout-minutes: 15
         run: |
-          solo block node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --release-tag "${{ env.CN_LATEST_TAG }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --chart-version "${{ env.BLOCK_NODE_TAG }}"
+          # The BN is added before the CN, so Solo can't see TSS is on; without the overlay its 24m heap OOMs on the genesis WRAPS proof
+          solo block node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --release-tag "${{ env.CN_LATEST_TAG }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --chart-version "${{ env.BLOCK_NODE_TAG }}" --block-node-tss-overlay
           solo keys consensus generate --gossip-keys --tls-keys -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
           SOLO_PROPS_ARG=""
           [[ -f ./application.properties ]] && SOLO_PROPS_ARG="--application-properties ./application.properties"
