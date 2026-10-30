@@ -722,13 +722,14 @@ class AsyncOutputStreamTest {
         @DisplayName("Producers keep waiting past the timeout while the writer makes progress")
         void sendAsyncWaitsWhileWriterMakesProgress()
                 throws InterruptedException, BrokenBarrierException, ParallelExecutionException {
-            // A slow writer and more producers than slots, so most calls wait much longer than the timeout. The
-            // writer keeps taking messages, so no call may time out.
-            final int producers = 8;
-            final int perProducer = 3;
+            // Many more producers than slots, so calls wait about producers × writeMillis, longer than the timeout.
+            // The writer takes a message every writeMillis, a tenth of the timeout, so no call may time out, even if
+            // the writer thread is delayed on a busy machine. Such delays only make calls wait longer.
+            final int producers = 16;
+            final int perProducer = 5;
             final int bufferSize = 2;
             final Duration timeout = Duration.ofMillis(100);
-            final long writeMillis = 40;
+            final long writeMillis = 10;
 
             try (final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "test")) {
                 final AsyncOutputStream out =
