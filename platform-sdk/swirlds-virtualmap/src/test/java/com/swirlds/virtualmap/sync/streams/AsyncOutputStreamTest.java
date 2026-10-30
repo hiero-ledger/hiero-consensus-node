@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -24,6 +25,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.virtualmap.sync.MerkleSynchronizationException;
 import com.swirlds.virtualmap.test.fixtures.sync.BlockingOutputStream;
+import java.io.BufferedOutputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
@@ -41,6 +43,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.base.concurrent.pool.ParallelExecutionException;
 import org.hiero.base.concurrent.pool.StandardWorkGroup;
@@ -237,13 +240,9 @@ class AsyncOutputStreamTest {
                 producer.setDaemon(true);
                 producer.start();
 
-                // Producer must be blocked by backpressure: at most queue size + one in-flight.
-                MILLISECONDS.sleep(150);
-                final int snapshot = messagesSent.get();
-                assertTrue(producer.isAlive(), "Producer thread should be alive");
-                // one message polled from queue and blocked on writing to output while bufferSize messages sit in the
-                // queue
-                assertEquals(bufferSize + 1, snapshot, "producer should be blocked by backpressure");
+                // Producer must be blocked by backpressure: one message polled from the queue and blocked on writing
+                // to output while bufferSize messages sit in the queue.
+                assertBlockedByBackpressureAt(bufferSize + 1, messagesSent, producer);
 
                 // Release the writer; all messages should drain.
                 blockingOut.unlock();
@@ -254,6 +253,51 @@ class AsyncOutputStreamTest {
 
                 assertEquals(AsyncOutputStream.Status.DONE, out.getStatus());
 
+                verifyOrderedMessages(count, byteOut.toByteArray());
+            }
+        }
+
+        @Test
+        @DisplayName("Non-power-of-two bufferSize is rounded up: backpressure kicks in at the next power of two")
+        void backpressureWithNonPowerOfTwoBufferSize()
+                throws IOException, InterruptedException, ParallelExecutionException {
+            final int bufferSize = 5;
+            final int capacity = 8; // next power of two >= bufferSize
+            final int count = 100;
+            final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
+            final BlockingOutputStream blockingOut = new BlockingOutputStream(byteOut);
+            blockingOut.lock();
+
+            try (final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "test")) {
+                final AsyncOutputStream out = new AsyncOutputStream(
+                        new DataOutputStream(blockingOut), bufferSize, DEFAULT_FLUSH_INTERVAL, DEFAULT_TIMEOUT);
+                out.start(workGroup);
+
+                final AtomicInteger messagesSent = new AtomicInteger(0);
+                final Thread producer = new Thread(() -> {
+                    for (int i = 0; i < count; i++) {
+                        try {
+                            out.sendAsync(serializeLong(i));
+                            messagesSent.incrementAndGet();
+                        } catch (final InterruptedException ex) {
+                            Thread.currentThread().interrupt();
+                            break;
+                        }
+                    }
+                });
+                producer.setDaemon(true);
+                producer.start();
+
+                // One message is held by the blocked writer, `capacity` messages sit in the queue.
+                assertBlockedByBackpressureAt(capacity + 1, messagesSent, producer);
+
+                blockingOut.unlock();
+                assertEventuallyEquals(count, messagesSent::get, Duration.ofSeconds(5), "all messages should be sent");
+
+                out.done();
+                workGroup.join();
+
+                assertEquals(AsyncOutputStream.Status.DONE, out.getStatus());
                 verifyOrderedMessages(count, byteOut.toByteArray());
             }
         }
@@ -338,6 +382,32 @@ class AsyncOutputStreamTest {
                         () -> flushCount.get() >= 1,
                         flushInterval.plus(Duration.ofMillis(100)),
                         "writer should flush within a few flushInterval cycles");
+
+                out.done();
+                workGroup.join();
+            }
+        }
+
+        @Test
+        @DisplayName("Buffered data is flushed as soon as the queue runs dry, not only after flushInterval")
+        void flushWhenQueueRunsDry() throws InterruptedException, ParallelExecutionException {
+            final ByteArrayOutputStream sink = new ByteArrayOutputStream();
+            // Buffered like a socket stream in production: bytes reach the sink only when flushed.
+            final DataOutputStream buffered = new DataOutputStream(new BufferedOutputStream(sink, 64 * 1024));
+            // Far longer than the test: data can only arrive through the flush-when-idle path.
+            final Duration flushInterval = Duration.ofMinutes(10);
+
+            try (final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "test")) {
+                final AsyncOutputStream out =
+                        new AsyncOutputStream(buffered, DEFAULT_QUEUE_SIZE, flushInterval, DEFAULT_TIMEOUT);
+                out.start(workGroup);
+
+                out.sendAsync(serializeLong(42));
+                assertEventuallyEquals(
+                        Integer.BYTES + Long.BYTES,
+                        sink::size,
+                        Duration.ofSeconds(2),
+                        "the frame should be flushed once the queue is empty");
 
                 out.done();
                 workGroup.join();
@@ -513,6 +583,210 @@ class AsyncOutputStreamTest {
                 workGroup.join();
 
                 assertEquals(AsyncOutputStream.Status.DONE, out.getStatus(), "Stream should not be alive");
+            }
+        }
+
+        @Test
+        @DisplayName(
+                "sendAsync on an already interrupted thread throws InterruptedException even if the queue has room")
+        void sendAsyncPreInterruptedThrows() throws InterruptedException, ParallelExecutionException {
+            final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
+
+            try (final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "test")) {
+                final AsyncOutputStream out = newOut(new DataOutputStream(byteOut));
+                out.start(workGroup);
+
+                Thread.currentThread().interrupt();
+                try {
+                    assertThrows(InterruptedException.class, () -> out.sendAsync(serializeLong(1)));
+                } finally {
+                    // sendAsync clears the flag when it throws; make sure it never leaks into other tests
+                    Thread.interrupted();
+                }
+                assertEquals(0, out.getQueueSize(), "nothing should have been enqueued");
+
+                out.done();
+                workGroup.join();
+            }
+        }
+
+        @Test
+        @DisplayName("Interrupted writer exits without draining or writing the termination marker")
+        void interruptedWriterWritesNoTerminator() throws InterruptedException, ParallelExecutionException {
+            final ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
+            final AtomicReference<Thread> writerThread = new AtomicReference<>();
+            final OutputStream capturingOut = new OutputStream() {
+                @Override
+                public void write(final int b) {
+                    writerThread.compareAndSet(null, Thread.currentThread());
+                    byteOut.write(b);
+                }
+
+                @Override
+                public void write(final byte[] b, final int off, final int len) {
+                    writerThread.compareAndSet(null, Thread.currentThread());
+                    byteOut.write(b, off, len);
+                }
+            };
+
+            try (final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "test")) {
+                final AsyncOutputStream out = newOut(new DataOutputStream(capturingOut));
+                out.start(workGroup);
+
+                out.sendAsync(serializeLong(7));
+                assertEventuallyTrue(
+                        () -> writerThread.get() != null, Duration.ofSeconds(5), "writer should write the frame");
+                // Wait until the frame is complete (length prefix + payload) before interrupting.
+                assertEventuallyEquals(
+                        Integer.BYTES + Long.BYTES, byteOut::size, Duration.ofSeconds(5), "frame should be written");
+
+                writerThread.get().interrupt();
+                workGroup.join();
+
+                assertEquals(AsyncOutputStream.Status.DONE, out.getStatus(), "status must reach DONE");
+                assertEquals(
+                        Integer.BYTES + Long.BYTES,
+                        byteOut.size(),
+                        "only the already-written frame, no -1 terminator, may be present");
+            }
+        }
+
+        @Test
+        @DisplayName("Producer waiting on a full buffer fails fast when the writer dies")
+        void sendAsyncFailsFastWhenWriterDies() throws InterruptedException {
+            final CountDownLatch writeStarted = new CountDownLatch(1);
+            final CountDownLatch failWrite = new CountDownLatch(1);
+            final OutputStream failingOut = new OutputStream() {
+                @Override
+                public void write(final int b) throws IOException {
+                    writeStarted.countDown();
+                    try {
+                        failWrite.await();
+                    } catch (final InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                    throw new IOException("simulated write failure");
+                }
+            };
+            final int bufferSize = 2;
+            // Much longer than the test may take: a passing test proves the producer did not wait for it.
+            final Duration timeout = Duration.ofSeconds(60);
+
+            try (final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "test")) {
+                final AsyncOutputStream out = new AsyncOutputStream(
+                        new DataOutputStream(failingOut), bufferSize, DEFAULT_FLUSH_INTERVAL, timeout);
+                out.start(workGroup);
+
+                // The writer takes the first message and blocks inside write; the next two fill the buffer.
+                out.sendAsync(serializeLong(0));
+                assertTrue(writeStarted.await(5, TimeUnit.SECONDS), "writer should start writing");
+                out.sendAsync(serializeLong(1));
+                out.sendAsync(serializeLong(2));
+
+                final AtomicReference<Throwable> outcome = new AtomicReference<>();
+                final Thread producer = new Thread(() -> {
+                    try {
+                        out.sendAsync(serializeLong(3));
+                    } catch (final Throwable t) {
+                        outcome.set(t);
+                    }
+                });
+                producer.setDaemon(true);
+                producer.start();
+                // Let the producer reach the full-buffer wait before the writer fails.
+                MILLISECONDS.sleep(100);
+                assertTrue(producer.isAlive(), "producer should be waiting for space");
+
+                final long failedAtNanos = System.nanoTime();
+                failWrite.countDown();
+                producer.join(5_000);
+                final long waitedMillis = (System.nanoTime() - failedAtNanos) / 1_000_000;
+
+                assertFalse(producer.isAlive(), "producer should give up once the writer is gone");
+                assertInstanceOf(
+                        IllegalStateException.class,
+                        outcome.get(),
+                        "producer should fail with IllegalStateException, got: " + outcome.get());
+                // The producer's exception may reach the work group before the writer's, so it carries the cause
+                assertInstanceOf(
+                        IOException.class, outcome.get().getCause(), "the writer's I/O error should be the cause");
+                assertEquals("simulated write failure", outcome.get().getCause().getMessage());
+                assertTrue(waitedMillis < 5_000, "producer should not wait for the timeout, waited " + waitedMillis);
+                assertEquals(AsyncOutputStream.Status.DONE, out.getStatus());
+
+                assertThrows(ParallelExecutionException.class, workGroup::join, "writer I/O error is reported");
+            }
+        }
+
+        @Test
+        @DisplayName("Producers keep waiting past the timeout while the writer makes progress")
+        void sendAsyncWaitsWhileWriterMakesProgress()
+                throws InterruptedException, BrokenBarrierException, ParallelExecutionException {
+            // Many more producers than slots, so calls wait about producers × writeMillis, longer than the timeout.
+            // The writer takes a message every writeMillis, a tenth of the timeout, so no call may time out, even if
+            // the writer thread is delayed on a busy machine. Such delays only make calls wait longer.
+            final int producers = 16;
+            final int perProducer = 5;
+            final int bufferSize = 2;
+            final Duration timeout = Duration.ofMillis(100);
+            final long writeMillis = 10;
+
+            try (final StandardWorkGroup workGroup = new StandardWorkGroup(getStaticThreadManager(), "test")) {
+                final AsyncOutputStream out =
+                        new AsyncOutputStream(
+                                new DataOutputStream(new ByteArrayOutputStream()),
+                                bufferSize,
+                                DEFAULT_FLUSH_INTERVAL,
+                                timeout) {
+                            @Override
+                            protected void writeMessage(final byte[] messageBytes) throws IOException {
+                                try {
+                                    MILLISECONDS.sleep(writeMillis);
+                                } catch (final InterruptedException e) {
+                                    Thread.currentThread().interrupt();
+                                    throw new IOException(e);
+                                }
+                                super.writeMessage(messageBytes);
+                            }
+                        };
+                out.start(workGroup);
+
+                final CyclicBarrier start = new CyclicBarrier(producers + 1);
+                final AtomicReference<Throwable> failure = new AtomicReference<>();
+                final AtomicLong maxWaitNanos = new AtomicLong();
+                final List<Thread> threads = new ArrayList<>();
+                for (int p = 0; p < producers; p++) {
+                    final int producer = p;
+                    final Thread thread = new Thread(() -> {
+                        try {
+                            start.await();
+                            for (int i = 0; i < perProducer; i++) {
+                                final long sendStart = System.nanoTime();
+                                out.sendAsync(serializeLong(producer * 1_000L + i));
+                                maxWaitNanos.accumulateAndGet(System.nanoTime() - sendStart, Math::max);
+                            }
+                        } catch (final Throwable t) {
+                            failure.compareAndSet(null, t);
+                        }
+                    });
+                    thread.setDaemon(true);
+                    threads.add(thread);
+                    thread.start();
+                }
+                start.await();
+                for (final Thread thread : threads) {
+                    thread.join(30_000);
+                    assertFalse(thread.isAlive(), "producer should finish");
+                }
+
+                assertNull(failure.get(), "no call should fail while the writer makes progress");
+                assertTrue(
+                        maxWaitNanos.get() > timeout.toNanos(),
+                        "the test must make some call wait longer than the timeout, max wait was "
+                                + Duration.ofNanos(maxWaitNanos.get()));
+
+                out.done();
+                workGroup.join();
             }
         }
 
@@ -735,6 +1009,17 @@ class AsyncOutputStreamTest {
     // ---------------------------------------------------------------------
     // Helpers
     // ---------------------------------------------------------------------
+
+    /// Waits until the producer has sent exactly `limit` messages, then checks that it stays there. Waiting for the
+    /// limit (instead of sleeping a fixed time) keeps the test reliable on slow machines.
+    private static void assertBlockedByBackpressureAt(
+            final int limit, final AtomicInteger messagesSent, final Thread producer) throws InterruptedException {
+        assertEventuallyEquals(
+                limit, messagesSent::get, Duration.ofSeconds(5), "producer should reach the backpressure limit");
+        MILLISECONDS.sleep(100);
+        assertTrue(producer.isAlive(), "Producer thread should be alive");
+        assertEquals(limit, messagesSent.get(), "producer should be blocked by backpressure");
+    }
 
     private static AsyncOutputStream newOut(final DataOutputStream out) {
         return new AsyncOutputStream(out, DEFAULT_QUEUE_SIZE, DEFAULT_FLUSH_INTERVAL, DEFAULT_TIMEOUT);
