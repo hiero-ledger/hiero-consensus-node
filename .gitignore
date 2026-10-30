@@ -1094,12 +1094,6 @@ hedera-state-validator/slack_report.json
 hedera-state-validator/validator.log
 hedera-state-validator/state-analysis.log
 
-### Snyk Files
-.dccache
-snyk-code.html
-snyk-code.json
-snyk/
-
 ### AI Helpers Code
 /.codex/
 **/ai.local
