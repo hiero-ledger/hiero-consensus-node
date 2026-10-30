@@ -153,6 +153,22 @@ class DispatchValidatorTest {
     }
 
     @Test
+    void hollowUserWithoutAliasSigIsCreatorError() {
+        givenCreatorInfo();
+        givenUserDispatch();
+        given(dispatch.txnInfo()).willReturn(TXN_INFO);
+        given(dispatch.preHandleResult()).willReturn(SUCCESSFUL_PREHANDLE);
+        givenPayer(payer -> payer.tinybarBalance(1L).alias(HOLLOW_ALIAS).key(IMMUTABILITY_SENTINEL_KEY));
+        given(dispatch.keyVerifier()).willReturn(keyVerifier);
+        given(keyVerifier.verificationFor(HOLLOW_ALIAS)).willReturn(FAILED_VERIFICATION);
+
+        final var report = subject.validateFeeChargingScenario(dispatch);
+
+        assertEquals(newCreatorError(dispatch.creatorInfo().accountId(), INVALID_PAYER_SIGNATURE), report);
+        verifyNoInteractions(solvencyPreCheck);
+    }
+
+    @Test
     void invalidPayerSigIsCreatorError() {
         givenCreatorInfo();
         givenUserDispatch();
@@ -190,15 +206,16 @@ class DispatchValidatorTest {
     }
 
     @Test
-    void hollowUserDoesNotRequireSig() throws PreCheckException {
+    void hollowUserWithValidAliasSigIsAccepted() throws PreCheckException {
         givenCreatorInfo();
         givenUserDispatch();
         givenNonDuplicate();
         givenSolvencyCheckSetup();
         given(dispatch.preHandleResult()).willReturn(SUCCESSFUL_PREHANDLE);
-        final var payerAccount = givenPayer(payer -> payer.tinybarBalance(1L)
-                .alias(Bytes.fromHex("abcdabcdabcdabcdabcdabcdabcdabcdabcdabcd"))
-                .key(IMMUTABILITY_SENTINEL_KEY));
+        final var payerAccount =
+                givenPayer(payer -> payer.tinybarBalance(1L).alias(HOLLOW_ALIAS).key(IMMUTABILITY_SENTINEL_KEY));
+        given(dispatch.keyVerifier()).willReturn(keyVerifier);
+        given(keyVerifier.verificationFor(HOLLOW_ALIAS)).willReturn(PASSED_VERIFICATION);
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
 
         final var report = subject.validateFeeChargingScenario(dispatch);
@@ -632,6 +649,8 @@ class DispatchValidatorTest {
         given(readableAccountStore.getAccountById(payerId)).willReturn(payerAccount);
         return payerAccount;
     }
+
+    private static final Bytes HOLLOW_ALIAS = Bytes.fromHex("abcdabcdabcdabcdabcdabcdabcdabcdabcdabcd");
 
     private static final PreHandleResult INVALID_PAYER_SIG_PREHANDLE = new PreHandleResult(
             null,
