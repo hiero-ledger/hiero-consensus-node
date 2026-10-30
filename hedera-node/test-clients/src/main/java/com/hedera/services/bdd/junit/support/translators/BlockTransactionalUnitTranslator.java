@@ -2,8 +2,16 @@
 package com.hedera.services.bdd.junit.support.translators;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_CLOSE_CHANNEL;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CHANNEL;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CONNECTOR;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_DEREGISTER_CONNECTOR;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_ENDPOINT_PUBLICATION;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_MAINTENANCE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_REGISTER_CHANNEL;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_REGISTER_CONNECTOR;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SUBMIT_BUNDLE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_UPDATE_LEDGER_CONFIGURATION;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_DELETE_TOPIC;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE;
@@ -203,8 +211,30 @@ public class BlockTransactionalUnitTranslator {
                     put(LEDGER_ID_PUBLICATION, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(MIGRATION_ROOT_HASH_VOTE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(CLPR_MAINTENANCE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
+                    put(CLPR_UPDATE_LEDGER_CONFIGURATION, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
+                    put(CLPR_REGISTER_CHANNEL, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
+                    put(CLPR_COMPLETE_CHANNEL, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
+                    put(CLPR_CLOSE_CHANNEL, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
+                    put(CLPR_SUBMIT_BUNDLE, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
+                    put(CLPR_REGISTER_CONNECTOR, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
+                    put(CLPR_DEREGISTER_CONNECTOR, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
+                    put(CLPR_COMPLETE_CONNECTOR, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                 }
             };
+
+    private static final Set<HederaFunctionality> CLPR_FUNCTIONALITIES = EnumSet.of(
+            CLPR_UPDATE_LEDGER_CONFIGURATION,
+            CLPR_REGISTER_CHANNEL,
+            CLPR_COMPLETE_CHANNEL,
+            CLPR_CLOSE_CHANNEL,
+            CLPR_SUBMIT_BUNDLE,
+            CLPR_REGISTER_CONNECTOR,
+            CLPR_DEREGISTER_CONNECTOR,
+            CLPR_COMPLETE_CONNECTOR,
+            CLPR_ENDPOINT_PUBLICATION);
+
+    private static final ContractCallTranslator CLPR_DISPATCHED_CONTRACT_CALL_TRANSLATOR =
+            new ContractCallTranslator(true);
 
     /**
      * Constructs a new {@link BlockTransactionalUnitTranslator}.
@@ -242,8 +272,17 @@ public class BlockTransactionalUnitTranslator {
         final List<SingleTransactionRecord> translatedRecords = new ArrayList<>();
         List<TraceData> tracesSoFar = null;
         final var hookMetadata = unit.maybeHookMetadata(baseTranslator.getAliases());
+        // A CLPR transaction, at top level or inside an atomic batch, dispatches contract calls (verifiers,
+        // connectors, applications) as its own child transactions
+        final boolean hasClprTxn = unit.blockTransactionParts().stream()
+                .anyMatch(parts -> CLPR_FUNCTIONALITIES.contains(parts.functionality()));
         for (final var blockTransactionParts : unit.blockTransactionParts()) {
-            final var translator = translators.get(blockTransactionParts.functionality());
+            final var translator = hasClprTxn
+                            && !blockTransactionParts.isTopLevel()
+                            && !blockTransactionParts.isInnerBatchTxn()
+                            && blockTransactionParts.functionality() == CONTRACT_CALL
+                    ? CLPR_DISPATCHED_CONTRACT_CALL_TRANSLATOR
+                    : translators.get(blockTransactionParts.functionality());
             if (translator == null) {
                 log.warn("No translator found for functionality {}, skipping", blockTransactionParts.functionality());
             } else {

@@ -18,10 +18,10 @@ The classes in this module are the tooling of the
 follows, `LatencyHistogramBenchmark` in `src/jmh` included:
 
 - `histogram` — records the latency of every measured call and reports its percentiles to JMH.
-- `event` — benchmark inputs. `EventStreamGenerator` generates independent events, as a node
-  receives them through gossip, hashed and optionally signed, for the benchmarks that process one
-  event at a time. `EventShape` sets their number of other parents, transactions per event, and
-  transaction sizes.
+- `event` — benchmark inputs. `EventStreamGenerator` generates independent events, hashed and
+  optionally signed by their creators, for the benchmarks that process one event at a time, and
+  receives them as a node receives them through gossip, hashed or not. `EventShape` sets their
+  number of other parents, transactions per event, and transaction sizes.
 
 ## Scripts
 

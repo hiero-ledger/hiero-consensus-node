@@ -12,7 +12,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Key;
-import com.hedera.hapi.node.base.Key.KeyOneOfType;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.token.Account;
@@ -370,10 +369,10 @@ public class FakePreHandleContext implements PreHandleContext {
 
         // We will require the key. If the key isn't present, then we will throw the given response code.
         final var key = account.key();
-        if (key == null
-                || key.key().kind() == KeyOneOfType.UNSET) { // Or if it is a Contract Key? Or if it is an empty key?
-            // Or a KeyList with no
-            // keys? Or KeyList with Contract keys only?
+        // Match the ContractID overload below: a key we are about to require must be structurally valid, not
+        // merely present. isValid() also rejects the degenerate shapes kind() cannot see - an empty key list, a
+        // threshold that cannot be met, a malformed public key, or a list holding any of those.
+        if (!isValid(key)) {
             throw new PreCheckException(responseCode);
         }
 

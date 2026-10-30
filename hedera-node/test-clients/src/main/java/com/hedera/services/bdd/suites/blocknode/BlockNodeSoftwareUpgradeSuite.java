@@ -8,6 +8,7 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertBlockNodeCommsLogContainsTimeframe;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.awaitBlockNodeCommsLogContainsText;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.untilHgcaaLogContainsText;
@@ -42,6 +43,11 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
      */
     private static final Duration LEDGER_ID_TIMEOUT = Duration.ofMinutes(5);
 
+    /**
+     * Logged for each block the block node acknowledges, which it only does once the block's proof verifies.
+     */
+    private static final String BLOCK_ACK = "BlockAcknowledgement received for block";
+
     @HapiTest
     @HapiBlockNode(
             networkSize = 4,
@@ -66,7 +72,9 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                             "blockStream.buffer.isBufferPersistenceEnabled",
                             "true",
                             "blockNode.blockNodeStatusTimeout",
-                            "10s"
+                            "10s",
+                            "tss.forceMockSignatures",
+                            "false"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 1,
@@ -87,7 +95,9 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                             "blockStream.buffer.isBufferPersistenceEnabled",
                             "true",
                             "blockNode.blockNodeStatusTimeout",
-                            "10s"
+                            "10s",
+                            "tss.forceMockSignatures",
+                            "false"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 2,
@@ -108,7 +118,9 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                             "blockStream.buffer.isBufferPersistenceEnabled",
                             "true",
                             "blockNode.blockNodeStatusTimeout",
-                            "10s"
+                            "10s",
+                            "tss.forceMockSignatures",
+                            "false"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 3,
@@ -129,15 +141,18 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                             "blockStream.buffer.isBufferPersistenceEnabled",
                             "true",
                             "blockNode.blockNodeStatusTimeout",
-                            "10s"
+                            "10s",
+                            "tss.forceMockSignatures",
+                            "false"
                         }),
             })
     @Order(0)
     final Stream<DynamicTest> multiUpgradeGrpcWriterTss() {
         final AtomicReference<Instant> timeRef = new AtomicReference<>();
-        // After each upgrade, verify the connection manager started and established a connection.
-        // Use "Streaming connection update requested" (INFO level) which appears reliably at
-        // startup when the monitor first runs.
+        // Taken once each upgrade returns, so acks for blocks closed while the network was freezing don't count
+        final AtomicReference<Instant> ackTimeRef = new AtomicReference<>();
+        // After each upgrade, verify the node reconnected to the block node and that the block node
+        // verified (acknowledged) the blocks it streamed
         final AtomicInteger blockNodePort = new AtomicInteger();
         return hapiTest(
                 doingContextual(spec -> {
@@ -149,32 +164,42 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                 untilHgcaaLogContainsText(
                         allNodes(), "Externalizing ledger id", LEDGER_ID_TIMEOUT, Duration.ofSeconds(1), () ->
                                 new SpecOperation[] {cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L))}),
+                awaitBlockNodeCommsLogContainsText(allNodes(), BLOCK_ACK, Duration.ofMinutes(2)),
                 prepareFakeUpgrade(),
                 doingContextual(spec -> timeRef.set(Instant.now())),
                 upgradeToNextConfigVersion(),
+                doingContextual(spec -> ackTimeRef.set(Instant.now())),
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
                         byNodeId(0),
                         timeRef::get,
                         Duration.ofMinutes(3),
                         Duration.ofMinutes(3),
                         String.format("Selected new block node for streaming: localhost:%s", blockNodePort.get()))),
+                assertBlockNodeCommsLogContainsTimeframe(
+                        byNodeId(0), ackTimeRef::get, Duration.ofMinutes(3), Duration.ofMinutes(3), BLOCK_ACK),
                 prepareFakeUpgrade(),
                 doingContextual(spec -> timeRef.set(Instant.now())),
                 upgradeToNextConfigVersion(),
+                doingContextual(spec -> ackTimeRef.set(Instant.now())),
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
                         byNodeId(0),
                         timeRef::get,
                         Duration.ofMinutes(3),
                         Duration.ofMinutes(3),
                         String.format("Selected new block node for streaming: localhost:%s", blockNodePort.get()))),
+                assertBlockNodeCommsLogContainsTimeframe(
+                        byNodeId(0), ackTimeRef::get, Duration.ofMinutes(3), Duration.ofMinutes(3), BLOCK_ACK),
                 prepareFakeUpgrade(),
                 doingContextual(spec -> timeRef.set(Instant.now())),
                 upgradeToNextConfigVersion(),
+                doingContextual(spec -> ackTimeRef.set(Instant.now())),
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
                         byNodeId(0),
                         timeRef::get,
                         Duration.ofMinutes(3),
                         Duration.ofMinutes(3),
-                        String.format("Selected new block node for streaming: localhost:%s", blockNodePort.get()))));
+                        String.format("Selected new block node for streaming: localhost:%s", blockNodePort.get()))),
+                assertBlockNodeCommsLogContainsTimeframe(
+                        byNodeId(0), ackTimeRef::get, Duration.ofMinutes(3), Duration.ofMinutes(3), BLOCK_ACK));
     }
 }
