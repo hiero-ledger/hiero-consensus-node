@@ -158,6 +158,8 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         // to handle and respond to transactions to help the remote peer also achieve a CLOSED state.
         var channel = requireNonClosedChannel(channelStore, op.channelId());
         final var channelId = channel.channelId();
+        // A node that joined after this channel was activated learns it here, since every node handles every bundle
+        channelLifecycle.onChannelObserved(channelId);
         log.debug(
                 "[ClprSubmitBundle] loaded channel conn={} status={} nextMsgId={} ackedMsgId={} receivedMsgId={} "
                         + "sentRH={} receivedRH={} verifier={}",

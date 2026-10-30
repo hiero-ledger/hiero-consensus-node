@@ -3,6 +3,7 @@ package com.hedera.node.app.service.clpr.impl;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.node.app.service.clpr.ClprChannelLifecycle;
 import com.hedera.node.app.service.clpr.ClprService;
 import com.hedera.node.app.service.clpr.ClprServiceApi;
 import com.hedera.node.app.service.entityid.WritableEntityCounters;
@@ -17,7 +18,22 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  */
 public class ClprServiceApiProvider implements ServiceApiProvider<ClprServiceApi> {
 
-    public static final ClprServiceApiProvider CLPR_SERVICE_API_PROVIDER = new ClprServiceApiProvider();
+    /**
+     * A provider for contexts with no sync orchestrator, such as standalone transaction dispatch.
+     */
+    public static final ClprServiceApiProvider CLPR_SERVICE_API_PROVIDER =
+            new ClprServiceApiProvider(ClprChannelLifecycle.NO_OP);
+
+    private final ClprChannelLifecycle channelLifecycle;
+
+    /**
+     * Creates a provider whose API instances tell {@code channelLifecycle} about the Channels they send on.
+     *
+     * @param channelLifecycle the node's Channel lifecycle
+     */
+    public ClprServiceApiProvider(@NonNull final ClprChannelLifecycle channelLifecycle) {
+        this.channelLifecycle = requireNonNull(channelLifecycle);
+    }
 
     @Override
     public String serviceName() {
@@ -38,6 +54,12 @@ public class ClprServiceApiProvider implements ServiceApiProvider<ClprServiceApi
         final var configStore = new ReadableLedgerConfigurationStoreImpl(writableStates);
         final var messageQueueStore = new WritableMessageQueueStore(writableStates);
         return new ClprServiceApiImpl(
-                channelReadStore, channelWriteStore, connectorStore, configStore, messageQueueStore, configuration);
+                channelReadStore,
+                channelWriteStore,
+                connectorStore,
+                configStore,
+                messageQueueStore,
+                configuration,
+                channelLifecycle);
     }
 }

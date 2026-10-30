@@ -5,7 +5,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_ID;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
-import static com.hedera.node.app.service.clpr.impl.ClprServiceApiProvider.CLPR_SERVICE_API_PROVIDER;
 import static com.hedera.node.app.service.contract.impl.api.SmartContractServiceApiProvider.SMART_CONTRACT_SERVICE_API_PROVIDER;
 import static com.hedera.node.app.service.token.impl.api.TokenServiceApiProvider.TOKEN_SERVICE_API_PROVIDER;
 import static com.hedera.node.app.util.FileUtilities.createFileID;
@@ -28,7 +27,9 @@ import com.hedera.node.app.fees.FeeService;
 import com.hedera.node.app.fees.schemas.V0490FeeSchema;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;
+import com.hedera.node.app.service.clpr.ClprChannelLifecycle;
 import com.hedera.node.app.service.clpr.ClprServiceApi;
+import com.hedera.node.app.service.clpr.impl.ClprServiceApiProvider;
 import com.hedera.node.app.service.clpr.impl.ClprServiceImpl;
 import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
 import com.hedera.node.app.service.contract.api.SmartContractServiceApi;
@@ -191,15 +192,18 @@ public interface FacilityInitModule {
 
     @Provides
     @Singleton
-    static Map<Class<?>, ServiceApiProvider<?>> provideApiProviders(@NonNull final ScheduleService scheduleService) {
+    static Map<Class<?>, ServiceApiProvider<?>> provideApiProviders(
+            @NonNull final ScheduleService scheduleService, @NonNull final ClprChannelLifecycle clprChannelLifecycle) {
         requireNonNull(scheduleService);
+        requireNonNull(clprChannelLifecycle);
         return Map.of(
                 TokenServiceApi.class,
                 TOKEN_SERVICE_API_PROVIDER,
                 ScheduleServiceApi.class,
                 scheduleService.apiProvider(),
                 ClprServiceApi.class,
-                CLPR_SERVICE_API_PROVIDER,
+                // Lets every node learn the Channels sent on, including nodes added after a Channel was activated
+                new ClprServiceApiProvider(clprChannelLifecycle),
                 SmartContractServiceApi.class,
                 SMART_CONTRACT_SERVICE_API_PROVIDER);
     }

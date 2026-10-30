@@ -3223,7 +3223,8 @@ class ClprDeepDiveBundleAuditTest {
                 connectorStore,
                 localConfig,
                 messageQueueStore,
-                handleContext.configuration());
+                handleContext.configuration(),
+                ClprChannelLifecycle.NO_OP);
     }
 
     @Test

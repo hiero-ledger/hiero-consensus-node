@@ -528,6 +528,21 @@ public class ClprChannelManager implements ClprChannelLifecycle {
     }
 
     /**
+     * Starts tracking a Channel a consensus transaction touched, if this node does not track it yet; see
+     * {@link com.hedera.node.app.service.clpr.ClprChannelLifecycle#onChannelObserved}. A Channel already tracked keeps
+     * its sync timer, which {@link #onChannelActivated} would otherwise reschedule.
+     *
+     * @param channelId the 32-byte channel ID
+     */
+    public void onChannelObserved(@NonNull final Bytes channelId) {
+        requireNonNull(channelId);
+        if (!knownChannelIds.contains(channelId)) {
+            logger.info("CLPR now tracking channel {} observed in a consensus transaction", channelId.toHex());
+            onChannelActivated(channelId);
+        }
+    }
+
+    /**
      * @return unmodifiable set of known channel IDs
      */
     public Set<Bytes> knownChannelsIds() {

@@ -28,6 +28,7 @@ import com.hedera.hapi.node.state.clpr.ClprMessage;
 import com.hedera.hapi.node.state.clpr.ClprMessagePayload;
 import com.hedera.hapi.node.state.clpr.ClprMessageValue;
 import com.hedera.hapi.node.state.clpr.ClprThrottles;
+import com.hedera.node.app.service.clpr.ClprChannelLifecycle;
 import com.hedera.node.app.service.clpr.impl.ClprServiceApiImpl;
 import com.hedera.node.app.service.clpr.impl.ReadableChannelStoreImpl;
 import com.hedera.node.app.service.clpr.impl.ReadableLedgerConfigurationStoreImpl;
@@ -95,7 +96,13 @@ class ClprServiceApiImplTest {
     void setUp() {
         given(configuration.getConfigData(ClprConfig.class)).willReturn(DEFAULT_CLPR_CONFIG);
         subject = new ClprServiceApiImpl(
-                channelReadStore, channelWriteStore, connectorStore, configStore, messageQueueStore, configuration);
+                channelReadStore,
+                channelWriteStore,
+                connectorStore,
+                configStore,
+                messageQueueStore,
+                configuration,
+                ClprChannelLifecycle.NO_OP);
     }
 
     @Test

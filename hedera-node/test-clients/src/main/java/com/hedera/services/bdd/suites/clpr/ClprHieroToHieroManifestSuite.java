@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -57,14 +56,17 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
     private static final int HAPI_TLS_PORT_B = 44450;
 
     // Node ids the tests can use in total, whatever order they run in: A starts with 2 nodes; partial
-    // rotation replaces 1, and each complete turnover replaces all 2. B starts with 1; only the
-    // simultaneous turnover replaces it.
+    // rotation replaces 1, and each complete turnover replaces all 2. B starts with 2; only the
+    // simultaneous turnover replaces them. Both ledgers start with 2 nodes because a node added at an
+    // upgrade joins with zero weight, and a ledger whose only weighted node has nothing but zero-weight
+    // peers creates no events (TipsetEventCreator finds no eligible other parents) and never reaches
+    // consensus again.
     private static final int MAX_NODE_IDS_A = 2 + 1 + 2 + 2;
-    private static final int MAX_NODE_IDS_B = 1 + 1;
+    private static final int MAX_NODE_IDS_B = 2 + 2;
     // A runs 3 nodes during a partial rotation while B is up; a complete turnover of A (4 live nodes) and
-    // of B (2 live nodes) each run while the other ledger is shut down, so the group never exceeds 3 + 1.
+    // of B (4 live nodes) each run while the other ledger is shut down, so the group never exceeds 3 + 2.
     private static final int MAX_LIVE_NODES_A = 3;
-    private static final int MAX_LIVE_NODES_B = 1;
+    private static final int MAX_LIVE_NODES_B = 2;
     // A node added at an upgrade publishes its history proof key during the next weight rotation, though it is not
     // yet among the signers that rotation waits for. That extra key defeats the "every expected key is published"
     // early start, so the proof is only assembled once tss.transitionProofKeyGracePeriod (300s by default) ends.
@@ -91,6 +93,7 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
                 }),
         @Network(
                 name = LEDGER_B_MANIFEST,
+                size = 2,
                 maxNodeIds = MAX_NODE_IDS_B,
                 maxLiveNodes = MAX_LIVE_NODES_B,
                 enableHapiTls = true,
@@ -133,6 +136,7 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
                 }),
         @Network(
                 name = LEDGER_B_MANIFEST,
+                size = 2,
                 maxNodeIds = MAX_NODE_IDS_B,
                 maxLiveNodes = MAX_LIVE_NODES_B,
                 enableHapiTls = true,
@@ -196,6 +200,7 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
                 }),
         @Network(
                 name = LEDGER_B_MANIFEST,
+                size = 2,
                 maxNodeIds = MAX_NODE_IDS_B,
                 maxLiveNodes = MAX_LIVE_NODES_B,
                 enableHapiTls = true,
@@ -206,7 +211,6 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
                     @ConfigOverride(key = "tss.transitionHintsKeyGracePeriod", value = HINTS_KEY_GRACE_PERIOD)
                 })
     })
-    @Disabled("Need a fix to hydrate sync cache from manifest on restart")
     @DisplayName("8.1.2 complete turnover (one side): A replaces all its nodes while partitioned from B; B "
             + "recovers A's manifest via clprGetEndpointManifest + clprSubmitBundle, with no gRPC to A's old nodes")
     Stream<DynamicTest> completeTurnoverOneSideRecoversViaSubmitBundle(
@@ -278,6 +282,7 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
                 }),
         @Network(
                 name = LEDGER_B_MANIFEST,
+                size = 2,
                 maxNodeIds = MAX_NODE_IDS_B,
                 maxLiveNodes = MAX_LIVE_NODES_B,
                 enableHapiTls = true,
@@ -288,7 +293,6 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
                     @ConfigOverride(key = "tss.transitionHintsKeyGracePeriod", value = HINTS_KEY_GRACE_PERIOD)
                 })
     })
-    @Disabled("Need a fix to hydrate sync cache from manifest on restart")
     @DisplayName("8.1.3 simultaneous turnover (both sides): A and B each replace all their nodes while partitioned; "
             + "each side independently recovers the other's manifest via clprGetEndpointManifest + clprSubmitBundle")
     Stream<DynamicTest> simultaneousTurnoverBothSidesRecoverIndependently(

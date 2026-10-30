@@ -986,6 +986,10 @@ public abstract class HieroToHieroBase implements LifecycleTest {
         return deferred("Shut down " + network.name(), () -> networkHapiTest(
                         "Freeze and shut down " + network.name(),
                         network,
+                        // As the restart suite does: keep the ledger busy until the freeze completes, so the events
+                        // the freeze round's consensus rests on are persisted before the nodes are killed (a 1-node
+                        // ledger cannot recover lost events from peers, and would never reach consensus again)
+                        runBackgroundTrafficUntilFreezeComplete(),
                         freezeOnly().startingIn(2).seconds(),
                         waitForFrozenNetwork(FREEZE_TIMEOUT),
                         FakeNmt.shutdownWithin(allNodes(), SHUTDOWN_TIMEOUT))
@@ -1015,6 +1019,11 @@ public abstract class HieroToHieroBase implements LifecycleTest {
             final int configVersion = CONFIG_VERSIONS.getOrDefault(network.name(), 0);
             network.nodes().forEach(node -> ((SubProcessNode) node).startWithConfigVersion(configVersion));
             network.nodes().forEach(node -> awaitStatus(node, RESTART_TO_ACTIVE_TIMEOUT, ACTIVE));
+            // Channels to the ledger have been failing to connect while it was down and may still be backing off;
+            // replace them so the next queries reach the restarted nodes at once
+            network.refreshClientsForCurrentNodes(network.nodes().stream()
+                    .map(node -> node.getHost() + ":" + node.getGrpcPort())
+                    .toList());
             awaitWrapsSyncPoint(network);
             network.awaitLedgerId(RESTART_TO_ACTIVE_TIMEOUT);
         });

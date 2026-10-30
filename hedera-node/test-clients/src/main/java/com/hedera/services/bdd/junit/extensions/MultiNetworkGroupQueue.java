@@ -37,7 +37,7 @@ public final class MultiNetworkGroupQueue {
     private static final Logger log = LogManager.getLogger(MultiNetworkGroupQueue.class);
 
     /** Max subprocess nodes alive at once across all network groups. Tuned to the HAPI runner (8 cores). */
-    public static final int DEFAULT_CAPACITY = 4;
+    public static final int DEFAULT_CAPACITY = 5;
 
     private final int capacity;
     private final ReentrantLock lock = new ReentrantLock();
