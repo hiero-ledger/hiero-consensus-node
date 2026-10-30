@@ -24,7 +24,7 @@ import org.hiero.consensus.model.sequence.map.StandardSequenceMap;
 /**
  * Computes and tracks tipsets for non-ancient events.
  */
-public class DefaultTipsetTracker {
+public class DefaultTipsetTracker implements TipsetTracker {
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -37,10 +37,10 @@ public class DefaultTipsetTracker {
 
     /**
      * This tipset is equivalent to a tipset that would be created by merging all tipsets of all events that this object
-     * has ever observed. If you ask this tipset for the generation for a particular node, it will return the highest
-     * generation of all events we have ever received from that node.
+     * has ever observed. If you ask this tipset for the ordering key for a particular node, it will return the highest
+     * sequence number of all events we have ever received from that node.
      */
-    private Tipset latestGenerations;
+    private Tipset latestSequenceNumbers;
 
     private final RosterWrapper roster;
 
@@ -60,7 +60,7 @@ public class DefaultTipsetTracker {
             @NonNull final Time time, @NonNull final NodeId selfId, @NonNull final RosterWrapper roster) {
         this.roster = Objects.requireNonNull(roster);
         this.selfId = Objects.requireNonNull(selfId);
-        this.latestGenerations = new Tipset(roster);
+        this.latestSequenceNumbers = new Tipset(roster);
 
         tipsets = new StandardSequenceMap<>(0, INITIAL_TIPSET_MAP_CAPACITY, true, EventDescriptorWrapper::birthRound);
 
@@ -73,6 +73,7 @@ public class DefaultTipsetTracker {
      *
      * @param eventWindow the current event window
      */
+    @Override
     public void setEventWindow(@NonNull final EventWindow eventWindow) {
         this.eventWindow = Objects.requireNonNull(eventWindow);
         tipsets.shiftWindow(eventWindow.ancientThreshold());
@@ -83,6 +84,7 @@ public class DefaultTipsetTracker {
      *
      * @return the event window
      */
+    @Override
     @NonNull
     public EventWindow getEventWindow() {
         return eventWindow;
@@ -96,6 +98,7 @@ public class DefaultTipsetTracker {
      * @param parents       the parent descriptors of the self event being added
      * @return the tipset for the new self event
      */
+    @Override
     @NonNull
     public Tipset addSelfEvent(
             @NonNull final EventDescriptorWrapper selfEventDesc, @NonNull final List<EventDescriptorWrapper> parents) {
@@ -123,6 +126,7 @@ public class DefaultTipsetTracker {
      * @param event the peer event to add
      * @return the tipset for the event that was added
      */
+    @Override
     @NonNull
     public Tipset addPeerEvent(@NonNull final PlatformEvent event) {
         logIfSelfEvent(event.getDescriptor());
@@ -134,7 +138,7 @@ public class DefaultTipsetTracker {
                 new Tipset(roster).merge(parentTipsets).advance(event.getCreatorId(), event.getSequenceNumber());
 
         tipsets.put(event.getDescriptor(), eventTipset);
-        latestGenerations = latestGenerations.advance(event.getCreatorId(), event.getSequenceNumber());
+        latestSequenceNumbers = latestSequenceNumbers.advance(event.getCreatorId(), event.getSequenceNumber());
 
         return eventTipset;
     }
@@ -191,19 +195,20 @@ public class DefaultTipsetTracker {
      * @param eventDescriptorWrapper the fingerprint of the event
      * @return the tipset of the event, or null if the event is not being tracked
      */
+    @Override
     @Nullable
     public Tipset getTipset(@NonNull final EventDescriptorWrapper eventDescriptorWrapper) {
         return tipsets.get(eventDescriptorWrapper);
     }
 
     /**
-     * Get the highest generation of all events we have received from a particular node.
+     * {@inheritDoc}
      *
-     * @param nodeId the node in question
-     * @return the highest generation of all events received by a given node
+     * <p>This is the highest sequence number of the node's events added with {@link #addPeerEvent(PlatformEvent)}.
      */
-    public long getLatestSequenceNumberForNode(@NonNull final NodeId nodeId) {
-        return latestGenerations.getTipSequenceNumberForNode(nodeId);
+    @Override
+    public long getLatestTipOrderingKeyForNode(@NonNull final NodeId nodeId) {
+        return latestSequenceNumbers.getTipOrderingKeyForNode(nodeId);
     }
 
     /**
@@ -218,9 +223,10 @@ public class DefaultTipsetTracker {
     /**
      * Reset the tipset tracker to its initial state.
      */
+    @Override
     public void clear() {
         eventWindow = EventWindow.getGenesisEventWindow();
-        latestGenerations = new Tipset(roster);
+        latestSequenceNumbers = new Tipset(roster);
         tipsets.clear();
     }
 }

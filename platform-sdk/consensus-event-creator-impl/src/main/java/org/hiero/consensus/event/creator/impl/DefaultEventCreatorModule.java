@@ -17,6 +17,7 @@ import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.creator.config.EventCreationConfig;
 import org.hiero.consensus.event.creator.config.EventCreationWiringConfig;
+import org.hiero.consensus.event.creator.impl.tipset.DefaultTipsetTracker;
 import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.gossip.SyncProgress;
@@ -121,8 +122,9 @@ public class DefaultEventCreatorModule implements EventCreatorModule {
 
         // Create and bind components
         final BytesSigner bytesSigner = new PlatformSigner(keysAndCerts);
+        final DefaultTipsetTracker tipsetTracker = new DefaultTipsetTracker(time, selfId, roster);
         final EventCreator eventCreator = new TipsetEventCreator(
-                configuration, metrics, time, random, bytesSigner, roster, selfId, transactionSupplier);
+                configuration, metrics, time, random, bytesSigner, roster, selfId, transactionSupplier, tipsetTracker);
         final DefaultEventCreationManager eventCreationManager = new DefaultEventCreationManager(
                 configuration, metrics, time, signatureTransactionCheck, eventCreator, roster, selfId);
         eventCreationManagerWiring.bind(eventCreationManager);

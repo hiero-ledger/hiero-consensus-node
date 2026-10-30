@@ -55,6 +55,10 @@ KEEP_NETWORK="${KEEP_NETWORK:-true}"
 LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH:-${REPO_ROOT}/hedera-node/data}"
 SOLO_UPGRADE_TIMEOUT_SECS="${SOLO_UPGRADE_TIMEOUT_SECS:-1800}"
 
+# Solo's default mirror node can be too old for the baseline, so use the CITR pin.
+CITR_ENV_FILE="${REPO_ROOT}/.github/workflows/support/citr/.citr-env"
+MIRROR_NODE_VERSION="${MIRROR_NODE_VERSION:-$({ sed -n 's/^citr-mirror-node-version=//p' "${CITR_ENV_FILE}" 2>/dev/null | head -n 1; } || true)}"
+
 # Step 4 (CryptoCreate smoke) port-forwards + operator credentials.
 # Account 0.0.2 + the well-known genesis Ed25519 dev key is what Solo's local
 # deployments seed by default. Override via env vars in CI if needed.
@@ -435,7 +439,7 @@ deploy_baseline() {
   wait_for_consensus_pods_ready 600
   wait_for_haproxy_ready 600
 
-  log "Adding Mirror Node (with Pinger enabled)"
+  log "Adding Mirror Node ${MIRROR_NODE_VERSION:-(solo default)} (with Pinger enabled)"
   # Race-fix for Apple Silicon: the mirror-1-web3 Spring Boot JVM cold-starts
   # in ~3-5 min under Rosetta translation, but the chart's default web3 probes
   # are way too tight for that:
@@ -463,10 +467,16 @@ deploy_baseline() {
     log "WARN: mirror-1-web3 did not appear within 10 min; probe-patch helper exiting" ) &
   local _web3_patch_pid=$!
 
-  solo mirror node add \
-    --deployment "${SOLO_DEPLOYMENT}" \
-    --cluster-ref "kind-${SOLO_CLUSTER_NAME}" \
+  local mirror_cmd=(
+    solo mirror node add
+    --deployment "${SOLO_DEPLOYMENT}"
+    --cluster-ref "kind-${SOLO_CLUSTER_NAME}"
     --pinger
+  )
+  if [[ -n "${MIRROR_NODE_VERSION}" ]]; then
+    mirror_cmd+=(--mirror-node-version "${MIRROR_NODE_VERSION}")
+  fi
+  "${mirror_cmd[@]}"
 
   wait "${_web3_patch_pid}" 2>/dev/null || true
 }
