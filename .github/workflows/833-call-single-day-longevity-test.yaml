@@ -638,8 +638,10 @@ jobs:
           export MIRROR_NODE_VERSION="${{ inputs.mirrorref }}"
           task solo:mirror-node
 
-      - name: Solo logs
-        if: ${{ !cancelled() && always() }}
+      # always(): also runs when the job is cancelled or times out, which is when the logs are most needed. A
+      # cancelled job only gets a short grace period, so collect and upload first and copy to GCS afterwards.
+      - name: Solo diagnostics logs
+        if: ${{ always() }}
         env:
           NAMESPACE_ALIAS: ${{ inputs.test-asset }}
           CONTEXT: hashgraph.teleport.sh-${{ steps.set-k8s-cluster.outputs.kubernetes-cluster }}
@@ -650,6 +652,24 @@ jobs:
           cd "${{ github.workspace}}"/solo
           task solo:node:logs
 
+      - name: Upload Solo diagnostics logs
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        continue-on-error: true
+        with:
+          name: solo-logs-${{ inputs.allocation-id }}
+          path: ~/.solo/logs/*
+          if-no-files-found: ignore
+
+      - name: Solo logs
+        if: ${{ always() }}
+        env:
+          NAMESPACE_ALIAS: ${{ inputs.test-asset }}
+          CONTEXT: hashgraph.teleport.sh-${{ steps.set-k8s-cluster.outputs.kubernetes-cluster }}
+          REF: ${{ inputs.ref }}
+        run: |
+          set +x
+          set +e
           sleep 30
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods
           cd "${{ github.workspace }}"
@@ -659,15 +679,6 @@ jobs:
           cp -r podlog_"${{ needs.acquire-kubernetes-resources.outputs.namespace }}" solo_deploy/
           gcloud --no-user-output-enabled storage cp --recursive solo_deploy "${{ env.GS_ROOT_DIR }}/${REF}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{ inputs.allocation-id }}_${{ github.run_number }}"/solo_deploy
           echo Done: solo deploy logs  in "${{ env.GS_ROOT_HTTPS }}/${REF}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{ inputs.allocation-id }}_${{ github.run_number }}"/solo_deploy
-
-      - name: Upload Solo diagnostics logs
-        if: ${{ !cancelled() && always() }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        continue-on-error: true
-        with:
-          name: solo-logs-${{ inputs.allocation-id }}
-          path: ~/.solo/logs/*
-          if-no-files-found: ignore
 
       - name: Check filesystem mounts
         run: |
