@@ -79,6 +79,14 @@ public abstract class AbstractSpecEntity<O extends SpecOperation, M> implements 
          */
         @Nullable
         private CompletableFuture<Result<M>> future;
+        /**
+         * Captured at the start of {@link #getAsync()}; used only on the
+         * {@link #awaitScheduling()} timeout path to identify and stack-dump the CAS winner.
+         * If this is {@code null} when a loser times out, the CAS winner had not yet reached
+         * {@code getAsync()}.
+         */
+        @Nullable
+        private volatile Thread publishedByThread;
 
         public DeferredResult(@NonNull final Supplier<Result<M>> supplier) {
             this.supplier = requireNonNull(supplier);
@@ -88,6 +96,7 @@ public abstract class AbstractSpecEntity<O extends SpecOperation, M> implements 
          * Schedules the supplier to run asynchronously, marking it as the privileged supplier for this entity.
          */
         public void getAsync() {
+            publishedByThread = Thread.currentThread();
             future = supplyAsync(supplier);
             latch.countDown();
         }
@@ -117,12 +126,63 @@ public abstract class AbstractSpecEntity<O extends SpecOperation, M> implements 
                 abortAndThrowIfInterrupted(
                         () -> {
                             if (!latch.await(SCHEDULING_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)) {
+                                log.debug(timeoutDiagnostic());
                                 throw new IllegalStateException(
                                         "Result future not scheduled within " + SCHEDULING_TIMEOUT);
                             }
                         },
                         "Interrupted while awaiting scheduling of the result future");
             }
+        }
+
+        private String timeoutDiagnostic() {
+            final var sb = new StringBuilder(2048);
+            sb.append("Result future not scheduled within ")
+                    .append(SCHEDULING_TIMEOUT)
+                    .append(" [DeferredResultId=@")
+                    .append(Integer.toHexString(System.identityHashCode(this)))
+                    .append(" latchCount=")
+                    .append(latch.getCount())
+                    .append(" futureState=")
+                    .append(describeFutureState())
+                    .append(" observedBy=")
+                    .append(Thread.currentThread().getName())
+                    .append(" publishedBy=");
+            final var t = publishedByThread;
+            if (t == null) {
+                sb.append("<NOT-YET-IN-getAsync>]");
+                return sb.toString();
+            }
+            sb.append(t.getName()).append(']');
+            if (!t.isAlive()) {
+                sb.append("\n<publishing thread no longer alive>");
+                return sb.toString();
+            }
+            final StackTraceElement[] stack = t.getStackTrace();
+            if (stack.length == 0) {
+                sb.append("\n<empty stack trace returned for publishing thread>");
+                return sb.toString();
+            }
+            sb.append("\nPublishing thread stack:");
+            final int n = Math.min(stack.length, 20);
+            for (int i = 0; i < n; i++) {
+                sb.append("\n  at ").append(stack[i]);
+            }
+            if (stack.length > n) {
+                sb.append("\n  ... ").append(stack.length - n).append(" more frames");
+            }
+            return sb.toString();
+        }
+
+        private String describeFutureState() {
+            final var f = future;
+            if (f == null) {
+                return "null";
+            }
+            if (!f.isDone()) {
+                return "pending";
+            }
+            return f.isCompletedExceptionally() ? "completedExceptionally" : "completed";
         }
     }
 
