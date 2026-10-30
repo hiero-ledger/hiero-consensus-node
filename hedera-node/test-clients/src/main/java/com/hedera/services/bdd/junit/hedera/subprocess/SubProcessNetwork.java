@@ -243,6 +243,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                                         nextInternalGossipPort,
                                         nextExternalGossipPort,
                                         nextPrometheusPort,
+                                        nextOpenMetricsPort,
                                         shard,
                                         realm),
                                 GRPC_PINGER,
