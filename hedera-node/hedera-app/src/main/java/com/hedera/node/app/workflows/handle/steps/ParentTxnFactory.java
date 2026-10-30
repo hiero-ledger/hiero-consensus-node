@@ -2,6 +2,7 @@
 package com.hedera.node.app.workflows.handle.steps;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.STATE_SIGNATURE_TRANSACTION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.SCHEDULED;
@@ -519,6 +520,13 @@ public class ParentTxnFactory {
                     null,
                     null,
                     0);
+        } catch (final RuntimeException e) {
+            // An unexpected failure while checking one system transaction must not escape to its caller, where it
+            // would abort the processing of every other transaction in the same batch (e.g. the other schedules
+            // expiring in the same interval); fail just this transaction instead
+            log.error("Unexpected exception while pre-handling system transaction {}", body, e);
+            return new PreHandleResult(
+                    null, null, PRE_HANDLE_FAILURE, FAIL_INVALID, txInfo, emptySet(), null, emptySet(), null, null, 0);
         }
     }
 }
