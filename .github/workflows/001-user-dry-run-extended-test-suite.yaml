@@ -32,10 +32,13 @@ on:
         type: boolean
         description: "Run Chaos Otter Test Suite"
         default: true
+      # Enabling the JRS panel should only occur on the cron schedule and
+      # on release branches ONCE just prior to creating a release.
+      # It does not and should not run on every adhoc execution of XTS.
       enable-hedera-node-jrs-panel:
         required: true
         type: boolean
-        default: true
+        default: false
         description: "Run Hedera Node JRS Panel"
       enable-sdk-tck-regression-panel:
         required: true
@@ -63,6 +66,11 @@ on:
         type: boolean
         default: true
         description: "Run Block Node Regression Panel"
+      enable-evm-functional-tests-panel:
+        required: true
+        type: boolean
+        default: true
+        description: "Run EVM Functional Tests Panel"
       enable-migration-testing-panel:
         required: true
         type: boolean
@@ -175,6 +183,7 @@ jobs:
           echo "Enable Mirror Node Regression Panel: ${{ inputs.enable-mirror-node-regression-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Enable JSON-RPC Relay Regression Panel: ${{ inputs.enable-rpc-relay-regression-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Enable Block Node Regression Panel: ${{ inputs.enable-block-node-regression-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "Enable EVM Functional Tests Panel: ${{ inputs.enable-evm-functional-tests-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Enable Migration Testing Panel: ${{ inputs.enable-migration-testing-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Enable Solo Three-Stage Block Stream Cutover Panel: ${{ inputs.enable-three-stage-block-stream-cutover-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "TCK Version: ${{ inputs.tck-version || needs.extract-citr-vars.outputs.tck-version }}" | tee -a "${GITHUB_STEP_SUMMARY}"
@@ -230,6 +239,7 @@ jobs:
       enable-mirror-node-regression-panel: ${{ inputs.enable-mirror-node-regression-panel }}
       enable-rpc-relay-regression-panel: ${{ inputs.enable-rpc-relay-regression-panel }}
       enable-block-node-regression-panel: ${{ inputs.enable-block-node-regression-panel }}
+      enable-evm-functional-tests-panel: ${{ inputs.enable-evm-functional-tests-panel }}
       java-version: ${{ needs.extract-jdk-version.outputs.jdk-version }}
       tck-version: "${{ inputs.tck-version || needs.extract-citr-vars.outputs.tck-version }}"
       js-sdk-version: "${{ inputs.js-sdk-version || needs.extract-citr-vars.outputs.js-sdk-version }}"

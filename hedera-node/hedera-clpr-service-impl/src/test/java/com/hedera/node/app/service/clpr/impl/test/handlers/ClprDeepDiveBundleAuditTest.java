@@ -58,6 +58,7 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.clpr.ClprChannelLifecycle;
 import com.hedera.node.app.service.clpr.ReadableLedgerConfigurationStore;
+import com.hedera.node.app.service.clpr.impl.ClprBundleValidator;
 import com.hedera.node.app.service.clpr.impl.ClprHashUtils;
 import com.hedera.node.app.service.clpr.impl.WritableChannelStore;
 import com.hedera.node.app.service.clpr.impl.WritableConnectorStore;
@@ -194,7 +195,8 @@ class ClprDeepDiveBundleAuditTest {
 
     @BeforeEach
     void setUp() {
-        subject = new ClprSubmitBundleHandler(verifierFactory, entityIdFactory, channelLifecycle);
+        subject = new ClprSubmitBundleHandler(
+                verifierFactory, entityIdFactory, channelLifecycle, new ClprBundleValidator());
         lenient().when(verifierFactory.getVerifier(any())).thenReturn(new PassThroughClprVerifier());
 
         writableChannels = MapWritableKVState.<Bytes, ClprChannel>builder(CHANNELS_STATE_ID, "ClprService:CHANNELS")

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.clpr;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NO_PROGRESS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -10,6 +12,7 @@ import com.hedera.hapi.node.state.clpr.ClprSyncPayload;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.info.NodeInfo;
+import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfiguration;
 import com.hedera.node.config.data.ClprConfig;
@@ -64,6 +67,9 @@ class ClprBundleSubmitterTest {
     @Mock
     private ClprConfig clprConfig;
 
+    @Mock
+    private ClprBundlePrevalidator prevalidator;
+
     private ClprBundleSubmitter subject;
 
     @BeforeEach
@@ -82,7 +88,7 @@ class ClprBundleSubmitterTest {
         lenient().when(hederaConfig.transactionMaxValidDuration()).thenReturn(180L);
         lenient().when(clprConfig.enabled()).thenReturn(true);
         lenient().when(clprConfig.nodeSubmitBundleMaxFee()).thenReturn(100_000_000L);
-        subject = new ClprBundleSubmitter(appContext, configProvider);
+        subject = new ClprBundleSubmitter(appContext, configProvider, prevalidator);
     }
 
     @Test
@@ -98,7 +104,7 @@ class ClprBundleSubmitterTest {
     }
 
     @Test
-    void submitsBundleSuccessfully() {
+    void submitsBundleSuccessfully() throws PreCheckException {
         final var payload = ClprSyncPayload.newBuilder()
                 .channelId(CHANNEL_ID)
                 .bundlePayload(BUNDLE_PAYLOAD)
@@ -109,7 +115,11 @@ class ClprBundleSubmitterTest {
         assertThat(result).isTrue();
 
         final var txBodyCaptor = ArgumentCaptor.forClass(TransactionBody.class);
-        verify(gossip).submit(txBodyCaptor.capture());
+        final var ordered = inOrder(prevalidator, selfNodeInfo, instantSource, gossip);
+        ordered.verify(prevalidator).validate(payload, versionedConfig);
+        ordered.verify(selfNodeInfo).accountId();
+        ordered.verify(instantSource).instant();
+        ordered.verify(gossip).submit(txBodyCaptor.capture());
 
         final var txBody = txBodyCaptor.getValue();
         assertThat(txBody.hasClprSubmitBundle()).isTrue();
@@ -120,6 +130,58 @@ class ClprBundleSubmitterTest {
         assertThat(txBody.transactionIDOrThrow().accountID()).isEqualTo(SELF_ACCOUNT_ID);
         assertThat(txBody.nodeAccountID()).isEqualTo(SELF_ACCOUNT_ID);
         assertThat(txBody.transactionFee()).isEqualTo(ONE_HBAR_IN_TINYBARS);
+    }
+
+    @Test
+    void rejectsInvalidBundleBeforeConstructingOrGossipingTransaction() throws PreCheckException {
+        final var payload = ClprSyncPayload.newBuilder()
+                .channelId(CHANNEL_ID)
+                .bundlePayload(BUNDLE_PAYLOAD)
+                .build();
+        doThrow(new PreCheckException(CLPR_BUNDLE_VERIFICATION_FAILED))
+                .when(prevalidator)
+                .validate(payload, versionedConfig);
+
+        assertThat(subject.submitBundle(payload)).isFalse();
+
+        verify(gossip, never()).submit(any());
+        verifyNoInteractions(selfNodeInfo, instantSource);
+        verify(appContext, never()).selfNodeInfoSupplier();
+        verify(appContext, never()).instantSource();
+    }
+
+    @Test
+    void failsClosedWhenLocalValidationCannotRun() throws PreCheckException {
+        final var payload = ClprSyncPayload.newBuilder()
+                .channelId(CHANNEL_ID)
+                .bundlePayload(BUNDLE_PAYLOAD)
+                .build();
+        doThrow(new IllegalStateException("State unavailable"))
+                .when(prevalidator)
+                .validate(payload, versionedConfig);
+
+        assertThat(subject.submitBundle(payload)).isFalse();
+
+        verify(gossip, never()).submit(any());
+        verifyNoInteractions(selfNodeInfo, instantSource);
+        verify(appContext, never()).selfNodeInfoSupplier();
+        verify(appContext, never()).instantSource();
+    }
+
+    @Test
+    void skipsProvenNoProgressBundleWithoutReportingPeerFailure() throws PreCheckException {
+        final var payload = ClprSyncPayload.newBuilder()
+                .channelId(CHANNEL_ID)
+                .bundlePayload(BUNDLE_PAYLOAD)
+                .build();
+        doThrow(new PreCheckException(CLPR_NO_PROGRESS)).when(prevalidator).validate(payload, versionedConfig);
+
+        assertThat(subject.submitBundle(payload)).isTrue();
+
+        verify(gossip, never()).submit(any());
+        verifyNoInteractions(selfNodeInfo, instantSource);
+        verify(appContext, never()).selfNodeInfoSupplier();
+        verify(appContext, never()).instantSource();
     }
 
     @Test

@@ -183,6 +183,9 @@ public class CryptoApproveAllowanceHandler implements TransactionHandler {
         // Apply all changes to the state modifications. We need to look up payer for each modification, since payer
         // would have been modified by a previous allowance change
         approveAllowance(context, payer, accountStore);
+
+        // Runs last so it never pre-empts an existing failure
+        allowanceValidator.validateSpendersNamedByNumber(context);
     }
     /**
      * Validate the transaction body fields that include state or configuration.

@@ -49,6 +49,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_REPEAT
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TOKEN_BALANCE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ROYALTY_FRACTION_CANNOT_EXCEED_ONE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_AIRDROP_WITH_FALLBACK_ROYALTY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
@@ -177,8 +178,8 @@ public class TransferWithCustomRoyaltyFees {
                         .initialSupply(0)
                         .supplyKey(NFT_KEY)
                         .supplyType(TokenSupplyType.INFINITE)
-                        .withCustom(royaltyFeeNoFallback(6, 10, htsCollector))
-                        .withCustom(royaltyFeeNoFallback(7, 10, alice)),
+                        .withCustom(royaltyFeeNoFallback(5, 10, htsCollector))
+                        .withCustom(royaltyFeeNoFallback(4, 10, alice)),
                 tokenAssociate(tokenReceiver, nonFungibleToken),
                 tokenAssociate(tokenOwner, nonFungibleToken),
                 mintToken(nonFungibleToken, List.of(ByteStringUtils.wrapUnsafely("meta1".getBytes()))),
@@ -188,12 +189,12 @@ public class TransferWithCustomRoyaltyFees {
                         moving(4, feeDenom).between(tokenReceiver, tokenOwner)),
                 getAccountBalance(tokenOwner)
                         .hasTokenBalance(nonFungibleToken, 0)
-                        .hasTokenBalance(feeDenom, 0),
+                        .hasTokenBalance(feeDenom, 1),
                 getAccountBalance(tokenReceiver)
                         .hasTokenBalance(nonFungibleToken, 1)
                         .hasTokenBalance(feeDenom, 6),
                 getAccountBalance(htsCollector).hasTokenBalance(feeDenom, 2),
-                getAccountBalance(alice).hasTokenBalance(feeDenom, 2));
+                getAccountBalance(alice).hasTokenBalance(feeDenom, 1));
     }
 
     @HapiTest
@@ -214,8 +215,8 @@ public class TransferWithCustomRoyaltyFees {
                         .initialSupply(0)
                         .supplyKey(NFT_KEY)
                         .supplyType(TokenSupplyType.INFINITE)
-                        .withCustom(royaltyFeeNoFallback(6, 10, htsCollector))
-                        .withCustom(royaltyFeeNoFallback(7, 10, alice)),
+                        .withCustom(royaltyFeeNoFallback(5, 10, htsCollector))
+                        .withCustom(royaltyFeeNoFallback(4, 10, alice)),
                 tokenAssociate(tokenReceiver, nonFungibleToken),
                 tokenAssociate(tokenOwner, nonFungibleToken),
                 tokenAssociate(alice, nonFungibleToken),
@@ -226,8 +227,8 @@ public class TransferWithCustomRoyaltyFees {
                         moving(4, feeDenom).between(alice, tokenOwner)),
                 getAccountBalance(tokenOwner)
                         .hasTokenBalance(nonFungibleToken, 0)
-                        .hasTokenBalance(feeDenom, 0),
-                getAccountBalance(alice).hasTokenBalance(nonFungibleToken, 1).hasTokenBalance(feeDenom, 8),
+                        .hasTokenBalance(feeDenom, 1),
+                getAccountBalance(alice).hasTokenBalance(nonFungibleToken, 1).hasTokenBalance(feeDenom, 7),
                 getAccountBalance(htsCollector).hasTokenBalance(feeDenom, 2));
     }
 
@@ -237,13 +238,8 @@ public class TransferWithCustomRoyaltyFees {
                 newKeyNamed(NFT_KEY),
                 cryptoCreate(htsCollector),
                 cryptoCreate(alice),
-                cryptoCreate(tokenReceiver).balance(ONE_MILLION_HBARS),
                 cryptoCreate(tokenTreasury),
-                cryptoCreate(tokenOwner),
-                tokenCreate(feeDenom).treasury(tokenReceiver).initialSupply(10),
-                tokenAssociate(tokenOwner, feeDenom),
-                tokenAssociate(htsCollector, feeDenom),
-                tokenAssociate(alice, feeDenom),
+                // 60% + 90%: each fraction is valid on its own, but together they exceed the sale price
                 tokenCreate(nonFungibleToken)
                         .treasury(tokenTreasury)
                         .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
@@ -251,23 +247,8 @@ public class TransferWithCustomRoyaltyFees {
                         .supplyKey(NFT_KEY)
                         .supplyType(TokenSupplyType.INFINITE)
                         .withCustom(royaltyFeeNoFallback(6, 10, htsCollector))
-                        .withCustom(royaltyFeeNoFallback(9, 10, alice)),
-                tokenAssociate(tokenReceiver, nonFungibleToken),
-                tokenAssociate(tokenOwner, nonFungibleToken),
-                mintToken(nonFungibleToken, List.of(ByteStringUtils.wrapUnsafely("meta1".getBytes()))),
-                cryptoTransfer(movingUnique(nonFungibleToken, 1L).between(tokenTreasury, tokenOwner)),
-                cryptoTransfer(
-                                movingUnique(nonFungibleToken, 1L).between(tokenOwner, tokenReceiver),
-                                moving(4, feeDenom).between(tokenReceiver, tokenOwner))
-                        .hasKnownStatus(INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE),
-                getAccountBalance(tokenOwner)
-                        .hasTokenBalance(nonFungibleToken, 1)
-                        .hasTokenBalance(feeDenom, 0),
-                getAccountBalance(tokenReceiver)
-                        .hasTokenBalance(nonFungibleToken, 0)
-                        .hasTokenBalance(feeDenom, 10),
-                getAccountBalance(htsCollector).hasTokenBalance(feeDenom, 0),
-                getAccountBalance(alice).hasTokenBalance(feeDenom, 0));
+                        .withCustom(royaltyFeeNoFallback(9, 10, alice))
+                        .hasKnownStatus(ROYALTY_FRACTION_CANNOT_EXCEED_ONE));
     }
 
     @HapiTest
