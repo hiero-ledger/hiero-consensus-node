@@ -92,15 +92,15 @@ import org.openjdk.jmh.annotations.Warmup;
  *
  * <h2>Calibration</h2>
  * <ul>
- *   <li>Date / commit: 2026-10-28, 70625cee28</li>
+ *   <li>Date / commit: 2026-10-30, 7956479b66</li>
  *   <li>Machine: hl-cn-benchmark-lin, AS-2115GT-HNTR, AMD EPYC 9254 24-Core Processor, JDK 25.0.2, -XX:ActiveProcessorCount=12 -Xms1g -Xmx1g -XX:+AlwaysPreTouch</li>
  *   <li>Parameter sets: transactionsPerEvent=0 / transactionsPerEvent=2</li>
  *   <li>Steady state after: 5 s / 5 s</li>
- *   <li>Noise (latency.mean, CV): 0.17% / 0.31% per 10 s iteration, 1.48% / 0.72% between forks, - / - between runs (1 of 1 / 1 of 1 runs quiet)</li>
- *   <li>Expected detectable regression: 0.97% / 0.49% (95 % CI half-width of one run)</li>
- *   <li>Samples per iteration: 2.8 M / 1.7 M; expected stable: mean, p50, p90, p99, p99.9, p99.99 / mean, p50, p90, p99</li>
+ *   <li>Noise (latency.mean, CV): 0.27% / 0.36% per 10 s iteration, 0.96% / 1.19% between forks, - / - between runs (1 of 1 / 1 of 1 runs quiet)</li>
+ *   <li>Expected detectable regression: 0.64% / 0.79% (95 % CI half-width of one run)</li>
+ *   <li>Samples per iteration: 2.4 M / 1.5 M; expected stable: mean, p50, p90, p99, p99.9 / mean, p50, p90, p99</li>
  *   <li>Runtime: 4.6 / 4.6 min per parameter set</li>
- *   <li>Raw data: https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/40686142781, https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/40689218901</li>
+ *   <li>Raw data: https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/41018545353, https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/41020351322</li>
  * </ul>
  */
 @State(Scope.Thread)
