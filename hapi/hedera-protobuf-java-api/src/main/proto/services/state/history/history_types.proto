@@ -167,6 +167,14 @@ message HistoryProofConstruction {
    * retries so a restarted controller reconstructs the same address book.
    */
   proto.Timestamp proof_key_cutoff_time = 12;
+
+  /**
+   * The ids of source nodes whose WRAPS messages are ignored in later
+   * attempts at this construction, because in an earlier attempt they
+   * published an R1 message but not a later one before its grace period
+   * ended.
+   */
+  repeated uint64 wraps_excluded_node_ids = 13;
 }
 
 /**
@@ -179,9 +187,11 @@ message WrapsSigningState {
   WrapsPhase phase = 1;
 
   /**
-   * If the network is still gathering WRAPS messages for the R2 or R3
-   * protocol phase, the next time at which nodes should stop waiting
-   * for tardy messages from R1 participants and start over.
+   * If the network is still gathering WRAPS messages for a protocol phase
+   * with a grace period, the next time at which nodes should stop waiting
+   * and start over. R2 and R3 always have one, for tardy messages from R1
+   * participants; R1 has one when a restart excludes some nodes, and when
+   * it ends the next attempt excludes none.
    */
   proto.Timestamp grace_period_end_time = 2;
 }

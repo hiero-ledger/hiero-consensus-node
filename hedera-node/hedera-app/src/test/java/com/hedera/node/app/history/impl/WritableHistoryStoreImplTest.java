@@ -2,6 +2,7 @@
 package com.hedera.node.app.history.impl;
 
 import static com.hedera.hapi.node.state.history.WrapsPhase.R1;
+import static com.hedera.hapi.node.state.history.WrapsPhase.R2;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
@@ -316,18 +317,57 @@ class WritableHistoryStoreImplTest {
                         .get(WRAPS_MESSAGE_HISTORIES_STATE_ID)
                         .size());
 
-        final var updated = subject.restartWrapsSigning(123L, new TreeSet<>(List.of(1L, 2L)));
+        final var updated =
+                subject.restartWrapsSigning(123L, new TreeSet<>(List.of(1L, 2L)), new TreeSet<>(List.of(2L)), null);
 
         assertEquals(2, updated.wrapsRetryCount());
         assertFalse(updated.hasFailureReason());
         assertTrue(updated.hasWrapsSigningState());
         assertEquals(
                 R1, updated.wrapsSigningStateOrElse(WrapsSigningState.DEFAULT).phase());
+        assertEquals(List.of(2L), updated.wrapsExcludedNodeIds());
         assertEquals(
                 0L,
                 state.getWritableStates(HistoryService.NAME)
                         .get(WRAPS_MESSAGE_HISTORIES_STATE_ID)
                         .size());
+
+        // Neither a later phase nor a failure clears the exclusions
+        subject.advanceWrapsSigningPhase(123L, R2, CONSENSUS_NOW);
+        assertEquals(List.of(2L), subject.getConstructionOrThrow(123L).wrapsExcludedNodeIds());
+        subject.failForReason(123L, "Still missing messages from R1 nodes [1] after end of grace period for phase R2");
+        assertEquals(List.of(2L), subject.getConstructionOrThrow(123L).wrapsExcludedNodeIds());
+    }
+
+    @Test
+    void restartWrapsSigningCanGiveR1AGracePeriod() {
+        setConstructions(
+                HistoryProofConstruction.newBuilder().constructionId(123L).build(), HistoryProofConstruction.DEFAULT);
+        final var graceEnd = CONSENSUS_NOW.plusSeconds(10);
+
+        final var updated =
+                subject.restartWrapsSigning(123L, new TreeSet<>(List.of(1L, 2L)), new TreeSet<>(List.of(2L)), graceEnd);
+
+        final var signingState = updated.wrapsSigningStateOrThrow();
+        assertEquals(R1, signingState.phase());
+        assertEquals(asTimestamp(graceEnd), signingState.gracePeriodEndTimeOrThrow());
+    }
+
+    @Test
+    void excludeFromWrapsSigningAddsToTheExcludedNodes() {
+        final var construction = HistoryProofConstruction.newBuilder()
+                .constructionId(123L)
+                .wrapsSigningState(WrapsSigningState.newBuilder().phase(R2).build())
+                .wrapsExcludedNodeIds(List.of(3L))
+                .build();
+        setConstructions(construction, HistoryProofConstruction.DEFAULT);
+
+        final var updated = subject.excludeFromWrapsSigning(123L, Set.of(1L));
+
+        assertEquals(List.of(1L, 3L), updated.wrapsExcludedNodeIds());
+        assertEquals(R2, updated.wrapsSigningStateOrThrow().phase());
+        // Nodes already excluded leave the construction as it was
+        assertSame(updated, subject.excludeFromWrapsSigning(123L, Set.of(3L)));
     }
 
     @Test
@@ -679,7 +719,7 @@ class WritableHistoryStoreImplTest {
         assertFalse(subject.getActiveConstruction().hasAssemblyStartTime());
         assertEquals(asTimestamp(CONSENSUS_NOW), subject.getActiveConstruction().proofKeyCutoffTime());
         subject.failForReason(123L, "missing messages");
-        final var restarted = subject.restartWrapsSigning(123L, new TreeSet<>());
+        final var restarted = subject.restartWrapsSigning(123L, new TreeSet<>(), new TreeSet<>(), null);
         assertEquals(asTimestamp(CONSENSUS_NOW), restarted.proofKeyCutoffTime());
     }
 

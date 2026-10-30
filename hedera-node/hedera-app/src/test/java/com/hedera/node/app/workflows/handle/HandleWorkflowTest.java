@@ -150,6 +150,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
+import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableSingletonState;
@@ -1573,6 +1574,71 @@ class HandleWorkflowTest {
         verify(scheduleService).executableTxns(any(), any(), any());
         // Only the round-start initialization — no scheduled txn dispatch triggered a second call
         verify(stakePeriodManager).setCurrentStakePeriodFor(eq(NOW));
+    }
+
+    @Test
+    void freshGenesisHandoffKeepsTheProofKeysOfNodesAPendingCandidateRosterDrops() {
+        final var activeRosterHash = Bytes.wrap("ACTIVE");
+        final var candidateRosterHash = Bytes.wrap("CANDIDATE");
+        final var activeRoster = Roster.newBuilder()
+                .rosterEntries(
+                        RosterEntry.newBuilder().nodeId(0L).weight(1L).build(),
+                        RosterEntry.newBuilder().nodeId(1L).weight(1L).build())
+                .build();
+        final var candidateRoster = Roster.newBuilder()
+                .rosterEntries(RosterEntry.newBuilder().nodeId(0L).weight(1L).build())
+                .build();
+        final var rosterStates = mock(ReadableStates.class);
+        final ReadableSingletonState<RosterState> rosterState = mock(ReadableSingletonState.class);
+        final ReadableKVState<ProtoBytes, Roster> rosters = mock(ReadableKVState.class);
+        given(state.getReadableStates(RosterService.NAME)).willReturn(rosterStates);
+        given(rosterStates.<RosterState>getSingleton(ROSTER_STATE_STATE_ID)).willReturn(rosterState);
+        given(rosterStates.<ProtoBytes, Roster>get(ROSTERS_STATE_ID)).willReturn(rosters);
+        given(rosterState.get())
+                .willReturn(RosterState.newBuilder()
+                        .candidateRosterHash(candidateRosterHash)
+                        .roundRosterPairs(new RoundRosterPair(0, activeRosterHash))
+                        .build());
+        given(rosters.get(new ProtoBytes(activeRosterHash))).willReturn(activeRoster);
+        given(rosters.get(new ProtoBytes(candidateRosterHash))).willReturn(candidateRoster);
+        final var historyStore = mock(WritableHistoryStore.class);
+        given(historyStore.getActiveConstruction())
+                .willReturn(
+                        HistoryProofConstruction.newBuilder().constructionId(1L).build());
+        // A finished construction that grounds a new chain of trust for the roster the network already has
+        final var groundingConstruction = HistoryProofConstruction.newBuilder()
+                .constructionId(2L)
+                .sourceRosterHash(activeRosterHash)
+                .targetRosterHash(activeRosterHash)
+                .targetProof(HistoryProof.DEFAULT)
+                .build();
+        willAnswer(invocation -> {
+                    invocation
+                            .<OnProofFinished>getArgument(0)
+                            .onFinished(historyStore, groundingConstruction, new TreeMap<>());
+                    return null;
+                })
+                .given(historyService)
+                .onFinishedConstruction(any());
+        // A round with one event and no transactions
+        final var creatorId = NodeId.of(0L);
+        given(round.iterator()).willAnswer(ignore -> List.of(event).iterator());
+        lenient().when(event.getConsensusTimestamp()).thenReturn(NOW);
+        lenient().when(event.allParentsIterator()).thenAnswer(ignore -> emptyIterator());
+        lenient().when(event.getCreatorId()).thenReturn(creatorId);
+        lenient().when(event.consensusTransactionIterator()).thenAnswer(ignore -> emptyIterator());
+        lenient().when(networkInfo.nodeInfo(creatorId.id())).thenReturn(mock(NodeInfo.class));
+        lenient().when(blockStreamManager.lastIntervalProcessTime()).thenReturn(NOW);
+        givenSubjectWith(
+                BLOCKS,
+                BlockStreamWriterMode.FILE,
+                emptyList(),
+                Map.of("tss.hintsEnabled", "true", "tss.historyEnabled", "true"));
+
+        subject.handleRound(state, round, txns -> {});
+
+        // The roster does not change, so no node's proof key may be removed
+        verify(historyStore).handoff(activeRoster, null, null);
     }
 
     @Test
