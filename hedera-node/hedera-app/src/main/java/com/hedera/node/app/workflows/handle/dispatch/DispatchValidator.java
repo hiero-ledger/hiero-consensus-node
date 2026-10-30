@@ -1,19 +1,25 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.dispatch;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.PAYER_ACCOUNT_DELETED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.PAYER_ACCOUNT_NOT_FOUND;
 import static com.hedera.hapi.util.HapiUtils.isHollow;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.BATCH_INNER;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.SCHEDULED;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static com.hedera.node.app.state.HederaRecordCache.DuplicateCheckResult.NO_DUPLICATE;
+import static com.hedera.node.app.state.HederaRecordCache.DuplicateCheckResult.OTHER_NODE;
+import static com.hedera.node.app.state.HederaRecordCache.DuplicateCheckResult.SAME_NODE;
 import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newCreatorError;
 import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newGenesisWaiver;
 import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newPayerDuplicateError;
 import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newPayerUniqueError;
+import static com.hedera.node.app.workflows.prehandle.PreHandleResult.Status.NODE_DUE_DILIGENCE_FAILURE;
 import static com.hedera.node.app.workflows.prehandle.PreHandleResult.Status.SO_FAR_SO_GOOD;
 import static java.util.Objects.requireNonNull;
 
@@ -22,13 +28,16 @@ import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.fees.AppFeeCharging;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.signature.DefaultKeyVerifier;
 import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
+import com.hedera.node.app.spi.workflows.ComputeDispatchFeesAsTopLevel;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.handle.Dispatch;
+import com.hedera.node.config.data.HederaConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -102,6 +111,15 @@ public class DispatchValidator {
         final var creatorError = creatorErrorIfKnown(dispatch);
         if (creatorError != null) {
             return newCreatorError(dispatch.creatorInfo().accountId(), creatorError);
+        }
+        // An atomic batch is only as valid as its inner transactions, and ingest checks each of them against the
+        // same state the batch is about to run on. So before any inner runs, repeat those per-inner checks here;
+        // an inner that fails one is a batch the submitting node should have rejected, and the node is charged
+        // for it as for any other due-diligence failure. (An inner that fails later, while the batch runs, was
+        // made to fail by an earlier inner and is the batch payer's problem, not the node's.)
+        final var innerCreatorError = innerCreatorErrorIfKnown(dispatch);
+        if (innerCreatorError != null) {
+            return newCreatorError(dispatch.creatorInfo().accountId(), innerCreatorError);
         } else {
             final var payer =
                     getPayerAccount(dispatch.readableStoreFactory(), dispatch.payerId(), dispatch.txnCategory());
@@ -181,6 +199,86 @@ public class DispatchValidator {
             case SO_FAR_SO_GOOD -> getExpiryError(dispatch);
             case UNKNOWN_FAILURE, PAYER_UNWILLING_OR_UNABLE_TO_PAY_SERVICE_FEE, PRE_HANDLE_FAILURE -> null;
         };
+    }
+
+    /**
+     * For a top-level atomic batch, returns the first status with which one of its inner transactions fails a check
+     * the submitting node must have passed it through at ingest; or null if every inner passes them all, or the
+     * dispatch is not a top-level atomic batch.
+     * <p>
+     * Each inner is checked on its own against the state the batch starts from, exactly as ingest checks it: the
+     * pre-handle result (recomputed at handle time, so it reflects that state), the timebox, that the payer exists
+     * and is not deleted, the payer signature, a duplicate submitted by the same node, and the payer's solvency for
+     * that inner's fees, including that its offered fee covers them. The fees are computed the way the inner's own
+     * dispatch computes them, so the two agree.
+     *
+     * @param dispatch the dispatch
+     * @return the status of the first inner that fails an ingest-level check, or null if none does
+     */
+    @Nullable
+    private ResponseCodeEnum innerCreatorErrorIfKnown(@NonNull final Dispatch dispatch) {
+        if (dispatch.txnCategory() != USER || dispatch.txnInfo().functionality() != ATOMIC_BATCH) {
+            return null;
+        }
+        final var innerResults = dispatch.preHandleResult().innerResults();
+        if (innerResults == null) {
+            return null;
+        }
+        final var creatorInfo = dispatch.creatorInfo();
+        final var accountStore = dispatch.readableStoreFactory().readableStore(ReadableAccountStore.class);
+        final var hederaConfig = dispatch.config().getConfigData(HederaConfig.class);
+        for (final var innerResult : innerResults) {
+            if (innerResult.status() == NODE_DUE_DILIGENCE_FAILURE) {
+                return innerResult.responseCode();
+            }
+            final var txInfo = innerResult.txInfo();
+            if (txInfo == null) {
+                continue;
+            }
+            final var body = txInfo.txBody();
+            try {
+                transactionChecker.checkTimeBox(
+                        body, dispatch.consensusNow(), TransactionChecker.RequireMinValidLifetimeBuffer.NO);
+            } catch (PreCheckException e) {
+                return e.responseCode();
+            }
+            final var payerId = txInfo.payerID();
+            final var payer = accountStore.getAccountById(payerId);
+            if (payer == null) {
+                return PAYER_ACCOUNT_NOT_FOUND;
+            } else if (payer.deleted()) {
+                return PAYER_ACCOUNT_DELETED;
+            }
+            // As above, a hollow payer's signature was already verified at ingest and its alias cannot have changed
+            if (!isHollow(payer)) {
+                final var verifier = new DefaultKeyVerifier(hederaConfig, innerResult.getVerificationResults());
+                if (verifier.verificationFor(payer.keyOrThrow()).failed()) {
+                    return INVALID_PAYER_SIGNATURE;
+                }
+            }
+            final var duplicateCheckResult =
+                    recordCache.hasDuplicate(body.transactionIDOrThrow(), creatorInfo.nodeId());
+            if (duplicateCheckResult == SAME_NODE) {
+                return DUPLICATE_TRANSACTION;
+            }
+            final var fees = dispatch.handleContext()
+                    .dispatchComputeFees(body, payerId, ComputeDispatchFeesAsTopLevel.YES, txInfo.signatureMap());
+            final var validation = feeCharging.validate(
+                    payer,
+                    creatorInfo.accountId(),
+                    fees,
+                    body,
+                    duplicateCheckResult == OTHER_NODE,
+                    txInfo.functionality(),
+                    // Validate as ingest does, which treats each inner as a top-level transaction (including the
+                    // check that the offered fee covers the fees), so that a failure here is exactly one that the
+                    // submitting node should have caught
+                    USER);
+            if (validation.maybeErrorStatus() != null) {
+                return validation.maybeErrorStatus();
+            }
+        }
+        return null;
     }
 
     /**
