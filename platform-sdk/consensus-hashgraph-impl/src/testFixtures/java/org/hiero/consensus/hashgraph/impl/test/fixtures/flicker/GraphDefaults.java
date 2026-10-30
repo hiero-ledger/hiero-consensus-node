@@ -6,9 +6,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 /**
  * The per-event fields a graph declares once in its header, so that a row carries only what it changes.
  * <p>
- * Every field here is hashed content (D1), so each has to have a definite value on every event or the graph's hashes
- * do not reproduce. Writing all of them on all thirty rows would bury the structure the file exists to show, which is
- * why they are defaults rather than columns.
+ * Every field here is hashed content, so each has to have a definite value on every event or the graph's hashes
+ * do not reproduce. Without defaults, every event row need these values specified which would bury the structure the
+ * file exists to show. This is why they are defaults rather than columns.
  *
  * @param coin             the coin value, whose parity is read only if an election reaches a coin round
  * @param birthRound       the birth round of an event with no parents; every other event derives it from its parents
