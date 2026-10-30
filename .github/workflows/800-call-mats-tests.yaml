@@ -33,6 +33,11 @@ on:
         type: string
         required: false
         default: "false"
+      enable-falcon-tests:
+        description: "Falcon Tests Enabled"
+        type: string
+        required: false
+        default: "false"
       enable-snyk-scan:
         description: "Snyk Scan Enabled"
         type: string
@@ -220,7 +225,7 @@ jobs:
 
   mats-otter-tests:
     name: Otter Tests
-    if: ${{ inputs.enable-otter-tests == 'true' }}
+    if: ${{ inputs.enable-otter-tests == 'true' || inputs.enable-falcon-tests == 'true' }}
     needs:
       - commit-info
       - compile-and-spotless
@@ -230,6 +235,8 @@ jobs:
       java-version: "${{ inputs.java-version }}"
       java-distribution: "${{ inputs.java-distribution }}"
       enable-network-log-capture: true
+      enable-fast-otter-tests: ${{ inputs.enable-otter-tests == 'true' }}
+      enable-falcon-tests: ${{ inputs.enable-falcon-tests == 'true' }}
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}

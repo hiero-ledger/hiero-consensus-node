@@ -32,6 +32,11 @@ on:
         type: boolean
         required: false
         default: true
+      enable-falcon-tests:
+        description: "Falcon Tests Enabled"
+        type: boolean
+        required: false
+        default: true
       enable-snyk-scan:
         description: "Snyk Scan Enabled"
         type: boolean
@@ -92,6 +97,7 @@ jobs:
       enable-integration-tests: "${{ inputs.enable-integration-tests || 'false' }}"
       enable-hapi-tests: "${{ inputs.enable-hapi-tests || 'false' }}"
       enable-otter-tests: "${{ inputs.enable-otter-tests || 'false' }}"
+      enable-falcon-tests: "${{ inputs.enable-falcon-tests || 'false' }}"
       enable-snyk-scan: "${{ inputs.enable-snyk-scan || 'false' }}"
       enable-gradle-determinism: "${{ inputs.enable-gradle-determinism || 'false' }}"
       enable-docker-determinism: "${{ inputs.enable-docker-determinism || 'false' }}"

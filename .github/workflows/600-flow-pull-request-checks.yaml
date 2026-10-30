@@ -72,6 +72,7 @@ jobs:
       enable-integration-tests: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-hapi-tests: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-otter-tests: ${{ needs.detect-change-type.outputs.enable-tests }}
+      enable-falcon-tests: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-snyk-scan: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-benchmark-smoke: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-evm-functional-tests: ${{ github.base_ref == github.event.repository.default_branch && needs.detect-change-type.outputs.smart-contracts-changed || 'false' }}

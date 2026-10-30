@@ -56,6 +56,7 @@ jobs:
       enable-integration-tests: "true"
       enable-hapi-tests: "true"
       enable-otter-tests: "true"
+      enable-falcon-tests: "true"
       enable-snyk-scan: "true"
       enable-benchmark-smoke: "true"
       enable-gradle-determinism: "true"
