@@ -2,10 +2,25 @@
 plugins {
     id("org.hiero.gradle.module.library")
     id("org.hiero.gradle.feature.publish-artifactregistry")
+    id("org.hiero.gradle.feature.benchmark")
+    id("org.hiero.gradle.feature.benchmark-tracking")
     id("org.hiero.gradle.feature.test-fixtures")
 }
 
 description = "Default Consensus Gossip Implementation"
+
+jmhModuleInfo {
+    requires("com.swirlds.config.extensions.test.fixtures")
+    requires("org.hiero.consensus.benchmark.tools")
+    requires("org.hiero.consensus.gossip.impl")
+    requires("org.hiero.consensus.model.test.fixtures")
+    requires("jmh.core")
+}
+
+jmh {
+    // the benchmarks that are tracked; -PjmhTests=<pattern> runs others instead
+    includes.convention(listOf("GossipEventSerializationBenchmark"))
+}
 
 testModuleInfo {
     requires("com.swirlds.base.test.fixtures")
