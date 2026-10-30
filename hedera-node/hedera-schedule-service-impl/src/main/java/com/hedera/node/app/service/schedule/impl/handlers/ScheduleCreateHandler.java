@@ -138,10 +138,12 @@ public class ScheduleCreateHandler extends AbstractScheduleHandler implements Tr
         final var transactionKeys = getRequiredKeys(schedule, context::allKeysForTransaction);
         // If the schedule payer inherits from the ScheduleCreate, it is already in the required keys
         if (op.hasPayerAccountID()) {
-            context.optionalKey(transactionKeys.payerKey());
+            context.optionalKeyRequirement(transactionKeys.payerKeyRequirement());
         }
         // Any required non-payer key may optionally provide its signature with the ScheduleCreate
-        context.optionalKeys(transactionKeys.requiredNonPayerKeys());
+        for (final var requirement : transactionKeys.requiredKeyRequirements()) {
+            context.optionalKeyRequirement(requirement);
+        }
     }
 
     @Override

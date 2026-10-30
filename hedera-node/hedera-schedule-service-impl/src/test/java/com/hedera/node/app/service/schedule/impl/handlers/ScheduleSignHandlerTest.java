@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.schedule.impl.handlers;
 
+import static com.hedera.hapi.util.HapiUtils.EMPTY_KEY_LIST;
 import static org.assertj.core.api.BDDAssertions.assertThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
@@ -19,6 +20,7 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.TransactionKeys;
 import com.hedera.node.app.workflows.prehandle.PreHandleContextImpl;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.InvalidKeyException;
 import java.util.Collections;
@@ -60,6 +62,31 @@ class ScheduleSignHandlerTest extends ScheduleHandlerTestBase {
         realPreContext = new PreHandleContextImpl(
                 mockStoreFactory, testTransaction, testConfig, mockDispatcher, mockTransactionChecker, creatorInfo);
         Assertions.assertThrowsPreCheck(() -> subject.preHandle(realPreContext), ResponseCodeEnum.INVALID_SCHEDULE_ID);
+    }
+
+    @Test
+    void hollowSchedulePayerRequiredByScheduledTransactionIsUnresolvable() throws PreCheckException {
+        accountsMapById.put(
+                payer,
+                payerAccount
+                        .copyBuilder()
+                        .key(EMPTY_KEY_LIST)
+                        .alias(Bytes.wrap(new byte[20]))
+                        .build());
+        BDDMockito.willAnswer(invocation -> {
+                    invocation
+                            .<PreHandleContext>getArgument(0)
+                            .requireKeyOrThrow(payer, ResponseCodeEnum.INVALID_ACCOUNT_ID);
+                    return null;
+                })
+                .given(mockDispatcher)
+                .dispatchPreHandle(Mockito.any());
+        final TransactionBody testTransaction = scheduleSignTransaction(null);
+        realPreContext = new PreHandleContextImpl(
+                mockStoreFactory, testTransaction, testConfig, mockDispatcher, mockTransactionChecker, creatorInfo);
+
+        Assertions.assertThrowsPreCheck(
+                () -> subject.preHandle(realPreContext), ResponseCodeEnum.UNRESOLVABLE_REQUIRED_SIGNERS);
     }
 
     @Test

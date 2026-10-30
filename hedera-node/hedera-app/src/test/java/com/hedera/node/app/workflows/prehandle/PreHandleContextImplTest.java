@@ -8,6 +8,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNRESOLVABLE_REQUIRED_SIGNERS;
+import static com.hedera.hapi.util.HapiUtils.EMPTY_KEY_LIST;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static com.hedera.node.app.workflows.prehandle.PreHandleContextListUpdatesTest.A_COMPLEX_KEY;
 import static com.hedera.node.app.workflows.prehandle.PreHandleResult.Status.SO_FAR_SO_GOOD;
@@ -35,15 +36,18 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fixtures.Scenarios;
 import com.hedera.node.app.spi.info.NodeInfo;
+import com.hedera.node.app.spi.key.KeyRequirement;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.config.data.AccountsConfig;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.UnaryOperator;
@@ -104,6 +108,7 @@ class PreHandleContextImplTest implements Scenarios {
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
         given(accountStore.getAccountById(PAYER)).willReturn(account);
         given(account.keyOrThrow()).willReturn(payerKey);
+        given(account.accountIdOrThrow()).willReturn(PAYER);
 
         final var txn = createAccountTransaction();
         subject =
@@ -118,6 +123,23 @@ class PreHandleContextImplTest implements Scenarios {
         assertThat(subject.payerKey()).isEqualTo(payerKey);
         assertThat(subject.requiredNonPayerKeys()).isEqualTo(Set.of(otherKey));
         assertThat(subject.configuration()).isEqualTo(configuration);
+    }
+
+    @Test
+    @SuppressWarnings("ConstantConditions")
+    void requireInvalidRawKeyRemainsANoOp() {
+        assertThat(subject.requireKey(null)).isSameAs(subject);
+        assertThat(subject.requireKey(Key.DEFAULT)).isSameAs(subject);
+        assertThat(subject.requiredKeyRequirements()).isEmpty();
+        assertThat(subject.requiredNonPayerKeys()).isEmpty();
+    }
+
+    @Test
+    void optionalEmptyKeyRetainsPrecheckFailure() {
+        assertThatThrownBy(() -> subject.optionalKey(EMPTY_KEY_LIST))
+                .isInstanceOf(PreCheckException.class)
+                .has(responseCode(INVALID_ACCOUNT_ID));
+        assertThat(subject.optionalKeyRequirements()).isEmpty();
     }
 
     private TransactionBody createAccountTransaction() {
@@ -186,6 +208,156 @@ class PreHandleContextImplTest implements Scenarios {
         assertThat(result.getRequiredKeys()).doesNotContain(payerKey);
         assertThat(result.getOptionalKeys()).doesNotContain(payerKey);
         assertThat(result.getHollowAccounts()).doesNotContain(account);
+    }
+
+    @Nested
+    @DisplayName("Identity-scoped requirements")
+    class IdentityScopedRequirementsTests {
+        private final AccountID ownerId =
+                AccountID.newBuilder().shardNum(1).realmNum(2).accountNum(1234).build();
+        private final AccountID otherOwnerId =
+                AccountID.newBuilder().shardNum(1).realmNum(2).accountNum(1235).build();
+
+        @BeforeEach
+        void configureAccountValidation() {
+            org.mockito.Mockito.lenient()
+                    .when(configuration.getConfigData(AccountsConfig.class))
+                    .thenReturn(HederaTestConfigBuilder.createConfig().getConfigData(AccountsConfig.class));
+        }
+
+        @Test
+        void sharedPayerKeyRetainsIndependentAccountAndExplicitRequirements() throws PreCheckException {
+            final var owner =
+                    Account.newBuilder().accountId(ownerId).key(payerKey).build();
+            final var otherOwner =
+                    Account.newBuilder().accountId(otherOwnerId).key(payerKey).build();
+            given(accountStore.getAccountById(ownerId)).willReturn(owner);
+            given(accountStore.getAccountById(otherOwnerId)).willReturn(otherOwner);
+
+            subject.requireKeyOrThrow(ownerId, INVALID_ACCOUNT_ID);
+            subject.requireKeyOrThrow(otherOwnerId, INVALID_ACCOUNT_ID);
+            subject.requireKey(payerKey);
+            subject.requireKeyOrThrow(ownerId, INVALID_ACCOUNT_ID);
+
+            assertThat(subject.requiredKeyRequirements())
+                    .containsExactly(
+                            KeyRequirement.forAccount(ownerId, payerKey),
+                            KeyRequirement.forAccount(otherOwnerId, payerKey),
+                            KeyRequirement.forKey(payerKey));
+            assertThat(subject.requiredNonPayerKeys()).isEmpty();
+            assertThat(subject.payerKeyRequirement()).isEqualTo(KeyRequirement.forAccount(PAYER, payerKey));
+        }
+
+        @Test
+        void payerAccountRequirementIsCollectedInsteadOfElided() throws PreCheckException {
+            given(accountStore.getAccountById(PAYER))
+                    .willReturn(
+                            Account.newBuilder().accountId(PAYER).key(payerKey).build());
+
+            subject.requireKeyOrThrow(PAYER, INVALID_ACCOUNT_ID);
+
+            assertThat(subject.requiredKeyRequirements()).containsExactly(KeyRequirement.forAccount(PAYER, payerKey));
+            assertThat(subject.requiredNonPayerKeys()).isEmpty();
+        }
+
+        @Test
+        void aliasAndContractAddressResolveToTheSameCanonicalRequirement() throws PreCheckException {
+            final var alias = AccountID.newBuilder()
+                    .shardNum(ownerId.shardNum())
+                    .realmNum(ownerId.realmNum())
+                    .alias(Bytes.wrap("canonical-owner-alias"))
+                    .build();
+            final var contract = ContractID.newBuilder()
+                    .shardNum(ownerId.shardNum())
+                    .realmNum(ownerId.realmNum())
+                    .evmAddress(alias.aliasOrThrow())
+                    .build();
+            final var owner =
+                    Account.newBuilder().accountId(ownerId).key(payerKey).build();
+            given(accountStore.getAliasedAccountById(alias)).willReturn(owner);
+            given(accountStore.getAccountById(ownerId)).willReturn(owner);
+            given(accountStore.getContractById(contract)).willReturn(owner);
+
+            subject.requireAliasedKeyOrThrow(alias, INVALID_ACCOUNT_ID);
+            subject.requireKeyOrThrow(ownerId, INVALID_ACCOUNT_ID);
+            subject.requireKeyOrThrow(contract, INVALID_CONTRACT_ID);
+
+            assertThat(subject.requiredKeyRequirements()).containsExactly(KeyRequirement.forAccount(ownerId, payerKey));
+        }
+
+        @Test
+        void optionalPayerEqualKeyKeepsItsScope() throws PreCheckException {
+            subject.optionalKey(payerKey);
+            subject.optionalKeyRequirement(KeyRequirement.forAccount(ownerId, payerKey));
+
+            assertThat(subject.optionalKeyRequirements())
+                    .containsExactly(KeyRequirement.forKey(payerKey), KeyRequirement.forAccount(ownerId, payerKey));
+            assertThat(subject.optionalNonPayerKeys()).isEmpty();
+        }
+
+        @Test
+        void arbitraryFinisherDoesNotConferAccountAuthority() throws PreCheckException {
+            given(accountStore.getAccountById(ownerId))
+                    .willReturn(Account.newBuilder()
+                            .accountId(ownerId)
+                            .key(payerKey)
+                            .build());
+
+            subject.requireKeyOrThrow(ownerId, ignored -> otherKey, INVALID_ACCOUNT_ID);
+
+            assertThat(subject.requiredKeyRequirements()).containsExactly(KeyRequirement.forKey(otherKey));
+        }
+
+        @Test
+        void lookupReturnsCanonicalRequirementWithoutCollectingIt() throws PreCheckException {
+            final var alias =
+                    AccountID.newBuilder().alias(Bytes.wrap("owner-alias")).build();
+            given(accountStore.getAccountById(alias))
+                    .willReturn(Account.newBuilder()
+                            .accountId(ownerId)
+                            .key(payerKey)
+                            .build());
+
+            assertThat(subject.keyRequirementFor(alias, INVALID_ACCOUNT_ID))
+                    .isEqualTo(KeyRequirement.forAccount(ownerId, payerKey));
+            assertThat(subject.requiredKeyRequirements()).isEmpty();
+        }
+
+        @Test
+        void hollowPayerAccountRequiresHollowSignature() throws PreCheckException {
+            final var hollowPayerId = AccountID.newBuilder().accountNum(1234L).build();
+            final var hollowPayer = Account.newBuilder()
+                    .accountId(hollowPayerId)
+                    .key(EMPTY_KEY_LIST)
+                    .alias(Bytes.wrap(new byte[20]))
+                    .build();
+            given(accountStore.getAccountById(hollowPayerId)).willReturn(hollowPayer);
+            final var context = new PreHandleContextImpl(
+                    storeFactory,
+                    createAccountTransaction(),
+                    hollowPayerId,
+                    configuration,
+                    dispatcher,
+                    transactionChecker,
+                    creatorInfo);
+
+            context.requireKeyOrThrow(hollowPayerId, INVALID_ACCOUNT_ID);
+
+            assertThat(context.requiredHollowAccounts()).containsExactly(hollowPayer);
+            assertThat(context.requiredKeyRequirements()).isEmpty();
+            assertThat(context.requiredNonPayerKeys()).isEmpty();
+        }
+
+        @Test
+        void composedRequirementWithInvalidAlternativeIsIgnored() {
+            final var requirement = KeyRequirement.anyOf(
+                    List.of(KeyRequirement.forAccount(ownerId, payerKey), KeyRequirement.forKey(Key.DEFAULT)));
+
+            subject.requireKeyRequirement(requirement);
+
+            assertThat(subject.requiredKeyRequirements()).isEmpty();
+            assertThat(subject.requiredNonPayerKeys()).isEmpty();
+        }
     }
 
     @Nested
@@ -537,6 +709,51 @@ class PreHandleContextImplTest implements Scenarios {
             final var foreignKey = Key.newBuilder().contractID(FOREIGN).build();
             final var context = subjectWithPayerKey(foreignKey);
             context.requireKey(foreignKey);
+            assertThat(context.requiredNonPayerKeys()).containsExactly(foreignKey);
+        }
+
+        @Test
+        void payerAccountWithForeignContractKeyIsRetainedWithoutDuplicateFeeProjection() throws PreCheckException {
+            final var foreignKey = Key.newBuilder().contractID(FOREIGN).build();
+            final var context = subjectWithPayerKey(foreignKey);
+            final var payer =
+                    Account.newBuilder().accountId(PAYER).key(foreignKey).build();
+            final var alias =
+                    AccountID.newBuilder().alias(Bytes.wrap("payer-alias")).build();
+            given(accountStore.getAccountById(PAYER)).willReturn(payer);
+            given(accountStore.getAliasedAccountById(alias)).willReturn(payer);
+            given(configuration.getConfigData(AccountsConfig.class))
+                    .willReturn(HederaTestConfigBuilder.createConfig().getConfigData(AccountsConfig.class));
+
+            context.requireKeyOrThrow(PAYER, INVALID_ACCOUNT_ID);
+            context.requireAliasedKeyOrThrow(alias, INVALID_ACCOUNT_ID);
+
+            assertThat(context.requiredKeyRequirements()).containsExactly(KeyRequirement.forAccount(PAYER, foreignKey));
+            assertThat(context.requiredNonPayerKeys()).isEmpty();
+        }
+
+        @Test
+        void payerAccountWithForeignDelegatableKeyIsRetainedWithoutDuplicateFeeProjection() throws PreCheckException {
+            final var foreignKey =
+                    Key.newBuilder().delegatableContractId(FOREIGN).build();
+            final var context = subjectWithPayerKey(foreignKey);
+
+            context.requireKeyRequirement(KeyRequirement.forAccount(PAYER, foreignKey));
+
+            assertThat(context.requiredKeyRequirements()).containsExactly(KeyRequirement.forAccount(PAYER, foreignKey));
+            assertThat(context.requiredNonPayerKeys()).isEmpty();
+        }
+
+        @Test
+        void otherAccountSharingForeignPayerKeyStillHasLegacyProjection() throws PreCheckException {
+            final var foreignKey = Key.newBuilder().contractID(FOREIGN).build();
+            final var context = subjectWithPayerKey(foreignKey);
+            final var otherId = AccountID.newBuilder().accountNum(1234).build();
+            final var requirement = KeyRequirement.forAccount(otherId, foreignKey);
+
+            context.requireKeyRequirement(requirement);
+
+            assertThat(context.requiredKeyRequirements()).containsExactly(requirement);
             assertThat(context.requiredNonPayerKeys()).containsExactly(foreignKey);
         }
 

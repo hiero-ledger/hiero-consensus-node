@@ -3,6 +3,10 @@ package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts;
 
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_167_EVM_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_16C_EVM_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.ClassicTransfersTranslator.TRANSFER_NFT;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.ClassicTransfersTranslator.TRANSFER_NFTS;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.ClassicTransfersTranslator.TRANSFER_TOKEN;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.ClassicTransfersTranslator.TRANSFER_TOKENS;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZeroAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static java.util.Objects.requireNonNull;
@@ -12,6 +16,8 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.state.token.Token;
+import com.hedera.node.app.service.contract.impl.exec.scope.AccountAuthorizingVerificationStrategy;
+import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call;
@@ -32,13 +38,9 @@ public class HtsCallAttempt extends AbstractCallAttempt<HtsCallAttempt> {
 
     public static final Function LEGACY_REDIRECT_FOR_TOKEN = new Function("redirectForToken(address,bytes)");
 
-    // The id address of the account authorizing the call, in the sense
-    // that (1) a dispatch should omit the key of this account from the
-    // set of required signing keys; and (2) the verification strategy
-    // for this call should use this authorizing address. We only need
-    // this because we will still have two contracts on the qualified
-    // delegates list, so it is possible the authorizing account can be
-    // different from the EVM sender address
+    // The account supplying authority for the classic transfer methods that support
+    // qualified delegates. Primitive contract-key activation still uses this identity
+    // for other methods, but their self-account authority belongs to the EVM sender.
     private final AccountID authorizingId;
 
     @Nullable
@@ -49,7 +51,7 @@ public class HtsCallAttempt extends AbstractCallAttempt<HtsCallAttempt> {
 
         this.redirectToken = this.maybeRedirectAddress.map(this::linkedToken).orElse(null);
 
-        this.authorizingId = (options.authorizingAddress() != senderAddress())
+        this.authorizingId = (!options.authorizingAddress().equals(senderAddress()))
                 ? addressIdConverter().convertSender(options.authorizingAddress())
                 : senderId;
     }
@@ -57,6 +59,19 @@ public class HtsCallAttempt extends AbstractCallAttempt<HtsCallAttempt> {
     @Override
     protected HtsCallAttempt self() {
         return this;
+    }
+
+    @Override
+    public @NonNull VerificationStrategy defaultVerificationStrategy() {
+        final var strategy = super.defaultVerificationStrategy();
+        if (strategy instanceof AccountAuthorizingVerificationStrategy scoped) {
+            // Keep the qualified delegate's existing primitive-key activation rules, while
+            // matching account authority to the method's actual caller semantics.
+            final var accountAuthority =
+                    isSelector(TRANSFER_TOKENS, TRANSFER_TOKEN, TRANSFER_NFTS, TRANSFER_NFT) ? authorizingId : senderId;
+            return new AccountAuthorizingVerificationStrategy(accountAuthority, scoped.primitiveStrategy());
+        }
+        return strategy;
     }
 
     /**

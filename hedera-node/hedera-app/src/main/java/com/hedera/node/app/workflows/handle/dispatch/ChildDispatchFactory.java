@@ -7,6 +7,8 @@ import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.util.HapiUtils.functionOf;
 import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.functionalityForType;
+import static com.hedera.node.app.signature.impl.SignatureVerificationImpl.failedVerification;
+import static com.hedera.node.app.signature.impl.SignatureVerificationImpl.passedVerification;
 import static com.hedera.node.app.spi.key.KeyVerifier.NO_AUTHORIZING_KEYS;
 import static com.hedera.node.app.spi.workflows.ComputeDispatchFeesAsTopLevel.YES;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.UsePresetTxnId.NO;
@@ -49,7 +51,10 @@ import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.NodeFeeAccumulator;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
+import com.hedera.node.app.spi.key.KeyRequirement;
+import com.hedera.node.app.spi.key.RequirementVerifier;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
+import com.hedera.node.app.spi.signatures.ContextualVerificationAssistant;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.signatures.VerificationAssistant;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
@@ -180,6 +185,10 @@ public class ChildDispatchFactory {
         requireNonNull(consensusNow);
         requireNonNull(blockRecordInfo);
         requireNonNull(options);
+        if (overridePreHandleResult != null && options.requirementVerifier() != null) {
+            throw new IllegalArgumentException(
+                    "A dispatch cannot use both pre-handle signature evidence and a requirement verifier");
+        }
         // If there is an override pre-handle result, then this is an atomic batch inner transaction.
         // If there is an override pre-handle result, we re-use it, and this dispatch will check signatures using the
         // results from the override pre-handle result
@@ -189,7 +198,9 @@ public class ChildDispatchFactory {
         final var childVerifier = overridePreHandleResult != null
                 ? new DefaultKeyVerifier(
                         config.getConfigData(HederaConfig.class), overridePreHandleResult.getVerificationResults())
-                : getKeyVerifier(options.effectiveKeyVerifier(), config, options.authorizingKeys());
+                : options.requirementVerifier() != null
+                        ? getRequirementVerifier(options.requirementVerifier(), config, options.authorizingKeys())
+                        : getKeyVerifier(options.effectiveKeyVerifier(), config, options.authorizingKeys());
         boolean isLastAllowedPreset = false;
         if (options.body().hasScheduleCreate()) {
             final var scheduledFunction = functionalityForType(options.body()
@@ -395,7 +406,8 @@ public class ChildDispatchFactory {
                     preHandleContext.requiredHollowAccounts(),
                     null,
                     null,
-                    0);
+                    0,
+                    preHandleContext.requiredKeyRequirements());
         } catch (final PreCheckException e) {
             return new PreHandleResult(
                     null,
@@ -510,6 +522,68 @@ public class ChildDispatchFactory {
                         return keys;
                     }
                 };
+    }
+
+    /**
+     * Builds a verifier whose policy applies to whole requirements. Key-only calls are explicitly
+     * unscoped and never acquire an account exemption from a matching cryptographic key.
+     *
+     * @param callback the whole-requirement authorization policy
+     * @param config the configuration
+     * @param authorizingKeys independently authorized simple keys, excluding account exemptions
+     * @return the contextual child verifier
+     */
+    public static AppKeyVerifier getRequirementVerifier(
+            @NonNull final RequirementVerifier callback,
+            @NonNull final Configuration config,
+            @NonNull final Set<Key> authorizingKeys) {
+        requireNonNull(callback);
+        final var keys = asSortedSet(authorizingKeys);
+        return new AppKeyVerifier() {
+            private final AppKeyVerifier verifier =
+                    new DefaultKeyVerifier(config.getConfigData(HederaConfig.class), emptyMap());
+
+            @Override
+            public SignatureVerification verificationFor(@NonNull final KeyRequirement requirement) {
+                requireNonNull(requirement);
+                return callback.test(requirement)
+                        ? passedVerification(requirement.key())
+                        : failedVerification(requirement.key());
+            }
+
+            @Override
+            public SignatureVerification verificationFor(@NonNull final Key key) {
+                return verificationFor(KeyRequirement.forKey(key));
+            }
+
+            @Override
+            public SignatureVerification verificationFor(
+                    @NonNull final Key key, @NonNull final VerificationAssistant assistant) {
+                return verifier.verificationFor(key, assistant);
+            }
+
+            @Override
+            public SignatureVerification verificationFor(
+                    @NonNull final KeyRequirement requirement,
+                    @NonNull final ContextualVerificationAssistant assistant) {
+                return verifier.verificationFor(requirement, assistant);
+            }
+
+            @Override
+            public SignatureVerification verificationFor(@NonNull final Bytes evmAlias) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public int numSignaturesVerified() {
+                return 0;
+            }
+
+            @Override
+            public SortedSet<Key> authorizingSimpleKeys() {
+                return keys;
+            }
+        };
     }
 
     /**

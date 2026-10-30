@@ -11,6 +11,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_STORAGE_IN_PRICE_REGIME_HAS_BEEN_USED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOO_MANY_EVM_HOOK_STORAGE_UPDATES;
 import static com.hedera.hapi.node.state.hooks.HookType.EVM_HOOK;
+import static com.hedera.hapi.util.HapiUtils.isHollow;
 import static com.hedera.node.app.hapi.utils.contracts.HookUtils.asAccountId;
 import static com.hedera.node.app.hapi.utils.contracts.HookUtils.minimalRepresentationOf;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
@@ -22,18 +23,17 @@ import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.hapi.node.base.HookId;
-import com.hedera.hapi.node.base.Key;
-import com.hedera.hapi.node.base.KeyList;
-import com.hedera.hapi.node.base.ThresholdKey;
 import com.hedera.hapi.node.hooks.EvmHookMappingEntry;
 import com.hedera.hapi.node.hooks.EvmHookStorageSlot;
 import com.hedera.hapi.node.hooks.EvmHookStorageUpdate;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.ReadableEvmHookStore;
 import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
+import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeContext;
+import com.hedera.node.app.spi.key.KeyRequirement;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -125,17 +125,14 @@ public class HookStoreHandler implements TransactionHandler {
         validateTruePreCheck(hook.type() == EVM_HOOK, HOOK_IS_NOT_AN_EVM_HOOK);
         // (FUTURE) As non-account entities acquire hooks, switch on more cases here
         final var ownerAccountId = hookId.entityIdOrThrow().accountIdOrThrow();
-        if (hook.hasAdminKey()) {
+        final var owner = context.createStore(ReadableAccountStore.class).getAccountById(ownerAccountId);
+        if (hook.hasAdminKey() && (owner == null || !isHollow(owner))) {
             // Storage for an EVM with an admin key can be managed by either the creator or the admin
-            context.requireKeyOrThrow(
-                    ownerAccountId,
-                    ownerKey -> Key.newBuilder()
-                            .thresholdKey(ThresholdKey.newBuilder()
-                                    .threshold(1)
-                                    .keys(new KeyList(List.of(ownerKey, hook.adminKeyOrThrow()))))
-                            .build(),
-                    INVALID_HOOK_ID);
+            context.requireKeyRequirement(KeyRequirement.anyOf(List.of(
+                    context.keyRequirementFor(ownerAccountId, INVALID_HOOK_ID),
+                    KeyRequirement.forKey(hook.adminKeyOrThrow()))));
         } else {
+            // Preserve hollow-owner finalization even when a hook has an admin-key alternative.
             context.requireKeyOrThrowOnDeleted(ownerAccountId, INVALID_HOOK_ID);
         }
     }

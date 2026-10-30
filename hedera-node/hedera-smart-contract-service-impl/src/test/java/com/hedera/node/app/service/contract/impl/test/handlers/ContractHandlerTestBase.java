@@ -123,5 +123,6 @@ public class ContractHandlerTestBase implements TransactionFactory {
     protected void setUpPayer() throws PreCheckException {
         lenient().when(accountStore.getAccountById(payer)).thenReturn(payerAccount);
         lenient().when(payerAccount.key()).thenReturn(payerKey);
+        lenient().when(payerAccount.accountIdOrThrow()).thenReturn(payer);
     }
 }

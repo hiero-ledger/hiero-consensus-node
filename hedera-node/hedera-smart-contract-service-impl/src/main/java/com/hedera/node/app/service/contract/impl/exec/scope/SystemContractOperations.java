@@ -14,12 +14,12 @@ import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
+import com.hedera.node.app.spi.key.RequirementVerifier;
 import com.hedera.node.app.spi.workflows.DispatchOptions.UsePresetTxnId;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Set;
-import java.util.function.Predicate;
 import org.apache.tuweni.bytes.Bytes;
 
 public interface SystemContractOperations {
@@ -62,7 +62,7 @@ public interface SystemContractOperations {
      *
      * @param syntheticBody the synthetic transaction to dispatch
      * @param strategy the non-cryptographic signature verification to use
-     * @param syntheticPayerId the payer of the synthetic transaction
+     * @param syntheticPayerId the fee payer; this does not confer account authority, which comes only from strategy
      * @param streamBuilderType the class of the stream builder to use
      * @param authorizingKeys the keys authorizing the dispatch
      * @param usePresetTxnId whether to set the expected transaction ID in the dispatch body
@@ -92,27 +92,13 @@ public interface SystemContractOperations {
             @NonNull HederaFunctionality functionality);
 
     /**
-     * Returns a {@link Predicate} that tests whether a primitive {@link Key} has signed
-     * based on the given verification strategy. Used when dispatching a synthetic
-     * transaction, as the workflow expects only a primitive signature test.
+     * Returns the verifier for complete, identity-scoped requirements in this invocation.
      *
-     * @param strategy the verification strategy to use
-     * @return a {@link Predicate} that tests whether a primitive {@link Key} is active
+     * @param strategy the invocation's verification strategy
+     * @return the complete requirement verifier
      */
     @NonNull
-    Predicate<Key> primitiveSignatureTestWith(@NonNull VerificationStrategy strategy);
-
-    /**
-     * Returns a {@link Predicate} that tests whether a {@link Key} structure has an
-     * active signature based on the given verification strategy. Used when checking
-     * whether the workflow will judge an account's key to have signed a dispatch, and
-     * hence whether a debit should be switched to an approval.
-     *
-     * @param strategy the verification strategy to use
-     * @return a test whether a {@link Key} structure has an active signature
-     */
-    @NonNull
-    Predicate<Key> signatureTestWith(@NonNull VerificationStrategy strategy);
+    RequirementVerifier requirementTestWith(@NonNull VerificationStrategy strategy);
 
     /**
      * Attempts to create a child record of the current record, with the given {@code result}.

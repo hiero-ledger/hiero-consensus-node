@@ -55,7 +55,9 @@ import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.records.CryptoCreateStreamBuilder;
+import com.hedera.node.app.spi.key.KeyRequirement;
 import com.hedera.node.app.spi.key.KeyVerifier;
+import com.hedera.node.app.spi.key.RequirementVerifier;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory;
@@ -66,7 +68,6 @@ import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.SortedSet;
-import java.util.function.Predicate;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -98,7 +99,7 @@ class HandleHederaNativeOperationsTest {
     private VerificationStrategy verificationStrategy;
 
     @Mock
-    private Predicate<Key> signatureTest;
+    private RequirementVerifier signatureTest;
 
     @Mock
     private ReadableAccountStore accountStore;
@@ -277,8 +278,11 @@ class HandleHederaNativeOperationsTest {
                 .accountNum(NON_SYSTEM_CONTRACT_ID.contractNumOrThrow())
                 .build();
         given(accountStore.getAccountById(contractAccountId)).willReturn(PARANOID_SOMEBODY);
-        given(verificationStrategy.asSignatureTestIn(context, A_SECP256K1_KEY)).willReturn(signatureTest);
-        given(signatureTest.test(PARANOID_SOMEBODY.keyOrThrow())).willReturn(true);
+        given(verificationStrategy.asRequirementTestIn(context, A_SECP256K1_KEY))
+                .willReturn(signatureTest);
+        given(signatureTest.test(KeyRequirement.forAccount(
+                        PARANOID_SOMEBODY.accountIdOrThrow(), PARANOID_SOMEBODY.keyOrThrow())))
+                .willReturn(true);
 
         final var result = subject.transferWithReceiverSigCheck(
                 1L,
@@ -299,8 +303,11 @@ class HandleHederaNativeOperationsTest {
                 .accountNum(NON_SYSTEM_CONTRACT_ID.contractNumOrThrow())
                 .build();
         given(accountStore.getAccountById(contractAccountId)).willReturn(PARANOID_SOMEBODY);
-        given(verificationStrategy.asSignatureTestIn(context, A_SECP256K1_KEY)).willReturn(signatureTest);
-        given(signatureTest.test(PARANOID_SOMEBODY.keyOrThrow())).willReturn(false);
+        given(verificationStrategy.asRequirementTestIn(context, A_SECP256K1_KEY))
+                .willReturn(signatureTest);
+        given(signatureTest.test(KeyRequirement.forAccount(
+                        PARANOID_SOMEBODY.accountIdOrThrow(), PARANOID_SOMEBODY.keyOrThrow())))
+                .willReturn(false);
 
         final var result = subject.transferWithReceiverSigCheck(
                 1L,

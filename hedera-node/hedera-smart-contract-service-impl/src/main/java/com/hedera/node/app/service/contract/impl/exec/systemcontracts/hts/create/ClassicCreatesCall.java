@@ -10,6 +10,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.base.TokenType.FUNGIBLE_COMMON;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.ERROR_DECODING_PRECOMPILE_INPUT;
+import static com.hedera.node.app.service.contract.impl.exec.scope.AccountAuthorizingVerificationStrategy.withAdditionalPrimitiveStrategy;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.haltResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.revertResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.successResult;
@@ -38,7 +39,6 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.scope.ActiveContractVerificationStrategy;
 import com.hedera.node.app.service.contract.impl.exec.scope.ActiveContractVerificationStrategy.UseTopLevelSigs;
-import com.hedera.node.app.service.contract.impl.exec.scope.EitherOrVerificationStrategy;
 import com.hedera.node.app.service.contract.impl.exec.scope.SpecificCryptoVerificationStrategy;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCall;
@@ -198,13 +198,13 @@ public class ClassicCreatesCall extends AbstractCall {
         // If there is a crypto admin key, we need an either/or strategy to let it
         // be activated by a top-level signature with that key
         final var baseVerificationStrategy = hasCryptoAdminKey(op)
-                ? new EitherOrVerificationStrategy(
+                ? withAdditionalPrimitiveStrategy(
                         verificationStrategy, new SpecificCryptoVerificationStrategy(op.adminKeyOrThrow()))
                 : verificationStrategy;
         // And our final dispatch verification strategy must vary depending on if
         // a legacy activation address is active (somewhere on the stack)
         return stackIncludesActiveAddress(frame, legacyActivation.besuAddress())
-                ? new EitherOrVerificationStrategy(
+                ? withAdditionalPrimitiveStrategy(
                         baseVerificationStrategy,
                         new ActiveContractVerificationStrategy(
                                 entityIdFactory(frame).newContractId(legacyActivation.contractNum()),

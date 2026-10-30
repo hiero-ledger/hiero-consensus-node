@@ -200,9 +200,7 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
                 // Try to extract the key. We already know from pure checks that if it isn't an evm address then it
                 // must be a key account. So this extraction must work.
                 final var aliasAsKey = asKeyFromAliasPreCheck(alias);
-                if (!aliasAsKey.equals(payerKey)) {
-                    context.requireKey(aliasAsKey);
-                }
+                context.requireKey(aliasAsKey);
             } else {
                 // We do NOT allow a crypto-create transaction sent from the user (i.e. a user transaction) to define
                 // a key-based alias. Technically we could, but key-aliases are deprecated, so we don't allow it.

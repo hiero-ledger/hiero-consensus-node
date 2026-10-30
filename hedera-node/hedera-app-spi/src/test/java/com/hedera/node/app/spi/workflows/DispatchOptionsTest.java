@@ -10,11 +10,36 @@ import static org.junit.jupiter.api.Assertions.*;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.fees.FeeCharging;
+import com.hedera.node.app.spi.key.RequirementVerifier;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 class DispatchOptionsTest {
+    @Test
+    void contextualSubDispatchPreservesWholeRequirementPolicy() {
+        final RequirementVerifier verifier = requirement -> false;
+        final var options = DispatchOptions.subDispatchWithRequirements(
+                AccountID.DEFAULT,
+                TransactionBody.DEFAULT,
+                verifier,
+                Set.of(),
+                StreamBuilder.class,
+                DispatchOptions.StakingRewards.OFF,
+                DispatchOptions.UsePresetTxnId.YES,
+                UNIVERSAL_NOOP_FEE_CHARGING,
+                DispatchOptions.PropagateFeeChargingStrategy.YES);
+
+        assertSame(verifier, options.requirementVerifier());
+        assertEquals(HandleContext.TransactionCategory.CHILD, options.category());
+        assertSame(
+                UNIVERSAL_NOOP_FEE_CHARGING,
+                options.dispatchMetadata()
+                        .getMetadata(CUSTOM_FEE_CHARGING, FeeCharging.class)
+                        .orElseThrow());
+        assertNotNull(options.effectiveKeyVerifier());
+    }
+
     @Test
     void stepDispatchCanUseCustomFeeCharging() {
         final var options = DispatchOptions.stepDispatch(

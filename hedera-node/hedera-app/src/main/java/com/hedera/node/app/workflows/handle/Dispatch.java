@@ -12,6 +12,7 @@ import com.hedera.node.app.signature.AppKeyVerifier;
 import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.info.NodeInfo;
+import com.hedera.node.app.spi.key.KeyRequirement;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory;
@@ -27,6 +28,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.Set;
 import java.util.function.ObjLongConsumer;
+import java.util.stream.Collectors;
 
 /**
  * The fundamental unit of work in the handle workflow.
@@ -143,6 +145,16 @@ public interface Dispatch extends FeeCharging.Context {
      * @return the required keys
      */
     Set<Key> requiredKeys();
+
+    /**
+     * The individual authority requirements for this dispatch. Equal keys belonging to different
+     * accounts remain separate requirements.
+     *
+     * @return the identity-scoped requirements
+     */
+    default Set<KeyRequirement> requiredKeyRequirements() {
+        return requiredKeys().stream().map(KeyRequirement::forKey).collect(Collectors.toUnmodifiableSet());
+    }
 
     /**
      * The hollow accounts that must have provided signatures proving

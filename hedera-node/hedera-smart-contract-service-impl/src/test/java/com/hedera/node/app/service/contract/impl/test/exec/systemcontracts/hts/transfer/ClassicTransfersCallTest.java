@@ -32,7 +32,6 @@ import com.esaulpaugh.headlong.abi.Tuple;
 import com.esaulpaugh.headlong.abi.TupleType;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -51,6 +50,7 @@ import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuild
 import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.spi.key.RequirementVerifier;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -60,7 +60,6 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 import java.util.Optional;
-import java.util.function.Predicate;
 import org.hyperledger.besu.datatypes.Log;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.junit.jupiter.api.Test;
@@ -83,7 +82,7 @@ class ClassicTransfersCallTest extends CallTestBase {
     private CallStatusStandardizer callStatusStandardizer;
 
     @Mock
-    private Predicate<Key> signatureTest;
+    private RequirementVerifier signatureTest;
 
     @Mock
     private ApprovalSwitchHelper approvalSwitchHelper;
@@ -115,9 +114,10 @@ class ClassicTransfersCallTest extends CallTestBase {
                         eq(ContractCallStreamBuilder.class)))
                 .willReturn(recordBuilder);
         given(recordBuilder.status()).willReturn(SUCCESS);
-        given(systemContractOperations.signatureTestWith(verificationStrategy)).willReturn(signatureTest);
+        given(systemContractOperations.requirementTestWith(verificationStrategy))
+                .willReturn(signatureTest);
         given(approvalSwitchHelper.switchToApprovalsAsNeededIn(
-                        CryptoTransferTransactionBody.DEFAULT, signatureTest, nativeOperations, A_NEW_ACCOUNT_ID))
+                        CryptoTransferTransactionBody.DEFAULT, signatureTest, nativeOperations))
                 .willReturn(CryptoTransferTransactionBody.DEFAULT);
 
         final var result = subject.execute(frame).fullResult().result();
@@ -139,9 +139,10 @@ class ClassicTransfersCallTest extends CallTestBase {
         given(recordBuilder.status()).willReturn(SUCCESS);
         given(recordBuilder.getNumAutoAssociations()).willReturn(2);
         given(systemContractGasCalculator.canonicalGasRequirement(ASSOCIATE)).willReturn(CANONICAL_ASSOCIATE_GAS);
-        given(systemContractOperations.signatureTestWith(verificationStrategy)).willReturn(signatureTest);
+        given(systemContractOperations.requirementTestWith(verificationStrategy))
+                .willReturn(signatureTest);
         given(approvalSwitchHelper.switchToApprovalsAsNeededIn(
-                        CryptoTransferTransactionBody.DEFAULT, signatureTest, nativeOperations, A_NEW_ACCOUNT_ID))
+                        CryptoTransferTransactionBody.DEFAULT, signatureTest, nativeOperations))
                 .willReturn(CryptoTransferTransactionBody.DEFAULT);
 
         final var result = subject.execute(frame).fullResult();
@@ -162,9 +163,10 @@ class ClassicTransfersCallTest extends CallTestBase {
                 .willReturn(recordBuilder);
         given(recordBuilder.status()).willReturn(SUCCESS);
         given(recordBuilder.getNumAutoAssociations()).willReturn(2);
-        given(systemContractOperations.signatureTestWith(verificationStrategy)).willReturn(signatureTest);
+        given(systemContractOperations.requirementTestWith(verificationStrategy))
+                .willReturn(signatureTest);
         given(approvalSwitchHelper.switchToApprovalsAsNeededIn(
-                        CryptoTransferTransactionBody.DEFAULT, signatureTest, nativeOperations, A_NEW_ACCOUNT_ID))
+                        CryptoTransferTransactionBody.DEFAULT, signatureTest, nativeOperations))
                 .willReturn(CryptoTransferTransactionBody.DEFAULT);
 
         final var result = subject.execute(frame).fullResult();
@@ -192,9 +194,10 @@ class ClassicTransfersCallTest extends CallTestBase {
                         eq(ContractCallStreamBuilder.class)))
                 .willReturn(recordBuilder);
         given(recordBuilder.status()).willReturn(SUCCESS);
-        given(systemContractOperations.signatureTestWith(verificationStrategy)).willReturn(signatureTest);
+        given(systemContractOperations.requirementTestWith(verificationStrategy))
+                .willReturn(signatureTest);
         given(approvalSwitchHelper.switchToApprovalsAsNeededIn(
-                        CryptoTransferTransactionBody.DEFAULT, signatureTest, nativeOperations, A_NEW_ACCOUNT_ID))
+                        CryptoTransferTransactionBody.DEFAULT, signatureTest, nativeOperations))
                 .willReturn(CryptoTransferTransactionBody.DEFAULT);
 
         final var result = subject.execute(frame).fullResult().result();
@@ -216,9 +219,10 @@ class ClassicTransfersCallTest extends CallTestBase {
         given(recordBuilder.status())
                 .willReturn(INVALID_SIGNATURE)
                 .willReturn(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE);
-        given(systemContractOperations.signatureTestWith(verificationStrategy)).willReturn(signatureTest);
+        given(systemContractOperations.requirementTestWith(verificationStrategy))
+                .willReturn(signatureTest);
         given(approvalSwitchHelper.switchToApprovalsAsNeededIn(
-                        CryptoTransferTransactionBody.DEFAULT, signatureTest, nativeOperations, A_NEW_ACCOUNT_ID))
+                        CryptoTransferTransactionBody.DEFAULT, signatureTest, nativeOperations))
                 .willReturn(CryptoTransferTransactionBody.DEFAULT);
         given(callStatusStandardizer.codeForFailure(
                         INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE, frame, CryptoTransferTransactionBody.DEFAULT))
@@ -455,9 +459,10 @@ class ClassicTransfersCallTest extends CallTestBase {
                 .withValue("contracts.precompile.atomicCryptoTransfer.enabled", "true")
                 .getOrCreateConfig();
         given(approvalSwitchHelper.switchToApprovalsAsNeededIn(
-                        CryptoTransferTransactionBody.DEFAULT, signatureTest, nativeOperations, A_NEW_ACCOUNT_ID))
+                        CryptoTransferTransactionBody.DEFAULT, signatureTest, nativeOperations))
                 .willReturn(CryptoTransferTransactionBody.DEFAULT);
-        given(systemContractOperations.signatureTestWith(verificationStrategy)).willReturn(signatureTest);
+        given(systemContractOperations.requirementTestWith(verificationStrategy))
+                .willReturn(signatureTest);
         return new ClassicTransfersCall(
                 systemContractGasCalculator,
                 mockEnhancement(),

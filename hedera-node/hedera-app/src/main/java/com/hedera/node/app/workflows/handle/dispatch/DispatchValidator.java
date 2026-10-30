@@ -23,6 +23,7 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.fees.AppFeeCharging;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fees.FeeCharging;
+import com.hedera.node.app.spi.key.KeyRequirement;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -111,7 +112,8 @@ public class DispatchValidator {
             if (requiresPayerSig && !isHollow(payer)) {
                 // Skip payer verification for hollow accounts because ingest only submits valid signatures
                 // for hollow payers; and if an account is still hollow here, its alias cannot have changed
-                final var verification = dispatch.keyVerifier().verificationFor(payer.keyOrThrow());
+                final var verification = dispatch.keyVerifier()
+                        .verificationFor(KeyRequirement.forAccount(payer.accountIdOrThrow(), payer.keyOrThrow()));
                 if (verification.failed()) {
                     return newCreatorError(dispatch.creatorInfo().accountId(), INVALID_PAYER_SIGNATURE);
                 }

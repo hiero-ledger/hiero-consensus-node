@@ -4,7 +4,7 @@ package com.hedera.node.app.service.contract.impl.exec.scope;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.DISPATCH_ONLY_NOOP_FEE_CHARGING;
-import static com.hedera.node.app.spi.workflows.DispatchOptions.subDispatch;
+import static com.hedera.node.app.spi.workflows.DispatchOptions.subDispatchWithRequirements;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.signedTxWith;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static java.util.Objects.requireNonNull;
@@ -23,6 +23,7 @@ import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.annotations.TransactionScope;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
+import com.hedera.node.app.spi.key.RequirementVerifier;
 import com.hedera.node.app.spi.workflows.DispatchOptions.PropagateFeeChargingStrategy;
 import com.hedera.node.app.spi.workflows.DispatchOptions.StakingRewards;
 import com.hedera.node.app.spi.workflows.DispatchOptions.UsePresetTxnId;
@@ -32,7 +33,6 @@ import com.hedera.node.config.data.BlockStreamConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Set;
-import java.util.function.Predicate;
 import javax.inject.Inject;
 import org.apache.tuweni.bytes.Bytes;
 
@@ -56,17 +56,10 @@ public class HandleSystemContractOperations implements SystemContractOperations 
         this.maybeEthSenderKey = maybeEthSenderKey;
     }
 
-    @Override
-    public @NonNull Predicate<Key> primitiveSignatureTestWith(@NonNull final VerificationStrategy strategy) {
-        requireNonNull(strategy);
-        return strategy.asPrimitiveSignatureTestIn(context, maybeEthSenderKey);
-    }
-
     @NonNull
     @Override
-    public Predicate<Key> signatureTestWith(@NonNull final VerificationStrategy strategy) {
-        requireNonNull(strategy);
-        return strategy.asSignatureTestIn(context, maybeEthSenderKey);
+    public RequirementVerifier requirementTestWith(@NonNull final VerificationStrategy strategy) {
+        return requireNonNull(strategy).asRequirementTestIn(context, maybeEthSenderKey);
     }
 
     @Override
@@ -83,10 +76,10 @@ public class HandleSystemContractOperations implements SystemContractOperations 
         requireNonNull(streamBuilderType);
         requireNonNull(authorizingKeys);
         requireNonNull(usePresetTxnId);
-        return context.dispatch(subDispatch(
+        return context.dispatch(subDispatchWithRequirements(
                 syntheticPayerId,
                 syntheticBody,
-                primitiveSignatureTestWith(strategy),
+                requirementTestWith(strategy),
                 authorizingKeys,
                 streamBuilderType,
                 StakingRewards.OFF,

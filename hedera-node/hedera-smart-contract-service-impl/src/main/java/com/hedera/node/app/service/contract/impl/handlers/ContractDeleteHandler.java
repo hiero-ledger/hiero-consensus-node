@@ -73,7 +73,7 @@ public class ContractDeleteHandler implements TransactionHandler {
         mustExist(contract, INVALID_CONTRACT_ID);
         // If there is not an admin key, then the contract is immutable. Otherwise, the transaction must
         // be signed by the admin key.
-        context.requireKeyOrThrow(contract.key(), MODIFYING_IMMUTABLE_CONTRACT);
+        context.requireKeyOrThrow(op.contractIDOrThrow(), MODIFYING_IMMUTABLE_CONTRACT);
         final var adminKey = contract.keyOrThrow();
         validateFalsePreCheck(
                 adminKey.hasContractID() || adminKey.hasDelegatableContractId(), MODIFYING_IMMUTABLE_CONTRACT);

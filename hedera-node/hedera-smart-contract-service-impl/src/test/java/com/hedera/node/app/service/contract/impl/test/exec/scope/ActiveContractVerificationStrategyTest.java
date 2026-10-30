@@ -1,21 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.scope;
 
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.A_SECP256K1_KEY;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.B_SECP256K1_KEY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.doCallRealMethod;
-import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.node.app.service.contract.impl.exec.scope.ActiveContractVerificationStrategy;
 import com.hedera.node.app.service.contract.impl.exec.scope.ActiveContractVerificationStrategy.UseTopLevelSigs;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
-import com.hedera.node.app.spi.key.KeyVerifier;
-import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import org.junit.jupiter.api.Test;
@@ -116,32 +108,5 @@ class ActiveContractVerificationStrategyTest {
         assertEquals(
                 VerificationStrategy.Decision.INVALID, subject.decideForPrimitive(DELEGATABLE_INACTIVE_ADDRESS_KEY));
         assertEquals(VerificationStrategy.Decision.INVALID, subject.decideForPrimitive(CRYPTO_KEY));
-    }
-
-    @Test
-    void signatureTestApprovesEthSenderKeyWhenDelegating() {
-        final var subject = mock(VerificationStrategy.class);
-        doCallRealMethod().when(subject).asPrimitiveSignatureTestIn(context, A_SECP256K1_KEY);
-        given(subject.decideForPrimitive(A_SECP256K1_KEY))
-                .willReturn(VerificationStrategy.Decision.DELEGATE_TO_CRYPTOGRAPHIC_VERIFICATION);
-
-        final var test = subject.asPrimitiveSignatureTestIn(context, A_SECP256K1_KEY);
-        assertTrue(test.test(A_SECP256K1_KEY));
-    }
-
-    @Test
-    void signatureTestUsesContextVerificationWhenNotEthSenderKey() {
-        final var keyVerifier = mock(KeyVerifier.class);
-        final var verification = mock(SignatureVerification.class);
-        final var subject = mock(VerificationStrategy.class);
-        doCallRealMethod().when(subject).asPrimitiveSignatureTestIn(context, null);
-        given(verification.passed()).willReturn(true);
-        given(context.keyVerifier()).willReturn(keyVerifier);
-        given(keyVerifier.verificationFor(B_SECP256K1_KEY)).willReturn(verification);
-        given(subject.decideForPrimitive(B_SECP256K1_KEY))
-                .willReturn(VerificationStrategy.Decision.DELEGATE_TO_CRYPTOGRAPHIC_VERIFICATION);
-
-        final var test = subject.asPrimitiveSignatureTestIn(context, null);
-        assertTrue(test.test(B_SECP256K1_KEY));
     }
 }

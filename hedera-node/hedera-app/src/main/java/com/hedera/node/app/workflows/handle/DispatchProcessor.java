@@ -436,8 +436,8 @@ public class DispatchProcessor {
      * @param dispatch the dispatch to be processed
      */
     private boolean failsSignatureVerification(@NonNull final Dispatch dispatch) {
-        for (final var key : dispatch.requiredKeys()) {
-            final var verification = dispatch.keyVerifier().verificationFor(key);
+        for (final var requirement : dispatch.requiredKeyRequirements()) {
+            final var verification = dispatch.keyVerifier().verificationFor(requirement);
             if (verification.failed()) {
                 return true;
             }

@@ -505,7 +505,8 @@ public class ParentTxnFactory {
                     preHandleContext.requiredHollowAccounts(),
                     null,
                     null,
-                    0);
+                    0,
+                    preHandleContext.requiredKeyRequirements());
         } catch (final PreCheckException e) {
             return new PreHandleResult(
                     null,

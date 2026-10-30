@@ -23,11 +23,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.google.common.collect.Streams;
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.ThresholdKey;
 import com.hedera.node.app.hapi.utils.keys.KeyComparator;
 import com.hedera.node.app.signature.impl.SignatureVerificationImpl;
+import com.hedera.node.app.spi.key.KeyRequirement;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.signatures.VerificationAssistant;
 import com.hedera.node.app.workflows.prehandle.FakeSignatureVerificationFuture;
@@ -90,6 +92,63 @@ class DefaultKeyVerifierTest {
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> verifier.verificationFor(key, null)).isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> verifier.verificationFor((Bytes) null)).isInstanceOf(NullPointerException.class);
+    }
+
+    @Test
+    void cryptographicEvidenceCanSatisfyIndependentRequirementsWithoutDuplicateVerification() {
+        final var verifier = createVerifier(Map.of(ED25519_X1, goodFuture(ED25519_X1)));
+        final var first = KeyRequirement.forAccount(
+                AccountID.newBuilder().accountNum(1234).build(), ED25519_X1);
+        final var second = KeyRequirement.forAccount(
+                AccountID.newBuilder().accountNum(5678).build(), ED25519_X1);
+
+        assertThat(verifier.verificationFor(first).passed()).isTrue();
+        assertThat(verifier.verificationFor(second).passed()).isTrue();
+        assertThat(verifier.verificationFor(KeyRequirement.forKey(ED25519_X1)).passed())
+                .isTrue();
+        assertThat(verifier.numSignaturesVerified()).isEqualTo(1);
+    }
+
+    @Test
+    void contextualAssistantRetainsAccountAcrossCompoundKeyLeaves() {
+        final var key = Key.newBuilder()
+                .keyList(KeyList.newBuilder().keys(ED25519_X1, ECDSA_X1))
+                .build();
+        final var requirement = KeyRequirement.forAccount(
+                AccountID.newBuilder().accountNum(1234).build(), key);
+        final var seenRequirements = new ArrayList<KeyRequirement>();
+        final var seenKeys = new ArrayList<Key>();
+        final var verifier = createVerifier(Map.of());
+
+        final var result = verifier.verificationFor(requirement, (origin, primitive, evidence) -> {
+            seenRequirements.add(origin);
+            seenKeys.add(primitive);
+            return true;
+        });
+
+        assertThat(result.passed()).isTrue();
+        assertThat(seenRequirements).containsExactly(requirement, requirement);
+        assertThat(seenKeys).containsExactly(ED25519_X1, ECDSA_X1);
+        assertThat(verifier.authorizingSimpleKeys()).isEmpty();
+    }
+
+    @Test
+    void contextualAssistantRetainsEachAlternativeDespiteIdenticalKeys() {
+        final var account = KeyRequirement.forAccount(
+                AccountID.newBuilder().accountNum(1234).build(), ED25519_X1);
+        final var explicit = KeyRequirement.forKey(ED25519_X1);
+        final var requirement = KeyRequirement.anyOf(List.of(account, explicit));
+        final var seenRequirements = new ArrayList<KeyRequirement>();
+        final var verifier = createVerifier(Map.of());
+
+        final var result = verifier.verificationFor(requirement, (origin, primitive, evidence) -> {
+            seenRequirements.add(origin);
+            return origin.equals(explicit);
+        });
+
+        assertThat(result.passed()).isTrue();
+        assertThat(seenRequirements).containsExactly(account, explicit);
+        assertThat(result.key()).isEqualTo(requirement.key());
     }
 
     @Test

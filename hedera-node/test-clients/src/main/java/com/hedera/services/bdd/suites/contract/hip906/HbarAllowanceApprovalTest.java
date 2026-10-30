@@ -4,14 +4,21 @@ package com.hedera.services.bdd.suites.contract.hip906;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.isLiteralResult;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
+import static com.hedera.services.bdd.spec.keys.KeyShape.CONTRACT;
+import static com.hedera.services.bdd.spec.keys.SigControl.ED25519_ON;
+import static com.hedera.services.bdd.spec.keys.SigControl.listSigs;
+import static com.hedera.services.bdd.spec.keys.SigControl.threshSigs;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountDetails;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCallWithFunctionAbi;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoApproveAllowance;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -19,17 +26,22 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import static com.hedera.services.bdd.suites.contract.Utils.idAsHeadlongAddress;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.HapiSpecSetup;
+import com.hedera.services.bdd.spec.keys.SigControl;
 import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
@@ -61,6 +73,120 @@ public class HbarAllowanceApprovalTest {
     private static final String HBAR_ALLOWANCE_CALL = "hbarAllowanceCall";
     private static final String HBAR_APPROVE_CALL = "hbarApproveCall";
     private static final String HBAR_APPROVE_DELEGATE_CALL = "hbarApproveDelegateCall";
+
+    @HapiTest
+    final Stream<DynamicTest> sharedAdminKeyDoesNotAuthorizeAccountAllowance() {
+        return sharedAdminKeyDoesNotAuthorizeAccountAllowance(ED25519_ON);
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> sharedAdminKeyListDoesNotAuthorizeAccountAllowance() {
+        return sharedAdminKeyDoesNotAuthorizeAccountAllowance(listSigs(ED25519_ON, ED25519_ON));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> sharedAdminThresholdKeyDoesNotAuthorizeAccountAllowance() {
+        return sharedAdminKeyDoesNotAuthorizeAccountAllowance(threshSigs(2, ED25519_ON, ED25519_ON, ED25519_ON));
+    }
+
+    private Stream<DynamicTest> sharedAdminKeyDoesNotAuthorizeAccountAllowance(final SigControl ownerKeyShape) {
+        final var ownerKey = "ownerKey";
+        final var originalAdmin = "originalContractAdmin";
+        final var attackerKey = "attackerKey";
+        final var delegatedOwner = "delegatedOwner";
+        final var contractKey = "explicitContractKey";
+        final var allowance = BigInteger.valueOf(1_000_000L);
+        final AtomicReference<Address> contractAddress = new AtomicReference<>();
+
+        return hapiTest(
+                newKeyNamed(ownerKey).shape(ownerKeyShape),
+                newKeyNamed(originalAdmin),
+                newKeyNamed(attackerKey),
+                cryptoCreate(ACCOUNT).key(ownerKey).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(SIGNER).key(attackerKey).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(SPENDER),
+                uploadInitCode(HRC632_CONTRACT),
+                contractCreate(HRC632_CONTRACT).adminKey(originalAdmin),
+                cryptoTransfer(tinyBarsFromTo(GENESIS, HRC632_CONTRACT, ONE_HUNDRED_HBARS)),
+                getContractInfo(HRC632_CONTRACT)
+                        .exposingEvmAddress(address -> contractAddress.set(asHeadlongAddress(address))),
+                withOpContext((spec, opLog) -> {
+                    final var owner = idAsHeadlongAddress(spec.registry().getAccountID(ACCOUNT));
+                    final var spender = idAsHeadlongAddress(spec.registry().getAccountID(SPENDER));
+                    allRunFor(
+                            spec,
+                            contractCall(HRC632_CONTRACT, HBAR_APPROVE_CALL, owner, spender, allowance)
+                                    .payingWith(SIGNER)
+                                    .signedBy(SIGNER)
+                                    .refusingEthConversion()
+                                    .gas(1_000_000)
+                                    .via("beforeSharedAdmin")
+                                    .hasKnownStatus(CONTRACT_REVERT_EXECUTED),
+                            childRecordsCheck(
+                                    "beforeSharedAdmin",
+                                    CONTRACT_REVERT_EXECUTED,
+                                    recordWith().status(INVALID_SIGNATURE)),
+                            // Legitimately setting the contract's admin key must not delegate the
+                            // owner's unrelated account authority to that contract's callers.
+                            contractUpdate(HRC632_CONTRACT).newKey(ownerKey).signedBy(GENESIS, originalAdmin, ownerKey),
+                            contractCall(HRC632_CONTRACT, HBAR_APPROVE_CALL, owner, spender, allowance)
+                                    .payingWith(SIGNER)
+                                    .signedBy(SIGNER)
+                                    .refusingEthConversion()
+                                    .gas(1_000_000)
+                                    .via("afterSharedAdmin")
+                                    .hasKnownStatus(CONTRACT_REVERT_EXECUTED),
+                            childRecordsCheck(
+                                    "afterSharedAdmin",
+                                    CONTRACT_REVERT_EXECUTED,
+                                    recordWith().status(INVALID_SIGNATURE)),
+                            getAccountDetails(ACCOUNT)
+                                    .payingWith(GENESIS)
+                                    .has(accountDetailsWith().cryptoAllowancesCount(0)),
+                            // The same contract still authorizes an allowance on its own balance.
+                            contractCall(HRC632_CONTRACT, HBAR_APPROVE_CALL, contractAddress.get(), spender, allowance)
+                                    .payingWith(SIGNER)
+                                    .signedBy(SIGNER)
+                                    .refusingEthConversion()
+                                    .gas(1_000_000)
+                                    .hasKnownStatus(SUCCESS),
+                            contractCall(HRC632_CONTRACT, HBAR_ALLOWANCE_CALL, contractAddress.get(), spender)
+                                    .payingWith(SIGNER)
+                                    .refusingEthConversion()
+                                    .gas(1_000_000)
+                                    .via("selfAllowance"));
+                }),
+                getTxnRecord("selfAllowance")
+                        .hasPriority(recordWith()
+                                .contractCallResult(resultWith()
+                                        .resultThruAbi(
+                                                getABIFor(FUNCTION, HBAR_ALLOWANCE_CALL, HRC632_CONTRACT),
+                                                isLiteralResult(new Object[] {22L, allowance})))),
+                // An account can separately and explicitly delegate authority through a contract-ID key.
+                newKeyNamed(contractKey).shape(CONTRACT.signedWith(HRC632_CONTRACT)),
+                cryptoCreate(delegatedOwner).key(contractKey).balance(ONE_HUNDRED_HBARS),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        contractCall(
+                                        HRC632_CONTRACT,
+                                        HBAR_APPROVE_CALL,
+                                        idAsHeadlongAddress(spec.registry().getAccountID(delegatedOwner)),
+                                        idAsHeadlongAddress(spec.registry().getAccountID(SPENDER)),
+                                        allowance)
+                                .payingWith(SIGNER)
+                                .signedBy(SIGNER)
+                                .refusingEthConversion()
+                                .gas(1_000_000)
+                                .hasKnownStatus(SUCCESS))),
+                getAccountDetails(delegatedOwner)
+                        .payingWith(GENESIS)
+                        .has(accountDetailsWith()
+                                .cryptoAllowancesCount(1)
+                                .cryptoAllowancesContaining(SPENDER, 1_000_000L)),
+                getAccountDetails(ACCOUNT)
+                        .payingWith(GENESIS)
+                        .has(accountDetailsWith().cryptoAllowancesCount(0)));
+    }
 
     @HapiTest
     final Stream<DynamicTest> hrc632AllowanceFromEOA() {

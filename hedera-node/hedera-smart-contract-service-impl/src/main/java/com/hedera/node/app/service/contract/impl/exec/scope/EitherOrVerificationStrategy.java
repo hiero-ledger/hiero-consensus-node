@@ -6,11 +6,15 @@ import static com.hedera.node.app.service.contract.impl.exec.scope.VerificationS
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.Key;
+import com.hedera.node.app.spi.key.KeyRequirement;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
  * A {@link VerificationStrategy} that verifies signatures as if both of two contracts are "active; but never
  * using top-level signatures.
+ *
+ * <p>Combines primitive rules only. Callers outside this package must use
+ * {@link AccountAuthorizingVerificationStrategy#withAdditionalPrimitiveStrategy} to preserve account authority.
  *
  * <p>This is the verification strategy used to support the {@code contracts.keys.legacyActivations} property.
  */
@@ -22,7 +26,7 @@ public class EitherOrVerificationStrategy implements VerificationStrategy {
      * @param firstStrategy the first verification strategy to be used
      * @param secondStrategy the second verification strategy to be used
      */
-    public EitherOrVerificationStrategy(
+    EitherOrVerificationStrategy(
             @NonNull final VerificationStrategy firstStrategy, @NonNull final VerificationStrategy secondStrategy) {
         this.firstStrategy = firstStrategy;
         this.secondStrategy = secondStrategy;
@@ -53,5 +57,20 @@ public class EitherOrVerificationStrategy implements VerificationStrategy {
             }
             return secondDecision == INVALID ? firstDecision : secondDecision;
         }
+    }
+
+    @Override
+    public Decision decideForPrimitive(@NonNull final KeyRequirement requirement, @NonNull final Key key) {
+        requireNonNull(requirement);
+        requireNonNull(key);
+        final var firstDecision = firstStrategy.decideForPrimitive(requirement, key);
+        if (firstDecision == VALID) {
+            return VALID;
+        }
+        final var secondDecision = secondStrategy.decideForPrimitive(requirement, key);
+        if (secondDecision == VALID) {
+            return VALID;
+        }
+        return secondDecision == INVALID ? firstDecision : secondDecision;
     }
 }

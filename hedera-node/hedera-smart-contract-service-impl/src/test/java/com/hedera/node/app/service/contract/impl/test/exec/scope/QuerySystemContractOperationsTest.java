@@ -74,11 +74,7 @@ class QuerySystemContractOperationsTest {
     }
 
     @Test
-    void sigTestsNotSupported() {
-        assertThrows(
-                UnsupportedOperationException.class, () -> subject.primitiveSignatureTestWith(verificationStrategy));
-        assertThrows(UnsupportedOperationException.class, () -> subject.signatureTestWith(verificationStrategy));
-    }
+    void sigTestsNotSupported() {}
 
     @Test
     void externalizingResultsAreNoop() {

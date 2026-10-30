@@ -9,6 +9,7 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.info.NodeInfo;
+import com.hedera.node.app.spi.key.KeyRequirement;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -93,8 +94,11 @@ public interface PreHandleContext extends TransactionKeys {
     <C> C createStore(@NonNull final Class<C> storeInterface);
 
     /**
-     * Adds the given key to required non-payer keys. If the key is the same as the payer key, or if the key has
-     * already been added, then the call is a no-op. The key must not be null.
+     * Adds an explicit signing requirement for the given key. Repeated identical requirements are
+     * deduplicated; equality with the payer key does not remove the requirement. The key must not be null.
+     *
+     * <p>For an existing account's authority, use the account-ID overloads instead of passing
+     * {@code account.key()}. An explicit key never receives an account-execution exemption.
      *
      * @param key key to be added
      * @return {@code this} object
@@ -105,9 +109,30 @@ public interface PreHandleContext extends TransactionKeys {
     PreHandleContext requireKey(@NonNull final Key key) throws PreCheckException;
 
     /**
-     * Adds the given key to optional non-payer keys.
-     * If the key is invalid, is the same as the payer key, or if the key has already been added, then the call
-     * is a no-op. The key must not be null.
+     * Adds an authorization requirement without discarding its identity or alternatives.
+     * Implementations used for dispatch must preserve the complete requirement.
+     */
+    @NonNull
+    PreHandleContext requireKeyRequirement(@NonNull KeyRequirement requirement) throws PreCheckException;
+
+    /** Adds an optional authorization requirement, preserving its identity and alternatives. */
+    @NonNull
+    PreHandleContext optionalKeyRequirement(@NonNull KeyRequirement requirement) throws PreCheckException;
+
+    /**
+     * Resolves an account's canonical identity and controlling key without requiring it yet.
+     * This supports composing alternatives with different authorization identities.
+     *
+     * @throws PreCheckException if the account cannot provide a valid controlling key
+     */
+    @NonNull
+    KeyRequirement keyRequirementFor(@NonNull AccountID accountID, @NonNull ResponseCodeEnum responseCode)
+            throws PreCheckException;
+
+    /**
+     * Adds an optional explicit signing requirement for the given key.
+     * Invalid keys and repeated identical requirements are ignored. The key projection may exclude
+     * the payer key, but the authorization requirement is retained. The key must not be null.
      *
      * @param key key to be added
      * @return {@code this} object
@@ -119,8 +144,8 @@ public interface PreHandleContext extends TransactionKeys {
 
     /**
      * Adds the given set of keys to optional non-payer keys.
-     * If any key is invalid, is the same as the payer key, or if any key has already been added, then the call
-     * ignores that key. The set of keys must not be null, but may be empty.
+     * Invalid keys and repeated identical requirements are ignored. Requirements equal to the payer key
+     * retain their explicit scope. The set of keys must not be null, but may be empty.
      *
      * @param keys the set of keys to be added
      * @return {@code this} object
@@ -146,8 +171,8 @@ public interface PreHandleContext extends TransactionKeys {
     PreHandleContext optionalSignatureForHollowAccount(@NonNull final Account hollowAccount);
 
     /**
-     * Adds the given key to required non-payer keys. If the key is the same as the payer key, or if the key has
-     * already been added, then the call is a no-op. The key must not be null and not empty, otherwise a
+     * Adds an explicit signing requirement for the given key. Repeated identical requirements are
+     * deduplicated; equality with the payer key does not remove the requirement. The key must not be null and not empty, otherwise a
      * PreCheckException is thrown with the given {@code responseCode}.
      *
      * @param key key to be added
@@ -160,8 +185,8 @@ public interface PreHandleContext extends TransactionKeys {
             throws PreCheckException;
 
     /**
-     * Adds the admin key of the account addressed by the given {@code accountID} to the required non-payer keys. If
-     * the key is the same as the payer key, or if the key has already been added, then the call is a no-op. The
+     * Adds the admin key of the account addressed by the given {@code accountID} as an account-scoped signing requirement.
+     * The account identity is retained even when its key equals another account's key. The
      * {@link AccountID} must not be null, and must refer to an actual account. The admin key on that account must not
      * be null or empty. If any of these conditions are not met, a PreCheckException is thrown with the given
      * {@code responseCode}.
@@ -177,8 +202,8 @@ public interface PreHandleContext extends TransactionKeys {
             @Nullable final AccountID accountID, @NonNull final ResponseCodeEnum responseCode) throws PreCheckException;
 
     /**
-     * Adds the admin key of the account addressed by the given {@code accountID} to the required non-payer keys. If
-     * the key is the same as the payer key, or if the key has already been added, then the call is a no-op. The
+     * Adds the admin key of the account addressed by the given {@code accountID} as an account-scoped signing requirement.
+     * The account identity is retained even when its key equals another account's key. The
      * {@link AccountID} must not be null, and must refer to an actual account. The admin key on that account must not
      * be null or empty. If any of these conditions are not met, a PreCheckException is thrown with the given
      * {@code responseCode}.
@@ -193,8 +218,8 @@ public interface PreHandleContext extends TransactionKeys {
             @Nullable final AccountID accountID, @NonNull final ResponseCodeEnum responseCode) throws PreCheckException;
 
     /**
-     * Adds the admin key of the account with the given {@code accountID} to the required non-payer keys. If
-     * the key is the same as the payer key, or if the key has already been added, then the call is a no-op.
+     * Adds the admin key of the account with the given {@code accountID} as an account-scoped signing requirement.
+     * The account identity is retained even when its key equals another account's key.
      * <p>
      * If the {@link AccountID} is null, throws a {@link PreCheckException} with the given {@code failureStatus}.
      * If the account id is not null, throws an appropriate {@link PreCheckException} unless the account id refers to
@@ -214,11 +239,15 @@ public interface PreHandleContext extends TransactionKeys {
             throws PreCheckException;
 
     /**
-     * Adds the admin key of the account addressed by the given {@code accountID} to the required non-payer keys. If
-     * the key is the same as the payer key, or if the key has already been added, then the call is a no-op. The
+     * Adds the admin key of the account addressed by the given {@code accountID} as an account-scoped signing requirement.
+     * The account identity is retained even when its key equals another account's key. The
      * {@link AccountID} must not be null, and must refer to an actual account. The admin key on that account must not
      * be null or empty. If any of these conditions are not met, a PreCheckException is thrown with the given
      * {@code responseCode}.
+     *
+     * <p>The transformed key is an explicit requirement: a transformation can add unrelated authorities.
+     * Prefer {@link #keyRequirementFor(AccountID, ResponseCodeEnum)} and
+     * {@link KeyRequirement#anyOf(java.util.List)} to preserve each alternative's identity.
      *
      * @param accountID The ID of the account whose key is to be added
      * @param finisher a function to apply to the key before adding it to the required keys

@@ -75,9 +75,9 @@ public class HtsCallFactory implements CallFactory<HtsCallAttempt> {
                         // We only need to distinguish between the EVM sender id and the
                         // "authorizing id" for qualified delegate calls; and even then, only
                         // for classic transfers. In that specific case, the qualified delegate
-                        // contracts need to use their own address as the authorizing id in order
-                        // to have signatures waived correctly during preHandle() for the
-                        // dispatched CryptoTransfer.
+                        // contracts use their own address for primitive contract-key activation;
+                        // HtsCallAttempt also binds their own account authority for the classic
+                        // transfer methods whose caller semantics support qualified delegation.
                         // As an example, following transaction show that a qualified delegate can delegate
                         // call directForToken function in the hts system contract address.  No similar
                         // transaction could be found for making a delegate to a classic transfer function.

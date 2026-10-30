@@ -565,6 +565,8 @@ public class NumericValidationTest {
                                     NFT_TOKEN_EXPIRY_SECONDS = e.getExpiry().getSeconds()));
         }
 
+        // V1/V2 fixtures inherit the contract's cryptographic admin key as an explicit token key;
+        // sign with it independently so these cases continue to exercise numeric validation.
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("FT 0x167 createFungibleTokenWithCustomFees HEDERA_TOKEN_V1")
         public Stream<DynamicTest> failToUseCreateFungibleTokenWithCustomFees() {
@@ -575,7 +577,9 @@ public class NumericValidationTest {
                             .call("createFungibleTokenWithCustomFeesFixedFee", testCase.amount())
                             .gas(1_000_000L)
                             .sending(ONE_HUNDRED_HBARS)
-                            .andAssert(txn -> txn.hasKnownStatus(testCase.status()))));
+                            .andAssert(txn -> txn.alsoSigningWithFullPrefix(numericContractComplex.name())
+                                    .refusingEthConversion()
+                                    .hasKnownStatus(testCase.status()))));
         }
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
@@ -598,7 +602,9 @@ public class NumericValidationTest {
                                     testCase.values()[3])
                             .gas(1_000_000L)
                             .sending(ONE_HUNDRED_HBARS)
-                            .andAssert(txn -> txn.hasKnownStatus(testCase.status()))));
+                            .andAssert(txn -> txn.alsoSigningWithFullPrefix(numericContractComplex.name())
+                                    .refusingEthConversion()
+                                    .hasKnownStatus(testCase.status()))));
         }
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
@@ -706,7 +712,10 @@ public class NumericValidationTest {
                                     testCase.values()[3])
                             .gas(1_000_000L)
                             .sending(ONE_HUNDRED_HBARS)
-                            .andAssert(txn -> txn.logged().hasKnownStatus(testCase.status()))));
+                            .andAssert(txn -> txn.alsoSigningWithFullPrefix(numericContractComplex.name())
+                                    .refusingEthConversion()
+                                    .logged()
+                                    .hasKnownStatus(testCase.status()))));
         }
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
@@ -733,7 +742,9 @@ public class NumericValidationTest {
                                     testCase.values()[3])
                             .gas(1_000_000L)
                             .sending(ONE_HUNDRED_HBARS)
-                            .andAssert(txn -> txn.hasKnownStatus(testCase.status()))));
+                            .andAssert(txn -> txn.alsoSigningWithFullPrefix(numericContractComplex.name())
+                                    .refusingEthConversion()
+                                    .hasKnownStatus(testCase.status()))));
         }
 
         @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)

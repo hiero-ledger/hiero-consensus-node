@@ -5,32 +5,43 @@ import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_CREATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_SUPPLY_KEY;
+import static com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy.Decision.DELEGATE_TO_CRYPTOGRAPHIC_VERIFICATION;
+import static com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy.Decision.INVALID;
+import static com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy.Decision.VALID;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x16c.CreateTranslator.CREATE_FUNGIBLE_TOKEN_WITH_METADATA;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x16c.CreateTranslator.CREATE_FUNGIBLE_TOKEN_WITH_METADATA_AND_CUSTOM_FEES;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x16c.CreateTranslator.CREATE_NON_FUNGIBLE_TOKEN_WITH_METADATA;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x16c.CreateTranslator.CREATE_NON_FUNGIBLE_TOKEN_WITH_METADATA_AND_CUSTOM_FEES;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CONFIG_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ALIASED_SOMEBODY;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.AN_ED25519_KEY;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.A_NEW_ACCOUNT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EIP_1014_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.readableRevertReason;
 import static com.hedera.node.app.service.contract.impl.utils.ConstantUtils.ZERO_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatExceptionOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.esaulpaugh.headlong.abi.Tuple;
+import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.scheduled.SchedulableTransactionBody;
 import com.hedera.hapi.node.token.TokenCreateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.contract.impl.exec.scope.AccountAuthorizingVerificationStrategy;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.ClassicCreatesCall;
@@ -46,6 +57,7 @@ import org.hyperledger.besu.datatypes.Wei;
 import org.hyperledger.besu.evm.frame.BlockValues;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 
 /**
@@ -53,6 +65,8 @@ import org.mockito.Mock;
  */
 public class ClassicCreatesCallTest extends CallTestBase {
     private static final org.hyperledger.besu.datatypes.Address FRAME_SENDER_ADDRESS = EIP_1014_ADDRESS;
+    // Matches the default contracts.keys.legacyActivations
+    private static final long LEGACY_ACTIVATION_NUM = 1062784L;
 
     @Mock
     private VerificationStrategy verificationStrategy;
@@ -367,6 +381,58 @@ public class ClassicCreatesCallTest extends CallTestBase {
 
         assertEquals(MessageFrame.State.REVERT, result.state());
         assertEquals(readableRevertReason(recordBuilder.status()), result.output());
+    }
+
+    @Test
+    void cryptoAdminKeyAndLegacyActivationKeepDispatchAccountAuthority() {
+        final var body = PRETEND_CREATE_TOKEN
+                .copyBuilder()
+                .tokenCreation(PRETEND_CREATE_TOKEN
+                        .tokenCreationOrThrow()
+                        .copyBuilder()
+                        .adminKey(AN_ED25519_KEY)
+                        .build())
+                .build();
+        final var strategy = new AccountAuthorizingVerificationStrategy(SENDER_ID, key -> INVALID);
+        final var legacyCaller = mock(MessageFrame.class);
+        given(legacyCaller.getRecipientAddress()).willReturn(asLongZeroAddress(LEGACY_ACTIVATION_NUM));
+        given(legacyCaller.getContextVariable(CONFIG_CONTEXT_VARIABLE)).willReturn(DEFAULT_CONFIG);
+        stack.push(legacyCaller);
+        stack.push(frame);
+        given(frame.getMessageFrameStack()).willReturn(stack);
+        given(frame.getWorldUpdater()).willReturn(updater);
+        given(updater.entityIdFactory()).willReturn(entityIdFactory);
+        given(frame.getValue()).willReturn(Wei.ZERO);
+        given(frame.getBlockValues()).willReturn(blockValues);
+        given(blockValues.getTimestamp()).willReturn(Timestamp.DEFAULT.seconds());
+        given(nativeOperations.getAccount(A_NEW_ACCOUNT_ID)).willReturn(ALIASED_SOMEBODY);
+        given(systemContractOperations.dispatch(
+                        any(TransactionBody.class),
+                        any(VerificationStrategy.class),
+                        eq(A_NEW_ACCOUNT_ID),
+                        eq(ContractCallStreamBuilder.class)))
+                .willReturn(recordBuilder);
+        given(recordBuilder.status()).willReturn(SUCCESS);
+        given(recordBuilder.tokenID()).willReturn(FUNGIBLE_TOKEN_ID);
+        subject = new ClassicCreatesCall(gasCalculator, mockEnhancement(), body, strategy, A_NEW_ACCOUNT_ID);
+
+        subject.execute(frame);
+
+        final var captor = ArgumentCaptor.forClass(VerificationStrategy.class);
+        verify(systemContractOperations)
+                .dispatch(
+                        any(TransactionBody.class),
+                        captor.capture(),
+                        eq(A_NEW_ACCOUNT_ID),
+                        eq(ContractCallStreamBuilder.class));
+        final var dispatchStrategy = captor.getValue();
+        assertTrue(dispatchStrategy.authorizesAccount(SENDER_ID));
+        assertEquals(DELEGATE_TO_CRYPTOGRAPHIC_VERIFICATION, dispatchStrategy.decideForPrimitive(AN_ED25519_KEY));
+        assertEquals(
+                VALID,
+                dispatchStrategy.decideForPrimitive(Key.newBuilder()
+                        .contractID(entityIdFactory.newContractId(LEGACY_ACTIVATION_NUM))
+                        .build()));
     }
 
     @Test

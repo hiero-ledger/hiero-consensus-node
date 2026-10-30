@@ -49,6 +49,7 @@ import com.hedera.node.app.signature.AppKeyVerifier;
 import com.hedera.node.app.signature.impl.SignatureVerificationImpl;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.info.NodeInfo;
+import com.hedera.node.app.spi.key.KeyRequirement;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -585,12 +586,14 @@ class DispatchValidatorTest {
 
     private void givenValidPayerSig() {
         given(dispatch.keyVerifier()).willReturn(keyVerifier);
-        given(keyVerifier.verificationFor(Key.DEFAULT)).willReturn(PASSED_VERIFICATION);
+        given(keyVerifier.verificationFor(KeyRequirement.forAccount(PAYER_ACCOUNT_ID, Key.DEFAULT)))
+                .willReturn(PASSED_VERIFICATION);
     }
 
     private void givenInvalidPayerSig() {
         given(dispatch.keyVerifier()).willReturn(keyVerifier);
-        given(keyVerifier.verificationFor(Key.DEFAULT)).willReturn(FAILED_VERIFICATION);
+        given(keyVerifier.verificationFor(KeyRequirement.forAccount(PAYER_ACCOUNT_ID, Key.DEFAULT)))
+                .willReturn(FAILED_VERIFICATION);
     }
 
     private void givenChildDispatch() {
