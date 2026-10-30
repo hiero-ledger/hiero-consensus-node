@@ -209,7 +209,8 @@ public class DispatchValidator {
      * Each inner is checked on its own against the state the batch starts from, exactly as ingest checks it: the
      * pre-handle result (recomputed at handle time, so it reflects that state), the timebox, that the payer exists
      * and is not deleted, the payer signature, a duplicate submitted by the same node, and the payer's solvency for
-     * that inner's fees. The fees are computed the way the inner's own dispatch computes them, so the two agree.
+     * that inner's fees, including that its offered fee covers them. The fees are computed the way the inner's own
+     * dispatch computes them, so the two agree.
      *
      * @param dispatch the dispatch
      * @return the status of the first inner that fails an ingest-level check, or null if none does
@@ -269,7 +270,10 @@ public class DispatchValidator {
                     body,
                     duplicateCheckResult == OTHER_NODE,
                     txInfo.functionality(),
-                    BATCH_INNER);
+                    // Validate as ingest does, which treats each inner as a top-level transaction (including the
+                    // check that the offered fee covers the fees), so that a failure here is exactly one that the
+                    // submitting node should have caught
+                    USER);
             if (validation.maybeErrorStatus() != null) {
                 return validation.maybeErrorStatus();
             }

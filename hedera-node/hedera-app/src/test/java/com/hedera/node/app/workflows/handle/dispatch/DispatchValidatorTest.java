@@ -4,6 +4,7 @@ package com.hedera.node.app.workflows.handle.dispatch;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_AMOUNTS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_ACCOUNT_ID;
@@ -62,6 +63,7 @@ import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.ComputeDispatchFeesAsTopLevel;
 import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.app.spi.workflows.InsufficientNetworkFeeException;
 import com.hedera.node.app.spi.workflows.InsufficientNonFeeDebitsException;
 import com.hedera.node.app.spi.workflows.InsufficientServiceFeeException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -657,11 +659,34 @@ class DispatchValidatorTest {
                         innerPayer,
                         INNER_FEES,
                         NOT_INGEST,
-                        SKIP_OFFERED_FEE_CHECK);
+                        CHECK_OFFERED_FEE);
 
         final var report = subject.validateFeeChargingScenario(dispatch);
 
         assertEquals(newCreatorError(CREATOR_ACCOUNT_ID, INSUFFICIENT_ACCOUNT_BALANCE), report);
+    }
+
+    @Test
+    void batchInnerOfferingLessThanItsFeesIsCreatorError() throws PreCheckException {
+        givenBatchDispatch(innerPreHandle(SO_FAR_SO_GOOD, OK, GOOD_INNER_SIG));
+        final var innerPayer = givenInnerPayer(payer -> payer.tinybarBalance(123L));
+        givenInnerNonDuplicate();
+        // Ingest checks the offered fee of each inner as it does for a top-level transaction, so the same
+        // check must fail the batch here
+        doThrow(new InsufficientNetworkFeeException(INSUFFICIENT_TX_FEE, INNER_FEES.totalFee()))
+                .when(solvencyPreCheck)
+                .checkSolvency(
+                        INNER_TXN_BODY,
+                        INNER_PAYER_ID,
+                        INNER_TXN_INFO.functionality(),
+                        innerPayer,
+                        INNER_FEES,
+                        NOT_INGEST,
+                        CHECK_OFFERED_FEE);
+
+        final var report = subject.validateFeeChargingScenario(dispatch);
+
+        assertEquals(newCreatorError(CREATOR_ACCOUNT_ID, INSUFFICIENT_TX_FEE), report);
     }
 
     @Test
@@ -686,7 +711,7 @@ class DispatchValidatorTest {
                         innerPayer,
                         INNER_FEES,
                         NOT_INGEST,
-                        SKIP_OFFERED_FEE_CHECK);
+                        CHECK_OFFERED_FEE);
     }
 
     @Test
