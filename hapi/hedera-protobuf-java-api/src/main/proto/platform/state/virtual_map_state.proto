@@ -627,6 +627,9 @@ message StateValue {
       */
     com.hedera.hapi.node.state.hints.CRSState HintsService_I_CRS_STATE = 48;
 
+    /** The next CRS ceremony, isolated from the active signing CRS. Singleton state. */
+    com.hedera.hapi.node.state.hints.CRSState HintsService_I_NEXT_CRS_STATE = 68;
+
     /**
      * A state identifier for the CRS publications.
      */
@@ -894,6 +897,9 @@ enum SingletonType {
    * A state identifier for the CRS state. Singleton state.
    */
   HintsService_I_CRS_STATE = 48;
+
+  /** The next CRS ceremony, isolated from the active signing CRS. Singleton state. */
+  HintsService_I_NEXT_CRS_STATE = 68;
 
   /**
    * A state identifier for the node rewards. Singleton state.

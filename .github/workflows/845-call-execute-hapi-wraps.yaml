@@ -27,11 +27,6 @@ on:
         type: string
         required: false
         default: "false"
-      include-wraps-download:
-        description: "Also run hapiTestWrapsDownload (the regular XTS run keeps it in 846)"
-        type: boolean
-        required: false
-        default: false
       hapi-test-config-profile:
         description: "Node config profile for the HAPI tasks (e.g. testnet); blank keeps the production defaults"
         required: false
@@ -79,11 +74,9 @@ env:
 jobs:
   hapi-tests-wraps:
     name: "HAPI Tests (Wraps)${{ inputs.name-suffix }}"
-    # Dedicated runner pool with the WRAPS proving-key artifacts mounted at
-    # /opt/wraps-v1.0.0 (see hedera-node/infrastructure/docker/containers/production-next/wraps-proving-key)
+    # Dedicated runner pool sized for WRAPS proof construction, which uses every
+    # available core and a few GiB of off-heap memory per proving node
     runs-on: hl-cn-hapi-wraps-lin-lg
-    # Genesis + incremental WRAPS proof construction is slow by design; each subtask
-    # also spins up its own subprocess network
     timeout-minutes: 120
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
@@ -109,29 +102,10 @@ jobs:
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-          TSS_LIB_WRAPS_ARTIFACTS_PATH: /opt/wraps-v1.0.0
           # Cap each node JVM's share of the heap pool (4 GiB x 3 nodes) on the shared pod
           HAPI_TEST_NODE_POOL_MIB: "12288"
-          INCLUDE_WRAPS_DOWNLOAD: ${{ inputs.include-wraps-download }}
         run: |
-          status=0
-          run_subtask() {
-            local t=$1
-            echo "::group::${t}"
-            if ${GRADLE_EXEC} "${t}" --no-daemon; then
-              echo "::endgroup::"
-              return 0
-            fi
-            echo "::endgroup::"
-            status=1
-            echo "::error::${t} failed"
-            echo "❌ ${t} FAILED — expand group above for details"
-          }
-          run_subtask hapiTestWraps
-          if [[ "${INCLUDE_WRAPS_DOWNLOAD}" == "true" ]]; then
-            run_subtask hapiTestWrapsDownload
-          fi
-          exit "${status}"
+          ${GRADLE_EXEC} hapiTestWraps --no-daemon
 
       - name: Publish HAPI Test (Wraps) Reports
         uses: step-security/publish-unit-test-result-action@681100d67b09305624c089873f12c545ee7cbc24 # v2.23.0

@@ -10,11 +10,10 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.cryptography.wraps.Proof;
 import com.hedera.cryptography.wraps.SchnorrKeys;
 import com.hedera.cryptography.wraps.WRAPSLibraryBridge;
-import com.hedera.cryptography.wraps.WRAPSVerificationKey;
 import com.hedera.node.app.history.HistoryLibrary;
-import com.hedera.node.app.history.WrapsProvingKeyVerification;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.SecureRandom;
+import java.util.Arrays;
 import java.util.Set;
 import java.util.StringJoiner;
 import org.hiero.base.crypto.CryptoUtils;
@@ -23,18 +22,13 @@ import org.hiero.base.crypto.CryptoUtils;
  * Default implementation of the {@link HistoryLibrary}.
  */
 public class HistoryLibraryImpl implements HistoryLibrary {
+    private static final int ADDRESS_BOOK_HASH_LENGTH = 32;
     private static final int SCHNORR_PUBLIC_KEY_LENGTH = (int) HistoryLibrary.MISSING_SCHNORR_KEY.length();
 
     private static final SecureRandom RANDOM = CryptoUtils.getNonDetRandom();
     public static final WRAPSLibraryBridge WRAPS = WRAPSLibraryBridge.getInstance();
-    public static final int WRAPS_VERIFICATION_KEY_LENGTH = 1768;
 
     public HistoryLibraryImpl() {}
-
-    @Override
-    public byte[] wrapsVerificationKey() {
-        return WRAPSVerificationKey.getCurrentKey();
-    }
 
     @Override
     public SchnorrKeys newSchnorrKeyPair() {
@@ -48,7 +42,19 @@ public class HistoryLibraryImpl implements HistoryLibrary {
         requireNonNull(addressBook);
         final var hash = WRAPS.hashAddressBook(addressBook.publicKeys(), addressBook.weights(), addressBook.nodeIds());
         if (hash == null) {
-            throw new IllegalArgumentException(hashAddressBookFailureDetails(addressBook));
+            throw new IllegalArgumentException(
+                    "WRAPS.hashAddressBook() returned null. " + addressBookValidationDetails(addressBook));
+        }
+        return hash;
+    }
+
+    @Override
+    public byte[] hashHintsVerificationKey(@NonNull final byte[] hintsVerificationKey) {
+        requireNonNull(hintsVerificationKey);
+        final var hash = WRAPS.hashArray(hintsVerificationKey);
+        if (hash == null) {
+            throw new IllegalArgumentException("WRAPS.hashArray() returned null for a hinTS verification key of "
+                    + hintsVerificationKey.length + " bytes");
         }
         return hash;
     }
@@ -58,8 +64,13 @@ public class HistoryLibraryImpl implements HistoryLibrary {
             @NonNull final AddressBook addressBook, @NonNull final byte[] hintsVerificationKey) {
         requireNonNull(addressBook);
         requireNonNull(hintsVerificationKey);
-        return WRAPS.formatRotationMessage(
+        final var message = WRAPS.computeNetworkID(
                 addressBook.publicKeys(), addressBook.weights(), addressBook.nodeIds(), hintsVerificationKey);
+        if (message == null) {
+            throw new IllegalArgumentException("WRAPS.computeNetworkID() returned null for a hinTS verification key of "
+                    + hintsVerificationKey.length + " bytes. " + addressBookValidationDetails(addressBook));
+        }
+        return message;
     }
 
     @Override
@@ -210,22 +221,27 @@ public class HistoryLibraryImpl implements HistoryLibrary {
 
     @Override
     public Proof constructIncrementalWrapsProof(
-            @NonNull final byte[] genesisAddressBookHash,
+            @NonNull final byte[] ledgerId,
             @NonNull final byte[] sourceProof,
             @NonNull final AddressBook sourceAddressBook,
             @NonNull final AddressBook targetAddressBook,
             @NonNull final byte[] targetHintsVerificationKey,
             @NonNull final byte[] aggregatedSignature,
             @NonNull final Set<Long> signers) {
-        requireNonNull(genesisAddressBookHash);
+        requireNonNull(ledgerId);
+        if (ledgerId.length != 2 * ADDRESS_BOOK_HASH_LENGTH) {
+            throw new IllegalArgumentException("The genesis ledger id must be 64 bytes");
+        }
         requireNonNull(sourceProof);
         requireNonNull(sourceAddressBook);
         requireNonNull(targetAddressBook);
         requireNonNull(targetHintsVerificationKey);
         requireNonNull(aggregatedSignature);
         requireNonNull(signers);
+        // The native construction API takes only the genesis address book hash; it carries the genesis
+        // hinTS-key hash forward from sourceProof. Proof validation must still use the full ledger id.
         return WRAPS.constructWrapsProof(
-                genesisAddressBookHash,
+                Arrays.copyOf(ledgerId, ADDRESS_BOOK_HASH_LENGTH),
                 sourceAddressBook.publicKeys(),
                 sourceAddressBook.weights(),
                 sourceAddressBook.nodeIds(),
@@ -238,12 +254,8 @@ public class HistoryLibraryImpl implements HistoryLibrary {
     }
 
     @Override
-    public boolean wrapsProverReady(@NonNull final String expectedProvingKeyHashHex) {
-        requireNonNull(expectedProvingKeyHashHex);
-        // isProofSupported() only checks the four artifact filenames exist, which is also true of a
-        // different proving key and of an install still publishing its files.
-        return WRAPSLibraryBridge.isProofSupported()
-                && WrapsProvingKeyVerification.artifactsInstalledAndVerified(expectedProvingKeyHashHex);
+    public boolean wrapsProverReady() {
+        return WRAPSLibraryBridge.isProofSupported();
     }
 
     @Override
@@ -255,7 +267,7 @@ public class HistoryLibraryImpl implements HistoryLibrary {
         return WRAPS.verifyCompressedProof(compressedProof, ledgerId, metadata);
     }
 
-    private static String hashAddressBookFailureDetails(@NonNull final AddressBook addressBook) {
+    private static String addressBookValidationDetails(@NonNull final AddressBook addressBook) {
         final var publicKeys = addressBook.publicKeys();
         final var weights = addressBook.weights();
         final var nodeIds = addressBook.nodeIds();
@@ -272,7 +284,7 @@ public class HistoryLibraryImpl implements HistoryLibrary {
                 && publicKeyCountMatchesNodeIds
                 && weightValidation.valid()
                 && publicKeyValidation.valid();
-        return "WRAPS.hashAddressBook() returned null. Validation details: "
+        return "Validation details: "
                 + "schnorrPublicKeys.length=" + publicKeyCount
                 + ", weights.length=" + weightCount
                 + ", nodeIds.length=" + nodeIdCount

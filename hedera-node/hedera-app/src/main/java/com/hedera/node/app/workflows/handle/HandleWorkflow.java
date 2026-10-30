@@ -4,7 +4,11 @@ package com.hedera.node.app.workflows.handle;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.GENESIS_WORK;
-import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
+import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.POST_UPGRADE_WORK;
+import static com.hedera.node.app.history.impl.ProofControllers.activeProofNeedsWork;
+import static com.hedera.node.app.history.impl.ProofControllers.freshGenesisRequested;
+import static com.hedera.node.app.history.impl.ProofControllers.groundsChainOfTrust;
+import static com.hedera.node.app.history.impl.ProofControllers.groundsGenesisProof;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.SCHEDULED;
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartEvent;
@@ -436,8 +440,7 @@ public class HandleWorkflow {
                             ledgerIdConsTime.plusNanos(MAX_NANOS_PER_SYSTEM_DISPATCH),
                             ctx.ledgerId(),
                             ctx.proofKeys(),
-                            ctx.targetNodeWeights(),
-                            historyService.historyProofVerificationKey());
+                            ctx.targetNodeWeights());
                     transactionsDispatched = true;
                 } catch (Exception e) {
                     logger.error("{} Failed to externalize ledger id", ALERT_MESSAGE, e);
@@ -1125,7 +1128,7 @@ public class HandleWorkflow {
             hintsService.onFinishedConstruction((hintsStore, construction, context) -> {
                 // On finishing the genesis construction, use it immediately no matter what
                 if (hintsStore.getActiveConstruction().constructionId() == construction.constructionId()) {
-                    context.setConstruction(construction);
+                    context.setConstruction(construction, hintsStore.getCrsStateFor(construction));
                 } else if (!tssConfig.historyEnabled()) {
                     // When not using history proofs, completing a weight rotation is also immediately actionable
                     final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
@@ -1134,8 +1137,7 @@ public class HandleWorkflow {
                                 hintsStore,
                                 requireNonNull(rosterStore.getActiveRoster()),
                                 requireNonNull(rosterStore.getCandidateRoster()),
-                                requireNonNull(rosterStore.getCandidateRosterHash()),
-                                tssConfig.forceHandoffs());
+                                requireNonNull(rosterStore.getCandidateRosterHash()));
                     }
                 }
             });
@@ -1149,7 +1151,7 @@ public class HandleWorkflow {
                         historyService.setLatestHistoryProof(proof);
                         // And set the ledger id if needed
                         if (historyStore.getLedgerId() == null) {
-                            final var ledgerId = proof.targetHistoryOrThrow().addressBookHash();
+                            final var ledgerId = historyService.ledgerIdOf(proof);
                             historyStore.setLedgerId(ledgerId);
                             logger.info("Set ledger id to '{}'", ledgerId);
                             // Record its context for later externalization
@@ -1158,49 +1160,45 @@ public class HandleWorkflow {
                         }
                         return;
                     }
-                    // WRAPS genesis is the first proof that bootstraps the chain of trust; but it takes a long time
-                    // to finish, so we make do right after network genesis with a list-of-signatures block proof
-                    final boolean isWrapsGenesis =
-                            tssConfig.wrapsEnabled() && !isWrapsExtensible(activeConstruction.targetProof());
-                    if (isWrapsGenesis || rosterStore.candidateIsWeightRotation()) {
+                    // A fresh genesis proof grounds a new chain of trust for the roster the network already has,
+                    // and replaces the active proof as soon as it is finished
+                    final boolean isFreshGenesis = groundsChainOfTrust(construction);
+                    if (isFreshGenesis || rosterStore.candidateIsWeightRotation()) {
                         final var activeRoster = requireNonNull(rosterStore.getActiveRoster());
                         final var candidateRoster = rosterStore.getCandidateRoster();
                         final var candidateRosterHash =
-                                isWrapsGenesis ? null : requireNonNull(rosterStore.getCandidateRosterHash());
-                        if (!isWrapsGenesis && TssHandoffCoordinator.usesJointForcedHandoff(tssConfig)) {
+                                isFreshGenesis ? null : requireNonNull(rosterStore.getCandidateRosterHash());
+                        if (!isFreshGenesis) {
                             final var stack = requireNonNull(inFlightDispatch).stack();
                             final var writableHintsStates = stack.getWritableStates(HintsService.NAME);
                             final var writableEntityStates = stack.getWritableStates(EntityIdService.NAME);
                             final var entityCounters = new WritableEntityIdStoreImpl(writableEntityStates);
                             final var hintsStore = new WritableHintsStoreImpl(writableHintsStates, entityCounters);
-                            TssHandoffCoordinator.tryForcedJointHandoff(
+                            TssHandoffCoordinator.tryJointHandoff(
                                     historyStore,
                                     hintsStore,
                                     historyService,
                                     hintsService,
                                     activeRoster,
                                     requireNonNull(candidateRoster),
-                                    requireNonNull(candidateRosterHash),
-                                    tssConfig);
+                                    requireNonNull(candidateRosterHash));
                         } else if (historyStore.handoff(activeRoster, candidateRoster, candidateRosterHash)) {
                             // Make sure we include the latest chain-of-trust proof in following block proofs
                             historyService.setLatestHistoryProof(construction.targetProofOrThrow());
-                            // Finishing WRAPS genesis has no actual implications for hinTS
-                            if (!isWrapsGenesis) {
-                                // Accumulate the changes in the same SavepointStack used by the HistoryProofVote tx
-                                final var stack =
-                                        requireNonNull(inFlightDispatch).stack();
-                                final var writableHintsStates = stack.getWritableStates(HintsService.NAME);
-                                final var writableEntityStates = stack.getWritableStates(EntityIdService.NAME);
-                                final var entityCounters = new WritableEntityIdStoreImpl(writableEntityStates);
-                                final var hintsStore = new WritableHintsStoreImpl(writableHintsStates, entityCounters);
-                                hintsService.handoff(
-                                        hintsStore,
-                                        activeRoster,
-                                        requireNonNull(rosterStore.getCandidateRoster()),
-                                        requireNonNull(rosterStore.getCandidateRosterHash()),
-                                        tssConfig.forceHandoffs());
+                            // The ledger id is that of the history a genesis proof grounds its chain of
+                            // trust in; it must be in state before any proof extending the chain is voted on
+                            final var proof = construction.targetProofOrThrow();
+                            final var newLedgerId = historyService.ledgerIdOf(proof);
+                            if (!newLedgerId.equals(historyStore.getLedgerId())) {
+                                logger.info("Re-anchored chain of trust, ledger id is now '{}'", newLedgerId);
+                                historyStore.setLedgerId(newLedgerId);
                             }
+                            // Republish even when the ledger id is unchanged, since the publication also
+                            // carries the proof keys the new chain of trust uses
+                            setLedgerIdContext.set(new LedgerIdContext(
+                                    requireNonNull(historyStore.getLedgerId()),
+                                    proof.targetProofKeys(),
+                                    targetNodeWeights));
                         }
                     }
                 });
@@ -1338,13 +1336,22 @@ public class HandleWorkflow {
      * @param roundTimestamp the current round timestamp
      */
     private void reconcileTssState(@NonNull final State state, @NonNull final Instant roundTimestamp) {
-        final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
+        final var config = configProvider.getConfiguration();
+        final var tssConfig = config.getConfigData(TssConfig.class);
         if (tssConfig.hintsEnabled() || tssConfig.historyEnabled()) {
             final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
             final var entityCounters = new WritableEntityIdStoreImpl(state.getWritableStates(EntityIdService.NAME));
             final var hintsWritableStates = state.getWritableStates(HintsService.NAME);
             final var historyWritableStates = state.getWritableStates(HistoryService.NAME);
             final var readableHistoryStore = new ReadableHistoryStoreImpl(historyWritableStates);
+            // Requested in the first round after an upgrade, before the post-upgrade transaction is handled
+            final boolean freshGenesisRequested = freshGenesisRequested(
+                    tssConfig,
+                    config.getConfigData(BlockStreamConfig.class),
+                    blockStreamManager.pendingWork() == POST_UPGRADE_WORK);
+            if (freshGenesisRequested) {
+                logger.info("Fresh genesis WRAPS proof requested for the current roster");
+            }
             final var activeRosters = ActiveRosters.from(
                     rosterStore,
                     tssConfig.historyEnabled(),
@@ -1353,25 +1360,16 @@ public class HandleWorkflow {
                             .hasHintsScheme(),
                     !tssConfig.historyEnabled()
                             ? null
-                            : () -> {
-                                final var activeConstruction = readableHistoryStore.getActiveConstruction();
-                                return !activeConstruction.hasTargetProof()
-                                        || (tssConfig.wrapsEnabled()
-                                                != isWrapsExtensible(activeConstruction.targetProofOrThrow()));
-                            });
+                            // A construction that must ground a genesis proof takes the bootstrap phase,
+                            // which holds the candidate roster back until the chain of trust exists
+                            : () -> activeProofNeedsWork(
+                                    readableHistoryStore.getActiveConstruction(),
+                                    readableHistoryStore.getNextConstruction(),
+                                    freshGenesisRequested));
             final var isActive = currentPlatformStatus.get() == ACTIVE;
             if (tssConfig.hintsEnabled()) {
-                final var crsWritableStates = state.getWritableStates(HintsService.NAME);
                 final var workTime =
                         blockHashSigner.isReady() ? blockStreamManager.lastUsedConsensusTime() : roundTimestamp;
-                doStreamingOnlyKvChanges(
-                        crsWritableStates,
-                        null,
-                        () -> hintsService.executeCrsWork(
-                                new WritableHintsStoreImpl(crsWritableStates, entityCounters),
-                                workTime,
-                                isActive,
-                                networkInfo));
                 doStreamingOnlyKvChanges(
                         hintsWritableStates,
                         null,
@@ -1379,24 +1377,22 @@ public class HandleWorkflow {
                                 activeRosters,
                                 new WritableHintsStoreImpl(hintsWritableStates, entityCounters),
                                 roundTimestamp,
+                                workTime,
                                 tssConfig,
                                 isActive));
                 if (tssConfig.historyEnabled()) {
                     final var hintsStore = new ReadableHintsStoreImpl(hintsWritableStates, entityCounters);
                     final var historyStore = new WritableHistoryStoreImpl(historyWritableStates);
-                    // If we are doing a chain-of-trust proof, this is the verification key we are proving;
-                    // at genesis (including WRAPS genesis), the active hinTS construction's key---otherwise,
-                    // the next hinTS construction's key...note that even when this is null, the controller
-                    // can still make progress on publishing proof keys as needed
+                    // If we are doing a chain-of-trust proof, this is the verification key we are proving.
+                    // A construction that grounds a genesis proof proves the key of the roster it is
+                    // grounded in, so it takes the ACTIVE hinTS construction's key; one that extends the
+                    // chain to a new roster takes the NEXT construction's. Note that even when this is
+                    // null, the controller can still make progress on publishing proof keys as needed.
                     final var vk = Optional.ofNullable(
-                                    (historyStore.getLedgerId() == null
-                                                    || (tssConfig.wrapsEnabled()
-                                                            && historyStore
-                                                                    .getActiveConstruction()
-                                                                    .hasTargetProof()
-                                                            && !isWrapsExtensible(historyStore
-                                                                    .getActiveConstruction()
-                                                                    .targetProof())))
+                                    groundsGenesisProof(
+                                                    historyStore.getNextConstruction(),
+                                                    historyStore.getLedgerId(),
+                                                    freshGenesisRequested)
                                             ? hintsStore.getActiveConstruction().hintsScheme()
                                             : hintsStore.getNextConstruction().hintsScheme())
                             .map(s -> s.preprocessedKeysOrThrow().verificationKey())
@@ -1411,7 +1407,8 @@ public class HandleWorkflow {
                                     workTime,
                                     tssConfig,
                                     isActive,
-                                    hintsService.activeConstruction()));
+                                    hintsService.activeConstruction(),
+                                    freshGenesisRequested));
                 }
             }
         }

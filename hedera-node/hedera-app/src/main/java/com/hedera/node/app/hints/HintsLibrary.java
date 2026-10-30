@@ -2,6 +2,7 @@
 package com.hedera.node.app.hints;
 
 import com.hedera.cryptography.hints.AggregationAndVerificationKeys;
+import com.hedera.cryptography.hints.HintsLibraryBridge;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
@@ -28,12 +29,45 @@ import java.util.SortedMap;
  * </ul>
  */
 public interface HintsLibrary {
+    /** Maximum power-of-two domain supported by hiero-cryptography 3.23.0. */
+    int MAX_PARTIES = HintsLibraryBridge.MAX_SIGNERS_NUM + 1;
+
+    /** Whether the domain can be used by the pinned native hinTS library. */
+    static boolean isSupportedPartySize(final int n) {
+        return n > 0 && n <= MAX_PARTIES && Integer.bitCount(n) == 1;
+    }
+
+    /** The final domain slot is reserved by hinTS and cannot hold a signer's key. */
+    static boolean isValidPartyId(final int partyId, final int n) {
+        return isSupportedPartySize(n) && partyId >= 0 && partyId < n - 1;
+    }
+
     /**
      * Returns an initial CRS for the given number of parties.
      * @param n the number of parties
      * @return the CRS
      */
     Bytes newCrs(short n);
+
+    /**
+     * Reads the exact supported capacity of a serialized TSS 3.23.0 CRS. This validates its size,
+     * not its curve points or ceremony transcript; those are verified by the native library.
+     */
+    default int crsPartySize(@NonNull final Bytes crs) {
+        return crsPartySizeFrom(crs);
+    }
+
+    /** Reads the capacity without initializing the native library, for startup metadata validation. */
+    static int crsPartySizeFrom(@NonNull final Bytes crs) {
+        java.util.Objects.requireNonNull(crs);
+        // HintsLibraryBridge 3.23.0 serializes a 304-byte header and 288 bytes per party.
+        final long payloadLength = crs.length() - 304L;
+        final long n = payloadLength / 288L;
+        if (payloadLength <= 0 || payloadLength % 288L != 0 || n > MAX_PARTIES || !isSupportedPartySize((int) n)) {
+            throw new IllegalArgumentException("Unsupported or malformed CRS capacity");
+        }
+        return (int) n;
+    }
 
     /**
      * Updates the given CRS with the given 256 bits of entropy and returns the concatenation of the
@@ -89,7 +123,7 @@ public interface HintsLibrary {
      *     well-formed aggregate public key.</li>
      *     <li>The succinct verification key to use when verifying an aggregate signature.</li>
      * </ol>
-     * Both maps given must have the same key set; in particular, a subset of {@code [0, n)}.
+     * Both maps given must have the same key set; in particular, a subset of {@code [0, n-1)}.
      *
      * @param crs the final CRS used by the network
      * @param hintsKeys the valid hinTS keys by party id

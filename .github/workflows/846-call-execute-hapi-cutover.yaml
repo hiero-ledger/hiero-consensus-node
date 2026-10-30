@@ -62,9 +62,9 @@ env:
 
 jobs:
   hapi-tests-cutover:
-    name: "HAPI Tests (Cutover & Wraps Download)"
-    # Dedicated runner pool with the WRAPS proving-key artifacts mounted at
-    # /opt/wraps-v1.0.0 (see hedera-node/infrastructure/docker/containers/production-next/wraps-proving-key)
+    name: "HAPI Tests (Cutover)"
+    # Dedicated runner pool sized for WRAPS proof construction, which uses every
+    # available core and a few GiB of off-heap memory per proving node
     runs-on: hl-cn-hapi-wraps-lin-lg
     # The upgrade boundary that enables TSS constructs a genesis WRAPS proof
     timeout-minutes: 60
@@ -87,31 +87,14 @@ jobs:
           setup-node: "true"
           node-version: "${{ inputs.node-version }}"
 
-      - name: HAPI Testing (Cutover & Wraps Download)
+      - name: HAPI Testing (Cutover)
         id: gradle-hapi-cutover
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-          TSS_LIB_WRAPS_ARTIFACTS_PATH: /opt/wraps-v1.0.0
           # Cap each node JVM's share of the heap pool (4 GiB x 3 nodes) on the shared pod
           HAPI_TEST_NODE_POOL_MIB: "12288"
-        run: |
-          status=0
-          run_subtask() {
-            local t=$1
-            echo "::group::${t}"
-            if ${GRADLE_EXEC} "${t}" --no-daemon; then
-              echo "::endgroup::"
-              return 0
-            fi
-            echo "::endgroup::"
-            status=1
-            echo "::error::${t} failed"
-            echo "❌ ${t} FAILED — expand group above for details"
-          }
-          run_subtask hapiTestCutover
-          run_subtask hapiTestWrapsDownload
-          exit "${status}"
+        run: ${GRADLE_EXEC} hapiTestCutover --no-daemon
 
       - name: Publish HAPI Test (Cutover) Reports
         uses: step-security/publish-unit-test-result-action@681100d67b09305624c089873f12c545ee7cbc24 # v2.23.0

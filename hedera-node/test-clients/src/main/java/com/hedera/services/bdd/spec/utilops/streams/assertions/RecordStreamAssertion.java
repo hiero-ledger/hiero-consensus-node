@@ -40,7 +40,8 @@ public interface RecordStreamAssertion extends StreamAssertion {
      * Re-checks any items this assertion buffered pending later transaction-ID registration and
      * re-evaluates whether it has now passed, independent of a new item arriving. Invoked once per
      * delivered block by {@link RecordStreamToBlockAssertionAdapter} — including blocks that translate
-     * to no records — so a buffered match is not stranded while the block stream is otherwise idle.
+     * to no records — and before waiting or on timeout by {@link EventualRecordStreamAssertion}, so a
+     * buffered match is not stranded while the stream is otherwise idle.
      *
      * @throws AssertionError if the assertion has failed
      * @return true if the assertion has succeeded

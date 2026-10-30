@@ -58,10 +58,15 @@ others are node-local.
 
 ### Dispatch gas budgets (CLPR-4.4 / 5.3)
 
-|        Key         |  Default  | Network? |                                  Purpose                                  |
-|--------------------|-----------|----------|---------------------------------------------------------------------------|
-| `verifierGasLimit` | `300 000` | yes      | Gas for `ClprVerifier.verifyBundle` / `verifyConfig` (`EvmClprVerifier`). |
+|        Key         |   Default   | Network? |                                  Purpose                                  |
+|--------------------|-------------|----------|---------------------------------------------------------------------------|
+| `verifierGasLimit` | `2 000 000` | yes      | Gas for `ClprVerifier.verifyBundle` / `verifyConfig` (`EvmClprVerifier`). |
 
+> The dispatched verifier call must carry at least the EIP-7623 calldata floor for its input, about 40 gas per byte
+> of (mostly non-zero) proof data. A Hiero state proof carries a ~13.7 KB TSS signature, so a `verifyConfig` call
+> needs ~0.6M gas, a `verifyConfig` with an endpoint manifest proof ~1.2M, and a `verifyBundle` ~0.6M plus ~60K per
+> message.
+>
 > Application-message dispatch gas is **not** a node-config value. `ClprSubmitBundleHandler`
 > caps each application callback (`onClprMessage` / `onClprResponse`) at the per-Channel
 > `ClprThrottles.maxGasPerMessage` throttle read from `LEDGER_CONFIGURATION` (spec §1.1, §6.0).

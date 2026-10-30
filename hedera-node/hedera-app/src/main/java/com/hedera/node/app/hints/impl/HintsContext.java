@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hints.impl;
 
+import static com.hedera.node.app.hints.HintsLibrary.isSupportedPartySize;
+import static com.hedera.node.app.hints.HintsLibrary.isValidPartyId;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static java.util.stream.Collectors.toMap;
 
+import com.hedera.hapi.node.state.hints.CRSStage;
+import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.NodePartyId;
 import com.hedera.hapi.services.auxiliary.hints.HintsPartialSignatureTransactionBody;
@@ -35,7 +39,7 @@ import org.apache.logging.log4j.Logger;
 
 /**
  * The hinTS context that can be used to request hinTS signatures using the latest
- * complete construction, if there is one. See {@link #setConstruction(HintsConstruction)}
+ * complete construction, if there is one. See {@link #setConstruction(HintsConstruction, CRSState)}
  * for the ways the context can have a construction set.
  */
 @Singleton
@@ -57,19 +61,12 @@ public class HintsContext {
     private final Supplier<Configuration> configProvider;
     private final HintsSigningMetrics signingMetrics;
 
-    private final ReentrantReadWriteLock akCacheLock = new ReentrantReadWriteLock(true);
+    private final ReentrantReadWriteLock constructionLock = new ReentrantReadWriteLock(true);
 
     private volatile ConstructionSnapshots constructionSnapshots = ConstructionSnapshots.EMPTY;
     private volatile long lastStartedBlock = NO_BLOCK_STARTED;
     private volatile long mixedModePreviousConstructionId = NO_CONSTRUCTION_ID;
-    private volatile long mixedModeActiveConstructionId = NO_CONSTRUCTION_ID;
     private volatile long mixedModeExpiresAtBlock = NO_BLOCK_STARTED;
-
-    /**
-     * The construction id whose aggregation key was last allowed to populate the native hinTS AK cache.
-     * Guarded by {@link #akCacheLock}'s write lock.
-     */
-    private long lastAkCacheConstructionId = NO_CONSTRUCTION_ID;
 
     /**
      * The active and, during mixed mode, immediately previous construction snapshots.
@@ -90,6 +87,7 @@ public class HintsContext {
     private record ConstructionSnapshot(
             long constructionId,
             @NonNull HintsConstruction construction,
+            @NonNull CRSState crsState,
             @NonNull Bytes aggregationKey,
             @NonNull Bytes verificationKey,
             @NonNull Map<Long, Integer> nodePartyIds,
@@ -97,6 +95,7 @@ public class HintsContext {
             long totalWeight) {
         private ConstructionSnapshot {
             requireNonNull(construction);
+            requireNonNull(crsState);
             requireNonNull(aggregationKey);
             requireNonNull(verificationKey);
             requireNonNull(nodePartyIds);
@@ -127,16 +126,29 @@ public class HintsContext {
      * </ol>
      *
      * @param construction the construction to start using for signing
+     * @param crsState the completed CRS bound to that construction
      * @throws IllegalArgumentException if either construction does not have a hinTS scheme
      */
-    public synchronized void setConstruction(@NonNull final HintsConstruction construction) {
+    public synchronized void setConstruction(
+            @NonNull final HintsConstruction construction, @NonNull final CRSState crsState) {
         requireNonNull(construction);
         if (!construction.hasHintsScheme()) {
             throw new IllegalArgumentException(
                     "Given construction #" + construction.constructionId() + " has no hinTS scheme");
         }
-        final var newSnapshot = snapshotOf(construction);
-        final var writeLock = akCacheLock.writeLock();
+        requireNonNull(crsState);
+        if (crsState.stage() != CRSStage.COMPLETED
+                || crsState.crs().length() == 0
+                || crsState.ceremonyId() <= 0
+                || !isSupportedPartySize(crsState.numParties())
+                || construction.hintsSchemeOrThrow().nodePartyIds().stream()
+                        .anyMatch(p -> !isValidPartyId(p.partyId(), crsState.numParties()))
+                || construction.crsId() != crsState.ceremonyId()
+                || construction.numParties() != crsState.numParties()) {
+            throw new IllegalArgumentException("Construction must be bound to its completed CRS");
+        }
+        final var newSnapshot = snapshotOf(construction, crsState);
+        final var writeLock = constructionLock.writeLock();
         writeLock.lock();
         try {
             final var current = constructionSnapshots;
@@ -146,7 +158,6 @@ public class HintsContext {
             final boolean canEnterMixedMode = activeChanged && lastStartedBlock != NO_BLOCK_STARTED;
             constructionSnapshots = new ConstructionSnapshots(newSnapshot, canEnterMixedMode ? currentActive : null);
             if (activeChanged) {
-                resetAkCache();
                 if (canEnterMixedMode) {
                     beginMixedMode(currentActive.constructionId(), newSnapshot.constructionId());
                 } else {
@@ -167,18 +178,17 @@ public class HintsContext {
      * @param blockNumber the block number being started
      */
     public synchronized void onBlockStarted(final long blockNumber) {
-        lastStartedBlock = blockNumber;
-        if (isMixedModeActive() && blockNumber >= mixedModeExpiresAtBlock) {
-            final var writeLock = akCacheLock.writeLock();
-            writeLock.lock();
-            try {
-                resetAkCache();
+        final var writeLock = constructionLock.writeLock();
+        writeLock.lock();
+        try {
+            lastStartedBlock = blockNumber;
+            if (isMixedModeActive() && blockNumber >= mixedModeExpiresAtBlock) {
                 clearMixedMode();
                 final var snapshots = constructionSnapshots;
                 constructionSnapshots = new ConstructionSnapshots(snapshots.active(), null);
-            } finally {
-                writeLock.unlock();
             }
+        } finally {
+            writeLock.unlock();
         }
     }
 
@@ -225,6 +235,12 @@ public class HintsContext {
         return snapshot == null ? null : snapshot.construction();
     }
 
+    /** Returns the immutable CRS for an accepted signing construction, including the handoff window. */
+    public @Nullable Bytes crsForConstruction(final long constructionId) {
+        final var snapshot = acceptedSnapshot(constructionId);
+        return snapshot == null ? null : snapshot.crsState().crs();
+    }
+
     private @Nullable ConstructionSnapshot acceptedSnapshot(final long constructionId) {
         final var snapshots = constructionSnapshots;
         final var active = snapshots.activeIf(constructionId);
@@ -245,15 +261,8 @@ public class HintsContext {
         return mixedModePreviousConstructionId != NO_CONSTRUCTION_ID;
     }
 
-    private boolean requiresExclusiveAkCacheAccess(final long constructionId) {
-        return isAcceptedPreviousConstruction()
-                && (constructionId == mixedModePreviousConstructionId
-                        || constructionId == mixedModeActiveConstructionId);
-    }
-
     private void beginMixedMode(final long previousConstructionId, final long activeConstructionId) {
         mixedModePreviousConstructionId = previousConstructionId;
-        mixedModeActiveConstructionId = activeConstructionId;
         mixedModeExpiresAtBlock = lastStartedBlock + MIXED_MODE_BLOCKS;
         log.info(
                 "Entering hinTS mixed construction mode for #{} and #{} through block #{}",
@@ -267,7 +276,6 @@ public class HintsContext {
             log.info("Exiting hinTS mixed construction mode");
         }
         mixedModePreviousConstructionId = NO_CONSTRUCTION_ID;
-        mixedModeActiveConstructionId = NO_CONSTRUCTION_ID;
         mixedModeExpiresAtBlock = NO_BLOCK_STARTED;
     }
 
@@ -283,7 +291,7 @@ public class HintsContext {
         requireNonNull(crs);
         final var snapshot = acceptedSnapshot(body.constructionId());
         final var partyId = snapshot == null ? null : snapshot.nodePartyIds().get(nodeId);
-        if (snapshot == null || partyId == null) {
+        if (snapshot == null || partyId == null || !snapshot.crsState().crs().equals(crs)) {
             return false;
         }
         return verifyBls(
@@ -340,6 +348,7 @@ public class HintsContext {
         final long threshold = snapshot.totalWeight() / divisor;
         return new Signing(
                 snapshot.constructionId(),
+                snapshot.crsState(),
                 blockHash,
                 threshold,
                 divisor,
@@ -351,7 +360,8 @@ public class HintsContext {
                 tssConfig.validateBlockSignatures());
     }
 
-    private @NonNull ConstructionSnapshot snapshotOf(@NonNull final HintsConstruction construction) {
+    private @NonNull ConstructionSnapshot snapshotOf(
+            @NonNull final HintsConstruction construction, @NonNull final CRSState crsState) {
         final var scheme = construction.hintsSchemeOrThrow();
         final var preprocessedKeys = scheme.preprocessedKeysOrThrow();
         final Map<Long, Long> nodeWeights = new HashMap<>();
@@ -363,6 +373,7 @@ public class HintsContext {
         return new ConstructionSnapshot(
                 construction.constructionId(),
                 construction,
+                crsState,
                 preprocessedKeys.aggregationKey(),
                 preprocessedKeys.verificationKey(),
                 Map.copyOf(asNodePartyIds(scheme.nodePartyIds())),
@@ -401,10 +412,8 @@ public class HintsContext {
         requireNonNull(signature);
         requireNonNull(message);
         requireNonNull(aggregationKey);
-        return withAkCacheProtection(
-                constructionId,
-                () -> acceptsConstruction(constructionId)
-                        && library.verifyBls(crs, signature, message, aggregationKey, partyId));
+        return withConstructionReadLock(() -> acceptsConstruction(constructionId)
+                && library.verifyBls(crs, signature, message, aggregationKey, partyId));
     }
 
     private @Nullable Bytes aggregateSignatures(
@@ -417,52 +426,20 @@ public class HintsContext {
         requireNonNull(aggregationKey);
         requireNonNull(verificationKey);
         requireNonNull(partialSignatures);
-        return withAkCacheProtection(
-                constructionId,
-                () -> acceptsConstruction(constructionId)
-                        ? library.aggregateSignatures(crs, aggregationKey, verificationKey, partialSignatures)
-                        : null);
+        return withConstructionReadLock(() -> acceptsConstruction(constructionId)
+                ? library.aggregateSignatures(crs, aggregationKey, verificationKey, partialSignatures)
+                : null);
     }
 
-    private <T> T withAkCacheProtection(final long constructionId, @NonNull final Supplier<T> operation) {
-        requireNonNull(operation);
-        if (requiresExclusiveAkCacheAccess(constructionId)) {
-            return withExclusiveAkCacheAccess(constructionId, operation);
-        }
-        final var readLock = akCacheLock.readLock();
+    /** Keeps acceptance stable across a handoff while allowing old/new construction operations concurrently. */
+    private <T> T withConstructionReadLock(@NonNull final Supplier<T> operation) {
+        final var readLock = constructionLock.readLock();
         readLock.lock();
         try {
-            if (!requiresExclusiveAkCacheAccess(constructionId)) {
-                return operation.get();
-            }
+            return operation.get();
         } finally {
             readLock.unlock();
         }
-        return withExclusiveAkCacheAccess(constructionId, operation);
-    }
-
-    private <T> T withExclusiveAkCacheAccess(final long constructionId, @NonNull final Supplier<T> operation) {
-        requireNonNull(operation);
-        final var writeLock = akCacheLock.writeLock();
-        writeLock.lock();
-        try {
-            useAkCacheFor(constructionId);
-            return operation.get();
-        } finally {
-            writeLock.unlock();
-        }
-    }
-
-    private void useAkCacheFor(final long constructionId) {
-        if (lastAkCacheConstructionId != constructionId) {
-            resetAkCache();
-            lastAkCacheConstructionId = constructionId;
-        }
-    }
-
-    private void resetAkCache() {
-        library.resetCache();
-        lastAkCacheConstructionId = NO_CONSTRUCTION_ID;
     }
 
     /**
@@ -471,6 +448,7 @@ public class HintsContext {
     public non-sealed class Signing implements BlockHashSigning {
         private final long startNanos;
         private final long constructionId;
+        private final CRSState crsState;
         private final long thresholdWeight;
         private final long thresholdDenominator;
         private final Bytes blockHash;
@@ -487,6 +465,7 @@ public class HintsContext {
 
         public Signing(
                 final long constructionId,
+                @NonNull final CRSState crsState,
                 @NonNull final Bytes blockHash,
                 final long thresholdWeight,
                 final long thresholdDenominator,
@@ -498,6 +477,7 @@ public class HintsContext {
                 final boolean validateSignature) {
             this.startNanos = System.nanoTime();
             this.constructionId = constructionId;
+            this.crsState = requireNonNull(crsState);
             this.thresholdWeight = thresholdWeight;
             this.validateSignature = validateSignature;
             this.thresholdDenominator = thresholdDenominator;
@@ -563,7 +543,8 @@ public class HintsContext {
                 final long nodeId, @NonNull final Bytes crs, @NonNull final HintsPartialSignatureTransactionBody body) {
             requireNonNull(crs);
             requireNonNull(body);
-            if (body.constructionId() != constructionId
+            if (!crsState.crs().equals(crs)
+                    || body.constructionId() != constructionId
                     || !body.message().equals(blockHash)
                     || !partyIds.containsKey(nodeId)
                     || !acceptsConstruction(constructionId)) {
@@ -597,7 +578,7 @@ public class HintsContext {
         public void incorporateValid(@NonNull final Bytes crs, final long nodeId, @NonNull final Bytes signature) {
             requireNonNull(crs);
             requireNonNull(signature);
-            if (completed.get() || !acceptsConstruction(constructionId)) {
+            if (completed.get() || !crsState.crs().equals(crs) || !acceptsConstruction(constructionId)) {
                 return;
             }
             final var partyId = partyIds.get(nodeId);

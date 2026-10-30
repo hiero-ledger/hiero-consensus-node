@@ -5,6 +5,8 @@ import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.stream.proto.RecordStreamItem;
 import com.hederahashgraph.api.proto.java.TransactionID;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.ArrayDeque;
+import java.util.Deque;
 
 /**
  * A small starter class for assertions that match a record stream item by {@code transactionID}, and
@@ -15,6 +17,10 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * if desired by overriding * the {@link #filter(TransactionID)} method.
  */
 public abstract class BaseIdScreenedAssertion implements RecordStreamAssertion {
+    // Match VisibleItemsAssertion's bound: retain recent candidates without growing with the stream.
+    private static final int MAX_PENDING_ITEMS = 500;
+
+    private final Deque<RecordStreamItem> pendingItems = new ArrayDeque<>();
     private final String specTxnId;
     protected final HapiSpec spec;
 
@@ -27,14 +33,43 @@ public abstract class BaseIdScreenedAssertion implements RecordStreamAssertion {
      * {@inheritDoc}
      */
     @Override
-    public boolean isApplicableTo(@NonNull final RecordStreamItem item) {
+    public synchronized boolean isApplicableTo(@NonNull final RecordStreamItem item) {
         final var maybeTxnId = spec.registry().getMaybeTxnId(specTxnId);
         if (maybeTxnId.isEmpty()) {
+            // Stream delivery can precede the registry publication performed after submitOp returns.
+            if (filter(item.getRecord().getTransactionID())) {
+                if (pendingItems.size() == MAX_PENDING_ITEMS) {
+                    pendingItems.removeFirst();
+                }
+                pendingItems.addLast(item);
+            }
             return false;
         }
         final var txnId = maybeTxnId.get();
         final var observedId = item.getRecord().getTransactionID();
         return baseFieldsMatch(txnId, observedId) && filter(observedId);
+    }
+
+    /**
+     * Retries candidates delivered before the named transaction ID was registered. The eventual
+     * assertion rechecks before waiting and at timeout, so recovery needs no further stream delivery.
+     */
+    @Override
+    public synchronized boolean recheckPending() {
+        final var maybeTxnId = spec.registry().getMaybeTxnId(specTxnId);
+        if (maybeTxnId.isEmpty()) {
+            return false;
+        }
+        boolean passed = false;
+        while (!pendingItems.isEmpty()) {
+            final var item = pendingItems.removeFirst();
+            final var observedId = item.getRecord().getTransactionID();
+            if (baseFieldsMatch(maybeTxnId.get(), observedId) && filter(observedId)) {
+                // Evaluate every matching candidate, even if an earlier one passed.
+                passed = test(item) || passed;
+            }
+        }
+        return passed;
     }
 
     /**

@@ -26,21 +26,27 @@ import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class BlockContentsValidatorTest {
 
     private static final Timestamp TIMESTAMP = new Timestamp(1_000_000L, 0);
-    private static final Bytes EMPTY_HASH = Bytes.wrap(new byte[32]);
+    // Wrapped record blocks use hash(0x00) for the empty state root, not an all-zero byte array.
+    private static final Bytes EMPTY_HASH = Bytes.fromHex(
+            "bec021b4f368e3069134e012c2b4307083d3a9bdd206e24e5f0d86e13d6636655933ec2b413465966817a9c208a11717");
+    private static final Bytes EMPTY_HASH_SHA256 =
+            Bytes.fromHex("6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d");
 
     private static BlockItem headerItem(long blockNumber) {
+        return headerItem(blockNumber, BlockHashAlgorithm.SHA2_384);
+    }
+
+    private static BlockItem headerItem(long blockNumber, BlockHashAlgorithm algorithm) {
         return new BlockItem(new OneOf<>(
                 ItemOneOfType.BLOCK_HEADER,
-                new BlockHeader(
-                        new SemanticVersion(0, 58, 0, "", ""),
-                        null,
-                        blockNumber,
-                        TIMESTAMP,
-                        BlockHashAlgorithm.SHA2_384)));
+                new BlockHeader(new SemanticVersion(0, 58, 0, "", ""), null, blockNumber, TIMESTAMP, algorithm)));
     }
 
     private static BlockItem recordFileItem() {
@@ -55,8 +61,11 @@ class BlockContentsValidatorTest {
     }
 
     private static BlockItem footerItem() {
-        return new BlockItem(
-                new OneOf<>(ItemOneOfType.BLOCK_FOOTER, new BlockFooter(EMPTY_HASH, EMPTY_HASH, EMPTY_HASH)));
+        return footerItem(EMPTY_HASH);
+    }
+
+    private static BlockItem footerItem(Bytes emptyHash) {
+        return new BlockItem(new OneOf<>(ItemOneOfType.BLOCK_FOOTER, new BlockFooter(emptyHash, emptyHash, emptyHash)));
     }
 
     private static BlockItem wrbProofItem(long blockNumber, int version) {
@@ -86,16 +95,20 @@ class BlockContentsValidatorTest {
 
     // --- WRB Positive Tests ---
 
-    @Test
-    void validWrbNonGenesis() {
-        final var block = new Block(List.of(headerItem(42), recordFileItem(), footerItem(), wrbProofItem(42, 6)));
+    @ParameterizedTest
+    @EnumSource(
+            value = BlockHashAlgorithm.class,
+            names = {"SHA2_256", "SHA2_384"})
+    void validWrbNonGenesis(BlockHashAlgorithm algorithm) {
+        final var emptyHash = algorithm == BlockHashAlgorithm.SHA2_256 ? EMPTY_HASH_SHA256 : EMPTY_HASH;
+        final var block = new Block(
+                List.of(headerItem(42, algorithm), recordFileItem(), footerItem(emptyHash), wrbProofItem(42, 6)));
         assertDoesNotThrow(() -> new BlockContentsValidator().validateBlocks(List.of(block)));
     }
 
     @Test
     void validWrbGenesis() {
-        final var block = new Block(
-                List.of(headerItem(0), stateChangesItem(), recordFileItem(), footerItem(), wrbProofItem(0, 2)));
+        final var block = new Block(List.of(headerItem(0), recordFileItem(), footerItem(), wrbProofItem(0, 2)));
         assertDoesNotThrow(() -> new BlockContentsValidator().validateBlocks(List.of(block)));
     }
 
@@ -146,13 +159,18 @@ class BlockContentsValidatorTest {
         assertTrue(err.getMessage().contains("unexpected item type"));
     }
 
-    @Test
-    void wrbNonGenesisWithStateChanges() {
-        final var block = new Block(
-                List.of(headerItem(5), stateChangesItem(), recordFileItem(), footerItem(), wrbProofItem(5, 6)));
+    @ParameterizedTest
+    @ValueSource(longs = {0, 5})
+    void wrbWithStateChanges(long blockNumber) {
+        final var block = new Block(List.of(
+                headerItem(blockNumber),
+                stateChangesItem(),
+                recordFileItem(),
+                footerItem(),
+                wrbProofItem(blockNumber, 6)));
         final var err =
                 assertThrows(AssertionError.class, () -> new BlockContentsValidator().validateBlocks(List.of(block)));
-        assertTrue(err.getMessage().contains("non-genesis block"));
+        assertTrue(err.getMessage().contains("WRB StateChanges found"));
     }
 
     @Test
@@ -161,7 +179,7 @@ class BlockContentsValidatorTest {
                 List.of(headerItem(1), recordFileItem(), stateChangesItem(), footerItem(), wrbProofItem(1, 6)));
         final var err =
                 assertThrows(AssertionError.class, () -> new BlockContentsValidator().validateBlocks(List.of(block)));
-        assertTrue(err.getMessage().contains("StateChanges found after RecordFileItem"));
+        assertTrue(err.getMessage().contains("WRB StateChanges found"));
     }
 
     @Test
