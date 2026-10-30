@@ -3,10 +3,7 @@ package org.hiero.otter.fixtures.network.simulation;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
-import java.util.List;
-import java.util.Map;
 import java.util.Objects;
-import java.util.function.BiPredicate;
 import java.util.function.Function;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
@@ -40,7 +37,7 @@ public class InFlightEvents extends InFlightConnections<EventInTransit> {
      * The connections into the receiver currently being delivered to whose next event has arrived, ordered by the
      * arrival time of that event and then by the node that sent it.
      *
-     * <p>It is only used during {@link #deliverArrived(Instant, EventReceiver)} and is empty between calls. It could
+     * <p>It is only used during {@link #deliverArrived(Instant, int, EventReceiver)} and is empty between calls. It could
      * be a local variable of that method, and is an instance field only to avoid allocating a new heap on every call,
      * which happens once per receiver per tick.
      */
@@ -55,7 +52,7 @@ public class InFlightEvents extends InFlightConnections<EventInTransit> {
      *                     simulation
      */
     public InFlightEvents(
-            @NonNull final BiPredicate<NodeId, NodeId> connected,
+            @NonNull final ConnectionCheck connected,
             @NonNull final Function<NodeId, EventWindow> eventWindows,
             @NonNull final Instant start) {
         super(connected, start);
@@ -78,24 +75,23 @@ public class InFlightEvents extends InFlightConnections<EventInTransit> {
      * receiver refuses an event, only that sender's connection is left out for the remainder of this call;
      * the event stays at the head of its queue and the other senders' events are still delivered.
      *
-     * @param now      the current time
-     * @param receiver accepts the events on behalf of the receiving node
+     * @param now          the current time
+     * @param receiverRank the rank of the receiving node
+     * @param receiver     accepts the events on behalf of the receiving node
      */
     @Override
-    void deliverArrived(@NonNull final Instant now, @NonNull final EventReceiver receiver) {
+    void deliverArrived(@NonNull final Instant now, final int receiverRank, @NonNull final EventReceiver receiver) {
         final NodeId receiverId = receiver.getNodeId();
         final long nowNanos = nanosSinceStart(now);
 
         // empty after every call that returns normally; cleared in case a previous call ended with an exception
         connectionsByEarliestEvent.clear();
-        final Map<NodeId, InFlightQueue<EventInTransit>> incomingConnections = incomingConnections(receiverId);
-        final List<NodeId> sortedNodeIds = sortedNodeIds();
-        for (int rank = 0; rank < sortedNodeIds.size(); rank++) {
-            final NodeId sender = sortedNodeIds.get(rank);
-            final InFlightQueue<EventInTransit> connection = incomingConnections.get(sender);
+        final InFlightQueue<EventInTransit>[] incomingConnections = incomingConnections(receiverRank);
+        for (int senderRank = 0; senderRank < incomingConnections.length; senderRank++) {
+            final InFlightQueue<EventInTransit> connection = incomingConnections[senderRank];
             // there is no connection from the receiver to itself
-            if (connection != null && connection.hasArrived(nowNanos) && isUp(sender, receiverId)) {
-                connectionsByEarliestEvent.add(connection, rank);
+            if (connection != null && connection.hasArrived(nowNanos) && isUp(senderRank, receiverRank)) {
+                connectionsByEarliestEvent.add(connection, senderRank);
             }
         }
 

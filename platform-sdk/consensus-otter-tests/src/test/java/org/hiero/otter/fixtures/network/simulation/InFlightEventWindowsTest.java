@@ -6,10 +6,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiPredicate;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.network.simulation.RecordingReceiver.PeerEventWindow;
@@ -42,11 +40,11 @@ class InFlightEventWindowsTest {
     void setUp() {
         downConnections.clear();
 
-        final BiPredicate<NodeId, NodeId> connected =
-                (sender, receiver) -> !downConnections.contains(Map.entry(sender, receiver));
-        inFlightEventWindows = new InFlightEventWindows(connected, START);
+        inFlightEventWindows = new InFlightEventWindows(
+                (sender, receiver) -> !downConnections.contains(Map.entry(NodeId.of(sender), NodeId.of(receiver))),
+                START);
 
-        inFlightEventWindows.setUp(List.of(NODE_0, NODE_1, NODE_2));
+        inFlightEventWindows.setUp(3);
 
         node0 = new RecordingReceiver(NODE_0);
     }
@@ -54,7 +52,7 @@ class InFlightEventWindowsTest {
     @Test
     @DisplayName("nothing is delivered when no event windows are in flight")
     void deliveringWithNothingInFlight() {
-        inFlightEventWindows.deliverArrived(START, node0);
+        deliver(START, node0);
 
         assertThat(node0.receivedEventWindows).isEmpty();
     }
@@ -64,10 +62,10 @@ class InFlightEventWindowsTest {
     void aSingleEventWindowIsDelivered() {
         final PeerEventWindow window = addEventWindow(NODE_1, 10, 105);
 
-        inFlightEventWindows.deliverArrived(at(5), node0);
+        deliver(at(5), node0);
         assertThat(node0.receivedEventWindows).isEmpty();
 
-        inFlightEventWindows.deliverArrived(at(10), node0);
+        deliver(at(10), node0);
         assertThat(node0.receivedEventWindows).containsExactly(window);
     }
 
@@ -78,7 +76,7 @@ class InFlightEventWindowsTest {
         addEventWindow(NODE_1, 20, 106);
         final PeerEventWindow newest = addEventWindow(NODE_1, 30, 107);
 
-        inFlightEventWindows.deliverArrived(at(40), node0);
+        deliver(at(40), node0);
 
         assertThat(node0.receivedEventWindows).containsExactly(newest);
     }
@@ -90,10 +88,10 @@ class InFlightEventWindowsTest {
         final PeerEventWindow arrived = addEventWindow(NODE_1, 20, 106);
         final PeerEventWindow notYetArrived = addEventWindow(NODE_1, 40, 107);
 
-        inFlightEventWindows.deliverArrived(at(30), node0);
+        deliver(at(30), node0);
         assertThat(node0.receivedEventWindows).containsExactly(arrived);
 
-        inFlightEventWindows.deliverArrived(at(50), node0);
+        deliver(at(50), node0);
         assertThat(node0.receivedEventWindows).containsExactly(arrived, notYetArrived);
     }
 
@@ -104,7 +102,7 @@ class InFlightEventWindowsTest {
         final PeerEventWindow newestFromOne = addEventWindow(NODE_1, 20, 106);
         final PeerEventWindow newestFromTwo = addEventWindow(NODE_2, 15, 109);
 
-        inFlightEventWindows.deliverArrived(at(30), node0);
+        deliver(at(30), node0);
 
         assertThat(node0.receivedEventWindows).containsExactly(newestFromOne, newestFromTwo);
     }
@@ -114,8 +112,8 @@ class InFlightEventWindowsTest {
     void deliveredWindowsAreNotRepeated() {
         final PeerEventWindow window = addEventWindow(NODE_1, 10, 105);
 
-        inFlightEventWindows.deliverArrived(at(20), node0);
-        inFlightEventWindows.deliverArrived(at(30), node0);
+        deliver(at(20), node0);
+        deliver(at(30), node0);
 
         assertThat(node0.receivedEventWindows).containsExactly(window);
     }
@@ -127,7 +125,7 @@ class InFlightEventWindowsTest {
         final PeerEventWindow fromOpenConnection = addEventWindow(NODE_2, 10, 109);
         downConnections.add(Map.entry(NODE_1, NODE_0));
 
-        inFlightEventWindows.deliverArrived(at(20), node0);
+        deliver(at(20), node0);
 
         assertThat(node0.receivedEventWindows).containsExactly(fromOpenConnection);
     }
@@ -138,13 +136,13 @@ class InFlightEventWindowsTest {
         addEventWindow(NODE_1, 10, 105);
         downConnections.add(Map.entry(NODE_1, NODE_0));
 
-        inFlightEventWindows.deliverArrived(at(20), node0);
+        deliver(at(20), node0);
         assertThat(node0.receivedEventWindows).isEmpty();
 
         final PeerEventWindow newest = addEventWindow(NODE_1, 30, 109);
         downConnections.clear();
 
-        inFlightEventWindows.deliverArrived(at(40), node0);
+        deliver(at(40), node0);
         assertThat(node0.receivedEventWindows).containsExactly(newest);
     }
 
@@ -154,11 +152,11 @@ class InFlightEventWindowsTest {
         final PeerEventWindow window = addEventWindow(NODE_1, 10, 105);
         node0.accepting = false;
 
-        inFlightEventWindows.deliverArrived(at(20), node0);
+        deliver(at(20), node0);
         assertThat(node0.receivedEventWindows).isEmpty();
 
         node0.accepting = true;
-        inFlightEventWindows.deliverArrived(at(20), node0);
+        deliver(at(20), node0);
         assertThat(node0.receivedEventWindows).containsExactly(window);
     }
 
@@ -168,13 +166,13 @@ class InFlightEventWindowsTest {
         addEventWindow(NODE_0, NODE_1, 10, 105);
         final PeerEventWindow towardsNodeOne = addEventWindow(NODE_1, NODE_0, 10, 106);
 
-        inFlightEventWindows.clearIncoming(NODE_0);
+        inFlightEventWindows.clearIncoming(rank(NODE_0));
 
-        inFlightEventWindows.deliverArrived(at(20), node0);
+        deliver(at(20), node0);
         assertThat(node0.receivedEventWindows).isEmpty();
 
         final RecordingReceiver node1 = new RecordingReceiver(NODE_1);
-        inFlightEventWindows.deliverArrived(at(20), node1);
+        deliver(at(20), node1);
         assertThat(node1.receivedEventWindows).containsExactly(towardsNodeOne);
     }
 
@@ -184,7 +182,7 @@ class InFlightEventWindowsTest {
         final PeerEventWindow later = addEventWindow(NODE_1, 20, 105);
         addEventWindow(NODE_1, 10, 106);
 
-        inFlightEventWindows.deliverArrived(at(30), node0);
+        deliver(at(30), node0);
 
         assertThat(node0.receivedEventWindows).containsExactly(later);
     }
@@ -214,7 +212,8 @@ class InFlightEventWindowsTest {
             @NonNull final NodeId receiver, @NonNull final NodeId sender, final long arrivalMillis, final long round) {
 
         final EventWindow eventWindow = new EventWindow(round, round, round, round);
-        inFlightEventWindows.add(receiver, new EventWindowInTransit(eventWindow, sender, at(arrivalMillis)));
+        inFlightEventWindows.add(
+                rank(sender), rank(receiver), new EventWindowInTransit(eventWindow, sender, at(arrivalMillis)));
         return new PeerEventWindow(sender, eventWindow);
     }
 
@@ -224,5 +223,26 @@ class InFlightEventWindowsTest {
      */
     private static Instant at(final long millis) {
         return START.plusMillis(millis);
+    }
+
+    /**
+     * Gets the rank of a node. The nodes of these tests have the ids {@code 0} to {@code n - 1}, so a node's rank,
+     * which is its position in node id order, is its id.
+     *
+     * @param nodeId the node
+     * @return the rank of the node
+     */
+    private static int rank(@NonNull final NodeId nodeId) {
+        return (int) nodeId.id();
+    }
+
+    /**
+     * Delivers what has arrived at a receiver.
+     *
+     * @param now      the current time
+     * @param receiver the receiver to deliver to
+     */
+    private void deliver(@NonNull final Instant now, @NonNull final RecordingReceiver receiver) {
+        inFlightEventWindows.deliverArrived(now, rank(receiver.getNodeId()), receiver);
     }
 }

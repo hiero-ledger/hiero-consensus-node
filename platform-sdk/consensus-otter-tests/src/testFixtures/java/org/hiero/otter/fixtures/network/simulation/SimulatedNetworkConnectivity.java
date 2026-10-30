@@ -5,8 +5,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -15,7 +13,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import org.hiero.consensus.gossip.config.BroadcastConfig;
 import org.hiero.consensus.gossip.config.SyncConfig;
@@ -34,6 +31,11 @@ import org.hiero.otter.fixtures.util.CursoredLog.Cursor;
  * <p>
  * This gossip simulation is intentionally simplistic. It does not attempt to mimic any real gossip algorithm in any
  * meaningful way and makes no attempt to reduce the rate of duplicate events.
+ *
+ * <p>The state of the connections is kept in {@link LinkStates}, and the arrival time of everything put onto a
+ * connection is picked by {@link ArrivalTimes}. Both identify nodes by their rank, see {@link NodeRanks}, and this class
+ * looks up the rank of a node only when the network is set up and when an event enters the network. Times are kept
+ * internally as nanoseconds since the start of the simulation.
  */
 public class SimulatedNetworkConnectivity {
 
@@ -51,57 +53,31 @@ public class SimulatedNetworkConnectivity {
     private static final int INITIAL_EVENT_LOG_CAPACITY = (int) Math.pow(2, 8);
 
     /**
-     * How many round trips of a link pass between it coming up and anything being delivered over it. This stands in
-     * for the TCP and TLS handshakes, protocol negotiation and first sync.
-     */
-    private static final double RECONNECT_ROUND_TRIPS = 5.0;
-
-    /**
-     * The reconnect delay is randomly varied by up to this fraction in either direction, so that links which come up
-     * together do not all become usable at the same moment.
-     */
-    private static final double RECONNECT_JITTER = 0.2;
-
-    /**
-     * The production broadcast settings the delivery delays are derived from. Only the defaults are used.
-     */
-    private static final BroadcastConfig BROADCAST_CONFIG = new TestConfigBuilder()
-            .withConfigDataType(BroadcastConfig.class)
-            .getOrCreateConfig()
-            .getConfigData(BroadcastConfig.class);
-
-    /**
-     * The production sync settings the delivery delays are derived from. Only the defaults are used.
-     */
-    private static final SyncConfig SYNC_CONFIG = new TestConfigBuilder()
-            .withConfigDataType(SyncConfig.class)
-            .getOrCreateConfig()
-            .getConfigData(SyncConfig.class);
-
-    /**
      * The random number generator to use for simulating network delays.
      */
     private final Random random;
 
     /**
-     * The time of the most recent {@link #tick(Instant)}. This is the time that changes to the connections are taken
-     * to happen at, and the time that delivery is judged against. Before the first tick it is the start of the
-     * simulation, so that anything sent then gets an arrival time the in-flight queues can measure from the start.
+     * The instant the simulation starts at. Times are kept internally as nanoseconds since this instant.
      */
-    private Instant currentTime;
+    private final Instant start;
 
     /**
-     * For every link that came up recently, the time before which nothing is delivered over it in either direction.
-     * A link with no entry has no delay pending.
+     * The production broadcast settings the delivery delays are derived from.
      */
-    private final Map<LinkKey, Instant> reconnectReadyAt = new HashMap<>();
+    private final BroadcastConfig broadcastConfig;
 
     /**
-     * For every link that is, or recently was, out of broadcast mode, the time from which it is in broadcast mode
-     * again. {@link Instant#MAX} while the round trip of the link is above the threshold. A link with no entry is in
-     * broadcast mode.
+     * The production sync settings the delivery delays are derived from.
      */
-    private final Map<LinkKey, Instant> broadcastEnabledAt = new HashMap<>();
+    private final SyncConfig syncConfig;
+
+    /**
+     * The time of the most recent {@link #tick(Instant)}, in nanoseconds since {@link #start}. This is the time that
+     * changes to the connections are taken to happen at, and the time that delivery is judged against. Before the
+     * first tick it is the start of the simulation.
+     */
+    private long currentTime = 0;
 
     /**
      * A cursored log of unique events used for gossiping events between nodes. Each node has its own cursor into this
@@ -111,9 +87,10 @@ public class SimulatedNetworkConnectivity {
     private final CursoredLog<PlatformEvent> eventLog;
 
     /**
-     * A map of cursors for each node in the network used to determine which events the node receives nest.
+     * The cursor of each node into {@link #eventLog}, indexed by rank, used to determine which events the node receives
+     * next.
      */
-    private final Map<NodeId, Cursor<PlatformEvent>> nodeCursors = new HashMap<>();
+    private final List<Cursor<PlatformEvent>> nodeCursors = new ArrayList<>();
 
     /**
      * Events submitted by each node since the previous tick, held until they can be added to {@link #eventLog}. Nodes
@@ -124,10 +101,10 @@ public class SimulatedNetworkConnectivity {
     private final Map<NodeId, List<PlatformEvent>> newlySubmittedEvents = new ConcurrentHashMap<>();
 
     /**
-     * Every node in the network, in node id order. Filled once by {@link #setUp(Collection)} and never reordered, so
-     * that it can serve as the canonical starting point for the shuffle in {@link #addSubmittedEventsToEventLog()}.
+     * The nodes of the network and their ranks. Set once by {@link #setUp(Collection)}; the node id order they define
+     * serves as the canonical starting point for the shuffle in {@link #addSubmittedEventsToEventLog()}.
      */
-    private final List<NodeId> sortedNodeIds = new ArrayList<>();
+    private NodeRanks ranks = NodeRanks.NONE;
 
     /**
      * Whether {@link #setUp(Collection)} has been called.
@@ -142,8 +119,8 @@ public class SimulatedNetworkConnectivity {
     private final List<Map<ConnectionKey, ConnectionState>> connectionsBeforeSetUp = new ArrayList<>();
 
     /**
-     * The order {@link #newlySubmittedEvents} is drained in on the current tick. A shuffled copy of
-     * {@link #sortedNodeIds}, reused across ticks so that producing it does not allocate.
+     * The order {@link #newlySubmittedEvents} is drained in on the current tick. A shuffled copy of the node ids in node
+     * id order, reused across ticks so that producing it does not allocate.
      */
     private final List<NodeId> submissionOrder = new ArrayList<>();
 
@@ -158,7 +135,7 @@ public class SimulatedNetworkConnectivity {
      * report while they are running concurrently, and only the last window a node reports within a tick is kept, since
      * the ones before it are superseded and would be discarded on arrival anyway.
      *
-     * <p>Drained by {@link #scheduleEventWindows(Instant)}. Until then it also serves as the record of
+     * <p>Drained by {@link #scheduleEventWindows(long)}. Until then it also serves as the record of
      * whether anything has changed since the last tick, which is what {@link #applyOldestEventWindow()} needs to know.
      */
     private final Map<NodeId, EventWindow> newlyReportedEventWindows = new ConcurrentHashMap<>();
@@ -177,8 +154,8 @@ public class SimulatedNetworkConnectivity {
     /**
      * Events that have been transmitted onto the network but not yet delivered.
      *
-     * <p>Each connection's queue is ordered by arrival time, so delivery does not depend on {@link #arrivalTimeClamp}.
-     * The clamp just keeps each kind of route on a connection from being reordered by jitter.
+     * <p>Each connection's queue is ordered by arrival time, so delivery does not depend on the clamp in
+     * {@link ArrivalTimes}. The clamp just keeps each kind of route on a connection from being reordered by jitter.
      */
     private final InFlightEvents inFlightEvents;
 
@@ -190,35 +167,72 @@ public class SimulatedNetworkConnectivity {
     /**
      * Everything in flight, in the order it is delivered within a tick: event windows first, then events. Only delivery
      * is driven from this list; what is put in flight comes from different places, see
-     * {@link #scheduleForDelivery(Instant)}.
+     * {@link #scheduleForDelivery(long)}.
      */
     private final List<InFlightConnections<?>> inFlightInDeliveryOrder;
 
     /**
-     * The gossip "component" for each node in the network.
+     * The gossip "component" for each node in the network, indexed by rank.
      */
-    private final Map<NodeId, EventReceiver> eventReceivers = new HashMap<>();
+    private final List<EventReceiver> eventReceivers = new ArrayList<>();
 
     /**
-     * A map containing the connection state between each pair of nodes in the network. Used to determine if and when an
-     * event should be delivered to a particular node.
+     * The state of every connection and link. Replaced by {@link #setUp(Collection)}, until which the network has no
+     * nodes.
      */
-    private final Map<ConnectionKey, ConnectionState> connections = new HashMap<>();
+    private LinkStates links;
 
     /**
-     * Keeps the arrival times of each kind of route on each connection in order, even when network jitter is applied.
+     * Picks the arrival times of everything put onto a connection. Replaced by {@link #setUp(Collection)}, until which
+     * the network has no nodes.
      */
-    private final ArrivalTimeClamp arrivalTimeClamp = new ArrivalTimeClamp();
+    private ArrivalTimes arrivalTimes;
 
     /**
-     * Constructor.
+     * Handles each link that comes up, see {@link #linkCameUp(int, int)}. Kept in a field so that handing it to
+     * {@link LinkStates} does not allocate.
+     */
+    private final LinkStates.LinkUpListener linkUpListener = this::linkCameUp;
+
+    /**
+     * Constructor using the default production broadcast and sync settings.
      *
      * @param random the random number generator to use for simulating network delays
      * @param start  the instant the simulation starts at
      */
     public SimulatedNetworkConnectivity(@NonNull final Random random, @NonNull final Instant start) {
+        this(
+                random,
+                start,
+                new TestConfigBuilder()
+                        .withConfigDataType(BroadcastConfig.class)
+                        .getOrCreateConfig()
+                        .getConfigData(BroadcastConfig.class),
+                new TestConfigBuilder()
+                        .withConfigDataType(SyncConfig.class)
+                        .getOrCreateConfig()
+                        .getConfigData(SyncConfig.class));
+    }
+
+    /**
+     * Constructor.
+     *
+     * @param random          the random number generator to use for simulating network delays
+     * @param start           the instant the simulation starts at
+     * @param broadcastConfig the production broadcast settings the delivery delays are derived from
+     * @param syncConfig      the production sync settings the delivery delays are derived from
+     */
+    public SimulatedNetworkConnectivity(
+            @NonNull final Random random,
+            @NonNull final Instant start,
+            @NonNull final BroadcastConfig broadcastConfig,
+            @NonNull final SyncConfig syncConfig) {
         this.random = requireNonNull(random);
-        this.currentTime = requireNonNull(start);
+        this.start = requireNonNull(start);
+        this.broadcastConfig = requireNonNull(broadcastConfig);
+        this.syncConfig = requireNonNull(syncConfig);
+        links = new LinkStates(0, random, broadcastConfig);
+        arrivalTimes = new ArrivalTimes(start, random, links, 0, broadcastConfig, syncConfig);
         inFlightEvents = new InFlightEvents(this::isConnected, nodeEventWindows::get, start);
         inFlightEventWindows = new InFlightEventWindows(this::isConnected, start);
         inFlightInDeliveryOrder = List.of(inFlightEventWindows, inFlightEvents);
@@ -251,25 +265,28 @@ public class SimulatedNetworkConnectivity {
                         "There is more than one event receiver for " + eventReceiver.getNodeId());
             }
         }
-        final List<NodeId> nodeIds = receiversById.keySet().stream().sorted().toList();
+        final NodeRanks newRanks = new NodeRanks(receiversById.keySet());
         if (isSetUp) {
-            if (!sortedNodeIds.equals(nodeIds)) {
-                throw new IllegalStateException(
-                        "Changing the nodes of the network is not supported: " + sortedNodeIds + " -> " + nodeIds);
+            if (!ranks.nodeIds().equals(newRanks.nodeIds())) {
+                throw new IllegalStateException("Changing the nodes of the network is not supported: " + ranks.nodeIds()
+                        + " -> " + newRanks.nodeIds());
             }
             return;
         }
 
+        ranks = newRanks;
+        final int nodeCount = ranks.size();
         for (final InFlightConnections<?> inFlight : inFlightInDeliveryOrder) {
-            inFlight.setUp(nodeIds);
+            inFlight.setUp(nodeCount);
         }
-        for (final NodeId nodeId : nodeIds) {
-            this.eventReceivers.put(nodeId, receiversById.get(nodeId));
-            nodeCursors.put(nodeId, eventLog.newCursor());
+        for (final NodeId nodeId : ranks.nodeIds()) {
+            this.eventReceivers.add(receiversById.get(nodeId));
+            nodeCursors.add(eventLog.newCursor());
             nodeEventWindows.put(nodeId, EventWindow.getGenesisEventWindow());
             newlySubmittedEvents.put(nodeId, new ArrayList<>());
         }
-        sortedNodeIds.addAll(nodeIds);
+        links = new LinkStates(nodeCount, random, broadcastConfig);
+        arrivalTimes = new ArrivalTimes(start, random, links, nodeCount, broadcastConfig, syncConfig);
         isSetUp = true;
 
         for (final Map<ConnectionKey, ConnectionState> pendingConnections : connectionsBeforeSetUp) {
@@ -282,140 +299,50 @@ public class SimulatedNetworkConnectivity {
      * Set the connection data for this simulated network. If the network has not been set up yet, the data is held and
      * applied by {@link #setUp(Collection)}.
      *
-     * <p>The new state is compared with the old one link by link, where a link is a pair of nodes and is up only if
-     * both directions are connected. A link that has come up is not usable until a reconnect delay has passed, and its
-     * two ends are each sent the other's latest event window again, as they would be when a real connection is
-     * established. A link that has gone down loses any delay it was waiting out, so that nothing gets through it before
-     * a full delay has passed after it next comes up.
-     *
-     * <p>The first call is taken to describe links that are already established, and so has no delay.
+     * <p>A link is a pair of nodes, and is up only if both directions are connected. A link that has come up is not
+     * usable until a reconnect delay has passed, and its two ends are each sent the other's latest event window again,
+     * as they would be when a real connection is established. See
+     * {@link LinkStates#update(Map, NodeRanks, long, LinkStates.LinkUpListener)} for how links that have gone down are
+     * treated, and why the first connection data has no delay.
      *
      * @param newConnections the connection data
+     * @throws IllegalArgumentException if the data contains a connection of a node that is not part of the network
      */
     public void setConnections(@NonNull final Map<ConnectionKey, ConnectionState> newConnections) {
         if (!isSetUp) {
             connectionsBeforeSetUp.add(Map.copyOf(newConnections));
             return;
         }
-
-        final boolean initial = connections.isEmpty();
-        final Map<ConnectionKey, ConnectionState> oldConnections = new HashMap<>(connections);
-        connections.clear();
-        connections.putAll(newConnections);
-        updateBroadcastModes();
-        if (initial) {
-            reconnectReadyAt.clear();
-            return;
-        }
-
-        // sorted, so that the random numbers drawn below are drawn in a reproducible order
-        final TreeSet<LinkKey> links = new TreeSet<>();
-        for (final ConnectionKey key : oldConnections.keySet()) {
-            links.add(LinkKey.of(key));
-        }
-        for (final ConnectionKey key : newConnections.keySet()) {
-            links.add(LinkKey.of(key));
-        }
-
-        for (final LinkKey link : links) {
-            final boolean wasUp = isLinkUp(oldConnections, link);
-            if (!isLinkUp(connections, link)) {
-                reconnectReadyAt.remove(link);
-            } else if (!wasUp) {
-                linkCameUp(link);
-            }
-        }
-    }
-
-    /**
-     * Updates the broadcast mode of every link from its current round trip. A link leaves broadcast mode when its round
-     * trip exceeds the threshold, and returns to it a fixed time after the round trip falls below the threshold again.
-     */
-    private void updateBroadcastModes() {
-        final TreeSet<LinkKey> links = new TreeSet<>();
-        for (final ConnectionKey key : connections.keySet()) {
-            links.add(LinkKey.of(key));
-        }
-        for (final LinkKey link : links) {
-            final boolean tooSlow =
-                    roundTrip(link.first(), link.second()).compareTo(BROADCAST_CONFIG.disablePingThreshold()) > 0;
-            final Instant enabledAt = broadcastEnabledAt.get(link);
-            if (tooSlow) {
-                broadcastEnabledAt.put(link, Instant.MAX);
-            } else if (Instant.MAX.equals(enabledAt)) {
-                broadcastEnabledAt.put(link, currentTime.plus(BROADCAST_CONFIG.pauseOnLag()));
-            }
-        }
-    }
-
-    /**
-     * Reports whether a link is in broadcast mode at the current time.
-     */
-    private boolean isBroadcastMode(@NonNull final NodeId a, @NonNull final NodeId b) {
-        final Instant enabledAt = broadcastEnabledAt.get(new LinkKey(a, b));
-        return enabledAt == null || !currentTime.isBefore(enabledAt);
-    }
-
-    /**
-     * The sum of the latencies of both directions of a link. A missing direction counts as the other one.
-     */
-    @NonNull
-    private Duration roundTrip(@NonNull final NodeId a, @NonNull final NodeId b) {
-        final ConnectionState forward = connections.get(new ConnectionKey(a, b));
-        final ConnectionState backward = connections.get(new ConnectionKey(b, a));
-        final Duration forwardLatency = forward != null ? forward.latency() : backward.latency();
-        final Duration backwardLatency = backward != null ? backward.latency() : forwardLatency;
-        return forwardLatency.plus(backwardLatency);
-    }
-
-    /**
-     * Reports whether both directions of a link are connected in the given state.
-     *
-     * @param state the connection state to look in
-     * @param link  the key of the link
-     * @return {@code true} if both directions are connected
-     */
-    private static boolean isLinkUp(
-            @NonNull final Map<ConnectionKey, ConnectionState> state, @NonNull final LinkKey link) {
-        final ConnectionState forward = state.get(link.firstToSecond());
-        final ConnectionState backward = state.get(link.secondToFirst());
-        return forward != null && forward.connected() && backward != null && backward.connected();
+        // links come up in rank order, so that the random numbers drawn for them are drawn in a reproducible order
+        links.update(newConnections, ranks, currentTime, linkUpListener);
     }
 
     /**
      * Starts the reconnect delay of a link that has just come up and sends each of its ends the other's latest event
-     * window. The delay is a fixed number of round trips of the link, varied by a little jitter.
+     * window.
      *
-     * @param link the key of the link
+     * @param first  the rank of the node of the link that comes first in node id order
+     * @param second the rank of the other node of the link
      */
-    private void linkCameUp(@NonNull final LinkKey link) {
-        final ConnectionState forward = connections.get(link.firstToSecond());
-        final ConnectionState backward = connections.get(link.secondToFirst());
-        final Duration roundTrip = forward.latency().plus(backward.latency());
-        final double jitter = RECONNECT_JITTER * (2 * random.nextDouble() - 1);
-        final Duration delay = Duration.ofNanos((long) (roundTrip.toNanos() * RECONNECT_ROUND_TRIPS * (1 + jitter)));
-        reconnectReadyAt.put(link, currentTime.plus(delay));
-
-        resendEventWindow(link.first(), link.second());
-        resendEventWindow(link.second(), link.first());
+    private void linkCameUp(final int first, final int second) {
+        links.startReconnectDelay(first, second, currentTime);
+        resendEventWindow(first, second);
+        resendEventWindow(second, first);
     }
 
     /**
      * Puts the latest event window of a node in flight to a peer. Event windows are otherwise only sent when they
      * change, so a peer that has only just become reachable would not hear the window until the next change.
      *
-     * @param sender   the node whose latest event window is sent
-     * @param receiver the node it is sent to
+     * @param sender   the rank of the node whose latest event window is sent
+     * @param receiver the rank of the node it is sent to
      */
-    private void resendEventWindow(@NonNull final NodeId sender, @NonNull final NodeId receiver) {
-        final EventWindow eventWindow = nodeEventWindows.get(sender);
-        if (eventWindow == null || !eventReceivers.containsKey(receiver)) {
-            // a node that is not part of the network has no window to send and nowhere to receive one
-            return;
-        }
-        final Instant arrivalTime = nextArrivalTime(sender, receiver, MessageRoute.BROADCAST, currentTime);
+    private void resendEventWindow(final int sender, final int receiver) {
+        final NodeId senderId = ranks.idOf(sender);
+        final EventWindow eventWindow = nodeEventWindows.get(senderId);
+        final Instant arrivalTime = arrivalTimes.next(sender, receiver, MessageRoute.BROADCAST, currentTime);
         if (arrivalTime != null) {
-            inFlightEventWindows.add(receiver, new EventWindowInTransit(eventWindow, sender, arrivalTime));
+            inFlightEventWindows.add(sender, receiver, new EventWindowInTransit(eventWindow, senderId, arrivalTime));
         }
     }
 
@@ -451,7 +378,7 @@ public class SimulatedNetworkConnectivity {
      */
     private void addSubmittedEventsToEventLog() {
         submissionOrder.clear();
-        submissionOrder.addAll(sortedNodeIds);
+        submissionOrder.addAll(ranks.nodeIds());
         Collections.shuffle(submissionOrder, random);
 
         for (final NodeId submitter : submissionOrder) {
@@ -485,7 +412,7 @@ public class SimulatedNetworkConnectivity {
      *
      * <p>Does nothing when no node has reported a window since the last tick, since the oldest one cannot have moved.
      * Reads {@link #newlyReportedEventWindows} rather than draining it; the draining is done later in the tick by
-     * {@link #scheduleEventWindows(Instant)}.
+     * {@link #scheduleEventWindows(long)}.
      */
     private void applyOldestEventWindow() {
         if (newlyReportedEventWindows.isEmpty()) {
@@ -520,7 +447,7 @@ public class SimulatedNetworkConnectivity {
      * @param now the new time
      */
     public void tick(@NonNull final Instant now) {
-        currentTime = now;
+        currentTime = InFlightQueue.nanosSince(start, now);
         // The oldest event window is applied first, so that the window the deduplicator discards expired events by
         // matches the range of birth rounds the log still accepts when the submissions below are appended.
         applyOldestEventWindow();
@@ -529,7 +456,7 @@ public class SimulatedNetworkConnectivity {
         // flight. Scheduling first would let a connection configured with no latency deliver an event in the same
         // tick it was sent, with no simulated time passing in between.
         deliverArrived(now);
-        scheduleForDelivery(now);
+        scheduleForDelivery(currentTime);
     }
 
     /**
@@ -542,30 +469,22 @@ public class SimulatedNetworkConnectivity {
         // The order the nodes are delivered to does not need to be randomized. The nodes are not running on any thread
         // when this method is called, and so the order in which nodes are provided events makes no difference.
         for (final InFlightConnections<?> inFlight : inFlightInDeliveryOrder) {
-            for (final NodeId receiverId : sortedNodeIds) {
-                inFlight.deliverArrived(now, eventReceivers.get(receiverId));
+            for (int receiver = 0; receiver < eventReceivers.size(); receiver++) {
+                inFlight.deliverArrived(now, receiver, eventReceivers.get(receiver));
             }
         }
     }
 
     /**
-     * Reports whether things can currently be delivered from a sender to a receiver.
+     * Reports whether things can currently be delivered from a sender to a receiver, see
+     * {@link LinkStates#isConnected(int, int, long)}.
      *
-     * <p>This requires the connection to be up in both directions, not only from the sender to the receiver. In
-     * production the two nodes share one TCP connection, and the side that stops receiving closes it. It also requires
-     * the reconnect delay, if the link came up recently, to have passed.
-     *
-     * @param sender   the node at the sending end of the connection
-     * @param receiver the node at the receiving end of the connection
-     * @return {@code true} if events can travel from the sender to the receiver
+     * @param sender   the rank of the node at the sending end of the connection
+     * @param receiver the rank of the node at the receiving end of the connection
+     * @return {@code true} if things can travel from the sender to the receiver
      */
-    private boolean isConnected(@NonNull final NodeId sender, @NonNull final NodeId receiver) {
-        final LinkKey link = new LinkKey(sender, receiver);
-        if (!isLinkUp(connections, link)) {
-            return false;
-        }
-        final Instant readyAt = reconnectReadyAt.get(link);
-        return readyAt == null || !currentTime.isBefore(readyAt);
+    private boolean isConnected(final int sender, final int receiver) {
+        return links.isConnected(sender, receiver, currentTime);
     }
 
     /**
@@ -575,20 +494,20 @@ public class SimulatedNetworkConnectivity {
      * <p>The event windows are scheduled first, sender by sender, and then the events, receiver by receiver. This is
      * the order {@link #deliverArrived(Instant)} follows too, which delivers the event windows to every receiver
      * before any events. The order is not incidental: everything scheduled draws an arrival time from
-     * {@link #random}, and a window and an event on the same connection share the clamp in
-     * {@link #arrivalTimeClamp}, so which goes first decides the arrival times of both, and the same seed only
-     * reproduces a run if it is always the same.
+     * {@link #random}, and a window and an event on the same connection share the clamp in {@link ArrivalTimes}, so
+     * which goes first decides the arrival times of both, and the same seed only reproduces a run if it is always the
+     * same.
      *
-     * @param now the current time
+     * @param now the current time, in nanoseconds since the start
      */
-    private void scheduleForDelivery(@NonNull final Instant now) {
-        if (connections.isEmpty()) {
+    private void scheduleForDelivery(final long now) {
+        if (!links.hasConnections()) {
             // No connections have been set, so there is nowhere to send anything.
             return;
         }
 
         scheduleEventWindows(now);
-        for (final NodeId receiver : sortedNodeIds) {
+        for (int receiver = 0; receiver < ranks.size(); receiver++) {
             scheduleEventsTo(receiver, now);
         }
     }
@@ -600,26 +519,29 @@ public class SimulatedNetworkConnectivity {
      *
      * <p>This drains {@link #newlyReportedEventWindows}.
      *
-     * @param now the current time
+     * @param now the current time, in nanoseconds since the start
      */
-    private void scheduleEventWindows(@NonNull final Instant now) {
-        for (final NodeId sender : sortedNodeIds) {
-            final EventWindow eventWindow = newlyReportedEventWindows.remove(sender);
+    private void scheduleEventWindows(final long now) {
+        final int nodeCount = ranks.size();
+        for (int sender = 0; sender < nodeCount; sender++) {
+            final NodeId senderId = ranks.idOf(sender);
+            final EventWindow eventWindow = newlyReportedEventWindows.remove(senderId);
             if (eventWindow == null) {
                 continue;
             }
 
-            for (final NodeId receiver : sortedNodeIds) {
-                if (sender.equals(receiver)) {
+            for (int receiver = 0; receiver < nodeCount; receiver++) {
+                if (sender == receiver) {
                     continue;
                 }
 
                 // As with events, whether the connection is up is decided at delivery time. A window held through a
                 // partition is superseded by the ones scheduled behind it, so when the connection returns the
                 // receiver is given the sender's current window rather than a stale one.
-                final Instant arrivalTime = nextArrivalTime(sender, receiver, MessageRoute.BROADCAST, now);
+                final Instant arrivalTime = arrivalTimes.next(sender, receiver, MessageRoute.BROADCAST, now);
                 if (arrivalTime != null) {
-                    inFlightEventWindows.add(receiver, new EventWindowInTransit(eventWindow, sender, arrivalTime));
+                    inFlightEventWindows.add(
+                            sender, receiver, new EventWindowInTransit(eventWindow, senderId, arrivalTime));
                 }
             }
         }
@@ -629,23 +551,23 @@ public class SimulatedNetworkConnectivity {
      * Walk a node's cursor over {@link #eventLog} and schedule every event it has not been sent yet for delivery. A
      * node is not sent its own events, nor events that are already ancient for it.
      *
-     * <p>When each event arrives is decided by
-     * {@link #nextArrivalTime(NodeId, NodeId, MessageRoute, Instant)}.
+     * <p>When each event arrives is decided by {@link ArrivalTimes#next(int, int, MessageRoute, long)}.
      *
-     * @param receiver the node the events are traveling to
-     * @param now      the current time
+     * @param receiver the rank of the node the events are traveling to
+     * @param now      the current time, in nanoseconds since the start
      */
-    private void scheduleEventsTo(@NonNull final NodeId receiver, @NonNull final Instant now) {
+    private void scheduleEventsTo(final int receiver, final long now) {
         final Cursor<PlatformEvent> cursor = nodeCursors.get(receiver);
-        final EventWindow receiverEventWindow = nodeEventWindows.get(receiver);
+        final EventWindow receiverEventWindow = nodeEventWindows.get(ranks.idOf(receiver));
 
         while (cursor.hasNext()) {
             final PlatformEvent event = cursor.next();
-            final NodeId sender = event.getSenderId();
-            assert sender != null;
+            final NodeId senderId = event.getSenderId();
+            assert senderId != null;
+            final int sender = ranks.rankOf(senderId);
 
             // Don't send a node's own events back to it
-            if (receiver.equals(sender)) {
+            if (receiver == sender) {
                 continue;
             }
 
@@ -658,76 +580,18 @@ public class SimulatedNetworkConnectivity {
             // Whether the connection is up is decided at delivery time rather than here: the cursor is consumed
             // either way, so an event dropped now would never be offered to this receiver again, and a partition
             // would permanently deprive it of every event created while the partition was in place.
-            final boolean broadcast = sender.equals(event.getCreatorId()) && isBroadcastMode(sender, receiver);
-            final Instant arrivalTime = broadcast
-                    ? nextArrivalTime(sender, receiver, MessageRoute.BROADCAST, now)
-                    : nextArrivalTime(sender, receiver, MessageRoute.SYNC, now);
+            final boolean broadcast =
+                    senderId.equals(event.getCreatorId()) && links.isBroadcastMode(sender, receiver, now);
+            final MessageRoute route = broadcast ? MessageRoute.BROADCAST : MessageRoute.SYNC;
+            final Instant arrivalTime = arrivalTimes.next(sender, receiver, route, now);
             if (arrivalTime != null) {
                 // create a copy so that nodes don't modify each other's events
                 final PlatformEvent eventToDeliver = event.copyGossipedData();
-                eventToDeliver.setSenderId(sender);
+                eventToDeliver.setSenderId(senderId);
                 eventToDeliver.setTimeReceived(arrivalTime);
-                inFlightEvents.add(receiver, new EventInTransit(eventToDeliver, sender, arrivalTime));
+                inFlightEvents.add(sender, receiver, new EventInTransit(eventToDeliver, senderId, arrivalTime));
             }
         }
-    }
-
-    /**
-     * Picks the time something scheduled onto a connection now will arrive at the other end.
-     *
-     * <p>The time is the current time plus the connection's latency, offset by a jitter value drawn from a truncated
-     * Gaussian distribution. Jitter can pull an arrival time earlier than one already scheduled on the same connection,
-     * so the result is clamped to be no earlier than the previous one of the same kind on the same connection. That
-     * clamp keeps each kind of route in order.
-     *
-     * <p>Picking draws from {@link #random}, so the order callers call this in is part of what a seed reproduces. No
-     * draw is made when the sender and receiver are not known to each other.
-     *
-     * @param sender   the node at the sending end of the connection
-     * @param receiver the node at the receiving end of the connection
-     * @param kind     the route over which message is being scheduled
-     * @param now      the current time
-     * @return the time of arrival at the receiving end, or {@code null} if the two nodes have no connection
-     */
-    @Nullable
-    private Instant nextArrivalTime(
-            @NonNull final NodeId sender,
-            @NonNull final NodeId receiver,
-            @NonNull final MessageRoute kind,
-            @NonNull final Instant now) {
-        final ConnectionKey connectionKey = new ConnectionKey(sender, receiver);
-        final ConnectionState connectionState = connections.get(connectionKey);
-        if (connectionState == null) {
-            return null;
-        }
-
-        // Simulate network latency and jitter using truncated Gaussian distribution
-        final double sigma = connectionState.latency().toNanos() * connectionState.jitter().value / 100.0;
-        final double jitter = Math.clamp(random.nextGaussian() * sigma, -3 * sigma, 3 * sigma);
-        Instant arrivalTime = now.plus(connectionState.latency()).plusNanos((long) jitter);
-        if (kind == MessageRoute.SYNC) {
-            arrivalTime = arrivalTime.plus(syncDelay(sender, receiver));
-        }
-
-        // Ensure arrival time is always incremental within a kind of route
-        return arrivalTimeClamp.clamp(connectionKey, kind, arrivalTime);
-    }
-
-    /**
-     * The time a copy sent by sync waits on top of the link latency: the hold-back applied by the sender, and the
-     * average wait for the next sync to start. Syncs of a pair run back to back, each taking about two round trips plus
-     * a pause, so the average wait is one round trip plus half the pause. Without broadcast there is no hold-back and
-     * the pause is shorter.
-     *
-     * <p>The hold-back of 3 seconds that production applies to events the forwarder does not build on is not simulated.
-     */
-    @NonNull
-    private Duration syncDelay(@NonNull final NodeId sender, @NonNull final NodeId receiver) {
-        final boolean broadcastMode = isBroadcastMode(sender, receiver);
-        final Duration holdBack = broadcastMode ? SYNC_CONFIG.ancestorFilterThreshold() : Duration.ZERO;
-        final Duration pause =
-                broadcastMode ? BROADCAST_CONFIG.rpcSleepAfterSyncWhileBroadcasting() : SYNC_CONFIG.rpcSleepAfterSync();
-        return holdBack.plus(roundTrip(sender, receiver)).plus(pause.dividedBy(2));
     }
 
     /**
@@ -741,18 +605,11 @@ public class SimulatedNetworkConnectivity {
      * @param nodeId the id of the node whose cursor should be reset
      */
     public void resetCursor(@NonNull final NodeId nodeId) {
-        nodeCursors.get(nodeId).seekToFirst();
+        final int node = ranks.rankOf(nodeId);
+        nodeCursors.get(node).seekToFirst();
         for (final InFlightConnections<?> inFlight : inFlightInDeliveryOrder) {
-            inFlight.clearIncoming(nodeId);
+            inFlight.clearIncoming(node);
         }
-        for (final NodeId peer : sortedNodeIds) {
-            if (peer.equals(nodeId)) {
-                continue;
-            }
-            final LinkKey link = new LinkKey(nodeId, peer);
-            if (isLinkUp(connections, link)) {
-                linkCameUp(link);
-            }
-        }
+        links.restartLinksOf(node, linkUpListener);
     }
 }
