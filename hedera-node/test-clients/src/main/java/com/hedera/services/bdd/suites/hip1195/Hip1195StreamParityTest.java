@@ -6,23 +6,29 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.assertions.AutoAssocAsserts.accountTokenPairs;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
+import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.contractWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.infrastructure.providers.ops.crypto.RandomAccount.INITIAL_BALANCE;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAliasedAccountInfo;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.queries.crypto.ExpectedTokenRel.relationshipWith;
+import static com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord.nonStakingRecordsFrom;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdateAliased;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
@@ -34,6 +40,8 @@ import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
+import static com.hedera.services.bdd.suites.contract.records.SelfDestructRecordsSuite.deletionRecords;
+import static com.hedera.services.bdd.suites.contract.records.SelfDestructRecordsSuite.startNewRecordFile;
 import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.AUTO_MEMO;
 import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.LAZY_MEMO;
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.createHollowAccountFrom;
@@ -110,6 +118,43 @@ public class Hip1195StreamParityTest {
         testLifecycle.doAdhoc(SET_AND_PASS_HOOK.getInfo());
         testLifecycle.doAdhoc(THREE_PASSES_HOOK.getInfo());
         testLifecycle.doAdhoc(TRUE_PRE_POST_ALLOWANCE_HOOK.getInfo());
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> hookChildSelfDestructExternalizesDeletion() {
+        final var hook = "SelfDestructChildHook";
+        final var transfer = "hookWithSelfDestruct";
+        final var finished = "finished";
+        return hapiTest(
+                deletionRecords(transfer, finished, 1, OWNER, null, SUCCESS),
+                startNewRecordFile(),
+                uploadInitCode(hook),
+                contractCreate(hook).gas(1_000_000L),
+                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS).withHook(accountAllowanceHook(1L, hook)),
+                cryptoTransfer(movingHbar(1).between(OWNER, GENESIS))
+                        .withPreHookFor(OWNER, 1L, 1_000_000L, "")
+                        .payingWith(PAYER)
+                        .signedBy(PAYER)
+                        .via(transfer),
+                withOpContext((spec, log) -> {
+                    final var query = getTxnRecord(transfer)
+                            .hasPriority(recordWith().status(SUCCESS))
+                            .hasNonStakingChildRecordCount(3);
+                    allRunFor(spec, query);
+                    final var records = nonStakingRecordsFrom(query.getChildRecords());
+                    final var createdId = records.get(1).getReceipt().getContractID();
+                    assertEquals(SUCCESS, records.getFirst().getReceipt().getStatus());
+                    assertEquals(createdId, records.getLast().getReceipt().getContractID());
+                    spec.registry().saveContractId("deletedHookChild", createdId);
+                    allRunFor(
+                            spec,
+                            getContractInfo("deletedHookChild")
+                                    .has(contractWith().isDeleted()),
+                            getContractInfo(hook).has(contractWith().isNotDeleted()));
+                }),
+                getAccountInfo(OWNER).has(accountWith().balance(ONE_HUNDRED_HBARS - 1)),
+                cryptoTransfer(movingHbar(1).between(DEFAULT_PAYER, PAYER)).via(finished));
     }
 
     @HapiTest

@@ -24,6 +24,9 @@ public record ContractsConfig(
         @ConfigProperty(value = "nonces.externalization.enabled", defaultValue = "true") @NetworkProperty
         boolean noncesExternalizationEnabled,
 
+        @ConfigProperty(value = "selfDestructs.externalization.enabled", defaultValue = "true") @NetworkProperty
+        boolean selfDestructsExternalizationEnabled,
+
         @ConfigProperty(defaultValue = "false") @NetworkProperty
         boolean enforceCreationThrottle,
 

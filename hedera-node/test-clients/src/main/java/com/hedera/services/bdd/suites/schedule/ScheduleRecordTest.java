@@ -3,12 +3,16 @@ package com.hedera.services.bdd.suites.schedule;
 
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.contractWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.assertions.TransferListAsserts.exactParticipants;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord.nonStakingRecordsFrom;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -18,14 +22,17 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleSign;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.submitMessageTo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsAssertion.SkipSynthItems.NO;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -33,6 +40,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.NODE_REWARD;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
+import static com.hedera.services.bdd.suites.contract.records.SelfDestructRecordsSuite.startNewRecordFile;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.ADMIN;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.BEGIN;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.CREATION;
@@ -46,14 +54,21 @@ import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.TRIGGER;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.TWO_SIG_XFER;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.UNWILLING_PAYER;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.scheduledVersionOf;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.ContractCreate;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.ContractDelete;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.NodeStakeUpdate;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.ScheduleCreate;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_ID_FIELD_NOT_ALLOWED;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
+import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsAssertion;
 import com.hederahashgraph.api.proto.java.TransactionID;
 import java.security.SecureRandom;
 import java.util.Collections;
@@ -63,6 +78,83 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 
 public class ScheduleRecordTest {
+
+    @HapiTest
+    final Stream<DynamicTest> scheduledConstructorSelfDestructHasDeletionRecord() {
+        final var contract = "FactorySelfDestructConstructor";
+        final var creation = "scheduledConstructor";
+        final var finished = "finished";
+        return hapiTest(
+                streamMustIncludePassFrom(spec -> new VisibleItemsAssertion(
+                        spec,
+                        (s, items) -> {
+                            // Immediate scheduled execution shares the triggering schedule-create record family.
+                            final var entries = items.get(creation).entries().stream()
+                                    .filter(e -> e.function() != NodeStakeUpdate)
+                                    .toList();
+                            assertEquals(
+                                    List.of(ScheduleCreate, ContractCreate, ContractCreate, ContractDelete),
+                                    entries.stream().map(e -> e.function()).toList());
+                            final var trigger = entries.getFirst().txnRecord();
+                            final var parent = entries.get(1).txnRecord();
+                            final var deletion = entries.getLast();
+                            assertEquals(SUCCESS, parent.getReceipt().getStatus());
+                            assertTrue(parent.getTransactionID().getScheduled());
+                            assertEquals(SUCCESS, deletion.finalStatus());
+                            assertEquals(
+                                    parent.getReceipt().getContractID(),
+                                    deletion.body().getContractDeleteInstance().getContractID());
+                            assertEquals(
+                                    parent.getReceipt().getContractID(),
+                                    deletion.txnRecord().getReceipt().getContractID());
+                            assertEquals(
+                                    s.registry().getAccountID(PAYER),
+                                    deletion.body().getContractDeleteInstance().getTransferAccountID());
+                            assertEquals(
+                                    trigger.getConsensusTimestamp(),
+                                    deletion.txnRecord().getParentConsensusTimestamp());
+                            assertTrue(deletion.txnRecord().getTransactionID().getNonce() > 0);
+                            assertEquals(0, deletion.txnRecord().getTransactionFee());
+                            assertEquals(
+                                    0, deletion.txnRecord().getTransferList().getAccountAmountsCount());
+                        },
+                        NO,
+                        creation,
+                        finished)),
+                startNewRecordFile(),
+                uploadInitCode(contract),
+                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                scheduleCreate(
+                                SCHEDULE,
+                                contractCreate(contract)
+                                        .omitAdminKey()
+                                        .balance(ONE_HBAR)
+                                        .gas(1_000_000))
+                        .designatingPayer(PAYER)
+                        .alsoSigningWith(PAYER)
+                        .savingExpectedScheduledTxnId()
+                        .via(creation),
+                withOpContext((spec, log) -> {
+                    final var scheduled = getTxnRecord(creation)
+                            .scheduled()
+                            .hasPriority(recordWith().status(SUCCESS));
+                    final var query = getTxnRecord(creation).hasNonStakingChildRecordCount(2);
+                    allRunFor(spec, scheduled, query);
+                    final var deleted =
+                            scheduled.getResponseRecord().getReceipt().getContractID();
+                    final var child = nonStakingRecordsFrom(query.getChildRecords())
+                            .getFirst()
+                            .getReceipt()
+                            .getContractID();
+                    spec.registry().saveContractId(contract, deleted);
+                    spec.registry().saveContractId("survivingChild", child);
+                    allRunFor(
+                            spec,
+                            getContractInfo(contract).has(contractWith().isDeleted()),
+                            getContractInfo("survivingChild").has(contractWith().isNotDeleted()));
+                }),
+                cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, PAYER, 1)).via(finished));
+    }
 
     @HapiTest
     final Stream<DynamicTest> noFeesChargedIfTriggeredPayerIsUnwilling() {

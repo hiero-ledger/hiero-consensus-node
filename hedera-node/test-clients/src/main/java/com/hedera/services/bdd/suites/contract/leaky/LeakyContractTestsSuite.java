@@ -36,6 +36,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadSingleIni
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddressArray;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
+import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.SidecarVerbs.expectContractActionSidecarFor;
@@ -55,6 +56,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.EMPTY_KEY;
+import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -71,7 +73,7 @@ import static com.hedera.services.bdd.suites.contract.Utils.asHexedAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.asHexedSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.asToken;
-import static com.hedera.services.bdd.suites.contract.Utils.captureOneChildCreate2MetaFor;
+import static com.hedera.services.bdd.suites.contract.Utils.captureChildCreate2MetaFor;
 import static com.hedera.services.bdd.suites.contract.Utils.extractBytecodeUnhexed;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import static com.hedera.services.bdd.suites.contract.Utils.getResourcePath;
@@ -100,6 +102,8 @@ import static com.hedera.services.bdd.suites.contract.precompile.ApproveAllowanc
 import static com.hedera.services.bdd.suites.contract.precompile.CreatePrecompileSuite.TOKEN_NAME;
 import static com.hedera.services.bdd.suites.contract.precompile.ERCPrecompileSuite.NAME_TXN;
 import static com.hedera.services.bdd.suites.contract.precompile.token.GasCalculationIntegrityTest.constantGasAssertion;
+import static com.hedera.services.bdd.suites.contract.records.SelfDestructRecordsSuite.deletionRecords;
+import static com.hedera.services.bdd.suites.contract.records.SelfDestructRecordsSuite.startNewRecordFile;
 import static com.hedera.services.bdd.suites.contract.traceability.EncodingUtils.formattedAssertionValue;
 import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.LAZY_MEMO;
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.updateSpecFor;
@@ -238,6 +242,9 @@ public class LeakyContractTestsSuite {
         final AtomicReference<String> mergedMirrorAddr2 = new AtomicReference<>();
         final AtomicReference<byte[]> testContractInitcode = new AtomicReference<>();
         return hapiTest(
+                deletionRecords(CREATE_2_TXN, "finished", 1, contract, null, SUCCESS),
+                deletionRecords(CREATE_2_TXN_2, "finished", 1, contract, null, SUCCESS),
+                startNewRecordFile(),
                 overriding("contracts.evm.version", "v0.46"),
                 newKeyNamed(adminKey),
                 newKeyNamed(MULTI_KEY),
@@ -246,7 +253,7 @@ public class LeakyContractTestsSuite {
                         .payingWith(GENESIS)
                         .adminKey(adminKey)
                         .entityMemo(ENTITY_MEMO)
-                        .via(CREATE_2_TXN)
+                        .via("factoryCreation")
                         .exposingContractIdTo(id -> factoryEvmAddress.set(asSolidityAddress(id))),
                 sourcing(() -> contractCallLocal(
                                 contract, GET_BYTECODE, asHeadlongAddress(factoryEvmAddress.get()), salt)
@@ -277,7 +284,9 @@ public class LeakyContractTestsSuite {
                         .gas(4_000_000L)
                         .sending(tcValue)
                         .via(CREATE_2_TXN)),
-                captureOneChildCreate2MetaFor(
+                captureChildCreate2MetaFor(
+                        2,
+                        0,
                         "Merged deployed contract with hollow account and self-destructed the contract",
                         CREATE_2_TXN,
                         mergedMirrorAddr,
@@ -291,13 +300,16 @@ public class LeakyContractTestsSuite {
                         .gas(4_000_000L)
                         .sending(tcValue)
                         .via(CREATE_2_TXN_2)),
-                captureOneChildCreate2MetaFor(
+                captureChildCreate2MetaFor(
+                        2,
+                        0,
                         "Merged deployed contract with hollow account and self-destructed the contract",
                         CREATE_2_TXN_2,
                         mergedMirrorAddr2,
                         mergedAliasAddr2),
                 sourcing(() -> getContractInfo(mergedMirrorAddr2.get())
                         .has(ContractInfoAsserts.contractWith().isDeleted())),
+                cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, FUNDING, 1)).via("finished"),
                 sourcing(() -> assertionsHold((spec, asertLog) -> {
                     assertEquals(mergedAliasAddr.get(), mergedAliasAddr2.get(), "Alias addresses must be equal!");
                     assertNotEquals(

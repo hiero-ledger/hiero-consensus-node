@@ -7,9 +7,11 @@ import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATABLE;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.contractWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
@@ -20,6 +22,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewAccount;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewSingleton;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
@@ -33,6 +36,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.STAKING_REWARD;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
+import static com.hedera.services.bdd.suites.contract.Utils.idAsHeadlongAddress;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.hedera.hapi.node.state.token.NetworkStakingRewards;
@@ -91,6 +95,8 @@ class AtomicBatchStakedDeleteRewardRedirectionTest {
     private static final String SD_OUTER_PAYER = "rewardRedirectSdOuterPayer";
     private static final String SD_INNER = "rewardRedirectSdInner";
     private static final String SD_BATCH = "rewardRedirectSdBatch";
+    private static final String SELF_DESTRUCT_STAKING = "SelfDestructStaking";
+    private static final String EXTERNALIZATION_ENABLED = "contracts.selfDestructs.externalization.enabled";
 
     private static final String DRAIN_FEE_PAYER = "drainDeleteFeePayer";
     private static final String DRAIN_OUTER_PAYER = "drainDeleteOuterPayer";
@@ -159,12 +165,7 @@ class AtomicBatchStakedDeleteRewardRedirectionTest {
                 cryptoCreate(DELETE_BENEFICIARY).balance(0L).receiverSigRequired(false),
 
                 // Accrue a positive, payable pending reward for the staked account.
-                waitUntilStartOfNextStakingPeriod(1),
-                cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L)),
-                waitUntilStartOfNextStakingPeriod(1),
-                cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L)),
-                waitUntilStartOfNextStakingPeriod(1),
-                cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L)),
+                accrueStakingRewards(STAKED_ACCOUNT, false),
                 getAccountInfo(STAKED_ACCOUNT).savingSnapshot(STAKED_BEFORE),
                 assertionsHold((spec, log) -> {
                     final AccountInfo stakedAccount = spec.registry().getAccountInfo(STAKED_BEFORE);
@@ -260,6 +261,8 @@ class AtomicBatchStakedDeleteRewardRedirectionTest {
                 "staking.requireMinStakeToReward"
             })
     final Stream<DynamicTest> stakedContractDeleteInAtomicBatchRedirectsRewardAndChargesFees() {
+        final var pendingReward = new AtomicLong();
+        final var principal = new AtomicLong();
         final var beneficiaryBefore = new AtomicLong();
         final var beneficiaryAfter = new AtomicLong();
         final var outerPayerBefore = new AtomicLong();
@@ -303,12 +306,16 @@ class AtomicBatchStakedDeleteRewardRedirectionTest {
                 cryptoCreate(CONTRACT_DELETE_BENEFICIARY).balance(0L).receiverSigRequired(false),
 
                 // Accrue a positive, payable pending reward for the staked contract.
-                waitUntilStartOfNextStakingPeriod(1),
-                cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L)),
-                waitUntilStartOfNextStakingPeriod(1),
-                cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L)),
-                waitUntilStartOfNextStakingPeriod(1),
-                cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L)),
+                accrueStakingRewards(STAKED_CONTRACT, true),
+                getContractInfo(STAKED_CONTRACT).saveToRegistry(STAKED_BEFORE),
+                assertionsHold((spec, log) -> {
+                    final var info = spec.registry().getContractInfo(STAKED_BEFORE);
+                    pendingReward.set(info.getStakingInfo().getPendingReward());
+                    principal.set(info.getBalance());
+                    Assertions.assertThat(pendingReward.get())
+                            .as("the staked contract must have a positive pending reward before deletion")
+                            .isPositive();
+                }),
                 getAccountBalance(CONTRACT_OUTER_PAYER).exposingBalanceTo(outerPayerBefore::set),
                 getAccountBalance(CONTRACT_DELETE_BENEFICIARY).exposingBalanceTo(beneficiaryBefore::set),
                 viewSingleton(
@@ -345,11 +352,11 @@ class AtomicBatchStakedDeleteRewardRedirectionTest {
                             .as("the paid staking reward is attributed to the contract-delete beneficiary")
                             .isEqualTo(spec.registry().getAccountID(CONTRACT_DELETE_BENEFICIARY));
                     Assertions.assertThat(paidRewards.get(0).getAmount())
-                            .as("the redirected reward is positive")
-                            .isPositive();
+                            .as("the full pending reward is redirected")
+                            .isEqualTo(pendingReward.get());
                     Assertions.assertThat(beneficiaryAfter.get() - beneficiaryBefore.get())
                             .as("beneficiary receives the deleted contract's principal plus its redirected reward")
-                            .isGreaterThan(paidRewards.get(0).getAmount());
+                            .isEqualTo(principal.get() + pendingReward.get());
                     Assertions.assertThat(networkPendingBefore.get() - networkPendingAfter.get())
                             .as("the network pending reward must decrease by the reward actually paid out")
                             .isPositive();
@@ -371,6 +378,8 @@ class AtomicBatchStakedDeleteRewardRedirectionTest {
      * <p>This runs under pre-EIP-6780 EVM semantics ({@code v0.46}) because only there does {@code SELFDESTRUCT}
      * delete a pre-existing contract; under the default {@code v0.70} it would merely sweep the balance and leave the
      * staked contract (and its reward) in place, so the redirect could not occur.
+     * Synthetic deletion records are disabled here to isolate the inner dispatch builder's beneficiary mapping;
+     * the enabled path with a reverted beneficiary change is covered separately below.
      */
     @LeakyRepeatableHapiTest(
             value = {NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, NEEDS_STATE_ACCESS},
@@ -379,7 +388,8 @@ class AtomicBatchStakedDeleteRewardRedirectionTest {
                 "staking.perHbarRewardRate",
                 "staking.rewardBalanceThreshold",
                 "staking.requireMinStakeToReward",
-                "contracts.evm.version"
+                "contracts.evm.version",
+                EXTERNALIZATION_ENABLED
             })
     final Stream<DynamicTest> stakedContractSelfDestructInAtomicBatchRedirectsRewardAndChargesFees() {
         final var outerPayerBefore = new AtomicLong();
@@ -410,11 +420,18 @@ class AtomicBatchStakedDeleteRewardRedirectionTest {
                 // redirected. Under the default v0.70 (EIP-6780) SELFDESTRUCT only deletes same-transaction
                 // contracts, which can never have an accrued staking reward, so this path is unreachable there.
                 overridingAllOf(java.util.Map.of(
-                        "staking.startThreshold", "" + 10 * ONE_HBAR,
-                        "staking.perHbarRewardRate", "6849",
-                        "staking.rewardBalanceThreshold", "0",
-                        "staking.requireMinStakeToReward", "false",
-                        "contracts.evm.version", "v0.46")),
+                        "staking.startThreshold",
+                        "" + 10 * ONE_HBAR,
+                        "staking.perHbarRewardRate",
+                        "6849",
+                        "staking.rewardBalanceThreshold",
+                        "0",
+                        "staking.requireMinStakeToReward",
+                        "false",
+                        "contracts.evm.version",
+                        "v0.46",
+                        EXTERNALIZATION_ENABLED,
+                        "false")),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, STAKING_REWARD, ONE_MILLION_HBARS)),
                 newKeyNamed(BATCH_KEY),
                 uploadInitCode(SELF_DESTRUCT_CONTRACT),
@@ -427,12 +444,7 @@ class AtomicBatchStakedDeleteRewardRedirectionTest {
                 cryptoCreate(SD_CALL_PAYER).balance(ONE_HUNDRED_HBARS).receiverSigRequired(false),
 
                 // Accrue a positive, payable pending reward for the staked contract.
-                waitUntilStartOfNextStakingPeriod(1),
-                cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L)),
-                waitUntilStartOfNextStakingPeriod(1),
-                cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L)),
-                waitUntilStartOfNextStakingPeriod(1),
-                cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L)),
+                accrueStakingRewards(SELF_DESTRUCT_CONTRACT, true),
                 getAccountBalance(SD_OUTER_PAYER).exposingBalanceTo(outerPayerBefore::set),
                 viewSingleton(
                         TokenService.NAME,
@@ -475,6 +487,137 @@ class AtomicBatchStakedDeleteRewardRedirectionTest {
                             "PASS: self-destruct batch SUCCESS, reward {} redirected to beneficiary, fees charged",
                             paidRewards.get(0).getAmount());
                 })));
+    }
+
+    @LeakyRepeatableHapiTest(
+            value = {NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, NEEDS_STATE_ACCESS},
+            overrides = {
+                "staking.startThreshold",
+                "staking.perHbarRewardRate",
+                "staking.rewardBalanceThreshold",
+                "staking.requireMinStakeToReward",
+                "contracts.evm.version",
+                EXTERNALIZATION_ENABLED
+            })
+    final Stream<DynamicTest> committedSelfDestructBeneficiaryReceivesAccruedRewardAfterCaughtRevert() {
+        final var target = "stakedSelfDestructTarget";
+        final var committedBeneficiary = "committedBeneficiary";
+        final var revertedBeneficiary = "revertedBeneficiary";
+        final var beforeDeletion = "stakedContractBeforeDeletion";
+        final var pendingReward = new AtomicLong();
+        final var principal = new AtomicLong();
+        final var beneficiaryAfter = new AtomicLong();
+        final var batchRecord = new AtomicReference<TransactionRecord>();
+
+        final var selfDestructInner = contractCall(SELF_DESTRUCT_STAKING, "destroyAndCatch", spec -> new Object[] {
+                    idAsHeadlongAddress(spec.registry().getAccountID(target)),
+                    idAsHeadlongAddress(spec.registry().getAccountID(committedBeneficiary)),
+                    idAsHeadlongAddress(spec.registry().getAccountID(revertedBeneficiary))
+                })
+                .payingWith(SD_CALL_PAYER)
+                .signedBy(SD_CALL_PAYER)
+                .gas(GAS_LIMIT)
+                .batchKey(BATCH_KEY)
+                .via(SD_INNER);
+
+        return hapiTest(flattened(
+                // A pre-existing staked contract can be deleted only before EIP-6780. Enable synthetic children
+                // explicitly so this also exercises their participation in root staking finalization.
+                overridingAllOf(java.util.Map.of(
+                        "staking.startThreshold",
+                        "" + 10 * ONE_HBAR,
+                        "staking.perHbarRewardRate",
+                        "6849",
+                        "staking.rewardBalanceThreshold",
+                        "0",
+                        "staking.requireMinStakeToReward",
+                        "false",
+                        "contracts.evm.version",
+                        "v0.46",
+                        EXTERNALIZATION_ENABLED,
+                        "true")),
+                cryptoTransfer(tinyBarsFromTo(GENESIS, STAKING_REWARD, ONE_MILLION_HBARS)),
+                newKeyNamed(BATCH_KEY),
+                uploadInitCode(SELF_DESTRUCT_STAKING),
+                contractCreate(SELF_DESTRUCT_STAKING).gas(CONTRACT_CREATE_GAS),
+                contractCreate(target)
+                        .bytecode(SELF_DESTRUCT_STAKING)
+                        .stakedNodeId(0)
+                        .balance(ONE_HUNDRED_HBARS)
+                        .gas(CONTRACT_CREATE_GAS),
+                cryptoCreate(SD_OUTER_PAYER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(SD_CALL_PAYER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(committedBeneficiary).balance(ONE_HBAR).receiverSigRequired(false),
+                cryptoCreate(revertedBeneficiary).balance(ONE_HBAR).receiverSigRequired(false),
+                accrueStakingRewards(target, true),
+                getContractInfo(target).saveToRegistry(beforeDeletion),
+                assertionsHold((spec, log) -> {
+                    final var info = spec.registry().getContractInfo(beforeDeletion);
+                    pendingReward.set(info.getStakingInfo().getPendingReward());
+                    principal.set(info.getBalance());
+                    Assertions.assertThat(pendingReward.get())
+                            .as("the target must have a positive accrued reward before deletion")
+                            .isPositive();
+                }),
+                // First commit target -> A, then catch a reverted target -> B attempt in the same EVM transaction.
+                atomicBatch(selfDestructInner)
+                        .payingWith(SD_OUTER_PAYER)
+                        .signedBy(SD_OUTER_PAYER, BATCH_KEY)
+                        .via(SD_BATCH)
+                        .hasKnownStatus(SUCCESS),
+                getTxnRecord(SD_BATCH)
+                        .hasPriority(recordWith().status(SUCCESS))
+                        .hasPaidStakingRewardsCount(1)
+                        .exposingTo(batchRecord::set),
+                getTxnRecord(SD_INNER)
+                        .hasPriority(recordWith().status(SUCCESS))
+                        .hasPaidStakingRewardsCount(0)
+                        .hasNonStakingChildRecordCount(1)
+                        .hasChildRecords(recordWith().status(SUCCESS).fee(0L).targetedContractId(target)),
+                getAccountBalance(committedBeneficiary).exposingBalanceTo(beneficiaryAfter::set),
+                getAccountBalance(revertedBeneficiary).hasTinyBars(ONE_HBAR),
+                getContractInfo(target).has(contractWith().isDeleted()),
+                getContractInfo(SELF_DESTRUCT_STAKING).has(contractWith().isNotDeleted()),
+                assertionsHold((spec, log) -> {
+                    final var rewards = batchRecord.get().getPaidStakingRewardsList();
+                    Assertions.assertThat(rewards).hasSize(1);
+                    Assertions.assertThat(rewards.getFirst().getAccountID())
+                            .as("only the committed beneficiary receives the deleted contract's reward")
+                            .isEqualTo(spec.registry().getAccountID(committedBeneficiary));
+                    Assertions.assertThat(rewards.getFirst().getAmount()).isEqualTo(pendingReward.get());
+                    Assertions.assertThat(beneficiaryAfter.get())
+                            .as("the committed beneficiary receives the principal and the accrued reward exactly once")
+                            .isEqualTo(ONE_HBAR + principal.get() + pendingReward.get());
+                })));
+    }
+
+    private static com.hedera.services.bdd.spec.SpecOperation accrueStakingRewards(
+            final String stakedEntity, final boolean isContract) {
+        return assertionsHold((spec, log) -> {
+            final var snapshot = "accruedRewardSnapshot";
+            long pendingReward = 0;
+            // Record-block initialization can consume a boundary on a fresh embedded network, so verify the
+            // accrued-reward precondition instead of assuming that three virtual-time advances are sufficient.
+            for (int period = 0; period < 10 && pendingReward == 0; period++) {
+                allRunFor(
+                        spec,
+                        waitUntilStartOfNextStakingPeriod(1),
+                        cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L)));
+                if (isContract) {
+                    allRunFor(spec, getContractInfo(stakedEntity).saveToRegistry(snapshot));
+                    pendingReward = spec.registry()
+                            .getContractInfo(snapshot)
+                            .getStakingInfo()
+                            .getPendingReward();
+                } else {
+                    allRunFor(spec, getAccountInfo(stakedEntity).savingSnapshot(snapshot));
+                    pendingReward = pendingOf(spec.registry().getAccountInfo(snapshot));
+                }
+            }
+            Assertions.assertThat(pendingReward)
+                    .as("%s must accrue a positive staking reward before its deletion", stakedEntity)
+                    .isPositive();
+        });
     }
 
     /**

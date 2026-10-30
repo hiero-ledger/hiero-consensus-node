@@ -129,8 +129,11 @@ class QueryHederaOperationsTest {
         assertThrows(
                 UnsupportedOperationException.class,
                 () -> subject.createContract(1L, ContractCreateTransactionBody.DEFAULT, null));
-        assertThrows(UnsupportedOperationException.class, () -> subject.deleteAliasedContract(Bytes.EMPTY));
-        assertThrows(UnsupportedOperationException.class, () -> subject.deleteUnaliasedContract(1234L));
+        assertThrows(
+                UnsupportedOperationException.class,
+                () -> subject.deleteAliasedContract(Bytes.EMPTY, AccountID.DEFAULT));
+        assertThrows(
+                UnsupportedOperationException.class, () -> subject.deleteUnaliasedContract(1234L, AccountID.DEFAULT));
     }
 
     @Test

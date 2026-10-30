@@ -57,6 +57,8 @@ import java.util.function.Consumer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -2188,8 +2190,9 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
         verify(recordBuilder, never()).addBeneficiaryForDeletedAccount(any(), any());
     }
 
-    @Test
-    void redirectsRewardForAccountDeletedInChildDispatch() {
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void redirectsRewardForAccountDeletedInChildDispatch(final boolean hasRevertedBeneficiary) {
         // Same reward situation as rewardsUltimateBeneficiaryInsteadOfDeletedAccount, except the
         // deleted -> beneficiary mapping is recorded on a CHILD dispatch builder (as happens for the
         // inner CryptoDelete of an atomic batch), not on the root builder consulted by the redirect.
@@ -2238,9 +2241,13 @@ class StakingRewardsHandlerImplTest extends CryptoTokenHandlerTestBase {
         given(context.userTransactionRecordBuilder(DeleteCapableTransactionStreamBuilder.class))
                 .willReturn(recordBuilder);
 
-        // The root builder starts with an EMPTY deleted-account map; the mapping only exists on the
-        // child dispatch builder. Back the root builder mock with a real map so the fold is observable.
+        // A reverted SELFDESTRUCT attempt may leave stale beneficiary bookkeeping on the root.
+        // Only the committed deletion child's mapping must determine where the reward is paid.
         final Map<AccountID, AccountID> rootBeneficiaries = new HashMap<>();
+        if (hasRevertedBeneficiary) {
+            rootBeneficiaries.put(
+                    payerId, AccountID.newBuilder().accountNum(800).build());
+        }
         given(recordBuilder.getNumberOfDeletedAccounts()).willAnswer(inv -> rootBeneficiaries.size());
         given(recordBuilder.getDeletedAccountBeneficiaryFor(any()))
                 .willAnswer(inv -> rootBeneficiaries.get(inv.<AccountID>getArgument(0)));

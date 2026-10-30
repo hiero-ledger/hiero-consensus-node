@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.state;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_EXECUTION_EXCEPTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.MISSING_ENTITY_NUMBER;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.aliasFrom;
@@ -22,13 +23,18 @@ import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaOperations;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
+import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
@@ -52,12 +58,20 @@ import org.hyperledger.besu.evm.worldstate.WorldUpdater;
  */
 public class ProxyWorldUpdater implements HederaWorldUpdater {
     private static final String CANNOT_CREATE = "Cannot create ";
+    private static final Logger log = LogManager.getLogger(ProxyWorldUpdater.class);
 
     /**
      * The parent {@link WorldUpdater}, or null if this is the root updater.
      */
     @Nullable
     private final WorldUpdater parent;
+
+    /**
+     * Beneficiaries of successful self-destructs in this frame and its committed children. Unlike the
+     * staking-reward bookkeeping on the transaction builder, these entries must follow frame rollback
+     * so a later reverted attempt cannot change the beneficiary externalized for a committed deletion.
+     */
+    private final Map<Address, AccountID> selfDestructBeneficiaries = new HashMap<>();
 
     /**
      * The factory used to create new {@link EvmFrameState} instances; used once in the
@@ -332,6 +346,9 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
     public void trackSelfDestructBeneficiary(
             @NonNull final Address deleted, @NonNull final Address beneficiary, @NonNull final MessageFrame frame) {
         evmFrameState.trackSelfDestructBeneficiary(deleted, beneficiary, frame);
+        // Capture the numeric ID before another self-destruct can remove this beneficiary's alias.
+        selfDestructBeneficiaries.put(
+                deleted, requireNonNull(evmFrameState.getAccount(beneficiary)).hederaId());
     }
 
     /**
@@ -383,10 +400,18 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
      */
     @Override
     public void deleteAccount(@NonNull final Address address) {
+        requireNonNull(address);
+        final var beneficiary = selfDestructBeneficiaries.get(address);
+        if (beneficiary == null) {
+            // Never guess a beneficiary or commit a deletion without its record. Finalization handles
+            // this failure by rolling back the EVM changes while retaining the transaction's gas charge.
+            log.error("Missing beneficiary for committed self-destruct of {}", address);
+            throw new HandleException(CONTRACT_EXECUTION_EXCEPTION);
+        }
         if (isLongZero(address)) {
-            enhancement.operations().deleteUnaliasedContract(numberOfLongZero(address));
+            enhancement.operations().deleteUnaliasedContract(numberOfLongZero(address), beneficiary);
         } else {
-            enhancement.operations().deleteAliasedContract(aliasFrom(address));
+            enhancement.operations().deleteAliasedContract(aliasFrom(address), beneficiary);
         }
     }
 
@@ -399,6 +424,7 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
         // EvmFrameState is just a convenience wrapper around the scope to let us use Besu types, and
         // ultimately the HederaOperations is the one tracking and managing all changes
         enhancement.operations().revert();
+        selfDestructBeneficiaries.clear();
         // Because of the revert-then-commit pattern that Besu uses for force deletions in
         // AbstractMessageProcessor#clearAccumulatedStateBesidesGasAndOutput(), we have
         // to take special measures here to avoid popping the savepoint stack twice for
@@ -425,6 +451,9 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
         // ultimately the HederaOperations is the one tracking and managing all changes
         if (!reverted) {
             enhancement.operations().commit();
+            if (parent instanceof ProxyWorldUpdater parentUpdater) {
+                parentUpdater.selfDestructBeneficiaries.putAll(selfDestructBeneficiaries);
+            }
         }
     }
 

@@ -2,8 +2,11 @@
 package com.hedera.node.app.service.contract.impl.test.exec.scope;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_DELETE;
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.AN_ED25519_KEY;
@@ -23,9 +26,13 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.VALID_C
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthAccountCreationFromHapi;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthContractCreationFromParent;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.CHILD;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REMOVABLE;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.SUPPRESSING_SIGNED_TX_CUSTOMIZER;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -34,6 +41,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.assertArg;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -41,13 +51,21 @@ import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
+import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.contract.ContractCallTransactionBody;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
+import com.hedera.hapi.node.contract.ContractDeleteTransactionBody;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.token.TokenCreateTransactionBody;
+import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.hapi.node.transaction.TransactionRecord;
+import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
+import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.gas.TinybarValues;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
@@ -55,6 +73,7 @@ import com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaOperatio
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
 import com.hedera.node.app.service.contract.impl.exec.utils.PendingCreationMetadataRef;
 import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder;
+import com.hedera.node.app.service.contract.impl.records.ContractDeleteStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.WritableContractStateStore;
 import com.hedera.node.app.service.entityid.EntityNumGenerator;
 import com.hedera.node.app.service.token.ReadableAccountStore;
@@ -66,20 +85,35 @@ import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
+import com.hedera.node.app.spi.workflows.record.DeleteCapableTransactionStreamBuilder;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
+import com.hedera.node.app.state.SingleTransactionRecord;
+import com.hedera.node.app.workflows.handle.record.RecordStreamBuilder;
+import com.hedera.node.app.workflows.handle.record.TraceDataSizeLimiter;
+import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
+import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.UncheckedParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Instant;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.UnaryOperator;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -136,8 +170,12 @@ class HandleHederaOperationsTest {
 
     @BeforeEach
     void setUp() {
+        createSubject(DEFAULT_CONTRACTS_CONFIG);
+    }
+
+    private void createSubject(final ContractsConfig contractsConfig) {
         subject = new HandleHederaOperations(
-                DEFAULT_CONTRACTS_CONFIG,
+                contractsConfig,
                 context,
                 tinybarValues,
                 gasCalculator,
@@ -578,21 +616,245 @@ class HandleHederaOperationsTest {
     }
 
     @Test
-    void deleteUnaliasedContractUsesApi() {
-        given(context.storeFactory()).willReturn(storeFactory);
-        given(storeFactory.serviceApi(TokenServiceApi.class)).willReturn(tokenServiceApi);
-        subject.deleteUnaliasedContract(CALLED_CONTRACT_ID.contractNumOrThrow());
+    void deleteUnaliasedContractExternalizesSuccessfulDeletion() throws ParseException {
+        givenDeletableContract(CALLED_CONTRACT_ID, liveContract());
+        final var childBuilder = givenDeletionRecordBuilder();
+
+        subject.deleteUnaliasedContract(CALLED_CONTRACT_ID.contractNumOrThrow(), A_NEW_ACCOUNT_ID);
+
         verify(tokenServiceApi).deleteContract(CALLED_CONTRACT_ID);
+        assertSyntheticDeletion(childBuilder);
     }
 
     @Test
-    void deleteAliasedContractUsesApi() {
+    void deleteAliasedContractResolvesNumericIdBeforeRemovingAlias() throws ParseException {
+        final var aliasedId =
+                ContractID.newBuilder().evmAddress(CANONICAL_ALIAS).build();
+        givenDeletableContract(aliasedId, liveContract());
+        final var childBuilder = givenDeletionRecordBuilder();
+
+        subject.deleteAliasedContract(CANONICAL_ALIAS, A_NEW_ACCOUNT_ID);
+
+        final var inOrder = inOrder(accountStore, tokenServiceApi);
+        inOrder.verify(accountStore).getContractById(aliasedId);
+        inOrder.verify(tokenServiceApi).deleteContract(aliasedId);
+        assertSyntheticDeletion(childBuilder);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void disabledExternalizationStillDeletesWithoutConsultingChildRecordCapacity(final boolean aliased) {
+        createSubject(HederaTestConfigBuilder.create()
+                .withValue("contracts.selfDestructs.externalization.enabled", false)
+                .getOrCreateConfig()
+                .getConfigData(ContractsConfig.class));
         given(context.storeFactory()).willReturn(storeFactory);
         given(storeFactory.serviceApi(TokenServiceApi.class)).willReturn(tokenServiceApi);
-        subject.deleteAliasedContract(CANONICAL_ALIAS);
-        verify(tokenServiceApi)
-                .deleteContract(
-                        ContractID.newBuilder().evmAddress(CANONICAL_ALIAS).build());
+
+        if (aliased) {
+            subject.deleteAliasedContract(CANONICAL_ALIAS, A_NEW_ACCOUNT_ID);
+            verify(tokenServiceApi)
+                    .deleteContract(
+                            ContractID.newBuilder().evmAddress(CANONICAL_ALIAS).build());
+        } else {
+            subject.deleteUnaliasedContract(CALLED_CONTRACT_ID.contractNumOrThrow(), A_NEW_ACCOUNT_ID);
+            verify(tokenServiceApi).deleteContract(CALLED_CONTRACT_ID);
+        }
+
+        verify(context, never()).savepointStack();
+        verify(storeFactory, never()).readableStore(ReadableAccountStore.class);
+        verify(context, never()).dispatch(any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void missingOrAlreadyDeletedContractDoesNotExternalizeDeletion(final boolean alreadyDeleted) {
+        givenDeletableContract(
+                CALLED_CONTRACT_ID,
+                alreadyDeleted ? liveContract().copyBuilder().deleted(true).build() : null);
+
+        subject.deleteUnaliasedContract(CALLED_CONTRACT_ID.contractNumOrThrow(), A_NEW_ACCOUNT_ID);
+
+        // Preserve the API's existing cleanup behavior without reporting a new deletion.
+        verify(tokenServiceApi).deleteContract(CALLED_CONTRACT_ID);
+        verify(context, never()).savepointStack();
+    }
+
+    @Test
+    void deletionRequiresBeneficiary() {
+        assertThrows(
+                NullPointerException.class,
+                () -> subject.deleteUnaliasedContract(CALLED_CONTRACT_ID.contractNumOrThrow(), null));
+        assertThrows(NullPointerException.class, () -> subject.deleteAliasedContract(CANONICAL_ALIAS, null));
+        verify(tokenServiceApi, never()).deleteContract(any());
+    }
+
+    @Test
+    void deletionChildCapacityFailureBecomesResourceExhaustionBeforeStateMutation() {
+        givenDeletableContract(CALLED_CONTRACT_ID, liveContract());
+        given(context.savepointStack()).willReturn(stack);
+        given(stack.addRemovableChildRecordBuilder(ContractDeleteStreamBuilder.class, CONTRACT_DELETE))
+                .willThrow(new HandleException(MAX_CHILD_RECORDS_EXCEEDED));
+
+        final var exception = assertThrows(
+                ResourceExhaustedException.class,
+                () -> subject.deleteUnaliasedContract(CALLED_CONTRACT_ID.contractNumOrThrow(), A_NEW_ACCOUNT_ID));
+
+        assertEquals(MAX_CHILD_RECORDS_EXCEEDED, exception.getStatus());
+        verify(tokenServiceApi, never()).deleteContract(any());
+    }
+
+    @Test
+    void deletionPropagatesUnrelatedHandleException() {
+        givenDeletableContract(CALLED_CONTRACT_ID, liveContract());
+        given(context.savepointStack()).willReturn(stack);
+        final var failure = new HandleException(INVALID_ACCOUNT_ID);
+        given(stack.addRemovableChildRecordBuilder(ContractDeleteStreamBuilder.class, CONTRACT_DELETE))
+                .willThrow(failure);
+
+        final var exception = assertThrows(
+                HandleException.class,
+                () -> subject.deleteUnaliasedContract(CALLED_CONTRACT_ID.contractNumOrThrow(), A_NEW_ACCOUNT_ID));
+
+        assertSame(failure, exception);
+        verify(tokenServiceApi, never()).deleteContract(any());
+    }
+
+    @ParameterizedTest
+    @EnumSource(StreamMode.class)
+    void committedDeletionAppearsAsSuccessfulChildWithNoDuplicateTransfers(final StreamMode streamMode) {
+        givenDeletableContract(CALLED_CONTRACT_ID, liveContract());
+        final var realStack = givenRealSavepointStack(streamMode);
+
+        subject.begin();
+        subject.deleteUnaliasedContract(CALLED_CONTRACT_ID.contractNumOrThrow(), A_NEW_ACCOUNT_ID);
+        subject.commit();
+        realStack.commitFullStack();
+
+        assertEquals(Map.of(liveContract().accountIdOrThrow(), A_NEW_ACCOUNT_ID), childBeneficiaries(realStack));
+        final var records = outputRecords(realStack);
+        assertEquals(2, records.size());
+        final var parent = records.getFirst();
+        final var deletion = records.getLast();
+        assertEquals(SUCCESS, deletion.receiptOrThrow().status());
+        assertEquals(CALLED_CONTRACT_ID, deletion.receiptOrThrow().contractID());
+        assertEquals(1, deletion.transactionIDOrThrow().nonce());
+        assertEquals(parent.consensusTimestamp(), deletion.parentConsensusTimestamp());
+        assertEquals(0L, deletion.transactionFee());
+        assertTrue(deletion.transferListOrThrow().accountAmounts().isEmpty());
+        assertTrue(deletion.tokenTransferLists().isEmpty());
+    }
+
+    @ParameterizedTest
+    @EnumSource(StreamMode.class)
+    void parentRollbackRemovesDeletionEvenAfterNestedScopeCommit(final StreamMode streamMode) {
+        givenDeletableContract(CALLED_CONTRACT_ID, liveContract());
+        final var realStack = givenRealSavepointStack(streamMode);
+
+        subject.begin();
+        subject.deleteUnaliasedContract(CALLED_CONTRACT_ID.contractNumOrThrow(), A_NEW_ACCOUNT_ID);
+        subject.commit();
+        assertEquals(Map.of(liveContract().accountIdOrThrow(), A_NEW_ACCOUNT_ID), childBeneficiaries(realStack));
+        realStack.rollbackFullStack();
+        realStack.commitFullStack();
+
+        assertTrue(childBeneficiaries(realStack).isEmpty());
+        final var records = outputRecords(realStack);
+        assertEquals(1, records.size());
+        assertFalse(records.getFirst().receiptOrThrow().hasContractID());
+    }
+
+    private void givenDeletableContract(final ContractID lookupId, final Account contract) {
+        given(context.storeFactory()).willReturn(storeFactory);
+        given(storeFactory.serviceApi(TokenServiceApi.class)).willReturn(tokenServiceApi);
+        given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
+        given(accountStore.getContractById(lookupId)).willReturn(contract);
+    }
+
+    private Account liveContract() {
+        return Account.newBuilder()
+                .accountId(entityIdFactory.newAccountId(CALLED_CONTRACT_ID.contractNumOrThrow()))
+                .smartContract(true)
+                .alias(CANONICAL_ALIAS)
+                .build();
+    }
+
+    private RecordStreamBuilder givenDeletionRecordBuilder() {
+        final var childBuilder = new RecordStreamBuilder(REMOVABLE, NOOP_SIGNED_TX_CUSTOMIZER, CHILD);
+        given(context.savepointStack()).willReturn(stack);
+        given(stack.addRemovableChildRecordBuilder(ContractDeleteStreamBuilder.class, CONTRACT_DELETE))
+                .willReturn(childBuilder);
+        return childBuilder;
+    }
+
+    private void assertSyntheticDeletion(final RecordStreamBuilder childBuilder) throws ParseException {
+        final var child = childBuilder.build();
+        final var signedTx =
+                SignedTransaction.PROTOBUF.parse(child.transaction().signedTransactionBytes());
+        final var body = TransactionBody.PROTOBUF.parse(signedTx.bodyBytes());
+        assertEquals(
+                ContractDeleteTransactionBody.newBuilder()
+                        .contractID(CALLED_CONTRACT_ID)
+                        .transferAccountID(A_NEW_ACCOUNT_ID)
+                        .build(),
+                body.contractDeleteInstanceOrThrow());
+        assertEquals(SUCCESS, child.transactionRecord().receiptOrThrow().status());
+        assertEquals(
+                CALLED_CONTRACT_ID, child.transactionRecord().receiptOrThrow().contractID());
+        assertEquals(0L, child.transactionRecord().transactionFee());
+        assertEquals(1, childBuilder.getNumberOfDeletedAccounts());
+        assertEquals(
+                A_NEW_ACCOUNT_ID,
+                childBuilder.getDeletedAccountBeneficiaryFor(liveContract().accountIdOrThrow()));
+        assertEquals(REMOVABLE, childBuilder.reversingBehavior());
+        verify(context, never()).dispatch(any());
+    }
+
+    private SavepointStackImpl givenRealSavepointStack(final StreamMode streamMode) {
+        final var realStack = SavepointStackImpl.newRootStack(
+                mock(State.class),
+                0,
+                10,
+                mock(BoundaryStateChangeListener.class),
+                mock(ImmediateStateChangeListener.class),
+                streamMode,
+                TraceDataSizeLimiter.NO_LIMIT);
+        final var transactionId = TransactionID.newBuilder()
+                .accountID(A_NEW_ACCOUNT_ID)
+                .transactionValidStart(new Timestamp(1_234_567L, 890))
+                .build();
+        final var body = TransactionBody.newBuilder()
+                .transactionID(transactionId)
+                .contractCall(ContractCallTransactionBody.DEFAULT)
+                .build();
+        realStack
+                .getBaseBuilder(StreamBuilder.class)
+                .transactionID(transactionId)
+                .signedTx(SignedTransaction.newBuilder()
+                        .bodyBytes(TransactionBody.PROTOBUF.toBytes(body))
+                        .build())
+                .functionality(HederaFunctionality.CONTRACT_CALL)
+                .status(SUCCESS)
+                .exchangeRate(ExchangeRateSet.DEFAULT);
+        given(context.savepointStack()).willReturn(realStack);
+        return realStack;
+    }
+
+    private List<TransactionRecord> outputRecords(final SavepointStackImpl realStack) {
+        return realStack
+                .buildHandleOutput(Instant.ofEpochSecond(1_234_568L), ExchangeRateSet.DEFAULT)
+                .singleTransactionRecords()
+                .stream()
+                .map(SingleTransactionRecord::transactionRecord)
+                .toList();
+    }
+
+    private Map<AccountID, AccountID> childBeneficiaries(final SavepointStackImpl realStack) {
+        final Map<AccountID, AccountID> beneficiaries = new HashMap<>();
+        realStack.forEachNonBaseBuilder(
+                DeleteCapableTransactionStreamBuilder.class,
+                builder -> builder.forEachDeletedAccountBeneficiary(beneficiaries::put));
+        return beneficiaries;
     }
 
     @Test
