@@ -26,7 +26,7 @@ import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
 /// Compares bounded queues for a hand-off from N producers to a single consumer, as in the output queue of
-/// `AsyncOutputStream` (`swirlds-virtualmap`). The waits and backoff constants are copied from it; keep them in sync.
+/// `AsyncOutputStream` (`swirlds-virtualmap`). The backoff constants are copied from it.
 ///
 /// Queues (`impl`):
 /// - `LINKED_BLOCKING`, `ARRAY_BLOCKING`: [LinkedBlockingQueue] and [ArrayBlockingQueue] with timed `offer`/`poll`.

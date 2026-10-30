@@ -184,8 +184,10 @@ public class AsyncOutputStream {
         if (initial != Status.RUNNING) {
             throw new IllegalStateException("Stream is not running: " + initial, writerFailure);
         }
-        // The deadline is set after the first failed offer, so the fast path doesn't read the clock, and is
-        // moved whenever the writer has taken a message since the last check
+        // The timeout counts the time since the writer last took a message, not the time this call has waited
+        // (see above). The consumer index counts the messages the writer has taken, so whenever it has changed
+        // since the last check, the writer has made progress and the deadline is moved. The deadline is first
+        // set after the first failed offer, so the fast path doesn't read the clock
         long deadlineNanos = 0;
         long consumerIndex = 0;
         int idle = 0;
@@ -249,20 +251,20 @@ public class AsyncOutputStream {
                     writeMessage(msg);
                     dirty = true;
                     idle = 0;
-                } else {
-                    if (dirty && idle >= SPIN_LIMIT) {
-                        // Nothing arrived while spinning: the burst is over, so send the buffered data now
-                        // instead of letting it wait up to flushInterval. Bursts still get batched.
+                }
+                if (dirty) {
+                    // Flush when the queue ran dry: nothing arrived while spinning, so the burst is over, and the
+                    // buffered data shouldn't wait up to flushInterval. Bursts still get batched. Otherwise flush
+                    // once flushInterval has elapsed, so a queue that never runs dry still gets flushed.
+                    final boolean drained = (msg == null) && (idle >= SPIN_LIMIT);
+                    if (drained || (System.nanoTime() - lastFlushNanos) >= flushIntervalNanos) {
                         outputStream.flush();
                         dirty = false;
                         lastFlushNanos = System.nanoTime();
                     }
-                    idle = backOff(idle, WRITER_MAX_PARK_SHIFT);
                 }
-                if (dirty && (System.nanoTime() - lastFlushNanos) >= flushIntervalNanos) {
-                    outputStream.flush();
-                    dirty = false;
-                    lastFlushNanos = System.nanoTime();
+                if (msg == null) {
+                    idle = backOff(idle, WRITER_MAX_PARK_SHIFT);
                 }
             }
 
