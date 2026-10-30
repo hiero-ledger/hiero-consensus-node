@@ -111,9 +111,9 @@ class FalconFailureThresholdTest {
 
         assertThat(contexts).hasSize(6);
         assertThat(contexts.subList(0, 3))
-                .allMatch(context -> context.getDisplayName(0).startsWith("[1] "));
+                .allMatch(context -> context.getDisplayName(0).startsWith("twoArgumentSets [1] "));
         assertThat(contexts.subList(3, 6))
-                .allMatch(context -> context.getDisplayName(0).startsWith("[2] "));
+                .allMatch(context -> context.getDisplayName(0).startsWith("twoArgumentSets [2] "));
     }
 
     @Test
@@ -156,7 +156,8 @@ class FalconFailureThresholdTest {
 
         assertThat(contexts)
                 .extracting(context -> context.getDisplayName(0))
-                .containsExactly("[1] [replay] seed=42L", "[2] [replay] seed=42L");
+                .containsExactly(
+                        "replayWithArguments [1] [replay] seed=42L", "replayWithArguments [2] [replay] seed=42L");
         assertThat(contexts)
                 .flatExtracting(TestTemplateInvocationContext::getAdditionalExtensions)
                 .noneMatch(FalconFailureThresholdExtension.class::isInstance);
