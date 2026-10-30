@@ -39,6 +39,7 @@ import org.hiero.consensus.ConsensusLayerBuildingBlocks;
 import org.hiero.consensus.PathsConfig;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.io.RecycleBinImpl;
+import org.hiero.consensus.metrics.NodeMetricRegistries;
 import org.hiero.consensus.metrics.platform.SnapshotEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -104,8 +105,7 @@ public class ConsensusNodeManager {
         final Metrics metrics = getMetricsProvider().createPlatformMetrics(selfId);
         // One node per container, so the exporter discovered here cannot collide with another node.
         // Mirrors the file export the old framework performs via ToFilePrometheusExporter below.
-        final MetricRegistry metricRegistry = MetricRegistry.builder()
-                .discoverMetricProviders()
+        final MetricRegistry metricRegistry = NodeMetricRegistries.builder(selfId.id())
                 .discoverMetricsExporter(platformConfig)
                 .build();
 

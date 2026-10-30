@@ -3,6 +3,7 @@ package org.hiero.otter.fixtures.container;
 
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.CONTAINER_APP_WORKING_DIR;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.EVENT_STREAM_DIRECTORY;
+import static org.hiero.otter.fixtures.container.utils.ContainerConstants.METRICS_EXPORT_DIRECTORY;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -67,10 +68,9 @@ public class ContainerNodeConfiguration extends AbstractNodeConfiguration {
                 .withConfigValue(MerkleDbConfig_.INITIAL_CAPACITY, 1_000_000L)
                 // The container image carries the new metrics framework's file exporter, whose `directory`
                 // property has no default: leaving it unset makes Configuration.build() throw and the node
-                // fails to start. Point it at the same folder the old ToFilePrometheusExporter writes to
-                // (MetricsConfig.csvOutputFolder, default "data/stats"); the two do not collide because the
-                // new exporter gzips, producing metrics.txt.gz next to the old metrics.txt.
-                .withConfigValue(METRICS_FILE_EXPORT_DIRECTORY, Path.of(CONTAINER_APP_WORKING_DIR, "data", "stats"));
+                // fails to start.
+                .withConfigValue(
+                        METRICS_FILE_EXPORT_DIRECTORY, Path.of(CONTAINER_APP_WORKING_DIR, METRICS_EXPORT_DIRECTORY));
     }
 
     /**

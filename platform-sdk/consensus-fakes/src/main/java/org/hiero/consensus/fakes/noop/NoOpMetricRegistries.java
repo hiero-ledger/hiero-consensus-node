@@ -2,7 +2,7 @@
 package org.hiero.consensus.fakes.noop;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.metrics.core.Label;
+import org.hiero.consensus.metrics.NodeMetricRegistries;
 import org.hiero.metrics.core.MetricRegistry;
 import org.hiero.metrics.core.MetricsRegistrationProvider;
 
@@ -21,9 +21,6 @@ import org.hiero.metrics.core.MetricsRegistrationProvider;
  * here would break migrated code under test only.
  */
 public final class NoOpMetricRegistries {
-
-    /** Name of the global label identifying the node a registry belongs to. */
-    public static final String NODE_LABEL_NAME = "node";
 
     private NoOpMetricRegistries() {
         throw new UnsupportedOperationException("Utility class");
@@ -45,15 +42,12 @@ public final class NoOpMetricRegistries {
      * The label matters because several of these registries coexist in one JVM whenever a simulated network
      * runs every node in-process; without it their metrics would be indistinguishable.
      *
-     * @param nodeId the id of the node this registry belongs to, used as the {@value #NODE_LABEL_NAME} global
-     *               label
+     * @param nodeId the id of the node this registry belongs to, used as the
+     *               {@value NodeMetricRegistries#NODE_LABEL} global label
      * @return the created registry, never {@code null}
      */
     @NonNull
     public static MetricRegistry create(final long nodeId) {
-        return MetricRegistry.builder()
-                .addGlobalLabel(new Label(NODE_LABEL_NAME, Long.toString(nodeId)))
-                .discoverMetricProviders()
-                .build();
+        return NodeMetricRegistries.builder(nodeId).build();
     }
 }

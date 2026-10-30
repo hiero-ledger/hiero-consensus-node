@@ -89,7 +89,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     private static final Duration LEDGER_ID_RETRY_BACKOFF = Duration.ofMillis(100);
 
     // 3 gRPC ports, 2 gossip ports, 1 Prometheus, 1 OpenMetrics
-    private static final int PORTS_PER_NODE = 7;
+    public static final int PORTS_PER_NODE = 7;
     private static final SplittableRandom RANDOM = new SplittableRandom();
     private static final int FIRST_CANDIDATE_PORT = 30000;
     private static final int LAST_CANDIDATE_PORT = 40000;

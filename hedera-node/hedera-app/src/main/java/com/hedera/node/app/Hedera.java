@@ -411,7 +411,7 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
     private final Metrics metrics;
 
     /**
-     * The registry of the new metrics framework, made available to services via the {@link AppContext}.
+     * The registry of the new metrics framework, bound into the Dagger graph so app components can inject it.
      */
     private final MetricRegistry metricRegistry;
 
@@ -1429,15 +1429,6 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
     }
 
     /**
-     * Returns the registry of the new metrics framework used by this node.
-     *
-     * @return the metric registry
-     */
-    public @NonNull MetricRegistry metricRegistry() {
-        return metricRegistry;
-    }
-
-    /**
      * {@inheritDoc}
      */
     @NonNull
@@ -1533,6 +1524,7 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
                 .instantSource(appContext.instantSource())
                 .throttleFactory(appContext.throttleFactory())
                 .metrics(metrics)
+                .metricRegistry(metricRegistry)
                 .immediateStateChangeListener(immediateStateChangeListener)
                 .boundaryStateChangeListener(boundaryStateChangeListener)
                 .migrationStateChanges(migrationStateChanges != null ? migrationStateChanges : new ArrayList<>())

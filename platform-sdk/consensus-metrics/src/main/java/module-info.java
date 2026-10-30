@@ -18,6 +18,7 @@ module org.hiero.consensus.metrics {
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.metrics.impl;
     requires transitive org.hiero.consensus.model;
+    requires transitive org.hiero.metrics;
     requires transitive jdk.httpserver;
     requires transitive simpleclient;
     requires com.swirlds.logging;

@@ -48,6 +48,23 @@ public class ContainerConstants {
     public static final String METRICS_OTHER = "data/stats/metrics.txt";
 
     /**
+     * Name of {@code MetricsFileExportConfig#directory}. Spelled out rather than referenced through the generated
+     * {@code MetricsFileExportConfig_} constant, because {@code org.hiero.metrics.export.file} exports its config
+     * package only to the configuration modules.
+     */
+    public static final String METRICS_EXPORT_DIRECTORY_PROPERTY = "metrics.exporter.file.directory";
+
+    /**
+     * Directory the file exporter of the new metrics framework writes to, kept apart from the old {@code data/stats}
+     */
+    public static final String METRICS_EXPORT_DIRECTORY = "data/metrics";
+
+    /**
+     * Path to the file written by the file exporter of the new metrics framework
+     */
+    public static final String METRICS_EXPORT_PATH = METRICS_EXPORT_DIRECTORY + "/metrics.txt.gz";
+
+    /**
      * Path to the event stream directory
      */
     public static final String EVENT_STREAM_DIRECTORY = "hgcapp";

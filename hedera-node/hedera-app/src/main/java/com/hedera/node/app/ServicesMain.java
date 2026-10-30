@@ -80,6 +80,7 @@ import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.PathsConfig;
 import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.hiero.consensus.io.RecycleBinImpl;
+import org.hiero.consensus.metrics.NodeMetricRegistries;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.ConsensusLayerRosterInputs;
 import org.hiero.consensus.roster.ReadableRosterStore;
@@ -175,8 +176,7 @@ public class ServicesMain {
         // Closed by SwirldsPlatform.destroy(). In production main() never returns and nothing destroys the
         // platform, so the exporter is released by process exit - exactly as the old framework's Prometheus
         // endpoint is today (DefaultMetricsProvider.stop() has no callers).
-        final var metricRegistry = MetricRegistry.builder()
-                .discoverMetricProviders()
+        final var metricRegistry = NodeMetricRegistries.builder(selfId.id())
                 .discoverMetricsExporter(platformConfig)
                 .build();
         hedera = newHedera(platformConfig, fileSystemManager, metrics, metricRegistry, time, selfId);

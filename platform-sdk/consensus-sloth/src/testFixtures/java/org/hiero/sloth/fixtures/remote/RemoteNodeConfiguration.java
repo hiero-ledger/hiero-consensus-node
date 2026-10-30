@@ -2,6 +2,8 @@
 package org.hiero.sloth.fixtures.remote;
 
 import static java.util.Objects.requireNonNull;
+import static org.hiero.sloth.fixtures.container.utils.ContainerConstants.METRICS_EXPORT_DIRECTORY;
+import static org.hiero.sloth.fixtures.container.utils.ContainerConstants.METRICS_EXPORT_DIRECTORY_PROPERTY;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
@@ -37,6 +39,10 @@ public class RemoteNodeConfiguration extends AbstractNodeConfiguration {
         requireNonNull(remoteWorkDir, "remoteWorkDir must not be null");
         this.overrideProperties.withConfigValue(
                 EventConfig_.EVENTS_LOG_DIR, Path.of(remoteWorkDir, EVENT_STREAM_DIRECTORY));
+        // The remote host runs the container app, which carries the new metrics framework's file exporter
+        // whose `directory` property has no default: leaving it unset makes the node fail to start.
+        this.overrideProperties.withConfigValue(
+                METRICS_EXPORT_DIRECTORY_PROPERTY, Path.of(remoteWorkDir, METRICS_EXPORT_DIRECTORY));
     }
 
     /**

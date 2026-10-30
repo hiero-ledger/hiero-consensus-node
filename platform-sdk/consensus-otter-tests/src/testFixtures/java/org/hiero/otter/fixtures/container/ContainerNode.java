@@ -7,6 +7,7 @@ import static org.hiero.otter.fixtures.container.utils.ContainerConstants.CONTAI
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.CONTAINER_CONTROL_PORT;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.GC_LOG_PATH;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.HASHSTREAM_LOG_PATH;
+import static org.hiero.otter.fixtures.container.utils.ContainerConstants.METRICS_EXPORT_PATH;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.METRICS_OTHER;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.METRICS_PATH;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.NODE_COMMUNICATION_PORT;
@@ -613,6 +614,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         copyFileFromContainer(OTTER_LOG_PATH);
         copyFileFromContainer(METRICS_PATH.formatted(selfId.id()));
         copyFileFromContainer(METRICS_OTHER);
+        copyFileFromContainer(METRICS_EXPORT_PATH);
         if (gcLoggingEnabled) {
             copyFileFromContainer(GC_LOG_PATH);
         }

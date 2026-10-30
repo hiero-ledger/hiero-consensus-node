@@ -159,10 +159,6 @@ public class StateChangesValidator implements BlockStreamValidator {
     private final boolean assertAtLeastOneWraps;
     private final Hash initializedGenesisStateHash;
     private final Path pathToNode0SwirldsLog;
-
-    /** Exporter-free registry required to construct the Hedera instance this validator replays against. */
-    private final MetricRegistry metricRegistry;
-
     private final Bytes expectedRootHash;
     private final StateChangesSummary stateChangesSummary = new StateChangesSummary(new TreeMap<>());
     private final Map<String, Set<Object>> entityChanges = new LinkedHashMap<>();
@@ -383,7 +379,7 @@ public class StateChangesValidator implements BlockStreamValidator {
         final var pathsConfig = platformConfig.getConfigData(PathsConfig.class);
         final var fileSystemManager = new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
         // This validator only replays state changes, so the registry has no exporter.
-        this.metricRegistry = NoOpMetricRegistries.create(NodeId.FIRST_NODE_ID.id());
+        final MetricRegistry metricRegistry = NoOpMetricRegistries.create(NodeId.FIRST_NODE_ID.id());
         final var hedera = ServicesMain.newHedera(
                 platformConfig, fileSystemManager, metrics, metricRegistry, Time.getCurrent(), NodeId.FIRST_NODE_ID);
         this.stateLifecycleManager = hedera.getStateLifecycleManager();
