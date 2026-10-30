@@ -79,7 +79,7 @@ public class EthereumVerifyBundleCall extends AbstractCall {
                 bundlePayload.length,
                 trustAnchor.length);
 
-        final VerifiedBundle verified = runVerifier();
+        final VerifiedBundle verified = runVerifier(frame);
         if (verified == null) {
             return fail();
         }
@@ -143,8 +143,8 @@ public class EthereumVerifyBundleCall extends AbstractCall {
      * or the verifier errors unexpectedly.
      */
     @Nullable
-    private VerifiedBundle runVerifier() {
-        final var verifier = new EthereumSyncCommitteeProofVerifier(FakeBlsSignatureVerifier.INSTANCE);
+    private VerifiedBundle runVerifier(@NonNull final MessageFrame frame) {
+        final var verifier = new EthereumSyncCommitteeProofVerifier(EthereumBlsVerifiers.forFrame(frame));
         final VerifiedBundle verified;
         try {
             verified = verifier.verifyBundle(bundlePayload, trustAnchor);

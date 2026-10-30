@@ -77,7 +77,7 @@ public class EthereumVerifyConfigCall extends AbstractCall {
     public @NonNull PricedResult execute(@NonNull final MessageFrame frame) {
         log.info("[EthereumVerifier] verifyConfig ENTER: configPayload={} bytes", configPayload.length);
 
-        final VerifiedConfig verified = runVerifier();
+        final VerifiedConfig verified = runVerifier(frame);
         if (verified == null) {
             return fail();
         }
@@ -102,8 +102,8 @@ public class EthereumVerifyConfigCall extends AbstractCall {
      * the verifier errors unexpectedly.
      */
     @Nullable
-    private VerifiedConfig runVerifier() {
-        final var verifier = new EthereumSyncCommitteeProofVerifier(FakeBlsSignatureVerifier.INSTANCE);
+    private VerifiedConfig runVerifier(@NonNull final MessageFrame frame) {
+        final var verifier = new EthereumSyncCommitteeProofVerifier(EthereumBlsVerifiers.forFrame(frame));
         final VerifiedConfig verified;
         try {
             verified = verifier.verifyConfigPayload(configPayload);

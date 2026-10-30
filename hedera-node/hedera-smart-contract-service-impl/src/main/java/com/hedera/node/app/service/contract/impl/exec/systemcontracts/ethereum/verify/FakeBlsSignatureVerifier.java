@@ -8,7 +8,8 @@ import java.util.List;
 /**
  * Temporary, <b>insecure</b> stand-in {@link BlsSignatureVerifier} that accepts every aggregate
  * signature without performing any BLS12-381 pairing check.
- * It shouldl be replaced by a real implementation before production.
+ * It must be replaced by a real implementation before production and is only selected when
+ * {@code clpr.allowInsecureBlsVerifier=true} (see {@link EthereumBlsVerifiers}).
  */
 public final class FakeBlsSignatureVerifier implements BlsSignatureVerifier {
 
