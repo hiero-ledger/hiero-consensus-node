@@ -193,7 +193,15 @@ public class DispatchProcessor {
             final var feeCharging = dispatch.feeChargingOrElse(appFeeCharging);
             feeCharging.rollback();
             rollback(e.getStatus(), dispatch.stack(), dispatch.streamBuilder(), dispatch.feeAccumulator());
-            chargePayer(dispatch, validation, false);
+            if (e.isNodeDueDiligence()) {
+                // An atomic batch whose inner failed a node due-diligence check is the submitting node's fault, so
+                // the node -- not the batch payer -- pays the batch's fees. Route the charge through the fee-charging
+                // context (like a creator due-diligence charge) so it survives alongside the replayed inner fees,
+                // which e.maybeReplay below redirects to the same node. See #26615.
+                feeCharging.customized(dispatch).charge(dispatch.creatorInfo().accountId(), dispatch.fees(), null);
+            } else {
+                chargePayer(dispatch, validation, false);
+            }
             e.maybeReplay(feeCharging.customized(dispatch), dispatch.handleContext());
         } catch (ThrottleException e) {
             if (isClprSubmitBundle(dispatch)) {
@@ -284,8 +292,20 @@ public class DispatchProcessor {
                     dispatch.fees().networkFee(),
                     validation.errorStatusOrThrow());
         }
-        // If the transaction is a batch inner transaction, we don't charge the creator
         if (dispatch.category() == BATCH_INNER) {
+            // Ingest re-runs every check on each inner, so a due-diligence failure here is charged to the node, as a
+            // top-level due-diligence failure would be. Route the charge through the (recorded) fee-charging context
+            // rather than the fee accumulator so it is captured by the batch's rollback-and-replay and survives the
+            // batch failing; a direct fee-accumulator charge would be discarded with the inner's savepoint. See #26615.
+            dispatch.feeChargingOrElse(appFeeCharging)
+                    .customized(dispatch)
+                    .charge(
+                            dispatch.creatorInfo().accountId(),
+                            new Fees(0, dispatch.fees().networkFee(), 0),
+                            null);
+            // Flag the inner so the batch handler recognizes the whole batch as the node's fault and charges the node
+            // (not the earlier inner payers or the batch payer) for it. See #26615.
+            dispatch.streamBuilder().nodeDueDiligenceFailure(true);
             return;
         }
         dispatch.feeAccumulator()

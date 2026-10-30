@@ -170,6 +170,7 @@ public class RecordStreamBuilder
     private List<AccountAmount> paidStakingRewards = new LinkedList<>();
     private final TransactionRecord.Builder transactionRecordBuilder = TransactionRecord.newBuilder();
     private TransferList transferList = TransferList.DEFAULT;
+    private boolean nodeDueDiligenceFailure;
 
     // fields needed for TransactionReceipt
     private ResponseCodeEnum status = ResponseCodeEnum.OK;
@@ -649,6 +650,17 @@ public class RecordStreamBuilder
         } else {
             throw new IllegalStateException("Transfer list already set");
         }
+    }
+
+    @Override
+    public RecordStreamBuilder nodeDueDiligenceFailure(final boolean nodeDueDiligenceFailure) {
+        this.nodeDueDiligenceFailure = nodeDueDiligenceFailure;
+        return this;
+    }
+
+    @Override
+    public boolean isNodeDueDiligenceFailure() {
+        return nodeDueDiligenceFailure;
     }
 
     /**

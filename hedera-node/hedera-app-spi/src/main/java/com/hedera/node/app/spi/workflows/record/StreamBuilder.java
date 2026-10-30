@@ -292,6 +292,26 @@ public interface StreamBuilder {
     }
 
     /**
+     * Marks (or unmarks) this builder's transaction as having failed a node due-diligence check — a failure the
+     * submitting node should have caught at ingest. For an atomic-batch inner transaction this lets the batch handler
+     * recognize that the whole batch is the node's fault and charge the node accordingly.
+     *
+     * @param nodeDueDiligenceFailure whether the transaction failed a node due-diligence check
+     * @return this builder
+     */
+    default StreamBuilder nodeDueDiligenceFailure(final boolean nodeDueDiligenceFailure) {
+        return this;
+    }
+
+    /**
+     * Returns whether this builder's transaction failed a node due-diligence check.
+     * @return {@code true} if the transaction failed a node due-diligence check; otherwise {@code false}
+     */
+    default boolean isNodeDueDiligenceFailure() {
+        return false;
+    }
+
+    /**
      * Possible behavior of a SingleTransactionRecord when a parent transaction fails,
      * and it is asked to be reverted
      */
