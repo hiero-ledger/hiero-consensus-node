@@ -207,7 +207,8 @@ jobs:
         working-directory: ${{ env.EVM_TESTING_DIR }}
 
       # Until https://github.com/hashgraph/hedera-evm-testing/issues/155 is fixed upstream, prevent
-      # hardhat-ethers from leaving sendTransaction() pending when transaction lookup throws.
+      # hardhat-ethers from leaving sendTransaction() pending when transaction lookup throws, and capture
+      # the original RPC result on formatting failures so upstream producers can investigate.
       - name: Test and apply Hardhat transaction polling workaround
         id: patch-hardhat-ethers
         env:
@@ -379,11 +380,14 @@ jobs:
         id: run-tests
         # test_args lists several files and globs, so it is inlined for the shell to split and expand (as upstream
         # does).
-        run: npx hardhat test ${{ matrix.test_args }} --network solo
+        run: |
+          mkdir -p "$(dirname "${HARDHAT_ETHERS_DIAGNOSTICS_FILE}")"
+          npx hardhat test ${{ matrix.test_args }} --network solo
         working-directory: ${{ env.EVM_TESTING_DIR }}
         env:
           # Empty unless the shard sets a profile -> hardhat.config.js falls back to "auto".
           EVM_TESTING_PROFILE: ${{ matrix.profile }}
+          HARDHAT_ETHERS_DIAGNOSTICS_FILE: ${{ github.workspace }}/${{ env.SHARD_LOGS_DIR }}/transaction-lookup-failures.jsonl
 
       # Diagnostics for a failed shard: pod state and events, container logs, the consensus node's application
       # logs and solo's own CLI logs. The job log already holds the hardhat output.

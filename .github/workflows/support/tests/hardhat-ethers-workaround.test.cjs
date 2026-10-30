@@ -1,7 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 const assert = require("node:assert/strict");
-const { mkdtempSync, readFileSync, rmSync, writeFileSync } = require("node:fs");
+const {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} = require("node:fs");
 const { tmpdir } = require("node:os");
 const { resolve } = require("node:path");
 const { setImmediate: flush } = require("node:timers/promises");
@@ -10,6 +16,7 @@ const { runInNewContext } = require("node:vm");
 const {
   applyWorkaround,
   patchSignerSource,
+  patchProviderSource,
 } = require("../scripts/patch-hardhat-ethers.cjs");
 
 // Exercise the patched method from the real npm-installed package, without starting Hardhat or a network.
@@ -25,6 +32,12 @@ const metadata = readFileSync(
   "utf8",
 );
 const patched = patchSignerSource(original);
+const providerPath = "internal/hardhat-ethers-provider.js";
+const originalProvider = readFileSync(
+  resolve(packageDirectory, providerPath),
+  "utf8",
+);
+const patchedProvider = patchProviderSource(originalProvider);
 
 function harness(t, lookup) {
   t.mock.timers.enable({ apis: ["setTimeout"] });
@@ -59,6 +72,8 @@ function packageCopy(t) {
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   writeFileSync(resolve(directory, "package.json"), metadata);
   writeFileSync(resolve(directory, "signers.js"), original);
+  mkdirSync(resolve(directory, "internal"));
+  writeFileSync(resolve(directory, providerPath), originalProvider);
   return directory;
 }
 
@@ -66,8 +81,16 @@ test("patches the published package on disk and is idempotent", (t) => {
   const directory = packageCopy(t);
   applyWorkaround(directory);
   assert.equal(readFileSync(resolve(directory, "signers.js"), "utf8"), patched);
+  assert.equal(
+    readFileSync(resolve(directory, providerPath), "utf8"),
+    patchedProvider,
+  );
   applyWorkaround(directory);
   assert.equal(readFileSync(resolve(directory, "signers.js"), "utf8"), patched);
+  assert.equal(
+    readFileSync(resolve(directory, providerPath), "utf8"),
+    patchedProvider,
+  );
 });
 
 test("refuses a dependency upgrade without modifying the installed source", (t) => {
@@ -107,6 +130,34 @@ test("refuses unexpected source or an ambiguous method location", () => {
   assert.throws(
     () => patchSignerSource(original + "    async sendTransaction(tx) {"),
     /Unrecognized.*layout/,
+  );
+  assert.throws(
+    () =>
+      patchProviderSource(
+        originalProvider + "    async getTransaction(hash) {",
+      ),
+    /Unrecognized.*layout/,
+  );
+});
+
+test("validates provider source before modifying either installed file", (t) => {
+  const directory = packageCopy(t);
+  const changedProvider = originalProvider.replace(
+    "[hash]);",
+    "[hash.toLowerCase()]);",
+  );
+  writeFileSync(resolve(directory, providerPath), changedProvider);
+  assert.throws(
+    () => applyWorkaround(directory),
+    /Unexpected.*getTransaction.*implementation/,
+  );
+  assert.equal(
+    readFileSync(resolve(directory, "signers.js"), "utf8"),
+    original,
+  );
+  assert.equal(
+    readFileSync(resolve(directory, providerPath), "utf8"),
+    changedProvider,
   );
 });
 
@@ -258,4 +309,168 @@ test("propagates a submission failure without retrying or starting lookups", asy
   await assert.rejects(signer.sendTransaction({}), (error) => error === cause);
   await tick(t, 60_000);
   assert.equal(sends, 1);
+});
+
+function providerHarness(send, format, diagnosticsFile) {
+  const errors = [];
+  const warnings = [];
+  const start = patchedProvider.indexOf("    async getTransaction(hash) {");
+  const end = patchedProvider.indexOf(
+    "\n    async getTransactionReceipt(",
+    start,
+  );
+  const provider = runInNewContext(`({${patchedProvider.slice(start, end)}})`, {
+    Date,
+    require,
+    process: { env: { HARDHAT_ETHERS_DIAGNOSTICS_FILE: diagnosticsFile } },
+    console: {
+      error: (message) => errors.push(message),
+      warn: (message) => warnings.push(message),
+    },
+    ethers_utils_1: { formatTransactionResponse: format },
+  });
+  provider._hardhatProvider = { send };
+  provider._wrapTransactionResponse = (tx) => tx;
+  return { provider, errors, warnings };
+}
+
+test("captures the original malformed RPC result, without another lookup, and preserves the signer error", async (t) => {
+  const file = resolve(packageCopy(t), "transaction-lookup-failures.jsonl");
+  const raw = {
+    hash: "0xsubmitted",
+    r: "0x",
+    s: "0x",
+    v: "0x0",
+    input: "0xabcdef",
+    blockHash: "0xblock",
+    transactionIndex: "0x1",
+    type: "0x0",
+  };
+  const expected = structuredClone(raw);
+  const cause = Object.assign(new Error("Cannot convert 0x to a BigInt"), {
+    code: "INVALID_ARGUMENT",
+  });
+  let calls = 0;
+  const { provider, errors, warnings } = providerHarness(
+    async (method, params) => {
+      calls++;
+      assert.equal(method, "eth_getTransactionByHash");
+      assert.deepEqual(Array.from(params), ["0xsubmitted"]);
+      return raw;
+    },
+    (result) => {
+      result.input = "formatter mutated this";
+      throw cause;
+    },
+    file,
+  );
+  const { signer, submissions } = harness(t, (hash) =>
+    provider.getTransaction(hash),
+  );
+  await assert.rejects(signer.sendTransaction({}), (error) => {
+    assert.equal(error.cause, cause);
+    assert.match(error.message, /0xsubmitted.*Cannot convert 0x/);
+    return true;
+  });
+  const lines = readFileSync(file, "utf8").trim().split("\n");
+  assert.equal(lines.length, 1);
+  const diagnostic = JSON.parse(lines[0]);
+  assert.deepEqual(diagnostic.result, expected);
+  assert.equal(diagnostic.resultCaptured, true);
+  assert.equal(diagnostic.method, "eth_getTransactionByHash");
+  assert.deepEqual(diagnostic.params, ["0xsubmitted"]);
+  assert.equal(diagnostic.error.code, "INVALID_ARGUMENT");
+  assert.equal(diagnostic.error.stack, cause.stack);
+  assert.ok(Number.isFinite(Date.parse(diagnostic.requestedAt)));
+  assert.ok(
+    Date.parse(diagnostic.receivedAt) >= Date.parse(diagnostic.requestedAt),
+  );
+  assert.deepEqual(errors, [
+    `[hardhat-ethers transaction response] ${lines[0]}`,
+  ]);
+  assert.deepEqual(warnings, []);
+  await tick(t, 60_000);
+  assert.equal(calls, 1);
+  assert.equal(submissions.length, 1);
+});
+
+test("keeps successful and null lookups quiet and preserves their results", async () => {
+  const tx = { hash: "0xvalid" };
+  const formatted = { hash: "0xformatted" };
+  const { provider, errors, warnings } = providerHarness(
+    async () => tx,
+    (result) => {
+      assert.equal(result, tx);
+      return formatted;
+    },
+  );
+  assert.equal(await provider.getTransaction(tx.hash), formatted);
+  provider._hardhatProvider.send = async () => null;
+  assert.equal(await provider.getTransaction("0xabsent"), null);
+  assert.deepEqual(errors, []);
+  assert.deepEqual(warnings, []);
+});
+
+test("appends separate diagnostics for concurrent lookups and wrapper failures", async (t) => {
+  const file = resolve(packageCopy(t), "transaction-lookup-failures.jsonl");
+  const cause = new Error("cannot wrap response");
+  const { provider } = providerHarness(
+    async (_method, [hash]) => ({ hash }),
+    (tx) => tx,
+    file,
+  );
+  provider._wrapTransactionResponse = () => {
+    throw cause;
+  };
+  await Promise.all(
+    ["0xfirst", "0xsecond"].map((hash) =>
+      assert.rejects(provider.getTransaction(hash), (error) => error === cause),
+    ),
+  );
+  const records = readFileSync(file, "utf8").trim().split("\n").map(JSON.parse);
+  assert.equal(records.length, 2);
+  assert.deepEqual(records.map((record) => record.params[0]).sort(), [
+    "0xfirst",
+    "0xsecond",
+  ]);
+  for (const record of records)
+    assert.equal(record.result.hash, record.params[0]);
+});
+
+test("does not mask a parser error when the diagnostic file cannot be written", async (t) => {
+  const file = resolve(
+    packageCopy(t),
+    "missing-directory",
+    "diagnostics.jsonl",
+  );
+  const cause = new Error("invalid signature");
+  const { provider, errors, warnings } = providerHarness(
+    async () => ({ r: "0x" }),
+    () => {
+      throw cause;
+    },
+    file,
+  );
+  await assert.rejects(
+    provider.getTransaction("0xsubmitted"),
+    (error) => error === cause,
+  );
+  assert.equal(errors.length, 1);
+  assert.match(errors[0], /"r":"0x"/);
+  assert.match(warnings[0], /Unable to save transaction response diagnostics/);
+});
+
+test("preserves transport errors without claiming to have received an RPC result", async () => {
+  const cause = new Error("RPC unavailable");
+  const { provider, errors } = providerHarness(
+    async () => {
+      throw cause;
+    },
+    () => assert.fail("unexpected formatting"),
+  );
+  await assert.rejects(
+    provider.getTransaction("0xsubmitted"),
+    (error) => error === cause,
+  );
+  assert.deepEqual(errors, []);
 });
