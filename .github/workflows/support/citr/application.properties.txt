@@ -15,6 +15,7 @@ staking.periodMins=360
 tss.forceMockSignatures=false
 
 blockStream.maxBlockSizeBytes=314572800
+blockStream.maxBlockExecutionSizeBytes=314572800
 
 tss.hintsEnabled=false
 tss.historyEnabled=false
