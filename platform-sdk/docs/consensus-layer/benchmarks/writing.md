@@ -40,15 +40,15 @@ The measured region is the part of the benchmark method that is timed: the calls
 
 - **The inputs are the same in every run.** Seed every random generator, and generate the data outside the measured
   region.
-- **Generate the data once per trial** (per fork and parameter set) in `@Setup(Level.Trial)`. The example generates its
-  event graph in
-  [`ConsensusImplBenchmark#generateEvents`](../../../consensus-hashgraph-impl/src/jmh/java/org/hiero/consensus/hashgraph/ConsensusImplBenchmark.java#generateEvents).
+- **Generate the data once per trial** (per fork and parameter set) in `@Setup(Level.Trial)`. The example records its
+  events in
+  [`ConsensusImplBenchmark#recordEvents`](../../../consensus-hashgraph-impl/src/jmh/java/org/hiero/consensus/hashgraph/ConsensusImplBenchmark.java#recordEvents).
 - **If the code under test changes its input, every call of the benchmark method gets fresh copies,** prepared in
   `@Setup(Level.Invocation)`. One call of the benchmark method, an invocation, then processes all the copies; this
   guide calls it a pass.
   - JMH's overhead per invocation does not matter when a pass takes a fraction of a second or more.
   - In the example, `ConsensusImpl` changes the events it processes, so `prepareInvocation` copies and relinks the
-    generated events for every pass.
+    recorded events for every pass.
 - **Check the output after every invocation** against an exact expected value, in `@TearDown(Level.Invocation)`. With
   the same inputs, every pass gives the same value.
   - In the example, `verifyInvocation` checks the number of decided rounds.
