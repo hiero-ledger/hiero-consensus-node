@@ -113,14 +113,16 @@ class SimulatedGossipTests {
         final Map<NodeId, Consumer<PlatformEvent>> eventSubmitters = new HashMap<>();
 
         // Wire things up
+        final List<SimulatedGossip> gossips = new ArrayList<>();
         for (final NodeId nodeId : nodeIds) {
             final List<PlatformEvent> receivedEventsForNode = new ArrayList<>();
             receivedEvents.put(nodeId, receivedEventsForNode);
-            eventSubmitters.put(
-                    nodeId,
-                    addNode(network, nodeId, PlatformStatus.ACTIVE, receivedEventsForNode, new ArrayList<>())
-                            .eventSubmitter());
+            final TestNode node =
+                    createNode(network, nodeId, PlatformStatus.ACTIVE, receivedEventsForNode, new ArrayList<>());
+            eventSubmitters.put(nodeId, node.eventSubmitter());
+            gossips.add(node.gossip());
         }
+        network.setUp(gossips);
 
         // For each event, choose a random subset of nodes that will submit the event. Our end goal is to see
         // each event distributed at least once to each node in the network.
@@ -189,8 +191,9 @@ class SimulatedGossipTests {
 
         final List<PlatformEvent> selfReceived = new ArrayList<>();
         final List<PlatformEvent> peerReceived = new ArrayList<>();
-        final TestNode self = addNode(network, selfId, status, selfReceived, new ArrayList<>());
-        final TestNode peer = addNode(network, peerId, PlatformStatus.ACTIVE, peerReceived, new ArrayList<>());
+        final TestNode self = createNode(network, selfId, status, selfReceived, new ArrayList<>());
+        final TestNode peer = createNode(network, peerId, PlatformStatus.ACTIVE, peerReceived, new ArrayList<>());
+        network.setUp(List.of(self.gossip(), peer.gossip()));
 
         // submissions are unaffected by the status of the submitter
         final PlatformEvent submitted =
@@ -228,8 +231,9 @@ class SimulatedGossipTests {
         final NodeId self = NodeId.of(0);
         final NodeId peer = NodeId.of(1);
         final List<SyncProgress> progress = new ArrayList<>();
-        final SimulatedGossip gossip = addNode(network, self, PlatformStatus.ACTIVE, new ArrayList<>(), progress)
+        final SimulatedGossip gossip = createNode(network, self, PlatformStatus.ACTIVE, new ArrayList<>(), progress)
                 .gossip();
+        network.setUp(List.of(gossip));
 
         final EventWindow peerWindow = new EventWindow(30, 31, 5, 1);
         assertTrue(gossip.receiveEventWindow(peer, peerWindow));
@@ -245,8 +249,9 @@ class SimulatedGossipTests {
         final NodeId peerA = NodeId.of(1);
         final NodeId peerB = NodeId.of(2);
         final List<SyncProgress> progress = new ArrayList<>();
-        final TestNode node = addNode(network, self, PlatformStatus.ACTIVE, new ArrayList<>(), progress);
+        final TestNode node = createNode(network, self, PlatformStatus.ACTIVE, new ArrayList<>(), progress);
         final SimulatedGossip gossip = node.gossip();
+        network.setUp(List.of(gossip));
 
         final EventWindow windowA1 = new EventWindow(30, 31, 5, 1);
         final EventWindow windowA2 = new EventWindow(32, 33, 7, 1);
@@ -276,8 +281,9 @@ class SimulatedGossipTests {
         final NodeId peer2 = NodeId.of(2);
         final SimulatedNetworkConnectivity network =
                 new SimulatedNetworkConnectivity(Randotron.create(), Instant.EPOCH);
-        final TestNode node = addNode(network, selfId, PlatformStatus.ACTIVE, new ArrayList<>(), new ArrayList<>());
+        final TestNode node = createNode(network, selfId, PlatformStatus.ACTIVE, new ArrayList<>(), new ArrayList<>());
         final SimulatedGossip self = node.gossip();
+        network.setUp(List.of(self));
 
         final FallenBehindMonitor monitor = mock(FallenBehindMonitor.class);
         final List<PlatformStatusAction> actions = new ArrayList<>();
@@ -333,7 +339,8 @@ class SimulatedGossipTests {
             @NonNull Consumer<EventWindow> eventWindowSubmitter) {}
 
     /**
-     * Creates a node with a gossip instance in the given status, and adds it to the network.
+     * Creates a node with a gossip instance in the given status. The network still has to be set up with the node's
+     * gossip instance.
      *
      * @param network the network to add the node to
      * @param nodeId the ID of the node
@@ -343,7 +350,7 @@ class SimulatedGossipTests {
      * @return the created node
      */
     @SuppressWarnings("unchecked")
-    private static TestNode addNode(
+    private static TestNode createNode(
             @NonNull final SimulatedNetworkConnectivity network,
             @NonNull final NodeId nodeId,
             @NonNull final PlatformStatus status,
@@ -386,7 +393,6 @@ class SimulatedGossipTests {
                 statusInput,
                 syncProgressOutput);
         statusCaptor.getValue().accept(status);
-        network.addNode(nodeId, gossip);
         model.start();
         return new TestNode(gossip, eventInput::inject, eventWindowCaptor.getValue());
     }

@@ -68,7 +68,7 @@ public class FalconNetwork extends SimulatedNetwork implements TimeTickReceiver 
                 simulatedNetworkConnectivity,
                 networkConfiguration,
                 consensusRoundPool);
-        simulatedNetworkConnectivity.addNode(node.getNodeId(), node);
+        addEventReceiver(node);
         return node;
     }
 
@@ -90,7 +90,7 @@ public class FalconNetwork extends SimulatedNetwork implements TimeTickReceiver 
     protected MiniNode doCreateMiniNode(@NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
         final FalconMiniNode node = new FalconMiniNode(
                 random, timeManager.time(), nodeId, keysAndCerts, simulatedNetworkConnectivity, networkConfiguration);
-        simulatedNetworkConnectivity.addNode(node.getNodeId(), node);
+        addEventReceiver(node);
         return node;
     }
 

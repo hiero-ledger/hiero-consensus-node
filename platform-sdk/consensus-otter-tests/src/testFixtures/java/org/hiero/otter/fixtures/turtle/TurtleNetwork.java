@@ -75,7 +75,7 @@ public class TurtleNetwork extends SimulatedNetwork implements TimeTickReceiver 
     @NonNull
     protected TurtleNode doCreateNode(@NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
         final SimulatedGossip simulatedGossip = new SimulatedGossip(simulatedNetworkConnectivity, nodeId);
-        simulatedNetworkConnectivity.addNode(nodeId, simulatedGossip);
+        addEventReceiver(simulatedGossip);
         final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));
         return new TurtleNode(
                 random,
@@ -97,7 +97,7 @@ public class TurtleNetwork extends SimulatedNetwork implements TimeTickReceiver 
     protected InstrumentedNode doCreateInstrumentedNode(
             @NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
         final SimulatedGossip simulatedGossip = new SimulatedGossip(simulatedNetworkConnectivity, nodeId);
-        simulatedNetworkConnectivity.addNode(nodeId, simulatedGossip);
+        addEventReceiver(simulatedGossip);
         final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));
         return new InstrumentedTurtleNode(
                 random,
@@ -125,6 +125,7 @@ public class TurtleNetwork extends SimulatedNetwork implements TimeTickReceiver 
      */
     @Override
     protected void preStartHook(@NonNull final Roster roster) {
+        super.preStartHook(roster);
         final int size = nodes().size();
         executorService = NodeLoggingContext.wrap(Executors.newFixedThreadPool(
                 Math.min(size, Runtime.getRuntime().availableProcessors()), new ContextAwareThreadFactory()));

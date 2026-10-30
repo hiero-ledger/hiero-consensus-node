@@ -69,20 +69,26 @@ abstract class InFlightConnections<T extends InTransit> {
     }
 
     /**
-     * Adds a node to the network, giving it a queue for every node already present and each of them a queue for it.
+     * Sets up the whole network at once, giving every node a queue for each of the other nodes. Can only be called
+     * once.
      *
-     * @param newNodeId the id of the node to add
+     * @param nodeIds the ids of all nodes in the network, in node id order
+     * @throws IllegalStateException if the network has already been set up
      */
-    public void addNode(@NonNull final NodeId newNodeId) {
-        final Map<NodeId, InFlightQueue<T>> incomingConnections = new HashMap<>();
-        for (final NodeId existingNodeId : sortedNodeIds) {
-            incomingConnections.put(existingNodeId, new InFlightQueue<>(start));
-            connectionsByReceiver.get(existingNodeId).put(newNodeId, new InFlightQueue<>(start));
+    public void setUp(@NonNull final List<NodeId> nodeIds) {
+        if (!sortedNodeIds.isEmpty()) {
+            throw new IllegalStateException("The network has already been set up");
         }
-        connectionsByReceiver.put(newNodeId, incomingConnections);
-
-        sortedNodeIds.add(newNodeId);
-        Collections.sort(sortedNodeIds);
+        for (final NodeId receiver : nodeIds) {
+            final Map<NodeId, InFlightQueue<T>> incomingConnections = new HashMap<>();
+            for (final NodeId sender : nodeIds) {
+                if (!sender.equals(receiver)) {
+                    incomingConnections.put(sender, new InFlightQueue<>(start));
+                }
+            }
+            connectionsByReceiver.put(receiver, incomingConnections);
+        }
+        sortedNodeIds.addAll(nodeIds);
     }
 
     /**

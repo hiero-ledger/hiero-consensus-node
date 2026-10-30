@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiPredicate;
@@ -47,15 +48,24 @@ class InFlightEventsTest {
         downConnections.clear();
         eventWindow = EventWindow.getGenesisEventWindow();
 
-        final BiPredicate<NodeId, NodeId> connected =
-                (sender, receiver) -> !downConnections.contains(Map.entry(sender, receiver));
-        inFlightEvents = new InFlightEvents(connected, nodeId -> eventWindow, START);
-
-        inFlightEvents.addNode(NODE_0);
-        inFlightEvents.addNode(NODE_1);
-        inFlightEvents.addNode(NODE_2);
+        inFlightEvents = createInFlightEvents(List.of(NODE_0, NODE_1, NODE_2));
 
         node0 = new RecordingReceiver(NODE_0);
+    }
+
+    /**
+     * Creates the structure under test, set up for the given nodes.
+     *
+     * @param nodeIds the nodes of the network, in node id order
+     * @return the structure under test
+     */
+    @NonNull
+    private InFlightEvents createInFlightEvents(@NonNull final List<NodeId> nodeIds) {
+        final BiPredicate<NodeId, NodeId> connected =
+                (sender, receiver) -> !downConnections.contains(Map.entry(sender, receiver));
+        final InFlightEvents created = new InFlightEvents(connected, nodeId -> eventWindow, START);
+        created.setUp(nodeIds);
+        return created;
     }
 
     @Test
@@ -209,10 +219,10 @@ class InFlightEventsTest {
     }
 
     @Test
-    @DisplayName("a node added later can send to and receive from the nodes already present")
-    void aNodeAddedLaterIsConnectedToTheExistingNodes() {
+    @DisplayName("every node can send to and receive from every other node")
+    void everyNodeIsConnectedToEveryOtherNode() {
         final NodeId nodeThree = NodeId.of(3);
-        inFlightEvents.addNode(nodeThree);
+        inFlightEvents = createInFlightEvents(List.of(NODE_0, NODE_1, NODE_2, nodeThree));
 
         final PlatformEvent towardsNodeZero = addEvent(NODE_0, nodeThree, 10);
         final PlatformEvent towardsNodeThree = addEvent(nodeThree, NODE_0, 10);
@@ -280,7 +290,7 @@ class InFlightEventsTest {
     @DisplayName("the senders that are not refused keep their arrival order, interleaved across connections")
     void refusalKeepsTheArrivalOrderOfTheOthers() {
         final NodeId nodeThree = NodeId.of(3);
-        inFlightEvents.addNode(nodeThree);
+        inFlightEvents = createInFlightEvents(List.of(NODE_0, NODE_1, NODE_2, nodeThree));
         final PlatformEvent fromOneEarly = addEvent(NODE_1, 10);
         final PlatformEvent fromTwoEarly = addEvent(NODE_2, 20);
         final PlatformEvent fromOneLate = addEvent(NODE_1, 25);
