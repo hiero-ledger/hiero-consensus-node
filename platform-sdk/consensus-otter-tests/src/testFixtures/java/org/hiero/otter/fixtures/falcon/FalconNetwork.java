@@ -42,6 +42,9 @@ public class FalconNetwork extends SimulatedNetwork implements TimeTickReceiver 
      */
     private static final Map<NodeId, KeysAndCerts> KEYS_AND_CERTS_CACHE = new ConcurrentHashMap<>();
 
+    /** The tipsets shared by the event creators of all mini nodes of this network. */
+    private final FalconSharedTipsets sharedTipsets = new FalconSharedTipsets();
+
     /**
      * Constructor for {@code FalconNetwork}.
      *
@@ -89,7 +92,13 @@ public class FalconNetwork extends SimulatedNetwork implements TimeTickReceiver 
     @NonNull
     protected MiniNode doCreateMiniNode(@NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
         final FalconMiniNode node = new FalconMiniNode(
-                random, timeManager.time(), nodeId, keysAndCerts, simulatedNetworkConnectivity, networkConfiguration);
+                random,
+                timeManager.time(),
+                nodeId,
+                keysAndCerts,
+                simulatedNetworkConnectivity,
+                networkConfiguration,
+                sharedTipsets);
         simulatedNetworkConnectivity.addNode(node.getNodeId(), node);
         return node;
     }
