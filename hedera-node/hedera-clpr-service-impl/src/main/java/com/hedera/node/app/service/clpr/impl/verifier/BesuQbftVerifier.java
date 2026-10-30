@@ -6,10 +6,8 @@ import static com.hedera.node.app.service.clpr.impl.verifier.evm.ProofBytes.endp
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.clpr.ClprQbftLedgerConfigurationPayload;
-import com.hedera.node.app.hapi.utils.EthSigsUtils;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.sun.jna.ptr.LongByReference;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.math.BigInteger;
@@ -25,7 +23,10 @@ import java.util.Objects;
 import java.util.Optional;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hyperledger.besu.nativelib.secp256k1.LibSecp256k1;
+import org.apache.tuweni.bytes.Bytes32;
+import org.hyperledger.besu.crypto.SECP256K1;
+import org.hyperledger.besu.crypto.SECPPublicKey;
+import org.hyperledger.besu.crypto.SECPSignature;
 
 /**
  * Verifies Besu QBFT bundle proofs against a peer ledger's execution state.
@@ -75,6 +76,9 @@ public final class BesuQbftVerifier {
 
     private static final Logger log = LogManager.getLogger(BesuQbftVerifier.class);
     private static final HexFormat HEX = HexFormat.of();
+
+    /** Besu's secp256k1 implementation: native libsecp256k1 when available, pure Java otherwise. */
+    private static final SECP256K1 SECP256K1_ALGORITHM = new SECP256K1();
 
     /**
      * Block-header RLP field counts permitted by Ethereum / Besu hard forks.
@@ -261,23 +265,6 @@ public final class BesuQbftVerifier {
                         : processEpochHeaders(epochBlockHeadersItem, trustAnchor);
         final List<byte[]> effectiveTrustAnchor =
                 decodeValidatorSet(effectiveTrustAnchorEncoded, "effectiveTrustAnchor");
-        final byte[] newTrustAnchor;
-        final byte[] newTrustAnchorId;
-        if (!epochBlockHeadersItem.children().isEmpty()) {
-            newTrustAnchor = effectiveTrustAnchorEncoded;
-            final Rlp.Item lastEpochHeader = epochBlockHeadersItem
-                    .children()
-                    .get(epochBlockHeadersItem.children().size() - 1);
-            newTrustAnchorId = epochNumberBytesFromHeader(lastEpochHeader, config.epochLength());
-            log.debug(
-                    "BesuQbftProofVerifier.verifyBundle epochHeaders={} newValidators={} epochNumber(bytes)=0x{}",
-                    epochBlockHeadersItem.children().size(),
-                    effectiveTrustAnchor.size(),
-                    HEX.formatHex(newTrustAnchorId));
-        } else {
-            newTrustAnchor = new byte[0];
-            newTrustAnchorId = new byte[0];
-        }
 
         // --- 1. Parse the block header and extract the state root --------------------------
         final Rlp.Item headerItem = fields.get(0);
@@ -296,9 +283,38 @@ public final class BesuQbftVerifier {
                 HEX.formatHex(stateRoot32),
                 headerItem.children().size());
 
-        // Authenticate the header against the effective validator set; requires a quorum of valid seals.
-        verifyQbftSealAgainstValidatorSet(headerItem, effectiveTrustAnchor);
+        // Authenticate the header against the effective validator set: it may list that set or a set one
+        // change away (a change at the current block needs no hop), sealed by a quorum of its own list.
+        final List<byte[]> currentValidators = verifyHeaderAgainstTrustedSet(headerItem, effectiveTrustAnchor, false);
         log.debug("BesuQbftProofVerifier.verifyBundle QBFT committed seal verified against trustAnchor");
+
+        // A new trust anchor when the bundle crossed hops or the current block lists a changed set, so the
+        // anchor never silently lags the real validator set.
+        final boolean crossedHops = !epochBlockHeadersItem.children().isEmpty();
+        final boolean currentSetChanged = !sameValidators(currentValidators, effectiveTrustAnchor);
+        final byte[] newTrustAnchor;
+        final byte[] newTrustAnchorId;
+        if (currentSetChanged) {
+            newTrustAnchor = encodeValidatorSet(currentValidators);
+            newTrustAnchorId = epochNumberBytesFromHeader(headerItem, config.epochLength());
+        } else if (crossedHops) {
+            newTrustAnchor = effectiveTrustAnchorEncoded;
+            final Rlp.Item lastEpochHeader = epochBlockHeadersItem
+                    .children()
+                    .get(epochBlockHeadersItem.children().size() - 1);
+            newTrustAnchorId = epochNumberBytesFromHeader(lastEpochHeader, config.epochLength());
+        } else {
+            newTrustAnchor = new byte[0];
+            newTrustAnchorId = new byte[0];
+        }
+        if (newTrustAnchor.length > 0) {
+            log.debug(
+                    "BesuQbftProofVerifier.verifyBundle hops={} currentSetChanged={} newValidators={} epochNumber(bytes)=0x{}",
+                    epochBlockHeadersItem.children().size(),
+                    currentSetChanged,
+                    currentSetChanged ? currentValidators.size() : effectiveTrustAnchor.size(),
+                    HEX.formatHex(newTrustAnchorId));
+        }
 
         // --- 2. Verify the account proof against the block's state root --------------------
         if (config.expectedContractAddress20() == null) {
@@ -836,13 +852,19 @@ public final class BesuQbftVerifier {
             validators.add(checkedCopy(validatorItems.get(i).asBytes(), ADDRESS_LENGTH, "validator[" + i + "]"));
         }
         validators.sort(Arrays::compareUnsigned);
+        for (int i = 1; i < validators.size(); i++) {
+            if (Arrays.equals(validators.get(i), validators.get(i - 1))) {
+                throw ProofException.besuQbft(
+                        "blockHeader.extraData.validators lists 0x" + HEX.formatHex(validators.get(i)) + " twice");
+            }
+        }
         return validators;
     }
 
     /**
-     * Walks the epoch-header chain: for each header, verifies the QBFT committed seals against the
-     * current validator set, then advances to the new validator set declared in that header's
-     * extra-data. Returns the RLP-encoded new validator set after the last epoch header.
+     * Walks the rotation hops (field 1): each hop must change the trusted validator set by exactly one
+     * member and be sealed per {@link #verifyHeaderAgainstTrustedSet}; the set the hop lists becomes the
+     * trusted set for the next one. Returns the RLP-encoded validator set after the last hop.
      */
     @NonNull
     private static byte[] processEpochHeaders(
@@ -878,12 +900,11 @@ public final class BesuQbftVerifier {
             }
             prevBlockNumber = blockNumber;
             log.debug(
-                    "processEpochHeaders[{}]: blockNumber={}, verifying seal against {} validators",
+                    "processEpochHeaders[{}]: blockNumber={}, verifying rotation against {} validators",
                     i,
                     blockNumber,
                     validatorSet.size());
-            verifyQbftSealAgainstValidatorSet(epochHeader, validatorSet);
-            validatorSet = extractValidators(epochHeader);
+            validatorSet = verifyHeaderAgainstTrustedSet(epochHeader, validatorSet, true);
         }
         return encodeValidatorSet(validatorSet);
     }
@@ -928,11 +949,17 @@ public final class BesuQbftVerifier {
     }
 
     /**
+     * The QBFT quorum for a validator set of {@code n} members: {@code ceil(2n / 3)}, as in Besu's
+     * {@code BftHelpers.calculateRequiredValidatorQuorum} and the QBFT formal specification.
+     */
+    static int quorum(final int n) {
+        return (2 * n + 2) / 3;
+    }
+
+    /**
      * Verifies that the header's QBFT committed seals satisfy the quorum requirement for
-     * {@code validatorSet}.
-     *
-     * <p>Quorum = {@code (2 * N) / 3 + 1} (integer division), where N = validatorSet.size().
-     * Every recovered signer must be a member of the validator set, and no signer may appear
+     * {@code validatorSet}, as Besu's {@code BftCommitSealsValidationRule} does: at least
+     * {@link #quorum(int)} seals, every recovered signer a member of the validator set, and no signer
      * more than once. Processing uses sorted lists throughout — no {@link java.util.Set} — so
      * behaviour is deterministic regardless of JVM.
      *
@@ -941,13 +968,141 @@ public final class BesuQbftVerifier {
      */
     static void verifyQbftSealAgainstValidatorSet(
             @NonNull final Rlp.Item headerItem, @NonNull final List<byte[]> validatorSet) {
-        if (validatorSet.isEmpty()) {
+        verifyCommitters(recoverCommitters(headerItem, validatorSet.size()), sortedCopy(validatorSet));
+    }
+
+    /**
+     * Verifies a hop or the current block header against the trusted validator set and returns the
+     * validator set the header lists (sorted).
+     *
+     * <p>Besu rules: a header is sealed by a quorum of the set it lists ({@code BftValidatorsValidationRule},
+     * {@code BftCommitSealsValidationRule}), and the set changes by at most one member per block
+     * ({@code VoteTally}). So the listed set may differ from the trusted set by at most one member, and the
+     * seals are checked against the listed set.
+     *
+     * <p>CLPR light-client rules (not Besu behaviour): when the listed set differs from the trusted set, the
+     * trusted set must still vouch for the change — at least {@code quorum(trusted) - 1} of the signers must
+     * be trusted members, or the full {@code quorum(trusted)} when a newly added member did not seal. A hop
+     * ({@code requireChange}) must change the set; only the current block may list the trusted set unchanged.
+     *
+     * @param headerItem the hop or current block header
+     * @param trustedSet the validator set trusted before this header
+     * @param requireChange {@code true} for a hop, {@code false} for the current block
+     * @return the validator set the header lists, sorted
+     * @throws ProofException if any rule is violated
+     */
+    @NonNull
+    static List<byte[]> verifyHeaderAgainstTrustedSet(
+            @NonNull final Rlp.Item headerItem, @NonNull final List<byte[]> trustedSet, final boolean requireChange) {
+        final List<byte[]> trusted = sortedCopy(trustedSet);
+        final List<byte[]> listed = extractValidators(headerItem);
+        final List<byte[]> added = missingFrom(listed, trusted);
+        final List<byte[]> removed = missingFrom(trusted, listed);
+        final int changes = added.size() + removed.size();
+        if (changes > 1) {
+            throw ProofException.besuQbft("header changes " + changes
+                    + " validators (added " + added.size() + ", removed " + removed.size()
+                    + "); Besu applies at most one change per block");
+        }
+        if (requireChange && changes == 0) {
+            throw ProofException.besuQbft("rotation hop does not change the validator set");
+        }
+
+        // Besu: the header is sealed by a quorum of the set it lists.
+        final List<byte[]> committers = recoverCommitters(headerItem, listed.size());
+        verifyCommitters(committers, listed);
+
+        if (changes == 1) {
+            // CLPR light-client rule: the trusted set vouches for the change.
+            final boolean addedMemberSealed = !added.isEmpty()
+                    && Collections.binarySearch(committers, added.get(0), Arrays::compareUnsigned) >= 0;
+            final int trustedQuorum = quorum(trusted.size());
+            final int requiredTrustedSigners =
+                    !added.isEmpty() && !addedMemberSealed ? trustedQuorum : Math.max(1, trustedQuorum - 1);
+            final int trustedSigners =
+                    committers.size() - missingFrom(committers, trusted).size();
+            if (trustedSigners < requiredTrustedSigners) {
+                throw ProofException.besuQbft("validator set change is sealed by " + trustedSigners
+                        + " trusted validator" + (trustedSigners == 1 ? "" : "s") + ", expected at least "
+                        + requiredTrustedSigners + " of " + trusted.size());
+            }
+        }
+        return listed;
+    }
+
+    /**
+     * Checks that every committer is a member of {@code sortedValidators} and that there are at least
+     * {@link #quorum(int)} of them.
+     */
+    private static void verifyCommitters(
+            @NonNull final List<byte[]> sortedCommitters, @NonNull final List<byte[]> sortedValidators) {
+        if (sortedValidators.isEmpty()) {
             throw ProofException.besuQbft("validator set is empty");
         }
-        final List<byte[]> sortedValidatorSet = new ArrayList<>(validatorSet);
-        sortedValidatorSet.sort(Arrays::compareUnsigned);
-        final int n = sortedValidatorSet.size();
-        final int quorum = (2 * n) / 3 + 1;
+        for (final byte[] signer : sortedCommitters) {
+            if (Collections.binarySearch(sortedValidators, signer, Arrays::compareUnsigned) < 0) {
+                throw ProofException.besuQbft(
+                        "committed seal recovers to 0x" + HEX.formatHex(signer) + " which is not in the validator set");
+            }
+        }
+        final int n = sortedValidators.size();
+        final int quorum = quorum(n);
+        if (sortedCommitters.size() < quorum) {
+            throw ProofException.besuQbft("expected at least " + quorum + " committed seal" + (quorum > 1 ? "s" : "")
+                    + " for " + n + "-validator set, got " + sortedCommitters.size());
+        }
+        log.debug(
+                "BesuQbftProofVerifier.verifyCommitters: verified {}/{} seals (quorum={})",
+                sortedCommitters.size(),
+                n,
+                quorum);
+    }
+
+    /** Returns the members of {@code sortedA} that are not in {@code sortedB}. */
+    @NonNull
+    private static List<byte[]> missingFrom(@NonNull final List<byte[]> sortedA, @NonNull final List<byte[]> sortedB) {
+        final List<byte[]> out = new ArrayList<>();
+        for (final byte[] a : sortedA) {
+            if (Collections.binarySearch(sortedB, a, Arrays::compareUnsigned) < 0) {
+                out.add(a);
+            }
+        }
+        return out;
+    }
+
+    /** Returns {@code true} when both lists hold the same addresses, in any order. */
+    private static boolean sameValidators(@NonNull final List<byte[]> a, @NonNull final List<byte[]> b) {
+        final List<byte[]> sortedA = sortedCopy(a);
+        final List<byte[]> sortedB = sortedCopy(b);
+        if (sortedA.size() != sortedB.size()) {
+            return false;
+        }
+        for (int i = 0; i < sortedA.size(); i++) {
+            if (!Arrays.equals(sortedA.get(i), sortedB.get(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @NonNull
+    private static List<byte[]> sortedCopy(@NonNull final List<byte[]> addresses) {
+        final List<byte[]> sorted = new ArrayList<>(addresses);
+        sorted.sort(Arrays::compareUnsigned);
+        return sorted;
+    }
+
+    /**
+     * Recovers the signers of the header's committed seals, sorted. A duplicate seal is rejected, as in
+     * Besu. Fails fast, before any signature recovery, when the header carries fewer seals than the quorum
+     * of a {@code validatorCount}-member set.
+     */
+    @NonNull
+    private static List<byte[]> recoverCommitters(@NonNull final Rlp.Item headerItem, final int validatorCount) {
+        if (validatorCount == 0) {
+            throw ProofException.besuQbft("validator set is empty");
+        }
+        final int quorum = quorum(validatorCount);
 
         // 1. Pull extraData out of the block header.
         final byte[] extraDataRlp =
@@ -969,7 +1124,7 @@ public final class BesuQbftVerifier {
         final List<Rlp.Item> committedSeals = committedSealsItem.children();
         if (committedSeals.size() < quorum) {
             throw ProofException.besuQbft("expected at least " + quorum + " committed seal" + (quorum > 1 ? "s" : "")
-                    + " for " + n + "-validator set, got " + committedSeals.size());
+                    + " for " + validatorCount + "-validator set, got " + committedSeals.size());
         }
 
         final byte[] commitSealMessageHash = buildCommitSealHash(headerItem, extra);
@@ -988,23 +1143,14 @@ public final class BesuQbftVerifier {
         // 3. Sort recovered signers for deterministic duplicate detection and membership lookup.
         recoveredSigners.sort(Arrays::compareUnsigned);
 
-        // 4. Walk sorted list: detect adjacent duplicates; verify each signer is in the validator set.
-        for (int i = 0; i < recoveredSigners.size(); i++) {
-            final byte[] signer = recoveredSigners.get(i);
-            if (i > 0 && Arrays.equals(signer, recoveredSigners.get(i - 1))) {
-                throw ProofException.besuQbft("duplicate committed seal from 0x" + HEX.formatHex(signer));
-            }
-            if (Collections.binarySearch(sortedValidatorSet, signer, Arrays::compareUnsigned) < 0) {
+        // 4. Walk the sorted list: adjacent equal signers are duplicate seals.
+        for (int i = 1; i < recoveredSigners.size(); i++) {
+            if (Arrays.equals(recoveredSigners.get(i), recoveredSigners.get(i - 1))) {
                 throw ProofException.besuQbft(
-                        "committed seal recovers to 0x" + HEX.formatHex(signer) + " which is not in the validator set");
+                        "duplicate committed seal from 0x" + HEX.formatHex(recoveredSigners.get(i)));
             }
         }
-
-        log.debug(
-                "BesuQbftProofVerifier.verifyQbftSealAgainstValidatorSet: verified {}/{} seals (quorum={})",
-                recoveredSigners.size(),
-                n,
-                quorum);
+        return recoveredSigners;
     }
 
     /**
@@ -1056,33 +1202,23 @@ public final class BesuQbftVerifier {
         if (v != 0 && v != 1) {
             throw ProofException.besuQbft("committed seal v byte must be 0/1 (or 27/28), got " + (seal65[64] & 0xFF));
         }
-        final byte[] compact = Arrays.copyOf(seal65, 64);
-        final var recoverableSig = new LibSecp256k1.secp256k1_ecdsa_recoverable_signature();
-        if (LibSecp256k1.secp256k1_ecdsa_recoverable_signature_parse_compact(
-                        LibSecp256k1.CONTEXT, recoverableSig, compact, v)
-                != 1) {
-            throw ProofException.besuQbft("failed to parse committed seal signature");
+        // Recover through Besu's SECP256K1 abstraction, as the EVM's ecrecover does: native libsecp256k1 when
+        // available, otherwise its pure-Java implementation, so every node reaches the same result.
+        final SECPSignature signature;
+        try {
+            signature = SECP256K1_ALGORITHM.createSignature(
+                    new BigInteger(1, Arrays.copyOfRange(seal65, 0, 32)),
+                    new BigInteger(1, Arrays.copyOfRange(seal65, 32, 64)),
+                    (byte) v);
+        } catch (final IllegalArgumentException e) {
+            throw ProofException.besuQbft("failed to parse committed seal signature: " + e.getMessage());
         }
-        final var pubKey = new LibSecp256k1.secp256k1_pubkey();
-        if (LibSecp256k1.secp256k1_ecdsa_recover(LibSecp256k1.CONTEXT, pubKey, recoverableSig, msgHash32) != 1) {
-            throw ProofException.besuQbft("ecRecover failed for committed seal");
-        }
-        final ByteBuffer serializedPubKey = ByteBuffer.allocate(65);
-        final var serializedPubKeySize = new LongByReference(serializedPubKey.capacity());
-        if (LibSecp256k1.secp256k1_ec_pubkey_serialize(
-                        LibSecp256k1.CONTEXT,
-                        serializedPubKey,
-                        serializedPubKeySize,
-                        pubKey,
-                        LibSecp256k1.SECP256K1_EC_UNCOMPRESSED)
-                != 1) {
-            throw ProofException.besuQbft("failed to serialize recovered public key");
-        }
-        final byte[] addr = EthSigsUtils.recoverAddressFromPubKey(serializedPubKey.array());
-        if (addr == null || addr.length != ADDRESS_LENGTH) {
-            throw ProofException.besuQbft("recovered address has wrong length");
-        }
-        return addr;
+        final SECPPublicKey publicKey = SECP256K1_ALGORITHM
+                .recoverPublicKeyFromSignature(Bytes32.wrap(msgHash32), signature)
+                .orElseThrow(() -> ProofException.besuQbft("ecRecover failed for committed seal"));
+        // An Ethereum address is the last 20 bytes of keccak256 of the 64-byte uncompressed public key.
+        final byte[] publicKeyHash = MiscCryptoUtils.keccak256DigestOf(publicKey.getEncoded());
+        return Arrays.copyOfRange(publicKeyHash, publicKeyHash.length - ADDRESS_LENGTH, publicKeyHash.length);
     }
 
     // -----------------------------------------------------------------------------------

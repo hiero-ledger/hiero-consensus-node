@@ -1487,6 +1487,107 @@ class BesuQbftVerifierTest {
         private static final BesuQbftVerifier BUNDLE_SUBJECT =
                 new BesuQbftVerifier(new BesuQbftVerifier.Config(SERVICE_ADDR, null, 30_000L));
 
+        // Seven deterministic validator keys, A..G.
+        private static final List<byte[]> KEYS = java.util.stream.IntStream.range(0, 7)
+                .mapToObj(i -> {
+                    final byte[] key = new byte[32];
+                    Arrays.fill(key, (byte) (0x50 + i));
+                    return key;
+                })
+                .toList();
+        private static final List<byte[]> ADDRS =
+                KEYS.stream().map(EthSigsUtils::recoverAddressFromPrivateKey).toList();
+
+        private static byte[] addr(final int i) {
+            return ADDRS.get(i);
+        }
+
+        private static List<byte[]> addrs(final int... indexes) {
+            return Arrays.stream(indexes).mapToObj(EpochHeaderTests::addr).toList();
+        }
+
+        private static List<byte[]> keys(final int... indexes) {
+            return Arrays.stream(indexes).mapToObj(KEYS::get).toList();
+        }
+
+        private static byte[] trusted(final int... indexes) {
+            return BesuQbftVerifier.encodeValidatorSet(addrs(indexes));
+        }
+
+        private static byte[] hop(final long blockNumber, final int[] listed, final int... signers) {
+            return buildEpochHeader(addrs(listed), blockNumber, new byte[32], keys(signers));
+        }
+
+        /** A bundle whose current header lists {@code listed} and is sealed by {@code signers}. */
+        private static byte[] bundle(final List<byte[]> hops, final int[] listed, final int... signers) {
+            final byte[][] accountProof = buildAccountMptProof(SERVICE_ADDR, EMPTY_TRIE_ROOT, new byte[32]);
+            final byte[] currentHeader = buildSignedHeaderMultiSeal(addrs(listed), accountProof[0], keys(signers));
+            return buildBundlePayloadWithEpochHeadersAndCurrentHeader(hops, currentHeader, accountProof);
+        }
+
+        private static int[] set(final int... indexes) {
+            return indexes;
+        }
+
+        @Test
+        void quorumIsCeilTwoThirdsAsInBesu() {
+            assertThat(BesuQbftVerifier.quorum(1)).isEqualTo(1);
+            assertThat(BesuQbftVerifier.quorum(2)).isEqualTo(2);
+            assertThat(BesuQbftVerifier.quorum(3)).isEqualTo(2);
+            assertThat(BesuQbftVerifier.quorum(4)).isEqualTo(3);
+            assertThat(BesuQbftVerifier.quorum(6)).isEqualTo(4);
+            assertThat(BesuQbftVerifier.quorum(7)).isEqualTo(5);
+        }
+
+        @Test
+        void headerWithExactlyQuorumSealsIsAccepted() {
+            for (final int n : new int[] {1, 3, 4, 6, 7}) {
+                final int[] all = java.util.stream.IntStream.range(0, n).toArray();
+                final int[] quorumSigners = Arrays.copyOf(all, BesuQbftVerifier.quorum(n));
+                final var result =
+                        BUNDLE_SUBJECT.verifyBundle(bundle(List.of(), all, quorumSigners), trusted(all), CHANNEL_ID);
+                assertThat(result.newTrustAnchor()).as("n=%d", n).isEmpty();
+            }
+        }
+
+        @Test
+        void headerWithOneSealBelowQuorumIsRejected() {
+            for (final int n : new int[] {3, 4, 6, 7}) {
+                final int[] all = java.util.stream.IntStream.range(0, n).toArray();
+                final int[] tooFew = Arrays.copyOf(all, BesuQbftVerifier.quorum(n) - 1);
+                assertThatThrownBy(() ->
+                                BUNDLE_SUBJECT.verifyBundle(bundle(List.of(), all, tooFew), trusted(all), CHANNEL_ID))
+                        .as("n=%d", n)
+                        .isInstanceOf(ProofException.class)
+                        .hasMessageContaining("expected at least " + BesuQbftVerifier.quorum(n));
+            }
+        }
+
+        @Test
+        void sealFromOutsideTheListedSetIsRejected() {
+            // E (index 4) seals a header that lists A..D.
+            assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(
+                            bundle(List.of(), set(0, 1, 2, 3), 0, 1, 2, 4), trusted(0, 1, 2, 3), CHANNEL_ID))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("not in the validator set");
+        }
+
+        @Test
+        void duplicateSealIsRejected() {
+            assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(
+                            bundle(List.of(), set(0, 1, 2, 3), 0, 0, 1, 2), trusted(0, 1, 2, 3), CHANNEL_ID))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("duplicate committed seal");
+        }
+
+        @Test
+        void headerListingAValidatorTwiceIsRejected() {
+            assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(
+                            bundle(List.of(), set(0, 1, 2, 2), 0, 1, 2), trusted(0, 1, 2), CHANNEL_ID))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("twice");
+        }
+
         @Test
         void emptyEpochHeaders_trustAnchorUnchanged() {
             byte[] bundlePayload = buildBundlePayloadWithEpochHeaders(List.of());
@@ -1496,135 +1597,131 @@ class BesuQbftVerifierTest {
         }
 
         @Test
-        void singleEpochHeader_advancesTrustAnchorToNewValidatorSet() {
-            // Epoch header: current 1-validator set {VALIDATOR_ADDR} → new 1-validator set {OTHER_ADDR}
-            byte[] epochHeader = buildEpochHeader(List.of(OTHER_ADDR), 30_000L, new byte[32], List.of(VALIDATOR_PRIV));
-
-            byte[][] accountProof = buildAccountMptProof(SERVICE_ADDR, EMPTY_TRIE_ROOT, new byte[32]);
-            byte[] stateRoot = accountProof[0];
-            // Current header must be signed by the new validator set {OTHER_ADDR} (quorum=1).
-            byte[] currentHeader = buildSignedHeader(OTHER_ADDR, stateRoot, OTHER_PRIV);
-
-            byte[] bundlePayload = buildBundlePayloadWithEpochHeadersAndCurrentHeader(
-                    List.of(epochHeader), currentHeader, accountProof);
-            var result = BUNDLE_SUBJECT.verifyBundle(bundlePayload, validatorSet(VALIDATOR_ADDR), CHANNEL_ID);
-
-            // newTrustAnchor = encoded validator set {OTHER_ADDR}
-            assertThat(result.newTrustAnchor()).isEqualTo(validatorSet(OTHER_ADDR));
+        void honestAddWhereTheNewMemberSealed() {
+            // A..D trusted; the change block lists A..E and is sealed by its own quorum (4 of 5), E included.
+            final byte[] addE = hop(30_000L, set(0, 1, 2, 3, 4), 0, 1, 2, 4);
+            final var result = BUNDLE_SUBJECT.verifyBundle(
+                    bundle(List.of(addE), set(0, 1, 2, 3, 4), 0, 1, 2, 3), trusted(0, 1, 2, 3), CHANNEL_ID);
+            assertThat(result.newTrustAnchor()).isEqualTo(trusted(0, 1, 2, 3, 4));
             assertThat(result.newTrustAnchorId())
-                    .isEqualTo(java.math.BigInteger.valueOf(1L).toByteArray());
+                    .isEqualTo(BigInteger.valueOf(1L).toByteArray());
         }
 
         @Test
-        void twoEpochHeaders_chainsCorrectly() {
-            // First epoch: {VALIDATOR_ADDR} → {OTHER_ADDR}
-            byte[] epochHeader1 = buildEpochHeader(List.of(OTHER_ADDR), 30_000L, new byte[32], List.of(VALIDATOR_PRIV));
-            // Second epoch: {OTHER_ADDR} → {VALIDATOR_ADDR}
-            byte[] epochHeader2 = buildEpochHeader(List.of(VALIDATOR_ADDR), 60_000L, new byte[32], List.of(OTHER_PRIV));
-
-            byte[][] accountProof = buildAccountMptProof(SERVICE_ADDR, EMPTY_TRIE_ROOT, new byte[32]);
-            byte[] stateRoot = accountProof[0];
-            byte[] currentHeader = buildSignedHeader(VALIDATOR_ADDR, stateRoot, VALIDATOR_PRIV);
-
-            byte[] bundlePayload = buildBundlePayloadWithEpochHeadersAndCurrentHeader(
-                    List.of(epochHeader1, epochHeader2), currentHeader, accountProof);
-            var result = BUNDLE_SUBJECT.verifyBundle(bundlePayload, validatorSet(VALIDATOR_ADDR), CHANNEL_ID);
-
-            assertThat(result.newTrustAnchor()).isEqualTo(validatorSet(VALIDATOR_ADDR));
-            assertThat(result.newTrustAnchorId())
-                    .isEqualTo(java.math.BigInteger.valueOf(2L).toByteArray());
+        void honestAddWhereTheNewMemberDidNotSeal() {
+            final byte[] addE = hop(30_000L, set(0, 1, 2, 3, 4), 0, 1, 2, 3);
+            final var result = BUNDLE_SUBJECT.verifyBundle(
+                    bundle(List.of(addE), set(0, 1, 2, 3, 4), 0, 1, 2, 3), trusted(0, 1, 2, 3), CHANNEL_ID);
+            assertThat(result.newTrustAnchor()).isEqualTo(trusted(0, 1, 2, 3, 4));
         }
 
         @Test
-        void epochHeaderAdvancesToMultiValidatorSet() {
-            // Epoch header advances from {VALIDATOR_ADDR} (quorum=1) to {VALIDATOR_ADDR, OTHER_ADDR} (quorum=2).
-            byte[] epochHeader = buildEpochHeader(
-                    List.of(VALIDATOR_ADDR, OTHER_ADDR), 30_000L, new byte[32], List.of(VALIDATOR_PRIV));
+        void honestRemoveSealedByTheSmallerSetsQuorum() {
+            // A..D trusted; the change block lists A..C and carries only 2 seals, as Besu produces it.
+            final byte[] removeD = hop(30_000L, set(0, 1, 2), 0, 1);
+            final var result = BUNDLE_SUBJECT.verifyBundle(
+                    bundle(List.of(removeD), set(0, 1, 2), 0, 1), trusted(0, 1, 2, 3), CHANNEL_ID);
+            assertThat(result.newTrustAnchor()).isEqualTo(trusted(0, 1, 2));
+        }
 
-            byte[][] accountProof = buildAccountMptProof(SERVICE_ADDR, EMPTY_TRIE_ROOT, new byte[32]);
-            byte[] stateRoot = accountProof[0];
-            // Current header needs quorum=2 seals from the new 2-validator set.
-            byte[] currentHeader = buildSignedHeaderMultiSeal(
-                    List.of(VALIDATOR_ADDR, OTHER_ADDR), stateRoot, List.of(VALIDATOR_PRIV, OTHER_PRIV));
+        @Test
+        void consecutiveChangesChain() {
+            final byte[] addE = hop(30_000L, set(0, 1, 2, 3, 4), 0, 1, 2, 4);
+            final byte[] removeA = hop(60_000L, set(1, 2, 3, 4), 1, 2, 4);
+            final var result = BUNDLE_SUBJECT.verifyBundle(
+                    bundle(List.of(addE, removeA), set(1, 2, 3, 4), 1, 2, 3), trusted(0, 1, 2, 3), CHANNEL_ID);
+            assertThat(result.newTrustAnchor()).isEqualTo(trusted(1, 2, 3, 4));
+            assertThat(result.newTrustAnchorId())
+                    .isEqualTo(BigInteger.valueOf(2L).toByteArray());
+        }
 
-            byte[] bundlePayload = buildBundlePayloadWithEpochHeadersAndCurrentHeader(
-                    List.of(epochHeader), currentHeader, accountProof);
-            var result = BUNDLE_SUBJECT.verifyBundle(bundlePayload, validatorSet(VALIDATOR_ADDR), CHANNEL_ID);
+        @Test
+        void setThatChangesAndChangesBackStillAdvancesTheAnchor() {
+            // A..D -> A..C -> A..D: the final set equals the starting one, but the bundle crossed hops.
+            final byte[] removeD = hop(30_000L, set(0, 1, 2), 0, 1);
+            final byte[] addD = hop(60_000L, set(0, 1, 2, 3), 0, 1, 3);
+            final var result = BUNDLE_SUBJECT.verifyBundle(
+                    bundle(List.of(removeD, addD), set(0, 1, 2, 3), 0, 1, 2), trusted(0, 1, 2, 3), CHANNEL_ID);
+            assertThat(result.newTrustAnchor()).isEqualTo(trusted(0, 1, 2, 3));
+            assertThat(result.newTrustAnchorId())
+                    .isEqualTo(BigInteger.valueOf(2L).toByteArray());
+        }
 
-            assertThat(result.newTrustAnchor()).isEqualTo(validatorSet(VALIDATOR_ADDR, OTHER_ADDR));
+        @Test
+        void changeAtTheCurrentBlockNeedsNoHopAndAdvancesTheAnchor() {
+            final var result =
+                    BUNDLE_SUBJECT.verifyBundle(bundle(List.of(), set(0, 1, 2), 0, 1), trusted(0, 1, 2, 3), CHANNEL_ID);
+            assertThat(result.newTrustAnchor()).isEqualTo(trusted(0, 1, 2));
+            assertThat(result.newTrustAnchorId()).isNotEmpty();
         }
 
         @Test
         void epochHeaderValidatorSetIsOrderIndependent() {
-            // Two epoch headers that declare the same 2-validator set in different orders must produce
-            // the same encoded trust anchor bytes.
-            byte[] epochHeaderAB = buildEpochHeader(
-                    List.of(VALIDATOR_ADDR, OTHER_ADDR), 30_000L, new byte[32], List.of(VALIDATOR_PRIV));
-            byte[] epochHeaderBA = buildEpochHeader(
-                    List.of(OTHER_ADDR, VALIDATOR_ADDR), 30_000L, new byte[32], List.of(VALIDATOR_PRIV));
+            final byte[] hopAscending = hop(30_000L, set(0, 1, 2, 3, 4), 0, 1, 2, 4);
+            final byte[] hopDescending = hop(30_000L, set(4, 3, 2, 1, 0), 0, 1, 2, 4);
+            final var resultAscending = BUNDLE_SUBJECT.verifyBundle(
+                    bundle(List.of(hopAscending), set(0, 1, 2, 3, 4), 0, 1, 2, 3), trusted(0, 1, 2, 3), CHANNEL_ID);
+            final var resultDescending = BUNDLE_SUBJECT.verifyBundle(
+                    bundle(List.of(hopDescending), set(0, 1, 2, 3, 4), 0, 1, 2, 3), trusted(0, 1, 2, 3), CHANNEL_ID);
+            assertThat(resultAscending.newTrustAnchor()).isEqualTo(resultDescending.newTrustAnchor());
+        }
 
-            byte[][] accountProofAB = buildAccountMptProof(SERVICE_ADDR, EMPTY_TRIE_ROOT, new byte[32]);
-            byte[][] accountProofBA = buildAccountMptProof(SERVICE_ADDR, EMPTY_TRIE_ROOT, new byte[32]);
-            byte[] currentAB = buildSignedHeaderMultiSeal(
-                    List.of(VALIDATOR_ADDR, OTHER_ADDR), accountProofAB[0], List.of(VALIDATOR_PRIV, OTHER_PRIV));
-            byte[] currentBA = buildSignedHeaderMultiSeal(
-                    List.of(OTHER_ADDR, VALIDATOR_ADDR), accountProofBA[0], List.of(VALIDATOR_PRIV, OTHER_PRIV));
+        @Test
+        void hopWithTwoChangesIsRejected() {
+            // A..D -> A, B, C, E: D removed and E added in one block, which Besu never does.
+            final byte[] swap = hop(30_000L, set(0, 1, 2, 4), 0, 1, 2);
+            assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(
+                            bundle(List.of(swap), set(0, 1, 2, 4), 0, 1, 2), trusted(0, 1, 2, 3), CHANNEL_ID))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("header changes 2 validators");
+        }
 
-            var resultAB = BUNDLE_SUBJECT.verifyBundle(
-                    buildBundlePayloadWithEpochHeadersAndCurrentHeader(
-                            List.of(epochHeaderAB), currentAB, accountProofAB),
-                    validatorSet(VALIDATOR_ADDR),
-                    CHANNEL_ID);
-            var resultBA = BUNDLE_SUBJECT.verifyBundle(
-                    buildBundlePayloadWithEpochHeadersAndCurrentHeader(
-                            List.of(epochHeaderBA), currentBA, accountProofBA),
-                    validatorSet(VALIDATOR_ADDR),
-                    CHANNEL_ID);
+        @Test
+        void hopThatDoesNotChangeTheSetIsRejected() {
+            final byte[] noOp = hop(30_000L, set(0, 1, 2, 3), 0, 1, 2);
+            assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(
+                            bundle(List.of(noOp), set(0, 1, 2, 3), 0, 1, 2), trusted(0, 1, 2, 3), CHANNEL_ID))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("does not change the validator set");
+        }
 
-            assertThat(resultAB.newTrustAnchor()).isEqualTo(resultBA.newTrustAnchor());
+        @Test
+        void skippedChangeIsRejected() {
+            // The set went A..D -> A..E -> A..F, but the relay sends no hop: the current header is two changes away.
+            assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(
+                            bundle(List.of(), set(0, 1, 2, 3, 4, 5), 0, 1, 2, 4), trusted(0, 1, 2, 3), CHANNEL_ID))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("header changes 2 validators");
+        }
+
+        @Test
+        void hopBelowItsOwnQuorumIsRejected() {
+            // The change block lists A..E (quorum 4) but carries only 3 seals.
+            final byte[] addE = hop(30_000L, set(0, 1, 2, 3, 4), 0, 1, 4);
+            assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(
+                            bundle(List.of(addE), set(0, 1, 2, 3, 4), 0, 1, 2, 3), trusted(0, 1, 2, 3), CHANNEL_ID))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("expected at least 4");
         }
 
         @Test
         void outOfOrderEpochHeaders_throwsProofException() {
-            byte[] epochHeader1 = buildEpochHeader(List.of(OTHER_ADDR), 60_000L, new byte[32], List.of(VALIDATOR_PRIV));
-            byte[] epochHeader2 = buildEpochHeader(List.of(VALIDATOR_ADDR), 30_000L, new byte[32], List.of(OTHER_PRIV));
-
-            byte[] bundlePayload = buildBundlePayloadWithEpochHeaders(List.of(epochHeader1, epochHeader2));
-
-            assertThatThrownBy(
-                            () -> BUNDLE_SUBJECT.verifyBundle(bundlePayload, validatorSet(VALIDATOR_ADDR), CHANNEL_ID))
+            final byte[] addE = hop(60_000L, set(0, 1, 2, 3, 4), 0, 1, 2, 4);
+            final byte[] removeA = hop(30_000L, set(1, 2, 3, 4), 1, 2, 4);
+            assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(
+                            bundle(List.of(addE, removeA), set(1, 2, 3, 4), 1, 2, 3), trusted(0, 1, 2, 3), CHANNEL_ID))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("is not strictly greater than previous");
         }
 
         @Test
-        void epochHeaderSignedByKeyNotInCurrentSet_throwsProofException() {
-            // Epoch header signed by OTHER_PRIV, but trust anchor is {VALIDATOR_ADDR}
-            byte[] epochHeader = buildEpochHeader(List.of(OTHER_ADDR), 30_000L, new byte[32], List.of(OTHER_PRIV));
-            byte[] bundlePayload = buildBundlePayloadWithEpochHeaders(List.of(epochHeader));
-
-            assertThatThrownBy(
-                            () -> BUNDLE_SUBJECT.verifyBundle(bundlePayload, validatorSet(VALIDATOR_ADDR), CHANNEL_ID))
+        void currentHeaderBelowQuorumAfterRotation_throwsProofException() {
+            // After the rotation to A..E the current header carries only 3 seals (quorum 4).
+            final byte[] addE = hop(30_000L, set(0, 1, 2, 3, 4), 0, 1, 2, 4);
+            assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(
+                            bundle(List.of(addE), set(0, 1, 2, 3, 4), 0, 1, 2), trusted(0, 1, 2, 3), CHANNEL_ID))
                     .isInstanceOf(ProofException.class)
-                    .hasMessageContaining("not in the validator set");
-        }
-
-        @Test
-        void currentHeaderSignedByOldKeyAfterEpochAdvance_throwsProofException() {
-            // Epoch advances to {OTHER_ADDR}, but currentHeader is still signed by VALIDATOR_PRIV
-            byte[] epochHeader = buildEpochHeader(List.of(OTHER_ADDR), 30_000L, new byte[32], List.of(VALIDATOR_PRIV));
-
-            byte[][] accountProof = buildAccountMptProof(SERVICE_ADDR, EMPTY_TRIE_ROOT, new byte[32]);
-            byte[] stateRoot = accountProof[0];
-            byte[] currentHeader = buildSignedHeader(VALIDATOR_ADDR, stateRoot, VALIDATOR_PRIV);
-
-            byte[] bundlePayload = buildBundlePayloadWithEpochHeadersAndCurrentHeader(
-                    List.of(epochHeader), currentHeader, accountProof);
-
-            assertThatThrownBy(
-                            () -> BUNDLE_SUBJECT.verifyBundle(bundlePayload, validatorSet(VALIDATOR_ADDR), CHANNEL_ID))
-                    .isInstanceOf(ProofException.class)
-                    .hasMessageContaining("not in the validator set");
+                    .hasMessageContaining("expected at least 4");
         }
 
         private static byte[] buildBundlePayloadWithEpochHeaders(List<byte[]> epochHeaders) {
