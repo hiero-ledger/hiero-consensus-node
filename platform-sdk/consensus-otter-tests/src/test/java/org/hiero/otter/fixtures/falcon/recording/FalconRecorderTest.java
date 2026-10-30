@@ -114,7 +114,7 @@ class FalconRecorderTest {
                 case PlatformStatusChange _ -> {}
             }
         }
-        // A child arrives before its parent only if it takes a faster route; in this recording, about 1% of the events
+        // A child arrives before its parent only if it takes a faster route; in this recording, about 5% of the events
         // waited. Many waiting events would leave this test with little to check.
         assertThat(checked)
                 .as("Released events that did not wait for a parent")

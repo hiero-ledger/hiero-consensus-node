@@ -9,7 +9,6 @@ import java.time.Duration;
 import org.hiero.base.crypto.SigningSchema;
 import org.hiero.consensus.benchmark.tools.event.EventShape;
 import org.hiero.consensus.test.fixtures.io.RealisticPingSamples;
-import org.hiero.otter.fixtures.falcon.FalconTestEnvironment;
 
 /**
  * What {@link FalconRecorder} simulates.
@@ -31,6 +30,9 @@ public record RecordingSpec(
         @Nullable SigningSchema signingSchema,
         int recordedNodes,
         @NonNull Duration tick) {
+
+    /** The tick of a recording unless set otherwise. */
+    public static final Duration DEFAULT_TICK = Duration.ofMillis(1);
 
     /**
      * Creates a spec and checks its values.
@@ -65,8 +67,8 @@ public record RecordingSpec(
 
     /**
      * Starts a spec with the values that have no default. Unless set otherwise, the events have the
-     * {@link EventShape#MAINNET mainnet shape} and are unsigned, one node is recorded, and the tick is Falcon's
-     * {@link FalconTestEnvironment#DEFAULT_GRANULARITY default}.
+     * {@link EventShape#MAINNET mainnet shape} and are unsigned, one node is recorded, and the tick is
+     * {@link #DEFAULT_TICK}.
      *
      * @param numNodes the number of nodes in the network
      * @param seed the seed of the simulation
@@ -92,7 +94,7 @@ public record RecordingSpec(
         private SigningSchema signingSchema;
 
         private int recordedNodes = 1;
-        private Duration tick = FalconTestEnvironment.DEFAULT_GRANULARITY;
+        private Duration tick = DEFAULT_TICK;
 
         private Builder(final int numNodes, final long seed, final int events) {
             this.numNodes = numNodes;
