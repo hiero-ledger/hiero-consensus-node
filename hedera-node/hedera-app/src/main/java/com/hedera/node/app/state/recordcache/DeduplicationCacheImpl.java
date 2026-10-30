@@ -64,8 +64,10 @@ public final class DeduplicationCacheImpl implements DeduplicationCache {
         final var epochSeconds = approxEarliestValidStartSecond();
         removeTransactionsOlderThan(epochSeconds);
 
-        // If the transaction is within the max transaction duration window, then add it to the set.
-        if (transactionID.transactionValidStartOrThrow().seconds() >= epochSeconds) {
+        // If the transaction is within the max transaction duration window, then add it to the set. A valid start
+        // further in the future can only come from another node's event, and would not be pruned until that time.
+        final var validStart = transactionID.transactionValidStartOrThrow();
+        if (validStart.seconds() >= epochSeconds && validStart.seconds() <= approxLatestValidStartSecond()) {
             submittedTxns.add(transactionID);
         }
     }
@@ -96,6 +98,14 @@ public final class DeduplicationCacheImpl implements DeduplicationCache {
         final var config = configProvider.getConfiguration().getConfigData(HederaConfig.class);
         final var earliestValidState = minus(now, config.transactionMaxValidDuration());
         return earliestValidState.seconds();
+    }
+
+    /**
+     * Gets the latest valid start second kept in the cache, the max transaction duration after wall-clock time.
+     */
+    private long approxLatestValidStartSecond() {
+        final var config = configProvider.getConfiguration().getConfigData(HederaConfig.class);
+        return instantSource.instant().getEpochSecond() + config.transactionMaxValidDuration();
     }
 
     /**

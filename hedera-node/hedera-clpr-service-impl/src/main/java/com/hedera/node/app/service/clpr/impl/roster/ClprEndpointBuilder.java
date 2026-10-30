@@ -16,28 +16,27 @@ import java.nio.charset.StandardCharsets;
 
 /**
  * Builds a single node's {@link ClprEndpoint} from a mix of the platform's authoritative
- * address book (the node's IP) and this node's <em>local</em> CLPR mTLS configuration (the
- * sync port and CA certificate). Used by the reconciler's self-publication path
+ * address book (the node's IP) and this node's <em>local</em> HAPI TLS configuration (the
+ * HAPI TLS port and certificate). Used by the reconciler's self-publication path
  * ({@code openConstructionIfSelfChanged} / {@code contributeSelfToConstruction}): each node derives
  * <b>its own</b> CLPR endpoint and publishes it via {@code ClprEndpointPublication}.
  *
- * <p><b>Self-only.</b> Because the mTLS port ({@code clpr.mtlsPort}) and the CA certificate
- * ({@code clpr.caCrtPath}) are node-local — not carried in the consensus address book — this
- * builder can only produce a faithful endpoint for the running node, whose {@code mtlsPort}
- * and {@code selfCaCertDer} the caller supplies. Peers' endpoints arrive via their own
+ * <p><b>Self-only.</b> Because the HAPI TLS port ({@code grpc.tlsPort}) and certificate
+ * ({@code netty.tlsCrtPath}) are node-local — not carried in the consensus address book — this
+ * builder can only produce a faithful endpoint for the running node, whose {@code tlsPort}
+ * and {@code tlsCertificateDer} the caller supplies. Peers' endpoints arrive via their own
  * publications, not through this builder.
  *
- * <p>Fields (aligned with the mTLS two-tier cert model, spec §4.4 / PR #316):
+ * <p>CLPR {@code sync} is served on the HAPI ports. Fields:
  * <ul>
  *   <li>{@code service_endpoint.ip_address} = the node's first address-book service endpoint
  *       (IPv4 literal or domain name).</li>
- *   <li>{@code service_endpoint.port} — when mTLS is enabled, {@code clpr.mtlsPort} (the
- *       dedicated mutual-auth CLPR sync listener); when mTLS is <b>not</b> configured, the node
- *       falls back to its address-book HAPI gRPC port, on which plaintext {@code sync} still
- *       runs (mtls.md "Listener topology").</li>
- *   <li>{@code tls_certificate} = the DER-encoded ECDSA P-384 <b>CA</b> certificate peers pin as
- *       the trust anchor when mTLS is enabled, or empty when mTLS is not configured (dev/test) —
- *       an empty cert is a valid endpoint and signals the plaintext path.</li>
+ *   <li>{@code service_endpoint.port} — when the node has a HAPI TLS certificate, {@code grpc.tlsPort}
+ *       (the HAPI TLS listener); otherwise the node falls back to its address-book HAPI gRPC port, on
+ *       which plaintext {@code sync} runs.</li>
+ *   <li>{@code tls_certificate} = the DER-encoded HAPI TLS certificate, or empty when the node has none
+ *       (dev/test). Peers use it only as the signal to dial over TLS; they do not verify it. An empty
+ *       cert is a valid endpoint and signals the plaintext path.</li>
  *   <li>{@code account_id} = the node operator account, serialized via
  *       {@link AccountID#PROTOBUF}.</li>
  * </ul>
@@ -53,46 +52,38 @@ public final class ClprEndpointBuilder {
      *
      * @param nodeId the node whose endpoint to build (expected to be the running node)
      * @param nodeStore address book (source of the node's IP and HAPI-port fallback)
-     * @param mtlsEnabled whether this node has CLPR mTLS configured ({@code clpr.caCrtPath} set).
-     *     When {@code false} the endpoint falls back to plaintext: the HAPI gRPC port and an empty
-     *     certificate.
-     * @param mtlsPort the {@code clpr.mtlsPort} to advertise as the CLPR sync port when
-     *     {@code mtlsEnabled}
-     * @param selfCaCertDer the DER-encoded ECDSA CA certificate to advertise when
-     *     {@code mtlsEnabled}; ignored (empty is published) otherwise
+     * @param tlsPort the {@code grpc.tlsPort} to advertise as the CLPR sync port when
+     *     {@code tlsCertificateDer} is non-empty
+     * @param tlsCertificateDer the DER-encoded HAPI TLS certificate to advertise, or empty when this
+     *     node has none; the endpoint then falls back to plaintext on the address-book HAPI gRPC port
      */
     @Nullable
     public static ClprEndpoint buildFor(
             final long nodeId,
             @NonNull final ReadableNodeStore nodeStore,
-            final boolean mtlsEnabled,
-            final int mtlsPort,
-            @NonNull final Bytes selfCaCertDer) {
+            final int tlsPort,
+            @NonNull final Bytes tlsCertificateDer) {
         requireNonNull(nodeStore);
-        requireNonNull(selfCaCertDer);
+        requireNonNull(tlsCertificateDer);
         final var node = nodeStore.get(nodeId);
         if (node == null || node.deleted() || node.serviceEndpoint().isEmpty()) {
             return null;
         }
-        return buildEndpoint(node, mtlsEnabled, mtlsPort, selfCaCertDer);
+        return buildEndpoint(node, tlsPort, tlsCertificateDer);
     }
 
     private static ClprEndpoint buildEndpoint(
-            @NonNull final Node node,
-            final boolean mtlsEnabled,
-            final int mtlsPort,
-            @NonNull final Bytes selfCaCertDer) {
+            @NonNull final Node node, final int tlsPort, @NonNull final Bytes tlsCertificateDer) {
         final ServiceEndpoint hapiEndpoint = node.serviceEndpoint().getFirst();
-        // mTLS on: advertise the dedicated mutual-auth sync port + CA cert. mTLS off: plaintext
-        // sync stays on the HAPI gRPC port and no certificate is advertised.
-        final int port = mtlsEnabled ? mtlsPort : hapiEndpoint.port();
-        final Bytes tlsCertificate = mtlsEnabled ? selfCaCertDer : Bytes.EMPTY;
+        // HAPI TLS certificate present: advertise the HAPI TLS port. Absent: plaintext sync on the
+        // address-book HAPI gRPC port.
+        final int port = tlsCertificateDer.length() > 0 ? tlsPort : hapiEndpoint.port();
         return ClprEndpoint.newBuilder()
                 .serviceEndpoint(ClprServiceEndpoint.newBuilder()
                         .ipAddress(ipOf(hapiEndpoint))
                         .port(port)
                         .build())
-                .tlsCertificate(tlsCertificate)
+                .tlsCertificate(tlsCertificateDer)
                 .accountId(AccountID.PROTOBUF.toBytes(node.accountIdOrElse(AccountID.DEFAULT)))
                 .build();
     }
@@ -101,7 +92,7 @@ public final class ClprEndpointBuilder {
      * The IP address string this builder would advertise for {@code nodeId}, derived from the
      * address book exactly as {@link #buildFor} does, or {@code null} if the node is missing /
      * deleted / has no service endpoint. This is the only part of a peer's endpoint that is
-     * derivable from the shared address book (the mTLS port and CA cert are node-local), so the
+     * derivable from the shared address book (the HAPI TLS port and certificate are node-local), so the
      * reconciler uses it as the address-book-derivable identity for its open-construction trigger.
      */
     @Nullable

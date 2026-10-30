@@ -39,6 +39,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.crypto.CryptoApproveAllowanceSuite.OWNER;
 import static com.hedera.services.bdd.suites.crypto.CryptoApproveAllowanceSuite.SPENDER;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_DELETE_ALLOWANCE_EXTRA_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_DELETE_ALLOWANCE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.EMPTY_ALLOWANCES;
@@ -343,7 +344,8 @@ public class CryptoDeleteAllowanceSuite {
                         .blankMemo()
                         .addNftDeleteAllowance(owner, nft, List.of(2L, 3L))
                         .via("twoDeleteNft"),
-                validateChargedUsdWithin("twoDeleteNft", CRYPTO_DELETE_ALLOWANCE_FEE, 0.1),
+                validateChargedUsdWithin(
+                        "twoDeleteNft", CRYPTO_DELETE_ALLOWANCE_FEE + CRYPTO_DELETE_ALLOWANCE_EXTRA_FEE_USD, 0.1),
                 /* with 2 sigs */
                 cryptoApproveAllowance().payingWith(owner).addNftAllowance(owner, nft, "spender2", false, List.of(1L)),
                 cryptoDeleteAllowance()

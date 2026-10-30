@@ -14,6 +14,8 @@ import "services/basic_types.proto";
  *
  * Deregisters a Connector and returns any locked stake to the specified
  * stake_recipient account. Requires the connector's admin_key to sign.
+ * The Connector's ownership commitment stays registered, so the same
+ * Connector cannot be registered again; a new salt yields a new Connector ID.
  *
  * Authority: Connector admin_key must sign.
  */

@@ -10,9 +10,13 @@ option java_multiple_files = true;
 /**
  * Phase 1 (Commit): Register a Connector commitment.
  *
- * Permissionless and idempotent. Stores
+ * Permissionless. Stores
  * keccak256(connectorId || pubKey) on-ledger so the reveal phase can verify it.
  * Anyone may call; only the holder of the matching private key can complete.
+ *
+ * Fails with CLPR_CONNECTOR_ALREADY_EXISTS if the commitment is
+ * already pending reveal or was already used to create a Connector, even one
+ * that has since been deregistered.
  */
 message ClprRegisterConnectorTransactionBody {
     /**

@@ -34,6 +34,7 @@ module com.hedera.node.app.service.contract.impl {
     exports com.hedera.node.app.service.contract.impl.exec.v038 to
             com.hedera.node.app.service.contract.impl.test;
     exports com.hedera.node.app.service.contract.impl.infra to
+            com.hedera.node.app,
             com.hedera.node.app.service.contract.impl.test;
     exports com.hedera.node.app.service.contract.impl.nativelibverification to
             com.hedera.node.app;
@@ -90,6 +91,7 @@ module com.hedera.node.app.service.contract.impl {
     requires transitive tuweni.units;
     requires com.hedera.node.app.service.addressbook;
     requires com.swirlds.base;
+    requires org.hiero.base.crypto;
     requires org.hiero.base.utility;
     requires com.github.benmanes.caffeine;
     requires com.google.common;

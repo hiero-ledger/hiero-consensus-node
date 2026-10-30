@@ -4,8 +4,10 @@ package com.hedera.node.app.service.file.impl.utils;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ENTITY_NOT_ALLOWED_TO_DELETE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FILE_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_FILE_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_FILE_WACL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_FILE_SIZE_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNAUTHORIZED;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isValid;
 import static com.hedera.node.app.spi.validation.Validations.mustExist;
 import static java.util.Objects.requireNonNull;
 
@@ -32,6 +34,47 @@ public class FileServiceUtils {
 
     private FileServiceUtils() {
         // Utility class
+    }
+
+    /**
+     * Validates a WACL before it is stored on a file. An absent or empty key list is allowed and denotes
+     * an immutable file. A non-empty key list must contain only structurally valid keys.
+     *
+     * @param wacl the key list to be stored as the file's WACL, or null
+     * @throws HandleException with {@link ResponseCodeEnum#INVALID_FILE_WACL} if any key is structurally invalid
+     */
+    public static void validateWacl(@Nullable final KeyList wacl) {
+        if (wacl == null || wacl.keys().isEmpty()) {
+            return;
+        }
+        for (final Key key : wacl.keys()) {
+            if (!isValid(key)) {
+                throw new HandleException(INVALID_FILE_WACL);
+            }
+        }
+    }
+
+    /**
+     * Returns true only if the file exists and its WACL is a non-empty key list in which every key is
+     * structurally valid. A file whose WACL is absent, empty, or contains any invalid key is immutable.
+     *
+     * @param file the file to check, or null
+     * @return true if the file is mutable
+     */
+    public static boolean isMutable(@Nullable final File file) {
+        if (file == null || !file.hasKeys()) {
+            return false;
+        }
+        final var keys = file.keys().keys();
+        if (keys.isEmpty()) {
+            return false;
+        }
+        for (final Key key : keys) {
+            if (!isValid(key)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

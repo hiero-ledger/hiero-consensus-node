@@ -4,6 +4,7 @@ package com.hedera.node.app.service.contract.impl.exec.operations;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.INVALID_SOLIDITY_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.contractRequired;
 import static com.hedera.node.app.service.contract.impl.exec.utils.OperationUtils.isDeficientGas;
+import static com.hedera.node.app.service.contract.impl.exec.utils.OperationUtils.isWarmAccess;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
@@ -120,7 +121,9 @@ public interface BasicCustomCallOperation {
     Address address(@NonNull MessageFrame frame);
 
     /**
-     * Calculates the gas cost for the call operation.
+     * Calculates the gas cost for the call operation, pricing the target as warm or cold as per
+     * EIP-2929. Only reads the set of warm addresses; the target is warmed when the customized
+     * {@link org.hyperledger.besu.evm.operation.AbstractCallOperation} itself executes.
      *
      * @param frame the frame in which the call is being made
      * @return the gas cost
@@ -133,6 +136,8 @@ public interface BasicCustomCallOperation {
         final var outputLength = outputDataLength(frame);
         final var transferValue = value(frame);
         final var recipientAddress = address(frame);
+        final var to = to(frame);
+        final var accountIsWarm = isWarmAccess(frame, to, gasCalculator());
 
         final var staticCost = gasCalculator()
                 .callOperationStaticGasCost(
@@ -144,7 +149,7 @@ public interface BasicCustomCallOperation {
                         outputLength,
                         transferValue,
                         recipientAddress,
-                        false);
+                        accountIsWarm);
 
         if (isDeficientGas(frame, staticCost)) {
             return staticCost;
@@ -161,7 +166,7 @@ public interface BasicCustomCallOperation {
                         outputLength,
                         transferValue,
                         recipientAddress,
-                        false);
+                        accountIsWarm);
     }
 
     /**

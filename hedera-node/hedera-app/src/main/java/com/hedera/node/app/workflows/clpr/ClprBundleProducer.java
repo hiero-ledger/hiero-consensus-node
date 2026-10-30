@@ -23,8 +23,8 @@ import edu.umd.cs.findbugs.annotations.Nullable;
  *
  * <p>Three things end the sequence: number of max bundles per cycle, the proof builder returning {@code null} (no
  * signed block snapshot yet, or nothing progress-bearing to send), and a bundle that carries no messages — a pure-ACK
- * or manifest-only bundle, which consumes nothing from the queue, so asking again would rebuild the identical bundle
- * forever. A peer that reports itself {@code CLOSED} ends it before it starts.
+ * or a bundle carrying only the closing status or manifest, which consumes nothing from the queue, so asking again
+ * would rebuild the identical bundle forever. A peer that reports itself {@code CLOSED} ends it before it starts.
  *
  * <p><b>IMPORTANT</b>: the lifecycle of this class must be bound to a single synchronization cycle, as it is not
  * thread safe.

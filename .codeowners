@@ -1,3 +1,7 @@
+# UPDATE BOTH THE `.codeowners` FILE AND THE `.github/CODEOWNERS` FILE WHEN MAKING CHANGES TO OWNERSHIP RULES
+# The `.codeowners` file controls the ownership of files within the repository (ensures the right people are requested for review when a PR is opened)
+# The `.github/CODEOWNERS` file controls PR file filtering (functional for only the PR File Filter feature when performing a code review)
+
 ###################################
 ##### Global Protection Rule ######
 ###################################
@@ -193,6 +197,10 @@ gradlew.bat                                         %github-maintainers
 
 # Self-protection for root CODEOWNERS files (this file should not exist and should definitely require approval)
 /CODEOWNERS                                         %github-maintainers
+
+# Self-protection for actual CODEOWNERS files - changes to ownership itself must be approved
+/.codeowners                                        %github-maintainers
+/.github/CODEOWNERS                                 %github-maintainers
 
 # Protect the repository root files
 /README.md                                          %github-maintainers %hiero-consensus-node-foundation-codeowners %hiero-consensus-node-execution-codeowners %hiero-consensus-node-consensus-codeowners

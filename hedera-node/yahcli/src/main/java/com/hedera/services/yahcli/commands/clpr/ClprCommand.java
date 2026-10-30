@@ -10,8 +10,8 @@ import picocli.CommandLine.ParentCommand;
 /**
  * Parent command for the {@code clpr} subcommand family. Routes to subcommands that submit
  * Cross-Ledger Protocol (CLPR) HAPI transactions and queries against a target network — the
- * full channel/connector lifecycle (register/complete/close), bundle submission and
- * redaction, ledger-configuration read/write, endpoint-manifest read, identity generation
+ * full channel/connector lifecycle (register/complete/close), bundle submission,
+ * ledger-configuration read/write, endpoint-manifest read, identity generation
  * helpers, and a thin {@code send-message} wrapper for the source-application sendMessage
  * entry point.
  *
@@ -30,7 +30,6 @@ import picocli.CommandLine.ParentCommand;
             CompleteConnectorCommand.class,
             DeregisterConnectorCommand.class,
             SubmitBundleCommand.class,
-            RedactMessageCommand.class,
             UpdateLedgerConfigurationCommand.class,
             GetLedgerConfigurationCommand.class,
             GetEndpointManifestCommand.class,

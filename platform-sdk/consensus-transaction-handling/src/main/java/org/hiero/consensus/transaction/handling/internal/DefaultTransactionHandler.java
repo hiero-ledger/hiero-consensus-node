@@ -38,8 +38,9 @@ import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.CryptoUtils;
-import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.HashBuilder;
 import org.hiero.consensus.event.stream.config.EventConfig;
 import org.hiero.consensus.event.stream.config.EventStreamWiringConfig;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
@@ -67,6 +68,8 @@ import org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerTyp
 public class DefaultTransactionHandler implements TransactionHandler {
 
     private static final Logger logger = LogManager.getLogger(DefaultTransactionHandler.class);
+
+    private static final Hash NULL_384_HASH = new HashBuilder(DigestType.SHA_384).build();
 
     /**
      * The class responsible for all interactions with the swirld state
@@ -177,7 +180,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
         this.handlerMetrics = new RoundHandlingMetrics(time, metrics);
         this.transactionMetrics = new TransactionMetrics(metrics);
 
-        previousRoundLegacyRunningEventHash = Cryptography.NULL_HASH;
+        previousRoundLegacyRunningEventHash = NULL_384_HASH;
 
         final EventStreamWiringConfig eventStreamWiringConfig =
                 configuration.getConfigData(EventStreamWiringConfig.class);
@@ -364,7 +367,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
 
             setLegacyRunningEventHashTo(consensusState, previousRoundLegacyRunningEventHash);
         } else {
-            setLegacyRunningEventHashTo(consensusState, Cryptography.NULL_HASH);
+            setLegacyRunningEventHashTo(consensusState, NULL_384_HASH);
         }
     }
 

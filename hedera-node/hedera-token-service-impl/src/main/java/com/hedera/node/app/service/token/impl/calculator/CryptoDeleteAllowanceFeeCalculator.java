@@ -27,7 +27,10 @@ public class CryptoDeleteAllowanceFeeCalculator implements ServiceFeeCalculator 
                 lookupServiceFee(feeSchedule, HederaFunctionality.CRYPTO_DELETE_ALLOWANCE);
         feeResult.setServiceBaseFeeTinycents(serviceDef.baseFee());
 
-        final int totalAllowances = op.nftAllowances().size();
+        // Each NFT serial is its own allowance
+        final int totalAllowances = op.nftAllowances().stream()
+                .mapToInt(nft -> Math.max(1, nft.serialNumbers().size()))
+                .sum();
 
         if (totalAllowances > 0) {
             addExtraFee(feeResult, serviceDef, ALLOWANCES, feeSchedule, totalAllowances);

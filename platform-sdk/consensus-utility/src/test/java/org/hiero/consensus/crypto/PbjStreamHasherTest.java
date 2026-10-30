@@ -227,7 +227,9 @@ class PbjStreamHasherTest {
                 event.getBirthRound(),
                 event.getTimeCreated(),
                 event.getGossipEvent().transactions(),
-                event.getEventCore().coin());
+                event.getEventCore().coin(),
+                event.getTimeCreated(),
+                List.of());
 
         hasher.hashEvent(event);
         hasher.hashUnsignedEvent(unsignedEvent);

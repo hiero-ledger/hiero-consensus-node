@@ -23,6 +23,7 @@ module org.hiero.consensus.otter.docker.app {
     requires org.hiero.consensus.platformstate;
     requires org.hiero.consensus.roster;
     requires org.hiero.consensus.state;
+    requires org.hiero.consensus.utility.test.fixtures;
     requires org.hiero.consensus.utility;
     requires org.hiero.consensus.wiring.framework;
     requires io.grpc;

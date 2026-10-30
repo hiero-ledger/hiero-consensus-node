@@ -132,10 +132,7 @@ public final class ClprPeerSelector {
 
     private NodeIdentity getNodeIdentity() {
         final var configuration = configProvider.getConfiguration();
-        return new NodeIdentity(
-                configuration.getConfigData(GrpcConfig.class),
-                configuration.getConfigData(ClprConfig.class).mtlsPort(),
-                networkInfo.selfNodeInfo());
+        return new NodeIdentity(configuration.getConfigData(GrpcConfig.class), networkInfo.selfNodeInfo());
     }
 
     /**

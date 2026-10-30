@@ -18,6 +18,7 @@ module org.hiero.base.concurrent {
     exports org.hiero.base.concurrent.throttle;
     exports org.hiero.base.concurrent;
 
+    requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.base;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;

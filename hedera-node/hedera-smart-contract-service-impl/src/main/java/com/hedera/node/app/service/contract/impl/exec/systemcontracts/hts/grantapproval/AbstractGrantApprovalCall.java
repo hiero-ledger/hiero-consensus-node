@@ -62,10 +62,15 @@ public abstract class AbstractGrantApprovalCall extends AbstractCall {
         return recordBuilder;
     }
 
-    protected TransactionBody synthApprovalBody() {
+    /**
+     * Synthesizes the body of the approval (or, for an NFT spender of {@code 0x0}, the revocation) to dispatch.
+     *
+     * @param ownerId for a non-fungible token, the current owner of the serial from {@link #getMaybeOwnerId()};
+     *     ignored for a fungible token, whose owner is always the sender
+     * @return the synthetic transaction body
+     */
+    protected TransactionBody synthApprovalBody(@Nullable final AccountID ownerId) {
         if (tokenType == TokenType.NON_FUNGIBLE_UNIQUE) {
-            var ownerId = getMaybeOwnerId();
-
             if (ownerId != null && !isNftApprovalRevocation()) {
                 if (!ownerId.equals(senderId)) {
                     return buildCryptoApproveAllowance(approveDelegate(ownerId, senderId));
@@ -130,6 +135,12 @@ public abstract class AbstractGrantApprovalCall extends AbstractCall {
         return TransactionBody.newBuilder().cryptoApproveAllowance(body).build();
     }
 
+    /**
+     * Returns the current owner of the NFT serial being approved, which is the treasury when the serial has no
+     * explicit owner; or null if the serial (or its token) does not exist.
+     *
+     * @return the owner of the NFT serial, if it exists
+     */
     protected @Nullable AccountID getMaybeOwnerId() {
         final var nft = enhancement.nativeOperations().getNft(tokenId, amount);
         if (nft == null) {

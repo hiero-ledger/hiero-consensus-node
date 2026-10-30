@@ -10,6 +10,7 @@ import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.when;
 
+import com.hedera.node.app.blocks.impl.streaming.BlockBufferSaturationInfo.SaturationDetail;
 import com.hedera.node.app.blocks.impl.streaming.ConnectionId.ConnectionType;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeEndpoint;
@@ -160,7 +161,12 @@ class BlockNodeConnectionManagerLoggingTest extends BlockNodeCommunicationTestBa
 
         // now mock that the buffer is unhealthy
         // this should cause the logs to be written again
-        when(bufferService.latestBufferStatus()).thenReturn(new BlockBufferStatus(Instant.now(), 80.0D, true));
+        when(bufferService.latestBufferSaturationInfo())
+                .thenReturn(new BlockBufferSaturationInfo(
+                        Instant.now(),
+                        new SaturationDetail(80.0D, true, 80, 100),
+                        new SaturationDetail(0.0D, false, 0, 100_000),
+                        new SaturationDetail(0.0D, false, 0, 5)));
         invoke_updateConnectionIfNeeded();
 
         infoLogs = logCaptor.infoLogs();

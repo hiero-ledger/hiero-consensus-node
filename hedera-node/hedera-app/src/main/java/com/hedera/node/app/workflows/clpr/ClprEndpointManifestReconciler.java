@@ -16,7 +16,6 @@ import com.hedera.node.config.data.ClprConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.security.cert.CertificateEncodingException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -24,6 +23,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import javax.inject.Inject;
+import javax.inject.Provider;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -78,8 +78,10 @@ public class ClprEndpointManifestReconciler {
     private static final Comparator<ClprEndpoint> BY_IDENTITY_ASC =
             Comparator.comparing(ClprEndpointBuilder::identityOf, Bytes.SORT_BY_UNSIGNED_VALUE);
 
-    private final ClprSubmissions submissions;
-    private final ClprCaCertManager caCertManager;
+    // Resolve node-local resources only when publishing, so their initialization cannot prevent
+    // consensus-state reconciliation or roster-change maintenance.
+    private final Provider<ClprSubmissions> submissions;
+    private final Provider<ClprHapiTlsEndpoint> hapiTlsEndpoint;
 
     /**
      * Node-local retry backoff for {@link #contributeSelfToConstruction}. Because
@@ -123,9 +125,10 @@ public class ClprEndpointManifestReconciler {
 
     @Inject
     public ClprEndpointManifestReconciler(
-            @NonNull final ClprSubmissions submissions, @NonNull final ClprCaCertManager caCertManager) {
+            @NonNull final Provider<ClprSubmissions> submissions,
+            @NonNull final Provider<ClprHapiTlsEndpoint> hapiTlsEndpoint) {
         this.submissions = requireNonNull(submissions);
-        this.caCertManager = requireNonNull(caCertManager);
+        this.hapiTlsEndpoint = requireNonNull(hapiTlsEndpoint);
     }
 
     /**
@@ -163,14 +166,15 @@ public class ClprEndpointManifestReconciler {
      * Publish this node's own current endpoint if the manifest does not already contain it, and
      * report whether it is now "settled" (present in the manifest). {@code HandleWorkflow} re-invokes
      * this until it returns {@link SelfPublishOutcome#SETTLED}; the wrapper then keeps self-publication quiet while
-     * that manifest remains current. Because the mTLS port and CA certificate are loaded at startup and the
+     * that manifest remains current. Because the HAPI TLS port and certificate are loaded at startup and the
      * address-book endpoint is adopted on restart, a node's endpoint can only differ across a (re)start — so this is
      * the one moment it must re-publish.
      *
      * <p>This node's full endpoint is derived from its <em>local</em> config: IP from the address
-     * book, port {@code = mtlsPort} when mTLS is on else the HAPI port, cert {@code = } the CA cert
-     * (empty in the plaintext fallback). Membership is <b>full-value</b> — a cert- or port-only change
-     * keeps the same IP-else-cert identity, so identity membership would miss it. No account_id.
+     * book, port {@code = } the HAPI TLS port when a HAPI TLS certificate is loaded else the address-book HAPI
+     * port, cert {@code = } the HAPI TLS certificate (empty in the plaintext fallback). Membership is
+     * <b>full-value</b> — a cert- or port-only change keeps the same IP-else-cert identity, so identity membership
+     * would miss it. No account_id.
      *
      * <p>The publish is a gossip <b>side-effect</b>, so this may legitimately behave differently per
      * node; the resulting construction is opened deterministically by
@@ -199,8 +203,7 @@ public class ClprEndpointManifestReconciler {
         requireNonNull(nodeStore);
         requireNonNull(config);
         requireNonNull(now);
-        final var selfEndpoint = ClprEndpointBuilder.buildFor(
-                selfNodeId, nodeStore, caCertManager.isMtlsEnabled(), config.mtlsPort(), selfCaCertDer());
+        final var selfEndpoint = selfEndpoint(selfNodeId, nodeStore);
         if (selfEndpoint == null) {
             return SelfPublishOutcome.PENDING; // no address-book service endpoint yet — retry next round
         }
@@ -216,7 +219,7 @@ public class ClprEndpointManifestReconciler {
                     "[Clpr] node{} endpoint absent from manifest (v{}) — submitting opening self-publication",
                     selfNodeId,
                     manifest.version());
-            submissions.submitEndpointPublication(selfEndpoint);
+            submissions.get().submitEndpointPublication(selfEndpoint);
             nextOpeningPublicationAttempt = now.plus(config.manifestSubmissionRetryDelay());
         }
         return SelfPublishOutcome.PENDING;
@@ -249,7 +252,7 @@ public class ClprEndpointManifestReconciler {
      * Publish this node's current endpoint into an <em>open</em> construction that targets it but does
      * not yet contain its publication. This makes a construction a full all-hands snapshot: when one
      * node's change opens a construction, every other target node contributes its own current endpoint
-     * — the node-local {@code mtlsPort} + CA cert that only it can supply — rather than being
+     * — the node-local HAPI TLS port + certificate that only it can supply — rather than being
      * reconstructed at close by IP-keyed carry-over, which cannot distinguish nodes that share an IP.
      * The non-restarted nodes only gossip a publication here; they do <b>not</b> restart, so their
      * in-memory peer state (e.g. observed-manifest-version) is preserved.
@@ -287,8 +290,7 @@ public class ClprEndpointManifestReconciler {
         if (now.isBefore(nextContributingPublicationAttempt)) {
             return; // submitted recently; wait out the retry backoff before re-attempting
         }
-        final var selfEndpoint = ClprEndpointBuilder.buildFor(
-                selfNodeId, nodeStore, caCertManager.isMtlsEnabled(), config.mtlsPort(), selfCaCertDer());
+        final var selfEndpoint = selfEndpoint(selfNodeId, nodeStore);
         if (selfEndpoint == null) {
             return; // no derivable service endpoint yet — retry next round (no attempt recorded)
         }
@@ -296,7 +298,7 @@ public class ClprEndpointManifestReconciler {
                 "[Clpr] node{} publishing its endpoint into construction #{}",
                 selfNodeId,
                 construction.constructionId());
-        submissions.submitEndpointPublication(selfEndpoint);
+        submissions.get().submitEndpointPublication(selfEndpoint);
         nextContributingPublicationAttempt = now.plus(config.manifestSubmissionRetryDelay());
     }
 
@@ -397,23 +399,10 @@ public class ClprEndpointManifestReconciler {
         return !manifestIpCounts.equals(rosterIpCounts);
     }
 
-    /**
-     * DER-encoding of this node's ECDSA CA certificate for publication, or {@link Bytes#EMPTY}
-     * when mTLS is not configured (the plaintext fallback). Throws {@link IllegalStateException}
-     * when mTLS is enabled but the configured certificate cannot be DER-encoded.
-     */
-    private Bytes selfCaCertDer() {
-        if (!caCertManager.isMtlsEnabled()) {
-            return Bytes.EMPTY;
-        }
-        try {
-            return Bytes.wrap(caCertManager.caCert().getEncoded());
-        } catch (final CertificateEncodingException e) {
-            // mTLS is enabled but the configured CA certificate cannot be DER-encoded — a fatal
-            // misconfiguration. Fail fast rather than silently publishing an empty tls_certificate.
-            throw new IllegalStateException(
-                    "CLPR mTLS is enabled but the configured CA certificate cannot be DER-encoded", e);
-        }
+    @Nullable
+    private ClprEndpoint selfEndpoint(final long selfNodeId, @NonNull final ReadableNodeStore nodeStore) {
+        final var tlsEndpoint = hapiTlsEndpoint.get();
+        return ClprEndpointBuilder.buildFor(selfNodeId, nodeStore, tlsEndpoint.port(), tlsEndpoint.certificateDer());
     }
 
     /**
@@ -490,7 +479,7 @@ public class ClprEndpointManifestReconciler {
      * time it participates (its endpoint won't be in the manifest, so its startup self-publish
      * re-announces it). This keeps the manifest a faithful snapshot of the nodes that actually
      * announced their current endpoint, and it avoids trying to reconstruct a silent node's
-     * node-local fields (mtlsPort, CA cert) — which is impossible from shared state and ambiguous when
+     * node-local fields (HAPI TLS port and certificate) — which is impossible from shared state and ambiguous when
      * nodes share an IP. Every reachable target node contributes via {@link
      * #contributeSelfToConstruction}, so a construction is a full all-hands snapshot; only a genuinely
      * down node drops out. No-change acks (publications without an endpoint) are ignored. The result

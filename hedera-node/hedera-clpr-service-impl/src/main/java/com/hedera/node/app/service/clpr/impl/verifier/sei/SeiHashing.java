@@ -8,6 +8,7 @@ import static com.hedera.node.app.service.clpr.impl.verifier.sei.SeiProto.messag
 import static com.hedera.node.app.service.clpr.impl.verifier.sei.SeiProto.sfixed64Field;
 import static com.hedera.node.app.service.clpr.impl.verifier.sei.SeiProto.varintField;
 
+import com.hedera.cryptography.libsodium.Libsodium;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.clpr.SeiBlockRef;
 import com.hedera.hapi.node.state.clpr.SeiHeader;
@@ -15,12 +16,11 @@ import com.hedera.hapi.node.state.clpr.SeiValidatorEntry;
 import com.hedera.hapi.node.state.clpr.SeiValidatorSet;
 import com.hedera.node.app.service.clpr.impl.verifier.ProofException;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.lang.foreign.MemorySegment;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import org.bouncycastle.crypto.params.Ed25519PublicKeyParameters;
-import org.bouncycastle.crypto.signers.Ed25519Signer;
 
 /**
  * CometBFT hash, encoding, and signature computations the Sei verifier authenticates headers
@@ -38,6 +38,9 @@ import org.bouncycastle.crypto.signers.Ed25519Signer;
  * </ol>
  */
 public final class SeiHashing {
+
+    /// libsodium is used for Ed25519 signatures.
+    private static final Libsodium LIBSODIUM = Libsodium.getInstance();
 
     /** {@code SignedMsgType.SIGNED_MSG_TYPE_PRECOMMIT}. */
     private static final int PRECOMMIT_TYPE = 2;
@@ -149,10 +152,12 @@ public final class SeiHashing {
             return false;
         }
         try {
-            final var signer = new Ed25519Signer();
-            signer.init(false, new Ed25519PublicKeyParameters(publicKey32, 0));
-            signer.update(message, 0, message.length);
-            return signer.verifySignature(signature64);
+            return LIBSODIUM.cryptoSignVerifyDetached(
+                            MemorySegment.ofArray(signature64),
+                            MemorySegment.ofArray(message),
+                            message.length,
+                            MemorySegment.ofArray(publicKey32))
+                    == 0;
         } catch (final RuntimeException e) {
             return false;
         }

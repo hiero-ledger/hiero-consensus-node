@@ -7,6 +7,7 @@ import static com.hedera.hapi.block.stream.output.StateChange.ChangeOperationOne
 import static com.hedera.hapi.block.stream.output.StateChange.ChangeOperationOneOfType.QUEUE_PUSH;
 import static com.swirlds.state.StateChangeListener.StateType.MAP;
 import static com.swirlds.state.StateChangeListener.StateType.QUEUE;
+import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -275,7 +276,7 @@ class ImmediateStateChangeListenerTest {
 
     @Test
     void targetTypeIsMapAndQueue() {
-        assertEquals(Set.of(MAP, QUEUE), listener.stateTypes());
+        assertEquals(Set.of(MAP, QUEUE, SINGLETON), listener.stateTypes());
     }
 
     @Test

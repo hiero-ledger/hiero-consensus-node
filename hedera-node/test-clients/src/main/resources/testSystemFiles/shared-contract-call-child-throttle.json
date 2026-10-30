@@ -22,7 +22,6 @@
           "opsPerSec": 1000000,
           "operations": [
             "TransactionGetReceipt",
-            "CryptoGetAccountBalance",
             "TransactionGetRecord",
             "FileGetInfo",
             "FileGetContents"

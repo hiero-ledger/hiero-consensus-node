@@ -183,6 +183,18 @@ public interface Call {
     }
 
     /**
+     * Starts any child-frame work needed before {@link #execute(MessageFrame)} can finish this call.
+     * Implementations that suspend the frame must invoke the continuation once the child completes.
+     *
+     * @param frame the system contract frame
+     * @param continuation the remaining system contract processing
+     * @return true if execution is suspended, false if the call can execute immediately
+     */
+    default boolean scheduleChildFrame(@NonNull MessageFrame frame, @NonNull Runnable continuation) {
+        return false;
+    }
+
+    /**
      * Returns whether this call allows a static frame. Default is false for safety.
      *
      * @return whether this call allows a static frame

@@ -62,6 +62,7 @@ jobs:
     name: ${{ inputs.custom-job-name || 'Publish Yahcli Image' }}
     needs:
       - extract-jdk-version
+    if: ${{ github.event.repository.visibility == 'public' }}
     runs-on: hl-cn-default-lin-lg
     outputs:
       docker-image: ${{ steps.set-registry.outputs.docker-tag-base }}/yahcli:${{ steps.resolve-version.outputs.version }}

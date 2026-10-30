@@ -6,7 +6,7 @@ import static java.util.Objects.requireNonNull;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import org.assertj.core.data.Percentage;
-import org.hiero.otter.fixtures.Node;
+import org.hiero.otter.fixtures.MiniNode;
 import org.hiero.otter.fixtures.network.BandwidthLimit;
 import org.hiero.otter.fixtures.network.BidirectionalConnection;
 import org.hiero.otter.fixtures.network.UnidirectionalConnection;
@@ -37,7 +37,7 @@ public class BidirectionalConnectionImpl implements BidirectionalConnection {
      */
     @Override
     @NonNull
-    public Node node1() {
+    public MiniNode node1() {
         return connection.sender();
     }
 
@@ -46,7 +46,7 @@ public class BidirectionalConnectionImpl implements BidirectionalConnection {
      */
     @Override
     @NonNull
-    public Node node2() {
+    public MiniNode node2() {
         return connection.receiver();
     }
 

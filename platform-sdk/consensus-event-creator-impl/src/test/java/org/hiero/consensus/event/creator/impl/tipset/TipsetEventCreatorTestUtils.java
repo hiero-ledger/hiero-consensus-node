@@ -11,7 +11,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
@@ -61,17 +60,29 @@ public class TipsetEventCreatorTestUtils {
     public static EventCreator buildEventCreator(
             @NonNull final Random random,
             @NonNull final Time time,
-            @NonNull final Roster pbjRoster,
+            @NonNull final RosterWrapper roster,
             @NonNull final NodeId nodeId,
             @NonNull final EventTransactionSupplier transactionSupplier,
             final int maxParents) {
-
         final Configuration configuration = ConfigurationBuilder.create()
                 .autoDiscoverExtensions()
                 .withValue("event.creation.maxOtherParents", Integer.toString(maxParents))
                 .build();
+        return buildEventCreator(random, time, roster, nodeId, transactionSupplier, configuration, new NoOpMetrics());
+    }
 
-        final Metrics metrics = new NoOpMetrics();
+    /**
+     * Build an event creator for a node, with the given configuration and metrics.
+     */
+    @NonNull
+    public static EventCreator buildEventCreator(
+            @NonNull final Random random,
+            @NonNull final Time time,
+            @NonNull final RosterWrapper roster,
+            @NonNull final NodeId nodeId,
+            @NonNull final EventTransactionSupplier transactionSupplier,
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics) {
 
         final BytesSigner signer = mock(BytesSigner.class);
         when(signer.sign(any()))
@@ -87,15 +98,9 @@ public class TipsetEventCreatorTestUtils {
         // Set a fixed seed for deterministic output
         secureRandom.setSeed(random.nextLong());
 
+        final DefaultTipsetTracker tipsetTracker = new DefaultTipsetTracker(time, nodeId, roster);
         return new TipsetEventCreator(
-                configuration,
-                metrics,
-                time,
-                secureRandom,
-                signer,
-                RosterWrapper.of(pbjRoster),
-                nodeId,
-                transactionSupplier);
+                configuration, metrics, time, secureRandom, signer, roster, nodeId, transactionSupplier, tipsetTracker);
     }
 
     /**
@@ -105,10 +110,9 @@ public class TipsetEventCreatorTestUtils {
     public static Map<NodeId, SimulatedNode> buildSimulatedNodes(
             @NonNull final Random random,
             @NonNull final Time time,
-            @NonNull final Roster pbjRoster,
+            @NonNull final RosterWrapper roster,
             @NonNull final EventTransactionSupplier transactionSupplier) {
 
-        final RosterWrapper roster = RosterWrapper.of(pbjRoster);
         final Map<NodeId, SimulatedNode> eventCreators = new HashMap<>();
         final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
         final Metrics metrics = new NoOpMetrics();
@@ -116,13 +120,12 @@ public class TipsetEventCreatorTestUtils {
         for (final RosterEntryWrapper address : roster.rosterEntries()) {
 
             final NodeId selfId = address.nodeId();
-            final EventCreator eventCreator =
-                    buildEventCreator(random, time, pbjRoster, selfId, transactionSupplier, 1);
+            final EventCreator eventCreator = buildEventCreator(random, time, roster, selfId, transactionSupplier, 1);
 
             // Set a wide event window so that no events get stuck in the Future Event Buffer
             eventCreator.setEventWindow(EventWindow.getGenesisEventWindow());
 
-            final TipsetTracker tipsetTracker = new TipsetTracker(time, selfId, roster);
+            final DefaultTipsetTracker tipsetTracker = new DefaultTipsetTracker(time, selfId, roster);
 
             final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
             final TipsetWeightCalculator tipsetWeightCalculator = new TipsetWeightCalculator(

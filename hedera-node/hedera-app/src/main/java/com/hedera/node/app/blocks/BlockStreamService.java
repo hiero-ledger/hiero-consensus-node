@@ -26,8 +26,12 @@ public class BlockStreamService implements Service {
      * The block stream manager increments the previous number when starting a block; so to start
      * the genesis block number at {@code 0}, we set the "previous" number to {@code -1}.
      */
-    public static final BlockStreamInfo GENESIS_BLOCK_STREAM_INFO =
-            BlockStreamInfo.newBuilder().blockNumber(-1).build();
+    public static final BlockStreamInfo GENESIS_BLOCK_STREAM_INFO = BlockStreamInfo.newBuilder()
+            .blockNumber(-1)
+            // A genesis window is seeded empty and grows at the active digest's native size from its first entry (no
+            // genuine pre-cutover 48-byte hash ever enters it), so it is "compacted" (native-stride) from the start.
+            .trailingBlockHashesCompacted(true)
+            .build();
 
     public static final String NAME = "BlockStreamService";
 

@@ -6,6 +6,7 @@ import com.hedera.cryptography.libsecp256k1.Libsecp256k1;
 import com.hedera.cryptography.libxkcp.Libxkcp;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.lang.foreign.MemorySegment;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
 public class MiscCryptoUtils {
@@ -102,6 +103,10 @@ public class MiscCryptoUtils {
 
     public static Bytes keccak256DigestOf(final Bytes msg) {
         return Bytes.wrap(keccak256DigestOf(msg.toMemorySegment()));
+    }
+
+    public static byte[] keccak256DigestOf(final String msg) {
+        return keccak256DigestOf(msg.getBytes(StandardCharsets.UTF_8));
     }
 
     /**

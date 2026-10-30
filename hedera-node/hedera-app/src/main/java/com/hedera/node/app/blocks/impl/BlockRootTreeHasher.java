@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
-import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.MerkleSiblingHash;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.security.MessageDigest;
+import org.hiero.base.crypto.DigestType;
 
 /**
  * Builds the block root tree from its {@link #SLOT_COUNT} branches.
@@ -16,7 +17,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  *     blockRootHash = hashInternalNode( hashLeaf(consensusTimestamp), subtreesRootHash )
  * </pre>
  * where {@code subtreesRootHash} is the root over all {@link #SLOT_COUNT} pre-hashed branch roots. A branch
- * with no leaves contributes {@link #EMPTY_SUBTREE}.
+ * with no leaves contributes {@link #emptySubtree()}, the leaf hash of no data.
  *
  * <p>Because the branch count is a power of two, every branch sits at the same depth in every block. Proof
  * generation relies on this: a branch's path to the root is fixed regardless of which branches are empty.
@@ -35,7 +36,7 @@ public interface BlockRootTreeHasher {
 
     /**
      * The number of branches carrying data. Branches 9-16 are reserved and contribute
-     * {@link #EMPTY_SUBTREE}; assigning one changes only that branch's value, leaving the shape and every
+     * {@link #emptySubtree()}; assigning one changes only that branch's value, leaving the shape and every
      * other branch's path untouched.
      */
     int ASSIGNED_SLOT_COUNT = 8;
@@ -43,8 +44,43 @@ public interface BlockRootTreeHasher {
     /** The number of sibling hashes on the path from branch 1 to the block root, one per level. */
     int SIBLING_COUNT = Integer.numberOfTrailingZeros(SLOT_COUNT);
 
-    /** The hash of an empty branch, {@code sha384(0x00)}. */
-    Bytes EMPTY_SUBTREE = HASH_OF_ZERO;
+    /**
+     * The hash of an empty branch under the given digest, {@code hash(0x00)}. Equivalent to
+     * {@code BlockImplUtils.hashLeaf(digest, Bytes.EMPTY)} — an empty branch is the leaf hash of no data.
+     *
+     * @param digest the digest to hash with; must be freshly reset (no pending buffered updates)
+     * @return the empty-branch hash for that digest
+     */
+    static Bytes emptySubtreeFor(@NonNull final MessageDigest digest) {
+        requireNonNull(digest);
+        return BlockImplUtils.hashLeaf(digest, Bytes.EMPTY);
+    }
+
+    /**
+     * The hash of an empty branch under the given digest type, {@code hash(0x00)}.
+     *
+     * @param digestType the digest type to hash with
+     * @return the empty-branch hash for that digest type
+     */
+    static Bytes emptySubtreeFor(@NonNull final DigestType digestType) {
+        return emptySubtreeFor(requireNonNull(digestType).buildDigest());
+    }
+
+    /**
+     * The digest type this hasher builds the tree with.
+     *
+     * @return the digest type
+     */
+    @NonNull
+    DigestType digestType();
+
+    /**
+     * The hash of an empty branch under this hasher's digest type.
+     *
+     * @return the empty-branch hash
+     */
+    @NonNull
+    Bytes emptySubtree();
 
     /** A block's root hash together with the sibling hashes on the path from branch 1 up to the root. */
     record RootAndSiblingHashes(Bytes blockRootHash, MerkleSiblingHash[] siblingHashes) {}
@@ -65,7 +101,7 @@ public interface BlockRootTreeHasher {
      *
      * @param timestampLeafHash the already-hashed timestamp leaf, {@code hashLeaf(Timestamp.PROTOBUF.toBytes(ts))}
      * @param slots all {@link #SLOT_COUNT} branch roots, each already hashed as a leaf or an internal node
-     *              and so not hashed again here; use {@link #EMPTY_SUBTREE} for a branch with no leaves
+     *              and so not hashed again here; use {@link #emptySubtree()} for a branch with no leaves
      * @return the block root hash and the sibling hashes on branch 1's path
      */
     RootAndSiblingHashes computeRootAndSiblings(@NonNull Bytes timestampLeafHash, @NonNull Bytes... slots);
@@ -98,7 +134,7 @@ public interface BlockRootTreeHasher {
                     "Expected exactly %d branch roots but got %d".formatted(SLOT_COUNT, slots.length));
         }
         for (int i = 0; i < slots.length; i++) {
-            requireNonNull(slots[i], "Branch " + (i + 1) + " must not be null; use EMPTY_SUBTREE for an empty branch");
+            requireNonNull(slots[i], "Branch " + (i + 1) + " must not be null; use emptySubtree() for an empty branch");
         }
     }
 }

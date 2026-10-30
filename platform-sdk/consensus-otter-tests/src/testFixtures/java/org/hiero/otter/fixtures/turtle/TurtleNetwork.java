@@ -20,6 +20,7 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.otter.fixtures.InstrumentedNode;
+import org.hiero.otter.fixtures.MiniNode;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
 import org.hiero.otter.fixtures.internal.simulator.SimulatedNetwork;
@@ -108,6 +109,15 @@ public class TurtleNetwork extends SimulatedNetwork implements TimeTickReceiver 
                 outputDir,
                 networkConfiguration,
                 consensusRoundPool);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    protected MiniNode doCreateMiniNode(@NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
+        throw new UnsupportedOperationException("MiniNode is currently not supported in TurtleNetwork");
     }
 
     /**

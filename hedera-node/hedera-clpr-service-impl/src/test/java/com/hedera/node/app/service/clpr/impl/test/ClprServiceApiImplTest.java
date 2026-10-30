@@ -89,7 +89,6 @@ class ClprServiceApiImplTest {
             .enabled(true)
             .chainId("hiero:localnetb")
             .slashBasePenalty(1_000_000L)
-            .discoveryIntervalSeconds(60)
             .build();
 
     @BeforeEach

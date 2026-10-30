@@ -19,7 +19,7 @@ import java.util.Objects;
  */
 @Deprecated
 @SuppressWarnings("Singleton")
-public class TestLongCodec implements Codec<Long> {
+public class TestLongCodec extends Codec<Long> {
 
     public static final TestLongCodec SINGLETON = new TestLongCodec();
 
@@ -34,7 +34,7 @@ public class TestLongCodec implements Codec<Long> {
 
     @NonNull
     @Override
-    public Long parse(
+    protected Long parseImpl(
             @NonNull ReadableSequentialData input,
             boolean strictMode,
             boolean parseUnknownFields,
@@ -45,36 +45,15 @@ public class TestLongCodec implements Codec<Long> {
         return Long.valueOf(input.readLong());
     }
 
-    @NonNull
     @Override
-    public Long parse(@NonNull final ReadableSequentialData input, final boolean strictMode, final int maxDepth)
-            throws ParseException {
-        Objects.requireNonNull(input);
-        return Long.valueOf(input.readLong());
-    }
-
-    @Override
-    public void write(@NonNull Long value, @NonNull WritableSequentialData output) {
+    protected void writeImpl(@NonNull Long value, @NonNull WritableSequentialData output) {
         Objects.requireNonNull(value);
         Objects.requireNonNull(output);
         output.writeLong(value);
     }
 
     @Override
-    public int measure(@Nullable ReadableSequentialData input) {
-        return Long.BYTES;
-    }
-
-    @Override
     public int measureRecord(@Nullable Long aLong) {
         return Long.BYTES;
-    }
-
-    @Override
-    public boolean fastEquals(@NonNull final Long value, @NonNull final ReadableSequentialData input)
-            throws ParseException {
-        Objects.requireNonNull(value);
-        Objects.requireNonNull(input);
-        return value.equals(parse(input));
     }
 }

@@ -114,7 +114,7 @@ public class FakeHistoryService implements HistoryService {
     }
 
     @Override
-    public Bytes historyProofVerificationKey() {
-        return delegate.historyProofVerificationKey();
+    public @NonNull Bytes ledgerIdOf(@NonNull final HistoryProof proof) {
+        return delegate.ledgerIdOf(proof);
     }
 }

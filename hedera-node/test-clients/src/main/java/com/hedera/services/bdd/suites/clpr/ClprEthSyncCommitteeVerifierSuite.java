@@ -32,11 +32,9 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.SpecOperation;
-import com.hederahashgraph.api.proto.java.ClprEndpoint;
 import com.hederahashgraph.api.proto.java.ClprLedgerConfiguration;
 import com.hederahashgraph.api.proto.java.ClprMessage;
 import com.hederahashgraph.api.proto.java.ClprMessagePayload;
-import com.hederahashgraph.api.proto.java.ClprServiceEndpoint;
 import com.hederahashgraph.api.proto.java.ClprSignatureScheme;
 import com.hederahashgraph.api.proto.java.ClprThrottles;
 import com.hederahashgraph.api.proto.java.ContractID;
@@ -233,7 +231,7 @@ public class ClprEthSyncCommitteeVerifierSuite {
 
     /**
      * A bundle carrying a higher-version endpoint manifest (spec §4.9) advances the Channel's cached manifest via
-     * Step-1b. The channel opens at version 1 (the config-synthesized manifest); the bundle proves a version-2
+     * Step-1b. The channel opens at version 0 (the uninitialized manifest); the bundle proves a version-2
      * manifest at the commitment slot (18) and, when applied, updates {@code endpoint_manifest} / {@code
      * endpoint_manifest_version} while also delivering message #1.
      */
@@ -247,12 +245,13 @@ public class ClprEthSyncCommitteeVerifierSuite {
         final byte[] advanceManifest = EthSyncCommitteeProofs.manifestBytes(2L, 2);
 
         return hapiTest(flattened(
-                // completeChannel with an empty endpoint_manifest_proof_bytes synthesizes a version-1 manifest
-                // from the config endpoints, so the channel opens at manifest version 1.
+                // completeChannel with an empty endpoint_manifest_proof_bytes returns the uninitialized manifest
+                // (version 0, no endpoints), so the channel opens at manifest version 0.
                 setupChannelWithEthereumVerifier(crypto, EthSyncCommitteeProofs.configPayload()),
                 withOpContext((spec, opLog) -> {
                     final var conn = readChannelFromState(spec, crypto);
-                    assertEquals(1L, conn.endpointManifestVersion(), "channel opens at synthesized manifest v1");
+                    assertEquals(0L, conn.endpointManifestVersion(), "channel opens at uninitialized manifest v0");
+                    assertManifestEndpoints(conn, 0);
                 }),
                 clprSubmitBundle()
                         .channelId(crypto.channelId())
@@ -401,13 +400,6 @@ public class ClprEthSyncCommitteeVerifierSuite {
                         .setMaxGasPerMessage(1_000_000L)
                         .setMaxQueueDepth(1000)
                         .setMaxSyncBytes(1_048_576L)
-                        .build())
-                .addEndpoints(ClprEndpoint.newBuilder()
-                        .setServiceEndpoint(ClprServiceEndpoint.newBuilder()
-                                .setIpAddress("127.0.0.1")
-                                .setPort(50211)
-                                .build())
-                        .setTlsCertificate(ByteString.copyFrom(new byte[] {0x01}))
                         .build())
                 .build();
     }

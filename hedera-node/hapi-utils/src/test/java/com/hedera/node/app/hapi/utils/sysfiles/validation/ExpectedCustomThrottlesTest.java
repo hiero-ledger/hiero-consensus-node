@@ -7,7 +7,6 @@ import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprCloseCh
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprCompleteChannel;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprDeregisterConnector;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprGetLedgerConfiguration;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprRedactMessage;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprRegisterChannel;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprRegisterConnector;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprSubmitBundle;
@@ -28,7 +27,6 @@ import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoAppro
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoCreate;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoDelete;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoDeleteAllowance;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoGetAccountBalance;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoGetAccountRecords;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoGetInfo;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoTransfer;
@@ -78,7 +76,7 @@ class ExpectedCustomThrottlesTest {
     // Suppress the warning that we use too many assets
     @SuppressWarnings("java:S5961")
     void releaseTwentyHasExpected() {
-        assertEquals(65, ACTIVE_OPS.size());
+        assertEquals(63, ACTIVE_OPS.size());
 
         assertTrue(ACTIVE_OPS.contains(CryptoCreate), "Missing CryptoCreate!");
         assertTrue(ACTIVE_OPS.contains(CryptoTransfer), "Missing CryptoTransfer!");
@@ -124,7 +122,6 @@ class ExpectedCustomThrottlesTest {
         assertTrue(ACTIVE_OPS.contains(ContractGetInfo), "Missing ContractGetInfo!");
         assertTrue(ACTIVE_OPS.contains(ContractGetBytecode), "Missing ContractGetBytecode!");
         assertTrue(ACTIVE_OPS.contains(ContractGetRecords), "Missing ContractGetRecords!");
-        assertTrue(ACTIVE_OPS.contains(CryptoGetAccountBalance), "Missing CryptoGetAccountBalance!");
         assertTrue(ACTIVE_OPS.contains(CryptoGetAccountRecords), "Missing CryptoGetAccountRecords!");
         assertTrue(ACTIVE_OPS.contains(CryptoGetInfo), "Missing CryptoGetInfo!");
         assertTrue(ACTIVE_OPS.contains(FileGetContents), "Missing FileGetContents!");
@@ -142,7 +139,6 @@ class ExpectedCustomThrottlesTest {
         assertTrue(ACTIVE_OPS.contains(ClprCloseChannel), "Missing ClprCloseChannel!");
         assertTrue(ACTIVE_OPS.contains(ClprGetLedgerConfiguration), "Missing ClprGetLedgerConfiguration!");
         assertTrue(ACTIVE_OPS.contains(ClprSubmitBundle), "Missing ClprSubmitBundle!");
-        assertTrue(ACTIVE_OPS.contains(ClprRedactMessage), "Missing ClprRedactMessage!");
         assertTrue(ACTIVE_OPS.contains(ClprRegisterConnector), "Missing ClprRegisterConnector!");
         assertTrue(ACTIVE_OPS.contains(ClprDeregisterConnector), "Missing ClprDeregisterConnector!");
     }

@@ -9,8 +9,10 @@ import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.ass
 import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.doAnswer;
@@ -41,7 +43,9 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -105,7 +109,7 @@ class MerkleDbCompactionCoordinatorTest {
         final GarbageScanner scanner = mock(GarbageScanner.class);
         final CountDownLatch scanStarted = new CountDownLatch(1);
         final CountDownLatch releaseScan = new CountDownLatch(1);
-        when(scanner.scan()).thenAnswer(_ -> {
+        when(scanner.scan(any())).thenAnswer(_ -> {
             scanStarted.countDown();
             releaseScan.await(5, TimeUnit.SECONDS);
             return new IndexedGarbageFileStats(0, new GarbageFileStats[0]);
@@ -118,7 +122,9 @@ class MerkleDbCompactionCoordinatorTest {
         coordinator.submitScanIfNotRunning(ID_TO_HASH_CHUNK, scanner);
 
         assertEventuallyDoesNotThrow(
-                () -> verify(scanner, times(1)).scan(), Duration.ofSeconds(1), "Duplicate scanner task was submitted");
+                () -> verify(scanner, times(1)).scan(any()),
+                Duration.ofSeconds(1),
+                "Duplicate scanner task was submitted");
 
         releaseScan.countDown();
     }
@@ -359,6 +365,43 @@ class MerkleDbCompactionCoordinatorTest {
             assertFalse(coordinator.isCompactionEnabled(), "Compaction should be disabled");
         } finally {
             releaseTask.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void testStopAndDisableStopsRunningScan() throws Exception {
+        // A scan that runs until it's told to stop, like a full scan of a very large index
+        final GarbageScanner scanner = mock(GarbageScanner.class);
+        final CountDownLatch scanStarted = new CountDownLatch(1);
+        final AtomicBoolean scanStopped = new AtomicBoolean(false);
+        when(scanner.scan(any())).thenAnswer(invocation -> {
+            final BooleanSupplier keepScanning = invocation.getArgument(0);
+            scanStarted.countDown();
+            final long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+            while (System.nanoTime() < deadline) {
+                if (!keepScanning.getAsBoolean()) {
+                    scanStopped.set(true);
+                    return null;
+                }
+                Thread.sleep(1);
+            }
+            return new IndexedGarbageFileStats(0, new GarbageFileStats[0]);
+        });
+
+        coordinator.submitScanIfNotRunning(ID_TO_HASH_CHUNK, scanner);
+        assertTrue(scanStarted.await(1, TimeUnit.SECONDS), "Scanner task wasn't started");
+
+        final ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            final Future<?> stopFuture = executor.submit(() -> coordinator.stopAndDisableBackgroundCompaction(true));
+            // This call waits for all tasks to complete. Without stopping the scan, it would wait for the
+            // scan to finish, up to 10 seconds here
+            stopFuture.get(1, TimeUnit.SECONDS);
+            assertTrue(scanStopped.get(), "Scan should be stopped");
+            assertNull(getScanStats(ID_TO_HASH_CHUNK), "A stopped scan shouldn't publish results");
+            assertFalse(coordinator.isCompactionEnabled(), "Compaction should be disabled");
+        } finally {
             executor.shutdownNow();
         }
     }
@@ -1041,13 +1084,20 @@ class MerkleDbCompactionCoordinatorTest {
     // Helper methods
     // ========================================================================
 
-    @SuppressWarnings("unchecked")
     private void publishScanStats(final String storeName, final IndexedGarbageFileStats stats) {
+        scanStatsByStore().put(storeName, stats);
+    }
+
+    private IndexedGarbageFileStats getScanStats(final String storeName) {
+        return scanStatsByStore().get(storeName);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, IndexedGarbageFileStats> scanStatsByStore() {
         try {
             final var field = MerkleDbCompactionCoordinator.class.getDeclaredField("scanStatsByStore");
             field.setAccessible(true);
-            final var map = (Map<String, IndexedGarbageFileStats>) field.get(coordinator);
-            map.put(storeName, stats);
+            return (Map<String, IndexedGarbageFileStats>) field.get(coordinator);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

@@ -97,7 +97,7 @@ public class ReconnectCoordinator {
         buildingBlocks.eventIntakeModule().clearComponentsInputWire().inject(NoInput.getInstance());
         buildingBlocks.gossipModule().clearInputWire().inject(NoInput.getInstance());
         buildingBlocks.stateModule().clearInputWire().inject(NoInput.getInstance());
-        buildingBlocks.eventCreatorModule().clearCreationMangerInputWire().inject(NoInput.getInstance());
+        buildingBlocks.eventCreatorModule().clearCreationManagerInputWire().inject(NoInput.getInstance());
     }
 
     /**

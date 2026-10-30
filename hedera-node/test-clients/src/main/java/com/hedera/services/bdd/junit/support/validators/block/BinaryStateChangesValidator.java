@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.regex.Pattern;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Mnemonics;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.PathsConfig;
@@ -53,7 +54,7 @@ import org.junit.jupiter.api.Assertions;
 public class BinaryStateChangesValidator implements BlockStreamValidator {
 
     private static final Logger logger = LogManager.getLogger(BinaryStateChangesValidator.class);
-    private static final int HASH_SIZE = 48;
+    private static final int HASH_SIZE = Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
     private static final Pattern NUMBER_PATTERN = Pattern.compile("\\d+");
 
     private final Bytes expectedRootHashBytes;

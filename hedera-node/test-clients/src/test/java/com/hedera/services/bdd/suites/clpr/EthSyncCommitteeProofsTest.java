@@ -7,6 +7,7 @@ import com.esaulpaugh.headlong.rlp.RLPDecoder;
 import com.esaulpaugh.headlong.rlp.RLPItem;
 import com.esaulpaugh.headlong.rlp.RLPList;
 import com.google.protobuf.ByteString;
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hederahashgraph.api.proto.java.ClprChannelStatus;
 import com.hederahashgraph.api.proto.java.ClprMessage;
 import com.hederahashgraph.api.proto.java.ClprMessagePayload;
@@ -63,7 +64,7 @@ class EthSyncCommitteeProofsTest {
         final byte[] accountValue = walk(
                 executionStateRoot,
                 accountNodes,
-                EthSyncCommitteeProofs.keccak256(EthSyncCommitteeProofs.SERVICE_ADDRESS));
+                MiscCryptoUtils.keccak256DigestOf(EthSyncCommitteeProofs.SERVICE_ADDRESS));
         assertThat(accountValue).as("account must be present in state trie").isNotNull();
         final byte[] storageRoot = topList(accountValue).elements().get(2).data();
 
@@ -75,7 +76,7 @@ class EthSyncCommitteeProofsTest {
             final List<RLPItem> entry = entries.get(i).asRLPList().elements();
             final byte[] key = entry.get(0).data();
             final List<byte[]> nodes = rawList(entry.get(1));
-            final byte[] proven = walk(storageRoot, nodes, EthSyncCommitteeProofs.keccak256(leftPad32(key)));
+            final byte[] proven = walk(storageRoot, nodes, MiscCryptoUtils.keccak256DigestOf(leftPad32(key)));
             slotValues[i] = proven == null ? new byte[32] : leftPad32(topItemBytes(proven));
         }
 
@@ -94,7 +95,7 @@ class EthSyncCommitteeProofsTest {
     private static byte[] walk(final byte[] root, final List<byte[]> nodes, final byte[] keyHash) {
         final Map<String, byte[]> byHash = new HashMap<>();
         for (final byte[] n : nodes) {
-            byHash.put(hex(EthSyncCommitteeProofs.keccak256(n)), n);
+            byHash.put(hex(MiscCryptoUtils.keccak256DigestOf(n)), n);
         }
         final int[] path = nibbles(keyHash);
         int pi = 0;

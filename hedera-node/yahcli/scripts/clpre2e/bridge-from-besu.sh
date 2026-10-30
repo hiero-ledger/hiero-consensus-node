@@ -273,10 +273,10 @@ yh "update-ledger-configuration on ${NET}" "${LOG_DIR}/01-update-cfg.log" \
     clpr update-ledger-configuration --config-file "${CONFIG_LOCAL}"
 
 # ─── [2/9] Build Besu QBFT config payload → config-proof hex ──────────────
-header "[2/9] build Besu QBFT config proof (with throttles + seed endpoints from on-chain)"
+header "[2/9] build Besu QBFT config proof (with throttles from on-chain)"
 
 # Fetch the live LedgerConfiguration from Besu. cast renders it as a nested
-# tuple, including the throttles 7-tuple and the seed-endpoints list. The
+# tuple, including the throttles 7-tuple. The
 # Python helper below shells the parsing because regex over arbitrarily-nested
 # tuples in pure bash is fragile.
 step "cast call getLedgerConfiguration() on ${BESU_RPC}"
@@ -285,31 +285,15 @@ LEDGER_CFG_RAW="$(cast call "${CLPR_SERVICE}" \
     --rpc-url "${BESU_RPC}" 2>/dev/null || true)"
 [[ -n "${LEDGER_CFG_RAW}" ]] || die "cast call getLedgerConfiguration() returned nothing — Besu down or wrong address?"
 
-# Derive the deployer's uncompressed secp256k1 public key for use as the
-# fallback seed-endpoint signing key when Besu's endpoints list is empty
-# (typical for the dev e2e setup, which deploys CLPR but never calls
-# registerEndpoint). Hiero needs at least one endpoint with a valid signing
-# key so the verifier can authenticate inbound bundles.
-DEPLOYER_PUBKEY="$(cast wallet public-key --private-key "${PRIVATE_KEY}" 2>/dev/null || true)"
-
-# Allow overrides for the synthetic endpoint (used only if Besu has no
-# real endpoints registered). Default port 9545 matches the local
-# clpr-evm-endpoint relay's gRPC listener (see clpr-evm-endpoint/script/
-# run-from-state.sh — same value the relay binds to), so the bridge points
-# the Hiero peer at a real, reachable local endpoint by default.
-FALLBACK_EP_IP="${FALLBACK_EP_IP:-127.0.0.1}"
-FALLBACK_EP_PORT="${FALLBACK_EP_PORT:-9545}"
-FALLBACK_EP_KEY="${FALLBACK_EP_KEY:-${DEPLOYER_PUBKEY}}"
-
 LEDGER_CFG_JSON="${SCRIPT_DIR}/.bridge/besu-ledger-config.json"
-python3 - "${LEDGER_CFG_RAW}" "${FALLBACK_EP_IP}" "${FALLBACK_EP_PORT}" "${FALLBACK_EP_KEY}" "${LEDGER_CFG_JSON}" <<'PYEOF'
+python3 - "${LEDGER_CFG_RAW}" "${LEDGER_CFG_JSON}" <<'PYEOF'
 """Parse cast's tuple rendering of getLedgerConfiguration() and dump a JSON
 file matching the shape build-besu-qbft-config-payload.py expects under
---config-json. Synthesizes a fallback seed endpoint when Besu's list is empty.
+--config-json.
 """
 import json, re, sys
 
-raw, fb_ip, fb_port, fb_key, out_path = sys.argv[1:6]
+raw, out_path = sys.argv[1:3]
 
 # cast wraps numeric values >2**53 with "[1.779e18]" scientific-notation hints;
 # strip them so the rest of the parsing only sees the bare integers.
@@ -339,34 +323,8 @@ throttles = {
     "max_bundles_per_sec":       int(m.group(7)),
 }
 
-# Seed endpoints: the trailing `[...]` after the throttles tuple. We don't try
-# to deep-parse non-empty arrays here — the dev e2e flow always leaves it empty,
-# and the synthetic endpoint below is sufficient for that case. Operators with
-# real on-chain endpoints can pre-build their own --config-json and skip this
-# script's auto-fetch path.
-endpoints_section = cleaned[m.end():]
-endpoints = []
-if '[]' not in endpoints_section:
-    print('WARNING: on-chain endpoints is non-empty; this script only auto-handles the empty case. '
-          'Falling back to synthetic endpoint anyway.', file=sys.stderr)
-
-if not endpoints:
-    key = fb_key.strip()
-    if key.startswith('0x') or key.startswith('0X'):
-        key = key[2:]
-    endpoints = [{
-        "ip_address": fb_ip,
-        "port": int(fb_port),
-        "tls_certificate": "",
-        "ecdsa_signing_key": "0x" + key,
-        "account_id": "",
-    }]
-    print(f'note: synthesized 1 fallback seed endpoint at {fb_ip}:{fb_port} '
-          f'with deployer-pubkey signing key (use FALLBACK_EP_* env to override)',
-          file=sys.stderr)
-
 with open(out_path, 'w') as f:
-    json.dump({"service_address": service_address, "throttles": throttles, "endpoints": endpoints}, f, indent=2)
+    json.dump({"service_address": service_address, "throttles": throttles}, f, indent=2)
 print(f'wrote {out_path}', file=sys.stderr)
 PYEOF
 

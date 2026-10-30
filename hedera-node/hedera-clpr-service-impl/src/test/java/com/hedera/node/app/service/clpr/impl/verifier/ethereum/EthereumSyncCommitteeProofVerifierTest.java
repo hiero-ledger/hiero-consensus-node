@@ -13,6 +13,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.hedera.hapi.node.state.clpr.ClprEndpoint;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.service.clpr.impl.verifier.BlsSignatureVerifier;
 import com.hedera.node.app.service.clpr.impl.verifier.ProofException;
 import com.hedera.node.app.service.clpr.impl.verifier.Rlp;
@@ -22,7 +23,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HexFormat;
 import java.util.List;
-import org.bouncycastle.crypto.digests.KeccakDigest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -31,7 +31,7 @@ class EthereumSyncCommitteeProofVerifierTest {
 
     private static final HexFormat HEX = HexFormat.of();
 
-    // keccak256(RLP(empty)) — the canonical empty MPT root
+    // MiscCryptoUtils.keccak256DigestOf(RLP(empty)) — the canonical empty MPT root
     private static final byte[] EMPTY_TRIE_ROOT =
             HEX.parseHex("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421");
 
@@ -504,7 +504,8 @@ class EthereumSyncCommitteeProofVerifierTest {
             @Test
             void emptyManifestReconstructed() {
                 byte[] bytes = serializeManifest(manifest(1L, 0));
-                var builder = validPayloadBuilder().withManifest(bytes, manifestSlot(), keccak256(bytes));
+                var builder = validPayloadBuilder()
+                        .withManifest(bytes, manifestSlot(), MiscCryptoUtils.keccak256DigestOf(bytes));
                 var result = verifier(new FakeBls()).verifyBundle(builder.build(), TRUST_ANCHOR);
                 assertThat(result.newEndpointManifest()).isEqualTo(manifest(1L, 0));
                 assertThat(result.newEndpointManifest().endpoints()).isEmpty();
@@ -513,7 +514,8 @@ class EthereumSyncCommitteeProofVerifierTest {
             @Test
             void singleEndpointManifestReconstructed() {
                 byte[] bytes = serializeManifest(manifest(2L, 1));
-                var builder = validPayloadBuilder().withManifest(bytes, manifestSlot(), keccak256(bytes));
+                var builder = validPayloadBuilder()
+                        .withManifest(bytes, manifestSlot(), MiscCryptoUtils.keccak256DigestOf(bytes));
                 var result = verifier(new FakeBls()).verifyBundle(builder.build(), TRUST_ANCHOR);
                 assertThat(result.newEndpointManifest()).isEqualTo(manifest(2L, 1));
             }
@@ -521,7 +523,8 @@ class EthereumSyncCommitteeProofVerifierTest {
             @Test
             void manyEndpointManifestReconstructed() {
                 byte[] bytes = serializeManifest(manifest(5L, 3));
-                var builder = validPayloadBuilder().withManifest(bytes, manifestSlot(), keccak256(bytes));
+                var builder = validPayloadBuilder()
+                        .withManifest(bytes, manifestSlot(), MiscCryptoUtils.keccak256DigestOf(bytes));
                 var result = verifier(new FakeBls()).verifyBundle(builder.build(), TRUST_ANCHOR);
                 assertThat(result.newEndpointManifest().endpoints()).hasSize(3);
             }
@@ -538,7 +541,8 @@ class EthereumSyncCommitteeProofVerifierTest {
             @Test
             void wrongCommitmentSlotThrowsProofException() {
                 byte[] bytes = serializeManifest(manifest(1L, 0));
-                var builder = validPayloadBuilder().withManifest(bytes, manifestSlot(), keccak256(bytes));
+                var builder = validPayloadBuilder()
+                        .withManifest(bytes, manifestSlot(), MiscCryptoUtils.keccak256DigestOf(bytes));
                 // Point the manifest entry at a slot other than the pinned commitment slot.
                 builder.manifestStorageEntry = storageEntry(slotKey(0x13), List.of(new byte[] {0x01}));
                 assertThatThrownBy(() -> verifier(new FakeBls()).verifyBundle(builder.build(), TRUST_ANCHOR))
@@ -550,7 +554,8 @@ class EthereumSyncCommitteeProofVerifierTest {
             void commitmentSlotAbsentFromTrieThrowsProofException() {
                 byte[] bytes = serializeManifest(manifest(1L, 0));
                 // Storage trie proves a different slot, so the commitment slot resolves to absent.
-                var builder = validPayloadBuilder().withManifest(bytes, slotKey(0x00), keccak256(bytes));
+                var builder = validPayloadBuilder()
+                        .withManifest(bytes, slotKey(0x00), MiscCryptoUtils.keccak256DigestOf(bytes));
                 assertThatThrownBy(() -> verifier(new FakeBls()).verifyBundle(builder.build(), TRUST_ANCHOR))
                         .isInstanceOf(ProofException.class)
                         .hasMessageContaining("commitment slot absent from the storage trie");
@@ -559,7 +564,8 @@ class EthereumSyncCommitteeProofVerifierTest {
             @Test
             void manifestVersionZeroThrowsProofException() {
                 byte[] bytes = serializeManifest(manifest(0L, 0));
-                var builder = validPayloadBuilder().withManifest(bytes, manifestSlot(), keccak256(bytes));
+                var builder = validPayloadBuilder()
+                        .withManifest(bytes, manifestSlot(), MiscCryptoUtils.keccak256DigestOf(bytes));
                 assertThatThrownBy(() -> verifier(new FakeBls()).verifyBundle(builder.build(), TRUST_ANCHOR))
                         .isInstanceOf(ProofException.class)
                         .hasMessageContaining("version is 0");
@@ -569,7 +575,8 @@ class EthereumSyncCommitteeProofVerifierTest {
             void emptyManifestBytesTreatedAsNoAdvance() {
                 // Empty (non-null) manifest bytes mean "no manifest advance": the bundle must still verify and
                 // keep its messages, NOT fail with "version is 0" (parseStrict on empty yields version 0).
-                var builder = validPayloadBuilder().withManifest(new byte[0], manifestSlot(), keccak256(new byte[0]));
+                var builder = validPayloadBuilder()
+                        .withManifest(new byte[0], manifestSlot(), MiscCryptoUtils.keccak256DigestOf(new byte[0]));
                 var result = verifier(new FakeBls()).verifyBundle(builder.build(), TRUST_ANCHOR);
                 assertThat(result.newEndpointManifest()).isNull();
             }
@@ -580,7 +587,8 @@ class EthereumSyncCommitteeProofVerifierTest {
                         .version(1L)
                         .serviceAddress(Bytes.wrap(deterministicBytes(20, 0x77)))
                         .build());
-                var builder = validPayloadBuilder().withManifest(bytes, manifestSlot(), keccak256(bytes));
+                var builder = validPayloadBuilder()
+                        .withManifest(bytes, manifestSlot(), MiscCryptoUtils.keccak256DigestOf(bytes));
                 assertThatThrownBy(() -> verifier(new FakeBls()).verifyBundle(builder.build(), TRUST_ANCHOR))
                         .isInstanceOf(ProofException.class)
                         .hasMessageContaining("service_address does not match");
@@ -589,7 +597,8 @@ class EthereumSyncCommitteeProofVerifierTest {
             @Test
             void unknownFieldInManifestThrowsProofException() {
                 byte[] bytes = appendUnknownField(serializeManifest(manifest(1L, 0)));
-                var builder = validPayloadBuilder().withManifest(bytes, manifestSlot(), keccak256(bytes));
+                var builder = validPayloadBuilder()
+                        .withManifest(bytes, manifestSlot(), MiscCryptoUtils.keccak256DigestOf(bytes));
                 assertThatThrownBy(() -> verifier(new FakeBls()).verifyBundle(builder.build(), TRUST_ANCHOR))
                         .isInstanceOf(ProofException.class)
                         .hasMessageContaining("not a valid ClprEndpointManifest");
@@ -603,7 +612,8 @@ class EthereumSyncCommitteeProofVerifierTest {
             @Test
             void manifestOnlyBundleReturnsEmptyContentAndManifest() {
                 byte[] bytes = serializeManifest(manifest(3L, 1));
-                byte[] payload = manifestOnlyPayload(bytes, manifestSlot(), manifestSlot(), keccak256(bytes));
+                byte[] payload = manifestOnlyPayload(
+                        bytes, manifestSlot(), manifestSlot(), MiscCryptoUtils.keccak256DigestOf(bytes));
 
                 var result = verifier(new FakeBls()).verifyBundle(payload, TRUST_ANCHOR);
 
@@ -625,7 +635,8 @@ class EthereumSyncCommitteeProofVerifierTest {
                 FakeBls bls = new FakeBls();
                 bls.result = false;
                 byte[] bytes = serializeManifest(manifest(3L, 1));
-                byte[] payload = manifestOnlyPayload(bytes, manifestSlot(), manifestSlot(), keccak256(bytes));
+                byte[] payload = manifestOnlyPayload(
+                        bytes, manifestSlot(), manifestSlot(), MiscCryptoUtils.keccak256DigestOf(bytes));
                 assertThatThrownBy(() -> verifier(bls).verifyBundle(payload, TRUST_ANCHOR))
                         .isInstanceOf(ProofException.class)
                         .hasMessageContaining("BLS signature verification failed");
@@ -634,7 +645,7 @@ class EthereumSyncCommitteeProofVerifierTest {
             @Test
             void manifestOnlyBundleCommitmentMismatchThrows() {
                 byte[] bytes = serializeManifest(manifest(3L, 1));
-                // The proven slot value is not keccak256(manifestBytes).
+                // The proven slot value is not MiscCryptoUtils.keccak256DigestOf(manifestBytes).
                 byte[] payload =
                         manifestOnlyPayload(bytes, manifestSlot(), manifestSlot(), deterministicBytes(32, 0x99));
                 assertThatThrownBy(() -> verifier(new FakeBls()).verifyBundle(payload, TRUST_ANCHOR))
@@ -646,7 +657,8 @@ class EthereumSyncCommitteeProofVerifierTest {
             void manifestOnlyBundleWrongCommitmentSlotThrows() {
                 byte[] bytes = serializeManifest(manifest(3L, 1));
                 // The storage entry (and the slot it proves) is not the pinned commitment slot (18).
-                byte[] payload = manifestOnlyPayload(bytes, slotKey(0x13), slotKey(0x13), keccak256(bytes));
+                byte[] payload = manifestOnlyPayload(
+                        bytes, slotKey(0x13), slotKey(0x13), MiscCryptoUtils.keccak256DigestOf(bytes));
                 assertThatThrownBy(() -> verifier(new FakeBls()).verifyBundle(payload, TRUST_ANCHOR))
                         .isInstanceOf(ProofException.class)
                         .hasMessageContaining("not for the endpoint-manifest commitment slot");
@@ -655,7 +667,8 @@ class EthereumSyncCommitteeProofVerifierTest {
             @Test
             void manifestOnlyBundleVersionZeroThrows() {
                 byte[] bytes = serializeManifest(manifest(0L, 0));
-                byte[] payload = manifestOnlyPayload(bytes, manifestSlot(), manifestSlot(), keccak256(bytes));
+                byte[] payload = manifestOnlyPayload(
+                        bytes, manifestSlot(), manifestSlot(), MiscCryptoUtils.keccak256DigestOf(bytes));
                 assertThatThrownBy(() -> verifier(new FakeBls()).verifyBundle(payload, TRUST_ANCHOR))
                         .isInstanceOf(ProofException.class)
                         .hasMessageContaining("version is 0");
@@ -667,7 +680,8 @@ class EthereumSyncCommitteeProofVerifierTest {
                         .version(3L)
                         .serviceAddress(Bytes.wrap(deterministicBytes(20, 0x77)))
                         .build());
-                byte[] payload = manifestOnlyPayload(bytes, manifestSlot(), manifestSlot(), keccak256(bytes));
+                byte[] payload = manifestOnlyPayload(
+                        bytes, manifestSlot(), manifestSlot(), MiscCryptoUtils.keccak256DigestOf(bytes));
                 assertThatThrownBy(() -> verifier(new FakeBls()).verifyBundle(payload, TRUST_ANCHOR))
                         .isInstanceOf(ProofException.class)
                         .hasMessageContaining("service_address does not match");
@@ -679,8 +693,8 @@ class EthereumSyncCommitteeProofVerifierTest {
                 // empty/meaningless — the verifier rejects it. This is the §8.1.4 invariant: when both queue
                 // metadata and content are absent, the bundle MUST carry a manifest. Decoded as an ordinary
                 // 11-item bundle; there is no distinct manifest-only shape or path.
-                byte[] payload =
-                        manifestOnlyPayload(new byte[0], manifestSlot(), manifestSlot(), keccak256(new byte[0]));
+                byte[] payload = manifestOnlyPayload(
+                        new byte[0], manifestSlot(), manifestSlot(), MiscCryptoUtils.keccak256DigestOf(new byte[0]));
                 assertThatThrownBy(() -> verifier(new FakeBls()).verifyBundle(payload, TRUST_ANCHOR))
                         .isInstanceOf(ProofException.class)
                         .hasMessageContaining("no queue metadata, no content, and no endpoint-manifest advance");
@@ -1105,7 +1119,7 @@ class EthereumSyncCommitteeProofVerifierTest {
      * @return {@code [stateRoot32, leafNodeRlp]}
      */
     private static byte[][] buildAccountMptProof(byte[] contractAddr20, byte[] storageRoot32, byte[] codeHash32) {
-        byte[] accountKey32 = keccak256(contractAddr20);
+        byte[] accountKey32 = MiscCryptoUtils.keccak256DigestOf(contractAddr20);
         byte[] accountRlp = Rlp.encodeList(List.of(
                 Rlp.encodeUint(0L), Rlp.encodeUint(0L), Rlp.encodeBytes(storageRoot32), Rlp.encodeBytes(codeHash32)));
 
@@ -1115,7 +1129,7 @@ class EthereumSyncCommitteeProofVerifierTest {
         System.arraycopy(accountKey32, 0, hexPrefix, 1, 32);
 
         byte[] leafNode = Rlp.encodeList(List.of(Rlp.encodeBytes(hexPrefix), Rlp.encodeBytes(accountRlp)));
-        return new byte[][] {keccak256(leafNode), leafNode};
+        return new byte[][] {MiscCryptoUtils.keccak256DigestOf(leafNode), leafNode};
     }
 
     /**
@@ -1124,7 +1138,7 @@ class EthereumSyncCommitteeProofVerifierTest {
      * @return {@code [storageRoot32, leafNodeRlp]}
      */
     private static byte[][] buildStorageMptProof(byte[] storageSlotKey32, byte[] provenValue32) {
-        byte[] storageKeyHash = keccak256(storageSlotKey32);
+        byte[] storageKeyHash = MiscCryptoUtils.keccak256DigestOf(storageSlotKey32);
 
         byte[] hexPrefix = new byte[33];
         hexPrefix[0] = 0x20;
@@ -1133,14 +1147,6 @@ class EthereumSyncCommitteeProofVerifierTest {
         // The leaf value is Rlp(Rlp(bytes32)); decodeTrieStorageValueAsBytes32 peels one layer.
         byte[] encodedValue = Rlp.encodeBytes(provenValue32);
         byte[] leafNode = Rlp.encodeList(List.of(Rlp.encodeBytes(hexPrefix), Rlp.encodeBytes(encodedValue)));
-        return new byte[][] {keccak256(leafNode), leafNode};
-    }
-
-    private static byte[] keccak256(byte[] input) {
-        KeccakDigest digest = new KeccakDigest(256);
-        digest.update(input, 0, input.length);
-        byte[] out = new byte[32];
-        digest.doFinal(out, 0);
-        return out;
+        return new byte[][] {MiscCryptoUtils.keccak256DigestOf(leafNode), leafNode};
     }
 }

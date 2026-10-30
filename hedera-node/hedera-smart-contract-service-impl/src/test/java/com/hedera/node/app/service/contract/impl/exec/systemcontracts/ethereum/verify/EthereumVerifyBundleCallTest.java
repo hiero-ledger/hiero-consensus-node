@@ -261,6 +261,30 @@ class EthereumVerifyBundleCallTest extends CallTestBase {
         return new EthereumVerifyBundleCall(mockEnhancement(), gasCalculator, BUNDLE_PAYLOAD, TRUST_ANCHOR);
     }
 
+    @Test
+    void auditUnprovenRelayManifestIsIgnored() {
+        // A relay-supplied manifest must not escape when the proof authenticates no manifest.
+        final var injectedManifest = ClprEndpointManifest.newBuilder()
+                .version(999L)
+                .serviceAddress(Bytes.wrap(SERVICE_ADDR))
+                .build();
+        final var relayed = content(metadata(), Bytes.EMPTY, Bytes.EMPTY)
+                .copyBuilder()
+                .newEndpointManifest(injectedManifest)
+                .build();
+        final var proofResult = verified(relayed, null, null);
+        assertThat(proofResult.newEndpointManifest()).isNull();
+
+        try (final var ignored = mockVerifier(proofResult)) {
+            final var result = subject().execute(frame);
+            assertThat(result.responseCode()).isEqualTo(SUCCESS);
+            final Tuple output = ClprVerifierAbi.VERIFY_BUNDLE_RETURN.decode(
+                    result.fullResult().output().toArray());
+            final Tuple returnedManifest = output.get(4);
+            assertThat(returnedManifest).isEqualTo(ClprVerifierAbi.manifestStructTuple(ClprEndpointManifest.DEFAULT));
+        }
+    }
+
     private static VerifiedBundle verifiedWithManifest(
             final ClprBundleContent content, final ClprEndpointManifest manifest) {
         return VerifiedBundle.builder()

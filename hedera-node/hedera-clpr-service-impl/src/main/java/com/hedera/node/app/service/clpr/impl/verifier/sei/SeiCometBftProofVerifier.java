@@ -2,7 +2,6 @@
 package com.hedera.node.app.service.clpr.impl.verifier.sei;
 
 import static com.hedera.node.app.service.clpr.impl.verifier.evm.ProofBytes.endpointManifestCommitmentSlot;
-import static com.hedera.node.app.service.clpr.impl.verifier.evm.ProofBytes.keccak256;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
@@ -19,6 +18,7 @@ import com.hedera.hapi.node.state.clpr.SeiStorageProofEntry;
 import com.hedera.hapi.node.state.clpr.SeiTrustAnchor;
 import com.hedera.hapi.node.state.clpr.SeiValidatorEntry;
 import com.hedera.hapi.node.state.clpr.SeiValidatorSet;
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.service.clpr.impl.verifier.ProofException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -681,7 +681,7 @@ public final class SeiCometBftProofVerifier {
         SeiIcs23.verifyMembership(proof, SeiIcs23.IAVL_SPEC, storeRoot, key, value);
 
         // Bind the supplied preimage to the proven commitment: commitment = keccak256(preimage).
-        if (!Arrays.equals(keccak256(manifestPreimage), value)) {
+        if (!Arrays.equals(MiscCryptoUtils.keccak256DigestOf(manifestPreimage), value)) {
             throw ProofException.sei("endpoint_manifest preimage does not match the proven commitment (slot 18)");
         }
         final ClprEndpointManifest manifest;
@@ -1167,7 +1167,8 @@ public final class SeiCometBftProofVerifier {
      * @param endpointManifestBytes protobuf {@code ClprEndpointManifest} preimage proven by a
      *     config-path manifest proof; currently always empty for Sei (there is no config-path manifest
      *     proof producer yet — the real manifest advances via the bundle path, spec §4.2 Step 1b), so
-     *     the manifest-aware config selector uses a bring-up seed-fallback in {@code SeiVerifyConfigCall}
+     *     the manifest-aware config selector returns the uninitialized (version 0) manifest in
+     *     {@code SeiVerifyConfigCall}
      */
     public record VerifiedConfig(
             @NonNull ClprLedgerConfiguration ledgerConfiguration,

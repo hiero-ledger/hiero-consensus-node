@@ -6,6 +6,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.revertResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.successResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasOnly;
+import static java.util.Objects.requireNonNullElse;
 
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.AccountID;
@@ -54,7 +55,8 @@ public class ERCGrantApprovalCall extends AbstractGrantApprovalCall {
         if (tokenId == null) {
             return reversionWith(INVALID_TOKEN_ID, gasCalculator.canonicalGasRequirement(DispatchType.APPROVE));
         }
-        final var body = synthApprovalBody();
+        final var nftOwnerId = tokenType == TokenType.NON_FUNGIBLE_UNIQUE ? getMaybeOwnerId() : null;
+        final var body = synthApprovalBody(nftOwnerId);
         final var recordBuilder = systemContractOperations()
                 .dispatch(body, verificationStrategy, senderId, ContractCallStreamBuilder.class);
         final var status = withMonoStandard(recordBuilder).status();
@@ -63,8 +65,14 @@ public class ERCGrantApprovalCall extends AbstractGrantApprovalCall {
             return gasOnly(revertResult(recordBuilder, gasRequirement), status, false);
         } else {
             if (tokenType.equals(TokenType.NON_FUNGIBLE_UNIQUE)) {
+                // The owner of the NFT may differ from the sender when the sender is an approved-for-all operator
                 GrantApprovalLoggingUtils.logSuccessfulNFTApprove(
-                        tokenId, senderId, spenderId, amount, readableAccountStore(), frame);
+                        tokenId,
+                        requireNonNullElse(nftOwnerId, senderId),
+                        spenderId,
+                        amount,
+                        readableAccountStore(),
+                        frame);
             } else {
                 GrantApprovalLoggingUtils.logSuccessfulFTApprove(
                         tokenId, senderId, spenderId, amount, readableAccountStore(), frame);

@@ -12,6 +12,7 @@ import com.hedera.hapi.node.base.ResponseHeader;
 import com.hedera.hapi.node.clpr.ClprGetLedgerConfigurationResponse;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
+import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.hapi.utils.blocks.StateProofVerifier;
 import com.hedera.node.app.hapi.utils.blocks.TssVerifier;
 import com.hedera.node.app.service.clpr.ReadableLedgerConfigurationStore;
@@ -20,6 +21,7 @@ import com.hedera.node.app.spi.workflows.FreeQueryHandler;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.ClprConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -117,9 +119,20 @@ public class ClprGetLedgerConfigurationHandler extends FreeQueryHandler {
         }
         try {
             final var stateProof = StateProof.PROTOBUF.parseStrict(proofBytes.toReadableSequentialData());
+            // Verify with the digest the proof was built with (inferred from its hash lengths), which may
+            // differ from this node's current blockStream.digestType when the proof covers a block from before
+            // the node's own digest cutover; fall back to configuration when the proof carries no length signal.
+            final var inferredDigestType = StateProofVerifier.inferDigestType(stateProof);
+            final var digest = CommonUtils.digestOrThrow(
+                    inferredDigestType != null
+                            ? inferredDigestType
+                            : configProvider
+                                    .getConfiguration()
+                                    .getConfigData(BlockStreamConfig.class)
+                                    .digestType());
             // Throws IllegalStateException if any path is structurally invalid (bad sibling
             // counts, mismatched parent pointers, etc).
-            final byte[] rootHash = StateProofVerifier.computeBlockRootHash(stateProof);
+            final byte[] rootHash = StateProofVerifier.computeBlockRootHash(stateProof, digest);
 
             if (!stateProof.hasSignedBlockProof()) {
                 log.warn("ClprGetLedgerConfiguration: proof has no signedBlockProof; refusing");

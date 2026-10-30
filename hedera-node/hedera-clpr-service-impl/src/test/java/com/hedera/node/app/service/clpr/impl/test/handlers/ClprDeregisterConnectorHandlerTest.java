@@ -7,6 +7,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_CONNECTOR_UNAUTHOR
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NOT_ENABLED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CONNECTORS_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.PENDING_CONNECTOR_COMMITMENTS_STATE_ID;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -21,10 +22,12 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.clpr.ClprDeregisterConnectorTransactionBody;
 import com.hedera.hapi.node.state.clpr.ClprConnector;
 import com.hedera.hapi.node.state.clpr.ClprConnectorKey;
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.clpr.ReadableConnectorStore;
 import com.hedera.node.app.service.clpr.impl.WritableConnectorStore;
+import com.hedera.node.app.service.clpr.impl.WritablePendingConnectorCommitmentStore;
 import com.hedera.node.app.service.clpr.impl.handlers.ClprDeregisterConnectorHandler;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.entityid.impl.AppEntityIdFactory;
@@ -87,6 +90,12 @@ class ClprDeregisterConnectorHandlerTest {
         0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
         0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20
     });
+    private static final Bytes COMMITMENT = Bytes.wrap(new byte[] {
+        0x77, 0x77, 0x77, 0x77, 0x77, 0x77, 0x77, 0x77,
+        0x77, 0x77, 0x77, 0x77, 0x77, 0x77, 0x77, 0x77,
+        0x77, 0x77, 0x77, 0x77, 0x77, 0x77, 0x77, 0x77,
+        0x77, 0x77, 0x77, 0x77, 0x77, 0x77, 0x77, 0x77
+    });
     private static final long VALID_STAKE = 200_000_000L;
 
     @Mock
@@ -109,6 +118,7 @@ class ClprDeregisterConnectorHandlerTest {
 
     private ClprDeregisterConnectorHandler subject;
     private WritableConnectorStore connectorStore;
+    private WritablePendingConnectorCommitmentStore commitmentStore;
 
     @BeforeEach
     void setUp() {
@@ -123,6 +133,14 @@ class ClprDeregisterConnectorHandlerTest {
                 .when(writableStates.<ClprConnectorKey, ClprConnector>get(CONNECTORS_STATE_ID))
                 .thenReturn(writableConnectors);
         connectorStore = new WritableConnectorStore(writableStates);
+
+        final var writableCommitments = MapWritableKVState.<ProtoBytes, ProtoBytes>builder(
+                        PENDING_CONNECTOR_COMMITMENTS_STATE_ID, "ClprService:PENDING_CONNECTOR_COMMITMENTS")
+                .build();
+        lenient()
+                .when(writableStates.<ProtoBytes, ProtoBytes>get(PENDING_CONNECTOR_COMMITMENTS_STATE_ID))
+                .thenReturn(writableCommitments);
+        commitmentStore = new WritablePendingConnectorCommitmentStore(writableStates);
     }
 
     // ── pureChecks ────────────────────────────────────────────────────────────
@@ -216,7 +234,7 @@ class ClprDeregisterConnectorHandlerTest {
     }
 
     @Test
-    @DisplayName("should deregister connector, remove from state, and transfer stake")
+    @DisplayName("should deregister connector, keep its commitment registered, and transfer stake")
     void deregistersConnectorAndTransfersStake() {
         putConnector();
         setupHandleContext(validTxn(), true);
@@ -225,6 +243,7 @@ class ClprDeregisterConnectorHandlerTest {
 
         final var key = new ClprConnectorKey(CHANNEL_ID, CONNECTOR_ID);
         assertThat(connectorStore.getConnector(key)).isNull();
+        assertThat(commitmentStore.contains(COMMITMENT)).isTrue();
         verify(tokenServiceApi).transferFromTo(STAKING_ACCOUNT_ID, STAKE_RECIPIENT_ID, VALID_STAKE);
     }
 
@@ -320,6 +339,7 @@ class ClprDeregisterConnectorHandlerTest {
                 .adminKey(ADMIN_KEY)
                 .lockedStake(VALID_STAKE)
                 .build());
+        commitmentStore.put(COMMITMENT);
     }
 
     private void setupHandleContext(final TransactionBody txn, final boolean clprEnabled) {

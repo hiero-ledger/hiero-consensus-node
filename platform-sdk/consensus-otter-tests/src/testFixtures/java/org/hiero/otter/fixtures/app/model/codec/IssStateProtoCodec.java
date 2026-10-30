@@ -27,7 +27,7 @@ import org.hiero.otter.fixtures.app.model.schema.IssStateSchema;
 /**
  * Protobuf Codec for IssState model object. Generated based on protobuf schema.
  */
-public final class IssStateProtoCodec implements Codec<IssState> {
+public final class IssStateProtoCodec extends Codec<IssState> {
     /**
      * An initial capacity for the ArrayList where unknown fields are collected.
      * To optimize parsing unknown fields, we store the max value we've seen so far.
@@ -44,17 +44,6 @@ public final class IssStateProtoCodec implements Codec<IssState> {
         // no-op
     }
 
-    @Override
-    public @NonNull IssState parse(
-            @NonNull final ReadableSequentialData input,
-            boolean strictMode,
-            boolean parseUnknownFields,
-            int maxDepth,
-            int maxSize)
-            throws ParseException {
-        return parse(input, strictMode, parseUnknownFields, maxDepth);
-    }
-
     /**
      * Parses a IssState object from ProtoBuf bytes in a {@link ReadableSequentialData}. Throws if in strict mode ONLY.
      *
@@ -66,14 +55,18 @@ public final class IssStateProtoCodec implements Codec<IssState> {
      * @param parseUnknownFields when {@code true} and strictMode is {@code false}, the parser will collect unknown
      *                           fields in the unknownFields list in the model; otherwise they'll be simply skipped.
      * @param maxDepth a ParseException will be thrown if the depth of nested messages exceeds the maxDepth value.
+     * @param maxSize a ParseException will be thrown if the size of an unknown length-delimited field exceeds the
+     *                maxSize value.
      * @return Parsed IssState model object or null if data input was null or empty
      * @throws ParseException If parsing fails
      */
-    public @NonNull IssState parse(
+    @Override
+    protected @NonNull IssState parseImpl(
             @NonNull final ReadableSequentialData input,
             final boolean strictMode,
             final boolean parseUnknownFields,
-            final int maxDepth)
+            final int maxDepth,
+            final int maxSize)
             throws ParseException {
         if (maxDepth < 0) {
             throw new ParseException("Reached maximum allowed depth of nested messages");
@@ -140,11 +133,11 @@ public final class IssStateProtoCodec implements Codec<IssState> {
                                 $unknownFields.add(new UnknownField(
                                         field,
                                         ProtoConstants.get(wireType),
-                                        extractField(input, ProtoConstants.get(wireType), 2097152)));
+                                        extractField(input, ProtoConstants.get(wireType), maxSize)));
                             } else {
                                 // We just need to read off the bytes for this field to skip it
                                 // and move on to the next one.
-                                skipField(input, ProtoConstants.get(wireType), 2097152);
+                                skipField(input, ProtoConstants.get(wireType), maxSize);
                             }
                         } else {
                             throw new IOException(
@@ -174,7 +167,8 @@ public final class IssStateProtoCodec implements Codec<IssState> {
      * @param out The output stream to write to
      * @throws IOException If there is a problem writing
      */
-    public void write(@NonNull IssState data, @NonNull final WritableSequentialData out) throws IOException {
+    @Override
+    protected void writeImpl(@NonNull IssState data, @NonNull final WritableSequentialData out) throws IOException {
         // [1] - issState
         writeLong(out, IssStateSchema.ISS_STATE, data.issState(), true);
 
@@ -189,22 +183,6 @@ public final class IssStateProtoCodec implements Codec<IssState> {
     }
 
     /**
-     * Reads from this data input the length of the data within the input. The implementation may
-     * read all the data, or just some special serialized data, as needed to find out the length of
-     * the data.
-     *
-     * @param input The input to use
-     * @return The length of the data item in the input
-     * @throws ParseException If parsing fails
-     */
-    public int measure(@NonNull final ReadableSequentialData input) throws ParseException {
-        final var start = input.position();
-        parse(input);
-        final var end = input.position();
-        return (int) (end - start);
-    }
-
-    /**
      * Compute number of bytes that would be written when calling {@code write()} method.
      *
      * @param data The input model data to measure write bytes for
@@ -212,23 +190,6 @@ public final class IssStateProtoCodec implements Codec<IssState> {
      */
     public int measureRecord(IssState data) {
         return data.protobufSize();
-    }
-
-    /**
-     * Compares the given item with the bytes in the input, and returns false if it determines that
-     * the bytes in the input could not be equal to the given item. Sometimes we need to compare an
-     * item in memory with serialized bytes and don't want to incur the cost of deserializing the
-     * entire object, when we could have determined the bytes do not represent the same object very
-     * cheaply and quickly.
-     *
-     * @param item The item to compare. Cannot be null.
-     * @param input The input with the bytes to compare
-     * @return true if the bytes represent the item, false otherwise.
-     * @throws ParseException If parsing fails
-     */
-    public boolean fastEquals(@NonNull IssState item, @NonNull final ReadableSequentialData input)
-            throws ParseException {
-        return item.equals(parse(input));
     }
 
     /**

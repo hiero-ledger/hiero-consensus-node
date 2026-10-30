@@ -4,7 +4,7 @@ package org.hiero.otter.fixtures.network;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import org.assertj.core.data.Percentage;
-import org.hiero.otter.fixtures.Node;
+import org.hiero.otter.fixtures.MiniNode;
 
 /**
  * Interface representing a connection between two nodes in a network.
@@ -17,7 +17,7 @@ public interface BidirectionalConnection extends Connection {
      * @return the first node in the connection
      */
     @NonNull
-    Node node1();
+    MiniNode node1();
 
     /**
      * Gets the second node of the connection.
@@ -25,7 +25,7 @@ public interface BidirectionalConnection extends Connection {
      * @return the second node in the connection
      */
     @NonNull
-    Node node2();
+    MiniNode node2();
 
     /**
      * {@inheritDoc}

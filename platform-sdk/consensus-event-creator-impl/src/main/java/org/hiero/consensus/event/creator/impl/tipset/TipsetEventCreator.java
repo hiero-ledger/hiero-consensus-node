@@ -15,18 +15,17 @@ import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.throttle.RateLimitedLogger;
 import org.hiero.base.crypto.BytesSigner;
+import org.hiero.base.utility.ListUtils;
 import org.hiero.consensus.crypto.PbjStreamHasher;
 import org.hiero.consensus.event.creator.config.EventCreationConfig;
 import org.hiero.consensus.event.creator.impl.EventCreator;
@@ -117,6 +116,7 @@ public class TipsetEventCreator implements EventCreator {
      * @param roster              the active roster
      * @param selfId              this node's ID
      * @param transactionSupplier provides transactions to be included in new events
+     * @param tipsetTracker       tracks the tipsets of the events, for this node and the same roster
      */
     public TipsetEventCreator(
             @NonNull final Configuration configuration,
@@ -126,7 +126,8 @@ public class TipsetEventCreator implements EventCreator {
             @NonNull final BytesSigner signer,
             @NonNull final RosterWrapper roster,
             @NonNull final NodeId selfId,
-            @NonNull final EventTransactionSupplier transactionSupplier) {
+            @NonNull final EventTransactionSupplier transactionSupplier,
+            @NonNull final TipsetTracker tipsetTracker) {
 
         this.time = requireNonNull(time);
         this.random = requireNonNull(random);
@@ -134,12 +135,12 @@ public class TipsetEventCreator implements EventCreator {
         this.selfId = requireNonNull(selfId);
         this.transactionSupplier = requireNonNull(transactionSupplier);
         this.roster = requireNonNull(roster);
+        this.tipsetTracker = requireNonNull(tipsetTracker);
 
         final EventCreationConfig eventCreationConfig = configuration.getConfigData(EventCreationConfig.class);
 
         antiSelfishnessFactor = Math.max(1.0, eventCreationConfig.antiSelfishnessFactor());
-        tipsetMetrics = new TipsetMetrics(metrics, roster);
-        tipsetTracker = new TipsetTracker(time, selfId, roster);
+        tipsetMetrics = new TipsetMetrics(configuration, metrics, time, roster);
         childlessOtherEventTracker = new ChildlessEventTracker();
         tipsetWeightCalculator = new TipsetWeightCalculator(
                 configuration, time, roster, selfId, tipsetTracker, childlessOtherEventTracker);
@@ -219,8 +220,8 @@ public class TipsetEventCreator implements EventCreator {
     /**
      * {@inheritDoc}
      */
-    @Nullable
     @Override
+    @Nullable
     public PlatformEvent maybeCreateEvent() {
         if (quiescenceCommand == QuiescenceCommand.QUIESCE) {
             return null;
@@ -246,6 +247,7 @@ public class TipsetEventCreator implements EventCreator {
      *
      * @return new event based only on self parent
      */
+    @NonNull
     private UnsignedEvent createQuiescenceBreakEvent() {
         return buildAndProcessEvent();
     }
@@ -262,6 +264,7 @@ public class TipsetEventCreator implements EventCreator {
         return createEventCombinedAlgorithm();
     }
 
+    @NonNull
     private PlatformEvent signEvent(final UnsignedEvent event) {
         final PlatformEvent platformEvent =
                 new PlatformEvent(event, signer.sign(event.getHash().getBytes()), EventOrigin.RUNTIME);
@@ -377,7 +380,8 @@ public class TipsetEventCreator implements EventCreator {
      *
      * @return parent to reduce selfishness
      */
-    private @Nullable PlatformEvent selectParentToReduceSelfishness() {
+    @Nullable
+    private PlatformEvent selectParentToReduceSelfishness() {
         final Collection<PlatformEvent> possibleOtherParents = childlessOtherEventTracker.getChildlessEvents();
         final List<PlatformEvent> ignoredNodes = new ArrayList<>(possibleOtherParents.size());
 
@@ -450,15 +454,14 @@ public class TipsetEventCreator implements EventCreator {
      * @param otherParents the other parents, or zero length arglist if there is no other parents
      * @return the new event
      */
+    @NonNull
     private UnsignedEvent buildAndProcessEvent(@NonNull final PlatformEvent... otherParents) {
         final List<EventDescriptorWrapper> otherParentDescriptors;
 
         if (otherParents.length == 0) {
             otherParentDescriptors = List.of();
         } else {
-            otherParentDescriptors = Arrays.stream(otherParents)
-                    .map(PlatformEvent::getDescriptor)
-                    .toList();
+            otherParentDescriptors = ListUtils.mapToCopy(otherParents, PlatformEvent::getDescriptor);
         }
         final UnsignedEvent event = assembleEventObject(otherParents);
 
@@ -483,19 +486,37 @@ public class TipsetEventCreator implements EventCreator {
      */
     @NonNull
     private UnsignedEvent assembleEventObject(final PlatformEvent... otherParents) {
+        final Instant timeTransactionsTaken = time.now();
         final List<TimestampedTransaction> transactions = transactionSupplier.getTransactionsForEvent();
-        final List<PlatformEvent> allParents = Stream.concat(Stream.of(lastSelfEvent), Stream.of(otherParents))
-                .filter(Objects::nonNull)
-                .toList();
+        // the transaction latency leaves out priority transactions: they overtake the others in the pool, and most of
+        // them are state signatures, which arrive at the rate of rounds rather than with the load
+        final List<Instant> transactionReceivedTimes = new ArrayList<>(transactions.size());
+        for (final TimestampedTransaction transaction : transactions) {
+            if (!transaction.priority()) {
+                transactionReceivedTimes.add(transaction.receivedTime());
+            }
+        }
+        tipsetMetrics.recordPoolWait(timeTransactionsTaken, transactionReceivedTimes);
+        final List<PlatformEvent> allParents = new ArrayList<>(1 + otherParents.length);
+        if (lastSelfEvent != null) {
+            allParents.add(lastSelfEvent);
+        }
+        for (final PlatformEvent otherParent : otherParents) {
+            if (otherParent != null) {
+                allParents.add(otherParent);
+            }
+        }
         final List<EventDescriptorWrapper> allParentDescriptors =
-                allParents.stream().map(PlatformEvent::getDescriptor).toList();
+                ListUtils.mapToCopy(allParents, PlatformEvent::getDescriptor);
         final UnsignedEvent event = new UnsignedEvent(
                 selfId,
                 allParentDescriptors,
                 eventWindow.newEventBirthRound(),
                 calculateNewEventCreationTime(lastSelfEvent, allParents, transactions),
-                transactions.stream().map(TimestampedTransaction::transaction).toList(),
-                random.nextLong(0, roster.size() + 1));
+                ListUtils.mapToCopy(transactions, TimestampedTransaction::transaction),
+                random.nextLong(0, roster.size() + 1),
+                timeTransactionsTaken,
+                transactionReceivedTimes);
         eventHasher.hashUnsignedEvent(event);
 
         return event;
@@ -512,6 +533,10 @@ public class TipsetEventCreator implements EventCreator {
         eventWindow = EventWindow.getGenesisEventWindow();
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     @NonNull
     public String toString() {
         final StringBuilder sb = new StringBuilder();

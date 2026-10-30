@@ -8,21 +8,21 @@ dependencies {
     }
 }
 
-val besu = "26.2.0"
+val besu = "26.7.1"
 val bouncycastle = "1.85"
 val dagger = "2.59.2"
 val eclipseCollections = "13.0.0"
 val grpc = "1.81.0"
-val hederaCryptography = "3.15.0"
-val helidon = "4.5.0"
+val hederaCryptography = "3.24.0"
+val helidon = "4.5.4"
 val jackson = "2.22.2"
-val junit5 = "5.10.3!!" // no updates beyond 5.10.3 until #17125 is resolved
+val junit5 = "6.1.3"
 val log4j = "2.26.0"
 val mockito = "5.23.0"
 val pbj = pluginVersions.version("com.hedera.pbj.pbj-compiler")
 val protobuf = "4.34.1"
 val prometheusSimpleclient = "0.16.0"
-val blockNodeProtobufSources = "0.41.0"
+val blockNodeProtobufSources = "0.44.2"
 val testContainers = "2.0.5"
 val tuweni = "2.7.2"
 val vertx = "4.5.30"
@@ -47,7 +47,7 @@ dependencies.constraints {
     }
     api("com.github.ben-manes.caffeine:caffeine:3.2.4") { because("com.github.benmanes.caffeine") }
     api("com.github.docker-java:docker-java-api:3.7.1") { because("com.github.dockerjava.api") }
-    api("com.github.luben:zstd-jni:1.5.7-16") { because("com.github.luben.zstd_jni") }
+    api("com.github.luben:zstd-jni:1.5.7-22") { because("com.github.luben.zstd_jni") }
     api("com.github.spotbugs:spotbugs-annotations:4.9.8") {
         because("com.github.spotbugs.annotations")
     }
@@ -96,7 +96,6 @@ dependencies.constraints {
     api("org.assertj:assertj-core:3.27.7") { because("org.assertj.core") }
     api("org.bouncycastle:bcpkix-jdk18on:$bouncycastle") { because("org.bouncycastle.pkix") }
     api("org.bouncycastle:bcprov-jdk18on:$bouncycastle") { because("org.bouncycastle.provider") }
-    api("org.bouncycastle:bctls-jdk18on:$bouncycastle") { because("org.bouncycastle.tls") }
     api("org.eclipse.collections:eclipse-collections-api:$eclipseCollections") {
         because("org.eclipse.collections.api")
     }
@@ -105,9 +104,9 @@ dependencies.constraints {
     }
     api("org.hyperledger.besu:besu-datatypes:$besu") { because("org.hyperledger.besu.datatypes") }
     api("org.hyperledger.besu:besu-evm:$besu") { because("org.hyperledger.besu.evm") }
-    api("org.hyperledger.besu:gnark:1.4.2")
-    api("org.hyperledger.besu:secp256r1:1.4.2")
-    api("org.hyperledger.besu:arithmetic:1.4.2")
+    api("org.hyperledger.besu:gnark:2.0.0")
+    api("org.hyperledger.besu:secp256r1:2.0.0")
+    api("org.hyperledger.besu:arithmetic:2.0.0")
     api("org.jetbrains:annotations:26.1.0") { because("org.jetbrains.annotations") }
     api("org.json:json:20250517") { because("org.json") }
     api("org.junit.jupiter:junit-jupiter-api:$junit5") { because("org.junit.jupiter.api") }
@@ -140,6 +139,9 @@ dependencies.constraints {
     }
     api("com.hedera.cryptography:libxkcp:$hederaCryptography") {
         because("com.hedera.cryptography.libxkcp")
+    }
+    api("com.hedera.cryptography:security:$hederaCryptography") {
+        because("com.hedera.cryptography.security")
     }
 
     // Versions of additional tools that are not part of the product or test module paths

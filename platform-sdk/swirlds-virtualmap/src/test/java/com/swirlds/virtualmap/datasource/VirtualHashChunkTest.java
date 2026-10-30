@@ -13,15 +13,18 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.ProtoParserTools;
 import com.hedera.pbj.runtime.ProtoWriterTools;
+import com.hedera.pbj.runtime.hashing.WritableMessageDigest;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.virtualmap.MerkleHasher;
 import com.swirlds.virtualmap.MerklePathUtils;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.Random;
 import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -30,7 +33,10 @@ import org.junit.jupiter.params.provider.ValueSource;
 public class VirtualHashChunkTest {
 
     private static final int HASH_LENGTH = Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
-    private static final MerkleHasher HASHER = new MerkleHasher();
+
+    private static final DigestType DIGEST_TYPE = Cryptography.DEFAULT_DIGEST_TYPE;
+    private static final MessageDigest MESSAGE_DIGEST = DIGEST_TYPE.buildDigest();
+    private static final WritableMessageDigest HASHER = new WritableMessageDigest(MESSAGE_DIGEST);
 
     @Test
     void createTest() {
@@ -820,18 +826,18 @@ public class VirtualHashChunkTest {
         chunk.setHashAtPath(4, hash4);
         chunk.setHashAtPath(5, hash5);
         chunk.setHashAtPath(6, hash6);
-        assertEquals(hash3, chunk.calcHash(HASHER, 3, 3, 6));
-        assertEquals(hash4, chunk.calcHash(HASHER, 4, 3, 6));
-        assertEquals(hash5, chunk.calcHash(HASHER, 5, 3, 6));
-        assertEquals(hash6, chunk.calcHash(HASHER, 6, 3, 6));
-        final Hash hash1 = HASHER.internalNodeHash(hash3, hash4);
-        final Hash hash2 = HASHER.internalNodeHash(hash5, hash6);
-        assertEquals(hash1, chunk.calcHash(HASHER, 1, 3, 6));
-        assertEquals(hash2, chunk.calcHash(HASHER, 2, 3, 6));
-        final Hash rootHash = HASHER.internalNodeHash(hash1, hash2);
-        assertEquals(rootHash, chunk.calcHash(HASHER, 0, 3, 6));
-        assertEquals(rootHash, chunk.chunkRootHash(HASHER, 3, 6));
-        assertEquals(rootHash, chunk.chunkRootHash(HASHER, 10, 20));
+        assertEquals(hash3, chunk.calcHash(3, 3, 6, HASHER, DIGEST_TYPE));
+        assertEquals(hash4, chunk.calcHash(4, 3, 6, HASHER, DIGEST_TYPE));
+        assertEquals(hash5, chunk.calcHash(5, 3, 6, HASHER, DIGEST_TYPE));
+        assertEquals(hash6, chunk.calcHash(6, 3, 6, HASHER, DIGEST_TYPE));
+        final Hash hash1 = MerkleHasher.internalNodeHash(hash3, hash4, HASHER, DIGEST_TYPE);
+        final Hash hash2 = MerkleHasher.internalNodeHash(hash5, hash6, HASHER, DIGEST_TYPE);
+        assertEquals(hash1, chunk.calcHash(1, 3, 6, HASHER, DIGEST_TYPE));
+        assertEquals(hash2, chunk.calcHash(2, 3, 6, HASHER, DIGEST_TYPE));
+        final Hash rootHash = MerkleHasher.internalNodeHash(hash1, hash2, HASHER, DIGEST_TYPE);
+        assertEquals(rootHash, chunk.calcHash(0, 3, 6, HASHER, DIGEST_TYPE));
+        assertEquals(rootHash, chunk.chunkRootHash(3, 6, HASHER, DIGEST_TYPE));
+        assertEquals(rootHash, chunk.chunkRootHash(10, 20, HASHER, DIGEST_TYPE));
     }
 
     @Test
@@ -855,15 +861,15 @@ public class VirtualHashChunkTest {
         chunk.setHashAtPath(2, hash2);
         chunk.setHashAtPath(3, hash3);
         chunk.setHashAtPath(4, hash4);
-        assertEquals(hash2, chunk.calcHash(HASHER, 2, 2, 4));
-        assertEquals(hash3, chunk.calcHash(HASHER, 3, 2, 4));
-        assertEquals(hash4, chunk.calcHash(HASHER, 4, 2, 4));
-        final Hash hash1 = HASHER.internalNodeHash(hash3, hash4);
-        assertEquals(hash1, chunk.calcHash(HASHER, 1, 2, 4));
-        assertEquals(hash2, chunk.calcHash(HASHER, 2, 2, 4));
-        final Hash rootHash = HASHER.internalNodeHash(hash1, hash2);
-        assertEquals(rootHash, chunk.calcHash(HASHER, 0, 2, 4));
-        assertEquals(rootHash, chunk.chunkRootHash(HASHER, 2, 4));
+        assertEquals(hash2, chunk.calcHash(2, 2, 4, HASHER, DIGEST_TYPE));
+        assertEquals(hash3, chunk.calcHash(3, 2, 4, HASHER, DIGEST_TYPE));
+        assertEquals(hash4, chunk.calcHash(4, 2, 4, HASHER, DIGEST_TYPE));
+        final Hash hash1 = MerkleHasher.internalNodeHash(hash3, hash4, HASHER, DIGEST_TYPE);
+        assertEquals(hash1, chunk.calcHash(1, 2, 4, HASHER, DIGEST_TYPE));
+        assertEquals(hash2, chunk.calcHash(2, 2, 4, HASHER, DIGEST_TYPE));
+        final Hash rootHash = MerkleHasher.internalNodeHash(hash1, hash2, HASHER, DIGEST_TYPE);
+        assertEquals(rootHash, chunk.calcHash(0, 2, 4, HASHER, DIGEST_TYPE));
+        assertEquals(rootHash, chunk.chunkRootHash(2, 4, HASHER, DIGEST_TYPE));
     }
 
     @Test
@@ -878,14 +884,14 @@ public class VirtualHashChunkTest {
 
         // Calculate hash at path 0 (root), which needs to hash(hash1, hash2)
         // Since path 2 > lastLeafPath (1), it should use null
-        final Hash calculatedRootHash = chunk.calcHash(HASHER, 0, 1, 1);
+        final Hash calculatedRootHash = chunk.calcHash(0, 1, 1, HASHER, DIGEST_TYPE);
 
         // Expected: hash of (hash1, null)
-        final Hash expectedRootHash = HASHER.internalNodeHash(hash1, null);
+        final Hash expectedRootHash = MerkleHasher.internalNodeHash(hash1, null, HASHER, DIGEST_TYPE);
         assertEquals(expectedRootHash, calculatedRootHash);
 
         // Also test via chunkRootHash
-        final Hash chunkRootHash = chunk.chunkRootHash(HASHER, 1, 1);
+        final Hash chunkRootHash = chunk.chunkRootHash(1, 1, HASHER, DIGEST_TYPE);
         assertEquals(expectedRootHash, chunkRootHash);
     }
 
@@ -909,13 +915,13 @@ public class VirtualHashChunkTest {
         chunk.setHashAtPath(6, hash6);
 
         // Calculate hash at path 1 (internal rank)
-        final Hash hash1Calculated = chunk.calcHash(HASHER, 1, 3, 6);
-        final Hash hash1Expected = HASHER.internalNodeHash(hash3, hash4);
+        final Hash hash1Calculated = chunk.calcHash(1, 3, 6, HASHER, DIGEST_TYPE);
+        final Hash hash1Expected = MerkleHasher.internalNodeHash(hash3, hash4, HASHER, DIGEST_TYPE);
         assertEquals(hash1Expected, hash1Calculated);
 
         // Calculate hash at path 2 (internal rank)
-        final Hash hash2Calculated = chunk.calcHash(HASHER, 2, 3, 6);
-        final Hash hash2Expected = HASHER.internalNodeHash(hash5, hash6);
+        final Hash hash2Calculated = chunk.calcHash(2, 3, 6, HASHER, DIGEST_TYPE);
+        final Hash hash2Expected = MerkleHasher.internalNodeHash(hash5, hash6, HASHER, DIGEST_TYPE);
         assertEquals(hash2Expected, hash2Calculated);
     }
 
@@ -939,7 +945,8 @@ public class VirtualHashChunkTest {
         final long lastLeafPath = firstLeafPath * 2;
         for (int i = 0; i < chunkSize; i++) {
             final long path = chunk.getPath(i);
-            assertEquals(chunk.getHashAtIndex(i), chunk.calcHash(HASHER, path, firstLeafPath, lastLeafPath));
+            assertEquals(
+                    chunk.getHashAtIndex(i), chunk.calcHash(path, firstLeafPath, lastLeafPath, HASHER, DIGEST_TYPE));
         }
     }
 
@@ -954,13 +961,13 @@ public class VirtualHashChunkTest {
         }
 
         // Calculate intermediate nodes to verify recursion
-        final Hash hash3 = chunk.calcHash(HASHER, 3, 7, 14); // Should calculate from paths 7-8
+        final Hash hash3 = chunk.calcHash(3, 7, 14, HASHER, DIGEST_TYPE); // Should calculate from paths 7-8
         assertNotNull(hash3);
-        final Hash hash4 = chunk.calcHash(HASHER, 4, 7, 14); // Should calculate from paths 9-10
+        final Hash hash4 = chunk.calcHash(4, 7, 14, HASHER, DIGEST_TYPE); // Should calculate from paths 9-10
         assertNotNull(hash4);
 
-        final Hash expectedHash1 = HASHER.internalNodeHash(hash3, hash4);
-        final Hash hash1 = chunk.calcHash(HASHER, 1, 7, 14);
+        final Hash expectedHash1 = MerkleHasher.internalNodeHash(hash3, hash4, HASHER, DIGEST_TYPE);
+        final Hash hash1 = chunk.calcHash(1, 7, 14, HASHER, DIGEST_TYPE);
         assertEquals(expectedHash1, hash1);
     }
 }

@@ -62,9 +62,9 @@ class EthereumVerifyConfigCallTest extends CallTestBase {
                     .isEqualTo(config.initialTrustAnchor().toByteArray());
             assertThat((byte[]) decoded.get(6))
                     .isEqualTo(config.initialTrustAnchorId().toByteArray());
-            // manifest struct at index 7: empty manifest bytes → synthesized version 1.
+            // manifest struct at index 7: empty manifest bytes → uninitialized (version 0).
             final Tuple manifestStruct = decoded.get(MANIFEST_INDEX);
-            assertThat(((BigInteger) manifestStruct.get(0)).longValue()).isEqualTo(1L);
+            assertThat(((BigInteger) manifestStruct.get(0)).longValue()).isZero();
         }
     }
 
@@ -150,7 +150,7 @@ class EthereumVerifyConfigCallTest extends CallTestBase {
     }
 
     @Test
-    void emptyManifestSynthesizesFromConfig() {
+    void emptyManifestYieldsUninitializedManifest() {
         final var config = configWithAnchor();
 
         try (final var ignored = mockVerifier(new VerifiedConfig(config, 7L))) {
@@ -159,9 +159,11 @@ class EthereumVerifyConfigCallTest extends CallTestBase {
             assertThat(result.responseCode()).isEqualTo(SUCCESS);
             final Tuple manifestStruct =
                     manifestStructOf(result.fullResult().output().toArray());
-            // Empty manifest bytes → synthesized manifest bound to the config: version 1, config's serviceAddress.
-            assertThat(((BigInteger) manifestStruct.get(0)).longValue()).isEqualTo(1L);
+            // Empty manifest bytes → uninitialized manifest bound to the config: version 0, config's
+            // serviceAddress, no endpoints (matches the Solidity verifiers).
+            assertThat(((BigInteger) manifestStruct.get(0)).longValue()).isZero();
             assertThat(((byte[]) manifestStruct.get(1)).length).isEqualTo(20);
+            assertThat((Tuple[]) manifestStruct.get(2)).isEmpty();
         }
     }
 

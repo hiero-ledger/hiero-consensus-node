@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.creator.impl;
 
+import static org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory.createRandomRosterEntry;
 import static org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory.createRosterWrapper;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -30,7 +31,6 @@ import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterEntryBuilder;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -57,10 +57,8 @@ class EventCreatorTests {
         Random random = new Random();
         List<RosterEntry> rosterEntries = new ArrayList<>(5);
         for (int i = 1; i <= 5; i++) {
-            rosterEntries.add(RandomRosterEntryBuilder.create(random)
-                    .withNodeId(i)
-                    .withWeight(10)
-                    .build());
+            final RosterEntry entry = createRandomRosterEntry(random, NodeId.of(i), 10);
+            rosterEntries.add(entry);
         }
 
         final RosterWrapper roster = createRosterWrapper(rosterEntries);

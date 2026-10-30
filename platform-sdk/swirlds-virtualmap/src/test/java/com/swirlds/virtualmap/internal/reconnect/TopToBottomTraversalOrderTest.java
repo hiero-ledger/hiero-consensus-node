@@ -6,6 +6,7 @@ import static com.swirlds.virtualmap.internal.reconnect.NodeTraversalOrder.PATH_
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.virtualmap.MerklePathUtils;
@@ -186,15 +187,16 @@ class TopToBottomTraversalOrderTest {
         }
 
         @Test
-        @DisplayName("1.3 — nodeReceived() calls are ignored in simple mode")
+        @DisplayName("1.3 — nodeReceived() calls are ignored in simple mode, internal responses aren't expected")
         void nodeReceivedIgnoredInSimpleMode() {
             final var order = new TopToBottomTraversalOrder();
             order.start(SIMPLE_FIRST, SIMPLE_LAST, SIMPLE_FIRST, SIMPLE_LAST);
 
-            // Call nodeReceived with various paths — must not affect leaf output
+            // Root and leaf responses must not affect leaf output
             order.nodeReceived(0, true);
             order.nodeReceived(SIMPLE_FIRST, false);
-            order.nodeReceived(1L, true);
+            // No internal requests are sent in simple mode, so no internal responses are expected
+            assertThrows(AssertionError.class, () -> order.nodeReceived(1L, true));
 
             final List<Long> leaves = new ArrayList<>();
             long path;
@@ -1397,14 +1399,15 @@ class TopToBottomTraversalOrderTest {
     //   lastLeafPath  = 536870910 (= 2 * 268435455, rank 28)
     //   chunkRootRank = max(1, 28 - 23) = 5
     //   chunkRootPath (first chunk) = 31 (first path at rank 5)
-    //   chunkHeight = 23, skipRanks = 11
-    //   Initial internals: getLeftGrandChildPath(31, 11) = 65535
-    //                   to getRightGrandChildPath(31, 11) = 67582 (2048 paths at rank 16)
+    //   chunkHeight = 23, skipRanks = 12 (midpoint 11, moved 1 rank down for BOTTOM_GAP = 2)
+    //   Initial internals: getLeftGrandChildPath(31, 12) = 131071
+    //                   to getRightGrandChildPath(31, 12) = 135166 (4096 paths at rank 17)
+    //   Drill-down ranks: 17, 20, 23, 26 (26 = 28 - BOTTOM_GAP)
     //   someDirtyPaths threshold: rank >= 28 - 3 = 25
-    //   Dirty rank-16 path 65535 → RANK_STEP=3 grand-children at rank 19: 524287–524294
+    //   Dirty rank-17 path 131071 → RANK_STEP=3 grand-children at rank 20: 1048575–1048582
     //   Rank-25 ancestor of firstLeafPath (268435455): 33554431
-    //   Clean path 65535 covers leaves 268435455–268439550 (4096 leaves); next = 268439551
-    //   Rank-25 ancestor of 268439551: 33554943
+    //   Clean path 131071 covers leaves 268435455–268437502 (2048 leaves); next = 268437503
+    //   Rank-26 ancestor of 268437503: 67109375
     // ═════════════════════════════════════════════════════════════════════════
 
     @Nested
@@ -1414,24 +1417,24 @@ class TopToBottomTraversalOrderTest {
         private static final long L13_FIRST = 268_435_455L; // 2^28 - 1, rank 28
         private static final long L13_LAST = 2L * L13_FIRST; // 536870910, rank 28
 
-        // Initial internals: rank-16 paths seeded under chunk-1 root (path 31 at rank 5)
-        // chunkRootRank(5) + skipRanks(chunkHeight/2 = 23/2 = 11) = rank 16
-        private static final long L13_INIT_LO = 65_535L; // getLeftGrandChildPath(31, 11)
-        private static final long L13_INIT_HI = 67_582L; // L13_INIT_LO + 2048 - 1
-        private static final int L13_INIT_RANK = 16;
+        // Initial internals: rank-17 paths seeded under chunk-1 root (path 31 at rank 5)
+        // chunkRootRank(5) + skipRanks(12) = rank 17
+        private static final long L13_INIT_LO = 131_071L; // getLeftGrandChildPath(31, 12)
+        private static final long L13_INIT_HI = 135_166L; // L13_INIT_LO + 4096 - 1
+        private static final int L13_INIT_RANK = 17;
 
-        // Rank-19 grand-children of dirty path 65535 (RANK_STEP = 3): 65535*8+7 = 524287
-        private static final long L13_DIRTY_65535_LO = 524_287L;
-        private static final long L13_DIRTY_65535_HI = 524_294L;
+        // Rank-20 grand-children of dirty path 131071 (RANK_STEP = 3): 131071*8+7 = 1048575
+        private static final long L13_DIRTY_131071_LO = 1_048_575L;
+        private static final long L13_DIRTY_131071_HI = 1_048_582L;
 
         // Rank-25 ancestor of firstLeafPath: 3 levels above rank 28 = rank 25
         // 268435455 → 134217727 → 67108863 → 33554431
         private static final long L13_RANK25_ANCESTOR_OF_FIRST = 33_554_431L;
 
-        // First leaf outside the clean subtree of 65535 (covers 268435455–268439550): 268439551
-        // Rank-25 ancestor of 268439551: 268439551 → 134219775 → 67109887 → 33554943
-        private static final long L13_AFTER_CLEAN_65535 = 268_439_551L;
-        private static final long L13_RANK25_ANCESTOR_AFTER = 33_554_943L;
+        // First leaf outside the clean subtree of 131071 (covers 268435455–268437502): 268437503
+        // Rank-26 ancestor of 268437503: 268437503 → 134218751 → 67109375
+        private static final long L13_AFTER_CLEAN_131071 = 268_437_503L;
+        private static final long L13_RANK26_ANCESTOR_AFTER = 67_109_375L;
 
         @Test
         @DisplayName("13.1 — Rank-28 tree is not in simple mode")
@@ -1446,16 +1449,16 @@ class TopToBottomTraversalOrderTest {
         }
 
         @Test
-        @DisplayName("13.2 — Initial internals are 2048 paths at rank 16 in [65535, 67582]")
-        void initialInternalsAtRank16() {
+        @DisplayName("13.2 — Initial internals are 4096 paths at rank 17 in [131071, 135166]")
+        void initialInternalsAtRank17() {
             final var order = new TopToBottomTraversalOrder();
             order.start(L13_FIRST, L13_LAST, L13_FIRST, L13_LAST);
 
             final List<Long> init = drainInternals(order);
 
-            assertEquals(2048, init.size(), "Must seed 2048 initial internals (2^skipRanks = 2^11)");
-            assertEquals(L13_INIT_LO, init.getFirst(), "First initial internal must be 65535");
-            assertEquals(L13_INIT_HI, init.getLast(), "Last initial internal must be 67582");
+            assertEquals(4096, init.size(), "Must seed 4096 initial internals (2^skipRanks = 2^12)");
+            assertEquals(L13_INIT_LO, init.getFirst(), "First initial internal must be 131071");
+            assertEquals(L13_INIT_HI, init.getLast(), "Last initial internal must be 135166");
             for (long p : init) {
                 assertEquals(
                         L13_INIT_RANK,
@@ -1465,31 +1468,31 @@ class TopToBottomTraversalOrderTest {
         }
 
         @Test
-        @DisplayName("13.3 — chunkRootRank is 5: 11-level ancestor of initial internal 65535 is path 31 at rank 5")
+        @DisplayName("13.3 — chunkRootRank is 5: 12-level ancestor of initial internal 131071 is path 31 at rank 5")
         void chunkRootRankIs5() {
-            // Initial internals are skipRanks=11 below the chunk root.
-            // Going 11 levels up from 65535 (rank 16) must yield path 31 (rank 5).
-            final long chunkRoot = MerklePathUtils.getGrandParentPath(L13_INIT_LO, 11);
+            // Initial internals are skipRanks=12 below the chunk root.
+            // Going 12 levels up from 131071 (rank 17) must yield path 31 (rank 5).
+            final long chunkRoot = MerklePathUtils.getGrandParentPath(L13_INIT_LO, 12);
             assertEquals(31L, chunkRoot, "Chunk root must be path 31 (first path at rank 5)");
             assertEquals(5, MerklePathUtils.getRank(chunkRoot), "Chunk root must be at rank 5");
         }
 
         @Test
-        @DisplayName("13.4 — Dirty rank-16 internal enqueues 8 rank-19 grand-children (RANK_STEP=3)")
-        void dirtyRank16InternalEnqueuesRank19GrandChildren() {
+        @DisplayName("13.4 — Dirty rank-17 internal enqueues 8 rank-20 grand-children (RANK_STEP=3)")
+        void dirtyRank17InternalEnqueuesRank20GrandChildren() {
             final var order = new TopToBottomTraversalOrder();
             order.start(L13_FIRST, L13_LAST, L13_FIRST, L13_LAST);
 
             drainInternals(order); // remove initial internals from queue
-            order.nodeReceived(L13_INIT_LO, false); // dirty rank-16 path 65535
+            order.nodeReceived(L13_INIT_LO, false); // dirty rank-17 path 131071
 
             final List<Long> next = drainInternals(order);
 
-            assertEquals(8, next.size(), "Dirty rank-16 node must enqueue 8 rank-19 grand-children (2^RANK_STEP)");
-            assertEquals(L13_DIRTY_65535_LO, next.getFirst(), "First rank-19 grand-child of 65535 must be 524287");
-            assertEquals(L13_DIRTY_65535_HI, next.getLast(), "Last rank-19 grand-child of 65535 must be 524294");
+            assertEquals(8, next.size(), "Dirty rank-17 node must enqueue 8 rank-20 grand-children (2^RANK_STEP)");
+            assertEquals(L13_DIRTY_131071_LO, next.getFirst(), "First rank-20 grand-child of 131071 must be 1048575");
+            assertEquals(L13_DIRTY_131071_HI, next.getLast(), "Last rank-20 grand-child of 131071 must be 1048582");
             for (long p : next) {
-                assertEquals(19, MerklePathUtils.getRank(p), "Grand-children must be at rank 16+RANK_STEP=19");
+                assertEquals(20, MerklePathUtils.getRank(p), "Grand-children must be at rank 17+RANK_STEP=20");
             }
         }
 
@@ -1510,19 +1513,19 @@ class TopToBottomTraversalOrderTest {
         }
 
         @Test
-        @DisplayName("13.6 — Clean rank-16 internal skips its 4096-leaf subtree; first leaf after is returned")
-        void cleanRank16InternalSkipsSubtree() {
-            // Clean path 65535 (rank 16) covers leaves 268435455–268439550 (2^12 = 4096 leaves).
-            // Next leaf 268439551 must be returned once its rank-25 ancestor is in someDirtyPaths.
+        @DisplayName("13.6 — Clean rank-17 internal skips its 2048-leaf subtree; first leaf after is returned")
+        void cleanRank17InternalSkipsSubtree() {
+            // Clean path 131071 (rank 17) covers leaves 268435455–268437502 (2^11 = 2048 leaves).
+            // Next leaf 268437503 must be returned once its rank-26 ancestor is in someDirtyPaths.
             final var order = new TopToBottomTraversalOrder();
             order.start(L13_FIRST, L13_LAST, L13_FIRST, L13_LAST);
 
             drainInternals(order);
-            order.nodeReceived(L13_INIT_LO, true); // clean: adds 65535 to cleanPaths
-            order.nodeReceived(L13_RANK25_ANCESTOR_AFTER, false); // rank-25 ancestor of 268439551
+            order.nodeReceived(L13_INIT_LO, true); // clean: adds 131071 to cleanPaths
+            order.nodeReceived(L13_RANK26_ANCESTOR_AFTER, false); // rank-26 ancestor of 268437503
 
             final long leaf = order.getNextLeafPathToSend();
-            assertEquals(L13_AFTER_CLEAN_65535, leaf, "First leaf after clean subtree of 65535 must be 268439551");
+            assertEquals(L13_AFTER_CLEAN_131071, leaf, "First leaf after clean subtree of 131071 must be 268437503");
         }
 
         @Test
@@ -1550,15 +1553,16 @@ class TopToBottomTraversalOrderTest {
         //       lastLeafPath =200_000_000 (rank 27; = 2 * firstLeafPath)
         //       chunkRootRank = max(1, 27 - 23) = 4
         //
-        // All initial internals land at rank chunkRootRank(4) + skipRanks(11) = 15.
-        // Every chunk has exactly 2^11 = 2048 initial internals.
+        // Initial internals are seeded 11 ranks above the leaves (BOTTOM_GAP = 2: 11, 8, 5, 2):
+        //   Rank-26 chunks: rank chunkRootRank(4) + skipRanks(11) = 15, 2^11 = 2048 per chunk
+        //   Rank-27 chunks: rank chunkRootRank(4) + skipRanks(12) = 16, 2^12 = 4096 per chunk
         //
         // Chunk sequence (all with chunk root at rank 4):
         //   Rank-26 chunks (chunkHeight=22, skipRanks=11): roots 22–30, 9 chunks
         //     startLeaf advances from 100000000 to 134217727 (rank-26 leaf range upper bound)
         //     Transition 9→10 is the rank-change: chunkRootPath 30+1=31 has rank 5 ≠ 4,
         //     so parent(31)=15 is used and chunkLastRank switches from 26 to 27.
-        //   Rank-27 chunks (chunkHeight=23, skipRanks=11): roots 15–22, 8 chunks
+        //   Rank-27 chunks (chunkHeight=23, skipRanks=12): roots 15–22, 8 chunks
         //     Last chunk (root=22) covers [192937983, 201326590]; lastLeafPath=200000000
         //     falls inside it, so the algorithm terminates with INVALID_PATH there.
         //
@@ -1617,14 +1621,17 @@ class TopToBottomTraversalOrderTest {
             int chunkTransitions = 0;
             final List<Long> sentLeaves = new ArrayList<>();
             int consecutiveStalls = 0;
+            boolean rank27Chunks = false;
             while (true) {
                 final long internal = order.getNextInternalPathToSend();
                 if (internal != INVALID_PATH) {
-                    // Verify every internal throughout all chunks is at rank 15
+                    // Rank-26 chunks are seeded at rank 15, then rank-27 chunks at rank 16
+                    final int rank = MerklePathUtils.getRank(internal);
+                    rank27Chunks |= (rank == 16);
                     assertEquals(
-                            15,
-                            MerklePathUtils.getRank(internal),
-                            "Every initial internal across all chunks must be at rank 15");
+                            rank27Chunks ? 16 : 15,
+                            rank,
+                            "Initial internals must be at rank 15 in rank-26 chunks, then rank 16 in rank-27 chunks");
                     order.nodeReceived(internal, true);
                     consecutiveStalls = 0;
                     continue;
@@ -1643,6 +1650,7 @@ class TopToBottomTraversalOrderTest {
             }
 
             assertEquals(0, sentLeaves.size(), "All-clean scenario must send zero leaves");
+            assertTrue(rank27Chunks, "Rank-27 chunks must be seeded at rank 16");
             assertEquals(
                     16,
                     chunkTransitions,
@@ -1653,25 +1661,24 @@ class TopToBottomTraversalOrderTest {
         @DisplayName("13.9 — End-to-end: first leaf of every chunk is dirty, all other leaves skipped")
         void endToEndFirstLeafDirtyPerChunk() {
             // Same tree as 13.8: first=100000000 (rank 26), last=200000000 (rank 27),
-            // chunkRootRank=4, 17 chunks (9 rank-26 + 8 rank-27), 2048 initial internals
-            // at rank 15 per chunk.
+            // chunkRootRank=4, 17 chunks (9 rank-26 + 8 rank-27), initial internals at
+            // rank 15 in rank-26 chunks and at rank 16 in rank-27 chunks.
             //
             // Per-chunk strategy:
-            //   a15     = rank-15 ancestor of chunkFirstLeaf (one of the initial internals).
-            //             Report ALL initial internals EXCEPT a15 as clean.
-            //             Leave a15 unreported so skipCleanPaths does not skip the first leaf.
+            //   aSeed   = ancestor of chunkFirstLeaf at the seed rank (one of the initial internals).
+            //             Report ALL initial internals EXCEPT aSeed as clean.
+            //             Leave aSeed unreported so skipCleanPaths does not skip the first leaf.
             //   aThresh = getGrandParentPath(chunkFirstLeaf, RANK_STEP=3).
             //             For rank-26 chunks: rank 23 >= threshold(23) → someDirtyPaths.
             //             For rank-27 chunks: rank 24 >= threshold(24) → someDirtyPaths.
             //             The leaf's RANK_STEP-parent check finds aThresh → hasDirtyParent=true.
-            //   After the first leaf is sent, report a15 as clean.  skipCleanPaths then
+            //   After the first leaf is sent, report aSeed as clean.  skipCleanPaths then
             //   skips all remaining leaves in the chunk in one call → chunk transition.
             final long first = 100_000_000L;
             final long last = 200_000_000L;
             final var order = new TopToBottomTraversalOrder();
             order.start(first, last, first, last);
 
-            final int INIT_INTERNAL_RANK = 15; // chunkRootRank(4) + skipRanks(11)
             int chunkTransitions = 0;
             long chunkFirstLeaf = first;
             final List<Long> sentLeaves = new ArrayList<>();
@@ -1681,30 +1688,35 @@ class TopToBottomTraversalOrderTest {
                 final List<Long> inits = drainInternals(order);
                 assertFalse(inits.isEmpty(), "Each chunk must provide initial internals");
 
-                // Derive chunk boundaries from the initial internals
+                // Derive chunk boundaries from the initial internals. Seeds are 11 ranks above the leaves
                 final int chunkLastRank = MerklePathUtils.getRank(chunkFirstLeaf);
+                final int initInternalRank = chunkLastRank - 11; // 15 for rank-26, 16 for rank-27 chunks
                 final long lastInitInternal = inits.getLast();
                 final long chunkLastLeafPath =
-                        MerklePathUtils.getRightGrandChildPath(lastInitInternal, chunkLastRank - INIT_INTERNAL_RANK);
+                        MerklePathUtils.getRightGrandChildPath(lastInitInternal, chunkLastRank - initInternalRank);
 
-                // Rank-15 ancestor of chunkFirstLeaf (= one of the initial internals)
-                final long a15 = MerklePathUtils.getGrandParentPath(chunkFirstLeaf, chunkLastRank - INIT_INTERNAL_RANK);
+                // Seed rank ancestor of chunkFirstLeaf (= one of the initial internals)
+                final long aSeed = MerklePathUtils.getGrandParentPath(chunkFirstLeaf, chunkLastRank - initInternalRank);
                 // Ancestor at less than RANK_STEP levels up, so it's added to someDirtyPaths
                 final long aThresh = MerklePathUtils.getGrandParentPath(chunkFirstLeaf, 2);
 
-                assertEquals(
-                        INIT_INTERNAL_RANK, MerklePathUtils.getRank(a15), "a15 must be a rank-15 initial internal");
-                assertTrue(inits.contains(a15), "a15 must be one of this chunk's initial internals");
+                for (final long p : inits) {
+                    assertEquals(
+                            initInternalRank,
+                            MerklePathUtils.getRank(p),
+                            "Initial internals must be at rank " + initInternalRank);
+                }
+                assertTrue(inits.contains(aSeed), "aSeed must be one of this chunk's initial internals");
                 assertTrue(
                         MerklePathUtils.getRank(aThresh) >= chunkLastRank - 3,
                         "aThresh rank must be >= someDirtyPaths threshold");
 
-                // ── Report initial internals: all clean except a15 ────────────────────
+                // ── Report initial internals: all clean except aSeed ──────────────────
                 for (long p : inits) {
-                    if (p != a15) {
+                    if (p != aSeed) {
                         order.nodeReceived(p, true);
                     }
-                    // a15 is intentionally left unreported: not in cleanPaths, so
+                    // aSeed is intentionally left unreported: not in cleanPaths, so
                     // skipCleanPaths will not skip the first leaf of this chunk.
                 }
 
@@ -1728,9 +1740,9 @@ class TopToBottomTraversalOrderTest {
                 assertEquals(PATH_NOT_AVAILABLE_YET, order.getNextLeafPathToSend());
 
                 // Skip remaining chunk leaves. This is not something that happens in real world,
-                // but should work for the test. Adding a15 to cleanPaths lets skipCleanPaths drain
+                // but should work for the test. Adding aSeed to cleanPaths lets skipCleanPaths drain
                 // the rest of the chunk's leaves in a single getNextLeafPathToSend() call.
-                order.nodeReceived(a15, true);
+                order.nodeReceived(aSeed, true);
 
                 final long next = order.getNextLeafPathToSend();
                 if (next == INVALID_PATH) {
@@ -1760,6 +1772,189 @@ class TopToBottomTraversalOrderTest {
                         sentLeaves.get(i) > sentLeaves.get(i - 1),
                         "Sent leaves must be strictly increasing (each is first leaf of its chunk)");
             }
+        }
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // Group 14 — Statistics
+    // ═════════════════════════════════════════════════════════════════════════
+
+    @Nested
+    @DisplayName("Group 14 — Statistics")
+    class StatisticsTests {
+
+        @Test
+        @DisplayName("14.1 — Simple mode reports no statistics")
+        void simpleMode() {
+            final var order = new TopToBottomTraversalOrder();
+            order.start(SIMPLE_FIRST, SIMPLE_LAST, SIMPLE_FIRST, SIMPLE_LAST);
+            assertEquals("simple mode", order.getStatistics());
+        }
+
+        @Test
+        @DisplayName("14.2 — Fully dirty tree: internal responses are counted by distance to the leaf rank")
+        void fullyDirtyTree() {
+            final var order = new TopToBottomTraversalOrder();
+            order.start(CHUNK_FIRST, CHUNK_LAST, CHUNK_FIRST, CHUNK_LAST);
+
+            final List<Long> leaves = driveAllDirty(order);
+            for (final long leaf : leaves) {
+                order.nodeReceived(leaf, true);
+            }
+
+            // 2 chunks x 16 seeds at rank 5 (5 ranks above the leaves), each drilled down to 8
+            // grand-children at rank 8 (2 ranks above the leaves)
+            assertEquals(
+                    "chunks=2, outOfRangeLeaves=0, staleInternals=0; leaf rank 10: leaves=1024, cleanLeaves=1024, "
+                            + "internals by distance to leaf rank (total/clean)=[5=32/0, 2=256/0]",
+                    order.getStatistics());
+        }
+
+        @Test
+        @DisplayName("14.3 — Leaves outside the old leaf range are counted separately")
+        void outOfRangeLeaves() {
+            // Old range [767, 1534]: teacher leaves 1023–1534 are checked, 1535–2046 are sent by position
+            final var order = new TopToBottomTraversalOrder();
+            order.start(OTHER_FIRST_LEAF, OTHER_LAST_LEAF, CHUNK_FIRST, CHUNK_LAST);
+
+            final List<Long> leaves = driveAllDirty(order);
+            for (final long leaf : leaves) {
+                order.nodeReceived(leaf, leaf % 2 == 0);
+            }
+
+            final String stats = order.getStatistics();
+            assertTrue(stats.contains("outOfRangeLeaves=512"), stats);
+            assertTrue(stats.contains("leaves=512, cleanLeaves=256"), stats);
+        }
+
+        @Test
+        @DisplayName("14.4 — Internal responses for completed chunks are counted as stale")
+        void staleInternals() {
+            final var order = new TopToBottomTraversalOrder();
+            order.start(CHUNK_FIRST, CHUNK_LAST, CHUNK_FIRST, CHUNK_LAST);
+
+            driveAllClean(order);
+            order.nodeReceived(CHUNK1_INIT_LO, false); // chunk 1 is already completed
+
+            final String stats = order.getStatistics();
+            assertTrue(stats.contains("staleInternals=1"), stats);
+            assertTrue(stats.contains("[5=32/32]"), stats);
+        }
+
+        @Test
+        @DisplayName("14.5 — Two leaf ranks: statistics are reported per leaf rank")
+        void twoLeafRanks() {
+            // Same tree as 13.8: both rank-27 and rank-26 chunks are seeded 11 ranks above the leaves
+            final long first = 100_000_000L;
+            final long last = 200_000_000L;
+            final var order = new TopToBottomTraversalOrder();
+            order.start(first, last, first, last);
+
+            driveAllClean(order);
+
+            final String stats = order.getStatistics();
+            assertTrue(stats.startsWith("chunks=17, "), stats);
+            assertTrue(
+                    stats.contains("leaf rank 27: leaves=0, cleanLeaves=0, "
+                            + "internals by distance to leaf rank (total/clean)=[11="),
+                    stats);
+            assertTrue(
+                    stats.contains("leaf rank 26: leaves=0, cleanLeaves=0, "
+                            + "internals by distance to leaf rank (total/clean)=[11="),
+                    stats);
+        }
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // Group 15 — Bottom gap
+    //
+    // Large tree from group 13: rank-28 leaves, chunkRootRank = 5, chunkHeight = 23.
+    // Seeds at rank 17 (11 above the leaves), drill-down ranks 17, 20, 23, 26 (bottom gap 2).
+    // ═════════════════════════════════════════════════════════════════════════
+
+    @Nested
+    @DisplayName("Group 15 — Bottom gap")
+    class BottomGapTests {
+
+        private static final long L15_FIRST = 268_435_455L; // 2^28 - 1, rank 28
+        private static final long L15_LAST = 2L * L15_FIRST; // rank 28
+
+        /**
+         * Returns the distance between the lowest checked rank and the leaf rank, if internals are seeded
+         * the given number of ranks above the leaves: dirty internals more than RANK_STEP (3) ranks above
+         * the leaves are drilled down by 3 ranks.
+         */
+        private static int drillDownEnd(final int seedToLeafDistance) {
+            int distance = seedToLeafDistance;
+            while (distance > 3) {
+                distance -= 3;
+            }
+            return distance;
+        }
+
+        @Test
+        @DisplayName("15.1 — Seed rank offset makes the drill-down end 2 ranks above the leaves for any chunk height")
+        void seedRankOffsetGivesBottomGap2() {
+            // Large trees: chunk height 23 (last leaf rank) and 22 (first leaf rank), seeded 12 and 11 ranks
+            // below the chunk root, i.e. 11 ranks above the leaves in both cases
+            assertEquals(12, TopToBottomTraversalOrder.seedRankOffset(23));
+            assertEquals(11, TopToBottomTraversalOrder.seedRankOffset(22));
+            // Chunk-mode reference tree: chunk height 9, seeded at rank 5, 5 ranks above the leaves
+            assertEquals(4, TopToBottomTraversalOrder.seedRankOffset(9));
+            for (int height = 9; height <= 40; height++) {
+                final int offset = TopToBottomTraversalOrder.seedRankOffset(height);
+                final int shift = offset - height / 2;
+                assertEquals(2, drillDownEnd(height - offset), "height=" + height);
+                assertTrue((shift >= 0) && (shift <= 2), "Seed must be 0-2 ranks below the midpoint, height=" + height);
+            }
+        }
+
+        @Test
+        @DisplayName("15.2 — Dirty rank-23 node drills down to rank 26, dirty rank-26 node enables 4 leaves")
+        void drillDownEndsTwoRanksAboveLeaves() {
+            final var order = new TopToBottomTraversalOrder();
+            order.start(L15_FIRST, L15_LAST, L15_FIRST, L15_LAST);
+            drainInternals(order);
+
+            // Rank-23 ancestor of the first leaf is 5 ranks above the leaves, so it's drilled down
+            final long rank23 = MerklePathUtils.getGrandParentPath(L15_FIRST, 5);
+            order.nodeReceived(rank23, false);
+            final List<Long> next = drainInternals(order);
+            assertEquals(8, next.size(), "Dirty rank-23 node must enqueue 8 rank-26 grand-children");
+            for (final long p : next) {
+                assertEquals(26, MerklePathUtils.getRank(p), "Grand-children must be at rank 26");
+            }
+
+            // Rank-26 node is 2 ranks above the leaves, it isn't drilled down, its 4 leaves become sendable
+            order.nodeReceived(next.getFirst(), false);
+            assertTrue(drainInternals(order).isEmpty(), "Dirty rank-26 node must not be drilled down");
+            for (int i = 0; i < 4; i++) {
+                assertEquals(L15_FIRST + i, order.getNextLeafPathToSend(), "Leaves under rank-26 node must be sent");
+            }
+            assertEquals(PATH_NOT_AVAILABLE_YET, order.getNextLeafPathToSend(), "5th leaf status must be unknown");
+        }
+
+        @Test
+        @DisplayName("15.3 — Fully dirty tree: both leaf ranks are checked 2 ranks above the leaves")
+        void fullyDirtyTwoLeafRanks() {
+            // Rank-10 leaves 1500–2046 and rank-11 leaves 2047–3000, chunkRootRank = 1. Both leaf ranks
+            // are checked 5 and 2 ranks above the leaves
+            final long first = 1500L;
+            final long last = 3000L;
+            final var order = new TopToBottomTraversalOrder();
+            order.start(first, last, first, last);
+
+            final List<Long> leaves = driveAllDirty(order);
+            for (final long leaf : leaves) {
+                order.nodeReceived(leaf, false);
+            }
+
+            assertEquals(last - first + 1, leaves.size(), "All leaves must be sent in a fully dirty tree");
+            final String stats = order.getStatistics();
+            final String rank11 = stats.substring(stats.indexOf("leaf rank 11"), stats.indexOf("; leaf rank 10"));
+            final String rank10 = stats.substring(stats.indexOf("leaf rank 10"));
+            assertTrue(rank11.matches("leaf rank 11: leaves=954, cleanLeaves=0, .*\\[5=\\d+/0, 2=\\d+/0]"), stats);
+            assertTrue(rank10.matches("leaf rank 10: leaves=547, cleanLeaves=0, .*\\[5=\\d+/0, 2=\\d+/0]"), stats);
         }
     }
 

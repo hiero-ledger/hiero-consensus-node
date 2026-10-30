@@ -8,6 +8,11 @@ Implements the [`consensus-hashgraph`](../consensus-hashgraph) API. Production c
 depend on the API, not this module directly. For the algorithm, see the
 [hashgraph topic](../docs/consensus-layer/architecture/topics/hashgraph.md).
 
+## Benchmarks
+
+The JMH benchmarks in `src/jmh` follow the
+[benchmark conventions](../docs/consensus-layer/benchmarks/README.md).
+
 ## Dependency Rules
 
 May depend on:

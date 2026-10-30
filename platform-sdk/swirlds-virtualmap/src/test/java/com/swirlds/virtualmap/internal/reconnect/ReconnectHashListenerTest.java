@@ -2,7 +2,6 @@
 package com.swirlds.virtualmap.internal.reconnect;
 
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.DEFAULT_CONFIGURATION;
-import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.DEFAULT_VIRTUAL_MAP_CONFIG;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -12,10 +11,12 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.swirlds.virtualmap.config.VirtualMapConfig;
+import com.swirlds.virtualmap.config.VirtualMapLearnerSyncConfig;
 import com.swirlds.virtualmap.datasource.DataSourceHashChunkPreloader;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
+import com.swirlds.virtualmap.internal.HashLeafFlusher;
 import com.swirlds.virtualmap.internal.VirtualMapStatistics;
 import com.swirlds.virtualmap.internal.hash.VirtualHasher;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
@@ -45,14 +46,14 @@ class ReconnectHashListenerTest {
     void nullHashChunkPreloaderThrows() {
         assertThrows(
                 NullPointerException.class,
-                () -> new ReconnectHashListener(mock(ReconnectHashLeafFlusher.class), null),
+                () -> new ReconnectHashListener(mock(HashLeafFlusher.class), null),
                 "A null hash chunk preloader should produce an NPE");
     }
 
     @Test
     @DisplayName("Valid configurations create an instance")
     void ableToCreateInstance() {
-        final ReconnectHashLeafFlusher flusher = mock(ReconnectHashLeafFlusher.class);
+        final HashLeafFlusher flusher = mock(HashLeafFlusher.class);
         final VirtualDataSource dataSource = mock(VirtualDataSource.class);
         when(dataSource.getHashChunkHeight()).thenReturn(6);
         final DataSourceHashChunkPreloader preloader = new DataSourceHashChunkPreloader(dataSource);
@@ -68,7 +69,7 @@ class ReconnectHashListenerTest {
         final VirtualHashChunk chunk = mock(VirtualHashChunk.class);
         when(chunk.getChunkId()).thenReturn(chunkId);
 
-        final ReconnectHashLeafFlusher flusher = mock(ReconnectHashLeafFlusher.class);
+        final HashLeafFlusher flusher = mock(HashLeafFlusher.class);
         final DataSourceHashChunkPreloader chunkPreloader = mock(DataSourceHashChunkPreloader.class);
 
         final ReconnectHashListener hashListener = new ReconnectHashListener(flusher, chunkPreloader);
@@ -95,8 +96,12 @@ class ReconnectHashListenerTest {
 
             final VirtualMapStatistics statistics = new VirtualMapStatistics("test");
             final int hashChunkHeight = ds.getHashChunkHeight();
-            final ReconnectHashLeafFlusher flusher =
-                    new ReconnectHashLeafFlusher(ds, DEFAULT_VIRTUAL_MAP_CONFIG.reconnectFlushInterval(), statistics);
+            final HashLeafFlusher flusher = new HashLeafFlusher(
+                    ds,
+                    DEFAULT_CONFIGURATION
+                            .getConfigData(VirtualMapLearnerSyncConfig.class)
+                            .flushInterval(),
+                    statistics);
 
             // 100 leaves would have firstLeafPath = 99, lastLeafPath = 198
             final int first = size - 1;

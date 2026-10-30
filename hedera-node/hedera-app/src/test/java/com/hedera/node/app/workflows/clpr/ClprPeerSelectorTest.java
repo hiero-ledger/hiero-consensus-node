@@ -225,7 +225,7 @@ class ClprPeerSelectorTest {
             assertThat(lowRep.rawScore()).isCloseTo(0.1, offset(0.0001));
 
             final var endpoints = List.of(PEER_1, PEER_2, PEER_3);
-            final int trials = 1_000;
+            final int trials = 10_000;
             int highCount = 0;
             int midCount = 0;
             int lowCount = 0;
@@ -241,7 +241,7 @@ class ClprPeerSelectorTest {
             }
 
             // Strict ordering must hold. The expected gaps are wide enough to dwarf the binomial standard
-            // deviation at n=1000, so flake risk is minimal.
+            // deviation at n=10000, so flake risk is minimal.
             assertThat(highCount)
                     .as("high-reputation peer should win more often than mid")
                     .isGreaterThan(midCount);

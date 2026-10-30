@@ -228,8 +228,6 @@ public class GrpcUtils {
                 clients.getClprSvcStub(nodeAccountId, false, false).closeChannel(transaction);
             case ClprSubmitBundle ->
                 clients.getClprSvcStub(nodeAccountId, false, false).submitBundle(transaction);
-            case ClprRedactMessage ->
-                clients.getClprSvcStub(nodeAccountId, false, false).redactMessage(transaction);
             case ClprRegisterConnector ->
                 clients.getClprSvcStub(nodeAccountId, false, false).registerConnector(transaction);
             case ClprCompleteConnector ->

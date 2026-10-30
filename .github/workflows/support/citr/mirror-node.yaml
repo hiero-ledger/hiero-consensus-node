@@ -12,44 +12,16 @@ rosetta: # not needed for default use case
   enabled: false
 redis:
   enabled: true
-  nodeSelector:
-    solo.hashgraph.io/role: "auxiliary-services"
-    solo.hashgraph.io/owner: "%NETWORK_OWNER%"
-    solo.hashgraph.io/network-id: "%NETWORK_ID%"
-  tolerations:
-    - key: "solo.hashgraph.io/role"
-      operator: "Equal"
-      value: "auxiliary-services"
-      effect: "NoSchedule"
-    - key: "solo.hashgraph.io/owner"
-      operator: "Equal"
-      value: "%NETWORK_OWNER%"
-      effect: "NoSchedule"
-    - key: "solo.hashgraph.io/network-id"
-      operator: "Equal"
-      value: "%NETWORK_ID%"
-      effect: "NoSchedule"
+  # Sentinel is on, so the redis pods come from the sentinel StatefulSet, which reads replica.* only.
+  replica:
+    nodeSelector:
+      chewie-group: aux
 #  namespaceOverride: "{{ tpl (.Values.global.namespaceOverride | toString) }}"
 # importer is a component of the hedera mirror node
 # config for subchart hedera-mirror/importer
 importer:
   nodeSelector:
-    solo.hashgraph.io/role: "auxiliary-services"
-    solo.hashgraph.io/owner: "%NETWORK_OWNER%"
-    solo.hashgraph.io/network-id: "%NETWORK_ID%"
-  tolerations:
-    - key: "solo.hashgraph.io/role"
-      operator: "Equal"
-      value: "auxiliary-services"
-      effect: "NoSchedule"
-    - key: "solo.hashgraph.io/owner"
-      operator: "Equal"
-      value: "%NETWORK_OWNER%"
-      effect: "NoSchedule"
-    - key: "solo.hashgraph.io/network-id"
-      operator: "Equal"
-      value: "%NETWORK_ID%"
-      effect: "NoSchedule"
+    chewie-group: aux
   resources:
     requests:
       cpu: 1
@@ -100,22 +72,7 @@ importer:
                 enabled: true
 grpc:
   nodeSelector:
-    solo.hashgraph.io/role: "auxiliary-services"
-    solo.hashgraph.io/owner: "%NETWORK_OWNER%"
-    solo.hashgraph.io/network-id: "%NETWORK_ID%"
-  tolerations:
-    - key: "solo.hashgraph.io/role"
-      operator: "Equal"
-      value: "auxiliary-services"
-      effect: "NoSchedule"
-    - key: "solo.hashgraph.io/owner"
-      operator: "Equal"
-      value: "%NETWORK_OWNER%"
-      effect: "NoSchedule"
-    - key: "solo.hashgraph.io/network-id"
-      operator: "Equal"
-      value: "%NETWORK_ID%"
-      effect: "NoSchedule"
+    chewie-group: aux
   resources:
     requests:
       cpu: 0
@@ -137,22 +94,7 @@ grpc:
     failureThreshold: 60
 pinger:
   nodeSelector:
-    solo.hashgraph.io/role: "auxiliary-services"
-    solo.hashgraph.io/owner: "%NETWORK_OWNER%"
-    solo.hashgraph.io/network-id: "%NETWORK_ID%"
-  tolerations:
-    - key: "solo.hashgraph.io/role"
-      operator: "Equal"
-      value: "auxiliary-services"
-      effect: "NoSchedule"
-    - key: "solo.hashgraph.io/owner"
-      operator: "Equal"
-      value: "%NETWORK_OWNER%"
-      effect: "NoSchedule"
-    - key: "solo.hashgraph.io/network-id"
-      operator: "Equal"
-      value: "%NETWORK_ID%"
-      effect: "NoSchedule"
+    chewie-group: aux
   enabled: true
   resources:
     requests:
@@ -178,22 +120,7 @@ postgresql:
     size: 10Gi
   postgresql:
     nodeSelector:
-      solo.hashgraph.io/role: "auxiliary-services"
-      solo.hashgraph.io/owner: "%NETWORK_OWNER%"
-      solo.hashgraph.io/network-id: "%NETWORK_ID%"
-    tolerations:
-      - key: "solo.hashgraph.io/role"
-        operator: "Equal"
-        value: "auxiliary-services"
-        effect: "NoSchedule"
-      - key: "solo.hashgraph.io/owner"
-        operator: "Equal"
-        value: "%NETWORK_OWNER%"
-        effect: "NoSchedule"
-      - key: "solo.hashgraph.io/network-id"
-        operator: "Equal"
-        value: "%NETWORK_ID%"
-        effect: "NoSchedule"
+      chewie-group: aux
     resources:
       requests:
         cpu: 1
@@ -205,22 +132,7 @@ postgresql:
     replicaCount: 0
 rest:
   nodeSelector:
-    solo.hashgraph.io/role: "auxiliary-services"
-    solo.hashgraph.io/owner: "%NETWORK_OWNER%"
-    solo.hashgraph.io/network-id: "%NETWORK_ID%"
-  tolerations:
-    - key: "solo.hashgraph.io/role"
-      operator: "Equal"
-      value: "auxiliary-services"
-      effect: "NoSchedule"
-    - key: "solo.hashgraph.io/owner"
-      operator: "Equal"
-      value: "%NETWORK_OWNER%"
-      effect: "NoSchedule"
-    - key: "solo.hashgraph.io/network-id"
-      operator: "Equal"
-      value: "%NETWORK_ID%"
-      effect: "NoSchedule"
+    chewie-group: aux
   resources:
     requests:
       cpu: 0
@@ -248,22 +160,7 @@ rest:
     hostname: "localhost"
 restjava:
   nodeSelector:
-    solo.hashgraph.io/role: "auxiliary-services"
-    solo.hashgraph.io/owner: "%NETWORK_OWNER%"
-    solo.hashgraph.io/network-id: "%NETWORK_ID%"
-  tolerations:
-    - key: "solo.hashgraph.io/role"
-      operator: "Equal"
-      value: "auxiliary-services"
-      effect: "NoSchedule"
-    - key: "solo.hashgraph.io/owner"
-      operator: "Equal"
-      value: "%NETWORK_OWNER%"
-      effect: "NoSchedule"
-    - key: "solo.hashgraph.io/network-id"
-      operator: "Equal"
-      value: "%NETWORK_ID%"
-      effect: "NoSchedule"
+    chewie-group: aux
   resources:
     requests:
       cpu: 0
@@ -285,22 +182,7 @@ restjava:
     failureThreshold: 60
 web3:
   nodeSelector:
-    solo.hashgraph.io/role: "auxiliary-services"
-    solo.hashgraph.io/owner: "%NETWORK_OWNER%"
-    solo.hashgraph.io/network-id: "%NETWORK_ID%"
-  tolerations:
-    - key: "solo.hashgraph.io/role"
-      operator: "Equal"
-      value: "auxiliary-services"
-      effect: "NoSchedule"
-    - key: "solo.hashgraph.io/owner"
-      operator: "Equal"
-      value: "%NETWORK_OWNER%"
-      effect: "NoSchedule"
-    - key: "solo.hashgraph.io/network-id"
-      operator: "Equal"
-      value: "%NETWORK_ID%"
-      effect: "NoSchedule"
+    chewie-group: aux
   resources:
     requests:
       cpu: 0
@@ -326,22 +208,7 @@ web3:
 # Additional configuration for node addresses, operator id and key should be handled by infrastructure code or solo
 monitor:
   nodeSelector:
-    solo.hashgraph.io/role: "auxiliary-services"
-    solo.hashgraph.io/owner: "%NETWORK_OWNER%"
-    solo.hashgraph.io/network-id: "%NETWORK_ID%"
-  tolerations:
-    - key: "solo.hashgraph.io/role"
-      operator: "Equal"
-      value: "auxiliary-services"
-      effect: "NoSchedule"
-    - key: "solo.hashgraph.io/owner"
-      operator: "Equal"
-      value: "%NETWORK_OWNER%"
-      effect: "NoSchedule"
-    - key: "solo.hashgraph.io/network-id"
-      operator: "Equal"
-      value: "%NETWORK_ID%"
-      effect: "NoSchedule"
+    chewie-group: aux
   resources:
     requests:
       cpu: 0

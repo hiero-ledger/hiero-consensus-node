@@ -27,8 +27,7 @@ message ClprBundleContent {
 
     /**
      * Ordered message payloads included in the bundle.
-     * Each payload is a Data, Response, Control message
-     * or Redacted message.
+     * Each payload is a Data, Response or Control message.
      */
     repeated ClprMessagePayload messages = 2;
 

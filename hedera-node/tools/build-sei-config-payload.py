@@ -7,7 +7,7 @@ The payload shape is:
     initial_validator_set = validator set fetched from CometBFT RPC   (field 1)
     initial_validator_set_height = the height that set was read at     (field 2)
     ledger_configuration = ClprLedgerConfiguration {                  (field 3)
-      protocol_version, chain_id, service_address, throttles, endpoints
+      protocol_version, chain_id, service_address, throttles
     }
   }
 
@@ -98,7 +98,7 @@ def encode_validator_entry(ed25519_pubkey, voting_power):
     )
 
 
-def build_ledger_configuration(protocol_version, chain_id, service20, throttles, endpoints):
+def build_ledger_configuration(protocol_version, chain_id, service20, throttles):
     parts = [
         common.pb_uint32(common.CLPR_FIELD_PROTOCOL_VERSION, protocol_version),
         common.pb_string(common.CLPR_FIELD_CHAIN_ID, chain_id),
@@ -106,17 +106,15 @@ def build_ledger_configuration(protocol_version, chain_id, service20, throttles,
     ]
     if throttles is not None:
         parts.append(common.encode_throttles(throttles))
-    for endpoint in endpoints or []:
-        parts.append(common.pb_message(common.CLPR_FIELD_SEED_ENDPOINTS, common.encode_endpoint(endpoint)))
     return b"".join(parts)
 
 
 def load_config_json(path):
     if not path:
-        return None, []
+        return None
     with open(path) as f:
         file_cfg = json.load(f)
-    return file_cfg.get("throttles"), file_cfg.get("endpoints", [])
+    return file_cfg.get("throttles")
 
 
 def main(argv=None):
@@ -126,7 +124,7 @@ def main(argv=None):
     parser.add_argument("--chain-id", default="", help="CLPR ledger chain id, e.g. cosmos:sei")
     parser.add_argument("--protocol-version", type=int, default=1, help="CLPR protocol version")
     parser.add_argument("--validator-height", type=int, default=0, help="CometBFT validator height; default latest")
-    parser.add_argument("--config-json", help="JSON file with throttles and endpoints")
+    parser.add_argument("--config-json", help="JSON file with throttles")
     parser.add_argument("--out-payload", help="write raw payload bytes to this file")
     args = parser.parse_args(argv)
 
@@ -140,18 +138,13 @@ def main(argv=None):
         if validator_height <= 0:
             raise RuntimeError("could not determine a positive validator height")
         chain_id = args.chain_id or f"cosmos:{network}"
-        throttles, endpoints = load_config_json(args.config_json)
-        if throttles is None or not endpoints:
-            print(
-                "WARNING: ClprCompleteChannel rejects configs without throttles or endpoints. "
-                f"throttles={'set' if throttles is not None else 'missing'}, "
-                f"endpoints={len(endpoints) if endpoints else 0}.",
-                file=sys.stderr,
-            )
+        throttles = load_config_json(args.config_json)
+        if throttles is None:
+            print("WARNING: ClprCompleteChannel rejects configs without throttles.", file=sys.stderr)
 
         validator_set = fetch_validator_set(args.tm_rpc, validator_height)
         ledger_config = build_ledger_configuration(
-            args.protocol_version, chain_id, service20, throttles, endpoints
+            args.protocol_version, chain_id, service20, throttles
         )
         payload = b"".join(
             [

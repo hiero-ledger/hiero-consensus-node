@@ -10,10 +10,10 @@ import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThre
 import static org.hiero.consensus.platformstate.PlatformStateUtils.roundOf;
 import static org.hiero.consensus.roster.RosterUtils.rosterInputsFromGenesis;
 import static org.hiero.otter.fixtures.app.OtterStateUtils.initGenesisState;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
+import static org.hiero.otter.fixtures.internal.AbstractMiniNode.LifeCycle.DESTROYED;
+import static org.hiero.otter.fixtures.internal.AbstractMiniNode.LifeCycle.INIT;
+import static org.hiero.otter.fixtures.internal.AbstractMiniNode.LifeCycle.RUNNING;
+import static org.hiero.otter.fixtures.internal.AbstractMiniNode.LifeCycle.SHUTDOWN;
 import static org.hiero.otter.fixtures.logging.context.NodeLoggingContext.logToConsole;
 import static org.hiero.otter.fixtures.result.SubscriberAction.CONTINUE;
 import static org.hiero.otter.fixtures.result.SubscriberAction.UNSUBSCRIBE;
@@ -49,6 +49,7 @@ import org.hiero.consensus.PathsConfig;
 import org.hiero.consensus.event.stream.config.EventConfig;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.io.RecycleBinImpl;
+import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
@@ -57,11 +58,12 @@ import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.roster.WritableRosterStore;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.status.monitor.actions.PlatformStatusAction;
 import org.hiero.consensus.wiring.framework.model.DeterministicWiringModel;
 import org.hiero.consensus.wiring.framework.model.WiringModelBuilder;
+import org.hiero.consensus.wiring.framework.wires.input.InputWire;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
-import org.hiero.otter.fixtures.ProfilerEvent;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.app.OtterApp;
 import org.hiero.otter.fixtures.app.OtterExecutionLayer;
@@ -293,6 +295,10 @@ public class TurtleNode extends AbstractNode implements Node, SimulatorTimeManag
             platform = builder.build();
 
             buildingBlocks = builder.buildingBlocks();
+            final InputWire<PlatformStatusAction> platformStatusInputWire =
+                    buildingBlocks.statusMonitorModule().platformStatusActionInputWire();
+
+            gossip.provideStatusActionSubmitter(platformStatusInputWire::put);
 
             buildingBlocks
                     .hashgraphModule()
@@ -497,8 +503,9 @@ public class TurtleNode extends AbstractNode implements Node, SimulatorTimeManag
      * {@inheritDoc}
      */
     @Override
-    public boolean isAlive() {
-        return lifeCycle == RUNNING;
+    @NonNull
+    public EventWindow latestEventWindow() {
+        return newConsensusResult().getLatestEventWindow();
     }
 
     /**
@@ -541,7 +548,7 @@ public class TurtleNode extends AbstractNode implements Node, SimulatorTimeManag
     }
 
     @NonNull
-    private NodeLoggingContext.LoggingContextScope installNodeContext() {
+    protected final NodeLoggingContext.LoggingContextScope installNodeContext() {
         return NodeLoggingContext.install(Long.toString(selfId().id()));
     }
 
@@ -562,45 +569,5 @@ public class TurtleNode extends AbstractNode implements Node, SimulatorTimeManag
      */
     public boolean startFromSavedState() {
         return savedStateDirectory != null;
-    }
-
-    /**
-     * {@inheritDoc}
-     * <p>
-     * Profiling is not supported in the Turtle environment.
-     *
-     * @throws UnsupportedOperationException always, as profiling is only supported in container environments
-     */
-    @Override
-    public void startProfiling(
-            @NonNull final String outputFilename,
-            @NonNull final Duration samplingInterval,
-            @NonNull final ProfilerEvent... events) {
-        throw new UnsupportedOperationException("Profiling is not supported in the Turtle environment");
-    }
-
-    /**
-     * {@inheritDoc}
-     * <p>
-     * Profiling is not supported in the Turtle environment.
-     *
-     * @throws UnsupportedOperationException always, as profiling is only supported in container environments
-     */
-    @Override
-    public void stopProfiling() {
-        throw new UnsupportedOperationException("Profiling is not supported in the Turtle environments");
-    }
-
-    /**
-     * {@inheritDoc}
-     * <p>
-     * Thread dump is not supported in the Turtle environment.
-     *
-     * @throws UnsupportedOperationException always, as thread dump is only supported in container environments
-     */
-    @Override
-    @NonNull
-    public String dumpThreads() {
-        throw new UnsupportedOperationException("Thread dump not supported in the Turtle environment");
     }
 }
