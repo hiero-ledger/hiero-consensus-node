@@ -488,7 +488,7 @@ public class WrapsHistoryProver implements HistoryProver {
                                 ledgerId,
                                 sourceBook,
                                 targetMetadata,
-                                proofKeyListFrom(targetProofKeys)));
+                                HistoryProver.proofKeyListFrom(targetProofKeys)));
             } else {
                 consumerOf(phase)
                         .accept(messageFuture(phase, sourceBook)

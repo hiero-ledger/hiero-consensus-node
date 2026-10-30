@@ -154,7 +154,7 @@ public interface HistoryProver {
      * @param proofKeys the proof keys in a map
      * @return the list of proof keys
      */
-    default List<ProofKey> proofKeyListFrom(@NonNull final Map<Long, Bytes> proofKeys) {
+    static List<ProofKey> proofKeyListFrom(@NonNull final Map<Long, Bytes> proofKeys) {
         return proofKeys.entrySet().stream()
                 .map(entry -> new ProofKey(entry.getKey(), entry.getValue()))
                 .sorted(PROOF_KEY_COMPARATOR)
