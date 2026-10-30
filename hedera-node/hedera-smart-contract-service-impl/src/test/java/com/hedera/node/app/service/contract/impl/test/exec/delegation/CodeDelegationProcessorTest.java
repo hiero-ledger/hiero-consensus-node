@@ -15,6 +15,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.hedera.hapi.node.base.Key;
 import com.hedera.node.app.hapi.utils.ethereum.CodeDelegation;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxSigs;
 import com.hedera.node.app.service.contract.impl.exec.delegation.CodeDelegationProcessor;
@@ -376,6 +377,7 @@ class CodeDelegationProcessorTest {
         when(acct.getCode()).thenReturn(Bytes.EMPTY);
         when(acct.getNonce()).thenReturn(5L);
         when(acct.isRegularAccount()).thenReturn(true);
+        when(acct.toNativeAccount()).thenReturn(accountWithKey(ECDSA_KEY_MATCHING_AUTHORIZER));
         when(proxyWorldUpdater.setAccountCodeDelegation(any(), any())).thenReturn(false);
 
         try (MockedStatic<EthTxSigs> mocked = mockStatic(EthTxSigs.class)) {
@@ -413,6 +415,7 @@ class CodeDelegationProcessorTest {
         when(acct.getCode()).thenReturn(Bytes.EMPTY);
         when(acct.getNonce()).thenReturn(5L);
         when(acct.isRegularAccount()).thenReturn(true);
+        when(acct.toNativeAccount()).thenReturn(accountWithKey(ECDSA_KEY_MATCHING_AUTHORIZER));
         when(proxyWorldUpdater.setAccountCodeDelegation(any(), any())).thenReturn(true);
 
         try (MockedStatic<EthTxSigs> mocked = mockStatic(EthTxSigs.class)) {
@@ -518,6 +521,7 @@ class CodeDelegationProcessorTest {
         when(acct.getCode()).thenReturn(Bytes.EMPTY);
         when(acct.getNonce()).thenReturn(0L);
         when(acct.isRegularAccount()).thenReturn(true);
+        when(acct.toNativeAccount()).thenReturn(accountWithKey(ECDSA_KEY_MATCHING_AUTHORIZER));
         when(proxyWorldUpdater.setAccountCodeDelegation(any(), any())).thenReturn(true);
 
         try (MockedStatic<EthTxSigs> mocked = mockStatic(EthTxSigs.class)) {
@@ -558,5 +562,94 @@ class CodeDelegationProcessorTest {
         final byte[] sampleS = new byte[] {0x05, 0x06};
         var cd = new CodeDelegation(sampleChainId, sampleAddress, sampleNonce, 7, sampleR, sampleS);
         assertEquals(7, cd.getYParity());
+    }
+
+    private static final Key ECDSA_KEY_MATCHING_AUTHORIZER = Key.newBuilder()
+            .ecdsaSecp256k1(com.hedera.pbj.runtime.io.buffer.Bytes.wrap(new byte[32]))
+            .build();
+
+    private static com.hedera.hapi.node.state.token.Account accountWithKey(final Key key) {
+        return com.hedera.hapi.node.state.token.Account.newBuilder()
+                .accountId(com.hedera.hapi.node.base.AccountID.newBuilder()
+                        .accountNum(1001L)
+                        .build())
+                .alias(com.hedera.pbj.runtime.io.buffer.Bytes.wrap(new byte[20]))
+                .key(key)
+                .build();
+    }
+
+    private void givenExistingRegularAuthority(
+            final AbstractMutableEvmAccount acct, final Address authAddr, final Address contractAddr) {
+        when(tx.codeDelegations()).thenReturn(List.of(del));
+        when(del.getChainId()).thenReturn(CHAIN_ID);
+        when(del.nonce()).thenReturn(5L);
+        when(del.getS()).thenReturn(BigInteger.ONE);
+        when(del.getYParity()).thenReturn(1);
+        when(del.address()).thenReturn(contractAddr.getBytes().toArray());
+        when(world.updater()).thenReturn(proxyWorldUpdater);
+        when(proxyWorldUpdater.getAccount(authAddr)).thenReturn(acct);
+        when(acct.getCode()).thenReturn(Bytes.EMPTY);
+        when(acct.getNonce()).thenReturn(5L);
+        when(acct.isRegularAccount()).thenReturn(true);
+    }
+
+    @Test
+    void ignoresAuthorizationWhenExistingAccountKeyNoLongerMatchesAuthorizer() {
+        final var acct = mock(AbstractMutableEvmAccount.class);
+        final var authAddr = Address.fromHexString("0x00000000000000000000000000000000000000AC");
+        final var contractAddr = Address.fromHexString("0x00000000000000000000000000000000000000BB");
+        givenExistingRegularAuthority(acct, authAddr, contractAddr);
+        when(acct.toNativeAccount())
+                .thenReturn(accountWithKey(Key.newBuilder()
+                        .ed25519(com.hedera.pbj.runtime.io.buffer.Bytes.wrap(new byte[32]))
+                        .build()));
+        try (MockedStatic<EthTxSigs> mocked = mockStatic(EthTxSigs.class)) {
+            mocked.when(() -> EthTxSigs.extractAuthoritySignature(del)).thenReturn(mockAuthorityWithAddress(authAddr));
+            final var result =
+                    new CodeDelegationProcessor(CHAIN_ID).process(world, tx.gasLimit(), tx.codeDelegations());
+            verify(proxyWorldUpdater, never()).setAccountCodeDelegation(any(), any());
+            verify(acct, never()).incrementNonce();
+            assertEquals(0, result.validDelegations().size());
+            assertEquals(List.of(authAddr), result.accessedAddresses());
+        }
+    }
+
+    @Test
+    void ignoresAuthorizationWhenExistingAccountHasDifferentEcdsaKey() {
+        final var acct = mock(AbstractMutableEvmAccount.class);
+        final var authAddr = Address.fromHexString("0x00000000000000000000000000000000000000AC");
+        final var contractAddr = Address.fromHexString("0x00000000000000000000000000000000000000BB");
+        givenExistingRegularAuthority(acct, authAddr, contractAddr);
+        final var other = new byte[32];
+        other[0] = 1;
+        when(acct.toNativeAccount())
+                .thenReturn(accountWithKey(Key.newBuilder()
+                        .ecdsaSecp256k1(com.hedera.pbj.runtime.io.buffer.Bytes.wrap(other))
+                        .build()));
+        try (MockedStatic<EthTxSigs> mocked = mockStatic(EthTxSigs.class)) {
+            mocked.when(() -> EthTxSigs.extractAuthoritySignature(del)).thenReturn(mockAuthorityWithAddress(authAddr));
+            new CodeDelegationProcessor(CHAIN_ID).process(world, tx.gasLimit(), tx.codeDelegations());
+            verify(proxyWorldUpdater, never()).setAccountCodeDelegation(any(), any());
+            verify(acct, never()).incrementNonce();
+        }
+    }
+
+    @Test
+    void allowsAuthorizationForHollowAuthorityAccount() {
+        final var acct = mock(AbstractMutableEvmAccount.class);
+        final var authAddr = Address.fromHexString("0x00000000000000000000000000000000000000AC");
+        final var contractAddr = Address.fromHexString("0x00000000000000000000000000000000000000BB");
+        givenExistingRegularAuthority(acct, authAddr, contractAddr);
+        when(acct.toNativeAccount())
+                .thenReturn(accountWithKey(Key.newBuilder()
+                        .keyList(com.hedera.hapi.node.base.KeyList.DEFAULT)
+                        .build()));
+        when(proxyWorldUpdater.setAccountCodeDelegation(any(), any())).thenReturn(true);
+        try (MockedStatic<EthTxSigs> mocked = mockStatic(EthTxSigs.class)) {
+            mocked.when(() -> EthTxSigs.extractAuthoritySignature(del)).thenReturn(mockAuthorityWithAddress(authAddr));
+            new CodeDelegationProcessor(CHAIN_ID).process(world, tx.gasLimit(), tx.codeDelegations());
+            verify(proxyWorldUpdater).setAccountCodeDelegation(any(), any());
+            verify(acct).incrementNonce();
+        }
     }
 }

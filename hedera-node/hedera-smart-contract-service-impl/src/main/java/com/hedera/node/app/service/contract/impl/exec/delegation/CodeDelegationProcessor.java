@@ -3,6 +3,8 @@ package com.hedera.node.app.service.contract.impl.exec.delegation;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
+import static com.hedera.hapi.util.HapiUtils.isHollow;
+import static com.hedera.node.app.service.contract.impl.handlers.EthereumTransactionHandler.adminKeyMatchesEcdsaPubKey;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthAccountCreationWithKeyAndCodeDelegation;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.signedTxWith;
@@ -209,6 +211,14 @@ public record CodeDelegationProcessor(long chainId) {
                 return;
             }
 
+            // The authorization signer must still control the account; a finalized account whose key
+            // is no longer the single ECDSA key matching the signer (e.g. after a key rotation) is skipped
+            if (!authorizerControlsAccount((HederaEvmAccount) authority, authorizer.publicKey())) {
+                state.reportIgnoredEntry(EntryIgnoreReason.OTHER);
+                state.addAccessedAddress(authorityAddress);
+                return;
+            }
+
             if (!proxyWorldUpdater.setAccountCodeDelegation(
                     ((HederaEvmAccount) authority).hederaId(), delegatedContractAddress)) {
                 state.reportIgnoredEntry(EntryIgnoreReason.OTHER);
@@ -236,6 +246,18 @@ public record CodeDelegationProcessor(long chainId) {
                         tuweniToPbjBytes(delegatedContractAddress.getBytes()),
                         unlimitedAutoAssociations))
                 .build());
+    }
+
+    private static boolean authorizerControlsAccount(
+            @NonNull final HederaEvmAccount authority, @NonNull final byte[] authorizerPublicKey) {
+        final var account = authority.toNativeAccount();
+        if (account == null) {
+            return false;
+        }
+        if (isHollow(account)) {
+            return true;
+        }
+        return account.hasKey() && adminKeyMatchesEcdsaPubKey(account.keyOrThrow(), authorizerPublicKey);
     }
 
     private boolean canSetCodeDelegation(final Account account) {
