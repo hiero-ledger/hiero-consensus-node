@@ -9,6 +9,9 @@ import com.swirlds.merkledb.config.MerkleDbConfig_;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.base.file.FileSystemManager;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.Fork;
@@ -45,7 +48,8 @@ public class LongListDiskBenchmark {
                 .getConfigData(MerkleDbConfig.class);
         rootDir = Files.createTempDirectory("LongListDiskBenchmark");
         fileSystemManager = new FileSystemManager(rootDir);
-        try (final LongListHeap list = new LongListHeap(1024, fileSize, 0)) {
+        try (final LongListHeap list = new LongListHeap(1024, fileSize, 0);
+                final ExecutorService pool = Executors.newFixedThreadPool(configuration.longListWriteThreads())) {
             list.updateValidRange(0, fileSize - 1);
             for (int i = 0; i < fileSize; i++) {
                 list.put(i, i + 1);
@@ -54,7 +58,7 @@ public class LongListDiskBenchmark {
             if (Files.exists(srcFile)) {
                 Files.delete(srcFile);
             }
-            list.writeToFile(srcFile);
+            list.writeToFile(srcFile, pool, new AtomicReference<>());
         }
     }
 

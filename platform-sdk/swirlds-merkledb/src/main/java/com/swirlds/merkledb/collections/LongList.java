@@ -5,6 +5,8 @@ import com.swirlds.merkledb.files.DataFileCommon;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.LongStream;
 
 /**
@@ -90,18 +92,17 @@ public interface LongList extends CASableLongIndex, Closeable, OffHeapUser {
      */
     LongStream stream();
 
-    /**
-     * Write all longs in this LongList into a file
-     * <p>
-     * <b> It is not guaranteed what version of data will be written if the LongList is changed
-     * via put methods while this LongList is being written to a file. If you need consistency while
-     * calling put concurrently then use a BufferedLongListWrapper. </b>
-     *
-     * @param file The file to write into, it should not exist but its parent directory should exist
-     *             and be writable.
-     * @throws IOException If there was a problem creating or writing to the file.
-     */
-    void writeToFile(Path file) throws IOException;
+    /// Writes all longs in this LongList to a file.
+    /// If another thread calls `put()` during the write, the file may contain both old and updated values.
+    ///
+    /// Submits the writes to `executor` and waits for them to finish. The caller owns the executor.
+    /// Once `snapshotFailure` is set, writes that have not started are skipped and the file is incomplete.
+    ///
+    /// @param file new file to write; its parent directory must exist and be writable
+    /// @param executor executor able to run writer tasks while this method waits
+    /// @param snapshotFailure first failure of the enclosing snapshot; a failed write records its failure here
+    /// @throws IOException if there was a problem creating or writing to the file
+    void writeToFile(Path file, Executor executor, AtomicReference<Throwable> snapshotFailure) throws IOException;
 
     /**
      * Updates min and max valid indexes in this list. If both values are -1, this indicates
