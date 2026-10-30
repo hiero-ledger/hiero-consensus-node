@@ -56,7 +56,7 @@ on:
       solo-version:
         type: string
         description: "The solo version to use for the regression panels"
-        default: "latest"
+        required: true
       mirror-node-version:
         type: string
         description: "The mirror node version to deploy for the mirror node regression panel (if not specified, '0.145.2' will be used)"
