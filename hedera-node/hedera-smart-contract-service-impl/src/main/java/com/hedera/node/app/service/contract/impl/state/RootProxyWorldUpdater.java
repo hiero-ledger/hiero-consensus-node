@@ -70,7 +70,8 @@ public class RootProxyWorldUpdater extends ProxyWorldUpdater {
      * <ol>
      *     <li>Gets the list of pending storage changes and summarizes their effects on size.</li>
      *     <li>Validates the effects on size are legal.</li>
-     *     <li>For each increase in storage size, calculates rent and tries to charge the allocating contract.</li>
+     *     <li>For each increase in storage size, calculates rent and tries to charge the allocating contract
+     *     (outermost execution only).</li>
      *     <li>"Rewrites" the pending storage changes to preserve per-contract linked lists (outermost execution
      *     only).</li>
      * </ol>
@@ -89,10 +90,11 @@ public class RootProxyWorldUpdater extends ProxyWorldUpdater {
         final var sizeEffects = summarizeSizeEffects(writes);
         storageSizeValidator.assertValid(
                 sizeEffects.finalSlotsUsed(), enhancement.operations(), sizeEffects.sizeChanges());
-        // Charge rent for each increase in storage size
-        chargeRentFor(sizeEffects);
-        // Nested executions commit into the enclosing scope, whose outermost execution persists their changes
+        // Nested executions commit into the enclosing scope, so only the outermost execution charges rent for
+        // and persists their changes
         if (!ContractExecutionDepth.isNested()) {
+            // Charge rent for each increase in storage size
+            chargeRentFor(sizeEffects);
             storageManager.persistChanges(
                     enhancement,
                     writes,

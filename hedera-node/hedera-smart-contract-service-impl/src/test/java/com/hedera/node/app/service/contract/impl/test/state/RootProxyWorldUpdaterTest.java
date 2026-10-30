@@ -180,12 +180,15 @@ class RootProxyWorldUpdaterTest {
     }
 
     @Test
-    void nestedExecutionValidatesButLeavesPersistenceToOutermostCommit() {
+    void nestedExecutionValidatesButLeavesRentAndPersistenceToOutermostCommit() {
         given(context.dispatchMetadata())
                 .willReturn(new HandleContext.DispatchMetadata(EXPLICIT_WRITE_TRACING, Boolean.FALSE));
         given(evmFrameState.getKvStateSize()).willReturn(123L);
         given(evmFrameState.getTxStorageUsage(true)).willReturn(new TxStorageUsage(pendingChanges(), Set.of()));
-        given(evmFrameState.getRentFactorsFor(A_CONTRACT_ID)).willReturn(new RentFactors(0, 0));
+        // Lenient, since a nested commit must not ask for rent factors
+        BDDMockito.lenient()
+                .when(evmFrameState.getRentFactorsFor(A_CONTRACT_ID))
+                .thenReturn(new RentFactors(0, 0));
         given(hederaOperations.summarizeContractChanges())
                 .willReturn(new ContractChangeSummary(new ArrayList<>(), new ArrayList<>()));
 
@@ -200,6 +203,7 @@ class RootProxyWorldUpdaterTest {
 
         // Three pending removals
         BDDMockito.then(storageSizeValidator).should().assertValid(120L, hederaOperations, expectedSizeChanges());
+        BDDMockito.then(rentCalculator).shouldHaveNoInteractions();
         BDDMockito.then(storageManager).shouldHaveNoInteractions();
         BDDMockito.then(hederaOperations).should().commit();
     }
