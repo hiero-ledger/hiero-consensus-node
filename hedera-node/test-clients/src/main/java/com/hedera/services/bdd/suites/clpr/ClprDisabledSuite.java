@@ -98,6 +98,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -366,14 +367,6 @@ public class ClprDisabledSuite {
         return withOpContext((spec, opLog) -> {
             final var channelKey = new ProtoBytes(Bytes.wrap(crypto.channelId()));
             final var connectorKey = new ClprConnectorKey(channelKey.value(), Bytes.wrap(crypto.connectorId()));
-            final var states = spec.embeddedStateOrThrow().getWritableStates(ClprService.NAME);
-            final var channels = states.<ProtoBytes, ClprChannel>get(CHANNELS_STATE_ID);
-            final var connectors = states.<ClprConnectorKey, ClprConnector>get(CONNECTORS_STATE_ID);
-            final var configurations = states.<com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration>getSingleton(
-                    LEDGER_CONFIGURATION_STATE_ID);
-            final var previousChannel = channels.get(channelKey);
-            final var previousConnector = connectors.get(connectorKey);
-            final var previousConfiguration = configurations.get();
             final var configuration =
                     protoToPbj(ledgerConfig(), com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration.class);
             final var channel = ClprChannel.newBuilder()
@@ -392,10 +385,23 @@ public class ClprDisabledSuite {
                     .connectorContract(toPbj(spec.registry().getContractId(CONNECTOR_CONTRACT)))
                     .adminKey(toPbj(spec.registry().getKey(GENESIS)))
                     .build();
-            channels.put(channelKey, channel);
-            connectors.put(connectorKey, connector);
-            configurations.put(configuration);
-            spec.commitEmbeddedState();
+            final var previousChannel = new AtomicReference<ClprChannel>();
+            final var previousConnector = new AtomicReference<ClprConnector>();
+            final var previousConfiguration =
+                    new AtomicReference<com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration>();
+            spec.mutateEmbeddedState(state -> {
+                final var states = state.getWritableStates(ClprService.NAME);
+                final var channels = states.<ProtoBytes, ClprChannel>get(CHANNELS_STATE_ID);
+                final var connectors = states.<ClprConnectorKey, ClprConnector>get(CONNECTORS_STATE_ID);
+                final var configurations = states.<com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration>getSingleton(
+                        LEDGER_CONFIGURATION_STATE_ID);
+                previousChannel.set(channels.get(channelKey));
+                previousConnector.set(connectors.get(connectorKey));
+                previousConfiguration.set(configurations.get());
+                channels.put(channelKey, channel);
+                connectors.put(connectorKey, connector);
+                configurations.put(configuration);
+            });
             try {
                 allRunFor(spec, operations);
                 final var after = spec.embeddedStateOrThrow().getReadableStates(ClprService.NAME);
@@ -412,23 +418,24 @@ public class ClprDisabledSuite {
                                         LEDGER_CONFIGURATION_STATE_ID)
                                 .get());
             } finally {
-                final var restored = spec.embeddedStateOrThrow().getWritableStates(ClprService.NAME);
-                final var restoredChannels = restored.<ProtoBytes, ClprChannel>get(CHANNELS_STATE_ID);
-                final var restoredConnectors = restored.<ClprConnectorKey, ClprConnector>get(CONNECTORS_STATE_ID);
-                if (previousChannel == null) {
-                    restoredChannels.remove(channelKey);
-                } else {
-                    restoredChannels.put(channelKey, previousChannel);
-                }
-                if (previousConnector == null) {
-                    restoredConnectors.remove(connectorKey);
-                } else {
-                    restoredConnectors.put(connectorKey, previousConnector);
-                }
-                restored.<com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration>getSingleton(
-                                LEDGER_CONFIGURATION_STATE_ID)
-                        .put(previousConfiguration);
-                spec.commitEmbeddedState();
+                spec.mutateEmbeddedState(state -> {
+                    final var restored = state.getWritableStates(ClprService.NAME);
+                    final var restoredChannels = restored.<ProtoBytes, ClprChannel>get(CHANNELS_STATE_ID);
+                    final var restoredConnectors = restored.<ClprConnectorKey, ClprConnector>get(CONNECTORS_STATE_ID);
+                    if (previousChannel.get() == null) {
+                        restoredChannels.remove(channelKey);
+                    } else {
+                        restoredChannels.put(channelKey, previousChannel.get());
+                    }
+                    if (previousConnector.get() == null) {
+                        restoredConnectors.remove(connectorKey);
+                    } else {
+                        restoredConnectors.put(connectorKey, previousConnector.get());
+                    }
+                    restored.<com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration>getSingleton(
+                                    LEDGER_CONFIGURATION_STATE_ID)
+                            .put(previousConfiguration.get());
+                });
             }
         });
     }
@@ -587,11 +594,13 @@ public class ClprDisabledSuite {
             final HapiSpec spec,
             final ClprEndpointManifest manifest,
             final ClprEndpointManifestConstruction construction) {
-        final var states = spec.embeddedStateOrThrow().getWritableStates(ClprService.NAME);
-        states.<ClprEndpointManifest>getSingleton(ENDPOINT_MANIFEST_STATE_ID).put(manifest);
-        states.<ClprEndpointManifestConstruction>getSingleton(ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID)
-                .put(construction);
-        spec.commitEmbeddedState();
+        spec.mutateEmbeddedState(state -> {
+            final var states = state.getWritableStates(ClprService.NAME);
+            states.<ClprEndpointManifest>getSingleton(ENDPOINT_MANIFEST_STATE_ID)
+                    .put(manifest);
+            states.<ClprEndpointManifestConstruction>getSingleton(ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID)
+                    .put(construction);
+        });
     }
 
     private static MethodDescriptor<byte[], byte[]> peerMethod(

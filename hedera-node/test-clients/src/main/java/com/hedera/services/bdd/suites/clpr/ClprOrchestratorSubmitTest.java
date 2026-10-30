@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.suites.clpr;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.protoToPbj;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
 import static com.hedera.services.bdd.junit.ContextRequirement.PROPERTY_OVERRIDES;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.CLPR;
@@ -18,24 +19,33 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
+import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.toBundleProofBytes;
 import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.CLPR_SERVICE_ADDRESS_20;
 import static java.util.Objects.requireNonNull;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.protobuf.ByteString;
 import com.hedera.hapi.block.stream.MerklePath;
 import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.node.state.clpr.ClprBundleRequest;
 import com.hedera.hapi.node.state.clpr.ClprBundleResponse;
+import com.hedera.hapi.node.state.clpr.ClprChannel;
 import com.hedera.hapi.node.state.clpr.ClprStreamingSyncPayload;
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.platform.state.StateItem;
 import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
+import com.hedera.node.app.service.clpr.ClprService;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
+import com.hederahashgraph.api.proto.java.ClprChannelStatus;
 import com.hederahashgraph.api.proto.java.ClprLedgerConfiguration;
+import com.hederahashgraph.api.proto.java.ClprMessage;
+import com.hederahashgraph.api.proto.java.ClprMessagePayload;
 import com.hederahashgraph.api.proto.java.ClprSignatureScheme;
 import com.hederahashgraph.api.proto.java.ClprThrottles;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Ed25519;
 import org.junit.jupiter.api.DisplayName;
@@ -68,6 +78,18 @@ public class ClprOrchestratorSubmitTest {
         final var crypto = new Crypto();
 
         final var proofBytes = buildProofBytes();
+        // A verified message referencing an unknown remote connector; the bundle itself is valid, so it passes
+        // validation before gossip and is applied by ClprSubmitBundleHandler (the message gets a CONNECTOR_NOT_FOUND
+        // reply)
+        final var probe = ClprMessagePayload.newBuilder()
+                .setMessage(ClprMessage.newBuilder()
+                        .setConnectorId(ByteString.copyFrom(new byte[32]))
+                        .setTargetApplication(ByteString.copyFrom(new byte[20]))
+                        .setSender(ByteString.copyFrom(new byte[20]))
+                        .setMessageData(ByteString.copyFromUtf8("probe")))
+                .build();
+        final var bundleBytes =
+                Bytes.wrap(toBundleProofBytes(ClprChannelStatus.ACTIVE, 0L, 0L, new byte[32], List.of(probe)));
         return hapiTest(
                 overriding("clpr.minLockedStake", String.valueOf(MIN_LOCKED_STAKE)),
                 // Fund the self node's account (account 3 in embedded) so the inbound
@@ -116,7 +138,7 @@ public class ClprOrchestratorSubmitTest {
                             .channelId(Bytes.wrap(crypto.channelId))
                             .bundleRequest(ClprBundleRequest.DEFAULT)
                             .bundleResponse(ClprBundleResponse.newBuilder()
-                                    .bundlePayload(proofBytes)
+                                    .bundlePayload(bundleBytes)
                                     .build())
                             .build();
 
@@ -128,6 +150,12 @@ public class ClprOrchestratorSubmitTest {
                         spec.embeddedHederaOrThrow().tick(java.time.Duration.ofMillis(100));
                         Thread.sleep(20);
                     }
+                    // The handler applied the bundle: the channel has received its one message
+                    final var channel = spec.embeddedStateOrThrow()
+                            .getReadableStates(ClprService.NAME)
+                            .<ProtoBytes, ClprChannel>get(CHANNELS_STATE_ID)
+                            .get(new ProtoBytes(Bytes.wrap(crypto.channelId)));
+                    assertEquals(1L, requireNonNull(channel).receivedMessageId());
                     // Diagnosis cue:
                     // Run this test in IntelliJ in debug mode and set a breakpoint at the
                     // very first line of ClprSubmitBundleHandler.doHandle. If it does NOT

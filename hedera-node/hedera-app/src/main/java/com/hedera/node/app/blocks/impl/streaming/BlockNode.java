@@ -63,7 +63,7 @@ public class BlockNode {
     /**
      * If this block node is actively streaming, the connection will be referenced here.
      */
-    private final AtomicReference<BlockNodeStreamingConnection> activeStreamingConnectionRef = new AtomicReference<>();
+    private final AtomicReference<BlockNodePublisherConnection> activeStreamingConnectionRef = new AtomicReference<>();
     /**
      * Flag to indicate if this block node is "terminal" and thus is not eligible for streaming to. A node is in this
      * terminal state usually because it was removed from the block node configuration set and isn't a node we want
@@ -225,9 +225,9 @@ public class BlockNode {
         configurationRef.set(requireNonNull(configuration, "Configuration is required"));
         nodeCoolDownTimestampRef.set(null);
 
-        final BlockNodeStreamingConnection activeConnection = activeStreamingConnectionRef.get();
-        if (activeConnection != null) {
-            activeConnection.closeAtBlockBoundary(CloseReason.CONFIG_UPDATE);
+        final BlockNodePublisherConnection activeConnection = activeStreamingConnectionRef.get();
+        if (activeConnection instanceof final BlockNodeStreamingConnection streamingConnection) {
+            streamingConnection.closeAtBlockBoundary(CloseReason.CONFIG_UPDATE);
         }
     }
 
@@ -247,9 +247,9 @@ public class BlockNode {
      * @param closeReason the reason for closing the connection
      */
     void closeConnection(@NonNull final CloseReason closeReason) {
-        final BlockNodeStreamingConnection activeConnection = activeStreamingConnectionRef.get();
-        if (activeConnection != null) {
-            activeConnection.closeAtBlockBoundary(closeReason);
+        final BlockNodePublisherConnection activeConnection = activeStreamingConnectionRef.get();
+        if (activeConnection instanceof final BlockNodeStreamingConnection streamingConnection) {
+            streamingConnection.closeAtBlockBoundary(closeReason);
         }
     }
 
@@ -282,19 +282,19 @@ public class BlockNode {
      *
      * @param connection the new active connection associated to this block node
      */
-    void onActive(@NonNull final BlockNodeStreamingConnection connection) {
+    void onActive(@NonNull final BlockNodePublisherConnection connection) {
         requireNonNull(connection, "Connection is required");
         final BlockNodeEndpoint endpoint = connection.configuration().streamingEndpoint();
 
-        final BlockNodeStreamingConnection oldConnection = activeStreamingConnectionRef.getAndSet(connection);
-        if (oldConnection != null) {
+        final BlockNodePublisherConnection oldConnection = activeStreamingConnectionRef.getAndSet(connection);
+        if (oldConnection instanceof final BlockNodeStreamingConnection oldStreamingConnection) {
             logger.info(
                     "[{}:{}] Block node has multiple active connections (new: {}, old: {}); closing old connection",
                     endpoint.host(),
                     endpoint.port(),
                     connection.connectionId(),
-                    oldConnection.connectionId());
-            oldConnection.closeAtBlockBoundary(CloseReason.NEW_CONNECTION);
+                    oldStreamingConnection.connectionId());
+            oldStreamingConnection.closeAtBlockBoundary(CloseReason.NEW_CONNECTION);
         }
 
         final ConnectionHistory connectionHistory = new ConnectionHistory(connection);
@@ -364,7 +364,7 @@ public class BlockNode {
      *
      * @param connection the connection that was closed
      */
-    void onClose(@NonNull final BlockNodeStreamingConnection connection) {
+    void onClose(@NonNull final BlockNodePublisherConnection connection) {
         requireNonNull(connection, "Connection is required");
 
         activeStreamingConnectionRef.compareAndSet(connection, null);
@@ -546,7 +546,7 @@ public class BlockNode {
         volatile Instant closeTimestamp;
         volatile CloseReason closeReason;
 
-        ConnectionHistory(@NonNull final BlockNodeStreamingConnection connection) {
+        ConnectionHistory(@NonNull final BlockNodePublisherConnection connection) {
             connectionId = connection.connectionId();
             createTimestamp = connection.createTimestamp();
             connectionStatistics = connection.connectionStatistics();
@@ -577,7 +577,7 @@ public class BlockNode {
          *
          * @param connection the connection that has become active
          */
-        void onActive(@NonNull final BlockNodeStreamingConnection connection) {
+        void onActive(@NonNull final BlockNodePublisherConnection connection) {
             activeTimestamp = connection.activeTimestamp();
         }
 
@@ -587,7 +587,7 @@ public class BlockNode {
          *
          * @param connection the connection that was closed
          */
-        void onClose(@NonNull final BlockNodeStreamingConnection connection) {
+        void onClose(@NonNull final BlockNodePublisherConnection connection) {
             closeTimestamp = connection.closeTimestamp();
             closeReason = connection.closeReason();
             if (closeReason == null) {

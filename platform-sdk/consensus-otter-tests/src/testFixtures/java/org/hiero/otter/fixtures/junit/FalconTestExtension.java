@@ -47,23 +47,26 @@ public class FalconTestExtension implements TestTemplateInvocationContextProvide
             @NonNull final ExtensionContext context) {
         final FalconTest falconTest = findAnnotation(context, FalconTest.class).orElseThrow();
         final List<ArgumentSet> argumentSets = ArgumentSets.of(context);
+        final String testMethodName = context.getRequiredTestMethod().getName();
 
         final long pinnedSeed = falconTest.randomSeed();
         if (pinnedSeed != 0L) {
-            return argumentSets.stream().map(argumentSet -> FalconInvocationContext.replay(argumentSet, pinnedSeed));
+            return argumentSets.stream()
+                    .map(argumentSet -> FalconInvocationContext.replay(testMethodName, argumentSet, pinnedSeed));
         }
 
-        final String testName = context.getRequiredTestMethod().getName();
-        final int repetitions = repetitionsFor(testName, falconTest);
-        final int failureThreshold = failureThresholdFor(testName, falconTest);
+        final int repetitions = repetitionsFor(testMethodName, falconTest);
+        final int failureThreshold = failureThresholdFor(testMethodName, falconTest);
         final Random random = new Random();
-        return argumentSets.stream().flatMap(argumentSet -> sweep(argumentSet, repetitions, failureThreshold, random));
+        return argumentSets.stream()
+                .flatMap(argumentSet -> sweep(testMethodName, argumentSet, repetitions, failureThreshold, random));
     }
 
     /**
      * Creates the invocation contexts of the sweep of a single argument set. The repetitions of the sweep share a
      * failure counter of their own, so that the failure threshold is counted per argument set.
      *
+     * @param testMethodName the name of the test method
      * @param argumentSet the argument set of the sweep
      * @param repetitions the number of repetitions of the sweep
      * @param failureThreshold the number of failed repetitions that stops the sweep
@@ -72,6 +75,7 @@ public class FalconTestExtension implements TestTemplateInvocationContextProvide
      */
     @NonNull
     private static Stream<TestTemplateInvocationContext> sweep(
+            @NonNull final String testMethodName,
             @NonNull final ArgumentSet argumentSet,
             final int repetitions,
             final int failureThreshold,
@@ -79,7 +83,13 @@ public class FalconTestExtension implements TestTemplateInvocationContextProvide
         final AtomicInteger failureCount = new AtomicInteger();
         return IntStream.rangeClosed(1, repetitions)
                 .mapToObj(index -> FalconInvocationContext.sweep(
-                        argumentSet, index, repetitions, random.nextLong(), failureCount, failureThreshold));
+                        testMethodName,
+                        argumentSet,
+                        index,
+                        repetitions,
+                        random.nextLong(),
+                        failureCount,
+                        failureThreshold));
     }
 
     /**
