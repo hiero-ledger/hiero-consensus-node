@@ -24,6 +24,7 @@ import org.hiero.consensus.event.creator.config.EventCreationWiringConfig;
 import org.hiero.consensus.event.creator.impl.DefaultEventCreationManager;
 import org.hiero.consensus.event.creator.impl.EventCreationManager;
 import org.hiero.consensus.event.creator.impl.EventCreator;
+import org.hiero.consensus.event.creator.impl.tipset.DefaultTipsetTracker;
 import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator;
 import org.hiero.consensus.event.intake.config.EventIntakeWiringConfig;
 import org.hiero.consensus.event.intake.impl.deduplication.EventDeduplicator;
@@ -126,8 +127,17 @@ public class FalconWiring implements TimeTickReceiver {
 
         final EventCreationWiringConfig eventCreationConfig =
                 configuration.getConfigData(EventCreationWiringConfig.class);
+        final DefaultTipsetTracker tipsetTracker = new DefaultTipsetTracker(time, selfId, roster);
         final EventCreator eventCreator = new TipsetEventCreator(
-                configuration, metrics, time, secureRandom, signer, roster, selfId, transactionSupplier);
+                configuration,
+                metrics,
+                time,
+                secureRandom,
+                signer,
+                roster,
+                selfId,
+                transactionSupplier,
+                tipsetTracker);
         final SignatureTransactionCheck signatureTransactionCheck = () -> false;
         final EventCreationManager eventCreationManager = new DefaultEventCreationManager(
                 configuration, metrics, time, signatureTransactionCheck, eventCreator, roster, selfId);

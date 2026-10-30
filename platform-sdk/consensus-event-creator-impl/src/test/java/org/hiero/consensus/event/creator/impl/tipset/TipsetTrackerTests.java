@@ -17,7 +17,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
-import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
@@ -38,16 +37,16 @@ class TipsetTrackerTests {
         assertThat(actual.size()).isEqualTo(expected.size());
 
         for (final RosterEntryWrapper address : roster.rosterEntries()) {
-            assertThat(actual.getTipSequenceNumberForNode(address.nodeId()))
+            assertThat(actual.getTipOrderingKeyForNode(address.nodeId()))
                     .withFailMessage(
                             "Expected tip generation for node %s to be %s but was %s",
                             address.nodeId(), expected, actual)
-                    .isEqualTo(expected.getTipSequenceNumberForNode(address.nodeId()));
+                    .isEqualTo(expected.getTipOrderingKeyForNode(address.nodeId()));
         }
     }
 
     /**
-     * This test creates a bunch of events, adds them to the {@link TipsetTracker}, and verifies that the correct
+     * This test creates a bunch of events, adds them to the {@link DefaultTipsetTracker}, and verifies that the correct
      * tipsets for those added events are returned. Lastly, it advances the event window and verifies that tipsets for
      * ancient events are no longer returned by the tracker.
      */
@@ -63,7 +62,7 @@ class TipsetTrackerTests {
         final Map<NodeId, PlatformEvent> latestEvents = new HashMap<>();
         final Map<EventDescriptorWrapper, Tipset> expectedTipsets = new HashMap<>();
 
-        final TipsetTracker tracker = new TipsetTracker(Time.getCurrent(), selfId, roster);
+        final DefaultTipsetTracker tracker = new DefaultTipsetTracker(Time.getCurrent(), selfId, roster);
 
         long birthRound = ConsensusConstants.ROUND_FIRST;
 
@@ -110,11 +109,11 @@ class TipsetTrackerTests {
             } else {
                 newTipset = tracker.addPeerEvent(event);
             }
-            assertThat(newTipset.getTipSequenceNumberForNode(selfId))
+            assertThat(newTipset.getTipOrderingKeyForNode(selfId))
                     .withFailMessage(String.format(
-                            "The sequence number should always be %s for the self node, got %s instead",
-                            EventConstants.SEQUENCE_NUMBER_UNDEFINED, newTipset.getTipSequenceNumberForNode(selfId)))
-                    .isEqualTo(EventConstants.SEQUENCE_NUMBER_UNDEFINED);
+                            "The ordering key should always be %s for the self node, got %s instead",
+                            Tipset.ORDERING_KEY_UNDEFINED, newTipset.getTipOrderingKeyForNode(selfId)))
+                    .isEqualTo(Tipset.ORDERING_KEY_UNDEFINED);
             assertSame(newTipset, tracker.getTipset(event.getDescriptor()));
 
             // Now, reconstruct the tipset manually, and make sure it matches what we were expecting.

@@ -35,9 +35,12 @@ The default implementation is `TipsetEventCreator`
 (`consensus-event-creator-impl/.../tipset/TipsetEventCreator.java`), which
 holds four collaborating objects:
 
-- **Per-event tipsets** — `TipsetTracker`
-  (`consensus-event-creator-impl/.../tipset/TipsetTracker.java`) keeps a
-  `SequenceMap<EventDescriptorWrapper, Tipset>` of every non-ancient
+- **Per-event tipsets** — a `TipsetTracker`
+  (`consensus-event-creator-impl/.../tipset/TipsetTracker.java`), passed to
+  the `TipsetEventCreator` constructor. The default implementation,
+  `DefaultTipsetTracker`
+  (`consensus-event-creator-impl/.../tipset/DefaultTipsetTracker.java`),
+  keeps a `SequenceMap<EventDescriptorWrapper, Tipset>` of every non-ancient
   event's tipset, plus a `latestGenerations` tipset summarising the
   highest sequence number observed per node.
 - **Snapshot and score accumulators** — `TipsetWeightCalculator`
@@ -73,9 +76,9 @@ input and output wires plus an `EventTransactionSupplier` passed at
   delivers `PlatformEvent`s; they pass through `FutureEventBuffer` in
   `DefaultEventCreationManager#registerEvent` and reach
   `TipsetEventCreator#registerEvent`, which routes peer events to
-  `TipsetTracker#addPeerEvent` (advancing both the per-event tipset and
+  `DefaultTipsetTracker#addPeerEvent` (advancing both the per-event tipset and
   `latestGenerations` using the event's sequence number) and adopted
-  self-events to `TipsetTracker#addSelfEvent` — self-events are adopted
+  self-events to `DefaultTipsetTracker#addSelfEvent` — self-events are adopted
   selectively, see [Latest self event](#latest-self-event). See
   [event-intake.md](event-intake.md).
 - **Event window from hashgraph** — `consensusRoundInputWire` delivers each
@@ -173,9 +176,9 @@ if (SUPER_MAJORITY.isSatisfiedBy(advancementWeight.advancementWeight() + selfWei
 ```
 
 Per-event tipsets for peer events are constructed in
-`TipsetTracker#addPeerEvent`; the call
+`DefaultTipsetTracker#addPeerEvent`; the call
 `new Tipset(roster).merge(parentTipsets).advance(event.getCreatorId(), event.getSequenceNumber())`
-shows that tipset entries are event sequence numbers.
+shows that its tipset entries are event sequence numbers.
 
 The >2/3 threshold mirrors the super-majority that hashgraph consensus
 itself requires to strongly see another node's event, so a snapshot
