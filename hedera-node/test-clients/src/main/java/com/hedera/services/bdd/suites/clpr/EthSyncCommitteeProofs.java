@@ -15,9 +15,15 @@ import com.hederahashgraph.api.proto.java.ClprMessagePayload;
 import com.hederahashgraph.api.proto.java.ClprQueueMetadata;
 import com.hederahashgraph.api.proto.java.ClprServiceEndpoint;
 import com.hederahashgraph.api.proto.java.ClprThrottles;
+import com.hederahashgraph.api.proto.java.EthereumPosBeaconBlockHeader;
+import com.hederahashgraph.api.proto.java.EthereumPosLedgerConfigurationPayload;
+import com.hederahashgraph.api.proto.java.EthereumPosSyncAggregate;
+import com.hederahashgraph.api.proto.java.EthereumPosSyncCommittee;
+import java.math.BigInteger;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,83 +36,160 @@ import java.util.Map;
  * involving this ledger.
  *
  * <p><b>BLS.</b> The node's verifier currently runs a fake BLS check that accepts any signature, so a
- * placeholder 96-byte signature suffices today. The signing root the real verifier would check is
- * computed here and handed to {@link BlsSigner} so that, when a real {@code BlsSignatureVerifier} and
- * a BLS library land, only {@link BlsSigner} needs a real implementation — the rest of the payload is
- * already shaped as if signatures were verified.
+ * placeholder 256-byte signature suffices today, and the committee keys are curve points but not real validator keys.
+ * The signing root the real verifier would check is computed here and handed to {@link BlsSigner} so that, when a real
+ * {@code BlsSignatureVerifier} and a BLS library land, only {@link BlsSigner} and the key generation need a real
+ * implementation — the rest of the payload is already shaped as if signatures were verified.
  *
- * <p>The config payload is the raw RLP {@code [slot, syncCommittee, genesisValidatorsRoot,
- * forkVersion, ledgerConfigBytes]} that the verifier's {@code verifyConfig(bytes,bytes32)} expects — <em>not</em>
- * the {@code StateProof} envelope {@link ClprTestProofs} builds for the passthrough verifier. The bundle
- * payload is the raw RLP 9-item list that {@code verifyBundle(bytes,bytes,bytes)} expects.
+ * <p>The config payload is the protobuf {@code EthereumPosLedgerConfigurationPayload} that the verifier's
+ * {@code verifyConfig(bytes,bytes32,bytes)} expects — <em>not</em> the {@code StateProof} envelope
+ * {@link ClprTestProofs} builds for the passthrough verifier: a light-client bootstrap of the initial committee, and an
+ * update it signs proving the next committee. The channel then trusts the initial committee for the configured period
+ * and the next one for the period after. The bundle payload is the RLP {@code [ [rotation...], delivery ]} that
+ * {@code verifyBundle(bytes,bytes,bytes)} expects, in the Gloas format.
  */
 final class EthSyncCommitteeProofs {
 
     private EthSyncCommitteeProofs() {}
 
-    // ── Committee / chain constants (a config payload and its bundles must share these) ──
-    static final int COMMITTEE_SIZE = 512;
-    private static final byte[][] PUBKEYS = buildCommitteePubkeys();
-    private static final byte[] AGGREGATE_PUBKEY = generateBytes(48, 0x33);
+    // ── Chain constants (a config payload and its bundles must share these) ──
     private static final byte[] GENESIS_VALIDATORS_ROOT = generateBytes(32, 0x44);
-    private static final byte[] FORK_VERSION = {0x05, 0x00, 0x00, 0x00};
+    private static final byte[] FORK_VERSION = {0x08, 0x00, 0x00, 0x00};
     /** 20-byte execution-layer CLPR service contract address proven by every bundle. */
     static final byte[] SERVICE_ADDRESS = generateBytes(20, 0x55);
 
-    // ── Next-committee constants (used by rotation-bundle methods) ──
-    static final byte[][] NEXT_PUBKEYS = buildNextCommitteePubkeys();
-    static final byte[] NEXT_AGGREGATE_PUBKEY = generateBytes(48, 0x77);
-    /** SSZ generalized-index constants matching {@code Ssz.NEXT_SYNC_COMMITTEE_*} in the production verifier. */
-    private static final int NEXT_SYNC_COMMITTEE_BRANCH_DEPTH = 6;
-
-    private static final int NEXT_SYNC_COMMITTEE_LEAF_INDEX = 23;
+    /** The keccak256 of the CLPR service contract's code: pinned by the config, carried by every account proof. */
+    private static final byte[] CODE_HASH = generateBytes(32, 0x77);
 
     static final String CHAIN_ID = "eip155:1";
-    private static final long CONFIG_SLOT = 9_300_000L;
-    private static final long BUNDLE_SLOT = 9_300_064L;
-    private static final long ROTATION_BUNDLE_SLOT = 9_300_128L;
-    private static final long POST_ROTATION_BUNDLE_SLOT = 9_300_192L;
-    private static final long MANIFEST_BUNDLE_SLOT = 9_300_256L;
 
-    /**
-     * EVM storage-slot index holding the {@code ClprEndpointManifest} commitment on the CLPR service contract —
-     * mirrors {@code EthereumSyncCommitteeProofVerifier.MANIFEST_COMMITMENT_SLOT} ({@code leftPad32(0x12)} = slot 18).
-     */
+    /** The sync-committee period of the initial trust anchor. */
+    private static final long CONFIG_PERIOD = 1_135L;
+
+    /** Members that do not sign the bundles, so every bundle exercises the non-signer proofs. */
+    private static final int[] NON_SIGNERS = {3, 17};
+
+    // ── Gloas generalized indices (consensus-specs light-client constants) ──
+    private static final long FINALIZED_ROOT_GINDEX = 735L;
+    private static final long CURRENT_SYNC_COMMITTEE_GINDEX = 2945L;
+    private static final long NEXT_SYNC_COMMITTEE_GINDEX = 2946L;
+    private static final long EXECUTION_BLOCK_HASH_GINDEX = 2856L;
+
+    /** ClprService storage layout: the {@code _channels} mapping slot and the proven Channel member offsets. */
+    private static final int CHANNELS_BASE_SLOT = 15;
+
+    private static final int[] CHANNEL_SLOT_OFFSETS = {1, 2, 4, 5, 16};
+
+    /** EVM storage slot of the {@code ClprEndpointManifest} commitment on the CLPR service contract (slot 18). */
     private static final int MANIFEST_COMMITMENT_SLOT_INDEX = 0x12;
 
     private static final byte[] ZERO_32 = new byte[32];
-    /** Depth/leaf-index of {@code execution_payload.state_root} within the beacon body (Electra). */
-    private static final int EXECUTION_STATE_ROOT_DEPTH = 9;
 
-    private static final int EXECUTION_STATE_ROOT_LEAF_INDEX = 290;
+    /** The consensus presets the verifier supports. */
+    enum Preset {
+        MAINNET(512, 8192),
+        MINIMAL(32, 64);
+
+        final int committeeSize;
+        final long slotsPerPeriod;
+
+        Preset(final int committeeSize, final long slotsPerPeriod) {
+            this.committeeSize = committeeSize;
+            this.slotsPerPeriod = slotsPerPeriod;
+        }
+
+        long firstSlotOf(final long period) {
+            return period * slotsPerPeriod;
+        }
+    }
 
     // ─────────────────────────────────────────────────────────────────────────────
     //  Config payload
     // ─────────────────────────────────────────────────────────────────────────────
 
-    /** A valid config payload: self-describing committee and a peer config with throttles and one endpoint. */
+    /** A valid mainnet config payload: the initial and next committees and a peer config with throttles. */
     static byte[] configPayload() {
-        return configPayload(peerLedgerConfig(SERVICE_ADDRESS));
+        return configPayload(Preset.MAINNET);
+    }
+
+    /** A valid config payload whose committees have the size of {@code preset}. */
+    static byte[] configPayload(final Preset preset) {
+        return configPayload(preset, peerLedgerConfig(SERVICE_ADDRESS));
     }
 
     /**
      * A config payload whose peer {@code serviceAddress} is not 20 bytes. The Ethereum verifier needs a
-     * 20-byte execution-layer address to derive the trust anchor, so {@code verifyConfigPayload} rejects
-     * this inside the verifier (surfacing as {@code CLPR_VERIFIER_CONFIG_FAILED}) — unlike endpoint/throttle
-     * checks, which the verifier ignores and the completion handler enforces downstream.
+     * 20-byte execution-layer address, so {@code verifyConfigPayload} rejects this inside the verifier (surfacing as
+     * {@code CLPR_VERIFIER_CONFIG_FAILED}) — unlike endpoint/throttle checks, which the verifier ignores and the
+     * completion handler enforces downstream.
      */
     static byte[] configPayloadBadServiceAddress() {
-        return configPayload(peerLedgerConfig(generateBytes(3, 0x66)));
+        return configPayload(Preset.MAINNET, peerLedgerConfig(generateBytes(3, 0x66)));
     }
 
-    private static byte[] configPayload(final ClprLedgerConfiguration ledgerConfig) {
-        final Object syncCommittee = List.of(pubkeysList(), AGGREGATE_PUBKEY);
-        return RLPEncoder.list(List.of(
-                minimalBE(CONFIG_SLOT),
-                syncCommittee,
-                GENESIS_VALIDATORS_ROOT,
-                FORK_VERSION,
-                ledgerConfig.toByteArray()));
+    /**
+     * The config payload: the bootstrap opens the initial committee under the anchor header's state root, and an update
+     * header of the same period, signed by the initial committee, opens the next committee under its state root.
+     *
+     * <p>Every member signs the update.
+     */
+    private static byte[] configPayload(final Preset preset, final ClprLedgerConfiguration ledgerConfig) {
+        final Committee current = Committee.initial(preset);
+        final Committee next = Committee.next(preset);
+        final long anchorSlot = preset.firstSlotOf(CONFIG_PERIOD) + 7;
+        final Map<Long, byte[]> anchorState = Map.of(CURRENT_SYNC_COMMITTEE_GINDEX, current.hashTreeRoot());
+        final byte[] anchorParentRoot = generateBytes(32, 0x73);
+        final byte[] anchorBodyRoot = generateBytes(32, 0x74);
+        final long updateSlot = preset.firstSlotOf(CONFIG_PERIOD) + 20;
+        final Map<Long, byte[]> updateState = Map.of(NEXT_SYNC_COMMITTEE_GINDEX, next.hashTreeRoot());
+        final byte[] updateParentRoot = generateBytes(32, 0x71);
+        final byte[] updateBodyRoot = generateBytes(32, 0x72);
+        final byte[] updateRoot =
+                beaconHeaderRoot(updateSlot, 9L, updateParentRoot, sparseRoot(updateState), updateBodyRoot);
+        final byte[] bits = new byte[preset.committeeSize / 8];
+        Arrays.fill(bits, (byte) 0xFF);
+        final byte[] signature = BlsSigner.PLACEHOLDER.sign(
+                computeSigningRoot(updateRoot, FORK_VERSION, GENESIS_VALIDATORS_ROOT), preset.committeeSize);
+        return EthereumPosLedgerConfigurationPayload.newBuilder()
+                .setSyncCommittee(current.toProto())
+                .setLedgerConfiguration(ledgerConfig)
+                .setGenesisValidatorsRoot(ByteString.copyFrom(GENESIS_VALIDATORS_ROOT))
+                .setForkVersion(ByteString.copyFrom(FORK_VERSION))
+                .setSlot(anchorSlot)
+                .setAnchorHeader(protoHeader(anchorSlot, 8L, anchorParentRoot, sparseRoot(anchorState), anchorBodyRoot))
+                .addAllCurrentSyncCommitteeBranch(byteStrings(sparseBranch(anchorState, CURRENT_SYNC_COMMITTEE_GINDEX)))
+                .setUpdateHeader(protoHeader(updateSlot, 9L, updateParentRoot, sparseRoot(updateState), updateBodyRoot))
+                .setSyncAggregate(EthereumPosSyncAggregate.newBuilder()
+                        .setBits(ByteString.copyFrom(bits))
+                        .setSignature(ByteString.copyFrom(signature)))
+                .setNextSyncCommittee(next.toProto())
+                .addAllNextSyncCommitteeBranch(byteStrings(sparseBranch(updateState, NEXT_SYNC_COMMITTEE_GINDEX)))
+                .setCodeHash(ByteString.copyFrom(CODE_HASH))
+                .build()
+                .toByteArray();
+    }
+
+    private static EthereumPosBeaconBlockHeader protoHeader(
+            final long slot,
+            final long proposerIndex,
+            final byte[] parentRoot,
+            final byte[] stateRoot,
+            final byte[] bodyRoot) {
+        return EthereumPosBeaconBlockHeader.newBuilder()
+                .setSlot(slot)
+                .setProposerIndex(proposerIndex)
+                .setParentRoot(ByteString.copyFrom(parentRoot))
+                .setStateRoot(ByteString.copyFrom(stateRoot))
+                .setBodyRoot(ByteString.copyFrom(bodyRoot))
+                .build();
+    }
+
+    private static List<ByteString> byteStrings(final byte[][] items) {
+        final List<ByteString> out = new ArrayList<>();
+        for (final byte[] item : items) {
+            out.add(ByteString.copyFrom(item));
+        }
+        return out;
     }
 
     private static ClprLedgerConfiguration peerLedgerConfig(final byte[] serviceAddress) {
@@ -129,8 +212,9 @@ final class EthSyncCommitteeProofs {
 
     /**
      * Raw {@code ClprEndpointManifest} protobuf bytes bound to {@link #SERVICE_ADDRESS} — the value carried as the
-     * config path's {@code endpoint_manifest_proof_bytes} (arg2) and as bundle item 9. {@code endpointCount} manifest
-     * endpoints are generated deterministically via {@link #manifestEndpointIp}/{@link #manifestEndpointPort}.
+     * config path's {@code endpoint_manifest_proof_bytes} (arg2) and as the bundle's manifest preimage.
+     * {@code endpointCount} manifest endpoints are generated deterministically via
+     * {@link #manifestEndpointIp}/{@link #manifestEndpointPort}.
      */
     static byte[] manifestBytes(final long version, final int endpointCount) {
         return manifest(version, SERVICE_ADDRESS, endpointCount).toByteArray();
@@ -181,11 +265,6 @@ final class EthSyncCommitteeProofs {
      * one inbound message. The peer reports {@code nextMessageId = 2} (it has sent message #1 and acked
      * none of ours) and {@code sentRunningHash = SHA-256(ZERO || SHA-256(serialized(payload)))}, matching
      * what the submit handler recomputes when it folds the delivered message.
-     *
-     * <p>{@code receivedMessageId} is intentionally left at 0 so that its storage slot stays zero: the
-     * {@link StorageTrie} builder only supports up to 2 non-zero slots, and slots 0 (packed status) and 2
-     * (sentRunningHash) are already non-zero here. A non-zero {@code receivedMessageId} would push slot 1
-     * non-zero too and exceed that limit.
      */
     static ClprBundleContent singleMessageBundleContent(final ClprMessagePayload payload) {
         final byte[] sentRunningHash = sha256(ZERO_32, sha256(serializePayload(payload)));
@@ -202,81 +281,10 @@ final class EthSyncCommitteeProofs {
                 .build();
     }
 
-    /** A valid bundle payload whose proven storage slots encode exactly {@code content}'s metadata. */
-    static byte[] bundlePayload(final ClprBundleContent content) {
-        return bundlePayload(content, false);
-    }
-
-    /**
-     * A bundle payload with one byte of the account proof flipped, so the account Merkle-Patricia proof
-     * fails to verify against the proven execution state root and the verifier rejects the bundle with
-     * {@code CLPR_BUNDLE_VERIFICATION_FAILED}.
-     */
-    static byte[] tamperedBundlePayload(final ClprBundleContent content) {
-        return bundlePayload(content, true);
-    }
-
-    private static byte[] bundlePayload(final ClprBundleContent content, final boolean tamperAccountProof) {
-        final var metadata = content.getMetadata();
-
-        // 1) Proven storage-slot values, in QueueMetadata slot order (see QueueMetadata.decode).
-        final byte[][] slotValues = computeSlotValues(metadata);
-
-        // 2) Storage trie over the non-zero slots; zero slots resolve "absent" against the same root.
-        final StorageTrie storageTrie = StorageTrie.of(slotValues);
-
-        // 3) Account proof: single leaf for SERVICE_ADDRESS committing the storage root. The execution
-        //    state root commits the clean leaf; when tampering, the leaf served in the proof is
-        //    corrupted so it no longer hashes to that root and the account proof fails.
-        final byte[] accountLeaf = accountLeaf(SERVICE_ADDRESS, storageTrie.root);
-        final byte[] executionStateRoot = MiscCryptoUtils.keccak256DigestOf(accountLeaf);
-        final byte[] servedAccountLeaf;
-        if (tamperAccountProof) {
-            servedAccountLeaf = accountLeaf.clone();
-            servedAccountLeaf[servedAccountLeaf.length - 1] ^= 0x01;
-        } else {
-            servedAccountLeaf = accountLeaf;
-        }
-
-        // 4) Beacon header: bodyRoot folds the execution state root up an all-zero branch at index 290.
-        final byte[] bodyRoot =
-                foldBranch(executionStateRoot, zeroBranch(EXECUTION_STATE_ROOT_DEPTH), EXECUTION_STATE_ROOT_LEAF_INDEX);
-        final byte[] parentRoot = generateBytes(32, 0x21);
-        final byte[] stateRoot = generateBytes(32, 0x22);
-        final Object attestedHeader = List.of(minimalBE(BUNDLE_SLOT), minimalBE(7L), parentRoot, stateRoot, bodyRoot);
-
-        // 5) Sync aggregate: full participation; signature comes from the (placeholder) signer over the
-        //    real signing root, so the shape is correct when a real BLS verifier replaces the fake one.
-        final byte[] bits = new byte[64];
-        java.util.Arrays.fill(bits, (byte) 0xFF);
-        final byte[] beaconBlockRoot = beaconHeaderRoot(BUNDLE_SLOT, 7L, parentRoot, stateRoot, bodyRoot);
-        final byte[] signingRoot = computeSigningRoot(beaconBlockRoot, FORK_VERSION, GENESIS_VALIDATORS_ROOT);
-        final byte[] signature = BlsSigner.PLACEHOLDER.sign(signingRoot, COMMITTEE_SIZE);
-        final Object syncAggregate = List.of(bits, signature);
-
-        // 6) Storage proof entries — every entry carries the full node set; only matching keys resolve.
-        final List<Object> storageEntries = new ArrayList<>();
-        for (int i = 0; i < 5; i++) {
-            storageEntries.add(List.of(slotKey(i), storageTrie.nodes));
-        }
-
-        return RLPEncoder.list(List.of(
-                attestedHeader,
-                syncAggregate,
-                executionStateRoot,
-                zeroBranchList(EXECUTION_STATE_ROOT_DEPTH),
-                new byte[0], // nextCommittee absent (no rotation)
-                List.of(), // nextCommitteeBranch absent
-                List.of((Object) servedAccountLeaf),
-                storageEntries,
-                content.toByteArray()));
-    }
-
     /**
      * Builds the {@link ClprBundleContent} for a second bundle that delivers two inbound messages. The peer
      * reports {@code nextMessageId = 3} (messages #1 and #2 sent) and a running hash chained over both
-     * payloads. {@code receivedMessageId} is left at 0 so slot 1 stays zero and the {@link StorageTrie}
-     * 2-slot limit is not exceeded.
+     * payloads.
      */
     static ClprBundleContent twoMessageBundleContent(
             final ClprMessagePayload payload1, final ClprMessagePayload payload2) {
@@ -297,162 +305,264 @@ final class EthSyncCommitteeProofs {
     }
 
     /**
-     * A bundle payload signed by the <em>current</em> committee that carries a rotation proof: the
-     * {@code nextCommittee} ({@link #NEXT_PUBKEYS} + {@link #NEXT_AGGREGATE_PUBKEY}) is proven against an
-     * all-zero SSZ branch of depth {@value #NEXT_SYNC_COMMITTEE_BRANCH_DEPTH} at leaf index
-     * {@value #NEXT_SYNC_COMMITTEE_LEAF_INDEX}. The verifier will produce a successor trust anchor
-     * for {@link #NEXT_PUBKEYS} if the branch verifies.
+     * A valid mainnet bundle with no rotation, signed by the initial committee, whose proven Channel slots of
+     * {@code channelId} encode exactly {@code content}'s metadata.
      */
-    static byte[] rotationBundlePayload(final ClprBundleContent content) {
-        final StorageTrie storageTrie = StorageTrie.of(computeSlotValues(content.getMetadata()));
-        final byte[] accountLeaf = accountLeaf(SERVICE_ADDRESS, storageTrie.root);
-        final byte[] executionStateRoot = MiscCryptoUtils.keccak256DigestOf(accountLeaf);
+    static byte[] bundlePayload(final byte[] channelId, final ClprBundleContent content) {
+        return bundlePayload(Preset.MAINNET, channelId, content);
+    }
 
-        // stateRoot must commit nextCommitteeRoot at leaf index 23 via an all-zero branch.
-        final byte[] nextCommitteeRoot = syncCommitteeHashTreeRoot(NEXT_PUBKEYS, NEXT_AGGREGATE_PUBKEY);
-        final byte[] stateRoot = foldBranch(
-                nextCommitteeRoot, zeroBranch(NEXT_SYNC_COMMITTEE_BRANCH_DEPTH), NEXT_SYNC_COMMITTEE_LEAF_INDEX);
-
-        final byte[] bodyRoot =
-                foldBranch(executionStateRoot, zeroBranch(EXECUTION_STATE_ROOT_DEPTH), EXECUTION_STATE_ROOT_LEAF_INDEX);
-        final byte[] parentRoot = generateBytes(32, 0x23);
-        final Object attestedHeader =
-                List.of(minimalBE(ROTATION_BUNDLE_SLOT), minimalBE(7L), parentRoot, stateRoot, bodyRoot);
-
-        final byte[] bits = new byte[64];
-        java.util.Arrays.fill(bits, (byte) 0xFF);
-        final byte[] beaconBlockRoot = beaconHeaderRoot(ROTATION_BUNDLE_SLOT, 7L, parentRoot, stateRoot, bodyRoot);
-        final byte[] signingRoot = computeSigningRoot(beaconBlockRoot, FORK_VERSION, GENESIS_VALIDATORS_ROOT);
-        final byte[] signature = BlsSigner.PLACEHOLDER.sign(signingRoot, COMMITTEE_SIZE);
-        final Object syncAggregate = List.of(bits, signature);
-
-        final List<Object> storageEntries = new ArrayList<>();
-        for (int i = 0; i < 5; i++) {
-            storageEntries.add(List.of(slotKey(i), storageTrie.nodes));
-        }
-
-        return RLPEncoder.list(List.of(
-                attestedHeader,
-                syncAggregate,
-                executionStateRoot,
-                zeroBranchList(EXECUTION_STATE_ROOT_DEPTH),
-                List.of(nextPubkeysList(), NEXT_AGGREGATE_PUBKEY), // nextCommittee present
-                zeroBranchList(NEXT_SYNC_COMMITTEE_BRANCH_DEPTH), // nextCommitteeBranch
-                List.of((Object) accountLeaf),
-                storageEntries,
-                content.toByteArray()));
+    /** A valid bundle with no rotation, under a channel configured with {@code preset}. */
+    static byte[] bundlePayload(final Preset preset, final byte[] channelId, final ClprBundleContent content) {
+        final Committee committee = Committee.initial(preset);
+        return bundle(List.of(), new Delivery(preset, CONFIG_PERIOD, committee, channelId, content).toRlpItems());
     }
 
     /**
-     * A bundle payload to be submitted <em>after</em> a rotation bundle has been accepted. It is
-     * structurally identical to a normal bundle (no {@code nextCommittee}) but uses
-     * {@link #POST_ROTATION_BUNDLE_SLOT} so the beacon header is distinct. Signed by
-     * {@link #NEXT_PUBKEYS} (the new committee) so the shape is correct for when real BLS
-     * verification replaces the current placeholder.
+     * A bundle payload with one byte of the account proof flipped, so the account Merkle-Patricia proof
+     * fails to verify against the proven execution state root and the verifier rejects the bundle with
+     * {@code CLPR_BUNDLE_VERIFICATION_FAILED}.
      */
-    static byte[] postRotationBundlePayload(final ClprBundleContent content) {
-        final StorageTrie storageTrie = StorageTrie.of(computeSlotValues(content.getMetadata()));
-        final byte[] accountLeaf = accountLeaf(SERVICE_ADDRESS, storageTrie.root);
-        final byte[] executionStateRoot = MiscCryptoUtils.keccak256DigestOf(accountLeaf);
-
-        final byte[] bodyRoot =
-                foldBranch(executionStateRoot, zeroBranch(EXECUTION_STATE_ROOT_DEPTH), EXECUTION_STATE_ROOT_LEAF_INDEX);
-        final byte[] parentRoot = generateBytes(32, 0x25);
-        final byte[] stateRoot = generateBytes(32, 0x26);
-        final Object attestedHeader =
-                List.of(minimalBE(POST_ROTATION_BUNDLE_SLOT), minimalBE(7L), parentRoot, stateRoot, bodyRoot);
-
-        final byte[] bits = new byte[64];
-        java.util.Arrays.fill(bits, (byte) 0xFF);
-        final byte[] beaconBlockRoot = beaconHeaderRoot(POST_ROTATION_BUNDLE_SLOT, 7L, parentRoot, stateRoot, bodyRoot);
-        final byte[] signingRoot = computeSigningRoot(beaconBlockRoot, FORK_VERSION, GENESIS_VALIDATORS_ROOT);
-        final byte[] signature = BlsSigner.PLACEHOLDER.sign(signingRoot, COMMITTEE_SIZE);
-        final Object syncAggregate = List.of(bits, signature);
-
-        final List<Object> storageEntries = new ArrayList<>();
-        for (int i = 0; i < 5; i++) {
-            storageEntries.add(List.of(slotKey(i), storageTrie.nodes));
-        }
-
-        return RLPEncoder.list(List.of(
-                attestedHeader,
-                syncAggregate,
-                executionStateRoot,
-                zeroBranchList(EXECUTION_STATE_ROOT_DEPTH),
-                new byte[0], // nextCommittee absent
-                List.of(), // nextCommitteeBranch absent
-                List.of((Object) accountLeaf),
-                storageEntries,
-                content.toByteArray()));
+    static byte[] tamperedBundlePayload(final byte[] channelId, final ClprBundleContent content) {
+        final Delivery delivery =
+                new Delivery(Preset.MAINNET, CONFIG_PERIOD, Committee.initial(Preset.MAINNET), channelId, content);
+        delivery.tamperAccountProof = true;
+        return bundle(List.of(), delivery.toRlpItems());
     }
 
     /**
-     * An 11-item bundle payload that carries an endpoint-manifest advance (spec §4.9). The manifest commitment
-     * ({@code keccak256(manifestBytes)}) is proven at {@link #MANIFEST_COMMITMENT_SLOT_INDEX} (slot 18) in the SAME
-     * storage trie — under the SAME account storage root — as the queue-metadata slots, so the single account proof
-     * commits to both. Item 9 is the manifest preimage; item 10 is the slot-18 {@code [key, proofNodes[]]} entry.
-     * No committee rotation is carried.
+     * A bundle that slides the channel's trust anchor by one period and delivers {@code content} under it: one rotation
+     * of the period after the configured one, signed by the next committee and proving the committee after it, then a
+     * delivery signed by that committee two periods after the configured one. The verifier returns a successor trust
+     * anchor.
      */
-    static byte[] bundlePayloadWithManifest(final ClprBundleContent content, final byte[] manifestBytes) {
-        final byte[] manifestCommitment = MiscCryptoUtils.keccak256DigestOf(manifestBytes);
-        final StorageTrie storageTrie =
-                StorageTrie.ofWithManifest(computeSlotValues(content.getMetadata()), manifestCommitment);
-        final byte[] accountLeaf = accountLeaf(SERVICE_ADDRESS, storageTrie.root);
-        final byte[] executionStateRoot = MiscCryptoUtils.keccak256DigestOf(accountLeaf);
-
-        final byte[] bodyRoot =
-                foldBranch(executionStateRoot, zeroBranch(EXECUTION_STATE_ROOT_DEPTH), EXECUTION_STATE_ROOT_LEAF_INDEX);
-        final byte[] parentRoot = generateBytes(32, 0x27);
-        final byte[] stateRoot = generateBytes(32, 0x28);
-        final Object attestedHeader =
-                List.of(minimalBE(MANIFEST_BUNDLE_SLOT), minimalBE(7L), parentRoot, stateRoot, bodyRoot);
-
-        final byte[] bits = new byte[64];
-        java.util.Arrays.fill(bits, (byte) 0xFF);
-        final byte[] beaconBlockRoot = beaconHeaderRoot(MANIFEST_BUNDLE_SLOT, 7L, parentRoot, stateRoot, bodyRoot);
-        final byte[] signingRoot = computeSigningRoot(beaconBlockRoot, FORK_VERSION, GENESIS_VALIDATORS_ROOT);
-        final byte[] signature = BlsSigner.PLACEHOLDER.sign(signingRoot, COMMITTEE_SIZE);
-        final Object syncAggregate = List.of(bits, signature);
-
-        // Queue-metadata storage entries (item 7): exactly QueueMetadata.EXPECTED_SLOTS (5), each serving the full
-        // node set; the extra slot-18 leaf in the trie is simply unused when resolving these keys.
-        final List<Object> storageEntries = new ArrayList<>();
-        for (int i = 0; i < 5; i++) {
-            storageEntries.add(List.of(slotKey(i), storageTrie.nodes));
-        }
-        // Manifest commitment-slot storage proof (item 10): a single [key, proofNodes[]] entry for slot 18.
-        final Object manifestStorageEntry = List.of(slotKey(MANIFEST_COMMITMENT_SLOT_INDEX), storageTrie.nodes);
-
-        return RLPEncoder.list(List.of(
-                attestedHeader,
-                syncAggregate,
-                executionStateRoot,
-                zeroBranchList(EXECUTION_STATE_ROOT_DEPTH),
-                new byte[0], // nextCommittee absent (no rotation)
-                List.of(), // nextCommitteeBranch absent
-                List.of((Object) accountLeaf),
-                storageEntries,
-                content.toByteArray(),
-                manifestBytes, // item 9: manifest protobuf preimage
-                manifestStorageEntry)); // item 10: slot-18 commitment storage proof
+    static byte[] rotationBundlePayload(final byte[] channelId, final ClprBundleContent content) {
+        final Committee next = Committee.next(Preset.MAINNET);
+        final Committee afterNext = Committee.afterNext(Preset.MAINNET);
+        final Object rotation = rotation(Preset.MAINNET, CONFIG_PERIOD + 1, next, afterNext);
+        final Object delivery =
+                new Delivery(Preset.MAINNET, CONFIG_PERIOD + 2, afterNext, channelId, content).toRlpItems();
+        return bundle(List.of(rotation), delivery);
     }
 
-    // ── Storage-slot packing (mirrors QueueMetadata.decode's byte layout) ──
+    /**
+     * A bundle to be submitted <em>after</em> {@link #rotationBundlePayload} has been accepted: no rotation, and a
+     * delivery signed by the committee two periods after the configured one, which only the rotated trust anchor
+     * accepts.
+     */
+    static byte[] postRotationBundlePayload(final byte[] channelId, final ClprBundleContent content) {
+        final Committee afterNext = Committee.afterNext(Preset.MAINNET);
+        return bundle(
+                List.of(), new Delivery(Preset.MAINNET, CONFIG_PERIOD + 2, afterNext, channelId, content).toRlpItems());
+    }
 
+    /**
+     * A bundle that also carries an endpoint-manifest update (spec §4.9). The manifest commitment
+     * ({@code keccak256(manifestBytes)}) is proven at slot 18 in the SAME storage trie — under the SAME account storage
+     * root — as the Channel slots, so the single account proof commits to both.
+     */
+    static byte[] bundlePayloadWithManifest(
+            final byte[] channelId, final ClprBundleContent content, final byte[] manifestBytes) {
+        final Delivery delivery =
+                new Delivery(Preset.MAINNET, CONFIG_PERIOD, Committee.initial(Preset.MAINNET), channelId, content);
+        delivery.manifestBytes = manifestBytes;
+        return bundle(List.of(), delivery.toRlpItems());
+    }
+
+    /** The trust anchor id after {@link #rotationBundlePayload}: the period after the configured one, 8 bytes BE. */
+    static byte[] trustAnchorIdAfterRotation() {
+        final byte[] id = new byte[Long.BYTES];
+        putUint64BigEndian(id, 0, CONFIG_PERIOD + 1);
+        return id;
+    }
+
+    /** The RLP bundle payload {@code [ [rotation...], delivery ]}. */
+    private static byte[] bundle(final List<Object> rotations, final Object delivery) {
+        return RLPEncoder.list(List.of(rotations, delivery));
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    //  Rotation + delivery
+    // ─────────────────────────────────────────────────────────────────────────────
+
+    /**
+     * The RLP items of a rotation of {@code period}, signed by {@code signer} (the committee of that period): its
+     * attested state commits a finalized header in the same period (finalized root, gindex 735) and {@code next} (the
+     * committee of the period after, gindex 2946).
+     */
+    private static Object rotation(
+            final Preset preset, final long period, final Committee signer, final Committee next) {
+        final long finalizedSlot = preset.firstSlotOf(period) + 8;
+        final byte[] finalizedParentRoot = generateBytes(32, 0x63);
+        final byte[] finalizedStateRoot = generateBytes(32, 0x64);
+        final byte[] finalizedBodyRoot = generateBytes(32, 0x65);
+        final byte[] finalizedRoot =
+                beaconHeaderRoot(finalizedSlot, 5L, finalizedParentRoot, finalizedStateRoot, finalizedBodyRoot);
+        final Map<Long, byte[]> state =
+                Map.of(FINALIZED_ROOT_GINDEX, finalizedRoot, NEXT_SYNC_COMMITTEE_GINDEX, next.hashTreeRoot());
+        final long attestedSlot = preset.firstSlotOf(period) + 40;
+        final byte[] stateRoot = sparseRoot(state);
+        final byte[] parentRoot = generateBytes(32, 0x61);
+        final byte[] bodyRoot = generateBytes(32, 0x62);
+        return List.of(
+                header(attestedSlot, 11L, parentRoot, stateRoot, bodyRoot),
+                syncAggregate(preset, beaconHeaderRoot(attestedSlot, 11L, parentRoot, stateRoot, bodyRoot)),
+                signer.nonSignerEntries(),
+                header(finalizedSlot, 5L, finalizedParentRoot, finalizedStateRoot, finalizedBodyRoot),
+                byteList(sparseBranch(state, FINALIZED_ROOT_GINDEX)),
+                List.of(next.pubkeysRoot, next.uncompressedAggregate),
+                byteList(sparseBranch(state, NEXT_SYNC_COMMITTEE_GINDEX)));
+    }
+
+    /**
+     * A delivery signed by {@code signer} in {@code period}, in the slot after the attested one. Its finalized header's
+     * body commits the execution block
+     * hash ({@code keccak256(blockHeaderRlp)}, gindex 2856); the block header carries the execution state root that
+     * commits the CLPR service account; the account's storage trie holds the Channel slots of {@code channelId}
+     * encoding {@code content}'s metadata, and the manifest commitment when one is set.
+     */
+    private static final class Delivery {
+        private final Preset preset;
+        private final long period;
+        private final Committee signer;
+        private final byte[] channelId;
+        private final ClprBundleContent content;
+        private boolean tamperAccountProof;
+        private byte[] manifestBytes;
+
+        private Delivery(
+                final Preset preset,
+                final long period,
+                final Committee signer,
+                final byte[] channelId,
+                final ClprBundleContent content) {
+            this.preset = preset;
+            this.period = period;
+            this.signer = signer;
+            this.channelId = channelId;
+            this.content = content;
+        }
+
+        /** The RLP items of the delivery. */
+        private Object toRlpItems() {
+            // 1) Storage trie over the Channel slots (and the manifest commitment), keyed by keccak(slot).
+            final byte[][] channelSlots = channelSlots(channelId);
+            final List<byte[]> slots = new ArrayList<>(Arrays.asList(channelSlots));
+            final List<byte[]> values = new ArrayList<>(Arrays.asList(computeSlotValues(content.getMetadata())));
+            if (manifestBytes != null) {
+                slots.add(slotKey(MANIFEST_COMMITMENT_SLOT_INDEX));
+                values.add(MiscCryptoUtils.keccak256DigestOf(manifestBytes));
+            }
+            final StorageTrie storageTrie = StorageTrie.of(slots, values);
+
+            // 2) Account proof: single leaf for SERVICE_ADDRESS committing the storage root. When tampering, the
+            //    served leaf no longer hashes to the execution state root.
+            final byte[] accountLeaf = accountLeaf(SERVICE_ADDRESS, storageTrie.root);
+            final byte[] executionStateRoot = MiscCryptoUtils.keccak256DigestOf(accountLeaf);
+            final byte[] servedAccountLeaf = accountLeaf.clone();
+            if (tamperAccountProof) {
+                servedAccountLeaf[servedAccountLeaf.length - 1] ^= 0x01;
+            }
+
+            // 3) Execution block header committing the state root; the finalized body commits its hash.
+            final byte[] blockHeaderRlp = RLPEncoder.list(List.of(
+                    generateBytes(32, 0x31),
+                    generateBytes(32, 0x32),
+                    generateBytes(20, 0x33),
+                    executionStateRoot,
+                    generateBytes(32, 0x34),
+                    generateBytes(32, 0x35)));
+            final Map<Long, byte[]> finalizedBody =
+                    Map.of(EXECUTION_BLOCK_HASH_GINDEX, MiscCryptoUtils.keccak256DigestOf(blockHeaderRlp));
+            final byte[] finalizedBodyRoot = sparseRoot(finalizedBody);
+            final long finalizedSlot = preset.firstSlotOf(period) + 16;
+            final byte[] finalizedParentRoot = generateBytes(32, 0x23);
+            final byte[] finalizedStateRoot = generateBytes(32, 0x24);
+            final byte[] finalizedRoot =
+                    beaconHeaderRoot(finalizedSlot, 3L, finalizedParentRoot, finalizedStateRoot, finalizedBodyRoot);
+
+            // 4) Attested header whose state commits the finalized root.
+            final Map<Long, byte[]> state = Map.of(FINALIZED_ROOT_GINDEX, finalizedRoot);
+            final long attestedSlot = preset.firstSlotOf(period) + 50;
+            final byte[] attestedParentRoot = generateBytes(32, 0x21);
+            final byte[] attestedStateRoot = sparseRoot(state);
+            final byte[] attestedBodyRoot = generateBytes(32, 0x22);
+
+            // 5) Storage proof entries — every entry carries the full node set; only matching keys resolve.
+            final List<Object> storageEntries = new ArrayList<>();
+            for (final byte[] slot : channelSlots) {
+                storageEntries.add(List.of(slot, storageTrie.nodes));
+            }
+            final Object manifestProof = manifestBytes == null
+                    ? List.of()
+                    : List.of(List.of(slotKey(MANIFEST_COMMITMENT_SLOT_INDEX), storageTrie.nodes));
+
+            return List.of(
+                    header(attestedSlot, 7L, attestedParentRoot, attestedStateRoot, attestedBodyRoot),
+                    minimalBE(attestedSlot + 1), // signature slot
+                    syncAggregate(
+                            preset,
+                            beaconHeaderRoot(
+                                    attestedSlot, 7L, attestedParentRoot, attestedStateRoot, attestedBodyRoot)),
+                    signer.nonSignerEntries(),
+                    List.of(
+                            header(finalizedSlot, 3L, finalizedParentRoot, finalizedStateRoot, finalizedBodyRoot),
+                            byteList(sparseBranch(finalizedBody, EXECUTION_BLOCK_HASH_GINDEX)),
+                            blockHeaderRlp),
+                    byteList(sparseBranch(state, FINALIZED_ROOT_GINDEX)),
+                    List.of((Object) servedAccountLeaf),
+                    storageEntries,
+                    content.toByteArray(),
+                    manifestProof,
+                    manifestBytes == null ? new byte[0] : manifestBytes);
+        }
+    }
+
+    /**
+     * The sync aggregate over an attested header: every member signs except {@link #NON_SIGNERS}; the signature comes
+     * from the (placeholder) signer over the real signing root.
+     */
+    private static Object syncAggregate(final Preset preset, final byte[] attestedRoot) {
+        final byte[] bits = new byte[preset.committeeSize / 8];
+        Arrays.fill(bits, (byte) 0xFF);
+        for (final int index : NON_SIGNERS) {
+            bits[index / 8] &= (byte) ~(1 << (index % 8));
+        }
+        final byte[] signingRoot = computeSigningRoot(attestedRoot, FORK_VERSION, GENESIS_VALIDATORS_ROOT);
+        return List.of(bits, BlsSigner.PLACEHOLDER.sign(signingRoot, preset.committeeSize - NON_SIGNERS.length));
+    }
+
+    // ── Storage-slot layout and packing (mirrors the ClprService Channel struct) ──
+
+    /** The Channel slot keys of {@code channelId}: {@code keccak256(channelId ‖ uint256(15)) + {1, 2, 4, 5, 16}}. */
+    private static byte[][] channelSlots(final byte[] channelId) {
+        final byte[] mappingKey = new byte[64];
+        System.arraycopy(channelId, 0, mappingKey, 0, 32);
+        mappingKey[63] = CHANNELS_BASE_SLOT;
+        final BigInteger base = new BigInteger(1, MiscCryptoUtils.keccak256DigestOf(mappingKey));
+        final byte[][] slots = new byte[CHANNEL_SLOT_OFFSETS.length][];
+        for (int i = 0; i < slots.length; i++) {
+            final byte[] raw = base.add(BigInteger.valueOf(CHANNEL_SLOT_OFFSETS[i]))
+                    .mod(BigInteger.ONE.shiftLeft(256))
+                    .toByteArray();
+            slots[i] = leftPad32(raw.length > 32 ? Arrays.copyOfRange(raw, 1, raw.length) : raw);
+        }
+        return slots;
+    }
+
+    /** The Channel slot values, in {@link #channelSlots} order, encoding {@code metadata}. */
     private static byte[][] computeSlotValues(final ClprQueueMetadata metadata) {
-        final byte[][] slotValues = new byte[5][];
+        final byte[][] slotValues = new byte[CHANNEL_SLOT_OFFSETS.length][];
         slotValues[0] = packedStatusSlot(
                 metadata.getNextMessageId(), metadata.getStatus().getNumber());
         slotValues[1] = packedReceivedMessageIdSlot(metadata.getReceivedMessageId());
         slotValues[2] = leftPad32(metadata.getSentRunningHash().toByteArray());
         slotValues[3] = leftPad32(metadata.getReceivedRunningHash().toByteArray());
-        slotValues[4] = ZERO_32; // lastMessageRunningHash — not reconciled, left zero.
+        slotValues[4] = ZERO_32; // endpointManifestVersion: the peer has not cached our manifest.
         return slotValues;
     }
 
-    // ── Storage-slot packing (mirrors QueueMetadata.decode's byte layout) ──
-
-    /** Slot 0: MSB→LSB = 3B pad | 8B nextMessageId | 1B status | 20B verifier(zero). */
+    /** Slot +1: MSB→LSB = 3B pad | 8B nextMessageId | 1B status | 20B verifier(zero). */
     private static byte[] packedStatusSlot(final long nextMessageId, final int status) {
         final byte[] slot = new byte[32];
         putUint64BigEndian(slot, 3, nextMessageId);
@@ -460,7 +570,7 @@ final class EthSyncCommitteeProofs {
         return slot;
     }
 
-    /** Slot 1: MSB→LSB = 8B pad | 8B nextExpectedReplyId | 8B receivedMessageId | 8B ackedMessageId. */
+    /** Slot +2: MSB→LSB = 8B pad | 8B nextExpectedReplyId | 8B receivedMessageId | 8B ackedMessageId. */
     private static byte[] packedReceivedMessageIdSlot(final long receivedMessageId) {
         final byte[] slot = new byte[32];
         putUint64BigEndian(slot, 16, receivedMessageId);
@@ -473,11 +583,154 @@ final class EthSyncCommitteeProofs {
         }
     }
 
-    /** EVM storage slot key for QueueMetadata position {@code i}; chosen so ascending order = field order. */
-    static byte[] slotKey(final int i) {
+    /** A 32-byte EVM storage slot key whose last byte is {@code index}. */
+    private static byte[] slotKey(final int index) {
         final byte[] key = new byte[32];
-        key[31] = (byte) i;
+        key[31] = (byte) index;
         return key;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    //  Committees
+    // ─────────────────────────────────────────────────────────────────────────────
+
+    /**
+     * A committee of test keys whose uncompressed (EIP-2537) and compressed (ZCash) forms are consistent: points of the
+     * curve {@code y² = x³ + 4} whose {@code x} is derived from the seed and the member index, as the verifier rejects
+     * off-curve keys. Members alternate between the smaller and the larger {@code y}, so both sign-flag values occur.
+     */
+    private static final class Committee {
+        /** The BLS12-381 base field modulus. */
+        private static final BigInteger FIELD_MODULUS = new BigInteger(
+                "1a0111ea397fe69a4b1ba7b6434bacd764774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab", 16);
+
+        /** {@code (p - 1) / 2}: a {@code y} above it is the larger root, flagged by the sign bit. */
+        private static final BigInteger HALF_FIELD_MODULUS = FIELD_MODULUS.shiftRight(1);
+
+        /** {@code (p + 1) / 4}: as {@code p ≡ 3 (mod 4)}, {@code a^((p+1)/4)} is a square root of any square. */
+        private static final BigInteger SQUARE_ROOT_EXPONENT =
+                FIELD_MODULUS.add(BigInteger.ONE).shiftRight(2);
+
+        /** The constant {@code b} of the curve {@code y² = x³ + b}. */
+        private static final BigInteger CURVE_B = BigInteger.valueOf(4);
+
+        final byte[][] uncompressedKeys;
+        final byte[][] compressedKeys;
+        final byte[] uncompressedAggregate;
+        final byte[] compressedAggregate;
+        final byte[] pubkeysRoot;
+        private final byte[][] leaves;
+
+        private Committee(final int size, final int seed) {
+            uncompressedKeys = new byte[size][];
+            compressedKeys = new byte[size][];
+            leaves = new byte[size][];
+            for (int i = 0; i < size; i++) {
+                uncompressedKeys[i] = curvePoint(seed, i);
+                compressedKeys[i] = compress(uncompressedKeys[i]);
+                leaves[i] = pubkeyChunk(compressedKeys[i]);
+            }
+            uncompressedAggregate = curvePoint(seed + 1, size);
+            compressedAggregate = compress(uncompressedAggregate);
+            pubkeysRoot = merkleize(leaves);
+        }
+
+        /** The committee of the configured period. */
+        static Committee initial(final Preset preset) {
+            return new Committee(preset.committeeSize, 1);
+        }
+
+        /** The committee of the period after the configured one. */
+        static Committee next(final Preset preset) {
+            return new Committee(preset.committeeSize, 3);
+        }
+
+        /** The committee two periods after the configured one. */
+        static Committee afterNext(final Preset preset) {
+            return new Committee(preset.committeeSize, 5);
+        }
+
+        /** The committee as the config payload carries it: its compressed keys and aggregate. */
+        EthereumPosSyncCommittee toProto() {
+            final var committee =
+                    EthereumPosSyncCommittee.newBuilder().setAggregatePubkey(ByteString.copyFrom(compressedAggregate));
+            for (final byte[] key : compressedKeys) {
+                committee.addPubkeys(ByteString.copyFrom(key));
+            }
+            return committee.build();
+        }
+
+        /** {@code hash_tree_root(SyncCommittee)} — mirrors {@code SyncCommittee.hashTreeRoot()}. */
+        byte[] hashTreeRoot() {
+            return sha256(pubkeysRoot, pubkeyChunk(compressedAggregate));
+        }
+
+        /** One {@code key128 ‖ siblings} entry per {@link #NON_SIGNERS} member, in ascending index order. */
+        List<Object> nonSignerEntries() {
+            final List<Object> entries = new ArrayList<>();
+            for (final int index : NON_SIGNERS) {
+                final List<byte[]> parts = new ArrayList<>(List.of(uncompressedKeys[index]));
+                byte[][] level = leaves;
+                int position = index;
+                while (level.length > 1) {
+                    parts.add(level[position ^ 1]);
+                    final byte[][] next = new byte[level.length / 2][];
+                    for (int i = 0; i < next.length; i++) {
+                        next[i] = sha256(level[2 * i], level[2 * i + 1]);
+                    }
+                    level = next;
+                    position >>= 1;
+                }
+                entries.add(concat(parts));
+            }
+            return entries;
+        }
+
+        /**
+         * The EIP-2537 encoding of the first curve point at or after an {@code x} unique per (seed, index): the first
+         * {@code x} whose {@code x³ + 4} is a square mod {@code p}. Even members take the smaller {@code y}.
+         */
+        private static byte[] curvePoint(final int seed, final int index) {
+            final byte[] start = new byte[48];
+            for (int j = 0; j < 48; j++) {
+                start[j] = (byte) (seed * 13 + index * 7 + j);
+            }
+            // Below p (top byte 0x01) and unique per (seed, index).
+            start[0] = 0x01;
+            start[1] = (byte) (index >>> 8);
+            start[2] = (byte) index;
+            start[3] = (byte) seed;
+            BigInteger x = new BigInteger(1, start);
+            while (true) {
+                final BigInteger ySquared = x.pow(3).add(CURVE_B).mod(FIELD_MODULUS);
+                final BigInteger root = ySquared.modPow(SQUARE_ROOT_EXPONENT, FIELD_MODULUS);
+                if (root.multiply(root).mod(FIELD_MODULUS).equals(ySquared)) {
+                    final BigInteger otherRoot = FIELD_MODULUS.subtract(root);
+                    final BigInteger y = (index % 2 == 0) == (root.compareTo(otherRoot) < 0) ? root : otherRoot;
+                    final byte[] point = new byte[128];
+                    System.arraycopy(toBytes48(x), 0, point, 16, 48);
+                    System.arraycopy(toBytes48(y), 0, point, 80, 48);
+                    return point;
+                }
+                x = x.add(BigInteger.ONE);
+            }
+        }
+
+        private static byte[] toBytes48(final BigInteger value) {
+            final byte[] raw = value.toByteArray();
+            final byte[] out = new byte[48];
+            final int length = Math.min(raw.length, 48);
+            System.arraycopy(raw, raw.length - length, out, 48 - length, length);
+            return out;
+        }
+
+        /** ZCash compression: {@code x} with the compression flag and, when {@code y > (p-1)/2}, the sign flag. */
+        private static byte[] compress(final byte[] uncompressed) {
+            final byte[] x = Arrays.copyOfRange(uncompressed, 16, 64);
+            final BigInteger y = new BigInteger(1, Arrays.copyOfRange(uncompressed, 80, 128));
+            x[0] = (byte) (x[0] | 0x80 | (y.compareTo(HALF_FIELD_MODULUS) > 0 ? 0x20 : 0));
+            return x;
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
@@ -489,7 +742,7 @@ final class EthSyncCommitteeProofs {
      * served as each storage entry's proof; absent keys resolve to all-zero against the same root.
      *
      * <p>A general recursive hexary Merkle-Patricia-Trie builder over an arbitrary set of 64-nibble keys, so a bundle
-     * can prove queue-metadata slots and the endpoint-manifest commitment slot together under one root.
+     * can prove the Channel slots and the endpoint-manifest commitment slot together under one root.
      */
     private static final class StorageTrie {
         final byte[] root;
@@ -500,36 +753,17 @@ final class EthSyncCommitteeProofs {
             this.nodes = nodes;
         }
 
-        /** Trie over the non-zero queue-metadata slots only. */
-        static StorageTrie of(final byte[][] slotValues) {
+        /** Trie over the non-zero {@code values}, each keyed by {@code keccak256} of the slot at the same position. */
+        static StorageTrie of(final List<byte[]> slots, final List<byte[]> values) {
             final List<int[]> keyHashes = new ArrayList<>();
-            final List<byte[]> values = new ArrayList<>();
-            collectNonZeroSlots(slotValues, keyHashes, values);
-            return build(keyHashes, values);
-        }
-
-        /**
-         * Trie over the non-zero queue-metadata slots PLUS the endpoint-manifest commitment at slot 18
-         * ({@link #MANIFEST_COMMITMENT_SLOT_INDEX}). {@code manifestCommitment} is {@code keccak256} of the manifest
-         * preimage and is stored under the same root as the queue-metadata slots.
-         */
-        static StorageTrie ofWithManifest(final byte[][] slotValues, final byte[] manifestCommitment) {
-            final List<int[]> keyHashes = new ArrayList<>();
-            final List<byte[]> values = new ArrayList<>();
-            collectNonZeroSlots(slotValues, keyHashes, values);
-            keyHashes.add(nibbles(MiscCryptoUtils.keccak256DigestOf(slotKey(MANIFEST_COMMITMENT_SLOT_INDEX))));
-            values.add(manifestCommitment);
-            return build(keyHashes, values);
-        }
-
-        private static void collectNonZeroSlots(
-                final byte[][] slotValues, final List<int[]> keyHashes, final List<byte[]> values) {
-            for (int i = 0; i < slotValues.length; i++) {
-                if (!isZero(slotValues[i])) {
-                    keyHashes.add(nibbles(MiscCryptoUtils.keccak256DigestOf(slotKey(i))));
-                    values.add(slotValues[i]);
+            final List<byte[]> nonZeroValues = new ArrayList<>();
+            for (int i = 0; i < slots.size(); i++) {
+                if (!isZero(values.get(i))) {
+                    keyHashes.add(nibbles(MiscCryptoUtils.keccak256DigestOf(slots.get(i))));
+                    nonZeroValues.add(values.get(i));
                 }
             }
+            return build(keyHashes, nonZeroValues);
         }
 
         private static StorageTrie build(final List<int[]> keyHashes, final List<byte[]> values) {
@@ -617,11 +851,11 @@ final class EthSyncCommitteeProofs {
         }
     }
 
-    /** A single-leaf account proof committing {@code storageRoot}; returns the leaf node RLP. */
+    /** A single-leaf account proof committing {@code storageRoot} and {@link #CODE_HASH}; returns the leaf node RLP. */
     private static byte[] accountLeaf(final byte[] address20, final byte[] storageRoot32) {
         final int[] path = nibbles(MiscCryptoUtils.keccak256DigestOf(address20));
-        // account = [nonce=0, balance=0, storageRoot, codeHash=0]
-        final byte[] account = RLPEncoder.list(List.of(new byte[0], new byte[0], storageRoot32, ZERO_32));
+        // account = [nonce=0, balance=0, storageRoot, codeHash]
+        final byte[] account = RLPEncoder.list(List.of(new byte[0], new byte[0], storageRoot32, CODE_HASH));
         return RLPEncoder.list(List.of(hexPrefix(path, 0, 64, true), account));
     }
 
@@ -665,6 +899,16 @@ final class EthSyncCommitteeProofs {
     // ─────────────────────────────────────────────────────────────────────────────
     //  SSZ (independent of the production Ssz class)
     // ─────────────────────────────────────────────────────────────────────────────
+
+    /** RLP-ready beacon header {@code [slot, proposerIndex, parentRoot, stateRoot, bodyRoot]}. */
+    private static Object header(
+            final long slot,
+            final long proposerIndex,
+            final byte[] parentRoot,
+            final byte[] stateRoot,
+            final byte[] bodyRoot) {
+        return List.of(minimalBE(slot), minimalBE(proposerIndex), parentRoot, stateRoot, bodyRoot);
+    }
 
     private static byte[] beaconHeaderRoot(
             final long slot,
@@ -715,28 +959,45 @@ final class EthSyncCommitteeProofs {
         return leaf;
     }
 
-    private static byte[] foldBranch(final byte[] leaf, final byte[][] branch, final int index) {
-        byte[] node = leaf;
-        for (int i = 0; i < branch.length; i++) {
-            node = ((index >>> i) & 1) == 1 ? sha256(branch[i], node) : sha256(node, branch[i]);
-        }
-        return node;
+    /** SHA-256 of the 48-byte compressed pubkey zero-padded to 64 bytes — mirrors {@code Ssz.pubkeyHash64}. */
+    private static byte[] pubkeyChunk(final byte[] pubkey48) {
+        final byte[] padded = new byte[64];
+        System.arraycopy(pubkey48, 0, padded, 0, 48);
+        return sha256(padded);
     }
 
-    private static byte[][] zeroBranch(final int depth) {
+    /**
+     * Root of a sparse SSZ tree holding {@code leavesByGindex} at their generalized indices; every other subtree is a
+     * zero chunk.
+     */
+    private static byte[] sparseRoot(final Map<Long, byte[]> leavesByGindex) {
+        return sparseNode(leavesByGindex, 1L);
+    }
+
+    /** Sibling path (bottom-up) of {@code gindex} in the sparse tree of {@link #sparseRoot}. */
+    private static byte[][] sparseBranch(final Map<Long, byte[]> leavesByGindex, final long gindex) {
+        final int depth = 63 - Long.numberOfLeadingZeros(gindex);
         final byte[][] branch = new byte[depth][];
-        for (int i = 0; i < depth; i++) {
-            branch[i] = new byte[32];
+        long node = gindex;
+        for (int level = 0; level < depth; level++) {
+            branch[level] = sparseNode(leavesByGindex, node ^ 1);
+            node >>>= 1;
         }
         return branch;
     }
 
-    private static List<Object> zeroBranchList(final int depth) {
-        final List<Object> nodes = new ArrayList<>(depth);
-        for (int i = 0; i < depth; i++) {
-            nodes.add(new byte[32]);
+    private static byte[] sparseNode(final Map<Long, byte[]> leavesByGindex, final long gindex) {
+        final byte[] leaf = leavesByGindex.get(gindex);
+        if (leaf != null) {
+            return leaf;
         }
-        return nodes;
+        final boolean hasLeafBelow = leavesByGindex.keySet().stream().anyMatch(candidate -> {
+            final int levelsBelow = Long.numberOfLeadingZeros(gindex) - Long.numberOfLeadingZeros(candidate);
+            return levelsBelow > 0 && (candidate >>> levelsBelow) == gindex;
+        });
+        return hasLeafBelow
+                ? sha256(sparseNode(leavesByGindex, 2 * gindex), sparseNode(leavesByGindex, 2 * gindex + 1))
+                : ZERO_32;
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
@@ -746,76 +1007,22 @@ final class EthSyncCommitteeProofs {
     /**
      * Produces the sync-aggregate signature over the committee signing root. The node currently runs a
      * fake BLS verifier that accepts any signature, so {@link #PLACEHOLDER} returns a structurally-valid
-     * 96-byte zero signature. When a real {@code BlsSignatureVerifier} and a BLS12-381 library land, swap
+     * 256-byte (EIP-2537 uncompressed G2) zero signature. When a real {@code BlsSignatureVerifier} and a BLS12-381 library land, swap
      * in a real signer here (signing over G2 with the {@code BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_}
-     * ciphersuite) and expose its public keys via {@code PUBKEYS}; nothing else in this generator changes.
+     * ciphersuite) and real committee keys; nothing else in this generator changes.
      */
     interface BlsSigner {
         byte[] sign(byte[] signingRoot32, int numParticipants);
 
-        BlsSigner PLACEHOLDER = (signingRoot32, numParticipants) -> new byte[96];
+        BlsSigner PLACEHOLDER = (signingRoot32, numParticipants) -> new byte[256];
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
     //  Primitives
     // ─────────────────────────────────────────────────────────────────────────────
 
-    private static List<Object> pubkeysList() {
-        final List<Object> keys = new ArrayList<>(COMMITTEE_SIZE);
-        for (final byte[] key : PUBKEYS) {
-            keys.add(key);
-        }
-        return keys;
-    }
-
-    /** Computes the SSZ {@code hash_tree_root} of a sync committee — mirrors {@code SyncCommittee.hashTreeRoot()}. */
-    private static byte[] syncCommitteeHashTreeRoot(final byte[][] pubkeys, final byte[] aggregatePubkey48) {
-        final byte[][] chunks = new byte[COMMITTEE_SIZE][];
-        for (int i = 0; i < COMMITTEE_SIZE; i++) {
-            chunks[i] = pubkeyChunk(pubkeys[i]);
-        }
-        return sha256(merkleize(chunks), pubkeyChunk(aggregatePubkey48));
-    }
-
-    /** SHA-256 of the 48-byte pubkey zero-padded to 64 bytes — mirrors {@code Ssz.pubkeyHash64}. */
-    private static byte[] pubkeyChunk(final byte[] pubkey48) {
-        final byte[] padded = new byte[64];
-        System.arraycopy(pubkey48, 0, padded, 0, 48);
-        return sha256(padded);
-    }
-
-    private static List<Object> nextPubkeysList() {
-        final List<Object> keys = new ArrayList<>(COMMITTEE_SIZE);
-        for (final byte[] key : NEXT_PUBKEYS) {
-            keys.add(key);
-        }
-        return keys;
-    }
-
-    /**
-     * Generate fake public keys for the sync committee members.
-     * The values used are deterministic and based on the member and bytes indexes.
-     */
-    private static byte[][] buildCommitteePubkeys() {
-        final byte[][] keys = new byte[COMMITTEE_SIZE][];
-        for (int i = 0; i < COMMITTEE_SIZE; i++) {
-            keys[i] = new byte[48];
-            for (int j = 0; j < 48; j++) {
-                keys[i][j] = (byte) (i * 7 + j);
-            }
-        }
-        return keys;
-    }
-
-    private static byte[][] buildNextCommitteePubkeys() {
-        final byte[][] keys = new byte[COMMITTEE_SIZE][];
-        for (int i = 0; i < COMMITTEE_SIZE; i++) {
-            keys[i] = new byte[48];
-            for (int j = 0; j < 48; j++) {
-                keys[i][j] = (byte) (i * 11 + j + 3); // distinct pattern from buildCommitteePubkeys
-            }
-        }
-        return keys;
+    private static List<Object> byteList(final byte[][] items) {
+        return new ArrayList<>(Arrays.asList((Object[]) items));
     }
 
     private static byte[] serializePayload(final ClprMessagePayload payload) {
@@ -860,6 +1067,20 @@ final class EthSyncCommitteeProofs {
             }
         }
         return true;
+    }
+
+    private static byte[] concat(final List<byte[]> parts) {
+        int length = 0;
+        for (final byte[] part : parts) {
+            length += part.length;
+        }
+        final byte[] out = new byte[length];
+        int offset = 0;
+        for (final byte[] part : parts) {
+            System.arraycopy(part, 0, out, offset, part.length);
+            offset += part.length;
+        }
+        return out;
     }
 
     /**
