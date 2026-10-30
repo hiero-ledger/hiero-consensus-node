@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.clpr;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INTERNAL_STATE_CORRUPTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NO_PROGRESS;
 import static java.util.Objects.requireNonNull;
 
@@ -67,7 +68,11 @@ public class ClprBundleSubmitter {
      * <p>Nothing is submitted when CLPR is disabled, the payload is empty, gossip is unavailable, or
      * {@link ClprBundlePrevalidator#validate} rejects the bundle. A bundle rejected only with
      * {@code CLPR_NO_PROGRESS}, such as an idle peer's pure acknowledgement, is skipped but reported
-     * as a success, because the exchange itself did not fail. Prevalidation fails closed: an
+     * as a success, because the exchange itself did not fail. So is a bundle whose replies could not
+     * be verified against the outbound queue ({@code CLPR_INTERNAL_STATE_CORRUPTION}): prevalidation
+     * reads the working state while the handle thread changes it, so an acknowledgement applied
+     * mid-read can make a slot look missing. The peer resends the bundle on the next sync, and real
+     * corruption is reported when consensus checks the same replies. Prevalidation fails closed: an
      * unexpected error while validating is reported as a failure, and nothing is submitted.
      *
      * @param payload the received sync payload from the peer
@@ -103,6 +108,14 @@ public class ClprBundleSubmitter {
             // treating the exchange as a peer failure or paying for a NoProgress consensus rejection.
             if (e.responseCode() == CLPR_NO_PROGRESS) {
                 logger.debug("[CLPR-SUBMIT] skipped no-progress inbound bundle conn={}", payload.channelId());
+                return true;
+            }
+            // Not proof of corruption: the outbound queue may have changed mid-read. Drop the bundle
+            // without failing the exchange or blaming the peer; it is resent on the next sync.
+            if (e.responseCode() == CLPR_INTERNAL_STATE_CORRUPTION) {
+                logger.warn(
+                        "[CLPR-SUBMIT] reply verification failed against the outbound queue conn={}",
+                        payload.channelId());
                 return true;
             }
             logger.warn(

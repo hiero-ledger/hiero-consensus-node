@@ -131,7 +131,11 @@ public class HgcaaLogValidator {
                 List.of("ClprStreamingSynchronizer", "Streaming sync failed for channel", "with status UNAVAILABLE"),
                 List.of("ClprPeerSelector", "circuit breaker opened"),
                 // The server side of the same churn: a peer cancels its sync stream when it fails or restarts
-                List.of("ClprStreamingSyncMethod", "stream aborted by peer"));
+                List.of("ClprStreamingSyncMethod", "stream aborted by peer"),
+                // A node checks an inbound bundle's replies against its working state while rounds are handled,
+                // so a just-applied acknowledgement can make a queue slot look missing; the bundle is resent, and
+                // consensus logs an ERROR if the slot is really missing
+                List.of("ClprBundleSubmitter", "reply verification failed against the outbound queue"));
 
         /**
          * The level of a log line: the first word after its timestamp and optional {@code <network-nN>} tag.
