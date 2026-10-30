@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops.inventory;
 
-import static com.hedera.node.app.hapi.utils.SignatureGenerator.BOUNCYCASTLE_PROVIDER;
-
 import com.google.common.base.MoreObjects;
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.keys.Secp256k1Utils;
@@ -17,16 +15,11 @@ import java.io.UncheckedIOException;
 import java.math.BigInteger;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.security.KeyFactory;
-import java.security.NoSuchAlgorithmException;
 import java.security.interfaces.ECPrivateKey;
-import java.security.spec.InvalidKeySpecException;
 import java.util.Optional;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.bouncycastle.jce.ECNamedCurveTable;
-import org.bouncycastle.jce.spec.ECPrivateKeySpec;
 import org.hiero.base.utility.CommonUtils;
 
 public class SpecKeyFromEcdsaFile extends UtilOp {
@@ -52,14 +45,7 @@ public class SpecKeyFromEcdsaFile extends UtilOp {
     }
 
     public static ECPrivateKey ecdsaFrom(final BigInteger s) {
-        final var params = ECNamedCurveTable.getParameterSpec("secp256k1");
-        final var keySpec = new ECPrivateKeySpec(s, params);
-        try {
-            final KeyFactory kf = KeyFactory.getInstance("EC", BOUNCYCASTLE_PROVIDER);
-            return (ECPrivateKey) kf.generatePrivate(keySpec);
-        } catch (InvalidKeySpecException | NoSuchAlgorithmException e) {
-            throw new IllegalStateException(e);
-        }
+        return Secp256k1Utils.readECKeyFrom(s);
     }
 
     public static void createAndLinkEcdsaKey(
