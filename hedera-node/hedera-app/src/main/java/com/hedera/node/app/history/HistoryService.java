@@ -5,6 +5,7 @@ import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
+import com.hedera.node.app.hints.KeyProvenanceSigner;
 import com.hedera.node.app.history.handlers.HistoryHandlers;
 import com.hedera.node.app.history.impl.OnProofFinished;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
@@ -93,6 +94,8 @@ public interface HistoryService extends Service, OnProofFinished {
      * @param isActive if the platform is active
      * @param activeConstruction the active hinTS construction, if any
      * @param freshGenesisRequested whether a fresh genesis proof is requested for the current roster
+     * @param sourceSigner the immutable persisted source signing generation, absent only before hinTS genesis
+     * @param targetHintsConstructionId the generation whose verification key is being certified
      */
     void reconcile(
             @NonNull ActiveRosters activeRosters,
@@ -102,7 +105,9 @@ public interface HistoryService extends Service, OnProofFinished {
             @NonNull TssConfig tssConfig,
             boolean isActive,
             @Nullable HintsConstruction activeConstruction,
-            boolean freshGenesisRequested);
+            boolean freshGenesisRequested,
+            @Nullable KeyProvenanceSigner sourceSigner,
+            long targetHintsConstructionId);
 
     /**
      * Stops the history service, causing it to abandon any in-progress work.

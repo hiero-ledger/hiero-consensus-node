@@ -301,6 +301,26 @@ public final class TssHandoffCoordinator {
                     hintsConstruction.constructionId());
             return Optional.empty();
         }
+        final var activeHints = hintsStore.getActiveConstruction();
+        if (!activeHints.hasHintsScheme()
+                || !activeHints.hintsSchemeOrThrow().hasPreprocessedKeys()
+                || !historyConstruction.hasKeyProvenance()) {
+            log.warn("Skipping TSS handoff because next history construction has no previous-key authorization");
+            return Optional.empty();
+        }
+        final var provenance = historyConstruction.keyProvenanceOrThrow();
+        final var sourceVerificationKey =
+                activeHints.hintsSchemeOrThrow().preprocessedKeysOrThrow().verificationKey();
+        if (provenance.sourceHintsConstructionId() != activeHints.constructionId()
+                || provenance.targetHintsConstructionId() != hintsConstruction.constructionId()
+                || provenance.historyConstructionId() != historyConstruction.constructionId()
+                || !provenance.sourceVerificationKey().equals(sourceVerificationKey)
+                || !provenance.targetVerificationKey().equals(verificationKey)
+                || provenance.signature().length() == 0
+                || !provenance.signature().equals(historyProof.keyProvenanceSignature())) {
+            log.warn("Skipping TSS handoff because key provenance does not match the signing generation transition");
+            return Optional.empty();
+        }
         return Optional.of(historyProof);
     }
 }

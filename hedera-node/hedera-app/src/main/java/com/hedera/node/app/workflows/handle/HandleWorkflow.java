@@ -1452,15 +1452,16 @@ public class HandleWorkflow {
                     // grounded in, so it takes the ACTIVE hinTS construction's key; one that extends the
                     // chain to a new roster takes the NEXT construction's. Note that even when this is
                     // null, the controller can still make progress on publishing proof keys as needed.
-                    final var vk = Optional.ofNullable(
-                                    groundsGenesisProof(
-                                                    historyStore.getNextConstruction(),
-                                                    historyStore.getLedgerId(),
-                                                    freshGenesisRequested)
-                                            ? hintsStore.getActiveConstruction().hintsScheme()
-                                            : hintsStore.getNextConstruction().hintsScheme())
+                    final var targetHintsConstruction = groundsGenesisProof(
+                                    historyStore.getNextConstruction(),
+                                    historyStore.getLedgerId(),
+                                    freshGenesisRequested)
+                            ? hintsStore.getActiveConstruction()
+                            : hintsStore.getNextConstruction();
+                    final var vk = Optional.ofNullable(targetHintsConstruction.hintsScheme())
                             .map(s -> s.preprocessedKeysOrThrow().verificationKey())
                             .orElse(null);
+                    final var sourceSigner = hintsService.keyProvenanceFor(hintsStore);
                     doStreamingOnlyKvChanges(
                             historyWritableStates,
                             null,
@@ -1471,8 +1472,10 @@ public class HandleWorkflow {
                                     workTime,
                                     tssConfig,
                                     isActive,
-                                    hintsService.activeConstruction(),
-                                    freshGenesisRequested));
+                                    hintsStore.getActiveConstruction(),
+                                    freshGenesisRequested,
+                                    sourceSigner,
+                                    targetHintsConstruction.constructionId()));
                 }
             }
         }

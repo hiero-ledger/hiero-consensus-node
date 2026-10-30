@@ -935,7 +935,17 @@ class HandleWorkflowTest {
 
         final var reconciliationTimes = ArgumentCaptor.forClass(Instant.class);
         verify(historyService, times(4))
-                .reconcile(any(), any(), any(), reconciliationTimes.capture(), any(), eq(true), any(), eq(false));
+                .reconcile(
+                        any(),
+                        any(),
+                        any(),
+                        reconciliationTimes.capture(),
+                        any(),
+                        eq(true),
+                        any(),
+                        eq(false),
+                        any(),
+                        anyLong());
         assertEquals(
                 List.of(firstRoundTime, afterGracePeriod, readyBlockTime, readyBlockTime),
                 reconciliationTimes.getAllValues());

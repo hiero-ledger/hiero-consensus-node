@@ -15,12 +15,14 @@ import static java.util.stream.Collectors.summingLong;
 import static java.util.stream.Collectors.toMap;
 
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
+import com.hedera.hapi.node.state.history.HintsKeyProvenance;
 import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
 import com.hedera.hapi.node.state.history.ProofKey;
 import com.hedera.hapi.node.state.history.WrapsSigningState;
+import com.hedera.node.app.hints.KeyProvenanceSigner;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.HistoryLibrary.AddressBook;
 import com.hedera.node.app.history.HistoryService;
@@ -64,6 +66,12 @@ public class ProofControllerImpl implements ProofController {
     private final RosterTransitionWeights weights;
     private final HistoryProver.Factory proverFactory;
     private final HistoryProofMetrics historyProofMetrics;
+
+    @Nullable
+    private final KeyProvenanceSigner sourceSigner;
+
+    @Nullable
+    private final HintsKeyProvenance keyProvenanceBinding;
 
     @Nullable
     private final HistoryProof sourceProof;
@@ -160,6 +168,44 @@ public class ProofControllerImpl implements ProofController {
             @Nullable final HistoryProof sourceProof,
             @NonNull final HistoryProofMetrics historyProofMetrics,
             @NonNull final TssConfig tssConfig) {
+        this(
+                selfId,
+                schnorrKeyPair,
+                construction,
+                weights,
+                executor,
+                submissions,
+                machine,
+                keyPublications,
+                wrapsMessagePublications,
+                votes,
+                historyService,
+                historyLibrary,
+                proverFactory,
+                sourceProof,
+                historyProofMetrics,
+                tssConfig,
+                null);
+    }
+
+    public ProofControllerImpl(
+            final long selfId,
+            @NonNull final SchnorrKeyPair schnorrKeyPair,
+            @NonNull final HistoryProofConstruction construction,
+            @NonNull final RosterTransitionWeights weights,
+            @NonNull final Executor executor,
+            @NonNull final HistorySubmissions submissions,
+            @NonNull final WrapsMpcStateMachine machine,
+            @NonNull final List<ProofKeyPublication> keyPublications,
+            @NonNull final List<WrapsMessagePublication> wrapsMessagePublications,
+            @NonNull final Map<Long, HistoryProofVote> votes,
+            @NonNull final HistoryService historyService,
+            @NonNull final HistoryLibrary historyLibrary,
+            @NonNull final HistoryProver.Factory proverFactory,
+            @Nullable final HistoryProof sourceProof,
+            @NonNull final HistoryProofMetrics historyProofMetrics,
+            @NonNull final TssConfig tssConfig,
+            @Nullable final KeyProvenanceSigner sourceSigner) {
         requireNonNull(machine);
         requireNonNull(tssConfig);
         this.selfId = selfId;
@@ -173,6 +219,18 @@ public class ProofControllerImpl implements ProofController {
         this.historyLibrary = requireNonNull(historyLibrary);
         this.historyService = requireNonNull(historyService);
         this.schnorrKeyPair = requireNonNull(schnorrKeyPair);
+        this.sourceSigner = sourceSigner;
+        this.keyProvenanceBinding = construction.keyProvenance();
+        this.targetMetadata = construction.targetMetadata();
+        if (keyProvenanceBinding != null
+                && (sourceSigner == null
+                        || sourceSigner.constructionId() != keyProvenanceBinding.sourceHintsConstructionId()
+                        || !sourceSigner.verificationKey().equals(keyProvenanceBinding.sourceVerificationKey())
+                        || keyProvenanceBinding.historyConstructionId() != construction.constructionId()
+                        || !keyProvenanceBinding.targetVerificationKey().equals(targetMetadata))) {
+            throw new IllegalArgumentException(
+                    "History key provenance must match the frozen source and target generations");
+        }
         replayPersistedVotes(votes);
         if (!isCompleted(construction)) {
             // Collection remains open until assembly actually starts, even if metadata arrived
@@ -220,6 +278,11 @@ public class ProofControllerImpl implements ProofController {
         requireNonNull(now);
         requireNonNull(historyStore);
         requireNonNull(tssConfig);
+        if (keyProvenanceBinding != null
+                && metadata != null
+                && !keyProvenanceBinding.targetVerificationKey().equals(metadata)) {
+            throw new IllegalArgumentException("Key provenance target changed without replacing the construction");
+        }
         targetMetadata = metadata;
         historyProofMetrics.observeStage(constructionId(), currentStage(metadata), now);
         try {
@@ -292,7 +355,9 @@ public class ProofControllerImpl implements ProofController {
             @NonNull final WritableHistoryStore writableHistoryStore) {
         requireNonNull(publication);
         requireNonNull(writableHistoryStore);
-        if (construction.hasTargetProof()) {
+        if (construction.hasTargetProof()
+                || targetMetadata == null
+                || (!construction.hasAssemblyStartTime() && !construction.hasWrapsSigningState())) {
             return false;
         }
         return requireNonNull(prover).addWrapsSigningMessage(constructionId(), publication, writableHistoryStore);
@@ -466,6 +531,17 @@ public class ProofControllerImpl implements ProofController {
             @NonNull final WritableHistoryStore historyStore,
             @NonNull final HistoryProof proof,
             @NonNull final Instant now) {
+        if (!hasValidKeyProvenance(proof, Optional.ofNullable(targetMetadata).orElse(Bytes.EMPTY))) {
+            throw new IllegalArgumentException("Cannot complete a rotation without valid key provenance");
+        }
+        if (keyProvenanceBinding != null) {
+            historyStore.setKeyProvenance(
+                    constructionId(),
+                    keyProvenanceBinding
+                            .copyBuilder()
+                            .signature(proof.keyProvenanceSignature())
+                            .build());
+        }
         construction = historyStore.completeProof(construction.constructionId(), proof);
         historyProofMetrics.observeStage(constructionId(), HistoryProofMetrics.Stage.COMPLETED, now);
         historyProofMetrics.recordProofCompleted(constructionId(), construction.wrapsRetryCount());
@@ -543,6 +619,9 @@ public class ProofControllerImpl implements ProofController {
         final var validationKey = new ProofValidationKey(vote.tag(), ledgerId, metadata);
         return proofTagValidations.computeIfAbsent(validationKey, ignored -> {
             final var proof = vote.proof();
+            if (!hasValidKeyProvenance(proof, metadata)) {
+                return false;
+            }
             if (groundsChainOfTrust(construction)
                     && !proof.targetHistoryOrElse(History.DEFAULT).equals(expectedGroundingHistory(metadata))) {
                 log.info(
@@ -562,6 +641,16 @@ public class ProofControllerImpl implements ProofController {
                     metadata);
             return valid;
         });
+    }
+
+    /** Checks the vote-carried certificate independently of this node's local R1 transcript. */
+    private boolean hasValidKeyProvenance(@NonNull final HistoryProof proof, @NonNull final Bytes metadata) {
+        if (keyProvenanceBinding == null) {
+            return Bytes.EMPTY.equals(proof.keyProvenanceSignature());
+        }
+        return keyProvenanceBinding.targetVerificationKey().equals(metadata)
+                && proof.targetHistoryOrElse(History.DEFAULT).metadata().equals(metadata)
+                && requireNonNull(sourceSigner).verifyAggregate(metadata, proof.keyProvenanceSignature());
     }
 
     /**

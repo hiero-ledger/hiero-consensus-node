@@ -5,6 +5,7 @@ import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
+import com.hedera.node.app.hints.KeyProvenanceSigner;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.WritableHistoryStore;
 import com.hedera.node.app.history.handlers.HistoryHandlers;
@@ -56,7 +57,9 @@ public class FakeHistoryService implements HistoryService {
             @NonNull final TssConfig tssConfig,
             final boolean isActive,
             @Nullable final HintsConstruction activeConstruction,
-            final boolean freshGenesisRequested) {
+            final boolean freshGenesisRequested,
+            @Nullable final KeyProvenanceSigner sourceSigner,
+            final long targetHintsConstructionId) {
         delegate.reconcile(
                 activeRosters,
                 currentMetadata,
@@ -65,7 +68,9 @@ public class FakeHistoryService implements HistoryService {
                 tssConfig,
                 isActive,
                 activeConstruction,
-                freshGenesisRequested);
+                freshGenesisRequested,
+                sourceSigner,
+                targetHintsConstructionId);
     }
 
     @NonNull

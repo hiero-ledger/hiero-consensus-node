@@ -25,6 +25,7 @@ import static org.mockito.BDDMockito.given;
 
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
 import com.hedera.hapi.node.state.history.ConstructionNodeId;
+import com.hedera.hapi.node.state.history.HintsKeyProvenance;
 import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
@@ -292,7 +293,8 @@ class WritableHistoryStoreImplTest {
                 HistoryProofConstruction.newBuilder().constructionId(456L).build());
 
         final var proofKey = new ProofKey(123L, Bytes.wrap("DOODLE"));
-        final var proof = new HistoryProof(List.of(proofKey), History.DEFAULT, ChainOfTrustProof.DEFAULT, Bytes.EMPTY);
+        final var proof = new HistoryProof(
+                List.of(proofKey), History.DEFAULT, ChainOfTrustProof.DEFAULT, Bytes.EMPTY, Bytes.EMPTY);
         subject.completeProof(456L, proof);
 
         final var construction = this.<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID);
@@ -385,6 +387,276 @@ class WritableHistoryStoreImplTest {
         assertFalse(subject.handoff(A_ROSTER, C_ROSTER, A_ROSTER_HASH));
         assertSame(activeConstruction, this.<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID));
         assertSame(nextConstruction, this.<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID));
+    }
+
+    @Test
+    void provenanceSurvivesProofPhasesAndQueuesExactlyOnceAtAdoption() throws Exception {
+        assertFalse(subject.keyProvenance().hasNext());
+        final var metadata = Bytes.wrap("next-vk");
+        final var provenance = provenance(metadata);
+        final var active =
+                HistoryProofConstruction.newBuilder().constructionId(1L).build();
+        final var next = HistoryProofConstruction.newBuilder()
+                .constructionId(2L)
+                .targetMetadata(metadata)
+                .targetRosterHash(C_ROSTER_HASH)
+                .assemblyStartTime(asTimestamp(CONSENSUS_NOW))
+                .build();
+        setConstructions(active, next);
+
+        final var unsigned = provenance.copyBuilder().signature(Bytes.EMPTY).build();
+        subject.bindKeyProvenance(2L, unsigned);
+        assertFalse(subject.handoff(A_ROSTER, C_ROSTER, C_ROSTER_HASH));
+        subject.failForReason(2L, "retry WRAPS");
+        subject.restartWrapsSigning(2L, new TreeSet<>());
+        assertEquals(unsigned, subject.getNextConstruction().keyProvenanceOrThrow());
+        subject.setKeyProvenance(2L, provenance);
+        subject.bindKeyProvenance(2L, unsigned);
+        subject.completeProof(
+                2L,
+                HistoryProof.newBuilder()
+                        .targetHistory(History.newBuilder().metadata(metadata))
+                        .keyProvenanceSignature(provenance.signature())
+                        .build());
+        assertEquals(provenance, subject.getNextConstruction().keyProvenanceOrThrow());
+        assertFalse(subject.keyProvenance().hasNext());
+        // Simulate reading the persisted construction after a restart.
+        final var restored = HistoryProofConstruction.PROTOBUF.parse(
+                HistoryProofConstruction.PROTOBUF.toBytes(subject.getNextConstruction()));
+        assertEquals(provenance, restored.keyProvenanceOrThrow());
+        assertFalse(subject.handoff(A_ROSTER, C_ROSTER, A_ROSTER_HASH));
+        assertFalse(subject.keyProvenance().hasNext());
+
+        assertTrue(subject.handoff(A_ROSTER, C_ROSTER, C_ROSTER_HASH));
+        commit(states -> {});
+        subject = new WritableHistoryStoreImpl(state.getWritableStates(HistoryService.NAME));
+        assertEquals(provenance, subject.getActiveConstruction().keyProvenanceOrThrow());
+        assertEquals(HistoryProofConstruction.DEFAULT, subject.getNextConstruction());
+        final var queue = subject.keyProvenance();
+        assertEquals(provenance, queue.next());
+        assertFalse(queue.hasNext());
+        assertFalse(subject.handoff(A_ROSTER, C_ROSTER, C_ROSTER_HASH));
+        assertFalse(subject.handoff(A_ROSTER, null, null));
+        final var afterRetry = subject.keyProvenance();
+        afterRetry.next();
+        assertFalse(afterRetry.hasNext());
+    }
+
+    @Test
+    void provenanceRequiresMatchingHistoryIdMetadataAndOneImmutableBinding() {
+        final var metadata = Bytes.wrap("next-vk");
+        final var provenance = provenance(metadata);
+        setConstructions(
+                HistoryProofConstruction.DEFAULT,
+                HistoryProofConstruction.newBuilder()
+                        .constructionId(2L)
+                        .targetMetadata(metadata)
+                        .build());
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> subject.setKeyProvenance(
+                        2L, provenance.copyBuilder().historyConstructionId(3L).build()));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> subject.setKeyProvenance(
+                        2L,
+                        provenance
+                                .copyBuilder()
+                                .targetVerificationKey(Bytes.wrap("wrong"))
+                                .build()));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> subject.setKeyProvenance(
+                        2L, provenance.copyBuilder().signature(Bytes.EMPTY).build()));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> subject.setKeyProvenance(
+                        2L,
+                        provenance.copyBuilder().targetHintsConstructionId(1L).build()));
+        assertThrows(IllegalArgumentException.class, () -> subject.bindKeyProvenance(2L, provenance));
+        subject.bindKeyProvenance(
+                2L, provenance.copyBuilder().signature(Bytes.EMPTY).build());
+        assertEquals(provenance, subject.setKeyProvenance(2L, provenance).keyProvenanceOrThrow());
+        assertEquals(provenance, subject.setKeyProvenance(2L, provenance).keyProvenanceOrThrow());
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> subject.setKeyProvenance(
+                        2L,
+                        provenance
+                                .copyBuilder()
+                                .sourceVerificationKey(Bytes.wrap("replacement"))
+                                .build()));
+    }
+
+    @Test
+    void genesisDoesNotInventPreviousKeyProvenance() {
+        final var genesis = HistoryProofConstruction.newBuilder()
+                .constructionId(1L)
+                .targetProof(HistoryProof.DEFAULT)
+                .build();
+        setConstructions(genesis, HistoryProofConstruction.DEFAULT);
+        assertFalse(subject.keyProvenance().hasNext());
+        assertFalse(subject.handoff(A_ROSTER, null, null));
+        assertEquals(genesis, subject.getActiveConstruction());
+        assertFalse(subject.keyProvenance().hasNext());
+    }
+
+    @Test
+    void historyOnlyReanchorDoesNotAppendAnEpochTransition() {
+        final var active = HistoryProofConstruction.newBuilder()
+                .constructionId(1L)
+                .targetProof(HistoryProof.DEFAULT)
+                .build();
+        final var reanchor = HistoryProofConstruction.newBuilder()
+                .constructionId(2L)
+                .targetProof(HistoryProof.DEFAULT)
+                .build();
+        setConstructions(active, reanchor);
+        assertTrue(subject.handoff(A_ROSTER, null, null));
+        assertEquals(reanchor, subject.getActiveConstruction());
+        assertFalse(subject.keyProvenance().hasNext());
+    }
+
+    @Test
+    void restartsPreFeatureRotationBeforeReplayingUnpairedMessages() {
+        givenCRosterLookup();
+        given(activeRosters.findRelatedRoster(B_ROSTER_HASH)).willReturn(C_ROSTER);
+        given(activeRosters.phase()).willReturn(TRANSITION);
+        given(activeRosters.sourceRosterHash()).willReturn(B_ROSTER_HASH);
+        given(activeRosters.targetRosterHash()).willReturn(C_ROSTER_HASH);
+        final var metadata = Bytes.wrap("next-vk");
+        final var expected = provenance(metadata);
+        final var active = HistoryProofConstruction.newBuilder()
+                .constructionId(1L)
+                .targetRosterHash(B_ROSTER_HASH)
+                .targetProof(HistoryProof.DEFAULT)
+                .build();
+        final var old = HistoryProofConstruction.newBuilder()
+                .constructionId(2L)
+                .sourceRosterHash(B_ROSTER_HASH)
+                .targetRosterHash(C_ROSTER_HASH)
+                .targetMetadata(metadata)
+                .proofKeyCutoffTime(asTimestamp(CONSENSUS_NOW))
+                .wrapsSigningState(WrapsSigningState.DEFAULT)
+                .build();
+        setConstructions(active, old);
+        subject.addWrapsMessage(2L, new WrapsMessagePublication(1L, Bytes.wrap("unpaired"), R1, CONSENSUS_NOW));
+        final var replacement =
+                subject.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, TSS_CONFIG, false, metadata, expected);
+        assertEquals(3L, replacement.constructionId());
+        assertFalse(replacement.hasWrapsSigningState());
+        assertFalse(replacement.hasKeyProvenance());
+        assertEquals(active, subject.getActiveConstruction());
+        assertEquals(metadata, replacement.targetMetadata());
+        assertTrue(subject.getWrapsMessagePublications(2L, Set.of(1L)).isEmpty());
+    }
+
+    @Test
+    void replacesCandidateForChangedSourceButPreservesSameBindingAndUnstartedWork() {
+        givenCRosterLookup();
+        given(activeRosters.findRelatedRoster(B_ROSTER_HASH)).willReturn(C_ROSTER);
+        given(activeRosters.phase()).willReturn(TRANSITION);
+        given(activeRosters.sourceRosterHash()).willReturn(B_ROSTER_HASH);
+        given(activeRosters.targetRosterHash()).willReturn(C_ROSTER_HASH);
+        final var metadata = Bytes.wrap("next-vk");
+        final var expected = provenance(metadata);
+        final var active = HistoryProofConstruction.newBuilder()
+                .constructionId(1L)
+                .targetRosterHash(B_ROSTER_HASH)
+                .targetProof(HistoryProof.DEFAULT)
+                .build();
+        final var pending = HistoryProofConstruction.newBuilder()
+                .constructionId(2L)
+                .sourceRosterHash(B_ROSTER_HASH)
+                .targetRosterHash(C_ROSTER_HASH)
+                .targetMetadata(metadata)
+                .gracePeriodEndTime(asTimestamp(CONSENSUS_NOW))
+                .build();
+        setConstructions(active, pending);
+        assertEquals(
+                pending,
+                subject.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, TSS_CONFIG, false, metadata, expected));
+        subject.bindKeyProvenance(
+                2L, expected.copyBuilder().signature(Bytes.EMPTY).build());
+        subject.setKeyProvenance(2L, expected);
+        final var complete = subject.completeProof(
+                2L,
+                HistoryProof.newBuilder()
+                        .targetHistory(History.newBuilder().metadata(metadata))
+                        .build());
+        assertEquals(
+                complete,
+                subject.getOrCreateConstruction(
+                        activeRosters,
+                        CONSENSUS_NOW,
+                        TSS_CONFIG,
+                        false,
+                        metadata,
+                        expected.copyBuilder()
+                                .historyConstructionId(123L)
+                                .signature(Bytes.EMPTY)
+                                .build()));
+        final var replacement = subject.getOrCreateConstruction(
+                activeRosters,
+                CONSENSUS_NOW,
+                TSS_CONFIG,
+                false,
+                metadata,
+                expected.copyBuilder()
+                        .sourceVerificationKey(Bytes.wrap("changed-source"))
+                        .build());
+        assertEquals(3L, replacement.constructionId());
+        assertFalse(replacement.hasTargetProof());
+        assertFalse(replacement.hasKeyProvenance());
+        assertEquals(active, subject.getActiveConstruction());
+    }
+
+    @Test
+    void sameVerificationKeyInNewHintsGenerationCreatesCandidateWithoutReplacingActive() {
+        givenCRosterLookup();
+        given(activeRosters.phase()).willReturn(BOOTSTRAP);
+        given(activeRosters.sourceRosterHash()).willReturn(C_ROSTER_HASH);
+        given(activeRosters.targetRosterHash()).willReturn(C_ROSTER_HASH);
+        final var key = Bytes.wrap("same-vk");
+        final var completed = HistoryProofConstruction.newBuilder()
+                .constructionId(1L)
+                .sourceRosterHash(C_ROSTER_HASH)
+                .targetRosterHash(C_ROSTER_HASH)
+                .targetMetadata(key)
+                .targetProof(HistoryProof.newBuilder()
+                        .targetHistory(History.newBuilder().metadata(key)))
+                .build();
+        setConstructions(completed, HistoryProofConstruction.DEFAULT);
+        final var expected = HintsKeyProvenance.newBuilder()
+                .sourceHintsConstructionId(1L)
+                .targetHintsConstructionId(2L)
+                .sourceVerificationKey(key)
+                .targetVerificationKey(key)
+                .build();
+        final var candidate =
+                subject.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, TSS_CONFIG, false, key, expected);
+        assertEquals(2L, candidate.constructionId());
+        assertEquals(candidate, subject.getNextConstruction());
+        assertEquals(completed, subject.getActiveConstruction());
+        assertFalse(candidate.hasTargetProof());
+        assertFalse(candidate.hasKeyProvenance());
+        final var binding = expected.copyBuilder()
+                .historyConstructionId(candidate.constructionId())
+                .build();
+        subject.bindKeyProvenance(candidate.constructionId(), binding);
+        assertEquals(completed, subject.getActiveConstruction());
+        assertEquals(binding, subject.getNextConstruction().keyProvenanceOrThrow());
+    }
+
+    private static HintsKeyProvenance provenance(final Bytes targetKey) {
+        return HintsKeyProvenance.newBuilder()
+                .sourceHintsConstructionId(1L)
+                .targetHintsConstructionId(2L)
+                .historyConstructionId(2L)
+                .sourceVerificationKey(Bytes.wrap("old-vk"))
+                .targetVerificationKey(targetKey)
+                .signature(Bytes.wrap("signature"))
+                .build();
     }
 
     private void givenARosterLookup() {

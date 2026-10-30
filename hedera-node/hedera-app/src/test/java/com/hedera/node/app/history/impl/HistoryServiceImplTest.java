@@ -11,20 +11,27 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import com.hedera.hapi.node.state.hints.HintsConstruction;
+import com.hedera.hapi.node.state.hints.HintsScheme;
+import com.hedera.hapi.node.state.hints.PreprocessedKeys;
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
+import com.hedera.hapi.node.state.history.HintsKeyProvenance;
 import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.ProofKeySet;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.platform.state.NodeId;
+import com.hedera.node.app.hints.KeyProvenanceSigner;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.WritableHistoryStore;
@@ -97,6 +104,9 @@ class HistoryServiceImplTest {
 
     @Mock
     private WritableKVState<NodeId, ProofKeySet> proofKeys;
+
+    @Mock
+    private KeyProvenanceSigner sourceSigner;
 
     private HistoryServiceImpl subject;
 
@@ -195,7 +205,8 @@ class HistoryServiceImplTest {
                         store,
                         HintsConstruction.DEFAULT,
                         HistoryProofConstruction.DEFAULT,
-                        DEFAULT_CONFIG.getConfigData(TssConfig.class)))
+                        DEFAULT_CONFIG.getConfigData(TssConfig.class),
+                        null))
                 .willReturn(controller);
 
         subject.reconcile(
@@ -209,6 +220,255 @@ class HistoryServiceImplTest {
                 false);
 
         verify(controller).advanceConstruction(CONSENSUS_NOW, CURRENT_VK, store, true, DEFAULT_TSS_CONFIG);
+    }
+
+    @Test
+    void bindsSourceAndTargetGenerationsBeforeCreatingControllerFromPersistedBinding() {
+        withMockSubject();
+        given(activeRosters.phase()).willReturn(TRANSITION);
+        final var sourceVk = Bytes.wrap("previous verification key");
+        final var source = completedHints(7, sourceVk);
+        final var initial = HistoryProofConstruction.newBuilder()
+                .constructionId(42)
+                .targetMetadata(CURRENT_VK)
+                .build();
+        final var expected = HintsKeyProvenance.newBuilder()
+                .sourceHintsConstructionId(7)
+                .targetHintsConstructionId(9)
+                .sourceVerificationKey(sourceVk)
+                .targetVerificationKey(CURRENT_VK)
+                .build();
+        final var bound = expected.copyBuilder().historyConstructionId(42).build();
+        final var persisted = initial.copyBuilder().keyProvenance(bound).build();
+        given(sourceSigner.constructionId()).willReturn(7L);
+        given(sourceSigner.verificationKey()).willReturn(sourceVk);
+        given(store.getOrCreateConstruction(
+                        activeRosters, CONSENSUS_NOW, DEFAULT_TSS_CONFIG, false, CURRENT_VK, expected))
+                .willReturn(initial);
+        given(store.bindKeyProvenance(42, bound)).willReturn(persisted);
+        given(store.getActiveConstruction()).willReturn(HistoryProofConstruction.DEFAULT);
+        given(component.controllers()).willReturn(controllers);
+        given(controllers.getOrCreateFor(
+                        activeRosters,
+                        persisted,
+                        store,
+                        source,
+                        HistoryProofConstruction.DEFAULT,
+                        DEFAULT_TSS_CONFIG,
+                        sourceSigner))
+                .willReturn(controller);
+
+        subject.reconcile(
+                activeRosters,
+                CURRENT_VK,
+                store,
+                CONSENSUS_NOW,
+                DEFAULT_TSS_CONFIG,
+                true,
+                source,
+                false,
+                sourceSigner,
+                9);
+
+        final var order = inOrder(store, controllers, controller);
+        order.verify(store).bindKeyProvenance(42, bound);
+        order.verify(controllers)
+                .getOrCreateFor(
+                        activeRosters,
+                        persisted,
+                        store,
+                        source,
+                        HistoryProofConstruction.DEFAULT,
+                        DEFAULT_TSS_CONFIG,
+                        sourceSigner);
+        order.verify(controller).advanceConstruction(CONSENSUS_NOW, CURRENT_VK, store, true, DEFAULT_TSS_CONFIG);
+        verify(store, never()).getConstructionOrThrow(anyLong());
+    }
+
+    @Test
+    void completedProvenanceBindingIsRetainedWithoutDirtyingStateAgain() {
+        withMockSubject();
+        given(activeRosters.phase()).willReturn(TRANSITION);
+        final var sourceVk = Bytes.wrap("previous verification key");
+        final var source = completedHints(7, sourceVk);
+        final var expected = HintsKeyProvenance.newBuilder()
+                .sourceHintsConstructionId(7)
+                .targetHintsConstructionId(9)
+                .sourceVerificationKey(sourceVk)
+                .targetVerificationKey(CURRENT_VK)
+                .build();
+        final var completedBinding = expected.copyBuilder()
+                .historyConstructionId(42)
+                .signature(Bytes.wrap("previous-key authorization"))
+                .build();
+        final var completed = HistoryProofConstruction.newBuilder()
+                .constructionId(42)
+                .targetMetadata(CURRENT_VK)
+                .keyProvenance(completedBinding)
+                .targetProof(HistoryProof.newBuilder().uncompressedWrapsProof(Bytes.wrap("WRAPS proof")))
+                .build();
+        given(sourceSigner.constructionId()).willReturn(7L);
+        given(sourceSigner.verificationKey()).willReturn(sourceVk);
+        given(store.getOrCreateConstruction(
+                        activeRosters, CONSENSUS_NOW, DEFAULT_TSS_CONFIG, false, CURRENT_VK, expected))
+                .willReturn(completed);
+
+        subject.reconcile(
+                activeRosters,
+                CURRENT_VK,
+                store,
+                CONSENSUS_NOW,
+                DEFAULT_TSS_CONFIG,
+                true,
+                source,
+                false,
+                sourceSigner,
+                9);
+
+        verify(store, never()).bindKeyProvenance(anyLong(), any());
+        verify(store, never()).getConstructionOrThrow(anyLong());
+        verifyNoInteractions(component, controllers, controller);
+        assertEquals(completedBinding, completed.keyProvenance());
+    }
+
+    @Test
+    void initialGenesisMayCollectBeforeItsFirstHintsSchemeIsComplete() {
+        withMockSubject();
+        given(activeRosters.phase()).willReturn(BOOTSTRAP);
+        final var source = HintsConstruction.newBuilder().constructionId(7).build();
+        given(store.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, DEFAULT_TSS_CONFIG, false, null))
+                .willReturn(HistoryProofConstruction.DEFAULT);
+        given(store.getActiveConstruction()).willReturn(HistoryProofConstruction.DEFAULT);
+        given(component.controllers()).willReturn(controllers);
+        given(controllers.getOrCreateFor(
+                        activeRosters,
+                        HistoryProofConstruction.DEFAULT,
+                        store,
+                        source,
+                        HistoryProofConstruction.DEFAULT,
+                        DEFAULT_TSS_CONFIG,
+                        null))
+                .willReturn(controller);
+
+        subject.reconcile(activeRosters, null, store, CONSENSUS_NOW, DEFAULT_TSS_CONFIG, true, source, false, null, 7);
+
+        verify(store, never()).bindKeyProvenance(anyLong(), any());
+        verify(controller).advanceConstruction(CONSENSUS_NOW, null, store, true, DEFAULT_TSS_CONFIG);
+    }
+
+    @Test
+    void freshGenesisUsesSameHintsGenerationWithoutPreviousEpochBinding() {
+        withMockSubject();
+        given(activeRosters.phase()).willReturn(TRANSITION);
+        final var source = completedHints(7, CURRENT_VK);
+        given(sourceSigner.constructionId()).willReturn(7L);
+        given(sourceSigner.verificationKey()).willReturn(CURRENT_VK);
+        given(store.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, DEFAULT_TSS_CONFIG, true, CURRENT_VK))
+                .willReturn(HistoryProofConstruction.DEFAULT);
+        given(store.getActiveConstruction()).willReturn(HistoryProofConstruction.DEFAULT);
+        given(component.controllers()).willReturn(controllers);
+        given(controllers.getOrCreateFor(
+                        activeRosters,
+                        HistoryProofConstruction.DEFAULT,
+                        store,
+                        source,
+                        HistoryProofConstruction.DEFAULT,
+                        DEFAULT_TSS_CONFIG,
+                        sourceSigner))
+                .willReturn(controller);
+
+        subject.reconcile(
+                activeRosters,
+                CURRENT_VK,
+                store,
+                CONSENSUS_NOW,
+                DEFAULT_TSS_CONFIG,
+                true,
+                source,
+                true,
+                sourceSigner,
+                7);
+
+        verify(store, never()).bindKeyProvenance(anyLong(), any());
+        verify(controller).advanceConstruction(CONSENSUS_NOW, CURRENT_VK, store, true, DEFAULT_TSS_CONFIG);
+    }
+
+    @Test
+    void rejectsMissingAndMismatchedSourceBeforeMutatingHistoryState() {
+        withMockSubject();
+        given(activeRosters.phase()).willReturn(TRANSITION);
+        final var source = completedHints(7, CURRENT_VK);
+        final var incomplete = HintsConstruction.newBuilder().constructionId(7).build();
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> subject.reconcile(
+                        activeRosters,
+                        CURRENT_VK,
+                        store,
+                        CONSENSUS_NOW,
+                        DEFAULT_TSS_CONFIG,
+                        true,
+                        null,
+                        false,
+                        null,
+                        9));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> subject.reconcile(
+                        activeRosters,
+                        CURRENT_VK,
+                        store,
+                        CONSENSUS_NOW,
+                        DEFAULT_TSS_CONFIG,
+                        true,
+                        incomplete,
+                        false,
+                        null,
+                        9));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> subject.reconcile(
+                        activeRosters,
+                        CURRENT_VK,
+                        store,
+                        CONSENSUS_NOW,
+                        DEFAULT_TSS_CONFIG,
+                        true,
+                        source,
+                        false,
+                        null,
+                        9));
+        given(sourceSigner.constructionId()).willReturn(8L);
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> subject.reconcile(
+                        activeRosters,
+                        CURRENT_VK,
+                        store,
+                        CONSENSUS_NOW,
+                        DEFAULT_TSS_CONFIG,
+                        true,
+                        source,
+                        false,
+                        sourceSigner,
+                        9));
+        given(sourceSigner.constructionId()).willReturn(7L);
+        given(sourceSigner.verificationKey()).willReturn(Bytes.wrap("different source key"));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> subject.reconcile(
+                        activeRosters,
+                        CURRENT_VK,
+                        store,
+                        CONSENSUS_NOW,
+                        DEFAULT_TSS_CONFIG,
+                        true,
+                        source,
+                        false,
+                        sourceSigner,
+                        9));
+        verifyNoInteractions(store, component, controllers, controller);
     }
 
     @Test
@@ -322,5 +582,12 @@ class HistoryServiceImplTest {
 
     private void withMockSubject() {
         subject = new HistoryServiceImpl(component);
+    }
+
+    private static HintsConstruction completedHints(final long constructionId, final Bytes vk) {
+        return HintsConstruction.newBuilder()
+                .constructionId(constructionId)
+                .hintsScheme(HintsScheme.newBuilder().preprocessedKeys(new PreprocessedKeys(Bytes.wrap("AK"), vk)))
+                .build();
     }
 }
