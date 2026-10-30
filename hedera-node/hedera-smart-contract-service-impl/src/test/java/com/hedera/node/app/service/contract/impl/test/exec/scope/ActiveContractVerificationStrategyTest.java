@@ -64,6 +64,45 @@ class ActiveContractVerificationStrategyTest {
     private HandleContext context;
 
     @Test
+    void contractIdKeysOnForeignShardOrRealmWithSameNumberAreInvalid() {
+        final var subject =
+                new ActiveContractVerificationStrategy(contractID, ACTIVE_ADDRESS, false, UseTopLevelSigs.YES);
+        final var foreignShard = ContractID.newBuilder()
+                .shardNum(1L)
+                .realmNum(0L)
+                .contractNum(ACTIVE_NUMBER)
+                .build();
+        final var foreignRealm = ContractID.newBuilder()
+                .shardNum(0L)
+                .realmNum(1L)
+                .contractNum(ACTIVE_NUMBER)
+                .build();
+        for (final var id : new ContractID[] {foreignShard, foreignRealm}) {
+            assertEquals(
+                    VerificationStrategy.Decision.INVALID,
+                    subject.decideForPrimitive(Key.newBuilder().contractID(id).build()));
+            assertEquals(
+                    VerificationStrategy.Decision.INVALID,
+                    subject.decideForPrimitive(
+                            Key.newBuilder().delegatableContractId(id).build()));
+        }
+        assertEquals(VerificationStrategy.Decision.VALID, subject.decideForPrimitive(ACTIVE_ID_KEY));
+    }
+
+    @Test
+    void activeContractOnForeignShardDoesNotSatisfyLocalContractIdKey() {
+        final var foreignActive = ContractID.newBuilder()
+                .shardNum(1L)
+                .realmNum(0L)
+                .contractNum(ACTIVE_NUMBER)
+                .build();
+        final var subject =
+                new ActiveContractVerificationStrategy(foreignActive, ACTIVE_ADDRESS, false, UseTopLevelSigs.YES);
+        assertEquals(VerificationStrategy.Decision.INVALID, subject.decideForPrimitive(ACTIVE_ID_KEY));
+        assertEquals(VerificationStrategy.Decision.INVALID, subject.decideForPrimitive(DELEGATABLE_ACTIVE_ID_KEY));
+    }
+
+    @Test
     void validatesKeysAsExpectedWhenDelegatePermissionNotRequiredAndUsingTopLevelSigs() {
         final var subject =
                 new ActiveContractVerificationStrategy(contractID, ACTIVE_ADDRESS, false, UseTopLevelSigs.YES);
