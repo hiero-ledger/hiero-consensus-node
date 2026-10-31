@@ -87,7 +87,15 @@ public class Secp256k1Utils {
     /// Returns an unsigned byte[] representation of a BigInteger, dropping the leading zero byte
     /// if present, aligning remaining bytes to the right, and padding with zeros to 32 bytes.
     public static byte[] asPrivateKeyByteArray32(final BigInteger value) {
+        validatePrivateKeyS(value);
         return asPrivateKeyByteArray32(value.toByteArray());
+    }
+
+    /// Validates ECPrivateKey.getS() value to be in range (0, SECP256K1_CURVE_N).
+    private static void validatePrivateKeyS(final BigInteger s) {
+        if (s.signum() <= 0 || s.compareTo(Secp256k1ECPrivateKey.SECP256K1_CURVE_N) >= 0) {
+            throw new IllegalArgumentException("BigInteger is out of range (0, SECP256K1_CURVE_N)");
+        }
     }
 
     /// Accepts an array of 33 or fewer bytes, dropping the leading "33rd" zero byte, aligning
@@ -142,6 +150,8 @@ public class Secp256k1Utils {
 
     /// Builds a ECPrivateKey for secp256k1 from an actual native 32-byte private key bytes.
     public static ECPrivateKey readECKeyFrom(final byte[] keyBytes) {
-        return new Secp256k1ECPrivateKey(keyBytes);
+        final ECPrivateKey key = new Secp256k1ECPrivateKey(keyBytes);
+        validatePrivateKeyS(key.getS());
+        return key;
     }
 }
