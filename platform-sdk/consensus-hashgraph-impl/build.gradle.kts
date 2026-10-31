@@ -32,10 +32,17 @@ jmhModuleInfo {
     requires("org.hiero.consensus.benchmark.tools")
     requires("org.hiero.consensus.hashgraph.impl.test.fixtures")
     requires("org.hiero.consensus.metrics")
+    requires("org.hiero.otter.fixtures")
     requires("jmh.core")
 }
 
 jmh {
     // the benchmarks that are tracked; -PjmhTests=<pattern> runs others instead
     includes.convention(listOf("ConsensusEngineBenchmark", "ConsensusImplBenchmark"))
+}
+
+benchmarkTracking {
+    // the recording of 32 nodes takes more than the smoke run's heap and over a minute per fork;
+    // one parameter set is enough for the smoke run
+    smokeArgs = listOf("-p", "numNodes=10")
 }
