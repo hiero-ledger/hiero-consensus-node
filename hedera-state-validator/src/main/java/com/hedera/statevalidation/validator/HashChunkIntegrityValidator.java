@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.validator;
 
+import com.hedera.statevalidation.util.ConfigUtils;
+import com.hedera.statevalidation.util.StateUtils;
 import com.hedera.statevalidation.validator.util.ValidationException;
+import com.swirlds.merkledb.collections.LongList;
+import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.internal.MerkleDbDataSource;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.MerkleHasher;
@@ -101,13 +105,15 @@ public class HashChunkIntegrityValidator implements HashChunkValidator {
                     hashChunk.chunkRootHash(MerkleHasher.threadSafeDefault(), firstLeafPath, lastLeafPath);
 
             if (chunkId == 0) {
-                // The root chunk. Compare the hash with VM root hash
-                if (!calculatedChunkHash.equals(virtualMap.getHash())) {
+                // The root chunk. Compare the hash with the hash of the snapshot as loaded. The state root
+                // hash can't be used, as it may be changed by service migrations applied after loading
+                final Hash originalHash = StateUtils.getOriginalStateHash();
+                if (!calculatedChunkHash.equals(originalHash)) {
                     hashMismatchCount.incrementAndGet();
                     log.error(
-                            "Hash mismatch for root chunk. calculated={} vs VM root={}",
+                            "Hash mismatch for root chunk. calculated={} vs original state root={}",
                             calculatedChunkHash,
-                            virtualMap.getHash());
+                            originalHash);
                 }
             } else {
                 // Find the parent chunk that contains the hash for hashChunkPath
@@ -145,6 +151,8 @@ public class HashChunkIntegrityValidator implements HashChunkValidator {
      */
     @Override
     public void validate() {
+        processCachedHashChunks();
+
         log.info("Checked {} VirtualHashChunk entries", processedCount.get());
 
         final long expectedCount = vds.getIdToDiskLocationHashChunks().size();
@@ -171,6 +179,44 @@ public class HashChunkIntegrityValidator implements HashChunkValidator {
                                     hashMismatchCount.get(),
                                     chunkHeightMismatchCount.get(),
                                     exceptionCount.get()));
+        }
+    }
+
+    /**
+     * Processes hash chunks that are stored in the data source in-memory cache only, but not in
+     * data files. Such chunks aren't seen by the data pipeline. Chunks with IDs below {@link
+     * MerkleDbConfig#hashChunkCacheThreshold()} are written to the cache rather than to disk on
+     * flushes, and they are only written to disk when a snapshot is taken. It happens, for example,
+     * when hashes are recalculated at load time, because the snapshot hash digest type differs
+     * from the default one. Such chunks have no disk location in the index.
+     */
+    private void processCachedHashChunks() {
+        final LongList index = vds.getIdToDiskLocationHashChunks();
+        final int cacheThreshold =
+                ConfigUtils.getConfiguration().getConfigData(MerkleDbConfig.class).hashChunkCacheThreshold();
+        final long maxCachedChunkId = Math.min(index.size(), cacheThreshold);
+        long cachedCount = 0;
+        for (long chunkId = 0; chunkId < maxCachedChunkId; chunkId++) {
+            if (index.get(chunkId, LongList.IMPERMISSIBLE_VALUE) != LongList.IMPERMISSIBLE_VALUE) {
+                // The chunk is on disk, it's already processed by the pipeline
+                continue;
+            }
+            try {
+                final VirtualHashChunk hashChunk = vds.loadHashChunk(chunkId);
+                if (hashChunk == null) {
+                    throw new IllegalStateException("Hash chunk not found");
+                }
+                processHashChunk(hashChunk);
+                cachedCount++;
+            } catch (final Exception e) {
+                // Neither on disk nor in cache
+                exceptionCount.incrementAndGet();
+                processedCount.incrementAndGet();
+                log.error("Error processing cached chunk ID={}", chunkId, e);
+            }
+        }
+        if (cachedCount > 0) {
+            log.info("Checked {} VirtualHashChunk entries from the data source cache", cachedCount);
         }
     }
 }

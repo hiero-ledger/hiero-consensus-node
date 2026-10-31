@@ -6,16 +6,25 @@ import static com.hedera.statevalidation.util.ParallelProcessingUtils.VALIDATOR_
 import com.hedera.statevalidation.util.StateUtils;
 import com.hedera.statevalidation.validator.util.ValidationException;
 import com.swirlds.state.merkle.VirtualMapState;
-import com.swirlds.virtualmap.RecordAccessor;
 import com.swirlds.virtualmap.TaskPerNodeFullRehasher;
 import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 
 /**
  * Validator that performs full rehash of the state and compares against the original hash.
+ *
+ * <p>The rehash is done over the leaves of the snapshot as it was loaded from disk, before any
+ * service migrations are applied to the state. Migrations (e.g. on a version upgrade) may change
+ * leaves in the in-memory cache of the mutable state copy, but they are never flushed to the data
+ * source, so reading leaves directly from the data source gives the original snapshot leaves.
  *
  * <p>This validator runs independently (not through the data pipeline) because it uses
  * tasks for parallel tree traversal.
@@ -27,11 +36,8 @@ public class RehashValidator implements Validator {
 
     public static final String REHASH_GROUP = "rehash";
 
-    private RecordAccessor records;
-    private long firstLeafPath;
-    private long lastLeafPath;
+    private VirtualMap virtualMap;
     private Hash originalHash;
-    private long timeoutMs;
 
     /**
      * {@inheritDoc}
@@ -57,13 +63,8 @@ public class RehashValidator implements Validator {
      */
     @Override
     public void initialize(@NonNull final VirtualMapState state) {
-        final VirtualMap vm = state.getRoot();
+        this.virtualMap = state.getRoot();
         this.originalHash = StateUtils.getOriginalStateHash();
-        this.records = vm.getRecords();
-        this.timeoutMs = vm.getVirtualMapConfig().fullRehashTimeoutMs();
-
-        this.firstLeafPath = vm.getMetadata().getFirstLeafPath();
-        this.lastLeafPath = vm.getMetadata().getLastLeafPath();
     }
 
     /**
@@ -71,19 +72,23 @@ public class RehashValidator implements Validator {
      */
     @Override
     public void validate() {
-        logger.debug("Doing full rehash for the path range: {} - {} in the VirtualMap", firstLeafPath, lastLeafPath);
+        final DigestType loadedDigestType = virtualMap.getDataSource().getLoadedHashDigestType();
+        if (loadedDigestType != Cryptography.DEFAULT_DIGEST_TYPE) {
+            // The original hash was computed by a full rehash at load time, since stored hashes
+            // were of a different digest type. The check below only verifies rehash determinism
+            // then. The snapshot hash in its original digest type is checked by RootHashValidator
+            logger.info(
+                    "Snapshot hash digest type is {}, but the default is {}. The original hash was recalculated"
+                            + " from leaves at load time",
+                    loadedDigestType,
+                    Cryptography.DEFAULT_DIGEST_TYPE);
+        }
 
         final long startTime = System.currentTimeMillis();
         final Hash computedHash;
 
         try {
-            computedHash = TaskPerNodeFullRehasher.hash(
-                    VALIDATOR_FORK_JOIN_POOL,
-                    firstLeafPath,
-                    lastLeafPath,
-                    records::findLeafRecord,
-                    TaskPerNodeFullRehasher.Listener.NO_OP,
-                    timeoutMs);
+            computedHash = rehashSnapshotLeaves(virtualMap, Cryptography.DEFAULT_DIGEST_TYPE);
         } catch (final Exception e) {
             throw new ValidationException(REHASH_GROUP, "Unexpected exception: " + e.getMessage(), e);
         }
@@ -94,5 +99,37 @@ public class RehashValidator implements Validator {
         }
 
         logger.debug("It took {} ms to rehash the state", System.currentTimeMillis() - startTime);
+    }
+
+    /**
+     * Performs a full rehash of the snapshot leaves stored in the virtual map data source using the
+     * given digest type. Leaves are read from the data source directly, bypassing the virtual node
+     * cache, so any changes made to the state after it was loaded, e.g. by service migrations, are
+     * not taken into account.
+     *
+     * @param virtualMap the virtual map loaded from the snapshot
+     * @param digestType the digest type to use for hashing
+     * @return the root hash, or {@code null} if the snapshot is empty
+     */
+    static Hash rehashSnapshotLeaves(@NonNull final VirtualMap virtualMap, @NonNull final DigestType digestType) {
+        final VirtualDataSource dataSource = virtualMap.getDataSource();
+        final long firstLeafPath = dataSource.getFirstLeafPath();
+        final long lastLeafPath = dataSource.getLastLeafPath();
+        logger.debug(
+                "Doing full {} rehash for the snapshot path range: {} - {}", digestType, firstLeafPath, lastLeafPath);
+        return TaskPerNodeFullRehasher.hash(
+                VALIDATOR_FORK_JOIN_POOL,
+                digestType,
+                firstLeafPath,
+                lastLeafPath,
+                path -> {
+                    try {
+                        return dataSource.loadLeafRecord(path);
+                    } catch (final IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                },
+                TaskPerNodeFullRehasher.Listener.NO_OP,
+                virtualMap.getVirtualMapConfig().fullRehashTimeoutMs());
     }
 }
