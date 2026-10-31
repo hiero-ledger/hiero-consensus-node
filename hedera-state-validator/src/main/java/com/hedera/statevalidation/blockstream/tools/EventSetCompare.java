@@ -148,7 +148,7 @@ final class EventSetCompare {
         final List<Long> numbers = new ArrayList<>(byNumber.keySet());
         final Map<String, EventInfo> events = new LinkedHashMap<>();
         final Map<Long, Integer> nextPositionInRound = new HashMap<>();
-        final BlockStreamEventBuilder builder = new BlockStreamEventBuilder();
+        final BlockStreamEventBuilder builder = new BlockStreamEventBuilder(Long.MAX_VALUE);
 
         for (int i = firstBlockEndingAtOrAfter(numbers, byNumber, lo); i < numbers.size(); i++) {
             final Block block = readBlock(byNumber.get(numbers.get(i)));
