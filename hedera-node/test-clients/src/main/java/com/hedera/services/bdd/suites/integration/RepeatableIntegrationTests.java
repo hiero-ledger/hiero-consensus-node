@@ -2,6 +2,8 @@
 package com.hedera.services.bdd.suites.integration;
 
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
+import static com.hedera.node.app.service.contract.impl.schemas.V0490ContractSchema.STORAGE_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.services.bdd.junit.RepeatableReason.MUST_SKIP_INGEST;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW;
@@ -22,14 +24,18 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.burnToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCallWithFunctionAbi;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.handleAnyRepeatableQueryPayment;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.mutateSingleton;
+import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewContract;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewSingleton;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.getEcdsaPrivateKeyFromSpec;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.getEd25519PrivateKeyFromSpec;
@@ -53,34 +59,50 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_PAYER_
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.SignaturePair;
+import com.hedera.hapi.node.state.contract.SlotKey;
+import com.hedera.hapi.node.state.contract.SlotValue;
+import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshot;
 import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshots;
+import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.platform.state.SingletonType;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.hapi.utils.SignatureGenerator;
+import com.hedera.node.app.service.contract.ContractService;
 import com.hedera.node.app.service.contract.impl.utils.SystemContractUtils;
+import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.throttle.CongestionThrottleService;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
 import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.annotations.NonFungibleToken;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecNonFungibleToken;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.keys.TrieSigMapGenerator;
+import com.hedera.services.bdd.spec.transactions.contract.HapiContractCall;
 import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
 import com.hedera.services.bdd.utils.Signing;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.ScheduleID;
+import com.swirlds.state.spi.ReadableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.math.BigInteger;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
@@ -204,6 +226,102 @@ public class RepeatableIntegrationTests {
                                 mirrorAddrWith(spec, scheduleIdRef.get().getScheduleNum()))
                         .gas(1_000_000L)),
                 getScheduleInfo("schedule").isExecuted());
+    }
+
+    @RepeatableHapiTest({NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW, NEEDS_STATE_ACCESS})
+    final Stream<DynamicTest> nestedScheduledContractCallUpdatesStorageCounts() {
+        final var slotsBefore = new AtomicLong();
+        final var factory = "NoncesExternalization";
+        return hapiTest(
+                uploadInitCode(factory),
+                contractCreate(factory).gas(1_000_000L),
+                viewSingleton(
+                        EntityIdService.NAME,
+                        ENTITY_COUNTS_STATE_ID,
+                        (EntityCounts counts) -> slotsBefore.set(counts.numContractStorageSlots())),
+                scheduleAndAuthorize(
+                        contractCall(factory, "deployParentContract").gas(500_000L)),
+                // The scheduled call adds exactly one storage slot
+                viewSingleton(
+                        EntityIdService.NAME,
+                        ENTITY_COUNTS_STATE_ID,
+                        (EntityCounts counts) -> assertEquals(slotsBefore.get() + 1, counts.numContractStorageSlots())),
+                // 4 slots from the constructor plus the pushed element
+                storageListMatches(factory, 5));
+    }
+
+    @RepeatableHapiTest({NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW, NEEDS_STATE_ACCESS})
+    final Stream<DynamicTest> nestedScheduledContractCallRemovalUpdatesStorageCounts() {
+        final var slotsBefore = new AtomicLong();
+        final var target = "SimpleUpdate";
+        return hapiTest(
+                uploadInitCode(target),
+                contractCreate(target).gas(500_000L),
+                contractCall(target, "set", BigInteger.ONE, BigInteger.TWO).gas(200_000L),
+                storageListMatches(target, 2),
+                viewSingleton(
+                        EntityIdService.NAME,
+                        ENTITY_COUNTS_STATE_ID,
+                        (EntityCounts counts) -> slotsBefore.set(counts.numContractStorageSlots())),
+                scheduleAndAuthorize(contractCall(target, "set", BigInteger.valueOf(5), BigInteger.ZERO)
+                        .gas(200_000L)),
+                // The scheduled call clears one of the two slots
+                viewSingleton(
+                        EntityIdService.NAME,
+                        ENTITY_COUNTS_STATE_ID,
+                        (EntityCounts counts) -> assertEquals(slotsBefore.get() - 1, counts.numContractStorageSlots())),
+                storageListMatches(target, 1));
+    }
+
+    /**
+     * Schedules {@code call} with a payer keyed to {@link #SIGNING_CONTRACT}, which then authorizes it.
+     */
+    private static SpecOperation scheduleAndAuthorize(@NonNull final HapiContractCall call) {
+        final var scheduleIdRef = new AtomicReference<ScheduleID>();
+        return blockingOrder(
+                cryptoCreate("schedulePayer")
+                        .balance(ONE_HUNDRED_HBARS)
+                        .keyShape(KeyShape.CONTRACT.signedWith(SIGNING_CONTRACT.name())),
+                scheduleCreate("schedule", call)
+                        .designatingPayer("schedulePayer")
+                        .exposingCreatedIdTo(scheduleIdRef::set),
+                sourcingContextual(spec -> SIGNING_CONTRACT
+                        .call(
+                                "authorizeScheduleCall",
+                                mirrorAddrWith(spec, scheduleIdRef.get().getScheduleNum()))
+                        .gas(2_000_000L)),
+                getScheduleInfo("schedule").isExecuted());
+    }
+
+    /**
+     * Walks the contract's storage list from its first key and checks that the links are consistent and that
+     * both the list length and the contract's kv pairs count equal {@code expectedSlots}.
+     */
+    private static SpecOperation storageListMatches(@NonNull final String contract, final int expectedSlots) {
+        return sourcingContextual(spec -> viewContract(contract, (Account account) -> {
+            final ReadableKVState<SlotKey, SlotValue> storage = spec.embeddedStateOrThrow()
+                    .getReadableStates(ContractService.NAME)
+                    .get(STORAGE_STATE_ID);
+            final var accountId = account.accountIdOrThrow();
+            final var contractId = ContractID.newBuilder()
+                    .shardNum(accountId.shardNum())
+                    .realmNum(accountId.realmNum())
+                    .contractNum(accountId.accountNumOrThrow())
+                    .build();
+            final Set<Bytes> visited = new HashSet<>();
+            var prevKey = Bytes.EMPTY;
+            var key = account.firstContractStorageKey();
+            while (key.length() > 0) {
+                assertTrue(visited.add(key), "Storage list repeats slot " + key);
+                final var value = storage.get(new SlotKey(contractId, key));
+                assertNotNull(value, "Storage list has no value for slot " + key);
+                assertEquals(prevKey, value.previousKey(), "Wrong previous key for slot " + key);
+                prevKey = key;
+                key = value.nextKey();
+            }
+            assertEquals(expectedSlots, visited.size(), "Wrong storage list length");
+            assertEquals(expectedSlots, account.contractKvPairsNumber(), "Wrong kv pairs count");
+        }));
     }
 
     @RepeatableHapiTest(NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW)

@@ -16,6 +16,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertFailsWith;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.EMPTY_METADATA;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -29,6 +30,7 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.streams.ContractBytecode;
 import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.ContextTransactionProcessor;
+import com.hedera.node.app.service.contract.impl.exec.ContractExecutionDepth;
 import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
 import com.hedera.node.app.service.contract.impl.exec.delegation.CodeDelegationResult;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging;
@@ -588,6 +590,13 @@ class ContextTransactionProcessorTest {
                 contractMetrics);
 
         assertFailsWith(INVALID_ETHEREUM_TRANSACTION, subject::call);
+        // The depth is restored even though call() threw
+        ContractExecutionDepth.enter();
+        try {
+            assertFalse(ContractExecutionDepth.isNested());
+        } finally {
+            ContractExecutionDepth.exit();
+        }
     }
 
     @Test

@@ -11,6 +11,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.contract.ContractNonceInfo;
 import com.hedera.node.app.service.contract.impl.annotations.TransactionScope;
+import com.hedera.node.app.service.contract.impl.exec.ContractExecutionDepth;
 import com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaOperations;
 import com.hedera.node.app.service.contract.impl.infra.IterableStorageManager;
 import com.hedera.node.app.service.contract.impl.infra.RentCalculator;
@@ -69,8 +70,10 @@ public class RootProxyWorldUpdater extends ProxyWorldUpdater {
      * <ol>
      *     <li>Gets the list of pending storage changes and summarizes their effects on size.</li>
      *     <li>Validates the effects on size are legal.</li>
-     *     <li>For each increase in storage size, calculates rent and tries to charge the allocating contract.</li>
-     *     <li>"Rewrites" the pending storage changes to preserve per-contract linked lists.</li>
+     *     <li>For each increase in storage size, calculates rent and tries to charge the allocating contract
+     *     (outermost execution only).</li>
+     *     <li>"Rewrites" the pending storage changes to preserve per-contract linked lists (outermost execution
+     *     only).</li>
      * </ol>
      *
      * @throws ResourceExhaustedException if the storage size limit is exceeded or rent cannot be paid
@@ -87,15 +90,18 @@ public class RootProxyWorldUpdater extends ProxyWorldUpdater {
         final var sizeEffects = summarizeSizeEffects(writes);
         storageSizeValidator.assertValid(
                 sizeEffects.finalSlotsUsed(), enhancement.operations(), sizeEffects.sizeChanges());
-        // Charge rent for each increase in storage size
-        chargeRentFor(sizeEffects);
-        // "Rewrite" the pending storage changes to preserve per-contract linked lists
-        storageManager.persistChanges(
-                enhancement,
-                writes,
-                sizeEffects.sizeChanges(),
-                enhancement.operations().getStore(),
-                enhancement.nativeOperations().writableEvmHookStore());
+        // Nested executions commit into the enclosing scope, so only the outermost execution charges rent for
+        // and persists their changes
+        if (!ContractExecutionDepth.isNested()) {
+            // Charge rent for each increase in storage size
+            chargeRentFor(sizeEffects);
+            storageManager.persistChanges(
+                    enhancement,
+                    writes,
+                    sizeEffects.sizeChanges(),
+                    enhancement.operations().getStore(),
+                    enhancement.nativeOperations().writableEvmHookStore());
+        }
 
         // We now have an apparently valid change set, and want to capture some summary
         // information for the Hedera record

@@ -109,6 +109,15 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
 
     @Override
     public CallOutcome call() {
+        ContractExecutionDepth.enter();
+        try {
+            return doCall();
+        } finally {
+            ContractExecutionDepth.exit();
+        }
+    }
+
+    private CallOutcome doCall() {
         // ONLY USED FOR METRICS: Measure the actual execution time.
         final var startTimeNanos = System.nanoTime();
 

@@ -10,6 +10,7 @@ import static org.mockito.BDDMockito.given;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.contract.ContractNonceInfo;
 import com.hedera.hapi.node.state.contract.SlotKey;
+import com.hedera.node.app.service.contract.impl.exec.ContractExecutionDepth;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.SystemContractOperations;
@@ -176,6 +177,35 @@ class RootProxyWorldUpdaterTest {
         assertSame(createdIds, subject.getCreatedContractIds());
         assertSame(updatedNonces, subject.getUpdatedContractNonces());
         assertSame(mockChangedKeys, subject.getTxStorageUsage().changedKeys());
+    }
+
+    @Test
+    void nestedExecutionValidatesButLeavesRentAndPersistenceToOutermostCommit() {
+        given(context.dispatchMetadata())
+                .willReturn(new HandleContext.DispatchMetadata(EXPLICIT_WRITE_TRACING, Boolean.FALSE));
+        given(evmFrameState.getKvStateSize()).willReturn(123L);
+        given(evmFrameState.getTxStorageUsage(true)).willReturn(new TxStorageUsage(pendingChanges(), Set.of()));
+        // Lenient, since a nested commit must not ask for rent factors
+        BDDMockito.lenient()
+                .when(evmFrameState.getRentFactorsFor(A_CONTRACT_ID))
+                .thenReturn(new RentFactors(0, 0));
+        given(hederaOperations.summarizeContractChanges())
+                .willReturn(new ContractChangeSummary(new ArrayList<>(), new ArrayList<>()));
+
+        ContractExecutionDepth.enter();
+        ContractExecutionDepth.enter();
+        try {
+            subject.commit();
+        } finally {
+            ContractExecutionDepth.exit();
+            ContractExecutionDepth.exit();
+        }
+
+        // Three pending removals
+        BDDMockito.then(storageSizeValidator).should().assertValid(120L, hederaOperations, expectedSizeChanges());
+        BDDMockito.then(rentCalculator).shouldHaveNoInteractions();
+        BDDMockito.then(storageManager).shouldHaveNoInteractions();
+        BDDMockito.then(hederaOperations).should().commit();
     }
 
     private void givenSubjectWith(@NonNull final Configuration configuration, @NonNull final Enhancement enhancement) {
