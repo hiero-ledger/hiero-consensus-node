@@ -18,6 +18,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.LongFunction;
 import org.hiero.base.concurrent.AbstractTask;
 import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 
 /// A class that hashes a whole virtual tree from scratch using [AbstractTask]s, one
@@ -58,6 +59,13 @@ public final class TaskPerNodeFullRehasher {
 
     private final Listener listener;
 
+    private final DigestType digestType;
+
+    // Per-thread hashers for a non-default digest type. Null if the digest type is the default
+    // one, in this case MerkleHasher.threadSafeDefault() is used
+    @Nullable
+    private final ThreadLocal<MerkleHasher> hashers;
+
     // Completed with the root hash bytes, or exceptionally with the first exception thrown
     // by any task, or cancelled on timeout or interrupt. Tasks check if it's completed
     // exceptionally to avoid doing any more work
@@ -65,15 +73,24 @@ public final class TaskPerNodeFullRehasher {
 
     private TaskPerNodeFullRehasher(
             final ForkJoinPool pool,
+            final DigestType digestType,
             final long firstLeafPath,
             final long lastLeafPath,
             final LongFunction<VirtualLeafBytes<?>> leafReader,
             final Listener listener) {
         this.pool = pool;
+        this.digestType = digestType;
+        this.hashers = (digestType == Cryptography.DEFAULT_DIGEST_TYPE)
+                ? null
+                : ThreadLocal.withInitial(() -> new MerkleHasher(digestType));
         this.firstLeafPath = firstLeafPath;
         this.lastLeafPath = lastLeafPath;
         this.leafReader = leafReader;
         this.listener = listener;
+    }
+
+    private MerkleHasher hasher() {
+        return (hashers == null) ? MerkleHasher.threadSafeDefault() : hashers.get();
     }
 
     /// Hashes the whole virtual tree with the given leaf path range and returns the root hash.
@@ -111,7 +128,27 @@ public final class TaskPerNodeFullRehasher {
             @NonNull final LongFunction<VirtualLeafBytes<?>> leafReader,
             @Nullable final Listener listener,
             final long timeoutMs) {
+        return hash(
+                pool, Cryptography.DEFAULT_DIGEST_TYPE, firstLeafPath, lastLeafPath, leafReader, listener, timeoutMs);
+    }
+
+    /// Same as [#hash(ForkJoinPool, long, long, LongFunction, Listener, long)], but hashes the tree
+    /// using the given digest type rather than [Cryptography#DEFAULT_DIGEST_TYPE]. This is useful to
+    /// verify hashes of snapshots created with a different default digest type, for example, before
+    /// the digest type was changed from SHA-384 to SHA-256.
+    ///
+    /// @param digestType the digest type to hash leaves and internal nodes with
+    @Nullable
+    public static Hash hash(
+            @NonNull final ForkJoinPool pool,
+            @NonNull final DigestType digestType,
+            final long firstLeafPath,
+            final long lastLeafPath,
+            @NonNull final LongFunction<VirtualLeafBytes<?>> leafReader,
+            @Nullable final Listener listener,
+            final long timeoutMs) {
         requireNonNull(pool, "pool must not be null");
+        requireNonNull(digestType, "digest type must not be null");
         requireNonNull(leafReader, "leaf reader must not be null");
 
         if (pool.isShutdown() || pool.isTerminated()) {
@@ -132,7 +169,7 @@ public final class TaskPerNodeFullRehasher {
             return null;
         }
 
-        return new TaskPerNodeFullRehasher(pool, firstLeafPath, lastLeafPath, leafReader, nonNullListener)
+        return new TaskPerNodeFullRehasher(pool, digestType, firstLeafPath, lastLeafPath, leafReader, nonNullListener)
                 .execute(timeoutMs);
     }
 
@@ -140,7 +177,7 @@ public final class TaskPerNodeFullRehasher {
         try {
             new TraverseTask(ROOT_PATH, null).send();
             final byte[] rootHash = result.get(timeoutMs, MILLISECONDS);
-            return new Hash(rootHash, Cryptography.DEFAULT_DIGEST_TYPE);
+            return new Hash(rootHash, digestType);
         } catch (final ExecutionException e) {
             // Always wrap, so the exception has the caller thread stack trace, not just the
             // hashing thread stack trace of the cause
@@ -207,7 +244,7 @@ public final class TaskPerNodeFullRehasher {
             if (leaf == null) {
                 throw new IllegalStateException("Leaf record not found, path = " + nodePath);
             }
-            final byte[] hash = MerkleHasher.threadSafeDefault().leafNodeHashBytes(leaf);
+            final byte[] hash = hasher().leafNodeHashBytes(leaf);
             // one more check to avoid notifying the listener and setting the hash to the parent if the result is
             // already completed exceptionally
             if (result.isCompletedExceptionally()) {
@@ -244,7 +281,7 @@ public final class TaskPerNodeFullRehasher {
             if (result.isCompletedExceptionally()) {
                 return true;
             }
-            final byte[] hash = MerkleHasher.threadSafeDefault().internalNodeHashBytes(leftHash, rightHash);
+            final byte[] hash = hasher().internalNodeHashBytes(leftHash, rightHash);
             // Must be called before the hash is passed to the parent node, see class javadoc
             listener.onHashed(path, hash);
             if (parent != null) {

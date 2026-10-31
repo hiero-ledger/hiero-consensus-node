@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -25,6 +26,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongFunction;
 import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -119,6 +121,38 @@ class TaskPerNodeFullRehasherTest extends VirtualTestBase {
             } finally {
                 pool.shutdownNow();
             }
+        }
+    }
+
+    @Test
+    @DisplayName("Non-default digest type is used for all nodes")
+    void nonDefaultDigestType() {
+        final DigestType digestType = DigestType.SHA_384;
+        assertNotEquals(Cryptography.DEFAULT_DIGEST_TYPE, digestType);
+        final long firstLeafPath = 999;
+        final long lastLeafPath = 1998;
+        final LongFunction<VirtualLeafBytes<?>> reader = path -> leaf(path, path, path * 31);
+        // Reference hashes calculated with the given digest type
+        final MerkleHasher hasher = new MerkleHasher(digestType);
+        final byte[][] hashes = new byte[Math.toIntExact(lastLeafPath + 1)][];
+        for (int path = hashes.length - 1; path >= 0; path--) {
+            if (path >= firstLeafPath) {
+                hashes[path] = hasher.leafNodeHashBytes(reader.apply(path));
+            } else {
+                hashes[path] = hasher.internalNodeHashBytes(hashes[2 * path + 1], hashes[2 * path + 2]);
+            }
+        }
+        final ForkJoinPool pool = new ForkJoinPool(4);
+        try {
+            final Hash hash =
+                    TaskPerNodeFullRehasher.hash(pool, digestType, firstLeafPath, lastLeafPath, reader, null, 60_000);
+            assertEquals(new Hash(hashes[0], digestType), hash);
+            assertEquals(digestType, hash.getDigestType());
+            final Hash defaultHash =
+                    TaskPerNodeFullRehasher.hash(pool, firstLeafPath, lastLeafPath, reader, null, 60_000);
+            assertNotEquals(hash, defaultHash);
+        } finally {
+            pool.shutdownNow();
         }
     }
 
