@@ -132,7 +132,7 @@ public class HapiSpecSetup {
         } else {
             try {
                 final var hexed = Files.readString(f.toPath()).trim();
-                readECKeyFrom(CommonUtils.unhex(hexed));
+                return readECKeyFrom(CommonUtils.unhex(hexed));
             } catch (Exception ignore) {
             }
             throw new IllegalArgumentException("Unable to load a key from " + path);
