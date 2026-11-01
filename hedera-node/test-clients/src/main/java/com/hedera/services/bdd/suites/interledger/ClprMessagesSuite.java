@@ -31,8 +31,8 @@ import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.CONNECT
 import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.computeCommitment;
 import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.deriveConnectorId;
 import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.deriveEcdsaPublicKey;
-import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.signChannelId;
 import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.signConnectorMessage;
+import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.signMessage;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -141,7 +141,6 @@ public class ClprMessagesSuite {
         final var connPubKey64 = deriveEcdsaPublicKey(CHANNEL_SECRET_KEY);
         final var connPubKeyBytes = Bytes.wrap(connPubKey64);
         final var channelCommitment = computeCommitment(CHANNEL_ID, connPubKeyBytes);
-        final var channelSig = signChannelId(CHANNEL_SECRET_KEY, CHANNEL_ID);
 
         // ── Connector keypair ─────────────────────────────────────────────────────────────────────
         final var connectorPubKey64 = deriveEcdsaPublicKey(CONNECTOR_SECRET_KEY);
@@ -221,7 +220,7 @@ public class ClprMessagesSuite {
                         sourcing(() -> clprCompleteChannel()
                                 .channelId(CHANNEL_ID.toByteArray())
                                 .publicKey(connPubKey64)
-                                .signature(channelSig)
+                                .signedWith(m -> signMessage(CHANNEL_SECRET_KEY, m))
                                 .signatureScheme(ClprSignatureScheme.ECDSA_SECP256K1)
                                 .verifierContractId(clprSystemContract)
                                 .configProofBytes(configProofForNetB.get().toByteArray())
@@ -290,7 +289,7 @@ public class ClprMessagesSuite {
                         sourcing(() -> clprCompleteChannel()
                                 .channelId(CHANNEL_ID.toByteArray())
                                 .publicKey(connPubKey64)
-                                .signature(channelSig)
+                                .signedWith(m -> signMessage(CHANNEL_SECRET_KEY, m))
                                 .signatureScheme(ClprSignatureScheme.ECDSA_SECP256K1)
                                 .verifierContractId(clprSystemContract)
                                 .configProofBytes(configProofForNetA.get().toByteArray())

@@ -346,7 +346,15 @@ public final class ClprTestHelpers {
      * @return 64-byte compact recoverable ECDSA signature
      */
     public static byte[] signChannelId(final byte[] secKey, final Bytes channelId) {
-        final var messageHash = MiscCryptoUtils.keccak256DigestOf(channelId.toByteArray());
+        return signMessage(secKey, MiscCryptoUtils.keccak256DigestOf(channelId.toByteArray()));
+    }
+
+    /**
+     * Signs a 32-byte message hash with the given secp256k1 secret key.
+     *
+     * @return 64-byte compact recoverable ECDSA signature
+     */
+    public static byte[] signMessage(final byte[] secKey, final byte[] messageHash) {
         final var recoverableSig = new LibSecp256k1.secp256k1_ecdsa_recoverable_signature();
         final var signResult = LibSecp256k1.secp256k1_ecdsa_sign_recoverable(
                 LibSecp256k1.CONTEXT, recoverableSig, messageHash, secKey, null, null);
