@@ -220,6 +220,7 @@ public class CodeDelegationTests extends CodeDelegationTestBase {
                     /* Trigger an HTS token transfer by sending a transaction from the owner account */
                     HapiEthereumCall.explicitlyTo(delegatingEoa.evmAddressBytes(), 0)
                             .withExplicitParams(() -> Hex.toHexString(callData))
+                            .gasLimit(2_000_000L)
                             .payingWith(payer.name())
                             .signingWith(delegatingEoa.keyName())
                             .hasKnownStatus(ResponseCodeEnum.SUCCESS),
@@ -229,6 +230,7 @@ public class CodeDelegationTests extends CodeDelegationTestBase {
                     /* Trigger an HTS token transfer by sending a transaction from an unrelated account */
                     HapiEthereumCall.explicitlyTo(delegatingEoa.evmAddressBytes(), 0)
                             .withExplicitParams(() -> Hex.toHexString(callData))
+                            .gasLimit(2_000_000L)
                             .payingWith(payer.name())
                             .signingWith(caller.keyName())
                             .hasKnownStatus(ResponseCodeEnum.SUCCESS),

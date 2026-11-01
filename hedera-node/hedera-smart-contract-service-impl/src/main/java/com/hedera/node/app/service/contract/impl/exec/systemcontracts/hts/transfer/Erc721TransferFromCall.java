@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.revertResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.successResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasOnly;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.ClassicTransfersCall.autoAssociationGasRequirement;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.ClassicTransfersCall.transferGasRequirement;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.Erc721TransferFromTranslator.ERC_721_TRANSFER_FROM;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.TransferEventLoggingUtils.logSuccessfulNftTransfer;
@@ -87,9 +88,11 @@ public class Erc721TransferFromCall extends AbstractCall {
             return reversionWith(INVALID_TOKEN_ID, gasCalculator.canonicalGasRequirement(DispatchType.TRANSFER_NFT));
         }
         final var syntheticTransfer = syntheticTransfer(senderId);
-        final var gasRequirement = transferGasRequirement(syntheticTransfer, gasCalculator, enhancement, senderId);
+        // When unlimited associations are enabled, will be updated with additional charges for any auto-associations
+        var gasRequirement = transferGasRequirement(syntheticTransfer, gasCalculator, enhancement, senderId);
         final var recordBuilder = systemContractOperations()
                 .dispatch(syntheticTransfer, verificationStrategy, senderId, ContractCallStreamBuilder.class);
+        gasRequirement += autoAssociationGasRequirement(frame, recordBuilder, gasCalculator);
         final var status = recordBuilder.status();
         if (status != ResponseCodeEnum.SUCCESS) {
             return gasOnly(revertResult(recordBuilder, gasRequirement), status, false);
