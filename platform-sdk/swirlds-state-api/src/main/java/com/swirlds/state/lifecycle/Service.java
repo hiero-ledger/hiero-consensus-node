@@ -3,6 +3,7 @@ package com.swirlds.state.lifecycle;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -43,7 +44,7 @@ public interface Service {
      *
      * @param registry the registry to register the schemas with
      */
-    void registerSchemas(@NonNull SchemaRegistry registry);
+    void registerSchemas(@NonNull SchemaRegistry<SemanticVersion> registry);
 
     /**
      * Does any state initialization (typically setting default singleton values) that is required at genesis.
