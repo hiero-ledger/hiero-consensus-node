@@ -1213,7 +1213,11 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                         clprCompleteConnector()
                                 .connectorId(crypto.connectorId)
                                 .publicKey(crypto.publicKey)
-                                .signature(crypto.connectorSignature)
+                                .signedWith(m -> {
+                                    final var sig = new byte[Ed25519.SIGNATURE_BYTES];
+                                    Ed25519.sign(sig, m, crypto.secretKey);
+                                    return sig;
+                                })
                                 .signatureScheme(ClprSignatureScheme.ED25519)
                                 .salt(crypto.connectorSalt)
                                 .channelId(crypto.channelId)

@@ -28,6 +28,7 @@ final class ClprChannelCrypto {
     private final byte[] connectorId;
     private final byte[] connectorCommitment;
     private final byte[] connectorSignature;
+    private final byte[] connectorSecretKey;
 
     ClprChannelCrypto() {
         final var rng = new SecureRandom();
@@ -64,6 +65,7 @@ final class ClprChannelCrypto {
         connectorSignature = new byte[Ed25519.SIGNATURE_BYTES];
         final var connectorSigMsg = MiscCryptoUtils.keccak256DigestOf(concat(connectorId, CLPR_SERVICE_ADDRESS));
         Ed25519.sign(connectorSignature, connectorSigMsg, secretKey);
+        connectorSecretKey = secretKey;
     }
 
     byte[] channelId() {
@@ -96,6 +98,13 @@ final class ClprChannelCrypto {
 
     byte[] connectorSignature() {
         return connectorSignature;
+    }
+
+    /** Signs a connector-completion message hash with this channel's Ed25519 key. */
+    byte[] signConnectorCompletion(final byte[] message) {
+        final var sig = new byte[Ed25519.SIGNATURE_BYTES];
+        Ed25519.sign(sig, message, connectorSecretKey);
+        return sig;
     }
 
     private static byte[] concat(final byte[] a, final byte[] b) {

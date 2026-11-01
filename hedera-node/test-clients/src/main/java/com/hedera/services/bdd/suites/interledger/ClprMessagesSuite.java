@@ -32,7 +32,7 @@ import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.compute
 import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.deriveConnectorId;
 import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.deriveEcdsaPublicKey;
 import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.signChannelId;
-import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.signConnectorMessage;
+import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.signConnectorHash;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -148,7 +148,6 @@ public class ClprMessagesSuite {
         final var connectorPubKeyBytes = Bytes.wrap(connectorPubKey64);
         final var connectorId = deriveConnectorId(CHANNEL_ID, connectorPubKeyBytes, CONNECTOR_SALT);
         final var connectorCommitment = computeCommitment(connectorId, connectorPubKeyBytes);
-        final var connectorSig = signConnectorMessage(CONNECTOR_SECRET_KEY, connectorId);
 
         // ── CLPR system contract (precompile) ContractID — used as both networks' verifier
         final var clprSystemContract =
@@ -236,7 +235,7 @@ public class ClprMessagesSuite {
                         clprCompleteConnector()
                                 .connectorId(connectorId.toByteArray())
                                 .publicKey(connectorPubKey64)
-                                .signature(connectorSig)
+                                .signedWith(m -> signConnectorHash(CONNECTOR_SECRET_KEY, m))
                                 .signatureScheme(ClprSignatureScheme.ECDSA_SECP256K1)
                                 .salt(CONNECTOR_SALT.toByteArray())
                                 .channelId(CHANNEL_ID.toByteArray())
@@ -305,7 +304,7 @@ public class ClprMessagesSuite {
                         clprCompleteConnector()
                                 .connectorId(connectorId.toByteArray())
                                 .publicKey(connectorPubKey64)
-                                .signature(connectorSig)
+                                .signedWith(m -> signConnectorHash(CONNECTOR_SECRET_KEY, m))
                                 .signatureScheme(ClprSignatureScheme.ECDSA_SECP256K1)
                                 .salt(CONNECTOR_SALT.toByteArray())
                                 .channelId(CHANNEL_ID.toByteArray())
