@@ -378,7 +378,8 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
                 context.requiredHollowAccounts(),
                 results,
                 isAtomicBatch(txInfo) ? new ArrayList<>() : null,
-                configuration.getVersion());
+                configuration.getVersion(),
+                context.requiredKeyRequirements());
     }
 
     /**

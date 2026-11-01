@@ -148,9 +148,8 @@ public class ClassicTransfersCall extends AbstractCall {
                         .cryptoTransfer(requireNonNull(approvalSwitchHelper)
                                 .switchToApprovalsAsNeededIn(
                                         syntheticTransfer.cryptoTransferOrThrow(),
-                                        systemContractOperations().signatureTestWith(verificationStrategy),
-                                        nativeOperations(),
-                                        senderId))
+                                        systemContractOperations().requirementTestWith(verificationStrategy),
+                                        nativeOperations()))
                         .build()
                 : syntheticTransfer;
         final var recordBuilder = systemContractOperations()
