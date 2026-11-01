@@ -42,6 +42,7 @@ import com.hedera.node.app.service.token.impl.handlers.CryptoApproveAllowanceHan
 import com.hedera.node.app.service.token.impl.test.handlers.util.CryptoTokenHandlerTestBase;
 import com.hedera.node.app.service.token.impl.validators.ApproveAllowanceValidator;
 import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
+import com.hedera.node.app.spi.key.KeyRequirement;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -167,6 +168,22 @@ class CryptoApproveAllowanceHandlerTest extends CryptoTokenHandlerTestBase {
         subject.preHandle(context);
         basicMetaAssertions(context, 0);
         assertEquals(ownerKey, context.payerKey());
+        assertThat(context.requiredNonPayerKeys()).isEmpty();
+    }
+
+    @Test
+    void allowancesWithoutOwnerRequirePayerAccount() throws PreCheckException {
+        final var txn = cryptoApproveAllowanceTransaction(
+                payerId,
+                false,
+                List.of(cryptoAllowance.copyBuilder().owner((AccountID) null).build()),
+                List.of(tokenAllowance.copyBuilder().owner((AccountID) null).build()),
+                List.of(nftAllowance.copyBuilder().owner((AccountID) null).build()));
+        final var context = new FakePreHandleContext(readableAccountStore, txn);
+
+        subject.preHandle(context);
+
+        assertThat(context.requiredKeyRequirements()).containsExactly(KeyRequirement.forAccount(payerId, key));
         assertThat(context.requiredNonPayerKeys()).isEmpty();
     }
 

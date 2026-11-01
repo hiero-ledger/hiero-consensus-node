@@ -15,7 +15,6 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -380,8 +379,8 @@ class FileCreateTest extends FileTestBase {
     }
 
     private Key mockPayerLookup(final Key key) {
-        final var account = mock(Account.class);
-        given(account.key()).willReturn(key);
+        final var account =
+                Account.newBuilder().accountId(ACCOUNT_ID_3).key(key).build();
         given(accountStore.getAccountById(ACCOUNT_ID_3)).willReturn(account);
         return key;
     }

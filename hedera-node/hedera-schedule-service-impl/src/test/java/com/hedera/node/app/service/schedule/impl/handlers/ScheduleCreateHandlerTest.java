@@ -6,6 +6,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOKS_EXECUTIONS_REQUIR
 import static com.hedera.hapi.node.base.ResponseCodeEnum.IDENTICAL_SCHEDULE_ALREADY_CREATED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SCHEDULED_TRANSACTION_NOT_IN_WHITELIST;
+import static com.hedera.hapi.util.HapiUtils.EMPTY_KEY_LIST;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.BDDAssertions.assertThat;
@@ -26,6 +27,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.HookCall;
 import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransferList;
@@ -50,13 +52,16 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.workflows.prehandle.PreHandleContextImpl;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.security.InvalidKeyException;
 import java.time.InstantSource;
 import java.util.Set;
 import java.util.concurrent.ConcurrentSkipListSet;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.BDDMockito;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 
 class ScheduleCreateHandlerTest extends ScheduleHandlerTestBase {
     @Mock
@@ -173,6 +178,33 @@ class ScheduleCreateHandlerTest extends ScheduleHandlerTestBase {
         realPreContext = new PreHandleContextImpl(
                 mockStoreFactory, createBody, testConfig, mockDispatcher, mockTransactionChecker, creatorInfo);
         Assertions.assertThrowsPreCheck(() -> subject.preHandle(realPreContext), ACCOUNT_ID_DOES_NOT_EXIST);
+    }
+
+    @Test
+    void hollowSchedulePayerRequiredByScheduledTransactionIsUnresolvable() throws PreCheckException {
+        // The scheduled transaction requires its own (still-hollow) payer to sign; a schedule cannot
+        // complete a hollow account, so the create must surface UNRESOLVABLE_REQUIRED_SIGNERS.
+        accountsMapById.put(
+                payer,
+                payerAccount
+                        .copyBuilder()
+                        .key(EMPTY_KEY_LIST)
+                        .alias(Bytes.wrap(new byte[20]))
+                        .build());
+        BDDMockito.willAnswer(invocation -> {
+                    invocation
+                            .<PreHandleContext>getArgument(0)
+                            .requireKeyOrThrow(payer, ResponseCodeEnum.INVALID_ACCOUNT_ID);
+                    return null;
+                })
+                .given(mockDispatcher)
+                .dispatchPreHandle(Mockito.any());
+        final TransactionBody testTransaction = scheduleCreateTransaction(payer);
+        realPreContext = new PreHandleContextImpl(
+                mockStoreFactory, testTransaction, testConfig, mockDispatcher, mockTransactionChecker, creatorInfo);
+
+        Assertions.assertThrowsPreCheck(
+                () -> subject.preHandle(realPreContext), ResponseCodeEnum.UNRESOLVABLE_REQUIRED_SIGNERS);
     }
 
     @Test

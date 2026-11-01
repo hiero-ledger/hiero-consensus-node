@@ -22,6 +22,7 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.info.NodeInfo;
+import com.hedera.node.app.spi.key.KeyRequirement;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
@@ -60,6 +61,10 @@ public class PreHandleContextImpl implements PreHandleContext {
      * The payer's key, as found in state
      */
     private final Key payerKey;
+
+    private final KeyRequirement payerKeyRequirement;
+    private final Set<KeyRequirement> requiredKeyRequirements = new LinkedHashSet<>();
+    private final Set<KeyRequirement> optionalKeyRequirements = new LinkedHashSet<>();
     /**
      * The set of all required non-payer keys. A {@link LinkedHashSet} is used to maintain a consistent ordering.
      * While not strictly necessary, it is useful at the moment to ensure tests are deterministic. The tests should
@@ -150,6 +155,7 @@ public class PreHandleContextImpl implements PreHandleContext {
         final var payer = mustExist(accountStore.getAccountById(payerId), INVALID_PAYER_ACCOUNT_ID);
         // It would be a catastrophic invariant failure if an account in state didn't have a key
         payerKey = payer.keyOrThrow();
+        payerKeyRequirement = KeyRequirement.forAccount(payer.accountIdOrThrow(), payerKey);
         this.transactionChecker = requireNonNull(transactionChecker, "transactionChecker must not be null!");
     }
 
@@ -194,14 +200,43 @@ public class PreHandleContextImpl implements PreHandleContext {
         return Collections.unmodifiableSet(optionalNonPayerKeys);
     }
 
+    @Override
+    @NonNull
+    public Set<KeyRequirement> requiredKeyRequirements() {
+        return Collections.unmodifiableSet(requiredKeyRequirements);
+    }
+
+    @Override
+    @NonNull
+    public Set<KeyRequirement> optionalKeyRequirements() {
+        return Collections.unmodifiableSet(optionalKeyRequirements);
+    }
+
+    @Override
+    @NonNull
+    public KeyRequirement payerKeyRequirement() {
+        return payerKeyRequirement;
+    }
+
     @NonNull
     @Override
     public PreHandleContext optionalKey(@NonNull final Key key) throws PreCheckException {
-        // Verify this key isn't for an immutable account
-        verifyNotEmptyKey(key, ResponseCodeEnum.INVALID_ACCOUNT_ID);
+        return optionalKeyRequirement(KeyRequirement.forKey(key));
+    }
 
-        if (!key.equals(payerKey) && isValid(key)) {
-            optionalNonPayerKeys.add(key);
+    @Override
+    @NonNull
+    public PreHandleContext optionalKeyRequirement(@NonNull final KeyRequirement requirement) throws PreCheckException {
+        requireNonNull(requirement);
+        final var key = requirement.key();
+        verifyNotEmptyKey(key, ResponseCodeEnum.INVALID_ACCOUNT_ID);
+        if (isValid(key)) {
+            optionalKeyRequirements.add(requirement);
+            // This projection is used only to expand signatures and calculate fees. The payer's
+            // key is already expanded separately; its requirements must nevertheless be retained.
+            if (!key.equals(payerKey)) {
+                optionalNonPayerKeys.add(key);
+            }
         }
         return this;
     }
@@ -249,17 +284,34 @@ public class PreHandleContextImpl implements PreHandleContext {
     @Override
     @NonNull
     public PreHandleContext requireKey(@NonNull final Key key) {
-        if (isValid(key) && (!key.equals(payerKey) || payerKeyIsForeignContractReference())) {
-            requiredNonPayerKeys.add(key);
+        // Preserve the legacy no-op for an invalid key, including null.
+        return isValid(key) ? requireKeyRequirement(KeyRequirement.forKey(key)) : this;
+    }
+
+    @Override
+    @NonNull
+    public PreHandleContext requireKeyRequirement(@NonNull final KeyRequirement requirement) {
+        requireNonNull(requirement);
+        final var key = requirement.key();
+        if (isValid(key)) {
+            requiredKeyRequirements.add(requirement);
+            // Preserve the legacy key projection for signature expansion and fee calculation only.
+            // Authorization always uses requiredKeyRequirements, including payer-equal keys.
+            // The payer's own canonical account requirement is already accounted for, even if
+            // its key references another contract. An explicit foreign-contract key still has
+            // the legacy projection behavior.
+            if (!key.equals(payerKey)
+                    || (!requirement.equals(payerKeyRequirement) && payerKeyIsForeignContractReference())) {
+                requiredNonPayerKeys.add(key);
+            }
         }
         return this;
     }
 
     /**
-     * Returns true when the payer's key is a contract-ID (or delegatable-contract-ID) key that
-     * references a contract OTHER than the payer account itself. Crypto/keylist/threshold payer keys,
-     * and self-referential contract keys (such as the network installs for a self-managed contract),
-     * return false so their existing elision behavior is preserved.
+     * Preserves the legacy signature-expansion and fee projection for a payer key referencing
+     * another contract. This classification never affects the authoritative requirements: all
+     * valid requirements are retained regardless of their key or their relationship to the payer.
      */
     private boolean payerKeyIsForeignContractReference() {
         final ContractID ref;
@@ -356,14 +408,6 @@ public class PreHandleContextImpl implements PreHandleContext {
         if (accountID == null) {
             throw new PreCheckException(responseCode);
         }
-        // Immediately return if we would just repeat the payer requirement; note that correctness
-        // of signing requirements for children dispatched by the contract service depends on this.
-        // If we repeated the payer requirement, we would be requiring "double authorization" from
-        // the contract doing the dispatch; but the contract has already authorized the action by
-        // the very execution of its bytecode.
-        if (accountID.equals(payerId)) {
-            return this;
-        }
         final Account account;
         if (allowAliasedIds) {
             account = accountStore.getAliasedAccountById(accountID);
@@ -391,9 +435,11 @@ public class PreHandleContextImpl implements PreHandleContext {
             throw new PreCheckException(responseCode);
         }
         if (finisher != null) {
-            key = finisher.apply(key);
+            // An arbitrary transformation may introduce unrelated keys. It cannot inherit the
+            // account's authority; callers that compose authorities must use scoped alternatives.
+            return requireKey(finisher.apply(key));
         }
-        return requireKey(key);
+        return requireKeyRequirement(KeyRequirement.forAccount(account.accountIdOrThrow(), key));
     }
 
     @Override
@@ -424,7 +470,7 @@ public class PreHandleContextImpl implements PreHandleContext {
             // keys? Or KeyList with Contract keys only?
             throw new PreCheckException(responseCode);
         }
-        return requireKey(key);
+        return requireKeyRequirement(KeyRequirement.forAccount(account.accountIdOrThrow(), key));
     }
 
     @Override
@@ -464,7 +510,7 @@ public class PreHandleContextImpl implements PreHandleContext {
             // keys? Or KeyList with Contract keys only?
             throw new PreCheckException(responseCode);
         }
-        return requireKey(key);
+        return requireKeyRequirement(KeyRequirement.forAccount(account.accountIdOrThrow(), key));
     }
 
     @Override
@@ -503,7 +549,7 @@ public class PreHandleContextImpl implements PreHandleContext {
             // keys? Or KeyList with Contract keys only?
             throw new PreCheckException(responseCode);
         }
-        return requireKey(key);
+        return requireKeyRequirement(KeyRequirement.forAccount(account.accountIdOrThrow(), key));
     }
 
     @Override
@@ -565,6 +611,28 @@ public class PreHandleContextImpl implements PreHandleContext {
         // Verify this key isn't for an immutable account
         verifyNotStakingAccounts(account.accountIdOrThrow(), INVALID_ACCOUNT_ID);
         return account.keyOrThrow();
+    }
+
+    @Override
+    @NonNull
+    public KeyRequirement keyRequirementFor(
+            @NonNull final AccountID accountID, @NonNull final ResponseCodeEnum responseCode) throws PreCheckException {
+        requireNonNull(accountID);
+        requireNonNull(responseCode);
+        final var account = accountStore.getAccountById(accountID);
+        if (account == null) {
+            throw new PreCheckException(responseCode);
+        }
+        if (account.deleted()) {
+            throw new PreCheckException(ACCOUNT_DELETED);
+        }
+        verifyNotStakingAccounts(account.accountIdOrThrow(), responseCode);
+        final var key = account.key();
+        if (!isValid(key)) {
+            throw new PreCheckException(responseCode);
+        }
+        verifyNotEmptyKey(key, responseCode);
+        return KeyRequirement.forAccount(account.accountIdOrThrow(), key);
     }
 
     @Override

@@ -83,9 +83,6 @@ class FileUpdateTest extends FileTestBase {
     protected ReadableStoreFactory mockStoreFactory;
 
     @Mock(strictness = Mock.Strictness.LENIENT)
-    protected Account payerAccount;
-
-    @Mock(strictness = Mock.Strictness.LENIENT)
     private FileSignatureWaiversImpl waivers;
 
     @Mock
@@ -112,12 +109,15 @@ class FileUpdateTest extends FileTestBase {
     void preHandleWorksAsExpected() throws PreCheckException {
         refreshStoresWithCurrentFileOnlyInReadable();
 
-        BDDMockito.given(accountStore.getAccountById(payerId)).willReturn(payerAccount);
+        BDDMockito.given(accountStore.getAccountById(payerId))
+                .willReturn(Account.newBuilder()
+                        .accountId(payerId)
+                        .key(A_COMPLEX_KEY)
+                        .build());
         BDDMockito.given(mockStoreFactory.readableStore(ReadableFileStore.class))
                 .willReturn(readableStore);
         BDDMockito.given(mockStoreFactory.readableStore(ReadableAccountStore.class))
                 .willReturn(accountStore);
-        BDDMockito.given(payerAccount.key()).willReturn(A_COMPLEX_KEY);
 
         PreHandleContext realPreContext = new PreHandleContextImpl(
                 mockStoreFactory, txnWith(), testConfig, mockDispatcher, transactionChecker, creatorInfo);
@@ -132,12 +132,15 @@ class FileUpdateTest extends FileTestBase {
     void preHandleWorksAsExpectedImmutable() throws PreCheckException {
         file = createFileEmptyMemoAndKeys();
         refreshStoresWithCurrentFileOnlyInReadable();
-        BDDMockito.given(accountStore.getAccountById(payerId)).willReturn(payerAccount);
+        BDDMockito.given(accountStore.getAccountById(payerId))
+                .willReturn(Account.newBuilder()
+                        .accountId(payerId)
+                        .key(A_COMPLEX_KEY)
+                        .build());
         BDDMockito.given(mockStoreFactory.readableStore(ReadableFileStore.class))
                 .willReturn(readableStore);
         BDDMockito.given(mockStoreFactory.readableStore(ReadableAccountStore.class))
                 .willReturn(accountStore);
-        BDDMockito.given(payerAccount.key()).willReturn(A_COMPLEX_KEY);
 
         // No-op
         final var txnId = TransactionID.newBuilder().accountID(payerId).build();

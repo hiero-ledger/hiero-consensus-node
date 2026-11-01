@@ -20,6 +20,7 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fixtures.info.FakeNetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
+import com.hedera.node.app.spi.key.KeyRequirement;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.TransactionKeys;
@@ -51,6 +52,10 @@ public class FakePreHandleContext implements PreHandleContext {
     private final AccountID payer;
     /** The payer's key, as found in state */
     private final Key payerKey;
+
+    private final KeyRequirement payerKeyRequirement;
+    private final Set<KeyRequirement> requiredKeyRequirements = new LinkedHashSet<>();
+    private final Set<KeyRequirement> optionalKeyRequirements = new LinkedHashSet<>();
     /**
      * The set of all required non-payer keys. A {@link LinkedHashSet} is used to maintain a consistent ordering.
      * While not strictly necessary, it is useful at the moment to ensure tests are deterministic. The tests should
@@ -117,6 +122,7 @@ public class FakePreHandleContext implements PreHandleContext {
         // account 800, those accounts cannot be the payer.
         payerKey = account.key();
         mustExist(payerKey, INVALID_PAYER_ACCOUNT_ID);
+        payerKeyRequirement = KeyRequirement.forAccount(account.accountIdOrThrow(), payerKey);
     }
 
     @Override
@@ -174,10 +180,39 @@ public class FakePreHandleContext implements PreHandleContext {
     @NonNull
     @Override
     public PreHandleContext optionalKey(@NonNull final Key key) {
-        if (!key.equals(payerKey) && isValid(key)) {
-            optionalNonPayerKeys.add(key);
+        return optionalKeyRequirement(KeyRequirement.forKey(key));
+    }
+
+    @Override
+    @NonNull
+    public PreHandleContext optionalKeyRequirement(@NonNull final KeyRequirement requirement) {
+        requireNonNull(requirement);
+        final var key = requirement.key();
+        if (isValid(key)) {
+            optionalKeyRequirements.add(requirement);
+            if (!key.equals(payerKey)) {
+                optionalNonPayerKeys.add(key);
+            }
         }
         return this;
+    }
+
+    @Override
+    @NonNull
+    public Set<KeyRequirement> requiredKeyRequirements() {
+        return Collections.unmodifiableSet(requiredKeyRequirements);
+    }
+
+    @Override
+    @NonNull
+    public Set<KeyRequirement> optionalKeyRequirements() {
+        return Collections.unmodifiableSet(optionalKeyRequirements);
+    }
+
+    @Override
+    @NonNull
+    public KeyRequirement payerKeyRequirement() {
+        return payerKeyRequirement;
     }
 
     @NonNull
@@ -223,8 +258,19 @@ public class FakePreHandleContext implements PreHandleContext {
     @Override
     @NonNull
     public PreHandleContext requireKey(@NonNull final Key key) {
-        if (!key.equals(payerKey) && isValid(key)) {
-            requiredNonPayerKeys.add(key);
+        return requireKeyRequirement(KeyRequirement.forKey(key));
+    }
+
+    @Override
+    @NonNull
+    public PreHandleContext requireKeyRequirement(@NonNull final KeyRequirement requirement) {
+        requireNonNull(requirement);
+        final var key = requirement.key();
+        if (isValid(key)) {
+            requiredKeyRequirements.add(requirement);
+            if (!key.equals(payerKey)) {
+                requiredNonPayerKeys.add(key);
+            }
         }
         return this;
     }
@@ -292,6 +338,10 @@ public class FakePreHandleContext implements PreHandleContext {
         if (failOnDeleted && account.deleted()) {
             throw new PreCheckException(ACCOUNT_DELETED);
         }
+        if (isHollow(account)) {
+            requiredHollowAccounts.add(account);
+            return this;
+        }
 
         var key = account.key();
         if (!isValid(key)) { // Or if it is a Contract Key? Or if it is an empty key?
@@ -304,9 +354,9 @@ public class FakePreHandleContext implements PreHandleContext {
         verifyIsNotImmutableAccount(key, responseCode);
 
         if (finisher != null) {
-            key = finisher.apply(key);
+            return requireKey(finisher.apply(key));
         }
-        return requireKey(key);
+        return requireKeyRequirement(KeyRequirement.forAccount(account.accountIdOrThrow(), key));
     }
 
     @NonNull
@@ -343,7 +393,7 @@ public class FakePreHandleContext implements PreHandleContext {
             throw new PreCheckException(responseCode);
         }
 
-        return requireKey(key);
+        return requireKeyRequirement(KeyRequirement.forAccount(account.accountIdOrThrow(), key));
     }
 
     @Override
@@ -377,7 +427,7 @@ public class FakePreHandleContext implements PreHandleContext {
             throw new PreCheckException(responseCode);
         }
 
-        return requireKey(key);
+        return requireKeyRequirement(KeyRequirement.forAccount(account.accountIdOrThrow(), key));
     }
 
     @Override
@@ -410,7 +460,7 @@ public class FakePreHandleContext implements PreHandleContext {
             throw new PreCheckException(responseCode);
         }
 
-        return requireKey(key);
+        return requireKeyRequirement(KeyRequirement.forAccount(account.accountIdOrThrow(), key));
     }
 
     @Override
@@ -448,6 +498,27 @@ public class FakePreHandleContext implements PreHandleContext {
     @Override
     public Key getAccountKey(@NonNull final AccountID accountID) {
         return requireNonNull(accountStore.getAccountById(accountID)).keyOrThrow();
+    }
+
+    @Override
+    @NonNull
+    public KeyRequirement keyRequirementFor(
+            @NonNull final AccountID accountID, @NonNull final ResponseCodeEnum responseCode) throws PreCheckException {
+        requireNonNull(accountID);
+        requireNonNull(responseCode);
+        final var account = accountStore.getAccountById(accountID);
+        if (account == null) {
+            throw new PreCheckException(responseCode);
+        }
+        if (account.deleted()) {
+            throw new PreCheckException(ACCOUNT_DELETED);
+        }
+        final var key = account.key();
+        if (!isValid(key)) {
+            throw new PreCheckException(responseCode);
+        }
+        verifyIsNotImmutableAccount(key, responseCode);
+        return KeyRequirement.forAccount(account.accountIdOrThrow(), key);
     }
 
     @Override

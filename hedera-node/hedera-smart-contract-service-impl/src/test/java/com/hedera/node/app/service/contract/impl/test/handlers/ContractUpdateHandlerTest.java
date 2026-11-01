@@ -13,7 +13,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.MODIFYING_IMMUTABLE_CON
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REQUESTED_NUM_AUTOMATIC_ASSOCIATIONS_EXCEEDS_ASSOCIATION_LIMIT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.util.HapiUtils.EMPTY_KEY_LIST;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.AN_ED25519_KEY;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertFailsWith;
 import static com.hedera.node.app.service.token.api.AccountSummariesApi.SENTINEL_ACCOUNT_ID;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
@@ -161,7 +160,8 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
 
     @Test
     void invalidAutoRenewAccountIdFails() throws PreCheckException {
-        when(payerAccount.keyOrThrow()).thenReturn(AN_ED25519_KEY);
+        when(payerAccount.keyOrThrow()).thenReturn(payerKey);
+        when(payerAccount.accountIdOrThrow()).thenReturn(asAccount("0.0.9999"));
         when(accountStore.getContractById(targetContract)).thenReturn(payerAccount);
 
         final var txn = TransactionBody.newBuilder()
@@ -179,7 +179,8 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
 
     @Test
     void callsKey2xIfAdminKeyRequired() throws PreCheckException {
-        when(payerAccount.keyOrThrow()).thenReturn(AN_ED25519_KEY);
+        when(payerAccount.keyOrThrow()).thenReturn(payerKey);
+        when(payerAccount.accountIdOrThrow()).thenReturn(asAccount("0.0.9999"));
         when(accountStore.getContractById(targetContract)).thenReturn(payerAccount);
 
         final var txn = TransactionBody.newBuilder()

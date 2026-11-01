@@ -72,6 +72,34 @@ public class NodeUpdateTest {
         gossipCertificates = generateX509Certificates(2);
     }
 
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"nodes.updateAccountIdAllowed"})
+    final Stream<DynamicTest> accountOnlyUpdateRequiresExistingAccountOrAdmin() throws CertificateEncodingException {
+        return hapiTest(
+                overriding("nodes.updateAccountIdAllowed", "true"),
+                newKeyNamed("nodeAdmin"),
+                cryptoCreate("oldAccount"),
+                cryptoCreate("newAccount"),
+                cryptoCreate("attacker").balance(100 * ONE_HBAR),
+                nodeCreate("testNode", "oldAccount")
+                        .adminKey("nodeAdmin")
+                        .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
+                nodeUpdate("testNode")
+                        .accountId("newAccount")
+                        .payingWith("attacker")
+                        .signedBy("attacker", "newAccount")
+                        .hasKnownStatus(INVALID_SIGNATURE),
+                nodeUpdate("testNode")
+                        .accountId("newAccount")
+                        .payingWith("attacker")
+                        .signedBy("attacker", "newAccount", "oldAccount"),
+                nodeUpdate("testNode")
+                        .accountId("oldAccount")
+                        .payingWith("attacker")
+                        .signedBy("attacker", "oldAccount", "nodeAdmin"));
+    }
+
     @HapiTest
     @DisplayName("cannot update a negative nodeid")
     final Stream<DynamicTest> cannotUpdateNegativeNodeId() {

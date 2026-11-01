@@ -413,8 +413,9 @@ class ConsensusUpdateTopicHandlerTest extends ConsensusTestBase {
     @Test
     @DisplayName("payer key as admin key is allowed")
     void noneOfFieldsSetHaveNoRequiredKeys() throws PreCheckException {
-        given(accountStore.getAccountById(payerId)).willReturn(account);
-        given(account.key()).willReturn(adminKey);
+        given(accountStore.getAccountById(payerId))
+                .willReturn(
+                        Account.newBuilder().accountId(payerId).key(adminKey).build());
 
         final var op = OP_BUILDER
                 .expirationTime(Timestamp.newBuilder().build())
@@ -432,8 +433,9 @@ class ConsensusUpdateTopicHandlerTest extends ConsensusTestBase {
     @Test
     @DisplayName("Missing topicId from ReadableTopicStore fails")
     void missingTopicFails() throws PreCheckException {
-        given(accountStore.getAccountById(payerId)).willReturn(account);
-        given(account.key()).willReturn(adminKey);
+        given(accountStore.getAccountById(payerId))
+                .willReturn(
+                        Account.newBuilder().accountId(payerId).key(adminKey).build());
 
         final var op =
                 OP_BUILDER.topicID(TopicID.newBuilder().topicNum(123L).build()).build();
@@ -453,8 +455,9 @@ class ConsensusUpdateTopicHandlerTest extends ConsensusTestBase {
                 .transactionID(TransactionID.newBuilder().accountID(payerId))
                 .consensusUpdateTopic(OP_BUILDER.topicID(topicId))
                 .build();
-        given(accountStore.getAccountById(payerId)).willReturn(account);
-        given(account.key()).willReturn(adminKey);
+        given(accountStore.getAccountById(payerId))
+                .willReturn(
+                        Account.newBuilder().accountId(payerId).key(adminKey).build());
         final var context = new FakePreHandleContext(accountStore, txBody);
         context.registerStore(ReadableTopicStore.class, readableStore);
 
@@ -464,8 +467,9 @@ class ConsensusUpdateTopicHandlerTest extends ConsensusTestBase {
     @Test
     @DisplayName("Update admin key in preHandle as expected")
     void adminKeyAndOpAdminKeyAdded() throws PreCheckException {
-        given(accountStore.getAccountById(payerId)).willReturn(account);
-        given(account.key()).willReturn(adminKey);
+        given(accountStore.getAccountById(payerId))
+                .willReturn(
+                        Account.newBuilder().accountId(payerId).key(adminKey).build());
 
         final var op = OP_BUILDER
                 .adminKey(anotherKey)
@@ -486,10 +490,14 @@ class ConsensusUpdateTopicHandlerTest extends ConsensusTestBase {
     @Test
     @DisplayName("Update autoRenewAccount in preHandle as expected")
     void autoRenewAccountKeyAdded() throws PreCheckException {
-        given(accountStore.getAccountById(autoRenewId)).willReturn(autoRenewAccount);
-        given(autoRenewAccount.key()).willReturn(autoRenewKey);
-        given(accountStore.getAccountById(payerId)).willReturn(account);
-        given(account.key()).willReturn(adminKey);
+        given(accountStore.getAccountById(autoRenewId))
+                .willReturn(Account.newBuilder()
+                        .accountId(autoRenewId)
+                        .key(autoRenewKey)
+                        .build());
+        given(accountStore.getAccountById(payerId))
+                .willReturn(
+                        Account.newBuilder().accountId(payerId).key(adminKey).build());
 
         final var op = OP_BUILDER.autoRenewAccount(autoRenewId).topicID(topicId).build();
         final var context = new FakePreHandleContext(accountStore, txnWith(op));
@@ -506,8 +514,9 @@ class ConsensusUpdateTopicHandlerTest extends ConsensusTestBase {
     @DisplayName("Missing autoRenewAccount update fails")
     void missingAutoRenewAccountFails() throws PreCheckException {
         given(accountStore.getAccountById(autoRenewId)).willReturn(null);
-        given(accountStore.getAccountById(payerId)).willReturn(account);
-        given(account.key()).willReturn(adminKey);
+        given(accountStore.getAccountById(payerId))
+                .willReturn(
+                        Account.newBuilder().accountId(payerId).key(adminKey).build());
 
         final var op = OP_BUILDER.autoRenewAccount(autoRenewId).topicID(topicId).build();
 

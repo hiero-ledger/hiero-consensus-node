@@ -128,14 +128,12 @@ public class CryptoApproveAllowanceHandler implements TransactionHandler {
         final var payerId = context.payer();
         final var op = txn.cryptoApproveAllowanceOrThrow();
 
-        // If the allowance owner is not the payer, then the transaction must have been signed by the owner. Note, if
+        // The allowance owner must authorize the operation. Note, if
         // the owner is missing, then the owner is assumed to be the payer. This is true for crypto allowances and
         // for token allowances.
         for (final var allowance : op.cryptoAllowances()) {
             final var owner = allowance.owner();
-            if (owner != null && !owner.equals(payerId)) {
-                context.requireKeyOrThrow(owner, INVALID_ALLOWANCE_OWNER_ID);
-            }
+            context.requireKeyOrThrow(owner == null ? payerId : owner, INVALID_ALLOWANCE_OWNER_ID);
         }
 
         // Fungible token allowances are the same as basic crypto approvals and allowances
@@ -145,9 +143,7 @@ public class CryptoApproveAllowanceHandler implements TransactionHandler {
             if (owner != null && owner.hasAlias()) {
                 throw new PreCheckException(INVALID_ALLOWANCE_OWNER_ID);
             }
-            if (owner != null && !owner.equals(payerId)) {
-                context.requireKeyOrThrow(owner, INVALID_ALLOWANCE_OWNER_ID);
-            }
+            context.requireKeyOrThrow(owner == null ? payerId : owner, INVALID_ALLOWANCE_OWNER_ID);
         }
 
         // NFT allowances are a little more complicated because they have delegating spenders and approvedForAll.
@@ -158,13 +154,11 @@ public class CryptoApproveAllowanceHandler implements TransactionHandler {
             final var ownerId = allowance.owner();
             final boolean approvedForAll = allowance.approvedForAllOrElse(false);
             final var operatorId = approvedForAll ? ownerId : allowance.delegatingSpenderOrElse(ownerId);
-            // Now that we know who should sign, if that account is not the payer, then we need to require that
-            // key. If there is an error, then we need to use the appropriate error code depending on whether
+            // Now that we know who should authorize the operation, collect that account’s
+            // authorization. If there is an error, use the appropriate error code depending on whether
             // the operator is the owner or the delegating spender.
-            if (operatorId != null && !operatorId.equals(payerId)) {
-                final var error = ownerId == operatorId ? INVALID_ALLOWANCE_OWNER_ID : INVALID_DELEGATING_SPENDER;
-                context.requireKeyOrThrow(operatorId, error);
-            }
+            final var error = ownerId == operatorId ? INVALID_ALLOWANCE_OWNER_ID : INVALID_DELEGATING_SPENDER;
+            context.requireKeyOrThrow(operatorId == null ? payerId : operatorId, error);
         }
     }
 

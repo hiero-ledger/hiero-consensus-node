@@ -57,6 +57,7 @@ import com.hedera.node.app.signature.impl.SignatureVerificationImpl;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.authorization.SystemPrivilege;
 import com.hedera.node.app.spi.fixtures.Scenarios;
+import com.hedera.node.app.spi.key.KeyRequirement;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
@@ -914,6 +915,48 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
             assertThat(result.configVersion()).isEqualTo(DEFAULT_CONFIG_VERSION);
             // And we do see this transaction registered with the deduplication cache
             verifyNoInteractions(deduplicationCache);
+        }
+
+        @Test
+        void reusesCryptographicEvidenceButRefreshesRequirementIdentities(@Mock SignatureVerificationFuture sigFuture)
+                throws Exception {
+            final var payerKey = ALICE.account().keyOrThrow();
+            final var txInfo = scenario().withPayer(ALICE.accountID()).txInfo();
+            final var previousRequirement = KeyRequirement.forAccount(ALICE.accountID(), payerKey);
+            final var currentRequirement = KeyRequirement.forAccount(BOB.accountID(), payerKey);
+            final var previousResult = new PreHandleResult(
+                    ALICE.accountID(),
+                    payerKey,
+                    SO_FAR_SO_GOOD,
+                    OK,
+                    txInfo,
+                    Set.of(),
+                    Set.of(),
+                    Set.of(),
+                    Map.of(payerKey, sigFuture),
+                    null,
+                    DEFAULT_CONFIG_VERSION,
+                    Set.of(previousRequirement));
+            doAnswer(invocation -> {
+                        final var context = invocation.getArgument(0, PreHandleContext.class);
+                        context.requireKeyRequirement(currentRequirement);
+                        return null;
+                    })
+                    .when(dispatcher)
+                    .dispatchPreHandle(any());
+
+            final var result = workflow.preHandleAllTransactions(
+                    NODE_1.asInfo(),
+                    storeFactory,
+                    storeFactory.readableStore(ReadableAccountStore.class),
+                    Bytes.wrap(asByteArray(txInfo.signedTx())),
+                    previousResult,
+                    (txns, bytes) -> {});
+
+            assertThat(result.status()).isEqualTo(SO_FAR_SO_GOOD);
+            assertThat(result.getRequiredKeyRequirements()).containsExactly(currentRequirement);
+            assertThat(result.getVerificationResults().get(payerKey)).isSameAs(sigFuture);
+            verifyNoInteractions(signatureVerifier);
         }
 
         @Test
