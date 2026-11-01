@@ -149,6 +149,7 @@ public class RecordFinalizerTest {
                 .finalizeStakingRecord(
                         any(),
                         any(),
+                        any(),
                         eq(Set.of(AccountID.newBuilder().accountNum(1).build())),
                         any());
     }
