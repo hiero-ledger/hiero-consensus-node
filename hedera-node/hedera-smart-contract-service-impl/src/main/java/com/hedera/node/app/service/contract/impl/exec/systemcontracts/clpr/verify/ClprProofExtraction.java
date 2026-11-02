@@ -92,7 +92,7 @@ final class ClprProofExtraction {
                 if (lenResult == null) break;
                 final int len = lenResult[0];
                 pos = lenResult[1];
-                if (pos + len > raw.length) break;
+                if (len < 0 || pos + len > raw.length) break;
                 if (tag == fieldTag) {
                     fieldBytes = Bytes.wrap(raw, pos, len);
                 }
@@ -131,7 +131,7 @@ final class ClprProofExtraction {
             if (lenResult == null) return null;
             pos = lenResult[1];
             final int len = lenResult[0];
-            if (pos + len > raw.length) return null;
+            if (len < 0 || pos + len > raw.length) return null;
             return Bytes.wrap(raw, pos, len);
         } catch (final Exception e) {
             return null;
