@@ -26,9 +26,9 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../../../" && pwd)"
 CN_BASELINE_RELEASE_TAG="${CN_BASELINE_RELEASE_TAG:-${DEPLOY_RELEASE_TAG:-v0.78.1}}"
 # Block Node source tag used offline for `blocks wrap` (jumpstart + replay) and BN protos.
 # The wrapping CLI must hash with the same algorithm the CN uses for wrapped record hashes.
-BLOCK_NODE_TOOLS_REF="${BLOCK_NODE_TOOLS_REF:-v0.45.0-rc2}"
+BLOCK_NODE_TOOLS_REF="${BLOCK_NODE_TOOLS_REF:-v0.46.0-rc1}"
 # Block Node chart/image deployed after the stage 2 upgrade and kept through cutover.
-BLOCK_NODE_CHART_VERSION="${BLOCK_NODE_CHART_VERSION:-v0.45.0-rc4}"
+BLOCK_NODE_CHART_VERSION="${BLOCK_NODE_CHART_VERSION:-v0.46.0-rc1}"
 # Mirror node deployed before stage 2 and kept through cutover. Must support the CN's TSS library:
 # 0.165.2+ loads the WRAPS verification key from the crypto library (TSS 3.19+) instead of the
 # ledger id publication, which no longer carries it.
