@@ -184,6 +184,9 @@ tasks.register<JavaExec>("run") {
 
     // Add arguments for the application to run a local node
     args = listOf("-local", "0")
+    // The local node has no block node to stream to; with streamMode=BLOCKS an unacknowledged
+    // block buffer would back-pressure and stall it, so only write block files
+    systemProperty("blockStream.writerMode", "FILE")
 }
 
 val cleanRun =

@@ -22,6 +22,8 @@ val mockito = "5.23.0"
 val pbj = pluginVersions.version("com.hedera.pbj.pbj-compiler")
 val protobuf = "4.34.1"
 val prometheusSimpleclient = "0.16.0"
+// May lag the block node the HAPI tests run (block-node-version in .citr-env) while that is a
+// release candidate; production code should not depend on one, so this moves at the GA release
 val blockNodeProtobufSources = "0.44.2"
 val testContainers = "2.0.5"
 val tuweni = "2.7.2"

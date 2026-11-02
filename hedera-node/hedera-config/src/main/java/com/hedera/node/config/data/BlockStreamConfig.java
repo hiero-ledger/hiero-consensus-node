@@ -13,7 +13,8 @@ import org.hiero.base.crypto.DigestType;
 
 /**
  * Configuration for the block stream.
- * @param streamMode Value of RECORDS disables the block stream; BOTH enables it
+ * @param streamMode which streams to produce: RECORDS disables the block stream, BOTH streams blocks and records, and
+ *                   BLOCKS (the default) streams blocks only
  * @param writerMode if we are writing to a file or gRPC stream
  * @param blockFileDir directory to store block files
  * @param roundsPerBlock the number of rounds per block
@@ -35,15 +36,14 @@ import org.hiero.base.crypto.DigestType;
  * @param blockFileBufferInnerSizeKb block file writer inner buffer size (in kilobytes) (see FileBlockItemWriter#openBlock(long) for details)
  * @param blockFileBufferGzipSizeKb block file writer GZIP buffer size (in kilobytes) (see FileBlockItemWriter#openBlock(long) for details)
  * @param digestType the digest algorithm to use for block-root Merkle hashing; {@code SHA_256} enables 32-byte
- *                   SHA-256 hashing, {@code SHA_384} (the default) uses 48-byte SHA-384
+ *                   SHA-256 hashing (the default), {@code SHA_384} uses 48-byte SHA-384
  */
 @ConfigData("blockStream")
 public record BlockStreamConfig(
-        @ConfigProperty(defaultValue = "BOTH") @NetworkProperty
+        @ConfigProperty(defaultValue = "BLOCKS") @NetworkProperty
         StreamMode streamMode,
 
-        @ConfigProperty(defaultValue = "FILE_AND_GRPC") @NodeProperty
-        BlockStreamWriterMode writerMode,
+        @ConfigProperty(defaultValue = "GRPC") @NodeProperty BlockStreamWriterMode writerMode,
 
         @ConfigProperty(defaultValue = "/opt/hgcapp/blockStreams") @NodeProperty
         String blockFileDir,
@@ -88,13 +88,13 @@ public record BlockStreamConfig(
         @ConfigProperty(defaultValue = "256") @Min(64) @NetworkProperty
         int blockFileBufferGzipSizeKb,
 
-        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        @ConfigProperty(defaultValue = "true") @NetworkProperty
         boolean enableCutover,
 
         @ConfigProperty(defaultValue = "SHA_256") @NetworkProperty
         DigestType digestType,
 
-        @ConfigProperty(defaultValue = "true") @NetworkProperty
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
         boolean streamWrappedRecordBlocks,
 
         @ConfigProperty(defaultValue = "false") @NodeProperty

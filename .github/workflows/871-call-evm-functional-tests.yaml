@@ -37,6 +37,10 @@ on:
         description: "The version of the JSON-RPC relay to deploy with solo, with or without a leading v. Must be >= 0.79.0-rc1, the first release with TX_TYPE_4_ENABLED, which the HIP-1340 shards need:"
         required: true
         type: string
+      block-node-version:
+        description: "The block node chart version to deploy with solo (its git tag, e.g. v0.45.0-rc5):"
+        required: true
+        type: string
       evm-testing-ref:
         # Pinned to a hashgraph/hedera-evm-testing commit SHA for now because that repository has no tags yet; this
         # will be resolved back to a release tag once that is sorted out.
@@ -236,6 +240,7 @@ jobs:
         env:
           INPUT_MIRROR_NODE_VERSION: ${{ inputs.mirror-node-version }}
           INPUT_JSON_RPC_RELAY_VERSION: ${{ inputs.json-rpc-relay-version }}
+          INPUT_BLOCK_NODE_VERSION: ${{ inputs.block-node-version }}
           # A fresh kind cluster pulls every container image; solo's default pod-Running gate (900 x 1s) can
           # expire on slow pulls, so widen it (same as 819).
           PODS_RUNNING_MAX_ATTEMPTS: "2700"
@@ -266,11 +271,40 @@ jobs:
           # consensus node
           solo keys consensus generate --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}"
           solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
+          # block node; the consensus node streams blocks only (streamMode=BLOCKS) to it. It is added before the
+          # consensus node, so solo can't see TSS is on; without the overlay its heap OOMs on the genesis WRAPS proof
+          solo block node add --deployment "${SOLO_DEPLOYMENT}" --release-tag "$(cat version.txt)" --cluster-ref "kind-${SOLO_CLUSTER_NAME}" --chart-version "${INPUT_BLOCK_NODE_VERSION}" --block-node-tss-overlay
           solo consensus network deploy --pvcs --deployment "${SOLO_DEPLOYMENT}" --application-properties "${APP_PROPERTIES_PATH}"
           solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" --local-build-path ./hedera-node/data
           solo consensus node start --deployment "${SOLO_DEPLOYMENT}"
-          # mirror node
-          solo mirror node add --enable-ingress --pinger --mirror-node-version "${INPUT_MIRROR_NODE_VERSION}" --values-file "${MIRROR_NODE_VALUES_PATH}" --deployment "${SOLO_DEPLOYMENT}" --cluster-ref "kind-${SOLO_CLUSTER_NAME}"
+          # mirror node; with no record stream it imports blocks from the block node. Solo caps the importer at
+          # 220Mi, which was OOMKilled on block 0 once it carried the genesis WRAPS proof (same as 821)
+          cat <<EOF > "${RUNNER_TEMP}/mirror-bn-values.yaml"
+          importer:
+            config:
+              hiero:
+                mirror:
+                  importer:
+                    block:
+                      enabled: true
+                      nodes:
+                        - endpoints:
+                            - host: block-node-1.${SOLO_NAMESPACE}.svc.cluster.local
+                      sourceType: BLOCK_NODE
+                    downloader:
+                      record:
+                        enabled: false
+            env:
+              SPRING_PROFILES_ACTIVE: 'blocknode'
+              HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_ENDPOINTS_0_HOST: "block-node-1.${SOLO_NAMESPACE}.svc.cluster.local"
+            resources:
+              requests:
+                memory: 512Mi
+              limits:
+                memory: 1Gi
+          EOF
+          solo mirror node add --enable-ingress --pinger --mirror-node-version "${INPUT_MIRROR_NODE_VERSION}" --values-file "${MIRROR_NODE_VALUES_PATH},${RUNNER_TEMP}/mirror-bn-values.yaml" --deployment "${SOLO_DEPLOYMENT}" --cluster-ref "kind-${SOLO_CLUSTER_NAME}"
+          kubectl wait --for=condition=Ready pod -n "${SOLO_NAMESPACE}" -l "app.kubernetes.io/name=block-node-1" --timeout=180s
           # relay
           # The default network's relay-values.yaml enables type 4 (EIP-7702) transactions; the zero-gas-price
           # shard's relay-zero-gas-values.yaml accepts zero-gas-price transactions (paymaster whitelist, zero
