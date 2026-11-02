@@ -37,7 +37,7 @@ import org.hyperledger.besu.crypto.SECPSignature;
  * extension at indices 5-6, currently accepted-and-ignored):
  * <pre>
  *   index 0: currentBlockHeader    // RLP list of 15..23 Ethereum header fields
- *   index 1: epochBlockHeaders[]   // RLP list-of-lists; may be empty when trust anchor is current
+ *   index 1: validatorSource       // RLP [trustedSet, hops]; trustedSet empty or the anchor's set, hops = headers
  *   index 2: accountProof          // RLP list of MPT trie nodes
  *   index 3: storageProof          // RLP list of [key, proof[]] pairs; 4 or 5 entries
  *   index 4: bundleContent         // RLP bytes: protobuf ClprBundleContent
@@ -60,16 +60,17 @@ import org.hyperledger.besu.crypto.SECPSignature;
  *
  * <p>Verification steps:
  * <ol>
- *   <li>Walk the epoch-header chain (field 1): for each header, verify its QBFT committed seal
- *       against the current trust anchor and advance the anchor to the new validator declared in
- *       that header's extra-data validators list.</li>
- *   <li>Verify {@code currentBlockHeader}'s committed seal against the final (post-epoch) trust
- *       anchor.</li>
+ *   <li>Walk the rotation hops (field 1, {@code [trustedSet, hops]}): each must come after the anchor block and the previous hop,
+ *       change the trusted validator set by one member, and be sealed by a quorum of the set it lists;
+ *       that set becomes the trusted set.</li>
+ *   <li>Verify {@code currentBlockHeader}, which must come after the last hop (or the anchor block),
+ *       against the final trusted set.</li>
  *   <li>Verify the account proof against {@code currentBlockHeader.stateRoot}; recover the contract
  *       account.</li>
  *   <li>For each storage-proof entry, verify against the proven account's {@code storageRoot}.</li>
- *   <li>Return the proven block hash, bundle-content bytes, queue metadata, and — when epoch
- *       headers were present — the new 20-byte validator address and epoch number.</li>
+ *   <li>Return the proven block hash, bundle-content bytes, queue metadata, and — when hops were
+ *       crossed or the current block changed the set — the new validator set and its anchor id (the
+ *       current block number).</li>
  * </ol>
  */
 public final class BesuQbftVerifier {
@@ -90,12 +91,17 @@ public final class BesuQbftVerifier {
      *   +requestsHash (Prague / EIP-7685)
      *   +blockAccessListHash (Osaka)
      *   +slotNumber (post-Osaka)
-     * Total = 23 after all currently-known forks. Reference:
+     * New forks can append more fields, so only a minimum is enforced: every field the verifier reads
+     * (up to {@code extraData}, index 12) is present. Reference:
      *   besu/ethereum/core/.../BlockHeader.java#writeTo @ tag 26.5.0.
      */
     private static final int MIN_HEADER_FIELDS = 15;
 
-    private static final int MAX_HEADER_FIELDS = 23;
+    /** Length in bytes of a trust anchor id: the anchor block number, big-endian. */
+    private static final int TRUST_ANCHOR_ID_LENGTH = Long.BYTES;
+
+    /** Items in the bundle's validator source (field 1): {@code [trustedSet, hops]}. */
+    private static final int VALIDATOR_SOURCE_ITEMS = 2;
 
     /** Field index of {@code stateRoot} inside the canonical Ethereum block-header RLP. */
     private static final int HEADER_STATE_ROOT_INDEX = 3;
@@ -126,11 +132,14 @@ public final class BesuQbftVerifier {
     /** Length in bytes of an Ethereum address. */
     private static final int ADDRESS_LENGTH = 20;
 
+    private static final byte[] ZERO_ADDRESS = new byte[ADDRESS_LENGTH];
+
     // ── Storage-proof layout produced by QbftBundleConstructor (SC-189 Channel struct) ──
     // The relay proves 5 Channel-struct slots — keccak(connId,15)+{1,2,4,5,16} = status|nextMsgId,
     // acked|received|reply, sentRunningHash, receivedRunningHash, endpointManifestVersion — plus, when
     // the bundle carries messages, the running-hash slot of the last message. So a bundle proves 5
-    // (ACK-only) or 6 (with messages) storage slots.
+    // (the bundle ends at nextMessageId - 1, with or without messages) or 6 (the bundle stops earlier and
+    // proves the running hash of its last message) storage slots.
     private static final int CHANNEL_STORAGE_SLOTS = 5;
 
     /** Length in bytes of a CLPR channel id. */
@@ -146,7 +155,8 @@ public final class BesuQbftVerifier {
     private static final int CHANNEL_OFFSET_RECEIVED_RUNNING_HASH = 5;
     private static final int CHANNEL_OFFSET_ENDPOINT_MANIFEST_VERSION = 16;
     // After reordering into the queue-metadata positional layout, decodeQueueMetadata sees 5 slots
-    // (ACK-only) or 6 (with the message running-hash appended): the 4 queue-metadata slots, the proven
+    // (bundle ends at nextMessageId - 1) or 6 (with the last message's running hash appended): the 4 queue-metadata
+    // slots, the proven
     // endpointManifestVersion slot (offset 16), and optionally the last-message running-hash slot.
     private static final int STORAGE_PROOF_MIN_ENTRIES = 5;
     private static final int STORAGE_PROOF_MAX_ENTRIES = 6;
@@ -203,6 +213,8 @@ public final class BesuQbftVerifier {
      * @param bundlePayload the RLP-encoded payload as produced by
      *     {@code QbftBundleConstructor.PayloadRlpEncoder.encodeQbftBundlePayload}
      * @param trustAnchor the RLP-encoded trusted validator set
+     * @param anchorBlockNumber the block at which the trusted set was last confirmed; every hop and the
+     *     current block must come after it (replay floor)
      * @param channelId the 32-byte id of the channel the bundle is submitted to
      * @return the verified block hash, the protobuf-serialized {@code ClprBundleContent}, the proven
      *     queue metadata and any proven trust-anchor or endpoint-manifest advance
@@ -210,7 +222,10 @@ public final class BesuQbftVerifier {
      */
     @NonNull
     public VerifiedBundle verifyBundle(
-            @NonNull final byte[] bundlePayload, @NonNull final byte[] trustAnchor, @NonNull final byte[] channelId) {
+            @NonNull final byte[] bundlePayload,
+            @NonNull final byte[] trustAnchor,
+            final long anchorBlockNumber,
+            @NonNull final byte[] channelId) {
         Objects.requireNonNull(bundlePayload, "bundlePayload");
         Objects.requireNonNull(trustAnchor, "trustAnchor");
         Objects.requireNonNull(channelId, "channelId");
@@ -253,30 +268,43 @@ public final class BesuQbftVerifier {
         }
         final List<Rlp.Item> fields = top.children();
 
-        final Rlp.Item epochBlockHeadersItem = fields.get(1);
-        if (!epochBlockHeadersItem.isList()) {
-            throw ProofException.besuQbft("epochBlockHeaders (field 1) must be an RLP list");
+        // Field 1, the validator source, is RLP([trustedSet, hops]) as in the QBFT verifier spec. Our anchor
+        // stores the full trusted set, so the relay may send it empty (0xc0); when sent, it must be the
+        // anchor's set.
+        final Rlp.Item validatorSource = fields.get(1);
+        if (!validatorSource.isList() || validatorSource.children().size() != VALIDATOR_SOURCE_ITEMS) {
+            throw ProofException.besuQbft("validator source (field 1) must be an RLP list of [trustedSet, hops]");
+        }
+        final Rlp.Item trustedSetItem = validatorSource.children().get(0);
+        final Rlp.Item epochBlockHeadersItem = validatorSource.children().get(1);
+        if (!trustedSetItem.isList() || !epochBlockHeadersItem.isList()) {
+            throw ProofException.besuQbft("validator source trustedSet and hops must be RLP lists");
+        }
+        final List<byte[]> anchorValidators = decodeValidatorSet(trustAnchor, "trustAnchor");
+        if (!trustedSetItem.children().isEmpty()
+                && !sameValidators(
+                        decodeValidatorSet(trustedSetItem.rawBytes(), "validatorSource.trustedSet"),
+                        anchorValidators)) {
+            throw ProofException.besuQbft(
+                    "validator source trustedSet does not match the trust anchor's validator set");
         }
 
-        // --- 0. Walk epoch headers (if any), advancing the trust anchor -----------------
-        final byte[] effectiveTrustAnchorEncoded =
-                epochBlockHeadersItem.children().isEmpty()
-                        ? trustAnchor
-                        : processEpochHeaders(epochBlockHeadersItem, trustAnchor);
-        final List<byte[]> effectiveTrustAnchor =
-                decodeValidatorSet(effectiveTrustAnchorEncoded, "effectiveTrustAnchor");
+        // --- 0. Walk the rotation hops (if any), advancing the trusted validator set ----------
+        // Every hop must come after the anchor block (replay floor) and after the previous hop.
+        final HopWalk walk = processEpochHeaders(epochBlockHeadersItem, anchorValidators, anchorBlockNumber);
+        final List<byte[]> effectiveTrustAnchor = walk.validators();
 
         // --- 1. Parse the block header and extract the state root --------------------------
         final Rlp.Item headerItem = fields.get(0);
-        if (!headerItem.isList()
-                || headerItem.children().size() < MIN_HEADER_FIELDS
-                || headerItem.children().size() > MAX_HEADER_FIELDS) {
-            throw ProofException.besuQbft(
-                    "block header is not an RLP list of " + MIN_HEADER_FIELDS + ".." + MAX_HEADER_FIELDS + " fields");
+        requireHeader(headerItem, "block header");
+        final long currentBlockNumber = blockNumber(headerItem, "block header");
+        if (currentBlockNumber <= walk.lastBlockNumber()) {
+            throw ProofException.besuQbft("block header number " + currentBlockNumber
+                    + " is not after the last hop or the anchor block (" + walk.lastBlockNumber() + ")");
         }
         final byte[] stateRoot32 =
                 checkedCopy(headerItem.children().get(HEADER_STATE_ROOT_INDEX).asBytes(), 32, "blockHeader.stateRoot");
-        final byte[] blockHash32 = MiscCryptoUtils.keccak256DigestOf(headerItem.rawBytes());
+        final byte[] blockHash32 = besuBlockHash(headerItem);
         log.debug(
                 "BesuQbftProofVerifier.verifyBundle header: blockHash=0x{}, stateRoot=0x{}, headerFields={}",
                 HEX.formatHex(blockHash32),
@@ -288,32 +316,25 @@ public final class BesuQbftVerifier {
         final List<byte[]> currentValidators = verifyHeaderAgainstTrustedSet(headerItem, effectiveTrustAnchor, false);
         log.debug("BesuQbftProofVerifier.verifyBundle QBFT committed seal verified against trustAnchor");
 
-        // A new trust anchor when the bundle crossed hops or the current block lists a changed set, so the
-        // anchor never silently lags the real validator set.
+        // A new trust anchor, at the current block, when the bundle crossed hops or the current block lists a
+        // changed set: the anchor never silently lags the real validator set, and the replay floor moves past
+        // every hop this bundle used.
         final boolean crossedHops = !epochBlockHeadersItem.children().isEmpty();
         final boolean currentSetChanged = !sameValidators(currentValidators, effectiveTrustAnchor);
         final byte[] newTrustAnchor;
         final byte[] newTrustAnchorId;
-        if (currentSetChanged) {
+        if (crossedHops || currentSetChanged) {
             newTrustAnchor = encodeValidatorSet(currentValidators);
-            newTrustAnchorId = epochNumberBytesFromHeader(headerItem, config.epochLength());
-        } else if (crossedHops) {
-            newTrustAnchor = effectiveTrustAnchorEncoded;
-            final Rlp.Item lastEpochHeader = epochBlockHeadersItem
-                    .children()
-                    .get(epochBlockHeadersItem.children().size() - 1);
-            newTrustAnchorId = epochNumberBytesFromHeader(lastEpochHeader, config.epochLength());
+            newTrustAnchorId = trustAnchorId(currentBlockNumber);
+            log.debug(
+                    "BesuQbftProofVerifier.verifyBundle hops={} currentSetChanged={} newValidators={} anchorBlock={}",
+                    epochBlockHeadersItem.children().size(),
+                    currentSetChanged,
+                    currentValidators.size(),
+                    currentBlockNumber);
         } else {
             newTrustAnchor = new byte[0];
             newTrustAnchorId = new byte[0];
-        }
-        if (newTrustAnchor.length > 0) {
-            log.debug(
-                    "BesuQbftProofVerifier.verifyBundle hops={} currentSetChanged={} newValidators={} epochNumber(bytes)=0x{}",
-                    epochBlockHeadersItem.children().size(),
-                    currentSetChanged,
-                    currentSetChanged ? currentValidators.size() : effectiveTrustAnchor.size(),
-                    HEX.formatHex(newTrustAnchorId));
         }
 
         // --- 2. Verify the account proof against the block's state root --------------------
@@ -354,8 +375,8 @@ public final class BesuQbftVerifier {
         } else {
             if (storageProof.size() != CHANNEL_STORAGE_SLOTS && storageProof.size() != CHANNEL_STORAGE_SLOTS + 1) {
                 throw ProofException.besuQbft("storageProof has " + storageProof.size() + " entries; expected "
-                        + CHANNEL_STORAGE_SLOTS + " (ACK-only), " + (CHANNEL_STORAGE_SLOTS + 1)
-                        + " (with messages), or 0 (manifest-only)");
+                        + CHANNEL_STORAGE_SLOTS + ", " + (CHANNEL_STORAGE_SLOTS + 1)
+                        + " (with the last message's running hash), or 0 (manifest-only)");
             }
             // Sort entries by slot key (big-endian unsigned) for a canonical order independent of the
             // EVM's storageProof delivery order.
@@ -437,19 +458,14 @@ public final class BesuQbftVerifier {
      * Decode and verify a QBFT config payload, returning the proven
      * {@link ClprLedgerConfiguration} bytes.
      *
-     * <p>Top-level RLP layout (5 items):
-     * <pre>
-     *   [ genesisBlockHeader,  // RLP list — extraData holds the initial QBFT validator set
-     *     currentBlockHeader,  // RLP list — QBFT committed seal must recover to genesis validator
-     *     configBytes,         // RLP bytes — protobuf-serialized ClprLedgerConfiguration
-     *     accountProof,        // RLP list of MPT trie nodes
-     *     storageProof ]       // RLP list of [key, value, proofNodes[]] entries (at least 1)
-     * </pre>
+     * <p>The payload is a {@code ClprQbftLedgerConfigurationPayload}. Its {@code genesis_block_header}
+     * field is ignored: every QBFT header lists the validator set that sealed it, so the initial set is
+     * read from {@code current_block_header} itself.
      *
      * <p>Verification steps:
      * <ol>
-     *   <li>Extract the single validator address from genesis extraData validators list.</li>
-     *   <li>Verify the QBFT committed seal on {@code currentBlockHeader} against that address.</li>
+     *   <li>Take the initial validator set from {@code currentBlockHeader}'s extra-data validators list.</li>
+     *   <li>Verify that a quorum of that set sealed {@code currentBlockHeader}.</li>
      *   <li>Preliminary-parse {@code configBytes} to obtain {@code service_address} (the CLPR
      *       contract address on the peer ledger); use it as the MPT account-proof lookup key.</li>
      *   <li>Verify the account proof against {@code currentBlockHeader.stateRoot}.</li>
@@ -466,7 +482,7 @@ public final class BesuQbftVerifier {
      * state against the same config block when {@code endpointManifestProofBytes} is non-empty
      * (spec §4.4 / §2.4.2). The proof is {@code RLP([blockHeader, accountProof, manifestStorageProof,
      * manifestPreimage])} — mirroring SC-189 {@code QBFTVerifier._verifyConfigEndpointManifest}: the
-     * header seal is authenticated against the config's genesis validator set, the CLPR-service account
+     * header seal is authenticated against the config's initial validator set, the CLPR-service account
      * is authenticated against the header's state root (codeHash unpinned here — the config trust anchor
      * establishes the account, and bundle-time proofs pin the codeHash), then the manifest commitment is
      * bound and {@code service_address} checked against the proven config service address.
@@ -495,10 +511,6 @@ public final class BesuQbftVerifier {
                     "configPayload is not a valid ClprQbftLedgerConfigurationPayload: " + e.getMessage());
         }
 
-        if (payload.genesisBlockHeader() == null
-                || payload.genesisBlockHeader().rlp().length() == 0) {
-            throw ProofException.besuQbft("ClprQbftLedgerConfigurationPayload.genesisBlockHeader is missing or empty");
-        }
         if (payload.currentBlockHeader() == null
                 || payload.currentBlockHeader().rlp().length() == 0) {
             throw ProofException.besuQbft("ClprQbftLedgerConfigurationPayload.currentBlockHeader is missing or empty");
@@ -507,42 +519,27 @@ public final class BesuQbftVerifier {
             throw ProofException.besuQbft("ClprQbftLedgerConfigurationPayload.ledgerConfiguration is missing");
         }
 
-        // --- 1. RLP-decode both block headers (rlp field contains raw Ethereum header bytes) ---
-        final byte[] genesisHeaderBytes = payload.genesisBlockHeader().rlp().toByteArray();
-        final byte[] currentHeaderBytes = payload.currentBlockHeader().rlp().toByteArray();
-
-        final Rlp.Item genesisHeaderItem;
+        // --- 1. RLP-decode the block header (rlp field contains raw Ethereum header bytes) ---
         final Rlp.Item currentHeaderItem;
         try {
-            genesisHeaderItem = Rlp.decodeOne(genesisHeaderBytes);
-            currentHeaderItem = Rlp.decodeOne(currentHeaderBytes);
+            currentHeaderItem = Rlp.decodeOne(payload.currentBlockHeader().rlp().toByteArray());
         } catch (final RuntimeException e) {
             throw ProofException.besuQbft("block header RLP decoding failed: " + e.getMessage());
         }
-        if (!genesisHeaderItem.isList()
-                || genesisHeaderItem.children().size() < MIN_HEADER_FIELDS
-                || genesisHeaderItem.children().size() > MAX_HEADER_FIELDS) {
-            throw ProofException.besuQbft("genesisBlockHeader is not an RLP list of " + MIN_HEADER_FIELDS + ".."
-                    + MAX_HEADER_FIELDS + " fields");
-        }
-        if (!currentHeaderItem.isList()
-                || currentHeaderItem.children().size() < MIN_HEADER_FIELDS
-                || currentHeaderItem.children().size() > MAX_HEADER_FIELDS) {
-            throw ProofException.besuQbft("currentBlockHeader is not an RLP list of " + MIN_HEADER_FIELDS + ".."
-                    + MAX_HEADER_FIELDS + " fields");
-        }
+        requireHeader(currentHeaderItem, "currentBlockHeader");
+        final long configBlockNumber = blockNumber(currentHeaderItem, "currentBlockHeader");
         final byte[] stateRoot32 = checkedCopy(
                 currentHeaderItem.children().get(HEADER_STATE_ROOT_INDEX).asBytes(),
                 32,
                 "currentBlockHeader.stateRoot");
-        final byte[] blockHash32 = MiscCryptoUtils.keccak256DigestOf(currentHeaderItem.rawBytes());
+        final byte[] blockHash32 = besuBlockHash(currentHeaderItem);
 
-        // --- 2. Extract all validators from genesis extra-data ----------------------------
-        final List<byte[]> genesisValidators = extractValidators(genesisHeaderItem);
-        log.debug("BesuQbftProofVerifier.verifyConfigPayload: genesisValidators={}", genesisValidators.size());
+        // --- 2. The initial validator set is the one the header lists ----------------------
+        final List<byte[]> configValidators = extractValidators(currentHeaderItem);
+        log.debug("BesuQbftProofVerifier.verifyConfigPayload: configValidators={}", configValidators.size());
 
-        // --- 3. Verify QBFT committed seal on current header against the genesis validator set ---
-        verifyQbftSealAgainstValidatorSet(currentHeaderItem, genesisValidators);
+        // --- 3. Verify that a quorum of that set sealed the header (self-consistency) -------
+        verifyQbftSealAgainstValidatorSet(currentHeaderItem, configValidators);
         log.debug("BesuQbftProofVerifier.verifyConfigPayload: QBFT committed seal verified");
 
         // --- 4. Read service_address directly from the ledger configuration -
@@ -566,45 +563,25 @@ public final class BesuQbftVerifier {
             throw ProofException.besuQbft("proven contract codeHash does not match config.expectedContractCodeHash");
         }
 
-        // --- 6. Verify the single service_address storage slot ----------------------------
-        final var storageProofs = payload.clprServiceStorageProofs();
-        if (storageProofs.isEmpty()) {
-            throw ProofException.besuQbft("clprServiceStorageProofs must contain at least 1 entry");
-        }
-        final var serviceAddrEntry = storageProofs.stream()
+        // --- 6. Optionally verify the service_address storage slot ------------------------
+        // As in the QBFT verifier spec, the configuration values (service address included) are declared by
+        // the channel creator and trusted on first use; the account proof above already proves the service
+        // account and its code hash. A relay may still prove the service_address slot, and if it does the
+        // proven value must match.
+        final var serviceAddrEntry = payload.clprServiceStorageProofs().stream()
                 .filter(e ->
                         Arrays.equals(leftPad32(e.key().toByteArray(), "storageProof.key"), SERVICE_ADDR_STORAGE_SLOT))
-                .findFirst()
-                .orElseThrow(() -> ProofException.besuQbft(
-                        "clprServiceStorageProofs does not contain an entry for the serviceAddress slot (0x"
-                                + HEX.formatHex(SERVICE_ADDR_STORAGE_SLOT) + ")"));
-        final byte[] storageKey = MiscCryptoUtils.keccak256DigestOf(SERVICE_ADDR_STORAGE_SLOT);
-        final byte[][] storageProofNodes =
-                serviceAddrEntry.proof().stream().map(Bytes::toByteArray).toArray(byte[][]::new);
-        final byte[] provenValue32 = Mpt.get(provenAccount.storageRoot32(), storageKey, storageProofNodes)
-                .map(Rlp::decodeTrieStorageValueAsBytes32)
-                .orElseGet(() -> new byte[32]);
-        // _config.serviceAddress is Solidity `bytes` (not `address`). Short-bytes(20) slot layout:
-        //   [addr 20B left-aligned] [zeros 11B] [length*2 = 0x28]
-        final byte[] expectedValue32 = new byte[32];
-        System.arraycopy(contractAddress20, 0, expectedValue32, 0, ADDRESS_LENGTH);
-        expectedValue32[31] = (byte) (ADDRESS_LENGTH * 2);
-        if (!Arrays.equals(expectedValue32, provenValue32)) {
-            throw ProofException.besuQbft("service_address storage slot does not match proven value");
+                .findFirst();
+        if (serviceAddrEntry.isPresent()) {
+            verifyServiceAddressSlot(serviceAddrEntry.get(), provenAccount, contractAddress20);
         }
-        log.debug(
-                "BesuQbftProofVerifier.verifyConfigPayload: service_address slot verified: key=0x{} value=0x{}",
-                HEX.formatHex(SERVICE_ADDR_STORAGE_SLOT),
-                HEX.formatHex(provenValue32));
 
-        final var initialTrustAnchor = Bytes.wrap(Rlp.encodeList(List.of(
-                Rlp.encodeBytes(encodeValidatorSet(genesisValidators)),
-                Rlp.encodeBytes(checkedCopy(contractAddress20, ADDRESS_LENGTH, "clprServiceAddress")),
-                Rlp.encodeBytes(checkedCopy(provenAccount.codeHash32(), 32, "clprServiceCodeHash")))));
+        final var initialTrustAnchor = new TrustAnchor(
+                encodeValidatorSet(configValidators), contractAddress20, provenAccount.codeHash32(), configBlockNumber);
         final var ledgerCfg = payload.ledgerConfiguration()
                 .copyBuilder()
-                .initialTrustAnchor(initialTrustAnchor)
-                .initialTrustAnchorId(Bytes.wrap(BigInteger.ZERO.toByteArray()))
+                .initialTrustAnchor(Bytes.wrap(initialTrustAnchor.encode()))
+                .initialTrustAnchorId(Bytes.wrap(initialTrustAnchor.id()))
                 .build();
 
         // --- 7. Verify the endpoint-manifest state proof (Step 1b bootstrap), if one was supplied ----
@@ -613,7 +590,7 @@ public final class BesuQbftVerifier {
         // fallback (the real manifest then arrives via the first bundle's Step 1b).
         final byte[] endpointManifestBytes = endpointManifestProofBytes.length == 0
                 ? new byte[0]
-                : verifyConfigEndpointManifestProof(endpointManifestProofBytes, genesisValidators, contractAddress20);
+                : verifyConfigEndpointManifestProof(endpointManifestProofBytes, configValidators, contractAddress20);
 
         log.debug(
                 "BesuQbftProofVerifier.verifyConfigPayload EXIT: SUCCESS blockHash=0x{} chainId={} initialTrustAnchor({} bytes)=0x{} initialTrustAnchorId({} bytes)=0x{} endpointManifest={} bytes",
@@ -625,6 +602,34 @@ public final class BesuQbftVerifier {
                 ledgerCfg.initialTrustAnchorId().toHex(),
                 endpointManifestBytes.length);
         return new VerifiedConfig(blockHash32, ledgerCfg, endpointManifestBytes);
+    }
+
+    /**
+     * Verifies a proof of the {@code _config.serviceAddress} slot (25) against the proven service account's
+     * storage root: the slot must hold {@code serviceAddress20} in Solidity's short-{@code bytes} layout.
+     */
+    private static void verifyServiceAddressSlot(
+            @NonNull final com.hedera.hapi.node.state.clpr.StorageProofEntry serviceAddrEntry,
+            @NonNull final Account provenAccount,
+            @NonNull final byte[] serviceAddress20) {
+        final byte[] storageKey = MiscCryptoUtils.keccak256DigestOf(SERVICE_ADDR_STORAGE_SLOT);
+        final byte[][] storageProofNodes =
+                serviceAddrEntry.proof().stream().map(Bytes::toByteArray).toArray(byte[][]::new);
+        final byte[] provenValue32 = Mpt.get(provenAccount.storageRoot32(), storageKey, storageProofNodes)
+                .map(Rlp::decodeTrieStorageValueAsBytes32)
+                .orElseGet(() -> new byte[32]);
+        // _config.serviceAddress is Solidity `bytes` (not `address`). Short-bytes(20) slot layout:
+        //   [addr 20B left-aligned] [zeros 11B] [length*2 = 0x28]
+        final byte[] expectedValue32 = new byte[32];
+        System.arraycopy(serviceAddress20, 0, expectedValue32, 0, ADDRESS_LENGTH);
+        expectedValue32[31] = (byte) (ADDRESS_LENGTH * 2);
+        if (!Arrays.equals(expectedValue32, provenValue32)) {
+            throw ProofException.besuQbft("service_address storage slot does not match proven value");
+        }
+        log.debug(
+                "BesuQbftProofVerifier.verifyConfigPayload: service_address slot verified: key=0x{} value=0x{}",
+                HEX.formatHex(SERVICE_ADDR_STORAGE_SLOT),
+                HEX.formatHex(provenValue32));
     }
 
     /**
@@ -655,12 +660,7 @@ public final class BesuQbftVerifier {
 
         // 1. Authenticate the manifest proof's block header against the config validator set.
         final Rlp.Item headerItem = p.get(CFG_MANIFEST_HEADER_INDEX);
-        if (!headerItem.isList()
-                || headerItem.children().size() < MIN_HEADER_FIELDS
-                || headerItem.children().size() > MAX_HEADER_FIELDS) {
-            throw ProofException.besuQbft("endpoint-manifest config proof header is not an RLP list of "
-                    + MIN_HEADER_FIELDS + ".." + MAX_HEADER_FIELDS + " fields");
-        }
+        requireHeader(headerItem, "endpoint-manifest config proof header");
         verifyQbftSealAgainstValidatorSet(headerItem, configValidators);
         final byte[] stateRoot32 = checkedCopy(
                 headerItem.children().get(HEADER_STATE_ROOT_INDEX).asBytes(),
@@ -816,7 +816,17 @@ public final class BesuQbftVerifier {
         for (int i = 0; i < children.size(); i++) {
             result.add(checkedCopy(children.get(i).asBytes(), ADDRESS_LENGTH, name + "[" + i + "]"));
         }
+        requireNoZeroAddress(result, name);
         return result;
+    }
+
+    /** Rejects the zero address, which no validator key can sign for, in a validator list. */
+    private static void requireNoZeroAddress(@NonNull final List<byte[]> validators, @NonNull final String name) {
+        for (final byte[] validator : validators) {
+            if (Arrays.equals(validator, ZERO_ADDRESS)) {
+                throw ProofException.besuQbft(name + " contains the zero address");
+            }
+        }
     }
 
     /**
@@ -852,6 +862,7 @@ public final class BesuQbftVerifier {
             validators.add(checkedCopy(validatorItems.get(i).asBytes(), ADDRESS_LENGTH, "validator[" + i + "]"));
         }
         validators.sort(Arrays::compareUnsigned);
+        requireNoZeroAddress(validators, "blockHeader.extraData.validators");
         for (int i = 1; i < validators.size(); i++) {
             if (Arrays.equals(validators.get(i), validators.get(i - 1))) {
                 throw ProofException.besuQbft(
@@ -862,43 +873,31 @@ public final class BesuQbftVerifier {
     }
 
     /**
-     * Walks the rotation hops (field 1): each hop must change the trusted validator set by exactly one
-     * member and be sealed per {@link #verifyHeaderAgainstTrustedSet}; the set the hop lists becomes the
-     * trusted set for the next one. Returns the RLP-encoded validator set after the last hop.
+     * Walks the rotation hops (the {@code hops} of field 1): each hop must come after the previous one and after the anchor
+     * block (replay floor), change the trusted validator set by exactly one member, and be sealed per
+     * {@link #verifyHeaderAgainstTrustedSet}. The set a hop lists becomes the trusted set for the next one.
+     *
+     * @return the trusted validator set after the last hop, and the last hop's block number (the anchor
+     *     block when there are no hops)
      */
     @NonNull
-    private static byte[] processEpochHeaders(
-            @NonNull final Rlp.Item epochHeadersItem, @NonNull final byte[] currentTrustAnchor) {
-        List<byte[]> validatorSet = decodeValidatorSet(currentTrustAnchor, "trustAnchor");
+    private static HopWalk processEpochHeaders(
+            @NonNull final Rlp.Item epochHeadersItem,
+            @NonNull final List<byte[]> anchorValidators,
+            final long anchorBlockNumber) {
+        List<byte[]> validatorSet = anchorValidators;
+        long lastBlockNumber = anchorBlockNumber;
         final List<Rlp.Item> epochHeaders = epochHeadersItem.children();
-        long prevBlockNumber = -1L;
         for (int i = 0; i < epochHeaders.size(); i++) {
             final Rlp.Item epochHeader = epochHeaders.get(i);
-            if (!epochHeader.isList()
-                    || epochHeader.children().size() < MIN_HEADER_FIELDS
-                    || epochHeader.children().size() > MAX_HEADER_FIELDS) {
-                throw ProofException.besuQbft("epochBlockHeaders[" + i + "] is not an RLP list of " + MIN_HEADER_FIELDS
-                        + ".." + MAX_HEADER_FIELDS + " fields");
+            final String name = "epochBlockHeaders[" + i + "]";
+            requireHeader(epochHeader, name);
+            final long blockNumber = blockNumber(epochHeader, name);
+            if (blockNumber <= lastBlockNumber) {
+                throw ProofException.besuQbft(name + " block number " + blockNumber
+                        + " is not strictly greater than previous " + lastBlockNumber);
             }
-            // Enforce monotonically increasing block numbers to prevent replay/reorder attacks.
-            final byte[] blockNumBytes =
-                    epochHeader.children().get(HEADER_BLOCK_NUMBER_INDEX).asBytes();
-            if (blockNumBytes.length > 8) {
-                throw ProofException.besuQbft("epochBlockHeaders[" + i + "] block number exceeds 8 bytes");
-            }
-            final byte[] padded = new byte[8];
-            System.arraycopy(
-                    blockNumBytes,
-                    blockNumBytes.length - Math.min(blockNumBytes.length, 8),
-                    padded,
-                    8 - Math.min(blockNumBytes.length, 8),
-                    Math.min(blockNumBytes.length, 8));
-            final long blockNumber = java.nio.ByteBuffer.wrap(padded).getLong();
-            if (blockNumber <= prevBlockNumber) {
-                throw ProofException.besuQbft("epochBlockHeaders[" + i + "] block number " + blockNumber
-                        + " is not strictly greater than previous " + prevBlockNumber);
-            }
-            prevBlockNumber = blockNumber;
+            lastBlockNumber = blockNumber;
             log.debug(
                     "processEpochHeaders[{}]: blockNumber={}, verifying rotation against {} validators",
                     i,
@@ -906,27 +905,77 @@ public final class BesuQbftVerifier {
                     validatorSet.size());
             validatorSet = verifyHeaderAgainstTrustedSet(epochHeader, validatorSet, true);
         }
-        return encodeValidatorSet(validatorSet);
+        return new HopWalk(validatorSet, lastBlockNumber);
+    }
+
+    /** The result of walking the rotation hops. */
+    private record HopWalk(@NonNull List<byte[]> validators, long lastBlockNumber) {}
+
+    /**
+     * Requires {@code headerItem} to be an RLP list with at least {@value #MIN_HEADER_FIELDS} fields, so
+     * that every field the verifier reads exists. No maximum: new forks append fields.
+     */
+    private static void requireHeader(@NonNull final Rlp.Item headerItem, @NonNull final String name) {
+        if (!headerItem.isList() || headerItem.children().size() < MIN_HEADER_FIELDS) {
+            throw ProofException.besuQbft(name + " is not an RLP list of at least " + MIN_HEADER_FIELDS + " fields");
+        }
+    }
+
+    /** Reads a header's block number (field 8), which must fit in 8 bytes. */
+    private static long blockNumber(@NonNull final Rlp.Item headerItem, @NonNull final String name) {
+        final byte[] blockNumberBytes =
+                headerItem.children().get(HEADER_BLOCK_NUMBER_INDEX).asBytes();
+        if (blockNumberBytes.length > Long.BYTES) {
+            throw ProofException.besuQbft(name + " block number exceeds 8 bytes");
+        }
+        final BigInteger blockNumber = new BigInteger(1, blockNumberBytes);
+        if (blockNumber.bitLength() > Long.SIZE - 1) {
+            throw ProofException.besuQbft(name + " block number does not fit in a signed 64-bit value");
+        }
+        return blockNumber.longValueExact();
+    }
+
+    /** A trust anchor id: the anchor block number as 8 big-endian bytes. */
+    @NonNull
+    static byte[] trustAnchorId(final long anchorBlockNumber) {
+        return ByteBuffer.allocate(TRUST_ANCHOR_ID_LENGTH)
+                .putLong(anchorBlockNumber)
+                .array();
     }
 
     /**
-     * Computes the epoch number for an epoch-boundary block header and encodes it as
-     * {@code BigInteger.valueOf(n).toByteArray()}.
+     * Besu's on-chain block hash: keccak256 of the header with the extra-data round set to 0 and the
+     * committed seals emptied ({@code BftBlockHashing.calculateHashOfBftBlockOnchain}). Unlike a hash of the
+     * raw header bytes, it does not depend on which quorum of seals a node stored.
      */
     @NonNull
-    private static byte[] epochNumberBytesFromHeader(@NonNull final Rlp.Item lastEpochHeader, final long epochLength) {
-        final byte[] blockNumberBytes =
-                lastEpochHeader.children().get(HEADER_BLOCK_NUMBER_INDEX).asBytes();
-        if (blockNumberBytes.length > 8) {
-            throw ProofException.besuQbft(
-                    "epoch header block number exceeds 8 bytes (" + blockNumberBytes.length + ")");
+    static byte[] besuBlockHash(@NonNull final Rlp.Item headerItem) {
+        final Rlp.Item extra;
+        try {
+            extra = Rlp.decodeOne(
+                    headerItem.children().get(HEADER_EXTRA_DATA_INDEX).asBytes());
+        } catch (final RuntimeException e) {
+            throw ProofException.besuQbft("blockHeader.extraData is not valid RLP: " + e.getMessage());
         }
-        final byte[] padded = new byte[8];
-        final int len = Math.min(blockNumberBytes.length, 8);
-        System.arraycopy(blockNumberBytes, blockNumberBytes.length - len, padded, 8 - len, len);
-        final long blockNumber = java.nio.ByteBuffer.wrap(padded).getLong();
-        final long epochNumber = blockNumber / epochLength;
-        return java.math.BigInteger.valueOf(epochNumber).toByteArray();
+        if (!extra.isList() || extra.children().size() != QBFT_EXTRA_FIELDS) {
+            throw ProofException.besuQbft(
+                    "blockHeader.extraData is not a QBFT extra-data RLP list of " + QBFT_EXTRA_FIELDS + " fields");
+        }
+        final byte[] onchainExtraData = Rlp.encodeList(List.of(
+                extra.children().get(0).rawBytes(), // vanity
+                extra.children().get(1).rawBytes(), // validators[]
+                extra.children().get(2).rawBytes(), // vote
+                Rlp.encodeUint(0), // round = 0
+                Rlp.encodeList(List.of()))); // committedSeals = []
+        final List<Rlp.Item> headerChildren = headerItem.children();
+        final List<byte[]> fields = new ArrayList<>(headerChildren.size());
+        for (int i = 0; i < headerChildren.size(); i++) {
+            fields.add(
+                    i == HEADER_EXTRA_DATA_INDEX
+                            ? Rlp.encodeBytes(onchainExtraData)
+                            : headerChildren.get(i).rawBytes());
+        }
+        return MiscCryptoUtils.keccak256DigestOf(Rlp.encodeList(fields));
     }
 
     /**
@@ -1235,14 +1284,14 @@ public final class BesuQbftVerifier {
      * to be the last message's running-hash slot; a second such leftover, or a missing required queue
      * slot, is a hard error (fail-safe — the verifier never silently mis-decodes).
      *
-     * @return a 5-slot array (ACK-only) or 6-slot array (with the message running hash appended)
+     * @return a 5-slot array, or a 6-slot array with the last message's running hash appended
      */
     @NonNull
     private static byte[][] matchQueueSlotsByConnId(
             @NonNull final byte[][] slotKeys,
             @NonNull final byte[][] provenSlotValues,
             @NonNull final byte[] channelId32) {
-        final int n = slotKeys.length; // CHANNEL_STORAGE_SLOTS (ACK-only) or +1 (with a message)
+        final int n = slotKeys.length; // CHANNEL_STORAGE_SLOTS, or +1 with the last message's running hash
         final boolean hasMessage = n == CHANNEL_STORAGE_SLOTS + 1;
         final byte[] base = MiscCryptoUtils.keccak256DigestOf(concat(channelId32, uint256Bytes(CHANNELS_MAPPING_SLOT)));
         final byte[] kStatus = addToBytes32(base, CHANNEL_OFFSET_STATUS_NEXTMSGID);
@@ -1341,7 +1390,7 @@ public final class BesuQbftVerifier {
      *   <li>index 3 — {@code receivedRunningHash} (bytes32, full slot).</li>
      *   <li>index 4 — {@code endpointManifestVersion} (uint64, LSB-packed in its own slot).</li>
      *   <li>index 5 — last queued message's {@code runningHashAfterProcessing} (bytes32, full slot).
-     *       <strong>Optional</strong> — absent in ACK-only bundles.</li>
+     *       <strong>Optional</strong> — present only when the bundle stops before {@code nextMessageId - 1}.</li>
      * </ol>
      *
      * <p>Solidity packs primitive fields starting at the LSB of a slot, so on a 32-byte
@@ -1379,7 +1428,7 @@ public final class BesuQbftVerifier {
                 provenSlotValues[SP_INDEX_CHANNEL_ENDPOINT_MANIFEST_VERSION], 32, "endpointManifestVersionSlot");
         final long endpointManifestVersion = readUint64BigEndian(manifestVersionSlot, 24);
 
-        // Slot 5 is optional — absent in ACK-only bundles (no queued messages).
+        // Slot 5 is optional — present only when the bundle stops before nextMessageId - 1.
         final byte[] lastMsgRunningHash = provenSlotValues.length > SP_INDEX_LAST_MSG_RUNNING_HASH
                 ? checkedCopy(provenSlotValues[SP_INDEX_LAST_MSG_RUNNING_HASH], 32, "lastMessageRunningHash")
                 : new byte[32];
@@ -1406,14 +1455,14 @@ public final class BesuQbftVerifier {
     /**
      * Result of a successful {@link #verifyBundle} call.
      *
-     * @param blockHash32 the keccak256 hash of the proof's block header
+     * @param blockHash32 Besu's on-chain hash of the proof's block header ({@link #besuBlockHash})
      * @param bundleContentBytes the verbatim protobuf-serialized {@code ClprBundleContent} bytes
      * @param queueMetadata the {@code ClprQueueMetadata} fields decoded from the storage slots
-     * @param newTrustAnchor the RLP-encoded validator set extracted from the last epoch header
-     *     processed (via {@link #encodeValidatorSet}), or {@code byte[0]} if no epoch headers
-     *     were present
-     * @param newTrustAnchorId {@code BigInteger.valueOf(epochNumber).toByteArray()} for the
-     *     last processed epoch header, or {@code byte[0]} if no epoch headers were present
+     * @param newTrustAnchor the RLP-encoded validator set at the current block (via
+     *     {@link #encodeValidatorSet}) when the bundle crossed hops or the current block changed the
+     *     set, otherwise {@code byte[0]}
+     * @param newTrustAnchorId the current block number, 8 bytes big-endian ({@link #trustAnchorId}),
+     *     in the same cases, otherwise {@code byte[0]}
      */
     public record VerifiedBundle(
             @NonNull byte[] blockHash32,
@@ -1512,7 +1561,7 @@ public final class BesuQbftVerifier {
     /**
      * Result of a successful {@link #verifyConfigPayload} call.
      *
-     * @param blockHash32 keccak256 hash of the proven current block header
+     * @param blockHash32 Besu's on-chain hash of the proven current block header ({@link #besuBlockHash})
      * @param ledgerConfiguration the proven {@link ClprLedgerConfiguration} parsed from the payload
      * @param endpointManifestBytes the verified protobuf {@code ClprEndpointManifest} preimage from the
      *     optional config-path manifest proof, or {@code byte[0]} when no manifest proof was supplied
@@ -1547,17 +1596,11 @@ public final class BesuQbftVerifier {
      *     (20 bytes); required for account-proof verification
      * @param expectedContractCodeHash32 expected {@code codeHash} of the contract account
      *     (32 bytes); optional but strongly recommended
-     * @param epochLength number of blocks per QBFT epoch; used to convert an epoch-header block
-     *     number into the epoch number stored as {@code trustAnchorId}. Must be &gt; 0.
      */
     public record Config(
             @Nullable byte[] expectedContractAddress20,
-            @Nullable byte[] expectedContractCodeHash32,
-            long epochLength) {
+            @Nullable byte[] expectedContractCodeHash32) {
         public Config {
-            if (epochLength <= 0) {
-                throw new IllegalArgumentException("epochLength must be > 0, got " + epochLength);
-            }
             expectedContractAddress20 = expectedContractAddress20 == null
                     ? null
                     : checkedCopy(expectedContractAddress20, 20, "expectedContractAddress20");
@@ -1574,6 +1617,118 @@ public final class BesuQbftVerifier {
         @Override
         public @Nullable byte[] expectedContractCodeHash32() {
             return expectedContractCodeHash32 == null ? null : expectedContractCodeHash32.clone();
+        }
+    }
+
+    /**
+     * The native Besu QBFT trust anchor stored on the channel:
+     * {@code RLP([mode, validatorSet, serviceAddress, codeHash, anchorBlockNumber])}.
+     *
+     * <ul>
+     *   <li>{@code mode} — one byte, {@link #HEADER_MODE} (validators listed in block headers); the only mode
+     *       this verifier supports. It lets other modes be added without misreading existing anchors.</li>
+     *   <li>{@code validatorSet} — the RLP-encoded, sorted trusted validator set ({@link #encodeValidatorSet}).</li>
+     *   <li>{@code serviceAddress}, {@code codeHash} — the peer CLPR service the state proofs must resolve to.</li>
+     *   <li>{@code anchorBlockNumber} — 8 bytes, big-endian: the block at which the set was last confirmed.
+     *       Every hop and the current block of a bundle must come after it (replay floor).</li>
+     * </ul>
+     *
+     * <p>The anchor id is the anchor block number, 8 bytes big-endian ({@link #id()}).
+     */
+    public record TrustAnchor(
+            @NonNull byte[] validatorSetEncoded,
+            @NonNull byte[] serviceAddress20,
+            @NonNull byte[] codeHash32,
+            long anchorBlockNumber) {
+        /** Validators are listed in block headers (Besu header-based validator selection). */
+        public static final byte HEADER_MODE = 0;
+
+        private static final int ITEM_COUNT = 5;
+
+        public TrustAnchor {
+            validatorSetEncoded = Objects.requireNonNull(validatorSetEncoded, "validatorSetEncoded")
+                    .clone();
+            serviceAddress20 = checkedCopy(serviceAddress20, ADDRESS_LENGTH, "serviceAddress20");
+            codeHash32 = checkedCopy(codeHash32, 32, "codeHash32");
+            if (anchorBlockNumber < 0) {
+                throw new IllegalArgumentException("anchorBlockNumber must be >= 0, got " + anchorBlockNumber);
+            }
+        }
+
+        /** Encodes this anchor as stored on the channel. */
+        @NonNull
+        public byte[] encode() {
+            return Rlp.encodeList(List.of(
+                    Rlp.encodeBytes(new byte[] {HEADER_MODE}),
+                    Rlp.encodeBytes(validatorSetEncoded),
+                    Rlp.encodeBytes(serviceAddress20),
+                    Rlp.encodeBytes(codeHash32),
+                    Rlp.encodeBytes(trustAnchorId(anchorBlockNumber))));
+        }
+
+        /** The anchor id: the anchor block number, 8 bytes big-endian. */
+        @NonNull
+        public byte[] id() {
+            return trustAnchorId(anchorBlockNumber);
+        }
+
+        /**
+         * Decodes an anchor as stored on the channel.
+         *
+         * @throws ProofException if the bytes are not a well-formed header-mode anchor
+         */
+        @NonNull
+        public static TrustAnchor decode(@NonNull final byte[] encoded) {
+            final Rlp.Item item;
+            try {
+                item = Rlp.decodeOne(Objects.requireNonNull(encoded, "encoded"));
+            } catch (final RuntimeException e) {
+                throw ProofException.besuQbft("trust anchor is not valid RLP: " + e.getMessage());
+            }
+            if (!item.isList() || item.children().size() != ITEM_COUNT) {
+                throw ProofException.besuQbft("trust anchor must be an RLP list of " + ITEM_COUNT + " items");
+            }
+            final List<Rlp.Item> items = item.children();
+            for (final Rlp.Item child : items) {
+                if (child.isList()) {
+                    throw ProofException.besuQbft("trust anchor items must be byte strings");
+                }
+            }
+            final byte[] mode = items.get(0).asBytes();
+            if (mode.length != 1 || mode[0] != HEADER_MODE) {
+                throw ProofException.besuQbft("trust anchor mode is not header mode (" + HEADER_MODE + ")");
+            }
+            final byte[] validatorSet = items.get(1).asBytes();
+            decodeValidatorSet(validatorSet, "trustAnchor.validatorSet");
+            final byte[] serviceAddress = items.get(2).asBytes();
+            final byte[] codeHash = items.get(3).asBytes();
+            final byte[] anchorId = items.get(4).asBytes();
+            if (serviceAddress.length != ADDRESS_LENGTH
+                    || codeHash.length != 32
+                    || anchorId.length != TRUST_ANCHOR_ID_LENGTH) {
+                throw ProofException.besuQbft(
+                        "trust anchor has a malformed service address, code hash or block number");
+            }
+            final long anchorBlockNumber = ByteBuffer.wrap(anchorId).getLong();
+            if (anchorBlockNumber < 0) {
+                throw ProofException.besuQbft("trust anchor block number is negative");
+            }
+            return new TrustAnchor(validatorSet, serviceAddress, codeHash, anchorBlockNumber);
+        }
+
+        @Override
+        public byte[] validatorSetEncoded() {
+            return validatorSetEncoded.clone();
+        }
+
+        @Override
+        public byte[] serviceAddress20() {
+            return serviceAddress20.clone();
+        }
+
+        @Override
+        public byte[] codeHash32() {
+            return codeHash32.clone();
         }
     }
 

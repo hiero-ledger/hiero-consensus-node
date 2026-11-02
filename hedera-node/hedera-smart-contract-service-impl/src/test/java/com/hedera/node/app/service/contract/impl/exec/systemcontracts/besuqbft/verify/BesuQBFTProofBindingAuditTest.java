@@ -4,6 +4,7 @@ package com.hedera.node.app.service.contract.impl.exec.systemcontracts.besuqbft.
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mockConstruction;
 
@@ -11,7 +12,6 @@ import com.hedera.hapi.node.state.clpr.ClprBundleContent;
 import com.hedera.hapi.node.state.clpr.ClprChannelStatus;
 import com.hedera.hapi.node.state.clpr.ClprQueueMetadata;
 import com.hedera.node.app.service.clpr.impl.verifier.BesuQbftVerifier;
-import com.hedera.node.app.service.clpr.impl.verifier.Rlp;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -62,8 +62,8 @@ class BesuQBFTProofBindingAuditTest extends CallTestBase {
                 new byte[0],
                 new byte[0]);
         try (final var ignored = mockConstruction(
-                BesuQbftVerifier.class,
-                (mock, context) -> given(mock.verifyBundle(any(), any(), any())).willReturn(proven))) {
+                BesuQbftVerifier.class, (mock, context) -> given(mock.verifyBundle(any(), any(), anyLong(), any()))
+                        .willReturn(proven))) {
             final var subject = new BesuQBFTVerifyBundleCall(
                     mockEnhancement(),
                     gasCalculator,
@@ -77,9 +77,8 @@ class BesuQBFTProofBindingAuditTest extends CallTestBase {
     private static byte[] fullAnchor(final byte marker) {
         final byte[] validator = new byte[20];
         validator[0] = marker;
-        return Rlp.encodeList(List.of(
-                Rlp.encodeBytes(BesuQbftVerifier.encodeValidatorSet(List.of(validator))),
-                Rlp.encodeBytes(SERVICE_ADDR),
-                Rlp.encodeBytes(new byte[32])));
+        return new BesuQbftVerifier.TrustAnchor(
+                        BesuQbftVerifier.encodeValidatorSet(List.of(validator)), SERVICE_ADDR, new byte[32], 0L)
+                .encode();
     }
 }
