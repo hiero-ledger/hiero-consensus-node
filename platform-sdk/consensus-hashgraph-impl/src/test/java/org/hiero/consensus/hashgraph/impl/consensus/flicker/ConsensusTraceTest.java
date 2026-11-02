@@ -78,8 +78,8 @@ class ConsensusTraceTest {
 
         // recalculateAndVote clears and recalculates every non-terminal event on each decided round, so an event that
         // is genuinely a witness is marked one again on every subsequent pass. Nothing distinguishes the re-marks from
-        // the original in the record itself - only the sequence number does, which is why the log carries one and why
-        // firstWitnessInRound means first-ever rather than first-per-event.
+        // the original in the record itself - only the log's order does, which is why firstWitnessInRound means
+        // first-ever rather than first-per-event.
         final List<WitnessFound> b2MarkedWitness = traceLog.changes(WitnessFound.class)
                 .filter(change -> "b2".equals(change.name()))
                 .toList();

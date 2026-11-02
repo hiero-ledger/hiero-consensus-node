@@ -29,13 +29,6 @@ import org.hiero.base.crypto.Hash;
 public sealed interface Change {
 
     /**
-     * Get the position of this change in the global order of changes.
-     *
-     * @return the sequence number, starting at 0
-     */
-    long seq();
-
-    /**
      * Get the hash of the event the change happened to.
      *
      * @return the event's hash
@@ -60,13 +53,11 @@ public sealed interface Change {
      * {@code EventImpl#clearJudgeFlags}, which is not a statement about witness-ness at all: it is one step of
      * {@code clearMetadata} wiping the event, and belongs to a {@code MetadataCleared} change rather than to this one.
      *
-     * @param seq          position in the global order of changes
      * @param event        the content hash of the event
      * @param name         the name the test gave the event
      * @param roundCreated the event's round at the moment it was marked
      */
-    record WitnessFound(
-            long seq, @NonNull Hash event, @NonNull String name, long roundCreated) implements Change {}
+    record WitnessFound(@NonNull Hash event, @NonNull String name, long roundCreated) implements Change {}
 
     /**
      * An event's {@code roundCreated} was set.
@@ -81,14 +72,12 @@ public sealed interface Change {
      * {@code ROUND_UNDEFINED} would add an empty record per add — but an assertion about one event's round history
      * still has to be scoped to a window rather than run over the whole log.
      *
-     * @param seq   position in the global order of changes
      * @param event the content hash of the event
      * @param name  the name the test gave the event
      * @param from  the round the event was at before the call
      * @param to    the round it was set to
      */
-    record RoundCreatedSet(
-            long seq, @NonNull Hash event, @NonNull String name, long from, long to) implements Change {}
+    record RoundCreatedSet(@NonNull Hash event, @NonNull String name, long from, long to) implements Change {}
 
     /**
      * An event's consensus metadata was about to be wiped by {@code clearMetadata}.
@@ -104,7 +93,6 @@ public sealed interface Change {
      * Note what cannot be captured: {@code clearJudgeFlags} sets {@code isJudge} with a direct field write rather than
      * through a setter, so judge-ness being cleared is invisible to the recorder. Infer it from this record.
      *
-     * @param seq          position in the global order of changes
      * @param event        the content hash of the event
      * @param name         the name the test gave the event
      * @param roundCreated the round the event was at, before the wipe
@@ -112,11 +100,6 @@ public sealed interface Change {
      * @param wasJudge     whether it was a judge, before the wipe
      */
     record MetadataCleared(
-            long seq,
-            @NonNull Hash event,
-            @NonNull String name,
-            long roundCreated,
-            boolean wasWitness,
-            boolean wasJudge)
+            @NonNull Hash event, @NonNull String name, long roundCreated, boolean wasWitness, boolean wasJudge)
             implements Change {}
 }

@@ -16,23 +16,10 @@ public interface ChangeSink {
     /**
      * Accept a change.
      * <p>
-     * The sink assigns the sequence number, so the recorder does not have to know the global order it is being written
-     * into - and a sink that retains nothing does not have to maintain a counter at all.
+     * Changes arrive synchronously from inside {@code ConsensusImpl#addEvent}, so the sink receives them in exactly the
+     * order the algorithm made them.
      *
-     * @param factory builds the change once its sequence number is known
+     * @param change the change
      */
-    void accept(@NonNull ChangeFactory factory);
-
-    /** Builds a {@link Change} once the sink has assigned it a sequence number. */
-    @FunctionalInterface
-    interface ChangeFactory {
-        /**
-         * Build the change.
-         *
-         * @param seq the sequence number the sink assigned
-         * @return the change
-         */
-        @NonNull
-        Change create(long seq);
-    }
+    void accept(@NonNull Change change);
 }

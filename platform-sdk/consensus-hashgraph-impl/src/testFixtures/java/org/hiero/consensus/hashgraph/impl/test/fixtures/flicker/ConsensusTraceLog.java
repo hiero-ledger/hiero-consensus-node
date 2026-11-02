@@ -8,6 +8,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.Change.MetadataCleared;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.Change.RoundCreatedSet;
@@ -39,8 +40,8 @@ public class ConsensusTraceLog implements ChangeSink {
      * {@inheritDoc}
      */
     @Override
-    public void accept(@NonNull final ChangeFactory factory) {
-        changes.add(factory.create(changes.size()));
+    public void accept(@NonNull final Change change) {
+        changes.add(change);
     }
 
     /**
@@ -70,8 +71,7 @@ public class ConsensusTraceLog implements ChangeSink {
      * <p>
      * "First" is global-first, not first-per-event. {@code recalculateAndVote} clears and recalculates every
      * non-terminal event on each decided round, so a genuine witness is marked one again on each subsequent pass and
-     * nothing in the record itself distinguishes a re-mark from the original. The sequence number is what makes
-     * "first" mean anything.
+     * nothing in the record itself distinguishes a re-mark from the original. Only the log's order does.
      *
      * @param roundCreated the round to look in
      * @return the first such change, or empty if no event was ever marked a witness in that round
@@ -91,33 +91,33 @@ public class ConsensusTraceLog implements ChangeSink {
      */
     @NonNull
     public String render(@Nullable final Class<? extends Change> type) {
-        return changes.stream()
-                .filter(change -> type == null || type.isInstance(change))
-                .map(ConsensusTraceLog::renderOne)
+        return IntStream.range(0, changes.size())
+                .filter(index -> type == null || type.isInstance(changes.get(index)))
+                .mapToObj(index -> renderOne(index, changes.get(index)))
                 .collect(Collectors.joining("\n"));
     }
 
+    /** Render one change, prefixed by its position in the log. */
     @NonNull
-    private static String renderOne(@NonNull final Change change) {
+    private static String renderOne(final int index, @NonNull final Change change) {
         return switch (change) {
             case RoundCreatedSet roundCreatedSet ->
                 "%4d  round    %-4s %s -> %s"
                         .formatted(
-                                roundCreatedSet.seq(),
+                                index,
                                 roundCreatedSet.name(),
                                 round(roundCreatedSet.from()),
                                 round(roundCreatedSet.to()));
             case MetadataCleared metadataCleared ->
                 "%4d  cleared  %-4s round=%s%s%s"
                         .formatted(
-                                metadataCleared.seq(),
+                                index,
                                 metadataCleared.name(),
                                 round(metadataCleared.roundCreated()),
                                 metadataCleared.wasWitness() ? " wasWitness" : "",
                                 metadataCleared.wasJudge() ? " wasJudge" : "");
             case WitnessFound witnessFound ->
-                "%4d  witness  %-4s round=%d"
-                        .formatted(witnessFound.seq(), witnessFound.name(), witnessFound.roundCreated());
+                "%4d  witness  %-4s round=%d".formatted(index, witnessFound.name(), witnessFound.roundCreated());
         };
     }
 

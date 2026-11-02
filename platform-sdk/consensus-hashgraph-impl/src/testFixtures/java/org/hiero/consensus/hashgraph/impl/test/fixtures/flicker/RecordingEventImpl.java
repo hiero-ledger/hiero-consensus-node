@@ -76,7 +76,7 @@ class RecordingEventImpl extends EventImpl {
         super.setWitness(witness);
         if (witness) {
             final long roundCreated = getRoundCreated();
-            sink.accept(seq -> new WitnessFound(seq, getBaseHash(), name, roundCreated));
+            sink.accept(new WitnessFound(getBaseHash(), name, roundCreated));
         }
     }
 
@@ -96,7 +96,7 @@ class RecordingEventImpl extends EventImpl {
         final long from = getRoundCreated();
         super.setRoundCreated(roundCreated);
         if (from != roundCreated) {
-            sink.accept(seq -> new RoundCreatedSet(seq, getBaseHash(), name, from, roundCreated));
+            sink.accept(new RoundCreatedSet(getBaseHash(), name, from, roundCreated));
         }
     }
 
@@ -112,7 +112,7 @@ class RecordingEventImpl extends EventImpl {
         final long roundCreated = getRoundCreated();
         final boolean wasWitness = isWitness();
         final boolean wasJudge = isJudge();
-        sink.accept(seq -> new MetadataCleared(seq, getBaseHash(), name, roundCreated, wasWitness, wasJudge));
+        sink.accept(new MetadataCleared(getBaseHash(), name, roundCreated, wasWitness, wasJudge));
         super.clearMetadata();
     }
 }
