@@ -17,6 +17,7 @@ import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
+import com.hedera.hapi.node.state.history.HintsKeyProvenance;
 import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
@@ -24,6 +25,8 @@ import com.hedera.hapi.node.state.history.HistoryProofVote;
 import com.hedera.hapi.node.state.history.ProofKey;
 import com.hedera.hapi.node.state.history.WrapsPhase;
 import com.hedera.hapi.node.state.history.WrapsSigningState;
+import com.hedera.hapi.services.auxiliary.hints.HintsPartialSignatureTransactionBody;
+import com.hedera.node.app.hints.KeyProvenanceSigner;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.HistoryLibrary.AddressBook;
 import com.hedera.node.app.history.ReadableHistoryStore.WrapsMessagePublication;
@@ -43,6 +46,7 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -68,6 +72,8 @@ public class WrapsHistoryProver implements HistoryProver {
     public static final String WRAPS_NOT_READY_FAILURE_PREFIX = "WRAPS library is not ready";
     public static final String NOT_WRAPS_EXTENSIBLE_FAILURE_PREFIX = "Source proof is not WRAPS-extensible";
     public static final String ADDRESS_BOOK_TOO_LARGE_FAILURE_PREFIX = "Address book too large for a WRAPS proof";
+    private static final String PROVENANCE_AGGREGATION_UNAVAILABLE =
+            "Cannot aggregate the frozen R1 set's hinTS key provenance";
 
     private final long selfId;
     private final Duration wrapsMessageGracePeriod;
@@ -83,17 +89,24 @@ public class WrapsHistoryProver implements HistoryProver {
     private final HistoryLibrary historyLibrary;
     private final HistorySubmissions submissions;
     private final WrapsMpcStateMachine machine;
+
+    @Nullable
+    private final KeyProvenanceSigner provenanceSigner;
+
+    @Nullable
+    private final HintsKeyProvenance provenanceBinding;
+
     private final Object voteLock = new Object();
 
     private final Map<WrapsPhase, SortedMap<Long, WrapsMessagePublication>> phaseMessages =
             new EnumMap<>(WrapsPhase.class);
 
     /**
-     * If non-null, the phase whose last publish returned a WRAPS-not-ready noop;
+     * If non-null, the phase whose last publish returned a retryable library or aggregation noop;
      * cleared at the next publishIfNeeded so the publish is retried.
      */
     @Nullable
-    private volatile WrapsPhase phaseNeedingWrapsReadinessRetry;
+    private volatile WrapsPhase phaseNeedingRetry;
 
     /**
      * Whether this construction extends {@link #sourceProof} by folding onto it, rather than grounding a
@@ -182,7 +195,8 @@ public class WrapsHistoryProver implements HistoryProver {
 
     private record NoopOutput(String reason) implements ProofOutput {}
 
-    private record ProofPhaseOutput(byte[] compressed, byte[] uncompressed) implements ProofOutput {
+    private record ProofPhaseOutput(byte[] compressed, byte[] uncompressed, Bytes keyProvenanceSignature)
+            implements ProofOutput {
         @NonNull
         @Override
         public String toString() {
@@ -234,6 +248,50 @@ public class WrapsHistoryProver implements HistoryProver {
             @NonNull final HistoryLibrary historyLibrary,
             @NonNull final HistorySubmissions submissions,
             @NonNull final WrapsMpcStateMachine machine) {
+        this(
+                selfId,
+                wrapsMessageGracePeriod,
+                schnorrKeyPair,
+                sourceProof,
+                weights,
+                proofKeys,
+                delayer,
+                executor,
+                historyLibrary,
+                submissions,
+                machine,
+                null,
+                null);
+    }
+
+    public WrapsHistoryProver(
+            final long selfId,
+            @NonNull final Duration wrapsMessageGracePeriod,
+            @NonNull final SchnorrKeyPair schnorrKeyPair,
+            @Nullable final HistoryProof sourceProof,
+            @NonNull final RosterTransitionWeights weights,
+            @NonNull final Map<Long, Bytes> proofKeys,
+            @NonNull final Delayer delayer,
+            @NonNull final Executor executor,
+            @NonNull final HistoryLibrary historyLibrary,
+            @NonNull final HistorySubmissions submissions,
+            @NonNull final WrapsMpcStateMachine machine,
+            @Nullable final KeyProvenanceSigner provenanceSigner,
+            @Nullable final HintsKeyProvenance provenanceBinding) {
+        if ((provenanceSigner == null) != (provenanceBinding == null)) {
+            throw new IllegalArgumentException("Key provenance needs both its source signer and generation binding");
+        }
+        if (provenanceBinding != null
+                && (provenanceBinding.sourceHintsConstructionId()
+                                != requireNonNull(provenanceSigner).constructionId()
+                        || !provenanceBinding.sourceVerificationKey().equals(provenanceSigner.verificationKey())
+                        || provenanceBinding.targetHintsConstructionId()
+                                <= provenanceBinding.sourceHintsConstructionId()
+                        || provenanceBinding.targetVerificationKey().length() == 0)) {
+            throw new IllegalArgumentException("Key provenance does not match the source signing generation");
+        }
+        this.provenanceSigner = provenanceSigner;
+        this.provenanceBinding = provenanceBinding;
         this.selfId = selfId;
         this.sourceProof = sourceProof;
         this.wrapsMessageGracePeriod = requireNonNull(wrapsMessageGracePeriod);
@@ -262,6 +320,11 @@ public class WrapsHistoryProver implements HistoryProver {
         requireNonNull(targetMetadata);
         requireNonNull(targetProofKeys);
         requireNonNull(tssConfig);
+        if (provenanceBinding != null
+                && (provenanceBinding.historyConstructionId() != construction.constructionId()
+                        || !provenanceBinding.targetVerificationKey().equals(targetMetadata))) {
+            return new Outcome.Failed("Key provenance does not match this history construction's target key");
+        }
         final int largestBookSize = Math.max(
                 weights.sourceNodeWeights().size(), weights.targetNodeWeights().size());
         if (largestBookSize > MAX_ADDRESS_BOOK_SIZE) {
@@ -411,6 +474,33 @@ public class WrapsHistoryProver implements HistoryProver {
             // we ignore any WRAPS message it publishes later after coming online
             return false;
         }
+        // Reject already-closed phases and duplicates before any native verification. Only a rotation's
+        // R1 may carry a companion; otherwise unvalidated companion bytes must not enter state.
+        if (publication.phase() != wrapsPhase
+                || wrapsPhase == AGGREGATE
+                || phaseMessages.getOrDefault(wrapsPhase, emptySortedMap()).containsKey(publication.nodeId())
+                || (publication.hintsPartialSignature() != null && (provenanceBinding == null || wrapsPhase != R1))) {
+            return false;
+        }
+        if (provenanceBinding != null) {
+            if (constructionId != provenanceBinding.historyConstructionId()) {
+                return false;
+            }
+            if (publication.phase() == R1) {
+                final var partial = publication.hintsPartialSignature();
+                if (weights.sourceWeightOf(publication.nodeId()) <= 0
+                        || partial == null
+                        || !partial.message().equals(provenanceBinding.targetVerificationKey())
+                        || !requireNonNull(provenanceSigner)
+                                .verify(
+                                        publication.nodeId(),
+                                        partial.constructionId(),
+                                        partial.message(),
+                                        partial.partialSignature())) {
+                    return false;
+                }
+            }
+        }
         final var transition = machine.onNext(publication, wrapsPhase, weights, wrapsMessageGracePeriod, phaseMessages);
         log.info(
                 "Received {} message from node{} for construction #{} in phase={}) -> {} (new phase={})",
@@ -447,14 +537,19 @@ public class WrapsHistoryProver implements HistoryProver {
         if (shouldSkipAfterCancellation(constructionId, phase)) {
             return;
         }
-        final boolean isWrapsReadinessRetry = phase == phaseNeedingWrapsReadinessRetry;
-        if (isWrapsReadinessRetry) {
+        // Zero-weight nodes and nodes outside the source scheme normally cannot contribute to this rotation.
+        // Skip their R1 work before generating Schnorr entropy or attempting to sign with a local hinTS key.
+        if (phase == R1 && provenanceSigner != null && !provenanceSigner.isEligibleSigner(selfId)) {
+            return;
+        }
+        final boolean isRetry = phase == phaseNeedingRetry;
+        if (isRetry) {
             consumerOf(phase).accept(null);
-            phaseNeedingWrapsReadinessRetry = null;
+            phaseNeedingRetry = null;
         }
         // Skip building sourceBook/proofKeyList/chained futures while the WRAPS library is still loading
         if (phase == AGGREGATE && !historyLibrary.wrapsProverReady()) {
-            if (isWrapsReadinessRetry) {
+            if (isRetry) {
                 log.debug("Deferring {} output for construction #{}: {}", phase, constructionId, "WRAPS not ready");
             } else {
                 log.info(
@@ -463,15 +558,15 @@ public class WrapsHistoryProver implements HistoryProver {
                         constructionId,
                         WRAPS_NOT_READY_FAILURE_PREFIX);
             }
-            phaseNeedingWrapsReadinessRetry = phase;
+            phaseNeedingRetry = phase;
             return;
         }
         if (futureOf(phase) == null
                 && (POST_MPC_PHASES.contains(phase)
                         || !phaseMessages.getOrDefault(phase, emptySortedMap()).containsKey(selfId))) {
-            if (isWrapsReadinessRetry) {
+            if (isRetry) {
                 log.debug(
-                        "Re-attempting publication of {} output on construction #{} after a WRAPS-not-ready noop",
+                        "Re-attempting publication of {} output on construction #{} after a retryable library or aggregation noop",
                         phase,
                         constructionId);
             } else {
@@ -505,10 +600,32 @@ public class WrapsHistoryProver implements HistoryProver {
                                             if (shouldSkipAfterCancellation(constructionId, phase)) {
                                                 return;
                                             }
-                                            submissions
-                                                    .submitWrapsSigningMessage(
-                                                            phase, Bytes.wrap(message), constructionId)
-                                                    .join();
+                                            if (phase == R1 && provenanceSigner != null) {
+                                                final var signature = provenanceSigner.sign(selfId, targetMetadata);
+                                                if (signature == null) {
+                                                    log.warn(
+                                                            "Cannot contribute WRAPS R1 without a valid source hinTS share for construction #{}",
+                                                            constructionId);
+                                                    return;
+                                                }
+                                                if (shouldSkipAfterCancellation(constructionId, phase)) {
+                                                    return;
+                                                }
+                                                final var partial = HintsPartialSignatureTransactionBody.newBuilder()
+                                                        .constructionId(provenanceSigner.constructionId())
+                                                        .message(targetMetadata)
+                                                        .partialSignature(signature)
+                                                        .build();
+                                                submissions
+                                                        .submitWrapsSigningMessage(
+                                                                phase, Bytes.wrap(message), constructionId, partial)
+                                                        .join();
+                                            } else {
+                                                submissions
+                                                        .submitWrapsSigningMessage(
+                                                                phase, Bytes.wrap(message), constructionId)
+                                                        .join();
+                                            }
                                         },
                                         executor)
                                 .exceptionally(e -> {
@@ -605,19 +722,21 @@ public class WrapsHistoryProver implements HistoryProver {
                                             .chainOfTrustProof(ChainOfTrustProof.newBuilder()
                                                     .wrapsProof(Bytes.wrap(proofOutput.compressed())))
                                             .uncompressedWrapsProof(Bytes.wrap(proofOutput.uncompressed()))
+                                            .keyProvenanceSignature(proofOutput.keyProvenanceSignature())
                                             .build();
                                     // Unless we observed a valid proof while computing ours, vote for ours
                                     decisionFuture.complete(VoteDecision.explicit(proof));
                                 }
                                 case NoopOutput noopOutput -> {
-                                    if (WRAPS_NOT_READY_FAILURE_PREFIX.equals(noopOutput.reason())) {
+                                    if (WRAPS_NOT_READY_FAILURE_PREFIX.equals(noopOutput.reason())
+                                            || PROVENANCE_AGGREGATION_UNAVAILABLE.equals(noopOutput.reason())) {
                                         // Flag instead of clearing voteFuture inline; we may not be on the
                                         // thread that set it
                                         log.debug(
                                                 "Deferring {} output: {} (will retry next round)",
                                                 AGGREGATE,
                                                 noopOutput.reason());
-                                        phaseNeedingWrapsReadinessRetry = AGGREGATE;
+                                        phaseNeedingRetry = AGGREGATE;
                                     } else {
                                         log.info(
                                                 "Skipping publication of {} output: {}",
@@ -754,6 +873,22 @@ public class WrapsHistoryProver implements HistoryProver {
         if (!isValid) {
             return new NoopOutput("Invalid aggregate signature using nodes " + signers);
         }
+        final Bytes provenanceSignature;
+        if (provenanceSigner != null) {
+            final var partials = new TreeMap<Long, Bytes>();
+            phaseMessages
+                    .get(R1)
+                    .forEach((nodeId, publication) -> partials.put(
+                            nodeId,
+                            requireNonNull(publication.hintsPartialSignature()).partialSignature()));
+            final var signatureOrEmpty = provenanceSigner.aggregate(targetMetadata, partials);
+            if (signatureOrEmpty.isEmpty()) {
+                return new NoopOutput(PROVENANCE_AGGREGATION_UNAVAILABLE);
+            }
+            provenanceSignature = signatureOrEmpty.orElseThrow();
+        } else {
+            provenanceSignature = Bytes.EMPTY;
+        }
         final long now = System.nanoTime();
         if (foldsOntoSourceProof) {
             final var foldedProof = requireNonNull(sourceProof);
@@ -786,7 +921,7 @@ public class WrapsHistoryProver implements HistoryProver {
             if (proof == null) {
                 return new NoopOutput("Incremental WRAPS proof construction returned null");
             }
-            final var output = new ProofPhaseOutput(proof.compressed(), proof.uncompressed());
+            final var output = new ProofPhaseOutput(proof.compressed(), proof.uncompressed(), provenanceSignature);
             logElapsed(
                     constructionCanceled
                             ? "constructing canceled incremental WRAPS proof"
@@ -818,7 +953,7 @@ public class WrapsHistoryProver implements HistoryProver {
             if (proof == null) {
                 return new NoopOutput("Genesis WRAPS proof construction returned null");
             }
-            final var output = new ProofPhaseOutput(proof.compressed(), proof.uncompressed());
+            final var output = new ProofPhaseOutput(proof.compressed(), proof.uncompressed(), provenanceSignature);
             logElapsed(
                     constructionCanceled
                             ? "constructing canceled genesis WRAPS proof"
