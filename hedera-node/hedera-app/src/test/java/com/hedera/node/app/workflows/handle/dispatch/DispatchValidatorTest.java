@@ -657,7 +657,8 @@ class DispatchValidatorTest {
                         INNER_PAYER_ID,
                         INNER_TXN_INFO.functionality(),
                         innerPayer,
-                        INNER_FEES,
+                        // Ingest checks the offered fee and balance without the service component
+                        INNER_FEES.withoutServiceComponent(),
                         NOT_INGEST,
                         CHECK_OFFERED_FEE);
 
@@ -680,7 +681,8 @@ class DispatchValidatorTest {
                         INNER_PAYER_ID,
                         INNER_TXN_INFO.functionality(),
                         innerPayer,
-                        INNER_FEES,
+                        // Ingest checks the offered fee and balance without the service component
+                        INNER_FEES.withoutServiceComponent(),
                         NOT_INGEST,
                         CHECK_OFFERED_FEE);
 
@@ -709,7 +711,8 @@ class DispatchValidatorTest {
                         INNER_PAYER_ID,
                         INNER_TXN_INFO.functionality(),
                         innerPayer,
-                        INNER_FEES,
+                        // Ingest checks the offered fee and balance without the service component
+                        INNER_FEES.withoutServiceComponent(),
                         NOT_INGEST,
                         CHECK_OFFERED_FEE);
     }

@@ -266,7 +266,9 @@ public class DispatchValidator {
             final var validation = feeCharging.validate(
                     payer,
                     creatorInfo.accountId(),
-                    fees,
+                    // Ingest compares the offered fee and the payer balance against the fees without the service
+                    // component, so do the same here; otherwise an inner that ingest accepts could be rejected
+                    fees.withoutServiceComponent(),
                     body,
                     duplicateCheckResult == OTHER_NODE,
                     txInfo.functionality(),
