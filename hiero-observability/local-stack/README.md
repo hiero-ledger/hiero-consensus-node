@@ -134,12 +134,14 @@ cd hiero-observability/local-stack
   and a large one is streamed. This runs in a one-shot container on the
   stack's network (the `metrics-importer` service in `docker-compose.import.yml`), so nothing extra is
   needed on the host.
-- **How a too-short retention is detected.** VictoriaMetrics reports no
-  error for a dropped sample; the only trace is its
-  `vm_rows_ignored_total` counter. The importer reads it before and after
-  each file and fails if it moved. That is why each file takes about two
-  seconds longer than the upload itself — the counter only catches up once
-  VictoriaMetrics has flushed its pending rows.
+- **How dropped samples are detected.** VictoriaMetrics reports no error
+  for a dropped sample; the only trace is a counter per reason —
+  `vm_rows_ignored_total{reason=...}` (older than `METRICS_RETENTION`, too
+  far in the future, over a label limit) and `vm_rows_invalid_total` (a
+  malformed line). The importer reads them before and after each file and
+  fails, naming the reason, if one moved. That is why each file takes about
+  two seconds longer than the upload itself — VictoriaMetrics refreshes
+  those counters at most once a second.
 - **Metrics from `make up` are untouched.** Imported series only share a
   store with the scraped ones; they are told apart by the labels you chose.
 

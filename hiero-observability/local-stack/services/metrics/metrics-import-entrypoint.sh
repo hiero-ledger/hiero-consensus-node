@@ -16,10 +16,13 @@
 # multi-megabyte dump is streamed as-is.
 #
 # VictoriaMetrics silently drops a sample older than -retentionPeriod
-# (METRICS_RETENTION) and still answers 204. The only trace is its
-# `vm_rows_ignored_total` counter, so each file is bracketed by a read of it
-# and the import fails loudly if it moved - otherwise an old dump would
-# "succeed" and then show an empty dashboard.
+# (METRICS_RETENTION) - and one too far in the future, over a label limit or
+# on a malformed line - and still answers 204. The only trace is a counter
+# per reason (`vm_rows_ignored_total{reason=...}`, `vm_rows_invalid_total`),
+# so each file is bracketed by a read of them and the import fails loudly,
+# naming the reason, if one moved - otherwise an old dump would "succeed"
+# and then show an empty dashboard. (A NaN sample is dropped without any
+# counter; it carries no value, so it is not reported.)
 set -eu
 
 : "${IMPORT_METRICS_LABELS:?IMPORT_METRICS_LABELS must be set}"
@@ -49,8 +52,22 @@ done <<EOF
 $PAIRS
 EOF
 
-ignored_rows() {
-	curl -fsS "$VM/metrics" | awk '/^vm_rows_ignored_total/ { s += $NF } END { print s + 0 }'
+# One "counter value" line per way an imported sample can be dropped: every
+# vm_rows_ignored_total reason, plus this endpoint's malformed lines. The
+# response is held in a variable first so a failed read fails the import
+# instead of reading as all zeroes.
+drop_counters() {
+	METRICS=$(curl -fsS "$VM/metrics") || return
+	printf '%s\n' "$METRICS" \
+		| awk '/^vm_rows_ignored_total\{|^vm_rows_invalid_total\{type="prometheus"\}/ { print $1, $NF }'
+}
+
+# "counter delta" for every counter that rose between two drop_counters reads.
+moved_counters() {
+	printf '%s\n--\n%s\n' "$1" "$2" | awk '
+		$0 == "--" { after = 1; next }
+		!after { before[$1] = $2; next }
+		$2 > before[$1] { print $1, $2 - before[$1] }'
 }
 
 FILES=$(find /metrics -type f -name "$IMPORT_METRICS_INCLUDE" | sort)
@@ -62,19 +79,31 @@ fi
 STATUS=0
 while IFS= read -r FILE; do
 	SAMPLES=$(grep -Evc '^[[:space:]]*(#|$)' "$FILE" || true)
-	BEFORE=$(ignored_rows)
-	curl -fsS --fail-with-body -H 'Content-Type: text/plain' \
+	BEFORE=$(drop_counters)
+	curl -sS --fail-with-body -H 'Content-Type: text/plain' \
 		--data-binary @"$FILE" "$@" "$VM/api/v1/import/prometheus"
-	# The timestamp check happens when VictoriaMetrics moves its pending rows
-	# into storage, on a 1s timer, not during the import request itself - so
-	# the counter only reflects this file after that. (/internal/force_flush
-	# does not cover this stage.)
+	# Every sample is checked and counted before the 204 comes back, but
+	# VictoriaMetrics regenerates /metrics at most once a second, and the read
+	# above may have just cached it. Any read more than 1s after the 204 is
+	# current, whatever the file size or load.
 	sleep 2
-	DROPPED=$(($(ignored_rows) - BEFORE))
-	if [ "$DROPPED" -gt 0 ]; then
+	AFTER=$(drop_counters)
+	MOVED=$(moved_counters "$BEFORE" "$AFTER")
+	if [ -n "$MOVED" ]; then
+		DROPPED=$(printf '%s\n' "$MOVED" | awk '{ s += $2 } END { print s }')
 		echo "FAIL  ${FILE#/metrics/}: VictoriaMetrics dropped $DROPPED of $SAMPLES samples" >&2
-		echo "      They are older than METRICS_RETENTION (or too far in the future)." >&2
-		echo "      Raise METRICS_RETENTION in local.env, run 'make restart', and re-import." >&2
+		while read -r COUNTER N; do
+			case "$COUNTER" in
+				*'"small_timestamp"'*)
+					WHY="older than METRICS_RETENTION - raise it in local.env, run 'make restart', and re-import" ;;
+				*'"big_timestamp"'*) WHY="too far in the future" ;;
+				vm_rows_invalid_total*) WHY="on malformed lines (not Prometheus text format)" ;;
+				*) WHY="rejected, see $COUNTER and the victoriametrics logs" ;;
+			esac
+			echo "      $N $WHY" >&2
+		done <<MOVED
+$MOVED
+MOVED
 		STATUS=1
 	else
 		echo "OK    ${FILE#/metrics/}: $SAMPLES samples"

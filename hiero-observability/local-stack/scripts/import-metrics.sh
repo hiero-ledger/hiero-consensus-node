@@ -35,8 +35,8 @@
 #
 # Requires the main stack already running (`make up`) - this talks to the
 # same `victoriametrics` service over the `observability` network. Samples
-# older than METRICS_RETENTION are dropped by VictoriaMetrics; the import
-# fails and says so rather than reporting success.
+# older than METRICS_RETENTION (or malformed) are dropped by VictoriaMetrics;
+# the import fails and says so rather than reporting success.
 set -eu
 
 SRC=${1:-}
