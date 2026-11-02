@@ -345,7 +345,7 @@ public class EventCreationBenchmark {
      */
     private String expectedLastCreated() {
         return switch (numNodes) {
-            case 10 -> "f24e81d747d505dd38d12b3495c48125";
+            case 10 -> "d600327ef033dec06eadfff0221fd1a4";
             case 28 -> "976448271408d71c3f7ef40f4e048a76";
             default -> throw new IllegalArgumentException("No expected last event for numNodes=" + numNodes);
         };

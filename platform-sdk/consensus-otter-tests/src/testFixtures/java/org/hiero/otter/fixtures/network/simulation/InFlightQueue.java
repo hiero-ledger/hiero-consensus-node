@@ -6,7 +6,9 @@ import static java.util.Objects.requireNonNull;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 /**
  * What is in flight on one directed connection, handed out in order of arrival time whatever order it was added in.
@@ -167,6 +169,22 @@ final class InFlightQueue<T extends InTransit> {
         set(hole, lastArrival, lastSequence, lastItem);
         headArrival = arrivals[0];
         return head;
+    }
+
+    /**
+     * Removes everything from the queue and hands it out, in no particular order.
+     *
+     * @return what was in the queue
+     */
+    @NonNull
+    @SuppressWarnings("unchecked")
+    List<T> drain() {
+        final List<T> drained = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            drained.add((T) items[i]);
+        }
+        clear();
+        return drained;
     }
 
     /**
