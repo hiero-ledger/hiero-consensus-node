@@ -463,6 +463,9 @@ enum StateIdentifier {
     /** The next CRS ceremony, isolated from the active signing CRS. Singleton state. */
     STATE_ID_NEXT_CRS_STATE = 68;
 
+    /** A queue of explicit authorization links between adopted hinTS generations. */
+    STATE_ID_HINTS_KEY_PROVENANCE = 69;
+
     /**
      * A state identifier for the CRS publications. Key/value state.
      */
@@ -1309,6 +1312,9 @@ message QueuePushChange {
          * All transaction receipts for a round added to queue state.
          */
         proto.TransactionReceiptEntries transaction_receipt_entries_element = 3;
+
+        /** An authorization of the next hinTS verification key by the previous key. */
+        com.hedera.hapi.node.state.history.HintsKeyProvenance hints_key_provenance_element = 4;
     }
 }
 

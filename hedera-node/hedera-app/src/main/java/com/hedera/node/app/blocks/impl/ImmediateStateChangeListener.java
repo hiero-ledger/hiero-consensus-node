@@ -48,6 +48,7 @@ import com.hedera.hapi.node.state.hints.HintsPartyId;
 import com.hedera.hapi.node.state.hints.PreprocessingVote;
 import com.hedera.hapi.node.state.hints.PreprocessingVoteId;
 import com.hedera.hapi.node.state.history.ConstructionNodeId;
+import com.hedera.hapi.node.state.history.HintsKeyProvenance;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
 import com.hedera.hapi.node.state.history.ProofKeySet;
 import com.hedera.hapi.node.state.history.RecordedHistorySignature;
@@ -391,6 +392,9 @@ public class ImmediateStateChangeListener implements StateChangeListener {
         switch (value) {
             case ProtoBytes protoBytesElement -> {
                 return new OneOf<>(QueuePushChange.ValueOneOfType.PROTO_BYTES_ELEMENT, protoBytesElement.value());
+            }
+            case HintsKeyProvenance hintsKeyProvenance -> {
+                return new OneOf<>(QueuePushChange.ValueOneOfType.HINTS_KEY_PROVENANCE_ELEMENT, hintsKeyProvenance);
             }
             case TransactionReceiptEntries transactionReceiptEntriesElement -> {
                 return new OneOf<>(

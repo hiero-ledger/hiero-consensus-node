@@ -1,0 +1,607 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "008: [USER] Ethereum Spec Tests"
+
+# Runs the Ethereum Execution Spec Tests from the Hedera fork of the suite
+# (hiero-ledger/hiero-ethereum-execution-spec-tests, branch forks/amsterdam-hedera) against a single solo network
+# (1 consensus node built from the selected ref, mirror node, JSON-RPC relay, explorer on kind). The network is
+# started with `./test.sh solo start --profile spec` of hashgraph/hedera-evm-testing (evm-functional-testing), the
+# setup the spec tests are developed against, and torn down with `./test.sh solo stop`. The suite is executed in
+# `execute remote` mode through the relay; all selected fork test directories run at the same time as parallel
+# `execute remote` processes against that one network, each with its own funded seed account and its own number of
+# pytest-xdist workers, sized so the whole run stays under ~2 hours.
+# The command line mirrors the manual runs documented in docs/hedera/*.md of the spec tests repository.
+#
+# Triggers: manually (workflow_dispatch, once this file is on the default branch), or on a pull request that carries
+# the "Run Ethereum Spec Tests" label. Pull request runs, and blank inputs of manual runs, use the defaults from the
+# workflow env below.
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Consensus-node branch, tag, or SHA to build and deploy (e.g. the branch of the PR under test)."
+        required: true
+        type: string
+      # The optional inputs have no default here: a blank input falls back to its DEFAULT_* value in the workflow env
+      # below, the single place where the defaults are kept.
+      spec-tests-ref:
+        description: "hiero-ethereum-execution-spec-tests branch, tag, or SHA to test with. Blank → DEFAULT_SPEC_TESTS_REF."
+        required: false
+        type: string
+      evm-testing-ref:
+        description: "hashgraph/hedera-evm-testing branch, tag, or SHA whose test.sh (spec profile) starts the network. Blank → DEFAULT_EVM_TESTING_REF."
+        required: false
+        type: string
+      forks:
+        description: "Comma-separated spec test directories (tests/<fork>/) to run in parallel against the network. Blank → DEFAULT_FORKS (all)."
+        required: false
+        type: string
+      workers-scale:
+        description: "Multiplier for the per-fork pytest-xdist worker counts (see the Run the tests step). Blank → DEFAULT_WORKERS_SCALE (1)."
+        required: false
+        type: string
+      extra-pytest-args:
+        description: "Extra arguments appended to `execute remote` (e.g. `-k test_name`). Blank → none."
+        required: false
+        type: string
+      solo-version:
+        description: "Solo version to install. Blank → adhoc-solo-version from .citr-env."
+        required: false
+        type: string
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - labeled
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+
+# A new push to a labelled pull request cancels the run in progress instead of queueing another ~2 hour run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # Defaults for every run: used by pull request runs, where the workflow_dispatch inputs are empty, and by manual
+  # runs for each input left blank.
+  # Both test repositories are pinned to commit SHAs because they have no tags yet.
+  DEFAULT_SPEC_TESTS_REF: "aa6c89ff08ff909976e6511fe590a8de11e8f587"
+  DEFAULT_EVM_TESTING_REF: "0ddc029bdcac92106c93a1ef0744b4e11dc17f52"
+  DEFAULT_FORKS: "frontier,homestead,tangerine_whistle,byzantium,constantinople,istanbul,berlin,london,paris,shanghai,cancun,prague"
+  DEFAULT_WORKERS_SCALE: "1"
+  # Fixed by test.sh (SOLO_BASE_NAME=hedera); these copies are only used by the steps of this workflow that talk to
+  # the network directly (seed accounts, port-forwards, diagnostics, teardown fallback).
+  SOLO_CLUSTER_NAME: "solo-hedera"
+  SOLO_NAMESPACE: "solo-ns-hedera"
+  SOLO_DEPLOYMENT: "solo-deployment-hedera"
+  # Checkout folder of hashgraph/hedera-evm-testing; test.sh is run from here.
+  EVM_TESTING_DIR: "hedera-evm-testing/evm-functional-testing"
+  SPEC_TESTS_DIR: "regression-tests/hiero-ethereum-execution-spec-tests"
+  SPEC_TESTS_RESULTS_DIR: "spec-tests-results"
+  SPEC_TESTS_LOGS_DIR: "spec-tests-logs"
+  SPEC_TESTS_CONFIG_DIR: "spec-tests-config"
+
+jobs:
+  # On pull requests everything is skipped unless the PR has the "Run Ethereum Spec Tests" label; spec-tests needs
+  # both jobs below, so gating them gates the whole workflow.
+  extract-jdk-version:
+    name: Extract Java Version
+    if: ${{ github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'Run Ethereum Spec Tests') }}
+    uses: ./.github/workflows/854-call-extract-jdk-version.yaml
+    with:
+      ref: ${{ inputs.ref || github.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  extract-citr-vars:
+    name: Extract CITR Vars
+    if: ${{ github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'Run Ethereum Spec Tests') }}
+    uses: ./.github/workflows/855-call-extract-citr-vars.yaml
+    with:
+      ref: ${{ inputs.ref || github.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  spec-tests:
+    name: Ethereum Spec Tests
+    needs:
+      - extract-jdk-version
+      - extract-citr-vars
+    runs-on: hl-cn-rpc-relay-lin-lg
+    # Target under 2 hours: ~9 min network setup (including the consensus node build in test.sh), at most 95 min
+    # of tests (the Run the tests step limit) and ~3 min teardown.
+    timeout-minutes: 120
+    env:
+      GRADLE_CACHE_USERNAME: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      GRADLE_CACHE_PASSWORD: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+    steps:
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+        with:
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref || '' }}"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+          checkout-fetch-depth: "1"
+          setup-java: "true"
+          java-distribution: "temurin"
+          java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
+          setup-gradle: "true"
+          gradle-cache-read-only: "false"
+          setup-node: "true"
+          node-version: "24"
+
+      - name: Parse inputs
+        id: inputs
+        env:
+          INPUT_FORKS: ${{ inputs.forks || env.DEFAULT_FORKS }}
+          INPUT_WORKERS_SCALE: ${{ inputs.workers-scale || env.DEFAULT_WORKERS_SCALE }}
+        run: |
+          set -eo pipefail
+          # Only the fork test directories of the spec tests tree are accepted; this also keeps the values safe to
+          # use in paths and file names.
+          allowed="frontier homestead tangerine_whistle byzantium constantinople istanbul berlin london paris shanghai cancun prague osaka amsterdam"
+          forks=()
+          IFS=',' read -r -a requested <<< "${INPUT_FORKS}"
+          for fork in "${requested[@]}"; do
+            fork="$(echo "${fork}" | tr -d '[:space:]')"
+            [[ -z "${fork}" ]] && continue
+            if [[ " ${allowed} " != *" ${fork} "* ]]; then
+              echo "::error::Unknown fork '${fork}'. Allowed: ${allowed}"
+              exit 1
+            fi
+            [[ " ${forks[*]} " == *" ${fork} "* ]] || forks+=("${fork}")
+          done
+          if [[ "${#forks[@]}" -eq 0 ]]; then
+            echo "::error::The forks input resolved to an empty list."
+            exit 1
+          fi
+          if ! [[ "${INPUT_WORKERS_SCALE}" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::workers-scale must be a positive integer, got '${INPUT_WORKERS_SCALE}'."
+            exit 1
+          fi
+          {
+            echo "forks=${forks[*]}"
+            echo "workers-scale=${INPUT_WORKERS_SCALE}"
+          } | tee -a "${GITHUB_OUTPUT}"
+
+      - name: Checkout hiero-ethereum-execution-spec-tests
+        id: checkout-spec-tests
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: hiero-ledger/hiero-ethereum-execution-spec-tests
+          ref: ${{ inputs.spec-tests-ref || env.DEFAULT_SPEC_TESTS_REF }}
+          path: ${{ env.SPEC_TESTS_DIR }}
+          fetch-depth: 1
+
+      - name: Checkout hedera-evm-testing
+        id: checkout-evm-testing
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: hashgraph/hedera-evm-testing
+          ref: ${{ inputs.evm-testing-ref || env.DEFAULT_EVM_TESTING_REF }}
+          path: hedera-evm-testing
+          fetch-depth: 1
+
+      # test.sh hard-codes CONSENSUS_NODE_DIR="../../hiero-consensus-node" (a sibling checkout on a developer
+      # machine) and does not read it from the environment. On the runner the consensus node is the workspace
+      # itself, so point that one line at it; nothing else in test.sh is changed.
+      - name: Point test.sh at this checkout
+        id: patch-cn-path
+        working-directory: ${{ env.EVM_TESTING_DIR }}
+        run: |
+          set -eo pipefail
+          if ! grep -q '^CONSENSUS_NODE_DIR=' test.sh; then
+            echo "::error::test.sh no longer defines CONSENSUS_NODE_DIR; this step needs updating."
+            exit 1
+          fi
+          sed -i "s|^CONSENSUS_NODE_DIR=.*|CONSENSUS_NODE_DIR=\"${GITHUB_WORKSPACE}\"|" test.sh
+          grep -n '^CONSENSUS_NODE_DIR=' test.sh
+          test -x "${GITHUB_WORKSPACE}/gradlew"
+
+      - name: Setup uv
+        id: setup-uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+
+      - name: Install Spec Tests Dependencies
+        id: spec-tests-deps
+        working-directory: ${{ env.SPEC_TESTS_DIR }}
+        run: |
+          set -eo pipefail
+          uv python install 3.12
+          uv python pin 3.12
+          uv sync
+
+      # The mirror node and relay versions are pinned by test.sh itself; only solo is chosen here.
+      - name: Install Solo
+        id: install-solo
+        env:
+          SOLO_VERSION: ${{ inputs.solo-version || needs.extract-citr-vars.outputs.adhoc-solo-version }}
+        run: |
+          set -eo pipefail
+          if [[ -z "${SOLO_VERSION}" ]]; then
+            echo "::error::No Solo version resolved: 'solo-version' input is blank and adhoc-solo-version is missing from .citr-env."
+            exit 1
+          fi
+          npm install -g "@hiero-ledger/solo@${SOLO_VERSION}"
+          solo --version
+
+      - name: Setup Kind
+        id: setup-kind
+        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
+        with:
+          install_only: true
+          node_image: kindest/node:v1.32.5@sha256:e3b2327e3a5ab8c76f5ece68936e4cafaa82edf58486b769727ab0b3b97a5b0d
+          version: v0.29.0
+          kubectl_version: v1.32.5
+          verbosity: 3
+          wait: 120s
+
+      # The `spec` profile deploys the consensus node with local/execution-spec-tests-application.properties and the
+      # relay with local/execution-spec-tests-relay-values.yaml (raised gas and size limits, EIP-7702, ...). test.sh
+      # also runs `./gradlew assemble` in this checkout, so the network runs the ref under test, and creates its
+      # three test accounts.
+      - name: Start solo network (spec profile)
+        id: start-solo
+        timeout-minutes: 45
+        working-directory: ${{ env.EVM_TESTING_DIR }}
+        env:
+          # A fresh kind cluster pulls every container image; widen solo's pod-Running gate (same as 819 and 871).
+          PODS_RUNNING_MAX_ATTEMPTS: "2700"
+        run: |
+          set -eo pipefail
+          # A previous job on a non-ephemeral runner may have left a cluster behind.
+          kind delete cluster -n "${SOLO_CLUSTER_NAME}" >/dev/null 2>&1 || true
+          # test.sh assumes an already initialised solo home (~/.solo), which a fresh runner does not have.
+          solo init
+          ./test.sh solo start --profile spec
+
+      # Each parallel `execute remote` process needs its own seed sender: two processes sharing one sender would
+      # race on its nonce. Generate a fresh secp256k1 key per fork directory and fund it as an ECDSA account with an
+      # EVM alias. The keys only ever hold value on the ephemeral kind network of this job.
+      - name: Create seed accounts
+        id: seed-accounts
+        env:
+          FORKS: ${{ steps.inputs.outputs.forks }}
+          # Each spec tests run sweeps 1,000,000 ether (= 1,000,000 hbar at 1 tinybar = 1e10 wei) from its seed
+          # sender into the per-test accounts, so fund each seed account well above that.
+          SEED_ACCOUNT_HBAR_AMOUNT: "100000000"
+        run: |
+          set -eo pipefail
+          umask 077
+          mkdir -p "${SPEC_TESTS_CONFIG_DIR}/seed-keys"
+          for fork in ${FORKS}; do
+            key="$(openssl rand -hex 32)"
+            echo "::add-mask::${key}"
+            echo "0x${key}" > "${SPEC_TESTS_CONFIG_DIR}/seed-keys/${fork}"
+            echo "Creating seed account for tests/${fork}/"
+            solo ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount "${SEED_ACCOUNT_HBAR_AMOUNT}" \
+              --private-key --set-alias --ecdsa-private-key "3030020100300706052b8104000a04220420${key}"
+          done
+
+      # The spec tests talk to the relay on 127.0.0.1:37546 (the port used in their docs/hedera docs); the mirror
+      # node REST forward on 38081 is only used for the readiness probe. Solo may tear its own port-forwards down, so
+      # re-establish whichever forward is missing. The probe is plain bash (/dev/tcp): the runner has no nc.
+      - name: Ensure local port-forwards
+        id: port-forwards
+        run: |
+          set -eo pipefail
+          mkdir -p "${SPEC_TESTS_LOGS_DIR}"
+          port_open() {
+            (exec 3<>"/dev/tcp/127.0.0.1/${1}") 2>/dev/null
+          }
+          ensure_forward() {
+            local port="${1}" target="${2}" remote_port="${3}"
+            local log="${SPEC_TESTS_LOGS_DIR}/port-forward-${port}.log"
+            if port_open "${port}"; then
+              echo "127.0.0.1:${port} is already listening (solo port-forward still active)"
+              return 0
+            fi
+            echo "Forwarding ${target} port ${remote_port} to 127.0.0.1:${port}"
+            kubectl -n "${SOLO_NAMESPACE}" port-forward "${target}" "${port}:${remote_port}" >"${log}" 2>&1 &
+            for _ in $(seq 1 15); do
+              if port_open "${port}"; then
+                echo "127.0.0.1:${port} ready"
+                return 0
+              fi
+              sleep 2
+            done
+            echo "::error::127.0.0.1:${port} did not open for ${target}"
+            cat "${log}" || true
+            kubectl -n "${SOLO_NAMESPACE}" get svc -o wide || true
+            return 1
+          }
+          # solo names the relay release "relay-<node alias>" and finds its pod by the instance label.
+          relay_pod=$(kubectl -n "${SOLO_NAMESPACE}" get pods -l app.kubernetes.io/instance=relay-node1 -o name 2>/dev/null | head -n 1 || true)
+          ensure_forward 38081 svc/mirror-1-rest http
+          ensure_forward 37546 "${relay_pod:-svc/relay-node1}" 7546
+
+      # Solo reports readiness before the mirror node REST backend serves data, and the relay needs the mirror
+      # node for its own startup queries. Wait for both before running the tests.
+      - name: Wait for network readiness
+        id: wait-for-network
+        run: |
+          set -eo pipefail
+          kubectl -n "${SOLO_NAMESPACE}" get pods -o wide
+
+          echo "Waiting for the mirror node REST API on 127.0.0.1:38081 (up to 5m)"
+          ready="false"
+          for i in $(seq 1 60); do
+            if curl -sf "http://127.0.0.1:38081/api/v1/blocks?limit=1" >/dev/null; then
+              echo "Mirror node REST API ready (attempt ${i})"
+              ready="true"
+              break
+            fi
+            sleep 5
+          done
+          if [[ "${ready}" != "true" ]]; then
+            echo "::error::Mirror node REST API did not become ready on 127.0.0.1:38081"
+            exit 1
+          fi
+
+          echo "Waiting for the JSON-RPC relay on 127.0.0.1:37546 (up to 5m)"
+          ready="false"
+          for i in $(seq 1 60); do
+            chain_id=$(curl -sf -X POST "http://127.0.0.1:37546" -H "Content-Type: application/json" \
+              --data '{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}' | jq -r '.result // empty' || true)
+            if [[ "${chain_id}" == "0x12a" ]]; then
+              echo "JSON-RPC relay ready (chainId ${chain_id}, attempt ${i})"
+              ready="true"
+              break
+            fi
+            sleep 5
+          done
+          if [[ "${ready}" != "true" ]]; then
+            echo "::error::JSON-RPC relay did not become ready on 127.0.0.1:37546"
+            exit 1
+          fi
+
+      # Flags as documented in docs/hedera/*.md of hiero-ethereum-execution-spec-tests:
+      #   --fork=Prague              all fork directories are executed against the Prague rules
+      #   --max-tx-per-batch=1       the relay races on nonces for same-sender transactions in one batch
+      #   --default-max-fee-per-blob-gas / gas prices are tinybar-aligned (710 Gwei) for Hedera
+      # Known-unsupported tests are skipped by the spec tests repository itself (docs/hedera/hedera_skips.toml).
+      # All fork directories run at the same time as separate processes, each with its own seed account, report
+      # files and log; `--no-sync` keeps the processes from re-syncing the shared virtualenv and
+      # `-p no:cacheprovider` from writing the shared .pytest_cache concurrently.
+      # Inside a process, pytest-xdist (`-n`) spreads the tests over several workers; the seed account funds one
+      # sender per worker. The run time is dominated by waiting for receipts, so workers cut it almost linearly.
+      # Worker counts aim at ~50-60 min per fork. Sequential time (docs/hedera/hedera_<fork>.md) → workers:
+      #   frontier 4h45 → 6, prague ~3h30 → 5, istanbul 2h30 → 4, tangerine_whistle 1h50 → 3,
+      #   cancun 1h35 / byzantium 1h20 → 2 (measured in CI with 2 workers: 48m / 40m),
+      #   everything else (berlin 52m and below) → 1.
+      # Tests are handed out one by one (xdist's default `--dist load`), not per file: some folders keep most of their
+      # tests in one or two files (tangerine_whistle has 724 in one), and with per-file scheduling the extra workers
+      # sat idle. An idle worker never asks for its funded sender, so the other workers waited for funding until
+      # they timed out. `--worker-funding-timeout` is raised because all forks fund their workers at the same time.
+      # Exit code 5 means pytest collected no tests and is not counted as a failure.
+      - name: Run the tests
+        id: run-tests
+        timeout-minutes: 95
+        working-directory: ${{ env.SPEC_TESTS_DIR }}
+        env:
+          FORKS: ${{ steps.inputs.outputs.forks }}
+          WORKERS_SCALE: ${{ steps.inputs.outputs.workers-scale }}
+          EXTRA_PYTEST_ARGS: ${{ inputs.extra-pytest-args }}
+          RESULTS_DIR: ${{ github.workspace }}/${{ env.SPEC_TESTS_RESULTS_DIR }}
+          SEED_KEYS_DIR: ${{ github.workspace }}/${{ env.SPEC_TESTS_CONFIG_DIR }}/seed-keys
+        run: |
+          set -eo pipefail
+          mkdir -p "${RESULTS_DIR}"
+
+          fork_workers() {
+            case "${1}" in
+              frontier) echo 6 ;;
+              prague) echo 5 ;;
+              istanbul) echo 4 ;;
+              tangerine_whistle) echo 3 ;;
+              cancun | byzantium) echo 2 ;;
+              *) echo 1 ;;
+            esac
+          }
+
+          run_fork() {
+            local fork="${1}" workers="${2}"
+            local out="${RESULTS_DIR}/${fork}"
+            local extra_args=() xdist_args=()
+            mkdir -p "${out}"
+            if [[ -n "${EXTRA_PYTEST_ARGS}" ]]; then
+              read -r -a extra_args <<< "${EXTRA_PYTEST_ARGS}"
+            fi
+            # A single worker runs without xdist, exactly like the documented manual runs.
+            if [[ "${workers}" -gt 1 ]]; then
+              xdist_args=(-n "${workers}" --dist load --worker-funding-timeout=600)
+            fi
+            echo "[$(date -u +%H:%M:%S)] START tests/${fork}/ (${workers} worker(s))"
+            local rc=0
+            uv run --no-sync execute remote -rA -vv -p no:cacheprovider "${xdist_args[@]}" \
+              --fork=Prague \
+              --rpc-endpoint=http://127.0.0.1:37546/ \
+              --rpc-seed-key="$(cat "${SEED_KEYS_DIR}/${fork}")" \
+              --rpc-chain-id=298 \
+              --seed-account-sweep-amount='1_000_000 ether' \
+              --default-max-fee-per-blob-gas=710_000_000_000 \
+              --tx-wait-timeout=15 \
+              --max-tx-per-batch=1 \
+              --html="${out}/report.html" \
+              --junitxml="${out}/junit.xml" \
+              "${extra_args[@]}" \
+              "tests/${fork}/" > "${out}/output.log" 2>&1 || rc=$?
+            echo "${rc}" > "${out}/exit-code"
+            echo "[$(date -u +%H:%M:%S)] END   tests/${fork}/ (exit code ${rc})"
+          }
+          # Start every fork in the background and wait for all of them; each fork's own exit code is recorded and
+          # evaluated below.
+          for fork in ${FORKS}; do
+            run_fork "${fork}" "$(( $(fork_workers "${fork}") * WORKERS_SCALE ))" &
+          done
+          wait
+
+          failed=()
+          for fork in ${FORKS}; do
+            rc="$(cat "${RESULTS_DIR}/${fork}/exit-code" 2>/dev/null || echo "missing")"
+            echo "::group::tests/${fork}/ output (exit code ${rc})"
+            cat "${RESULTS_DIR}/${fork}/output.log" || true
+            echo "::endgroup::"
+            [[ "${rc}" == "0" || "${rc}" == "5" ]] || failed+=("${fork}")
+          done
+          if [[ "${#failed[@]}" -gt 0 ]]; then
+            echo "::error::Ethereum spec tests failed for: ${failed[*]}"
+            exit 1
+          fi
+
+      # Writes the per-fork count table and, for every fork with failures, the failing tests grouped by test
+      # function with their reason. The output goes to the run's Summary page and, through tee, to this step's log.
+      - name: Summarize results
+        if: ${{ always() && steps.run-tests.outcome != 'skipped' }}
+        env:
+          FORKS: ${{ steps.inputs.outputs.forks }}
+        run: |
+          python3 -I - "${SPEC_TESTS_RESULTS_DIR}" ${FORKS} <<'EOF' | tee -a "${GITHUB_STEP_SUMMARY}"
+          import collections
+          import os
+          import re
+          import sys
+          import xml.etree.ElementTree as ET
+
+          MAX_ROWS_PER_FORK = 50
+          MAX_CASES_SHOWN = 10
+          MAX_REASON_LEN = 160
+
+          results_dir, forks = sys.argv[1], sys.argv[2:]
+
+          def reason_of(element):
+              text = (element.get("message") or element.text or "").strip()
+              line = text.splitlines()[0] if text else "(no message)"
+              # Drop the module path of the exception class, e.g. execution_testing.base_types....Storage.Error.
+              line = re.sub(r"^(?:[a-z_][a-z0-9_]*\.)+(?=[A-Z])", "", line)
+              # Per-test addresses and 32-byte storage keys hide that cases fail the same way (and push the
+              # want/got part past the length limit): replace addresses with <address>, keys with their number.
+              line = re.sub(r"\b0x[0-9a-fA-F]{40}\b", "<address>", line)
+              line = re.sub(r"\b0x[0-9a-fA-F]{64}\b", lambda m: str(int(m.group(0), 16)), line)
+              if len(line) > MAX_REASON_LEN:
+                  line = line[: MAX_REASON_LEN - 1] + "…"
+              return line.replace("|", "\\|")
+
+          print("### Ethereum Spec Tests")
+          print()
+          print("| Fork | Total | Passed | Failed | Errors | Skipped |")
+          print("|---|---:|---:|---:|---:|---:|")
+          failing = []
+          for fork in forks:
+              path = os.path.join(results_dir, fork, "junit.xml")
+              if not os.path.isfile(path):
+                  # No exit code file means the fork was still running when the step limit stopped it.
+                  finished = os.path.isfile(os.path.join(results_dir, fork, "exit-code"))
+                  print(f"| `{fork}` | {'no report' if finished else 'did not finish'} | | | | |")
+                  continue
+              root = ET.parse(path).getroot()
+              suites = [root] if root.tag == "testsuite" else list(root.iter("testsuite"))
+              t = {k: sum(int(s.get(k, 0)) for s in suites) for k in ("tests", "failures", "errors", "skipped")}
+              if t["tests"] == 0:
+                  print(f"| `{fork}` | no tests (all deselected) | | | | |")
+                  continue
+              passed = t["tests"] - t["failures"] - t["errors"] - t["skipped"]
+              print(f"| `{fork}` | {t['tests']} | {passed} | {t['failures']} | {t['errors']} | {t['skipped']} |")
+
+              # Group failing cases by (kind, test function); parametrized cases share one row.
+              groups = collections.OrderedDict()
+              for case in root.iter("testcase"):
+                  for kind in ("failure", "error"):
+                      element = case.find(kind)
+                      if element is None:
+                          continue
+                      name = case.get("name", "")
+                      params = re.search(r"\[(.*)\]$", name)
+                      test = f"{case.get('classname', '').replace('.', '/')}.py::{name.split('[', 1)[0]}"
+                      group = groups.setdefault((kind, test), {"cases": [], "reasons": collections.Counter()})
+                      group["cases"].append(params.group(1).replace("fork_Prague-", "") if params else "")
+                      group["reasons"][reason_of(element)] += 1
+              if groups:
+                  failing.append((fork, t, groups))
+
+          if failing:
+              print()
+              print("#### Failures")
+              for fork, t, groups in failing:
+                  print()
+                  print(f"<details><summary><code>{fork}</code>: {t['failures']} failed, {t['errors']} errors</summary>")
+                  print()
+                  print("| Kind | Test | Cases | Reason |")
+                  print("|---|---|---:|---|")
+                  ordered = sorted(groups.items(), key=lambda item: -len(item[1]["cases"]))
+                  for (kind, test), group in ordered[:MAX_ROWS_PER_FORK]:
+                      cases = [c for c in group["cases"] if c]
+                      shown = ", ".join(f"`{c}`" for c in cases[:MAX_CASES_SHOWN])
+                      if len(cases) > MAX_CASES_SHOWN:
+                          shown += f" … +{len(cases) - MAX_CASES_SHOWN} more"
+                      (reason, _), = group["reasons"].most_common(1)
+                      if len(group["reasons"]) > 1:
+                          reason += f" (+{len(group['reasons']) - 1} other reasons)"
+                      count = len(group["cases"])
+                      print(f"| {'error' if kind == 'error' else 'failed'} | `{test}`<br>{shown} | {count} | {reason} |")
+                  if len(ordered) > MAX_ROWS_PER_FORK:
+                      print(f"| | … {len(ordered) - MAX_ROWS_PER_FORK} more tests, see the artifact | | |")
+                  print()
+                  print("</details>")
+              print()
+              print("Full per-test results: `Ethereum Spec Tests Results` artifact "
+                    "(`<fork>/report.html`, `<fork>/junit.xml`, `<fork>/output.log`).")
+          EOF
+
+      - name: Upload test results
+        if: ${{ always() && steps.run-tests.outcome != 'skipped' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: Ethereum Spec Tests Results
+          path: ${{ env.SPEC_TESTS_RESULTS_DIR }}
+          if-no-files-found: ignore
+          retention-days: 14
+
+      # Diagnostics for a failed run: pod state and events, container logs, the consensus node's application logs
+      # and solo's own CLI logs. The per-fork pytest output is part of the test results artifact.
+      - name: Collect diagnostics
+        if: ${{ failure() }}
+        continue-on-error: true
+        run: |
+          mkdir -p "${SPEC_TESTS_LOGS_DIR}"
+          {
+            kubectl -n "${SOLO_NAMESPACE}" get pods -o wide
+            echo
+            kubectl -n "${SOLO_NAMESPACE}" get svc -o wide
+            echo
+            kubectl -n "${SOLO_NAMESPACE}" get events --sort-by=.lastTimestamp
+          } > "${SPEC_TESTS_LOGS_DIR}/kubectl-overview.txt" 2>&1 || true
+          mapfile -t pods < <(kubectl -n "${SOLO_NAMESPACE}" get pods -o name 2>/dev/null || true)
+          for pod in "${pods[@]}"; do
+            name="${pod#pod/}"
+            kubectl -n "${SOLO_NAMESPACE}" describe "${pod}" > "${SPEC_TESTS_LOGS_DIR}/${name}.describe.txt" 2>&1 || true
+            kubectl -n "${SOLO_NAMESPACE}" logs "${pod}" --all-containers --tail=-1 > "${SPEC_TESTS_LOGS_DIR}/${name}.log" 2>&1 || true
+          done
+          kubectl -n "${SOLO_NAMESPACE}" cp -c root-container \
+            network-node1-0:/opt/hgcapp/services-hedera/HapiApp2.0/output "${SPEC_TESTS_LOGS_DIR}/network-node1-output" || true
+          cp -r ~/.solo/logs "${SPEC_TESTS_LOGS_DIR}/solo-cli-logs" || true
+
+      - name: Upload diagnostics
+        if: ${{ failure() }}
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: Ethereum Spec Tests Diagnostics
+          path: ${{ env.SPEC_TESTS_LOGS_DIR }}
+          if-no-files-found: ignore
+          retention-days: 7
+
+      # Runs after the diagnostics: `test.sh solo stop` also removes ~/.solo (solo's CLI logs).
+      - name: Stop solo network
+        if: ${{ always() }}
+        continue-on-error: true
+        working-directory: ${{ env.EVM_TESTING_DIR }}
+        run: |
+          ./test.sh solo stop || true
+          kind delete cluster -n "${SOLO_CLUSTER_NAME}" >/dev/null 2>&1 || true
