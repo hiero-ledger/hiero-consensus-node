@@ -20,7 +20,6 @@ jobs:
         uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
-          checkout-ref: "${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}"
           checkout-token: "${{ secrets.GITHUB_TOKEN }}"
           setup-gomplate: "true"
 
