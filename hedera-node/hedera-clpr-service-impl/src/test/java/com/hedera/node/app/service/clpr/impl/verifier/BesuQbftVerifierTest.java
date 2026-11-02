@@ -911,6 +911,18 @@ class BesuQbftVerifierTest {
         }
 
         @Test
+        void deeplyNestedPayloadIsRejectedAsInvalidRlp() {
+            byte[] payload = Rlp.encodeBytes(new byte[] {0x01});
+            for (int i = 0; i <= Rlp.MAX_DEPTH; i++) {
+                payload = Rlp.encodeList(List.of(payload));
+            }
+            final byte[] deep = payload;
+            assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(deep, validatorSet(VALIDATOR_ADDR), 0L, CHANNEL_ID))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("payload is not a valid RLP item");
+        }
+
+        @Test
         void storageProofWith3ParamEntriesRejected() {
             byte[] encodedStorageEntry = Rlp.encodeList(
                     List.of(Rlp.encodeBytes(new byte[32]), Rlp.encodeBytes(new byte[32]), Rlp.encodeList(List.of())));
