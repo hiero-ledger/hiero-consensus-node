@@ -244,7 +244,7 @@ jobs:
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
   xts-hapi-tests-testnet:
-    name: XTS HAPI Tests (Cutover configs)
+    name: XTS HAPI Tests (Pre-cutover configs)
     needs:
       - commit-info
       - build
@@ -316,6 +316,8 @@ jobs:
       java-version: "${{ inputs.java-version }}"
       tck-version: "${{ inputs.tck-version }}"
       js-sdk-version: "${{ inputs.js-sdk-version }}"
+      block-node-version: "${{ inputs.bn-release-version }}"
+      bn-mirror-node-version: "${{ inputs.bn-mirror-node-version }}"
     secrets:
       access-token: ${{ secrets.regression-access-token }}
       slack-tck-report-webhook: ${{ secrets.slack-tck-report-webhook }}
@@ -375,6 +377,7 @@ jobs:
       solo-version: "${{ inputs.solo-version }}"
       mirror-node-version: "${{ inputs.mirror-node-version }}"
       json-rpc-relay-version: "${{ inputs.json-rpc-relay-version }}"
+      block-node-version: "${{ inputs.bn-release-version }}"
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}

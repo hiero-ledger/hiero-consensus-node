@@ -98,6 +98,94 @@ tasks.test { dependsOn(unitTest) }
 
 tasks.withType<JavaCompile>().configureEach { options.compilerArgs.add("-Xlint:-exports") }
 
+// The HAPI tests run the block node version CITR deploys (block-node-version in .citr-env); its
+// image tags and Maven versions drop the leading 'v' of the git tag CITR checks out
+val citrEnvPath = ".github/workflows/support/citr/.citr-env"
+val blockNodeVersion: Provider<String> =
+    providers.fileContents(isolated.rootProject.projectDirectory.file(citrEnvPath)).asText.map { env
+        ->
+        env.lineSequence()
+            .map { it.trim() }
+            .firstOrNull { it.startsWith("block-node-version=") }
+            ?.substringAfter("=")
+            ?.removePrefix("v")
+            ?.takeIf { it.isNotBlank() }
+            ?: throw GradleException("No block-node-version in $citrEnvPath")
+    }
+
+// The block node image is barebone, so a block node container mounts these plugins plus the few
+// jars they need that the image lacks; resolving them here keeps Maven Central out of the test run.
+// The required plugins can change between block node versions (0.45.0-rc5 added
+// facility-app-state); a missing one fails the container before it logs "Started BlockNode Server"
+val blockNodePluginArtifacts =
+    listOf(
+        "facility-app-state",
+        "facility-messaging",
+        "health",
+        "block-verification",
+        "blocks-file-recent",
+        "blocks-file-historic",
+        "block-access-service",
+        "server-status",
+        "stream-publisher",
+        "stream-subscriber",
+        "roster-bootstrap-rsa",
+        "roster-bootstrap-tss",
+    )
+// Taken from the plugins' dependencies, so their versions follow the block node version
+val blockNodePluginExtraModules =
+    setOf(
+        "com.github.spotbugs:spotbugs-annotations",
+        "com.lmax:disruptor",
+        "com.hedera.cryptography:hedera-cryptography-wraps",
+        "com.hedera.cryptography:hedera-cryptography-hints",
+        "com.hedera.common:hedera-common-nativesupport",
+        "org.antlr:antlr4-runtime",
+    )
+val blockNodePlugins = configurations.dependencyScope("blockNodePlugins")
+val blockNodePluginsClasspath =
+    configurations.resolvable("blockNodePluginsClasspath") {
+        extendsFrom(blockNodePlugins.get())
+        // The image ships these; resolving them would substitute this build's own projects
+        exclude(group = "com.hedera.hashgraph")
+        attributes {
+            attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage.JAVA_RUNTIME))
+            attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category.LIBRARY))
+            attribute(
+                LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE,
+                objects.named(LibraryElements.JAR),
+            )
+            attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling.EXTERNAL))
+        }
+    }
+
+blockNodePluginArtifacts.forEach { artifact ->
+    dependencies.addProvider(
+        blockNodePlugins.name,
+        blockNodeVersion.map { "org.hiero.block-node:$artifact:$it" },
+    )
+}
+
+val syncBlockNodePlugins =
+    tasks.register<Sync>("syncBlockNodePlugins") {
+        description = "Collects the plugin jars the HAPI tests mount into block node containers."
+        val modules =
+            blockNodePluginArtifacts.map { "org.hiero.block-node:$it" }.toSet() +
+                blockNodePluginExtraModules
+        from(
+            blockNodePluginsClasspath.map { classpath ->
+                classpath.incoming
+                    .artifactView {
+                        componentFilter { id ->
+                            id is ModuleComponentIdentifier && "${id.group}:${id.module}" in modules
+                        }
+                    }
+                    .files
+            }
+        )
+        into(layout.buildDirectory.dir("block-node/plugins"))
+    }
+
 tasks.register<JavaExec>("runTestClient") {
     group = "build"
     description = "Run a test client via -PtestClient=<Class>"
@@ -202,8 +290,7 @@ val prCheckPropOverrides =
             "tss.forceMockSignatures=false,blockStream.blockPeriod=1s,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
         "hapiTestCryptoSerial" to
             "tss.hintsEnabled=true,tss.historyEnabled=true,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,block.stateproof.verification.enabled=true",
-        "hapiTestSmartContract" to
-            "blockStream.writerMode=FILE_AND_GRPC,blockStream.streamWrappedRecordBlocks=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+        "hapiTestSmartContract" to "hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         // hapiTestRestart exercises repeated freeze/upgrade/restart cycles. On main this ran with
         // tss.historyEnabled=false by config default; with the new branch default of true the
         // genesis chain-of-trust proof (and its real-crypto signatures, since this test sets
@@ -214,15 +301,17 @@ val prCheckPropOverrides =
         "hapiTestRestart" to
             "blockStream.writerMode=FILE,tss.hintsEnabled=true,tss.historyEnabled=false,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
         "hapiTestMisc" to
-            "blockStream.writerMode=FILE_AND_GRPC,blockStream.streamWrappedRecordBlocks=true,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
+            "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
         "hapiTestMiscSerial" to
             "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true",
         "hapiTestTimeConsuming" to
             "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestWraps" to
             "tss.hintsEnabled=true,tss.historyEnabled=true,tss.forceMockSignatures=false,staking.periodMins=25,blockStream.maxBlockSizeBytes=0",
+        // Starts from the pre-cutover block stream (BOTH with wrapped record blocks) to test the
+        // upgrade that enables TSS
         "hapiTestCutover" to
-            "blockStream.writerMode=FILE_AND_GRPC,tss.hintsEnabled=false,tss.historyEnabled=false,tss.forceMockSignatures=false,tss.initialCrsParties=8,staking.periodMins=25,blockStream.maxBlockSizeBytes=0",
+            "blockStream.streamMode=BOTH,blockStream.enableCutover=false,blockStream.streamWrappedRecordBlocks=true,blockStream.writerMode=FILE_AND_GRPC,tss.hintsEnabled=false,tss.historyEnabled=false,tss.forceMockSignatures=false,tss.initialCrsParties=8,staking.periodMins=25,blockStream.maxBlockSizeBytes=0",
         "hapiTestTimeConsumingSerial" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
         "hapiTestStateThrottling" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
         "hapiTestMiscRecords" to
@@ -243,14 +332,17 @@ val prCheckPropOverrides =
         "hapiTestAtomicBatch" to
             "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestAtomicBatchSerial" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
+        // A FILE writer for these: genesis and multi-network networks get no block node, and
+        // hapiTestClpr's mock signatures stalled its network against a real block node
         "hapiTestClpr" to
-            "tss.forceMockSignatures=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+            "blockStream.writerMode=FILE,tss.forceMockSignatures=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+        "hapiTestGenesisSubProcess" to "blockStream.writerMode=FILE",
         "hapiTestClprEmbedded" to "tss.forceMockSignatures=true",
         // The TSS fixtures' WRAPS history proof is set up as one large genesis
         // savepoint; disable the block size circuit breaker so genesis output is not
         // suppressed and the block stream can be validated
         "hapiTestClprMultinetwork" to
-            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.forceMockSignatures=false,blockStream.maxBlockSizeBytes=0",
+            "blockStream.writerMode=FILE,tss.hintsEnabled=true,tss.historyEnabled=true,tss.forceMockSignatures=false,blockStream.maxBlockSizeBytes=0",
     )
 
 // Overridable per-task DEFAULTS. Unlike prCheckPropOverrides (delivered as node environment
@@ -265,42 +357,25 @@ val prCheckDefaultOverrides =
         "hapiTestClprEmbedded" to "clpr.enabled=true",
         "hapiTestClprMultinetwork" to "clpr.enabled=true",
     )
-// Pins needed only while the production block stream and TSS defaults are pre-cutover; the
-// testnet profile replaces them. FUTURE: delete when those defaults switch to the cutover values.
-val preCutoverDefaultsOverrides =
-    mapOf(
-        "hapiTestAdhoc" to "tss.forceMockSignatures=false",
-        "hapiTestCrypto" to "tss.forceMockSignatures=false",
-        "hapiTestCryptoSerial" to "tss.forceMockSignatures=false",
-        // writerMode=FILE_AND_GRPC (here and on hapiTestMisc) is what attaches a block node
-        "hapiTestSmartContract" to "blockStream.writerMode=FILE_AND_GRPC,tss.historyEnabled=false",
-        "hapiTestSmartContractSerial" to "tss.historyEnabled=false",
-        "hapiTestRestart" to "tss.forceMockSignatures=false",
-        "hapiTestMisc" to "blockStream.writerMode=FILE_AND_GRPC",
-        "hapiTestWraps" to "tss.forceMockSignatures=false",
-        "hapiTestNodeStaking" to "tss.forceMockSignatures=false",
-    )
-// -PhapiTestConfigProfile=testnet (or env HAPI_TEST_CONFIG_PROFILE) runs the HAPI tasks with the
-// cutover values below instead of the production defaults (used by XTS 829)
+// -PhapiTestConfigProfile=pre-cutover (or env HAPI_TEST_CONFIG_PROFILE) runs the HAPI tasks with
+// the pre-cutover block stream values below instead of the production defaults (used by XTS 829)
 val hapiTestConfigProfile =
     providers
         .gradleProperty("hapiTestConfigProfile")
         .orElse(providers.environmentVariable("HAPI_TEST_CONFIG_PROFILE"))
         .getOrElse("")
-// The cutover block stream and TSS values (planned for testnet; FUTURE: the production defaults)
-val cutoverConfigValues =
+// The block stream values from before the cutover to streamMode=BLOCKS; MATS runs the production
+// defaults, and XTS keeps these covered
+val preCutoverConfigValues =
     mapOf(
-        "blockStream.streamMode" to "BLOCKS",
-        "blockStream.writerMode" to "GRPC",
-        "blockStream.enableCutover" to "true",
-        "blockStream.streamWrappedRecordBlocks" to "false",
-        "blockStream.buffer.isBufferPersistenceEnabled" to "true",
-        "tss.forceMockSignatures" to "false",
+        "blockStream.streamMode" to "BOTH",
+        "blockStream.writerMode" to "FILE_AND_GRPC",
+        "blockStream.streamWrappedRecordBlocks" to "true",
     )
 val profileOverrides: Map<String, String> =
     when (hapiTestConfigProfile) {
         "" -> emptyMap()
-        "testnet" -> cutoverConfigValues
+        "pre-cutover" -> preCutoverConfigValues
         else -> throw GradleException("Unknown hapiTestConfigProfile '$hapiTestConfigProfile'")
     }
 // These tasks deliberately run another world: records-only, pre-cutover, or per-test pins
@@ -311,16 +386,6 @@ val profileExemptTasks =
         "hapiTestCutover",
         "hapiTestBlockNodeCommunication",
     )
-// Under the profile these keep a FILE writer: genesis and multi-network nets get no block node,
-// hapiTestClpr's mock signatures stalled its network against a real block node, and the block
-// node still rejects SHA-256 hashes (it requires 48-byte SHA-384)
-val profileFileWriterTasks =
-    setOf(
-        "hapiTestGenesisSubProcess",
-        "hapiTestClpr",
-        "hapiTestClprMultinetwork",
-        "hapiTestBlockHashingSha256",
-    )
 
 fun profileAppliesTo(name: String, remote: Boolean) =
     profileOverrides.isNotEmpty() && !remote && name !in profileExemptTasks
@@ -330,21 +395,17 @@ fun String.toOverrideMap(): Map<String, String> =
         .filter { it.isNotBlank() }
         .associate { it.substringBefore("=") to it.substringAfter("=") }
 
-// The testnet profile (if active) or else the pre-cutover pins, with prCheckPropOverrides on top;
-// embedded networks have no block node and only fake TSS, so they keep FILE and mock signatures
+// The config profile (if active), with prCheckPropOverrides on top; embedded networks have no
+// block node and only fake TSS, so they keep FILE and mock signatures
 fun hapiTestOverrides(name: String, embedded: Boolean, remote: Boolean): Map<String, String> {
     val overrides = linkedMapOf<String, String>()
     val withProfile = profileAppliesTo(name, remote)
     if (withProfile) {
         overrides.putAll(profileOverrides)
-    } else {
-        preCutoverDefaultsOverrides[name]?.let { overrides.putAll(it.toOverrideMap()) }
     }
     prCheckPropOverrides[name]?.let { overrides.putAll(it.toOverrideMap()) }
-    if (withProfile && (embedded || name in profileFileWriterTasks)) {
-        overrides["blockStream.writerMode"] = "FILE"
-    }
     if (withProfile && embedded) {
+        overrides["blockStream.writerMode"] = "FILE"
         overrides["tss.forceMockSignatures"] = "true"
     }
     return overrides
@@ -586,6 +647,21 @@ fun TaskContainer.registerHapiTest(
         )
         // Isolate each subtask's working directory so logs are not overwritten
         systemProperty("hapi.spec.subtask.name", name)
+
+        // Only subprocess networks start block node containers
+        if (embeddedMode == null && !hapiSpecRemote) {
+            systemProperty("hapi.spec.blocknode.version", blockNodeVersion.get())
+            inputs
+                .files(syncBlockNodePlugins)
+                .withPropertyName("blockNodePlugins")
+                .withNormalizer(ClasspathNormalizer::class)
+            val pluginsDir = syncBlockNodePlugins.map { it.destinationDir.absolutePath }
+            jvmArgumentProviders.add(
+                CommandLineArgumentProvider {
+                    listOf("-Dhapi.spec.blocknode.plugins.dir=${pluginsDir.get()}")
+                }
+            )
+        }
 
         val testOverrides = hapiTestOverrides(name, embeddedMode != null, hapiSpecRemote)
         if (testOverrides.isNotEmpty()) {

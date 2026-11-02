@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
-# Reruns the MATS HAPI panels, Wraps and Wraps Download with the cutover block stream
-# and TSS values instead of the production defaults
+# Reruns the MATS HAPI panels, Wraps and Wraps Download with the pre-cutover block stream
+# values (streamMode=BOTH, writerMode=FILE_AND_GRPC, wrapped record blocks) instead of the
+# production defaults, which MATS runs
 name: "829: [CALL] Exec XTS HAPI Testnet"
 on:
   workflow_call:
@@ -65,8 +66,8 @@ jobs:
       java-version: ${{ inputs.java-version }}
       node-version: ${{ inputs.node-version }}
       enable-network-log-capture: ${{ inputs.enable-network-log-capture }}
-      hapi-test-config-profile: "testnet"
-      name-suffix: " (Cutover configs)"
+      hapi-test-config-profile: "pre-cutover"
+      name-suffix: " (Pre-cutover configs)"
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
@@ -80,8 +81,8 @@ jobs:
       java-version: ${{ inputs.java-version }}
       node-version: ${{ inputs.node-version }}
       enable-network-log-capture: ${{ inputs.enable-network-log-capture }}
-      hapi-test-config-profile: "testnet"
-      name-suffix: " (Cutover configs)"
+      hapi-test-config-profile: "pre-cutover"
+      name-suffix: " (Pre-cutover configs)"
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
@@ -95,8 +96,8 @@ jobs:
       java-version: ${{ inputs.java-version }}
       node-version: ${{ inputs.node-version }}
       enable-network-log-capture: ${{ inputs.enable-network-log-capture }}
-      hapi-test-config-profile: "testnet"
-      name-suffix: " (Cutover configs)"
+      hapi-test-config-profile: "pre-cutover"
+      name-suffix: " (Pre-cutover configs)"
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
@@ -110,8 +111,8 @@ jobs:
       java-version: ${{ inputs.java-version }}
       node-version: ${{ inputs.node-version }}
       enable-network-log-capture: ${{ inputs.enable-network-log-capture }}
-      hapi-test-config-profile: "testnet"
-      name-suffix: " (Cutover configs)"
+      hapi-test-config-profile: "pre-cutover"
+      name-suffix: " (Pre-cutover configs)"
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
@@ -125,8 +126,8 @@ jobs:
       java-version: ${{ inputs.java-version }}
       node-version: ${{ inputs.node-version }}
       enable-network-log-capture: ${{ inputs.enable-network-log-capture }}
-      hapi-test-config-profile: "testnet"
-      name-suffix: " (Cutover configs)"
+      hapi-test-config-profile: "pre-cutover"
+      name-suffix: " (Pre-cutover configs)"
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
@@ -140,8 +141,8 @@ jobs:
       java-version: ${{ inputs.java-version }}
       node-version: ${{ inputs.node-version }}
       enable-network-log-capture: ${{ inputs.enable-network-log-capture }}
-      hapi-test-config-profile: "testnet"
-      name-suffix: " (Cutover configs)"
+      hapi-test-config-profile: "pre-cutover"
+      name-suffix: " (Pre-cutover configs)"
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
@@ -155,8 +156,8 @@ jobs:
       java-version: ${{ inputs.java-version }}
       node-version: ${{ inputs.node-version }}
       enable-network-log-capture: ${{ inputs.enable-network-log-capture }}
-      hapi-test-config-profile: "testnet"
-      name-suffix: " (Cutover configs)"
+      hapi-test-config-profile: "pre-cutover"
+      name-suffix: " (Pre-cutover configs)"
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
@@ -170,8 +171,8 @@ jobs:
       java-version: ${{ inputs.java-version }}
       node-version: ${{ inputs.node-version }}
       enable-network-log-capture: ${{ inputs.enable-network-log-capture }}
-      hapi-test-config-profile: "testnet"
-      name-suffix: " (Cutover configs)"
+      hapi-test-config-profile: "pre-cutover"
+      name-suffix: " (Pre-cutover configs)"
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
@@ -185,8 +186,8 @@ jobs:
       java-version: ${{ inputs.java-version }}
       node-version: ${{ inputs.node-version }}
       enable-network-log-capture: ${{ inputs.enable-network-log-capture }}
-      hapi-test-config-profile: "testnet"
-      name-suffix: " (Cutover configs)"
+      hapi-test-config-profile: "pre-cutover"
+      name-suffix: " (Pre-cutover configs)"
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
@@ -201,8 +202,8 @@ jobs:
       node-version: ${{ inputs.node-version }}
       enable-network-log-capture: ${{ inputs.enable-network-log-capture }}
       # This rerun skips 846, whose hapiTestCutover ignores the profile anyway
-      hapi-test-config-profile: "testnet"
-      name-suffix: " (Cutover configs)"
+      hapi-test-config-profile: "pre-cutover"
+      name-suffix: " (Pre-cutover configs)"
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}

@@ -62,9 +62,9 @@ public record TssConfig(
         @ConfigProperty(defaultValue = "false") @NetworkProperty
         boolean validateBlockSignatures,
 
-        // Whether to force BlockProof#signed_block_proof.proof fields to SHA-384 hash of block hash; true
-        // in prod until release that fully cuts over to streamMode=BLOCKS
-        @ConfigProperty(defaultValue = "true") @NetworkProperty
+        // Whether to force BlockProof#signed_block_proof.proof fields to SHA-384 hash of block hash instead of
+        // real TSS signatures; false in prod since the cutover to streamMode=BLOCKS
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
         boolean forceMockSignatures,
 
         // Whether to build a fresh genesis WRAPS proof for the current roster in the first round after an

@@ -32,6 +32,14 @@ on:
         description: "The version of the JS-SDK to test against:"
         required: true
         type: string
+      block-node-version:
+        description: "The block node chart version to deploy with solo (its git tag, e.g. v0.45.0-rc5):"
+        required: true
+        type: string
+      bn-mirror-node-version:
+        description: "The mirror node version to deploy with solo; it must import blocks from a block node:"
+        required: true
+        type: string
 
     secrets:
       access-token:
@@ -66,7 +74,6 @@ env:
   SOLO_CLUSTER_SETUP_NAMESPACE: "solo-setup"
   GRADLE_EXEC: ionice -c 2 -n 2 nice -n 19 ./gradlew
   RUN_LOG_NAME: "run.tck-regression.log"
-  MIRROR_NODE_VERSION: "v0.156.0"
 
 jobs:
   # Execute TCK Regression Tests using specified version of hiero-consensus-node
@@ -254,14 +261,51 @@ jobs:
             cat ./application.properties
           fi
 
-      - name: Solo Nodes deployment (CN local build + MN)
+      # The consensus node streams blocks only (streamMode=BLOCKS) to the block node, so the mirror
+      # node imports them from it instead of downloading record files
+      - name: Create Mirror Values Override File
+        run: |
+          cat <<EOF > mirror-bn-values.yaml
+          importer:
+            config:
+              hiero:
+                mirror:
+                  importer:
+                    block:
+                      enabled: true
+                      nodes:
+                        - endpoints:
+                            - host: block-node-1.${SOLO_NAMESPACE}.svc.cluster.local
+                      sourceType: BLOCK_NODE
+                    downloader:
+                      record:
+                        enabled: false
+            env:
+              SPRING_PROFILES_ACTIVE: 'blocknode'
+              HIERO_MIRROR_IMPORTER_BLOCK_NODES_0_ENDPOINTS_0_HOST: "block-node-1.${SOLO_NAMESPACE}.svc.cluster.local"
+            # Solo caps the importer at 220Mi, which was OOMKilled on block 0 once it carried the genesis WRAPS proof
+            resources:
+              requests:
+                memory: 512Mi
+              limits:
+                memory: 1Gi
+          EOF
+
+          echo "=== mirror-bn-values.yaml ==="
+          cat ./mirror-bn-values.yaml
+
+      - name: Solo Nodes deployment (BN + CN local build + MN)
         timeout-minutes: 35
         env:
           # A fresh kind cluster pulls every container image; solo's default pod-Running gate
           # (900 x 1s) can expire on slow pulls, so widen it.
           PODS_RUNNING_MAX_ATTEMPTS: "2700"
+          BLOCK_NODE_VERSION: ${{ inputs.block-node-version }}
+          MIRROR_NODE_VERSION: ${{ inputs.bn-mirror-node-version }}
         run: |
           set -eo pipefail
+          # The BN is added before the CN, so Solo can't see TSS is on; without the overlay its heap OOMs on the genesis WRAPS proof
+          solo block node add --deployment "${SOLO_DEPLOYMENT}" --release-tag "${CN_VERSION}" --cluster-ref "kind-${SOLO_CLUSTER_NAME}" --chart-version "${BLOCK_NODE_VERSION}" --block-node-tss-overlay
           solo keys consensus generate --gossip-keys --tls-keys -i node1 --deployment "${SOLO_DEPLOYMENT}"
           SOLO_PROPS_ARG=""
           [[ -f ./application.properties ]] && SOLO_PROPS_ARG="--application-properties ./application.properties"
@@ -269,7 +313,8 @@ jobs:
           solo consensus network deploy -i node1 --deployment "${SOLO_DEPLOYMENT}" --pvcs true --application-env ./application.env ${SOLO_PROPS_ARG}
           solo consensus node setup -i node1 --deployment "${SOLO_DEPLOYMENT}" --local-build-path ./hedera-node/data
           solo consensus node start -i node1 --deployment "${SOLO_DEPLOYMENT}"
-          solo mirror node add --deployment "${SOLO_DEPLOYMENT}" --pinger --cluster-ref "kind-${SOLO_CLUSTER_NAME}" --mirror-node-version "${MIRROR_NODE_VERSION}"
+          solo mirror node add --deployment "${SOLO_DEPLOYMENT}" --pinger --cluster-ref "kind-${SOLO_CLUSTER_NAME}" --mirror-node-version "${MIRROR_NODE_VERSION}" -f mirror-bn-values.yaml
+          kubectl wait --for=condition=Ready pod -n "${SOLO_NAMESPACE}" -l "app.kubernetes.io/name=block-node-1" --timeout=180s
 
       # The TCK client expects the network on fixed localhost ports (see the Start tck-client
       # env). NOTE: /api/v1/network/nodes is served by the restjava service on mirror-node

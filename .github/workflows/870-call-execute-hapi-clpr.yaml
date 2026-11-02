@@ -28,7 +28,7 @@ on:
         type: string
         default: "false"
       hapi-test-config-profile:
-        description: "Node config profile for the HAPI tasks (e.g. testnet); blank keeps the production defaults"
+        description: "Node config profile for the HAPI tasks (e.g. pre-cutover); blank keeps the production defaults"
         required: false
         type: string
         default: ""

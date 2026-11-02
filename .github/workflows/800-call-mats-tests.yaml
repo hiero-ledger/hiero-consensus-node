@@ -330,6 +330,7 @@ jobs:
       solo-version: "${{ needs.evm-citr-vars.outputs.citr-solo-version }}"
       mirror-node-version: "${{ needs.evm-citr-vars.outputs.citr-mirror-node-version }}"
       json-rpc-relay-version: "${{ needs.evm-citr-vars.outputs.json-rpc-relay-version }}"
+      block-node-version: "${{ needs.evm-citr-vars.outputs.bn-release-version }}"
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}

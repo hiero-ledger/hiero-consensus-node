@@ -88,28 +88,37 @@ Each task that needs to ship configuration changes adds them to a comma-separate
 
 - `hapiTestRestart` enables `tss.hintsEnabled`, sets `quiescence.enabled=true`,
   and shrinks `hedera.transaction.maximumPermissibleUnhealthySeconds`.
-- `hapiTestMisc` enables `blockStream.streamWrappedRecordBlocks` and `quiescence.enabled`.
-- `hapiTestCutover` configures TSS to start with `tss.hintsEnabled=false` to exercise the cutover
-  path.
+- `hapiTestMisc` enables `quiescence.enabled` and turns off node rewards.
+- `hapiTestCutover` starts from the pre-cutover block stream (`streamMode=BOTH` with wrapped record blocks)
+  and configures TSS to start with `tss.hintsEnabled=false` to exercise the cutover path.
+- `hapiTestGenesisSubProcess`, `hapiTestClpr`, `hapiTestClprMultinetwork`, `hapiTestRestart`, `hapiTestIss` and
+  the `hapiTestNodeStaking*` tasks pin a `FILE` writer, so their networks run without a block node.
 
 See `build.gradle.kts` for the full table.
 
-`preCutoverDefaultsOverrides` holds the pins a task needs only while the production block stream and TSS
-defaults are pre-cutover (e.g. `tss.forceMockSignatures=false` for `hapiTestCrypto`); it goes away once
-those defaults switch to the cutover values.
+Every other subprocess task except the `RECORDS`-only `hapiTestMiscRecords*` runs the production block stream
+defaults (`streamMode=BLOCKS`, real TSS signatures) with the `writerMode=FILE_AND_GRPC` that
+`hedera-node/configuration/dev/application.properties` sets, so it starts one real block node shared by all the
+consensus nodes.
 
-### Testnet configuration profile
+### Block node version
 
-`-PhapiTestConfigProfile=testnet` (or `HAPI_TEST_CONFIG_PROFILE=testnet`) runs the HAPI tasks with the cutover
-block stream and TSS values planned for testnet (`cutoverConfigValues` in `build.gradle.kts`) instead of the
-production defaults:
+Block node containers run the version CITR deploys: `block-node-version` in
+`.github/workflows/support/citr/.citr-env`, without its leading `v`. The `syncBlockNodePlugins` task resolves
+the plugin jars for that version (and the few jars they need that the image lacks) into
+`build/block-node/plugins`; the subprocess tasks depend on it and pass both to the tests as
+`hapi.spec.blocknode.version` and `hapi.spec.blocknode.plugins.dir`. Any version set in `.citr-env` must be
+published as a `ghcr.io/hiero-ledger/hiero-block-node` image, as Maven Central plugin jars, and as a git tag.
 
-- each task's `prCheckPropOverrides` still win (e.g. the `writerMode=FILE` pins that keep `hapiTestRestart`
-  and `hapiTestIss` off the block node), and `preCutoverDefaultsOverrides` are skipped;
-- a real block node is started for the gRPC writer;
+### Pre-cutover configuration profile
+
+`-PhapiTestConfigProfile=pre-cutover` (or `HAPI_TEST_CONFIG_PROFILE=pre-cutover`) runs the HAPI tasks with the
+block stream values from before the cutover to `streamMode=BLOCKS` (`preCutoverConfigValues` in
+`build.gradle.kts`) instead of the production defaults:
+
+- `streamMode=BOTH`, `writerMode=FILE_AND_GRPC` and `streamWrappedRecordBlocks=true`;
+- each task's `prCheckPropOverrides` still win (e.g. the `writerMode=FILE` pins);
 - embedded and repeatable tasks keep the `FILE` writer and mock signatures;
-- `hapiTestGenesisSubProcess`, `hapiTestClpr` and `hapiTestClprMultinetwork` keep the `FILE` writer (genesis and
-  multi-network nets get no block node);
 - `hapiTestMiscRecords*`, `hapiTestCutover` and `hapiTestBlockNodeCommunication` ignore it.
 
 Stream assertions follow the effective stream mode: with no record stream (`BLOCKS`), record-stream checks read
@@ -119,7 +128,7 @@ XTS reruns the MATS HAPI panels, `hapiTestWraps` and `hapiTestWrapsDownload` thi
 (`829-call-execute-xts-hapi-testnet.yaml`).
 
 ```bash
-./gradlew :test-clients:hapiTestCrypto -PhapiTestConfigProfile=testnet
+./gradlew :test-clients:hapiTestCrypto -PhapiTestConfigProfile=pre-cutover
 ```
 
 ## Platform overrides (`prCheckPlatformOverrides`)
