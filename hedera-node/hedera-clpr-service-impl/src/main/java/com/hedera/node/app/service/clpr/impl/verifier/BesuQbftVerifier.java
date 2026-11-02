@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes32;
@@ -149,6 +150,10 @@ public final class BesuQbftVerifier {
     // offsets, used for exact slot-key matching against the channel id
     // (base = keccak256(channelId(32) || uint256(CHANNELS_MAPPING_SLOT))).
     private static final int CHANNELS_MAPPING_SLOT = 15;
+    // `_messageQueues` mapping base slot: message L's running hash sits at
+    // keccak256(abi.encode(uint64(L), keccak256(abi.encode(channelId, 1)))) + 1.
+    private static final int MESSAGE_QUEUES_MAPPING_SLOT = 1;
+    private static final int MESSAGE_OFFSET_RUNNING_HASH = 1;
     private static final int CHANNEL_OFFSET_STATUS_NEXTMSGID = 1;
     private static final int CHANNEL_OFFSET_ACKED_RECEIVED = 2;
     private static final int CHANNEL_OFFSET_SENT_RUNNING_HASH = 4;
@@ -406,7 +411,8 @@ public final class BesuQbftVerifier {
             // decodeQueueMetadata expects: [status|nextMsgId, acked|received|reply, sentRunningHash,
             // receivedRunningHash, endpointManifestVersion] and — when a message is present — the
             // last-message running hash.
-            queueMetadata = decodeQueueMetadata(matchQueueSlotsByConnId(slotKeys, provenSlotValues, channelId));
+            final MatchedSlots matched = matchQueueSlotsByConnId(slotKeys, provenSlotValues, channelId);
+            queueMetadata = decodeQueueMetadata(matched.values(), matched.lastMessageSlotKey());
             log.debug(
                     "BesuQbftProofVerifier.verifyBundle queueMetadata: nextMessageId={}, receivedMessageId={}, status={}, sentRunningHash=0x{}, receivedRunningHash=0x{}, lastMessageRunningHash=0x{}",
                     queueMetadata.nextMessageId(),
@@ -1284,10 +1290,11 @@ public final class BesuQbftVerifier {
      * to be the last message's running-hash slot; a second such leftover, or a missing required queue
      * slot, is a hard error (fail-safe — the verifier never silently mis-decodes).
      *
-     * @return a 5-slot array, or a 6-slot array with the last message's running hash appended
+     * @return a 5-slot array, or a 6-slot array with the last message's running hash appended, together with
+     *     the key of that 6th slot (empty when there is none)
      */
     @NonNull
-    private static byte[][] matchQueueSlotsByConnId(
+    private static MatchedSlots matchQueueSlotsByConnId(
             @NonNull final byte[][] slotKeys,
             @NonNull final byte[][] provenSlotValues,
             @NonNull final byte[] channelId32) {
@@ -1339,11 +1346,61 @@ public final class BesuQbftVerifier {
                                 + HEX.formatHex(channelId32));
             }
             out[SP_INDEX_LAST_MSG_RUNNING_HASH] = provenSlotValues[messageHashIdx];
+            return new MatchedSlots(out, slotKeys[messageHashIdx]);
         } else if (messageHashIdx >= 0) {
             throw ProofException.besuQbft("5-slot bundle proves a non-Channel storage slot 0x"
                     + HEX.formatHex(slotKeys[messageHashIdx]) + " for channelId 0x"
                     + HEX.formatHex(channelId32));
         }
+        return new MatchedSlots(out, new byte[0]);
+    }
+
+    /** The proven Channel slot values in decoding order, and the key of the optional 6th slot (empty if none). */
+    private record MatchedSlots(
+            @NonNull byte[][] values, @NonNull byte[] lastMessageSlotKey) {}
+
+    /**
+     * Finds the message whose running-hash slot is {@code lastMessageSlotKey32}: the last message L of a bundle
+     * of {@code messageCount} messages. The bundle's messages are not yet acknowledged by the sender, so L lies in
+     * {@code [ackedMessageId + messageCount, nextMessageId - 1]}; the search is bounded by the sender's proven
+     * queue and hits on its first probe when the bundle starts at {@code ackedMessageId + 1}. Mirrors the Solidity
+     * {@code ClprEvmBundleVerifier._findLastMessageId}.
+     *
+     * @param channelId32 the channel the slot must belong to
+     * @param lastMessageSlotKey32 the proven 6th slot's key
+     * @param ackedMessageId the sender's proven {@code ackedMessageId}
+     * @param nextMessageId the sender's proven {@code nextMessageId}
+     * @param messageCount the number of messages in the bundle
+     * @return L, or empty when no message in the range has that slot
+     */
+    @NonNull
+    public static OptionalLong findLastMessageId(
+            @NonNull final byte[] channelId32,
+            @NonNull final byte[] lastMessageSlotKey32,
+            final long ackedMessageId,
+            final long nextMessageId,
+            final int messageCount) {
+        Objects.requireNonNull(channelId32, "channelId32");
+        Objects.requireNonNull(lastMessageSlotKey32, "lastMessageSlotKey32");
+        if (messageCount <= 0 || ackedMessageId < 0 || lastMessageSlotKey32.length != 32) {
+            return OptionalLong.empty();
+        }
+        final byte[] queueBase =
+                MiscCryptoUtils.keccak256DigestOf(concat(channelId32, uint256Bytes(MESSAGE_QUEUES_MAPPING_SLOT)));
+        for (long id = ackedMessageId + messageCount; id > 0 && id < nextMessageId; id++) {
+            final byte[] messageBase = MiscCryptoUtils.keccak256DigestOf(concat(uint256Bytes(id), queueBase));
+            if (Arrays.equals(addToBytes32(messageBase, MESSAGE_OFFSET_RUNNING_HASH), lastMessageSlotKey32)) {
+                return OptionalLong.of(id);
+            }
+        }
+        return OptionalLong.empty();
+    }
+
+    /** {@code value} as a 32-byte big-endian ABI word. */
+    @NonNull
+    private static byte[] uint256Bytes(final long value) {
+        final byte[] out = new byte[32];
+        ByteBuffer.wrap(out, 24, Long.BYTES).putLong(value);
         return out;
     }
 
@@ -1399,7 +1456,18 @@ public final class BesuQbftVerifier {
      */
     @NonNull
     static QueueMetadata decodeQueueMetadata(@NonNull final byte[][] provenSlotValues) {
+        return decodeQueueMetadata(provenSlotValues, new byte[0]);
+    }
+
+    /**
+     * As {@link #decodeQueueMetadata(byte[][])}, also carrying the key of the optional 6th slot so the caller can
+     * bind it to a message id ({@link #findLastMessageId}).
+     */
+    @NonNull
+    static QueueMetadata decodeQueueMetadata(
+            @NonNull final byte[][] provenSlotValues, @NonNull final byte[] lastMessageSlotKey) {
         Objects.requireNonNull(provenSlotValues, "provenSlotValues");
+        Objects.requireNonNull(lastMessageSlotKey, "lastMessageSlotKey");
         if (provenSlotValues.length < STORAGE_PROOF_MIN_ENTRIES
                 || provenSlotValues.length > STORAGE_PROOF_MAX_ENTRIES) {
             throw ProofException.besuQbft("expected 5 or 6 proven slot values, got " + provenSlotValues.length);
@@ -1417,6 +1485,7 @@ public final class BesuQbftVerifier {
         final byte[] receivedIdSlot =
                 checkedCopy(provenSlotValues[SP_INDEX_CHANNEL_RECEIVED_MSG_ID], 32, "connReceivedMsgIdSlot");
         final long receivedMessageId = readUint64BigEndian(receivedIdSlot, 16);
+        final long ackedMessageId = readUint64BigEndian(receivedIdSlot, 24);
 
         final byte[] sentRunningHash =
                 checkedCopy(provenSlotValues[SP_INDEX_CHANNEL_SENT_RUNNING_HASH], 32, "sentRunningHash");
@@ -1440,7 +1509,9 @@ public final class BesuQbftVerifier {
                 receivedRunningHash,
                 status,
                 lastMsgRunningHash,
-                endpointManifestVersion);
+                endpointManifestVersion,
+                ackedMessageId,
+                lastMessageSlotKey);
     }
 
     /** Reads 8 bytes from {@code buf} starting at {@code offset} as a big-endian unsigned long. */
@@ -1527,6 +1598,10 @@ public final class BesuQbftVerifier {
      * @param endpointManifestVersion the peer Channel's {@code endpoint_manifest_version} (SC-189
      *     Channel offset 16) — the peer's cached view of our endpoint-manifest version; proven, so a
      *     relay cannot inflate it to suppress our manifest re-pushes (spec §4.5)
+     * @param ackedMessageId the peer's {@code ackedMessageId}: the highest of its outbound messages this ledger
+     *     has acknowledged; bounds the search for a partial bundle's last message
+     * @param lastMessageSlotKey the key of the optional 6th proven slot (the running-hash slot of the bundle's
+     *     last message), empty when the bundle ends at {@code nextMessageId - 1}
      */
     public record QueueMetadata(
             long nextMessageId,
@@ -1535,11 +1610,41 @@ public final class BesuQbftVerifier {
             @NonNull byte[] receivedRunningHash,
             int status,
             @NonNull byte[] lastMessageRunningHash,
-            long endpointManifestVersion) {
+            long endpointManifestVersion,
+            long ackedMessageId,
+            @NonNull byte[] lastMessageSlotKey) {
         public QueueMetadata {
             sentRunningHash = checkedCopy(sentRunningHash, 32, "sentRunningHash");
             receivedRunningHash = checkedCopy(receivedRunningHash, 32, "receivedRunningHash");
             lastMessageRunningHash = checkedCopy(lastMessageRunningHash, 32, "lastMessageRunningHash");
+            lastMessageSlotKey = Objects.requireNonNull(lastMessageSlotKey, "lastMessageSlotKey")
+                    .clone();
+        }
+
+        /** Queue metadata of a bundle that ends at {@code nextMessageId - 1} (no 6th slot). */
+        public QueueMetadata(
+                final long nextMessageId,
+                @NonNull final byte[] sentRunningHash,
+                final long receivedMessageId,
+                @NonNull final byte[] receivedRunningHash,
+                final int status,
+                @NonNull final byte[] lastMessageRunningHash,
+                final long endpointManifestVersion) {
+            this(
+                    nextMessageId,
+                    sentRunningHash,
+                    receivedMessageId,
+                    receivedRunningHash,
+                    status,
+                    lastMessageRunningHash,
+                    endpointManifestVersion,
+                    0L,
+                    new byte[0]);
+        }
+
+        @Override
+        public byte[] lastMessageSlotKey() {
+            return lastMessageSlotKey.clone();
         }
 
         @Override

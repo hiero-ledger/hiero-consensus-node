@@ -1231,6 +1231,59 @@ class BesuQbftVerifierTest {
     }
 
     @Nested
+    class FindLastMessageId {
+
+        private final byte[] channelId = findConnId(false);
+
+        @Test
+        void findsTheMessageWhoseRunningHashSlotIsGiven() {
+            // acked=3, next=10, 3 messages: L is searched in [6, 9].
+            for (long id = 6; id <= 9; id++) {
+                assertThat(BesuQbftVerifier.findLastMessageId(
+                                channelId, messageRunningHashSlot(channelId, id), 3L, 10L, 3))
+                        .hasValue(id);
+            }
+        }
+
+        @Test
+        void messageBelowTheSearchRangeIsNotFound() {
+            // L = 5 would mean the bundle's first message (3) is already acknowledged by the sender.
+            assertThat(BesuQbftVerifier.findLastMessageId(channelId, messageRunningHashSlot(channelId, 5L), 3L, 10L, 3))
+                    .isEmpty();
+        }
+
+        @Test
+        void messageAtOrAboveNextMessageIdIsNotFound() {
+            assertThat(BesuQbftVerifier.findLastMessageId(
+                            channelId, messageRunningHashSlot(channelId, 10L), 3L, 10L, 3))
+                    .isEmpty();
+        }
+
+        @Test
+        void slotOfAnotherChannelIsNotFound() {
+            final byte[] otherChannel = channelId.clone();
+            otherChannel[0] ^= (byte) 0xFF;
+            assertThat(BesuQbftVerifier.findLastMessageId(
+                            channelId, messageRunningHashSlot(otherChannel, 6L), 3L, 10L, 3))
+                    .isEmpty();
+        }
+
+        @Test
+        void slotOfAnotherMessageFieldIsNotFound() {
+            // The slot right after the running hash belongs to the same message but is another field.
+            final byte[] otherField = plusOffset(messageRunningHashSlot(channelId, 6L), 1);
+            assertThat(BesuQbftVerifier.findLastMessageId(channelId, otherField, 3L, 10L, 3))
+                    .isEmpty();
+        }
+
+        @Test
+        void bundleWithoutMessagesHasNoLastMessage() {
+            assertThat(BesuQbftVerifier.findLastMessageId(channelId, messageRunningHashSlot(channelId, 6L), 3L, 10L, 0))
+                    .isEmpty();
+        }
+    }
+
+    @Nested
     class VerifyBundleExactConnIdMatching {
 
         private static final BesuQbftVerifier BUNDLE_SUBJECT =
@@ -1244,8 +1297,9 @@ class BesuQbftVerifierTest {
             byte[] vStatus = new byte[32]; // offset 1: nextMessageId=42, status=2
             ByteBuffer.wrap(vStatus, 3, 8).putLong(42L);
             vStatus[11] = 0x02;
-            byte[] vReceived = new byte[32]; // offset 2: receivedMessageId=7
+            byte[] vReceived = new byte[32]; // offset 2: receivedMessageId=7, ackedMessageId=5
             ByteBuffer.wrap(vReceived, 16, 8).putLong(7L);
+            ByteBuffer.wrap(vReceived, 24, 8).putLong(5L);
             byte[] vSent = new byte[32];
             vSent[0] = (byte) 0xAA; // offset 4
             byte[] vRecv = new byte[32];
@@ -1266,6 +1320,8 @@ class BesuQbftVerifierTest {
             assertThat(result.queueMetadata().receivedMessageId()).isEqualTo(7L);
             assertThat(result.queueMetadata().sentRunningHash()[0]).isEqualTo((byte) 0xAA);
             assertThat(result.queueMetadata().receivedRunningHash()[0]).isEqualTo((byte) 0xBB);
+            assertThat(result.queueMetadata().ackedMessageId()).isEqualTo(5L);
+            assertThat(result.queueMetadata().lastMessageSlotKey()).isEmpty();
         }
 
         @Test
@@ -1283,8 +1339,41 @@ class BesuQbftVerifierTest {
 
             var result = BUNDLE_SUBJECT.verifyBundle(bundle, validatorSet(VALIDATOR_ADDR), 0L, connId);
 
-            // The lone non-Channel slot is bound as the last message's running hash, not mis-mapped.
+            // The lone non-Channel slot is bound as the last message's running hash, not mis-mapped, and its key
+            // is exposed so the caller can bind it to a message id.
             assertThat(result.queueMetadata().lastMessageRunningHash()[0]).isEqualTo((byte) 0xCC);
+            assertThat(result.queueMetadata().lastMessageSlotKey()).isEqualTo(keys[5]);
+        }
+
+        @Test
+        void exactConnId_withRunningHashSlotOfAQueuedMessage_bindsToThatMessage() {
+            byte[] connId = findConnIdWithMessageSlot(6L);
+            byte[] base = connSlotBase(connId);
+            byte[] vStatus = new byte[32]; // nextMessageId=10
+            ByteBuffer.wrap(vStatus, 3, 8).putLong(10L);
+            byte[] vReceived = new byte[32]; // ackedMessageId=3
+            ByteBuffer.wrap(vReceived, 24, 8).putLong(3L);
+            byte[] vRunningHash = new byte[32];
+            vRunningHash[0] = (byte) 0xDD;
+            byte[][] keys = {
+                plusOffset(base, 1), plusOffset(base, 2), plusOffset(base, 4),
+                plusOffset(base, 5), plusOffset(base, 16), messageRunningHashSlot(connId, 6L)
+            };
+            byte[][] vals = {vStatus, vReceived, new byte[32], new byte[32], new byte[32], vRunningHash};
+            byte[] bundle = buildBundleWithSlots(keys, vals);
+
+            var metadata = BUNDLE_SUBJECT
+                    .verifyBundle(bundle, validatorSet(VALIDATOR_ADDR), 0L, connId)
+                    .queueMetadata();
+
+            assertThat(metadata.lastMessageRunningHash()[0]).isEqualTo((byte) 0xDD);
+            assertThat(BesuQbftVerifier.findLastMessageId(
+                            connId,
+                            metadata.lastMessageSlotKey(),
+                            metadata.ackedMessageId(),
+                            metadata.nextMessageId(),
+                            3))
+                    .hasValue(6L);
         }
 
         @Test
@@ -2440,6 +2529,42 @@ class BesuQbftVerifierTest {
             }
         }
         throw new IllegalStateException("no collision-free channelId found");
+    }
+
+    /** A 32-byte channelId whose Channel slots and the running-hash slot of message {@code id} have distinct nibbles. */
+    private static byte[] findConnIdWithMessageSlot(final long id) {
+        for (int seed = 1; seed < 4096; seed++) {
+            byte[] connId = new byte[32];
+            ByteBuffer.wrap(connId, 24, 8).putLong(seed);
+            byte[] base = connSlotBase(connId);
+            byte[][] keys = {
+                plusOffset(base, 1), plusOffset(base, 2), plusOffset(base, 4),
+                plusOffset(base, 5), plusOffset(base, 16), messageRunningHashSlot(connId, id)
+            };
+            try {
+                buildStorageMpt(keys, new byte[6][32]);
+                return connId;
+            } catch (IllegalArgumentException nibbleClash) {
+                // try next seed
+            }
+        }
+        throw new IllegalStateException("no collision-free channelId found");
+    }
+
+    /** The running-hash slot of message {@code id}: {@code keccak256(id ‖ keccak256(channelId ‖ 1)) + 1}. */
+    private static byte[] messageRunningHashSlot(final byte[] channelId, final long id) {
+        final byte[] mappingSlot = new byte[32];
+        mappingSlot[31] = 1;
+        final byte[] queueBase = MiscCryptoUtils.keccak256DigestOf(concatBytes(channelId, mappingSlot));
+        final byte[] idWord = new byte[32];
+        ByteBuffer.wrap(idWord, 24, 8).putLong(id);
+        return plusOffset(MiscCryptoUtils.keccak256DigestOf(concatBytes(idWord, queueBase)), 1);
+    }
+
+    private static byte[] concatBytes(final byte[] a, final byte[] b) {
+        final byte[] out = Arrays.copyOf(a, a.length + b.length);
+        System.arraycopy(b, 0, out, a.length, b.length);
+        return out;
     }
 
     private static byte[] buildBundleStorageEntry(byte[] slotKey32, byte[][] proofNodes) {
