@@ -259,7 +259,7 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                             .map(Integer::parseInt)
                             .orElse(CLASSIC_HAPI_TEST_NETWORK_SIZE);
             final var initialPortProperty = System.getProperty("hapi.spec.initial.port");
-            if (!initialPortProperty.isBlank()) {
+            if (initialPortProperty != null && !initialPortProperty.isBlank()) {
                 final var initialPort = Integer.parseInt(initialPortProperty);
                 SubProcessNetwork.initializeNextPortsForNetwork(networkSize, initialPort);
             }

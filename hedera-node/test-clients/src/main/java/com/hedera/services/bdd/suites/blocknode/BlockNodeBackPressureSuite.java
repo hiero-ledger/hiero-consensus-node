@@ -212,7 +212,7 @@ public class BlockNodeBackPressureSuite {
                 // matter how long it polls. An acknowledgement proves the connection is up and the
                 // buffer is draining, so the saturation asserted below is caused by the shutdown.
                 awaitBlockNodeCommsLogContainsText(
-                        byNodeId(0), "BlockAcknowledgement received for block", Duration.ofMinutes(2)),
+                        byNodeId(0), "Acknowledgement received for block", Duration.ofMinutes(2)),
                 doingContextual(spec -> time.set(Instant.now())),
                 blockNode(0).shutDownImmediately(),
                 // With REAL block nodes (Docker containers), shutdown takes ~15s before the
