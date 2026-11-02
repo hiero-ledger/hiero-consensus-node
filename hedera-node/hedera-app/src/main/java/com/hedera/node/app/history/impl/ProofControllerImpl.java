@@ -3,6 +3,7 @@ package com.hedera.node.app.history.impl;
 
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
+import static com.hedera.node.app.history.HistoryLibrary.MAX_ADDRESS_BOOK_SIZE;
 import static com.hedera.node.app.history.HistoryLibrary.MISSING_SCHNORR_KEY;
 import static com.hedera.node.app.history.HistoryService.isCompleted;
 import static com.hedera.node.app.history.impl.ProofControllers.groundsChainOfTrust;
@@ -39,12 +40,16 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.SortedSet;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import org.apache.logging.log4j.LogManager;
@@ -55,6 +60,8 @@ import org.apache.logging.log4j.Logger;
  */
 public class ProofControllerImpl implements ProofController {
     private static final Logger log = LogManager.getLogger(ProofControllerImpl.class);
+    private static final Comparator<ProofKeyPublication> PUBLICATION_ORDER =
+            Comparator.comparing(ProofKeyPublication::adoptionTime).thenComparingLong(ProofKeyPublication::nodeId);
 
     private final long selfId;
 
@@ -77,6 +84,8 @@ public class ProofControllerImpl implements ProofController {
     private final HistoryProof sourceProof;
 
     private final Map<Long, ExplicitProofVote> votes = new TreeMap<>();
+    // The latest proof key publication from each target node; the target proof keys are selected from these
+    private final Map<Long, ProofKeyPublication> targetProofKeyPublications = new TreeMap<>();
     private final Map<Long, Bytes> targetProofKeys = new TreeMap<>();
     private final Map<ProofValidationKey, Boolean> proofTagValidations = new HashMap<>();
 
@@ -104,11 +113,11 @@ public class ProofControllerImpl implements ProofController {
     private Bytes targetMetadata;
 
     /**
-     * If not null, the history this construction grounds a chain of trust in, as expected from this node's
-     * view of the target roster and proof keys; only set for a construction that grounds a chain of trust.
+     * If not null, the target history this construction's proof must commit to, as expected from this node's
+     * view of the target roster and proof keys.
      */
     @Nullable
-    private History expectedGroundingHistory;
+    private History expectedTargetHistory;
 
     private static class ExplicitProofVote {
         private final Bytes tag;
@@ -245,10 +254,11 @@ public class ProofControllerImpl implements ProofController {
                             ? asInstant(construction.assemblyStartTimeOrThrow())
                             : Instant.MAX;
             keyPublications.forEach(publication -> {
-                if (!publication.adoptionTime().isAfter(cutoffTime)) {
-                    maybeUpdateForProofKey(publication);
+                if (!publication.adoptionTime().isAfter(cutoffTime) && weights.targetIncludes(publication.nodeId())) {
+                    targetProofKeyPublications.put(publication.nodeId(), publication);
                 }
             });
+            selectTargetProofKeys();
             this.prover = createProver(tssConfig);
             wrapsMessagePublications.stream().sorted().forEach(publication -> requireNonNull(prover)
                     .replayWrapsSigningMessage(constructionId(), publication));
@@ -278,6 +288,8 @@ public class ProofControllerImpl implements ProofController {
         requireNonNull(now);
         requireNonNull(historyStore);
         requireNonNull(tssConfig);
+        // Handling transactions can change the construction, so start from state like a newly built controller
+        construction = historyStore.getConstructionOrThrow(constructionId());
         if (keyProvenanceBinding != null
                 && metadata != null
                 && !keyProvenanceBinding.targetVerificationKey().equals(metadata)) {
@@ -287,7 +299,8 @@ public class ProofControllerImpl implements ProofController {
         historyProofMetrics.observeStage(constructionId(), currentStage(metadata), now);
         try {
             if (construction.hasFailureReason()) {
-                if (!retryIfRecoverableFailure(construction.failureReasonOrThrow(), historyStore, tssConfig)) {
+                if (!retryIfRecoverableFailure(
+                        construction.failureReasonOrThrow(), Set.of(), historyStore, tssConfig, now)) {
                     return;
                 }
             }
@@ -328,8 +341,12 @@ public class ProofControllerImpl implements ProofController {
                     construction = historyStore.getConstructionOrThrow(constructionId());
                 case HistoryProver.Outcome.Completed completed -> finishProof(historyStore, completed.proof(), now);
                 case HistoryProver.Outcome.Failed failed -> {
-                    if (!retryIfRecoverableFailure(failed.reason(), historyStore, tssConfig)) {
+                    if (!retryIfRecoverableFailure(
+                            failed.reason(), failed.missingNodeIds(), historyStore, tssConfig, now)) {
                         log.warn("Failed construction #{} due to {}", constructionId(), failed.reason());
+                        // Keep the exclusions a retry would have used, in case the retry budget is raised later
+                        historyStore.excludeFromWrapsSigning(
+                                constructionId(), excludedNodeIdsAfter(failed.missingNodeIds()));
                         construction = historyStore.failForReason(constructionId(), failed.reason());
                     }
                 }
@@ -342,8 +359,11 @@ public class ProofControllerImpl implements ProofController {
     @Override
     public void addProofKeyPublication(@NonNull final ProofKeyPublication publication) {
         requireNonNull(publication);
-        // Once the assembly start time (or proof) is known, the proof keys are fixed
-        if (!construction.hasGracePeriodEndTime()) {
+        // Once assembly starts, only keys adopted by its cutoff count, as for a controller rebuilt from state; the
+        // cutoff can be the end of the round assembly started in, so keys adopted in that round arrive after it starts
+        if (!construction.hasGracePeriodEndTime()
+                && (!construction.hasProofKeyCutoffTime()
+                        || publication.adoptionTime().isAfter(asInstant(construction.proofKeyCutoffTimeOrThrow())))) {
             return;
         }
         maybeUpdateForProofKey(publication);
@@ -355,9 +375,14 @@ public class ProofControllerImpl implements ProofController {
             @NonNull final WritableHistoryStore writableHistoryStore) {
         requireNonNull(publication);
         requireNonNull(writableHistoryStore);
+        // The prover can exclude a sender while handling transactions, so read the exclusions from state
         if (construction.hasTargetProof()
                 || targetMetadata == null
-                || (!construction.hasAssemblyStartTime() && !construction.hasWrapsSigningState())) {
+                || (!construction.hasAssemblyStartTime() && !construction.hasWrapsSigningState())
+                || writableHistoryStore
+                        .getConstructionOrThrow(constructionId())
+                        .wrapsExcludedNodeIds()
+                        .contains(publication.nodeId())) {
             return false;
         }
         return requireNonNull(prover).addWrapsSigningMessage(constructionId(), publication, writableHistoryStore);
@@ -567,44 +592,42 @@ public class ProofControllerImpl implements ProofController {
      */
     private Bytes ledgerIdToProve(@NonNull final ReadableHistoryStore historyStore, @NonNull final Bytes metadata) {
         if (groundsChainOfTrust(construction)) {
-            final var groundingHistory = expectedGroundingHistory(metadata);
+            final var groundingHistory = expectedTargetHistory(metadata);
             return groundingHistory == null ? Bytes.EMPTY : historyLibrary.ledgerIdOf(groundingHistory);
         }
         return Optional.ofNullable(historyStore.getLedgerId()).orElse(Bytes.EMPTY);
     }
 
     /**
-     * Returns the history this construction grounds a chain of trust in, if this node can compute it; that is,
+     * Returns the target history this construction's proof must commit to, if this node can compute it; that is,
      * the hash of the target address book with every target node's proof key (or the sentinel key for a node that
-     * did not publish one in time), paired with the given target metadata.
+     * did not publish one in time), paired with the given target metadata. For a construction that grounds a chain
+     * of trust, this is the history that determines the new ledger id.
      *
      * @param metadata the target metadata
      * @return the expected history, or null if it cannot be computed
      */
-    private @Nullable History expectedGroundingHistory(@NonNull final Bytes metadata) {
+    private @Nullable History expectedTargetHistory(@NonNull final Bytes metadata) {
         if (Bytes.EMPTY.equals(metadata)) {
             return null;
         }
-        if (expectedGroundingHistory == null
-                || !expectedGroundingHistory.metadata().equals(metadata)) {
-            final var targetBook = AddressBook.from(weights.targetNodeWeights(), nodeId -> targetProofKeys
-                    .getOrDefault(nodeId, MISSING_SCHNORR_KEY)
-                    .toByteArray());
+        if (expectedTargetHistory == null || !expectedTargetHistory.metadata().equals(metadata)) {
             try {
-                expectedGroundingHistory =
-                        new History(Bytes.wrap(historyLibrary.hashAddressBook(targetBook)), metadata);
+                expectedTargetHistory =
+                        new History(Bytes.wrap(historyLibrary.hashAddressBook(targetAddressBook())), metadata);
             } catch (IllegalArgumentException e) {
-                log.warn("Unable to compute the history grounded by construction #{}", constructionId(), e);
+                log.warn("Unable to compute the target history of construction #{}", constructionId(), e);
                 return null;
             }
         }
-        return expectedGroundingHistory;
+        return expectedTargetHistory;
     }
 
     /**
-     * Returns whether the given explicit vote's proof establishes the given metadata in the chain of trust of the
-     * given ledger id; and, for a construction that grounds a chain of trust, whether its target history is the
-     * one this node expects (since that history determines the new ledger id).
+     * Returns whether the given explicit vote's proof commits to the target history and proof keys this node
+     * expects, and establishes the given metadata in the chain of trust of the given ledger id. (The next
+     * construction takes its source proof keys from the adopted proof; and a proof that grounds a chain of
+     * trust also determines the new ledger id.)
      *
      * @param vote the explicit vote
      * @param ledgerId the ledger id
@@ -622,12 +645,16 @@ public class ProofControllerImpl implements ProofController {
             if (!hasValidKeyProvenance(proof, metadata)) {
                 return false;
             }
-            if (groundsChainOfTrust(construction)
-                    && !proof.targetHistoryOrElse(History.DEFAULT).equals(expectedGroundingHistory(metadata))) {
+            final var expectedHistory = expectedTargetHistory(metadata);
+            if (!proof.targetHistoryOrElse(History.DEFAULT).equals(expectedHistory)) {
                 log.info(
-                        "INVALID proof grounding a chain of trust in unexpected history {} (expected {})",
+                        "INVALID proof of unexpected target history {} (expected {})",
                         proof.targetHistory(),
-                        expectedGroundingHistory(metadata));
+                        expectedHistory);
+                return false;
+            }
+            if (!proof.targetProofKeys().equals(HistoryProver.proofKeyListFrom(targetProofKeys))) {
+                log.info("INVALID proof of unexpected target proof keys for construction #{}", constructionId());
                 return false;
             }
             final var compressedProof = vote.compressedProofOrEmpty();
@@ -655,46 +682,85 @@ public class ProofControllerImpl implements ProofController {
 
     /**
      * If the given failure reason is recoverable and retry budget remains, restarts WRAPS signing for this
-     * construction and reinitializes in-memory prover state.
+     * construction and reinitializes in-memory prover state. Later attempts ignore the given missing nodes, as long
+     * as the other source nodes with proof keys can still reach the R1 threshold; and while any nodes are ignored,
+     * the restarted R1 has a grace period, after which the next attempt ignores no nodes.
      *
      * @param reason the failure reason
+     * @param missingNodeIds the ids of R1 participants whose later messages never arrived
      * @param historyStore the writable history store
      * @param tssConfig the TSS configuration
+     * @param now the current consensus time
      * @return whether a retry was started
      */
     private boolean retryIfRecoverableFailure(
             @NonNull final String reason,
+            @NonNull final Set<Long> missingNodeIds,
             @NonNull final WritableHistoryStore historyStore,
-            @NonNull final TssConfig tssConfig) {
+            @NonNull final TssConfig tssConfig,
+            @NonNull final Instant now) {
         requireNonNull(reason);
+        requireNonNull(missingNodeIds);
         requireNonNull(historyStore);
         requireNonNull(tssConfig);
+        requireNonNull(now);
         if (!WrapsHistoryProver.isRecoverableFailure(reason)) {
             return false;
         }
         final int maxWrapsRetries = tssConfig.maxWrapsRetries();
         if (construction.wrapsRetryCount() >= maxWrapsRetries) {
-            log.warn(
-                    "Construction #{} exhausted WRAPS retry budget ({}) after recoverable failure '{}'",
-                    constructionId(),
-                    maxWrapsRetries,
-                    reason);
+            // A failure already in state is found again every round, so only warn when it first happens
+            if (!construction.hasFailureReason()) {
+                log.warn(
+                        "Construction #{} exhausted WRAPS retry budget ({}) after recoverable failure '{}'",
+                        constructionId(),
+                        maxWrapsRetries,
+                        reason);
+            }
             return false;
         }
         if (prover != null) {
             prover.cancelPendingWork();
         }
-        construction = historyStore.restartWrapsSigning(constructionId(), weights.sourceNodeIds());
+        final SortedSet<Long> excludedNodeIds = reason.startsWith(WrapsHistoryProver.R1_TIMEOUT_FAILURE_PREFIX)
+                ? new TreeSet<>()
+                : excludedNodeIdsAfter(missingNodeIds);
+        final var r1GracePeriodEndTime =
+                excludedNodeIds.isEmpty() ? null : now.plus(tssConfig.wrapsMessageGracePeriod());
+        construction = historyStore.restartWrapsSigning(
+                constructionId(), weights.sourceNodeIds(), excludedNodeIds, r1GracePeriodEndTime);
         proofTagValidations.clear();
         historyProofMetrics.recordRetryStarted();
         prover = createProver(tssConfig);
         log.warn(
-                "Restarted WRAPS signing for construction #{} (retry {}/{}) after recoverable failure '{}'",
+                "Restarted WRAPS signing for construction #{} (retry {}/{}) after recoverable failure '{}'"
+                        + " (excluded nodes {})",
                 constructionId(),
                 construction.wrapsRetryCount(),
                 maxWrapsRetries,
-                reason);
+                reason,
+                excludedNodeIds);
         return true;
+    }
+
+    /**
+     * Returns the source nodes to exclude from the next attempt at signing: the ones already excluded, plus the given
+     * missing nodes if the other source nodes with proof keys still have enough weight to complete R1 without them.
+     *
+     * @param missingNodeIds the ids of R1 participants whose later messages never arrived
+     * @return the ids of the nodes to exclude
+     */
+    private SortedSet<Long> excludedNodeIdsAfter(@NonNull final Set<Long> missingNodeIds) {
+        final var excludedNodeIds = new TreeSet<>(construction.wrapsExcludedNodeIds());
+        // Every node was excluded only if the rest could still complete R1, so the exclusions so far can stay
+        if (excludedNodeIds.containsAll(missingNodeIds)) {
+            return excludedNodeIds;
+        }
+        final var withMissing = new TreeSet<>(excludedNodeIds);
+        withMissing.addAll(missingNodeIds);
+        return WrapsHistoryProver.canCompleteR1Without(withMissing, weights, sourceProofKeys())
+                ? withMissing
+                : excludedNodeIds;
     }
 
     /**
@@ -721,7 +787,10 @@ public class ProofControllerImpl implements ProofController {
      * Ensures this node has published its proof key.
      */
     private void ensureProofKeyPublished() {
-        if (publicationFuture == null && weights.targetIncludes(selfId) && !targetProofKeys.containsKey(selfId)) {
+        // A key in state that differs from this node's key (e.g., after losing its key file) cannot sign for it
+        if (publicationFuture == null
+                && weights.targetIncludes(selfId)
+                && !schnorrKeyPair.publicKey().equals(targetProofKeys.get(selfId))) {
             log.info("Publishing Schnorr key for construction #{}", construction.constructionId());
             publicationFuture = CompletableFuture.runAsync(
                             () -> submissions
@@ -744,8 +813,73 @@ public class ProofControllerImpl implements ProofController {
         if (!weights.targetIncludes(nodeId)) {
             return;
         }
-        targetProofKeys.put(nodeId, publication.proofKey());
-        expectedGroundingHistory = null;
+        final boolean comesLast = targetProofKeyPublications.values().stream()
+                .allMatch(other -> PUBLICATION_ORDER.compare(other, publication) < 0);
+        if (targetProofKeyPublications.put(nodeId, publication) == null && comesLast) {
+            // Since keys are selected in order, a key that comes last only needs checking against those selected
+            maybeSelect(publication);
+            expectedTargetHistory = null;
+            proofTagValidations.clear();
+        } else {
+            selectTargetProofKeys();
+        }
+    }
+
+    /**
+     * Selects the target proof keys from the latest publication of each target node, in order of adoption time
+     * and then node id, skipping any key the target address book cannot be hashed with (an invalid key, or a copy
+     * of a key already selected). The selection depends only on the publications, so given the same publications
+     * it is the same live as when rebuilt from state.
+     */
+    private void selectTargetProofKeys() {
+        final var publications = targetProofKeyPublications.values().stream()
+                .sorted(PUBLICATION_ORDER)
+                .toList();
+        targetProofKeys.clear();
+        publications.forEach(publication -> targetProofKeys.put(publication.nodeId(), publication.proofKey()));
+        // Only when some key cannot be used do we need to check the keys one at a time
+        if (!publications.isEmpty() && !canHashTargetAddressBook()) {
+            targetProofKeys.clear();
+            publications.forEach(this::maybeSelect);
+        }
+        expectedTargetHistory = null;
+        proofTagValidations.clear();
+    }
+
+    /**
+     * Selects the given publication's key if the target address book can still be hashed with it.
+     */
+    private void maybeSelect(@NonNull final ProofKeyPublication publication) {
+        targetProofKeys.put(publication.nodeId(), publication.proofKey());
+        if (!canHashTargetAddressBook()) {
+            targetProofKeys.remove(publication.nodeId());
+            log.warn(
+                    "Ignoring proof key from node{} for construction #{} (invalid, or already used)",
+                    publication.nodeId(),
+                    constructionId());
+        }
+    }
+
+    private boolean canHashTargetAddressBook() {
+        // No keys make a too-large target address book usable, so leave that failure to the prover
+        if (weights.targetNodeWeights().size() > MAX_ADDRESS_BOOK_SIZE) {
+            return true;
+        }
+        try {
+            historyLibrary.hashAddressBook(targetAddressBook());
+            return true;
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+    }
+
+    /**
+     * Returns the target address book, with the sentinel key for each target node without a proof key.
+     */
+    private AddressBook targetAddressBook() {
+        return AddressBook.from(weights.targetNodeWeights(), nodeId -> targetProofKeys
+                .getOrDefault(nodeId, MISSING_SCHNORR_KEY)
+                .toByteArray());
     }
 
     /**
@@ -758,19 +892,25 @@ public class ProofControllerImpl implements ProofController {
     }
 
     private HistoryProver createProver(@NonNull final TssConfig tssConfig) {
-        final Map<Long, Bytes> sourceProofKeys = sourceProof == null
-                ? targetProofKeys
-                : sourceProof.targetProofKeys().stream().collect(toMap(ProofKey::nodeId, ProofKey::key));
         return proverFactory.create(
                 selfId,
                 tssConfig,
                 schnorrKeyPair,
                 sourceProof,
                 weights,
-                sourceProofKeys,
+                sourceProofKeys(),
                 executor,
                 historyLibrary,
                 submissions);
+    }
+
+    /**
+     * Returns the proof keys of the source nodes, which sign the target history.
+     */
+    private Map<Long, Bytes> sourceProofKeys() {
+        return sourceProof == null
+                ? targetProofKeys
+                : sourceProof.targetProofKeys().stream().collect(toMap(ProofKey::nodeId, ProofKey::key));
     }
 
     private HistoryProofMetrics.Stage currentStage(@Nullable final Bytes metadata) {
