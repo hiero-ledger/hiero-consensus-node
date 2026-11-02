@@ -308,9 +308,10 @@ public class BlockNodeSimSuite {
                         byNodeId(0), "Received ResendBlock response for block ", Duration.ofSeconds(30)),
                 waitUntilNextBlocks(2).withBackgroundTraffic(true),
 
-                // BehindPublisher for a buffered block -> switch to N+1 in place (no reconnect).
+                // BehindPublisher one below the last verified block -> in-place switch to the last verified block,
+                // which is always buffered (lastVerified + 1 may not be open yet right after a block boundary).
                 blockNode(0).getLastVerifiedBlockExposing(lastVerified),
-                sourcingContextual(spec -> blockNode(0).sendNodeBehindPublisherImmediately(lastVerified.get())),
+                sourcingContextual(spec -> blockNode(0).sendNodeBehindPublisherImmediately(lastVerified.get() - 1)),
                 awaitBlockNodeCommsLogContainsText(
                         byNodeId(0), "Received BehindPublisher response for block ", Duration.ofSeconds(30)),
                 awaitBlockNodeCommsLogContainsText(
