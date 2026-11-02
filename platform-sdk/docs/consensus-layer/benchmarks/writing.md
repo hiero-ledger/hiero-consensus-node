@@ -75,7 +75,8 @@ Its Javadoc shows the pattern: `startMeasurement()`, `lap()` after each call, `s
   two calls; keep that work small.
 - **Pause the recorder around work that must not count,** such as calls of the code under test that another benchmark
   method measures: `pause()` right after a `lap()`, `resume()` right before the next measured call. The paused work
-  counts neither in a latency nor in `alloc.norm`, but JMH's primary score includes it.
+  counts neither in a latency nor in `alloc.norm`, but JMH's primary score includes it. Calling either in the wrong
+  state throws; a loop that pauses only where timed and untimed calls meet asks `isPaused()`.
 - **Do not use JMH's `Mode.SampleTime`.** It gets the slow calls wrong, and they matter most:
   - it times at most about 20 calls per millisecond, a random selection, which adds noise to the slow end;
   - when its buffer is full, it halves every count but keeps counts of 1, so rare slow calls weigh too much, and p99.99
