@@ -80,8 +80,10 @@ STATUS=0
 while IFS= read -r FILE; do
 	SAMPLES=$(grep -Evc '^[[:space:]]*(#|$)' "$FILE" || true)
 	BEFORE=$(drop_counters)
+	# -T streams the file; --data-binary @file would read all of it into
+	# memory first. -T defaults to PUT, hence -X POST.
 	curl -sS --fail-with-body -H 'Content-Type: text/plain' \
-		--data-binary @"$FILE" "$@" "$VM/api/v1/import/prometheus"
+		-T "$FILE" -X POST "$@" "$VM/api/v1/import/prometheus"
 	# Every sample is checked and counted before the 204 comes back, but
 	# VictoriaMetrics regenerates /metrics at most once a second, and the read
 	# above may have just cached it. Any read more than 1s after the 204 is

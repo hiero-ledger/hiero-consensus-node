@@ -123,8 +123,9 @@ cd hiero-observability/local-stack
   already running: this talks to the same `victoriametrics` service the live
   stack does. An unreadable source directory, a pattern that matches nothing
   and malformed labels all fail before anything is sent.
-- **Re-importing is safe.** The same series at the same timestamp is
-  deduplicated, so running a file twice does not double its samples. A
+- **Re-importing is safe.** VictoriaMetrics runs with
+  `-dedup.minScrapeInterval=1ms`, so the same series at the same timestamp
+  is stored once and running a file twice does not double its samples. A
   different label set creates separate series, which is how two runs or
   nodes stay apart.
 - **Why the import API instead of a scrape.** A scrape stamps every sample
@@ -534,7 +535,10 @@ own Compose project, its own ephemeral host ports), feeds it purpose-built
 fixtures, and asserts that metric names, static labels, stream labels,
 `log_name` derivation, multi-line grouping, real (not ingestion-time)
 timestamps, an old entry's queryability, and `import-logs.sh`'s explicit
-labels all survive the pipeline intact, then tears itself down, including
+labels all survive the pipeline intact. It also runs `import-metrics.sh`
+twice on one file and checks the samples kept their timestamps and labels and
+were stored once, and that an import past retention or with invalid labels
+fails. Then it tears itself down, including
 its volumes. This is the whole point of the exercise: it queries metric
 names like `selftest_requests_total` and camelCase
 `selftest_blockStream_round_duration_seconds` **exactly**, so anything that
