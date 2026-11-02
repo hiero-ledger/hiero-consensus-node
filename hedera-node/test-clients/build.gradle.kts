@@ -82,6 +82,8 @@ mainModuleInfo {
     runtimeOnly("org.junit.platform.launcher")
 }
 
+testModuleInfo { requires("org.junit.jupiter.params") }
+
 sourceSets { create("rcdiff") }
 
 val unitTest =
