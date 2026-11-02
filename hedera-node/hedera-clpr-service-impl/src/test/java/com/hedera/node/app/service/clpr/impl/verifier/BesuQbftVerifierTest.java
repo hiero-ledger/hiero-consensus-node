@@ -14,7 +14,6 @@ import com.hedera.node.app.hapi.utils.EthSigsUtils;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.sun.jna.ptr.IntByReference;
-import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -26,8 +25,7 @@ import org.junit.jupiter.api.Test;
 
 class BesuQbftVerifierTest {
 
-    private static final BesuQbftVerifier SUBJECT =
-            new BesuQbftVerifier(new BesuQbftVerifier.Config(null, null, 30_000L));
+    private static final BesuQbftVerifier SUBJECT = new BesuQbftVerifier(new BesuQbftVerifier.Config(null, null));
 
     // Deterministic secp256k1 test key pairs
     private static final byte[] VALIDATOR_PRIV = {
@@ -64,6 +62,15 @@ class BesuQbftVerifierTest {
 
     static {
         SERVICE_ADDR_STORAGE_SLOT[31] = (byte) 25;
+    }
+
+    // Block number of the headers built by buildRlpHeader: after the test hops (30_000, 60_000).
+    private static final long CURRENT_BLOCK_NUMBER = 100_000L;
+
+    // Bundle field 1, the validator source: RLP([trustedSet, hops]). The trusted set is sent empty; the
+    // native trust anchor holds the full set.
+    private static byte[] validatorSource(List<byte[]> hops) {
+        return Rlp.encodeList(List.of(Rlp.encodeList(List.of()), Rlp.encodeList(hops)));
     }
 
     // Convenience: encode a validator set from varargs addresses
@@ -137,7 +144,9 @@ class BesuQbftVerifierTest {
         }
 
         @Test
-        void missingGenesisBlockHeader_throwsProofException() {
+        void genesisBlockHeaderIsNotRequired() {
+            // The initial set comes from the current header itself: a payload without a genesis header gets
+            // past the header checks and fails only at the (absent) seals of the current header.
             byte[] payload = serialize(ClprQbftLedgerConfigurationPayload.newBuilder()
                     .currentBlockHeader(header(buildGenesisHeader(VALIDATOR_ADDR)))
                     .ledgerConfiguration(ledgerConfig(SERVICE_ADDR))
@@ -145,7 +154,7 @@ class BesuQbftVerifierTest {
 
             assertThatThrownBy(() -> SUBJECT.verifyConfigPayload(payload))
                     .isInstanceOf(ProofException.class)
-                    .hasMessageContaining("genesisBlockHeader is missing or empty");
+                    .hasMessageContaining("expected at least 1 committed seal");
         }
 
         @Test
@@ -174,7 +183,7 @@ class BesuQbftVerifierTest {
         }
 
         @Test
-        void genesisHeaderTooFewRlpFields_throwsProofException() {
+        void configHeaderTooFewRlpFields_throwsProofException() {
             byte[] tooShort = buildRlpHeader(new byte[32], buildQbftExtra(List.of(VALIDATOR_ADDR), List.of()), 14);
             byte[] payload = serialize(ClprQbftLedgerConfigurationPayload.newBuilder()
                     .genesisBlockHeader(header(tooShort))
@@ -184,11 +193,11 @@ class BesuQbftVerifierTest {
 
             assertThatThrownBy(() -> SUBJECT.verifyConfigPayload(payload))
                     .isInstanceOf(ProofException.class)
-                    .hasMessageContaining("genesisBlockHeader is not an RLP list of 15..23 fields");
+                    .hasMessageContaining("currentBlockHeader is not an RLP list of at least 15 fields");
         }
 
         @Test
-        void genesisHeaderTooManyRlpFields_throwsProofException() {
+        void configHeaderWithMoreThan23FieldsPassesTheFieldCheck() {
             byte[] tooLong = buildRlpHeader(new byte[32], buildQbftExtra(List.of(VALIDATOR_ADDR), List.of()), 24);
             byte[] payload = serialize(ClprQbftLedgerConfigurationPayload.newBuilder()
                     .genesisBlockHeader(header(tooLong))
@@ -196,9 +205,10 @@ class BesuQbftVerifierTest {
                     .ledgerConfiguration(ledgerConfig(SERVICE_ADDR))
                     .build());
 
+            // A future fork may append fields: no maximum, so the header fails only at its (absent) seals.
             assertThatThrownBy(() -> SUBJECT.verifyConfigPayload(payload))
                     .isInstanceOf(ProofException.class)
-                    .hasMessageContaining("genesisBlockHeader is not an RLP list of 15..23 fields");
+                    .hasMessageContaining("expected at least 1 committed seal");
         }
 
         @Test
@@ -213,7 +223,7 @@ class BesuQbftVerifierTest {
 
             assertThatThrownBy(() -> SUBJECT.verifyConfigPayload(payload))
                     .isInstanceOf(ProofException.class)
-                    .hasMessageContaining("currentBlockHeader is not an RLP list of 15..23 fields");
+                    .hasMessageContaining("currentBlockHeader is not an RLP list of at least 15 fields");
         }
 
         @Test
@@ -450,7 +460,7 @@ class BesuQbftVerifierTest {
             byte[] genesisHeader = buildGenesisHeader(VALIDATOR_ADDR);
             byte[] currentHeader = buildSignedHeader(VALIDATOR_ADDR, stateRoot, VALIDATOR_PRIV);
 
-            var strictVerifier = new BesuQbftVerifier(new BesuQbftVerifier.Config(null, expectedCodeHash, 30_000L));
+            var strictVerifier = new BesuQbftVerifier(new BesuQbftVerifier.Config(null, expectedCodeHash));
 
             byte[] payload = serialize(ClprQbftLedgerConfigurationPayload.newBuilder()
                     .genesisBlockHeader(header(genesisHeader))
@@ -472,27 +482,24 @@ class BesuQbftVerifierTest {
     @Nested
     class StorageProofTests {
         @Test
-        void zeroStorageProofEntries_throwsProofException() {
+        void configWithoutStorageProofsIsAccepted() {
+            // The service address is declared by the channel creator (trust on first use); a relay built to the
+            // QBFT verifier spec sends no storage proofs in the config payload.
             byte[] payload = payloadWithStorageEntries(List.of());
 
-            assertThatThrownBy(() -> SUBJECT.verifyConfigPayload(payload))
-                    .isInstanceOf(ProofException.class)
-                    .hasMessageContaining("clprServiceStorageProofs must contain at least 1 entry");
+            assertThat(SUBJECT.verifyConfigPayload(payload)).isNotNull();
         }
 
         @Test
-        void storageProofsWithNoServiceAddressSlotKey_throwsProofException() {
-            // Multiple entries are allowed, but at least one must have key == SERVICE_ADDR_STORAGE_SLOT.
+        void storageProofsWithoutTheServiceAddressSlotAreIgnored() {
+            // Only a proof of the serviceAddress slot is checked; entries for other slots are ignored.
             var entry = StorageProofEntry.newBuilder()
                     .key(Bytes.wrap(new byte[32])) // slot 0 — not the serviceAddress slot
                     .value(Bytes.EMPTY)
                     .build();
             byte[] payload = payloadWithStorageEntries(List.of(entry, entry));
 
-            assertThatThrownBy(() -> SUBJECT.verifyConfigPayload(payload))
-                    .isInstanceOf(ProofException.class)
-                    .hasMessageContaining(
-                            " clprServiceStorageProofs does not contain an entry for the serviceAddress slot");
+            assertThat(SUBJECT.verifyConfigPayload(payload)).isNotNull();
         }
 
         @Test
@@ -603,8 +610,8 @@ class BesuQbftVerifierTest {
         }
 
         @Test
-        void storageProofWithWrongSlotKey_throwsProofException() {
-            // A proof entry whose key doesn't match the expected slot must be rejected
+        void storageProofForAnotherSlotIsIgnored() {
+            // A proof entry whose key is not the serviceAddress slot is not checked
             byte[] correctSlotValue = serviceAddrSlotValue(SERVICE_ADDR);
             byte[] wrongSlot = new byte[32]; // slot 0, not slot 23
             byte[][] storageMpt = buildStorageMptProof(wrongSlot, correctSlotValue);
@@ -624,16 +631,14 @@ class BesuQbftVerifierTest {
                             .build()))
                     .build());
 
-            assertThatThrownBy(() -> SUBJECT.verifyConfigPayload(payload))
-                    .isInstanceOf(ProofException.class)
-                    .hasMessageContaining("does not contain an entry for the serviceAddress slot");
+            assertThat(SUBJECT.verifyConfigPayload(payload)).isNotNull();
         }
     }
 
     @Nested
     class SuccessPath {
         @Test
-        void trustAnchorAndIdDerivedFromGenesisHeader() {
+        void trustAnchorAndIdDerivedFromConfigHeader() {
             byte[] codeHash = new byte[32];
             byte[] correctSlotValue = serviceAddrSlotValue(SERVICE_ADDR);
             byte[][] storageMpt = buildStorageMptProof(SERVICE_ADDR_STORAGE_SLOT, correctSlotValue);
@@ -656,13 +661,13 @@ class BesuQbftVerifierTest {
 
             var result = SUBJECT.verifyConfigPayload(payload);
 
-            // Trust anchor = RLP([RLP([validatorAddr]), serviceAddr, codeHash])
-            // The validator set is encoded as a sorted RLP list.
+            // Trust anchor = RLP([mode, RLP([validatorAddr]), serviceAddr, codeHash, configBlockNumber]),
+            // id = the config header's block number, 8 bytes big-endian.
             byte[] expectedAnchor = qbftTrustAnchor(List.of(VALIDATOR_ADDR), SERVICE_ADDR, codeHash);
             assertThat(result.ledgerConfiguration().initialTrustAnchor().toByteArray())
                     .isEqualTo(expectedAnchor);
             assertThat(result.ledgerConfiguration().initialTrustAnchorId().toByteArray())
-                    .isEqualTo(BigInteger.ZERO.toByteArray());
+                    .isEqualTo(BesuQbftVerifier.trustAnchorId(CURRENT_BLOCK_NUMBER));
         }
 
         @Test
@@ -736,14 +741,114 @@ class BesuQbftVerifierTest {
             assertThat(result.ledgerConfiguration().initialTrustAnchor().toByteArray())
                     .isEqualTo(expectedAnchor);
             assertThat(result.ledgerConfiguration().initialTrustAnchorId().toByteArray())
-                    .isEqualTo(java.math.BigInteger.ZERO.toByteArray());
+                    .isEqualTo(BesuQbftVerifier.trustAnchorId(CURRENT_BLOCK_NUMBER));
         }
 
         @Test
-        void trustAnchorFromConfigPayloadIsDecodableAsThreeByteStrings() {
-            // This test exercises the full verifyConfigPayload -> trust-anchor-consumer path.
-            // BesuQBFTVerifyBundleCall.decodeRlpListOfByteStrings rejects nested RLP lists,
-            // so item 0 (the validator set) must be a byte string, not a list.
+        void trustAnchorRoundTrips() {
+            final var anchor = new BesuQbftVerifier.TrustAnchor(
+                    BesuQbftVerifier.encodeValidatorSet(List.of(VALIDATOR_ADDR, OTHER_ADDR)),
+                    SERVICE_ADDR,
+                    new byte[32],
+                    123_456L);
+            final var decoded = BesuQbftVerifier.TrustAnchor.decode(anchor.encode());
+            assertThat(decoded.validatorSetEncoded()).isEqualTo(anchor.validatorSetEncoded());
+            assertThat(decoded.serviceAddress20()).isEqualTo(SERVICE_ADDR);
+            assertThat(decoded.codeHash32()).isEqualTo(new byte[32]);
+            assertThat(decoded.anchorBlockNumber()).isEqualTo(123_456L);
+            assertThat(decoded.id()).isEqualTo(BesuQbftVerifier.trustAnchorId(123_456L));
+        }
+
+        @Test
+        void trustAnchorOfAnotherModeIsRejected() {
+            final byte[] contractMode = Rlp.encodeList(List.of(
+                    Rlp.encodeBytes(new byte[] {1}),
+                    Rlp.encodeBytes(BesuQbftVerifier.encodeValidatorSet(List.of(VALIDATOR_ADDR))),
+                    Rlp.encodeBytes(SERVICE_ADDR),
+                    Rlp.encodeBytes(new byte[32]),
+                    Rlp.encodeBytes(BesuQbftVerifier.trustAnchorId(1L))));
+            assertThatThrownBy(() -> BesuQbftVerifier.TrustAnchor.decode(contractMode))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("not header mode");
+        }
+
+        @Test
+        void trustAnchorInTheOldThreeItemFormatIsRejected() {
+            final byte[] legacy = Rlp.encodeList(List.of(
+                    Rlp.encodeBytes(BesuQbftVerifier.encodeValidatorSet(List.of(VALIDATOR_ADDR))),
+                    Rlp.encodeBytes(SERVICE_ADDR),
+                    Rlp.encodeBytes(new byte[32])));
+            assertThatThrownBy(() -> BesuQbftVerifier.TrustAnchor.decode(legacy))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("must be an RLP list of 5 items");
+        }
+
+        @Test
+        void trustAnchorWithAShortBlockNumberIsRejected() {
+            final byte[] shortBlockNumber = Rlp.encodeList(List.of(
+                    Rlp.encodeBytes(new byte[] {BesuQbftVerifier.TrustAnchor.HEADER_MODE}),
+                    Rlp.encodeBytes(BesuQbftVerifier.encodeValidatorSet(List.of(VALIDATOR_ADDR))),
+                    Rlp.encodeBytes(SERVICE_ADDR),
+                    Rlp.encodeBytes(new byte[32]),
+                    Rlp.encodeBytes(new byte[] {0x01})));
+            assertThatThrownBy(() -> BesuQbftVerifier.TrustAnchor.decode(shortBlockNumber))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("malformed");
+        }
+
+        @Test
+        void configHeaderBelowTheQuorumOfItsOwnListIsRejected() {
+            byte[] correctSlotValue = serviceAddrSlotValue(SERVICE_ADDR);
+            byte[][] storageMpt = buildStorageMptProof(SERVICE_ADDR_STORAGE_SLOT, correctSlotValue);
+            byte[][] accountProof = buildAccountMptProof(SERVICE_ADDR, storageMpt[0], new byte[32]);
+            // The header lists two validators (quorum 2) but only one sealed it.
+            byte[] currentHeader = buildSignedHeaderMultiSeal(
+                    List.of(VALIDATOR_ADDR, OTHER_ADDR), accountProof[0], List.of(VALIDATOR_PRIV));
+            byte[] payload = serialize(ClprQbftLedgerConfigurationPayload.newBuilder()
+                    .currentBlockHeader(header(currentHeader))
+                    .ledgerConfiguration(ledgerConfig(SERVICE_ADDR))
+                    .clprServiceAccountProof(List.of(Bytes.wrap(accountProof[1])))
+                    .clprServiceStorageProofs(List.of(StorageProofEntry.newBuilder()
+                            .key(Bytes.wrap(SERVICE_ADDR_STORAGE_SLOT))
+                            .value(Bytes.wrap(correctSlotValue))
+                            .proof(List.of(Bytes.wrap(storageMpt[1])))
+                            .build()))
+                    .build());
+
+            assertThatThrownBy(() -> SUBJECT.verifyConfigPayload(payload))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("expected at least 2 committed seals");
+        }
+
+        @Test
+        void configWithMoreThan23HeaderFieldsAndNoGenesisHeaderIsAccepted() {
+            byte[] codeHash = new byte[32];
+            byte[] correctSlotValue = serviceAddrSlotValue(SERVICE_ADDR);
+            byte[][] storageMpt = buildStorageMptProof(SERVICE_ADDR_STORAGE_SLOT, correctSlotValue);
+            byte[][] accountProof = buildAccountMptProof(SERVICE_ADDR, storageMpt[0], codeHash);
+            byte[] currentHeader =
+                    buildSignedHeaderMultiSeal(List.of(VALIDATOR_ADDR), accountProof[0], List.of(VALIDATOR_PRIV), 24);
+            byte[] payload = serialize(ClprQbftLedgerConfigurationPayload.newBuilder()
+                    .currentBlockHeader(header(currentHeader))
+                    .ledgerConfiguration(ledgerConfig(SERVICE_ADDR))
+                    .clprServiceAccountProof(List.of(Bytes.wrap(accountProof[1])))
+                    .clprServiceStorageProofs(List.of(StorageProofEntry.newBuilder()
+                            .key(Bytes.wrap(SERVICE_ADDR_STORAGE_SLOT))
+                            .value(Bytes.wrap(correctSlotValue))
+                            .proof(List.of(Bytes.wrap(storageMpt[1])))
+                            .build()))
+                    .build());
+
+            var result = SUBJECT.verifyConfigPayload(payload);
+
+            assertThat(result.ledgerConfiguration().initialTrustAnchor().toByteArray())
+                    .isEqualTo(qbftTrustAnchor(List.of(VALIDATOR_ADDR), SERVICE_ADDR, codeHash));
+        }
+
+        @Test
+        void trustAnchorFromConfigPayloadDecodesAsTrustAnchor() {
+            // This test exercises the full verifyConfigPayload -> trust-anchor-consumer path: the bundle call
+            // decodes the stored anchor with TrustAnchor.decode.
             byte[] codeHash = new byte[32];
             byte[] correctSlotValue = serviceAddrSlotValue(SERVICE_ADDR);
             byte[][] storageMpt = buildStorageMptProof(SERVICE_ADDR_STORAGE_SLOT, correctSlotValue);
@@ -769,26 +874,12 @@ class BesuQbftVerifierTest {
                     .initialTrustAnchor()
                     .toByteArray();
 
-            Rlp.Item outerList = Rlp.decodeOne(trustAnchor);
-            assertThat(outerList.isList()).isTrue();
-            assertThat(outerList.children()).hasSize(3);
-
-            // Item 0: validator set — must be a byte string (not a nested list)
-            Rlp.Item item0 = outerList.children().getFirst();
-            assertThat(item0.isList())
-                    .as("item 0 must be a byte string, not a nested RLP list")
-                    .isFalse();
-            assertThat(item0.asBytes()).isEqualTo(BesuQbftVerifier.encodeValidatorSet(List.of(VALIDATOR_ADDR)));
-
-            // Item 1: 20-byte contract address
-            Rlp.Item item1 = outerList.children().get(1);
-            assertThat(item1.isList()).isFalse();
-            assertThat(item1.asBytes()).isEqualTo(SERVICE_ADDR);
-
-            // Item 2: 32-byte code hash
-            Rlp.Item item2 = outerList.children().get(2);
-            assertThat(item2.isList()).isFalse();
-            assertThat(item2.asBytes()).hasSize(32);
+            final var decoded = BesuQbftVerifier.TrustAnchor.decode(trustAnchor);
+            assertThat(decoded.validatorSetEncoded())
+                    .isEqualTo(BesuQbftVerifier.encodeValidatorSet(List.of(VALIDATOR_ADDR)));
+            assertThat(decoded.serviceAddress20()).isEqualTo(SERVICE_ADDR);
+            assertThat(decoded.codeHash32()).hasSize(32);
+            assertThat(decoded.anchorBlockNumber()).isEqualTo(CURRENT_BLOCK_NUMBER);
         }
     }
 
@@ -796,7 +887,7 @@ class BesuQbftVerifierTest {
     class VerifyBundleTests {
 
         private static final BesuQbftVerifier BUNDLE_SUBJECT =
-                new BesuQbftVerifier(new BesuQbftVerifier.Config(SERVICE_ADDR, null, 30_000L));
+                new BesuQbftVerifier(new BesuQbftVerifier.Config(SERVICE_ADDR, null));
 
         @Test
         void contentWithoutChannelStorageProofIsRejected() {
@@ -806,14 +897,14 @@ class BesuQbftVerifierTest {
             final var signedHeader = buildSignedHeader(VALIDATOR_ADDR, accountProof[0], VALIDATOR_PRIV);
             final var proofFields = List.of(
                     signedHeader,
-                    Rlp.encodeList(List.of()),
+                    validatorSource(List.of()),
                     Rlp.encodeList(List.of(Rlp.encodeBytes(accountProof[1]))),
                     Rlp.encodeList(List.of()));
             for (final byte[] relayContent : List.of(new byte[] {1}, new byte[] {2, 3, 4})) {
                 final var fields = new ArrayList<>(proofFields);
                 fields.add(Rlp.encodeBytes(relayContent));
                 assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(
-                                Rlp.encodeList(fields), validatorSet(VALIDATOR_ADDR), CHANNEL_ID))
+                                Rlp.encodeList(fields), validatorSet(VALIDATOR_ADDR), 0L, CHANNEL_ID))
                         .isInstanceOf(ProofException.class)
                         .hasMessageContaining("content but no Channel storage proof");
             }
@@ -824,8 +915,8 @@ class BesuQbftVerifierTest {
             byte[] encodedStorageEntry = Rlp.encodeList(
                     List.of(Rlp.encodeBytes(new byte[32]), Rlp.encodeBytes(new byte[32]), Rlp.encodeList(List.of())));
             byte[] bundlePayload = buildBundlePayload(encodedStorageEntry);
-            assertThatThrownBy(
-                            () -> BUNDLE_SUBJECT.verifyBundle(bundlePayload, validatorSet(VALIDATOR_ADDR), CHANNEL_ID))
+            assertThatThrownBy(() ->
+                            BUNDLE_SUBJECT.verifyBundle(bundlePayload, validatorSet(VALIDATOR_ADDR), 0L, CHANNEL_ID))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("is not a [key, proof[]] RLP list");
         }
@@ -833,7 +924,7 @@ class BesuQbftVerifierTest {
         @Test
         void storageProofWithKeyAndProofParamEntriesAccepted() {
             byte[] bundlePayload = buildBundlePayloadWithStorageProof(emptyTrieChannelStorageProof());
-            var result = BUNDLE_SUBJECT.verifyBundle(bundlePayload, validatorSet(VALIDATOR_ADDR), CHANNEL_ID);
+            var result = BUNDLE_SUBJECT.verifyBundle(bundlePayload, validatorSet(VALIDATOR_ADDR), 0L, CHANNEL_ID);
             assertThat(result).isNotNull();
             assertThat(result.blockHash32()).hasSize(32);
         }
@@ -841,8 +932,8 @@ class BesuQbftVerifierTest {
         @Test
         void fourItemBundleRejected() {
             byte[] bundlePayload = buildLegacyFourItemBundlePayload(validStorageEntry());
-            assertThatThrownBy(
-                            () -> BUNDLE_SUBJECT.verifyBundle(bundlePayload, validatorSet(VALIDATOR_ADDR), CHANNEL_ID))
+            assertThatThrownBy(() ->
+                            BUNDLE_SUBJECT.verifyBundle(bundlePayload, validatorSet(VALIDATOR_ADDR), 0L, CHANNEL_ID))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("expected top-level RLP list of 5 or 7 items, got 4");
         }
@@ -859,11 +950,12 @@ class BesuQbftVerifierTest {
             byte[] accountProofRlp = Rlp.encodeList(List.of(Rlp.encodeBytes(accountProof[1])));
             byte[] emptyBundle = Rlp.encodeList(List.of(
                     signedHeader,
-                    Rlp.encodeList(List.of()), // epoch headers (empty)
+                    validatorSource(List.of()), // epoch headers (empty)
                     accountProofRlp,
                     Rlp.encodeList(List.of()), // queue storage proof EMPTY → absent queue metadata
                     Rlp.encodeBytes(new byte[0]))); // bundle content EMPTY
-            assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(emptyBundle, validatorSet(VALIDATOR_ADDR), CHANNEL_ID))
+            assertThatThrownBy(() ->
+                            BUNDLE_SUBJECT.verifyBundle(emptyBundle, validatorSet(VALIDATOR_ADDR), 0L, CHANNEL_ID))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("no queue metadata, no content, and no endpoint-manifest advance");
         }
@@ -883,14 +975,14 @@ class BesuQbftVerifierTest {
                     List.of(buildBundleStorageEntry(manifestCommitmentSlot(), new byte[][] {storageMpt[1]})));
             byte[] bundle = Rlp.encodeList(List.of(
                     signedHeader,
-                    Rlp.encodeList(List.of()), // epoch headers (empty)
+                    validatorSource(List.of()), // epoch headers (empty)
                     Rlp.encodeList(List.of(Rlp.encodeBytes(accountProof[1]))), // account proof
                     Rlp.encodeList(List.of()), // queue storage proof EMPTY → absent queue metadata
                     Rlp.encodeBytes(new byte[0]), // bundle content EMPTY
                     manifestStorageProof, // manifest commitment-slot storage proof
                     Rlp.encodeBytes(preimage))); // manifest preimage
 
-            var result = BUNDLE_SUBJECT.verifyBundle(bundle, validatorSet(VALIDATOR_ADDR), CHANNEL_ID);
+            var result = BUNDLE_SUBJECT.verifyBundle(bundle, validatorSet(VALIDATOR_ADDR), 0L, CHANNEL_ID);
 
             assertThat(result.bundleContentBytes()).isEmpty();
             assertThat(result.newEndpointManifestBytes()).isEqualTo(preimage);
@@ -922,7 +1014,7 @@ class BesuQbftVerifierTest {
             byte[] stateRoot = accountProof[0];
             byte[] signedHeader = buildSignedHeader(VALIDATOR_ADDR, stateRoot, VALIDATOR_PRIV);
             byte[] accountProofRlp = Rlp.encodeList(List.of(Rlp.encodeBytes(accountProof[1])));
-            byte[] epochBlockHeadersRlp = Rlp.encodeList(List.of());
+            byte[] epochBlockHeadersRlp = validatorSource(List.of());
             return Rlp.encodeList(List.of(
                     signedHeader,
                     epochBlockHeadersRlp,
@@ -978,12 +1070,12 @@ class BesuQbftVerifierTest {
 
             byte[] bundlePayload = Rlp.encodeList(List.of(
                     currentHeader,
-                    Rlp.encodeList(List.of()), // no epoch headers
+                    validatorSource(List.of()), // no epoch headers
                     Rlp.encodeList(List.of(Rlp.encodeBytes(accountProof[1]))), // account proof
                     storageProofRlp,
                     Rlp.encodeBytes(new byte[0]))); // empty bundle content
 
-            var result = BUNDLE_SUBJECT.verifyBundle(bundlePayload, validatorSet(VALIDATOR_ADDR), CHANNEL_ID);
+            var result = BUNDLE_SUBJECT.verifyBundle(bundlePayload, validatorSet(VALIDATOR_ADDR), 0L, CHANNEL_ID);
 
             // After fix: sort by key → provenSlotValues[0]=slot0, [1]=slot1, [2]=slot2, [3]=slot3
             assertThat(result.queueMetadata().nextMessageId()).isEqualTo(42L);
@@ -998,14 +1090,14 @@ class BesuQbftVerifierTest {
     class VerifyBundleEndpointManifest {
 
         private static final BesuQbftVerifier BUNDLE_SUBJECT =
-                new BesuQbftVerifier(new BesuQbftVerifier.Config(SERVICE_ADDR, null, 30_000L));
+                new BesuQbftVerifier(new BesuQbftVerifier.Config(SERVICE_ADDR, null));
 
         @Test
         void sevenItemBundle_validManifestProof_returnsVerifiedPreimage() {
             byte[] preimage = manifestPreimage(1L, SERVICE_ADDR);
             byte[] bundle = buildManifestBundle(preimage, preimage, manifestCommitmentSlot(), 1);
 
-            var result = BUNDLE_SUBJECT.verifyBundle(bundle, validatorSet(VALIDATOR_ADDR), CHANNEL_ID);
+            var result = BUNDLE_SUBJECT.verifyBundle(bundle, validatorSet(VALIDATOR_ADDR), 0L, CHANNEL_ID);
 
             // Step 1b: the proof-verified manifest preimage is threaded back verbatim.
             assertThat(result.newEndpointManifestBytes()).isEqualTo(preimage);
@@ -1016,7 +1108,7 @@ class BesuQbftVerifierTest {
             // A plain 5-item bundle (no manifest extension) → empty newEndpointManifestBytes.
             byte[] bundle =
                     buildManifestBundle(manifestPreimage(1L, SERVICE_ADDR), new byte[0], manifestCommitmentSlot(), 0);
-            var result = BUNDLE_SUBJECT.verifyBundle(bundle, validatorSet(VALIDATOR_ADDR), CHANNEL_ID);
+            var result = BUNDLE_SUBJECT.verifyBundle(bundle, validatorSet(VALIDATOR_ADDR), 0L, CHANNEL_ID);
             assertThat(result.newEndpointManifestBytes()).isEmpty();
         }
 
@@ -1026,7 +1118,7 @@ class BesuQbftVerifierTest {
             byte[] tampered = manifestPreimage(2L, SERVICE_ADDR); // different keccak → mismatch
             byte[] bundle = buildManifestBundle(committed, tampered, manifestCommitmentSlot(), 1);
 
-            assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(bundle, validatorSet(VALIDATOR_ADDR), CHANNEL_ID))
+            assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(bundle, validatorSet(VALIDATOR_ADDR), 0L, CHANNEL_ID))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("endpoint-manifest preimage does not match the proven commitment");
         }
@@ -1038,7 +1130,7 @@ class BesuQbftVerifierTest {
             wrongSlot[31] = 17; // not the manifest commitment slot (18)
             byte[] bundle = buildManifestBundle(preimage, preimage, wrongSlot, 1);
 
-            assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(bundle, validatorSet(VALIDATOR_ADDR), CHANNEL_ID))
+            assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(bundle, validatorSet(VALIDATOR_ADDR), 0L, CHANNEL_ID))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("is not for the commitment slot (18)");
         }
@@ -1048,7 +1140,7 @@ class BesuQbftVerifierTest {
             byte[] preimage = manifestPreimage(1L, SERVICE_ADDR);
             byte[] bundle = buildManifestBundle(preimage, preimage, manifestCommitmentSlot(), 2);
 
-            assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(bundle, validatorSet(VALIDATOR_ADDR), CHANNEL_ID))
+            assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(bundle, validatorSet(VALIDATOR_ADDR), 0L, CHANNEL_ID))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("must contain exactly 1 entry");
         }
@@ -1060,7 +1152,7 @@ class BesuQbftVerifierTest {
             byte[] preimage = manifestPreimage(1L, otherAddr);
             byte[] bundle = buildManifestBundle(preimage, preimage, manifestCommitmentSlot(), 1);
 
-            assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(bundle, validatorSet(VALIDATOR_ADDR), CHANNEL_ID))
+            assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(bundle, validatorSet(VALIDATOR_ADDR), 0L, CHANNEL_ID))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("service_address does not match the trusted peer service address");
         }
@@ -1130,7 +1222,7 @@ class BesuQbftVerifierTest {
     class VerifyBundleExactConnIdMatching {
 
         private static final BesuQbftVerifier BUNDLE_SUBJECT =
-                new BesuQbftVerifier(new BesuQbftVerifier.Config(SERVICE_ADDR, null, 30_000L));
+                new BesuQbftVerifier(new BesuQbftVerifier.Config(SERVICE_ADDR, null));
 
         @Test
         void exactConnId_ackOnly_decodesQueueMetadataFromCanonicalSlots() {
@@ -1155,7 +1247,7 @@ class BesuQbftVerifierTest {
             byte[][] vals = {vStatus, vReceived, vSent, vRecv, vManifestVer};
             byte[] bundle = buildBundleWithSlots(keys, vals);
 
-            var result = BUNDLE_SUBJECT.verifyBundle(bundle, validatorSet(VALIDATOR_ADDR), connId);
+            var result = BUNDLE_SUBJECT.verifyBundle(bundle, validatorSet(VALIDATOR_ADDR), 0L, connId);
 
             assertThat(result.queueMetadata().nextMessageId()).isEqualTo(42L);
             assertThat(result.queueMetadata().status()).isEqualTo(2);
@@ -1177,7 +1269,7 @@ class BesuQbftVerifierTest {
             byte[][] vals = {new byte[32], new byte[32], new byte[32], new byte[32], new byte[32], vRunningHash};
             byte[] bundle = buildBundleWithSlots(keys, vals);
 
-            var result = BUNDLE_SUBJECT.verifyBundle(bundle, validatorSet(VALIDATOR_ADDR), connId);
+            var result = BUNDLE_SUBJECT.verifyBundle(bundle, validatorSet(VALIDATOR_ADDR), 0L, connId);
 
             // The lone non-Channel slot is bound as the last message's running hash, not mis-mapped.
             assertThat(result.queueMetadata().lastMessageRunningHash()[0]).isEqualTo((byte) 0xCC);
@@ -1199,7 +1291,7 @@ class BesuQbftVerifierTest {
             byte[] connIdB = connIdA.clone();
             connIdB[0] ^= (byte) 0xFF;
 
-            assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(bundle, validatorSet(VALIDATOR_ADDR), connIdB))
+            assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(bundle, validatorSet(VALIDATOR_ADDR), 0L, connIdB))
                     .isInstanceOf(ProofException.class);
         }
 
@@ -1215,8 +1307,8 @@ class BesuQbftVerifierTest {
             byte[] bundle = buildBundleWithSlots(keys, vals);
 
             for (final byte[] badChannelId : List.of(new byte[0], new byte[31], new byte[33])) {
-                assertThatThrownBy(
-                                () -> BUNDLE_SUBJECT.verifyBundle(bundle, validatorSet(VALIDATOR_ADDR), badChannelId))
+                assertThatThrownBy(() ->
+                                BUNDLE_SUBJECT.verifyBundle(bundle, validatorSet(VALIDATOR_ADDR), 0L, badChannelId))
                         .isInstanceOf(ProofException.class)
                         .hasMessageContaining("channelId must be 32 bytes");
             }
@@ -1485,7 +1577,7 @@ class BesuQbftVerifierTest {
     class EpochHeaderTests {
 
         private static final BesuQbftVerifier BUNDLE_SUBJECT =
-                new BesuQbftVerifier(new BesuQbftVerifier.Config(SERVICE_ADDR, null, 30_000L));
+                new BesuQbftVerifier(new BesuQbftVerifier.Config(SERVICE_ADDR, null));
 
         // Seven deterministic validator keys, A..G.
         private static final List<byte[]> KEYS = java.util.stream.IntStream.range(0, 7)
@@ -1544,8 +1636,8 @@ class BesuQbftVerifierTest {
             for (final int n : new int[] {1, 3, 4, 6, 7}) {
                 final int[] all = java.util.stream.IntStream.range(0, n).toArray();
                 final int[] quorumSigners = Arrays.copyOf(all, BesuQbftVerifier.quorum(n));
-                final var result =
-                        BUNDLE_SUBJECT.verifyBundle(bundle(List.of(), all, quorumSigners), trusted(all), CHANNEL_ID);
+                final var result = BUNDLE_SUBJECT.verifyBundle(
+                        bundle(List.of(), all, quorumSigners), trusted(all), 0L, CHANNEL_ID);
                 assertThat(result.newTrustAnchor()).as("n=%d", n).isEmpty();
             }
         }
@@ -1555,8 +1647,8 @@ class BesuQbftVerifierTest {
             for (final int n : new int[] {3, 4, 6, 7}) {
                 final int[] all = java.util.stream.IntStream.range(0, n).toArray();
                 final int[] tooFew = Arrays.copyOf(all, BesuQbftVerifier.quorum(n) - 1);
-                assertThatThrownBy(() ->
-                                BUNDLE_SUBJECT.verifyBundle(bundle(List.of(), all, tooFew), trusted(all), CHANNEL_ID))
+                assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(
+                                bundle(List.of(), all, tooFew), trusted(all), 0L, CHANNEL_ID))
                         .as("n=%d", n)
                         .isInstanceOf(ProofException.class)
                         .hasMessageContaining("expected at least " + BesuQbftVerifier.quorum(n));
@@ -1567,7 +1659,7 @@ class BesuQbftVerifierTest {
         void sealFromOutsideTheListedSetIsRejected() {
             // E (index 4) seals a header that lists A..D.
             assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(
-                            bundle(List.of(), set(0, 1, 2, 3), 0, 1, 2, 4), trusted(0, 1, 2, 3), CHANNEL_ID))
+                            bundle(List.of(), set(0, 1, 2, 3), 0, 1, 2, 4), trusted(0, 1, 2, 3), 0L, CHANNEL_ID))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("not in the validator set");
         }
@@ -1575,7 +1667,7 @@ class BesuQbftVerifierTest {
         @Test
         void duplicateSealIsRejected() {
             assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(
-                            bundle(List.of(), set(0, 1, 2, 3), 0, 0, 1, 2), trusted(0, 1, 2, 3), CHANNEL_ID))
+                            bundle(List.of(), set(0, 1, 2, 3), 0, 0, 1, 2), trusted(0, 1, 2, 3), 0L, CHANNEL_ID))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("duplicate committed seal");
         }
@@ -1583,7 +1675,7 @@ class BesuQbftVerifierTest {
         @Test
         void headerListingAValidatorTwiceIsRejected() {
             assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(
-                            bundle(List.of(), set(0, 1, 2, 2), 0, 1, 2), trusted(0, 1, 2), CHANNEL_ID))
+                            bundle(List.of(), set(0, 1, 2, 2), 0, 1, 2), trusted(0, 1, 2), 0L, CHANNEL_ID))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("twice");
         }
@@ -1591,7 +1683,7 @@ class BesuQbftVerifierTest {
         @Test
         void emptyEpochHeaders_trustAnchorUnchanged() {
             byte[] bundlePayload = buildBundlePayloadWithEpochHeaders(List.of());
-            var result = BUNDLE_SUBJECT.verifyBundle(bundlePayload, validatorSet(VALIDATOR_ADDR), CHANNEL_ID);
+            var result = BUNDLE_SUBJECT.verifyBundle(bundlePayload, validatorSet(VALIDATOR_ADDR), 0L, CHANNEL_ID);
             assertThat(result.newTrustAnchor()).isEmpty();
             assertThat(result.newTrustAnchorId()).isEmpty();
         }
@@ -1601,17 +1693,16 @@ class BesuQbftVerifierTest {
             // A..D trusted; the change block lists A..E and is sealed by its own quorum (4 of 5), E included.
             final byte[] addE = hop(30_000L, set(0, 1, 2, 3, 4), 0, 1, 2, 4);
             final var result = BUNDLE_SUBJECT.verifyBundle(
-                    bundle(List.of(addE), set(0, 1, 2, 3, 4), 0, 1, 2, 3), trusted(0, 1, 2, 3), CHANNEL_ID);
+                    bundle(List.of(addE), set(0, 1, 2, 3, 4), 0, 1, 2, 3), trusted(0, 1, 2, 3), 0L, CHANNEL_ID);
             assertThat(result.newTrustAnchor()).isEqualTo(trusted(0, 1, 2, 3, 4));
-            assertThat(result.newTrustAnchorId())
-                    .isEqualTo(BigInteger.valueOf(1L).toByteArray());
+            assertThat(result.newTrustAnchorId()).isEqualTo(BesuQbftVerifier.trustAnchorId(CURRENT_BLOCK_NUMBER));
         }
 
         @Test
         void honestAddWhereTheNewMemberDidNotSeal() {
             final byte[] addE = hop(30_000L, set(0, 1, 2, 3, 4), 0, 1, 2, 3);
             final var result = BUNDLE_SUBJECT.verifyBundle(
-                    bundle(List.of(addE), set(0, 1, 2, 3, 4), 0, 1, 2, 3), trusted(0, 1, 2, 3), CHANNEL_ID);
+                    bundle(List.of(addE), set(0, 1, 2, 3, 4), 0, 1, 2, 3), trusted(0, 1, 2, 3), 0L, CHANNEL_ID);
             assertThat(result.newTrustAnchor()).isEqualTo(trusted(0, 1, 2, 3, 4));
         }
 
@@ -1620,7 +1711,7 @@ class BesuQbftVerifierTest {
             // A..D trusted; the change block lists A..C and carries only 2 seals, as Besu produces it.
             final byte[] removeD = hop(30_000L, set(0, 1, 2), 0, 1);
             final var result = BUNDLE_SUBJECT.verifyBundle(
-                    bundle(List.of(removeD), set(0, 1, 2), 0, 1), trusted(0, 1, 2, 3), CHANNEL_ID);
+                    bundle(List.of(removeD), set(0, 1, 2), 0, 1), trusted(0, 1, 2, 3), 0L, CHANNEL_ID);
             assertThat(result.newTrustAnchor()).isEqualTo(trusted(0, 1, 2));
         }
 
@@ -1629,10 +1720,9 @@ class BesuQbftVerifierTest {
             final byte[] addE = hop(30_000L, set(0, 1, 2, 3, 4), 0, 1, 2, 4);
             final byte[] removeA = hop(60_000L, set(1, 2, 3, 4), 1, 2, 4);
             final var result = BUNDLE_SUBJECT.verifyBundle(
-                    bundle(List.of(addE, removeA), set(1, 2, 3, 4), 1, 2, 3), trusted(0, 1, 2, 3), CHANNEL_ID);
+                    bundle(List.of(addE, removeA), set(1, 2, 3, 4), 1, 2, 3), trusted(0, 1, 2, 3), 0L, CHANNEL_ID);
             assertThat(result.newTrustAnchor()).isEqualTo(trusted(1, 2, 3, 4));
-            assertThat(result.newTrustAnchorId())
-                    .isEqualTo(BigInteger.valueOf(2L).toByteArray());
+            assertThat(result.newTrustAnchorId()).isEqualTo(BesuQbftVerifier.trustAnchorId(CURRENT_BLOCK_NUMBER));
         }
 
         @Test
@@ -1641,16 +1731,15 @@ class BesuQbftVerifierTest {
             final byte[] removeD = hop(30_000L, set(0, 1, 2), 0, 1);
             final byte[] addD = hop(60_000L, set(0, 1, 2, 3), 0, 1, 3);
             final var result = BUNDLE_SUBJECT.verifyBundle(
-                    bundle(List.of(removeD, addD), set(0, 1, 2, 3), 0, 1, 2), trusted(0, 1, 2, 3), CHANNEL_ID);
+                    bundle(List.of(removeD, addD), set(0, 1, 2, 3), 0, 1, 2), trusted(0, 1, 2, 3), 0L, CHANNEL_ID);
             assertThat(result.newTrustAnchor()).isEqualTo(trusted(0, 1, 2, 3));
-            assertThat(result.newTrustAnchorId())
-                    .isEqualTo(BigInteger.valueOf(2L).toByteArray());
+            assertThat(result.newTrustAnchorId()).isEqualTo(BesuQbftVerifier.trustAnchorId(CURRENT_BLOCK_NUMBER));
         }
 
         @Test
         void changeAtTheCurrentBlockNeedsNoHopAndAdvancesTheAnchor() {
-            final var result =
-                    BUNDLE_SUBJECT.verifyBundle(bundle(List.of(), set(0, 1, 2), 0, 1), trusted(0, 1, 2, 3), CHANNEL_ID);
+            final var result = BUNDLE_SUBJECT.verifyBundle(
+                    bundle(List.of(), set(0, 1, 2), 0, 1), trusted(0, 1, 2, 3), 0L, CHANNEL_ID);
             assertThat(result.newTrustAnchor()).isEqualTo(trusted(0, 1, 2));
             assertThat(result.newTrustAnchorId()).isNotEmpty();
         }
@@ -1660,9 +1749,12 @@ class BesuQbftVerifierTest {
             final byte[] hopAscending = hop(30_000L, set(0, 1, 2, 3, 4), 0, 1, 2, 4);
             final byte[] hopDescending = hop(30_000L, set(4, 3, 2, 1, 0), 0, 1, 2, 4);
             final var resultAscending = BUNDLE_SUBJECT.verifyBundle(
-                    bundle(List.of(hopAscending), set(0, 1, 2, 3, 4), 0, 1, 2, 3), trusted(0, 1, 2, 3), CHANNEL_ID);
+                    bundle(List.of(hopAscending), set(0, 1, 2, 3, 4), 0, 1, 2, 3), trusted(0, 1, 2, 3), 0L, CHANNEL_ID);
             final var resultDescending = BUNDLE_SUBJECT.verifyBundle(
-                    bundle(List.of(hopDescending), set(0, 1, 2, 3, 4), 0, 1, 2, 3), trusted(0, 1, 2, 3), CHANNEL_ID);
+                    bundle(List.of(hopDescending), set(0, 1, 2, 3, 4), 0, 1, 2, 3),
+                    trusted(0, 1, 2, 3),
+                    0L,
+                    CHANNEL_ID);
             assertThat(resultAscending.newTrustAnchor()).isEqualTo(resultDescending.newTrustAnchor());
         }
 
@@ -1671,7 +1763,7 @@ class BesuQbftVerifierTest {
             // A..D -> A, B, C, E: D removed and E added in one block, which Besu never does.
             final byte[] swap = hop(30_000L, set(0, 1, 2, 4), 0, 1, 2);
             assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(
-                            bundle(List.of(swap), set(0, 1, 2, 4), 0, 1, 2), trusted(0, 1, 2, 3), CHANNEL_ID))
+                            bundle(List.of(swap), set(0, 1, 2, 4), 0, 1, 2), trusted(0, 1, 2, 3), 0L, CHANNEL_ID))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("header changes 2 validators");
         }
@@ -1680,7 +1772,7 @@ class BesuQbftVerifierTest {
         void hopThatDoesNotChangeTheSetIsRejected() {
             final byte[] noOp = hop(30_000L, set(0, 1, 2, 3), 0, 1, 2);
             assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(
-                            bundle(List.of(noOp), set(0, 1, 2, 3), 0, 1, 2), trusted(0, 1, 2, 3), CHANNEL_ID))
+                            bundle(List.of(noOp), set(0, 1, 2, 3), 0, 1, 2), trusted(0, 1, 2, 3), 0L, CHANNEL_ID))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("does not change the validator set");
         }
@@ -1689,7 +1781,7 @@ class BesuQbftVerifierTest {
         void skippedChangeIsRejected() {
             // The set went A..D -> A..E -> A..F, but the relay sends no hop: the current header is two changes away.
             assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(
-                            bundle(List.of(), set(0, 1, 2, 3, 4, 5), 0, 1, 2, 4), trusted(0, 1, 2, 3), CHANNEL_ID))
+                            bundle(List.of(), set(0, 1, 2, 3, 4, 5), 0, 1, 2, 4), trusted(0, 1, 2, 3), 0L, CHANNEL_ID))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("header changes 2 validators");
         }
@@ -1699,7 +1791,7 @@ class BesuQbftVerifierTest {
             // The change block lists A..E (quorum 4) but carries only 3 seals.
             final byte[] addE = hop(30_000L, set(0, 1, 2, 3, 4), 0, 1, 4);
             assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(
-                            bundle(List.of(addE), set(0, 1, 2, 3, 4), 0, 1, 2, 3), trusted(0, 1, 2, 3), CHANNEL_ID))
+                            bundle(List.of(addE), set(0, 1, 2, 3, 4), 0, 1, 2, 3), trusted(0, 1, 2, 3), 0L, CHANNEL_ID))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("expected at least 4");
         }
@@ -1709,9 +1801,121 @@ class BesuQbftVerifierTest {
             final byte[] addE = hop(60_000L, set(0, 1, 2, 3, 4), 0, 1, 2, 4);
             final byte[] removeA = hop(30_000L, set(1, 2, 3, 4), 1, 2, 4);
             assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(
-                            bundle(List.of(addE, removeA), set(1, 2, 3, 4), 1, 2, 3), trusted(0, 1, 2, 3), CHANNEL_ID))
+                            bundle(List.of(addE, removeA), set(1, 2, 3, 4), 1, 2, 3),
+                            trusted(0, 1, 2, 3),
+                            0L,
+                            CHANNEL_ID))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("is not strictly greater than previous");
+        }
+
+        private static byte[] bundleWithValidatorSource(final byte[] validatorSourceRlp, final int... signers) {
+            final byte[][] accountProof = buildAccountMptProof(SERVICE_ADDR, EMPTY_TRIE_ROOT, new byte[32]);
+            final byte[] currentHeader = buildSignedHeaderMultiSeal(addrs(0, 1, 2, 3), accountProof[0], keys(signers));
+            return buildBundlePayloadWithValidatorSource(validatorSourceRlp, currentHeader, accountProof);
+        }
+
+        @Test
+        void validatorSourceAsAPlainListOfHopsIsRejected() {
+            // The pre-spec shape: field 1 as a bare list of headers instead of [trustedSet, hops].
+            final byte[] addE = hop(30_000L, set(0, 1, 2, 3, 4), 0, 1, 2, 4);
+            assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(
+                            bundleWithValidatorSource(Rlp.encodeList(List.of(addE)), 0, 1, 2),
+                            trusted(0, 1, 2, 3),
+                            0L,
+                            CHANNEL_ID))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("validator source (field 1)");
+        }
+
+        @Test
+        void trustedSetEqualToTheAnchorSetIsAccepted() {
+            final byte[] source = Rlp.encodeList(List.of(trusted(0, 1, 2, 3), Rlp.encodeList(List.of())));
+            final var result = BUNDLE_SUBJECT.verifyBundle(
+                    bundleWithValidatorSource(source, 0, 1, 2), trusted(0, 1, 2, 3), 0L, CHANNEL_ID);
+            assertThat(result.newTrustAnchor()).isEmpty();
+        }
+
+        @Test
+        void trustedSetDifferentFromTheAnchorSetIsRejected() {
+            final byte[] source = Rlp.encodeList(List.of(trusted(0, 1, 2, 4), Rlp.encodeList(List.of())));
+            assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(
+                            bundleWithValidatorSource(source, 0, 1, 2), trusted(0, 1, 2, 3), 0L, CHANNEL_ID))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("does not match the trust anchor's validator set");
+        }
+
+        @Test
+        void headerListingTheZeroAddressIsRejected() {
+            final byte[][] accountProof = buildAccountMptProof(SERVICE_ADDR, EMPTY_TRIE_ROOT, new byte[32]);
+            final List<byte[]> withZero = List.of(addr(0), addr(1), addr(2), new byte[20]);
+            final byte[] currentHeader = buildSignedHeaderMultiSeal(withZero, accountProof[0], keys(0, 1, 2));
+            assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(
+                            buildBundlePayloadWithEpochHeadersAndCurrentHeader(List.of(), currentHeader, accountProof),
+                            trusted(0, 1, 2, 3),
+                            0L,
+                            CHANNEL_ID))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("contains the zero address");
+        }
+
+        @Test
+        void hopAtOrBeforeTheAnchorBlockIsRejected() {
+            // The anchor was confirmed at block 30_000: a hop at that block (a replay) is below the floor.
+            final byte[] addE = hop(30_000L, set(0, 1, 2, 3, 4), 0, 1, 2, 4);
+            assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(
+                            bundle(List.of(addE), set(0, 1, 2, 3, 4), 0, 1, 2, 3),
+                            trusted(0, 1, 2, 3),
+                            30_000L,
+                            CHANNEL_ID))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("is not strictly greater than previous 30000");
+        }
+
+        @Test
+        void currentBlockNotAfterTheAnchorBlockIsRejected() {
+            assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(
+                            bundle(List.of(), set(0, 1, 2, 3), 0, 1, 2),
+                            trusted(0, 1, 2, 3),
+                            CURRENT_BLOCK_NUMBER,
+                            CHANNEL_ID))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("is not after the last hop or the anchor block");
+        }
+
+        @Test
+        void currentBlockBehindTheLastHopIsRejected() {
+            // The hop is at block 200_000, after the current block (100_000).
+            final byte[] addE = hop(200_000L, set(0, 1, 2, 3, 4), 0, 1, 2, 4);
+            assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(
+                            bundle(List.of(addE), set(0, 1, 2, 3, 4), 0, 1, 2, 3), trusted(0, 1, 2, 3), 0L, CHANNEL_ID))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("is not after the last hop or the anchor block (200000)");
+        }
+
+        @Test
+        void currentBlockWithMoreThan23FieldsIsAccepted() {
+            final byte[][] accountProof = buildAccountMptProof(SERVICE_ADDR, EMPTY_TRIE_ROOT, new byte[32]);
+            for (final int fields : new int[] {15, 21, 24}) {
+                final byte[] currentHeader =
+                        buildSignedHeaderMultiSeal(addrs(0, 1, 2, 3), accountProof[0], keys(0, 1, 2), fields);
+                final var result = BUNDLE_SUBJECT.verifyBundle(
+                        buildBundlePayloadWithEpochHeadersAndCurrentHeader(List.of(), currentHeader, accountProof),
+                        trusted(0, 1, 2, 3),
+                        0L,
+                        CHANNEL_ID);
+                assertThat(result.newTrustAnchor()).as("fields=%d", fields).isEmpty();
+            }
+        }
+
+        @Test
+        void blockHashIgnoresWhichSealsTheHeaderCarries() {
+            // Two nodes can store different quorums of seals for the same block; Besu's block hash is the same.
+            final byte[] sealedByABC = buildSignedHeaderMultiSeal(addrs(0, 1, 2, 3), new byte[32], keys(0, 1, 2));
+            final byte[] sealedByBCD = buildSignedHeaderMultiSeal(addrs(0, 1, 2, 3), new byte[32], keys(1, 2, 3));
+            assertThat(sealedByABC).isNotEqualTo(sealedByBCD);
+            assertThat(BesuQbftVerifier.besuBlockHash(Rlp.decodeOne(sealedByABC)))
+                    .isEqualTo(BesuQbftVerifier.besuBlockHash(Rlp.decodeOne(sealedByBCD)));
         }
 
         @Test
@@ -1719,7 +1923,7 @@ class BesuQbftVerifierTest {
             // After the rotation to A..E the current header carries only 3 seals (quorum 4).
             final byte[] addE = hop(30_000L, set(0, 1, 2, 3, 4), 0, 1, 2, 4);
             assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(
-                            bundle(List.of(addE), set(0, 1, 2, 3, 4), 0, 1, 2), trusted(0, 1, 2, 3), CHANNEL_ID))
+                            bundle(List.of(addE), set(0, 1, 2, 3, 4), 0, 1, 2), trusted(0, 1, 2, 3), 0L, CHANNEL_ID))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("expected at least 4");
         }
@@ -1733,9 +1937,14 @@ class BesuQbftVerifierTest {
 
         private static byte[] buildBundlePayloadWithEpochHeadersAndCurrentHeader(
                 List<byte[]> epochHeaders, byte[] currentHeader, byte[][] accountProof) {
+            return buildBundlePayloadWithValidatorSource(validatorSource(epochHeaders), currentHeader, accountProof);
+        }
+
+        private static byte[] buildBundlePayloadWithValidatorSource(
+                byte[] validatorSourceRlp, byte[] currentHeader, byte[][] accountProof) {
             byte[] accountProofRlp = Rlp.encodeList(List.of(Rlp.encodeBytes(accountProof[1])));
             byte[] storageProofRlp = emptyTrieChannelStorageProof();
-            byte[] epochBlockHeadersRlp = Rlp.encodeList(epochHeaders);
+            byte[] epochBlockHeadersRlp = validatorSourceRlp;
             return Rlp.encodeList(List.of(
                     currentHeader,
                     epochBlockHeadersRlp,
@@ -1856,6 +2065,7 @@ class BesuQbftVerifierTest {
             fields.add(
                     switch (i) {
                         case 3 -> Rlp.encodeBytes(stateRoot32);
+                        case 8 -> Rlp.encodeUint(CURRENT_BLOCK_NUMBER);
                         case 12 -> Rlp.encodeBytes(extraDataBytes);
                         default -> Rlp.encodeBytes(new byte[0]);
                     });
@@ -1893,14 +2103,19 @@ class BesuQbftVerifierTest {
      */
     private static byte[] buildSignedHeaderMultiSeal(
             List<byte[]> validatorAddrs, byte[] stateRoot32, List<byte[]> signerPrivKeys) {
+        return buildSignedHeaderMultiSeal(validatorAddrs, stateRoot32, signerPrivKeys, 15);
+    }
+
+    private static byte[] buildSignedHeaderMultiSeal(
+            List<byte[]> validatorAddrs, byte[] stateRoot32, List<byte[]> signerPrivKeys, int fieldCount) {
         byte[] extraNoSeals = buildQbftExtra(validatorAddrs, List.of());
-        byte[] headerForHash = buildRlpHeader(stateRoot32, extraNoSeals, 15);
+        byte[] headerForHash = buildRlpHeader(stateRoot32, extraNoSeals, fieldCount);
         Rlp.Item headerItem = Rlp.decodeOne(headerForHash);
         Rlp.Item extraItem = Rlp.decodeOne(headerItem.children().get(12).asBytes());
         byte[] commitHash = BesuQbftVerifier.buildCommitSealHash(headerItem, extraItem);
         List<byte[]> seals =
                 signerPrivKeys.stream().map(k -> sign(commitHash, k)).toList();
-        return buildRlpHeader(stateRoot32, buildQbftExtra(validatorAddrs, seals), 15);
+        return buildRlpHeader(stateRoot32, buildQbftExtra(validatorAddrs, seals), fieldCount);
     }
 
     /**
@@ -1993,10 +2208,9 @@ class BesuQbftVerifierTest {
      * {@code RLP([RLP_BYTES(encodeValidatorSet(validators)), serviceAddr, codeHash])}.
      */
     private static byte[] qbftTrustAnchor(List<byte[]> validators, byte[] serviceAddr, byte[] codeHash) {
-        return Rlp.encodeList(List.of(
-                Rlp.encodeBytes(BesuQbftVerifier.encodeValidatorSet(validators)),
-                Rlp.encodeBytes(serviceAddr),
-                Rlp.encodeBytes(codeHash)));
+        return new BesuQbftVerifier.TrustAnchor(
+                        BesuQbftVerifier.encodeValidatorSet(validators), serviceAddr, codeHash, CURRENT_BLOCK_NUMBER)
+                .encode();
     }
 
     private static byte[] buildTrieLeafNode(byte[] pathHash32, byte[] value32) {
@@ -2086,7 +2300,7 @@ class BesuQbftVerifierTest {
         if (index5EntryCount == 0) {
             return Rlp.encodeList(List.of(
                     signedHeader,
-                    Rlp.encodeList(List.of()),
+                    validatorSource(List.of()),
                     accountProofRlp,
                     Rlp.encodeList(connEntries),
                     Rlp.encodeBytes(new byte[0])));
@@ -2097,7 +2311,7 @@ class BesuQbftVerifierTest {
         }
         return Rlp.encodeList(List.of(
                 signedHeader,
-                Rlp.encodeList(List.of()),
+                validatorSource(List.of()),
                 accountProofRlp,
                 Rlp.encodeList(connEntries),
                 Rlp.encodeBytes(new byte[0]),
@@ -2181,7 +2395,7 @@ class BesuQbftVerifierTest {
         for (int i = 0; i < slotKeys.length; i++) entries.add(buildBundleStorageEntry(slotKeys[i], mpt[i + 1]));
         return Rlp.encodeList(List.of(
                 signedHeader,
-                Rlp.encodeList(List.of()),
+                validatorSource(List.of()),
                 Rlp.encodeList(List.of(Rlp.encodeBytes(accountProof[1]))),
                 Rlp.encodeList(entries),
                 Rlp.encodeBytes(new byte[0])));
