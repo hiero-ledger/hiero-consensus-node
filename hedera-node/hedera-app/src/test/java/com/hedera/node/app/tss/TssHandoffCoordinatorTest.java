@@ -17,6 +17,7 @@ import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.HintsScheme;
 import com.hedera.hapi.node.state.hints.PreprocessedKeys;
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
+import com.hedera.hapi.node.state.history.HintsKeyProvenance;
 import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
@@ -62,6 +63,12 @@ class TssHandoffCoordinatorTest {
     @BeforeEach
     void readyStores() {
         lenient().when(hintsStore.getCrsState()).thenReturn(CRSState.DEFAULT);
+        lenient()
+                .when(hintsStore.getActiveConstruction())
+                .thenReturn(hintsConstruction(OTHER_VERIFICATION_KEY)
+                        .copyBuilder()
+                        .constructionId(1L)
+                        .build());
         lenient().when(hintsStore.isReadyToAdopt(ADOPTED_ROSTER_HASH)).thenReturn(true);
         lenient().when(historyStore.isReadyToAdopt(ADOPTED_ROSTER_HASH)).thenReturn(true);
     }
@@ -470,6 +477,62 @@ class TssHandoffCoordinatorTest {
         verify(historyService, never()).setLatestHistoryProof(any());
     }
 
+    @Test
+    void refusesUncertifiedOrIncorrectlyBoundRotationWithoutMutations() {
+        final var proof = wrapsProof(VERIFICATION_KEY);
+        given(hintsStore.getNextConstruction()).willReturn(hintsConstruction(VERIFICATION_KEY));
+        final var valid = historyConstruction(proof);
+        final var provenance = validProvenance();
+        final List<HistoryProofConstruction> invalid = List.of(
+                valid.copyBuilder().keyProvenance((HintsKeyProvenance) null).build(),
+                valid.copyBuilder()
+                        .keyProvenance(provenance.copyBuilder().sourceHintsConstructionId(99L))
+                        .build(),
+                valid.copyBuilder()
+                        .keyProvenance(provenance.copyBuilder().targetHintsConstructionId(99L))
+                        .build(),
+                valid.copyBuilder()
+                        .keyProvenance(provenance.copyBuilder().historyConstructionId(99L))
+                        .build(),
+                valid.copyBuilder()
+                        .keyProvenance(provenance.copyBuilder().sourceVerificationKey(VERIFICATION_KEY))
+                        .build(),
+                valid.copyBuilder()
+                        .keyProvenance(provenance.copyBuilder().targetVerificationKey(OTHER_VERIFICATION_KEY))
+                        .build(),
+                valid.copyBuilder()
+                        .keyProvenance(provenance.copyBuilder().signature(Bytes.EMPTY))
+                        .build(),
+                valid.copyBuilder()
+                        .targetProof(proof.copyBuilder().keyProvenanceSignature(Bytes.wrap("different")))
+                        .build());
+        for (final var construction : invalid) {
+            given(historyStore.getNextConstruction()).willReturn(construction);
+            assertFalse(TssHandoffCoordinator.tryJointHandoff(
+                    historyStore,
+                    hintsStore,
+                    historyService,
+                    hintsService,
+                    PREVIOUS_ROSTER,
+                    ADOPTED_ROSTER,
+                    ADOPTED_ROSTER_HASH));
+        }
+        verify(historyStore, never()).handoff(any(), any(), any());
+        verify(hintsService, never()).handoff(any(), any(), any(), any());
+        verify(historyService, never()).setLatestHistoryProof(any());
+    }
+
+    private static HintsKeyProvenance validProvenance() {
+        return HintsKeyProvenance.newBuilder()
+                .sourceHintsConstructionId(1L)
+                .targetHintsConstructionId(2L)
+                .historyConstructionId(3L)
+                .sourceVerificationKey(OTHER_VERIFICATION_KEY)
+                .targetVerificationKey(VERIFICATION_KEY)
+                .signature(Bytes.wrap("provenance-signature"))
+                .build();
+    }
+
     private static HintsConstruction hintsConstruction(final Bytes verificationKey) {
         return HintsConstruction.newBuilder()
                 .constructionId(2L)
@@ -484,6 +547,7 @@ class TssHandoffCoordinatorTest {
                 .constructionId(3L)
                 .targetRosterHash(ADOPTED_ROSTER_HASH)
                 .targetProof(proof)
+                .keyProvenance(validProvenance())
                 .build();
     }
 
@@ -491,6 +555,7 @@ class TssHandoffCoordinatorTest {
         return HistoryProof.newBuilder()
                 .targetHistory(
                         History.newBuilder().addressBookHash(ADDRESS_BOOK_HASH).metadata(targetMetadata))
+                .keyProvenanceSignature(Bytes.wrap("provenance-signature"))
                 .uncompressedWrapsProof(Bytes.wrap("uncompressed-wraps-proof"))
                 .chainOfTrustProof(ChainOfTrustProof.newBuilder().wrapsProof(Bytes.wrap("wraps-proof")))
                 .build();
