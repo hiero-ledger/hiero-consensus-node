@@ -51,9 +51,9 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
  *
  * <p>Decoding and Merkle-proof verification are delegated to
  * {@link BesuQbftVerifier#verifyBundle(byte[], byte[], byte[])}. Everything this call returns comes from
- * the proof: the relayed queue metadata must equal the proven Channel slots, and a new trust anchor is
- * returned only when the verifier proved a rotation. The proven manifest is appended as the fifth tuple
- * member.
+ * the proof: the relayed queue metadata must equal the proven Channel slots, a partial bundle's metadata is
+ * scoped to its proven last message, and a new trust anchor is returned only when the verifier proved a
+ * rotation. The proven manifest is appended as the fifth tuple member.
  */
 public class BesuQBFTVerifyBundleCall extends AbstractCall {
     private static final Logger log = LogManager.getLogger(BesuQBFTVerifyBundleCall.class);
@@ -160,6 +160,11 @@ public class BesuQBFTVerifyBundleCall extends AbstractCall {
         if (!relayedMetadataMatchesProven(parsedContent, verified.queueMetadata())) {
             return fail();
         }
+        final ClprBundleContent scopedContent =
+                scopeToLastMessage(parsedContent, verified.queueMetadata(), channelId32);
+        if (scopedContent == null) {
+            return fail();
+        }
 
         // A trust anchor comes only from a rotation the verifier proved, anchored at the block its id names.
         // The service contract address and code hash are stable across rotations and carry forward from the
@@ -177,7 +182,7 @@ public class BesuQBFTVerifyBundleCall extends AbstractCall {
                         .encode()
                 : null;
         final ClprBundleContent reconciledContent =
-                reconcileTrustAnchor(parsedContent, provenTrustAnchor, verified.newTrustAnchorId());
+                reconcileTrustAnchor(scopedContent, provenTrustAnchor, verified.newTrustAnchorId());
         if (reconciledContent == null) {
             return fail();
         }
@@ -229,6 +234,49 @@ public class BesuQBFTVerifyBundleCall extends AbstractCall {
             return false;
         }
         return true;
+    }
+
+    /**
+     * Scopes the queue metadata of a partial bundle to its last message.
+     *
+     * <p>A bundle need not carry every message the peer has queued: when it ends at a message {@code L} before
+     * {@code nextMessageId - 1}, the proof carries a 6th slot, the running hash after {@code L}. The CLPR Service
+     * checks the bundle's messages against {@code sentRunningHash} and places them before {@code nextMessageId},
+     * so for such a bundle both are replaced with their values as of {@code L}: {@code nextMessageId = L + 1} and
+     * {@code sentRunningHash = runningHash(L)}. {@code L} is the message whose running-hash slot is the proven
+     * 6th slot ({@link BesuQbftVerifier#findLastMessageId}); a slot that matches no message fails the bundle. A
+     * bundle without messages has nothing to scope, and its 6th slot is ignored.
+     *
+     * @return the content with metadata as of the bundle's last message, the content unchanged when the bundle
+     *     ends at the peer's last message, or {@code null} when the 6th slot does not belong to the bundle
+     */
+    @Nullable
+    private static ClprBundleContent scopeToLastMessage(
+            @NonNull final ClprBundleContent content,
+            @NonNull final BesuQbftVerifier.QueueMetadata proven,
+            @NonNull final byte[] channelId32) {
+        final byte[] lastMessageSlotKey = proven.lastMessageSlotKey();
+        final int messageCount = content.messages().size();
+        if (lastMessageSlotKey.length == 0 || messageCount == 0) {
+            return content;
+        }
+        final var lastMessageId = BesuQbftVerifier.findLastMessageId(
+                channelId32, lastMessageSlotKey, proven.ackedMessageId(), proven.nextMessageId(), messageCount);
+        if (lastMessageId.isEmpty()) {
+            log.warn(
+                    "verifyBundle (QBFT): last-message slot matches no message in [{}, {}) for a bundle of {} messages",
+                    proven.ackedMessageId() + messageCount,
+                    proven.nextMessageId(),
+                    messageCount);
+            return null;
+        }
+        final ClprQueueMetadata metadata = requireNonNull(content.metadata());
+        return content.copyBuilder()
+                .metadata(metadata.copyBuilder()
+                        .nextMessageId(lastMessageId.getAsLong() + 1)
+                        .sentRunningHash(Bytes.wrap(proven.lastMessageRunningHash()))
+                        .build())
+                .build();
     }
 
     /**

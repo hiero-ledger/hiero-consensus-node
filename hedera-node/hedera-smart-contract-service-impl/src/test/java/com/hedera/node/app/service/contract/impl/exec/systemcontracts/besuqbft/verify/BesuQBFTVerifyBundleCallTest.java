@@ -14,7 +14,9 @@ import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.state.clpr.ClprBundleContent;
 import com.hedera.hapi.node.state.clpr.ClprChannelStatus;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
+import com.hedera.hapi.node.state.clpr.ClprMessagePayload;
 import com.hedera.hapi.node.state.clpr.ClprQueueMetadata;
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.service.clpr.impl.verifier.BesuQbftVerifier;
 import com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierAbi;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call;
@@ -119,6 +121,65 @@ class BesuQBFTVerifyBundleCallTest extends CallTestBase {
             final var result = executeWith(verifiedBundle(contentBytes(tamper.apply(honest)), new byte[0]));
             assertThat(result.responseCode()).isEqualTo(CLPR_BUNDLE_VERIFICATION_FAILED);
         }
+    }
+
+    @Test
+    void partialBundleReturnsMetadataAsOfItsLastMessage() {
+        // The peer has queued up to message 41 and acknowledged up to 25; the bundle carries 3 messages ending at 30.
+        final var result =
+                executeWith(partialBundle(threeMessages(), messageRunningHashSlot(CHANNEL_ID, 30L), filled(32, 0x05)));
+
+        assertThat(result.responseCode()).isEqualTo(SUCCESS);
+        final Tuple metaTuple = ClprVerifierAbi.VERIFY_BUNDLE_RETURN
+                .decode(result.fullResult().output().toArray())
+                .get(0);
+        assertThat(((BigInteger) metaTuple.get(0)).longValueExact()).isEqualTo(31L);
+        assertThat((byte[]) metaTuple.get(1)).isEqualTo(filled(32, 0x05));
+        assertThat(((BigInteger) metaTuple.get(2)).longValueExact()).isEqualTo(17L);
+        assertThat((byte[]) metaTuple.get(3)).isEqualTo(filled(32, 0x03));
+    }
+
+    @Test
+    void rejectsPartialBundleWhoseLastMessageSlotMatchesNoMessage() {
+        final List<byte[]> unmatched = List.of(
+                messageRunningHashSlot(CHANNEL_ID, 27L), // below acked + messageCount
+                messageRunningHashSlot(CHANNEL_ID, 42L), // not yet queued
+                messageRunningHashSlot(filled(32, 0x45), 30L)); // another channel
+
+        for (final byte[] slotKey : unmatched) {
+            final var result = executeWith(partialBundle(threeMessages(), slotKey, filled(32, 0x05)));
+            assertThat(result.responseCode()).isEqualTo(CLPR_BUNDLE_VERIFICATION_FAILED);
+        }
+    }
+
+    @Test
+    void ignoresLastMessageSlotOfABundleWithoutMessages() {
+        final var result =
+                executeWith(partialBundle(List.of(), messageRunningHashSlot(CHANNEL_ID, 30L), filled(32, 0x05)));
+
+        assertThat(result.responseCode()).isEqualTo(SUCCESS);
+        final Tuple metaTuple = ClprVerifierAbi.VERIFY_BUNDLE_RETURN
+                .decode(result.fullResult().output().toArray())
+                .get(0);
+        assertThat(((BigInteger) metaTuple.get(0)).longValueExact()).isEqualTo(42L);
+        assertThat((byte[]) metaTuple.get(1)).isEqualTo(filled(32, 0x02));
+    }
+
+    @Test
+    void bundleEndingAtThePeersLastMessageKeepsTheProvenMetadata() {
+        final var content = ClprBundleContent.newBuilder()
+                .metadata(relayedMetadata(filled(32, 0x02)))
+                .messages(threeMessages())
+                .build();
+
+        final var result = executeWith(verifiedBundle(contentBytes(content), new byte[0]));
+
+        assertThat(result.responseCode()).isEqualTo(SUCCESS);
+        final Tuple metaTuple = ClprVerifierAbi.VERIFY_BUNDLE_RETURN
+                .decode(result.fullResult().output().toArray())
+                .get(0);
+        assertThat(((BigInteger) metaTuple.get(0)).longValueExact()).isEqualTo(42L);
+        assertThat((byte[]) metaTuple.get(1)).isEqualTo(filled(32, 0x02));
     }
 
     @Test
@@ -316,6 +377,56 @@ class BesuQBFTVerifyBundleCallTest extends CallTestBase {
                 7L);
         return new BesuQbftVerifier.VerifiedBundle(
                 filled(32, 0x01), contentBytes, proven, newTrustAnchor, newTrustAnchorId, newEndpointManifestBytes);
+    }
+
+    /**
+     * A bundle of {@code messages} whose proof carries a 6th slot {@code lastMessageSlotKey} holding
+     * {@code lastMessageRunningHash}, against a peer that queued up to message 41 and acknowledged up to 25.
+     */
+    private static BesuQbftVerifier.VerifiedBundle partialBundle(
+            final List<ClprMessagePayload> messages,
+            final byte[] lastMessageSlotKey,
+            final byte[] lastMessageRunningHash) {
+        final var content = ClprBundleContent.newBuilder()
+                .metadata(relayedMetadata(filled(32, 0x02)))
+                .messages(messages)
+                .build();
+        final var proven = new BesuQbftVerifier.QueueMetadata(
+                42,
+                filled(32, 0x02),
+                17,
+                filled(32, 0x03),
+                ClprChannelStatus.ACTIVE.protoOrdinal(),
+                lastMessageRunningHash,
+                7L,
+                25L,
+                lastMessageSlotKey);
+        return new BesuQbftVerifier.VerifiedBundle(
+                filled(32, 0x01), contentBytes(content), proven, new byte[0], new byte[0], new byte[0]);
+    }
+
+    private static List<ClprMessagePayload> threeMessages() {
+        return List.of(ClprMessagePayload.DEFAULT, ClprMessagePayload.DEFAULT, ClprMessagePayload.DEFAULT);
+    }
+
+    /** The running-hash slot of message {@code id}: {@code keccak256(id ‖ keccak256(channelId ‖ 1)) + 1}. */
+    private static byte[] messageRunningHashSlot(final byte[] channelId, final long id) {
+        final byte[] queueBase = keccak256(Bytes.wrap(channelId).append(Bytes.wrap(uint256(1))));
+        final byte[] slot = keccak256(Bytes.wrap(uint256(id)).append(Bytes.wrap(queueBase)));
+        for (int i = 31; i >= 0 && ++slot[i] == 0; i--) {
+            // carry into the next byte
+        }
+        return slot;
+    }
+
+    private static byte[] uint256(final long value) {
+        final byte[] out = new byte[32];
+        java.nio.ByteBuffer.wrap(out, 24, Long.BYTES).putLong(value);
+        return out;
+    }
+
+    private static byte[] keccak256(final Bytes input) {
+        return MiscCryptoUtils.keccak256DigestOf(input.toByteArray());
     }
 
     private static ClprQueueMetadata relayedMetadata(final byte[] sentRunningHash) {
