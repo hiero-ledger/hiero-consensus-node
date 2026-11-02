@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+import com.github.jengelman.gradle.plugins.shadow.transformers.Log4j2PluginsCacheFileTransformer
+
 plugins {
     id("org.hiero.gradle.module.application")
     id("org.gradlex.java-module-packaging")
+    id("org.hiero.gradle.feature.shadow")
 }
 
 description = "Hedera Execution YahCli Tool"
@@ -26,9 +30,17 @@ tasks.withType<JavaCompile>().configureEach { options.compilerArgs.add("-Xlint:-
 
 application.mainClass = "com.hedera.services.yahcli.Yahcli"
 
+// Besu and Log4j core both provide plugin caches; merge them so shadow packaging preserves both.
+tasks.withType<ShadowJar>().configureEach {
+    filesMatching("META-INF/org/apache/logging/log4j/core/config/plugins/Log4j2Plugins.dat") {
+        duplicatesStrategy = DuplicatesStrategy.INCLUDE
+    }
+    transform(Log4j2PluginsCacheFileTransformer::class.java)
+}
+
 tasks.register<Copy>("copyYahCli") {
     group = "copy"
-    from(tasks.fatModuleJar)
+    from(tasks.shadowJar)
     into(project.projectDir)
     rename { "yahcli.jar" }
 }
