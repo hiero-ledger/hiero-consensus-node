@@ -6,9 +6,12 @@ import static com.hedera.node.app.history.HistoryService.isCompleted;
 import static com.hedera.node.app.tss.TssBlockHashSigner.usesChainOfTrustProof;
 import static java.util.Objects.requireNonNull;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
+import com.hedera.hapi.node.state.history.HintsKeyProvenance;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
+import com.hedera.node.app.hints.KeyProvenanceSigner;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.ReadableHistoryStore;
@@ -54,6 +57,9 @@ public class ProofControllers {
     @Nullable
     private SortedMap<Long, Long> controllerSourceWeights;
 
+    @Nullable
+    private HintsKeyProvenance controllerBinding;
+
     @Inject
     public ProofControllers(
             @NonNull final Executor executor,
@@ -85,6 +91,7 @@ public class ProofControllers {
      * @param tssConfig the TSS configuration
      * @return the result of the operation
      */
+    @VisibleForTesting
     public @NonNull ProofController getOrCreateFor(
             @NonNull final ActiveRosters activeRosters,
             @NonNull final HistoryProofConstruction construction,
@@ -92,6 +99,24 @@ public class ProofControllers {
             @Nullable final HintsConstruction activeHintsConstruction,
             @NonNull final HistoryProofConstruction activeProofConstruction,
             @NonNull final TssConfig tssConfig) {
+        return getOrCreateFor(
+                activeRosters,
+                construction,
+                historyStore,
+                activeHintsConstruction,
+                activeProofConstruction,
+                tssConfig,
+                null);
+    }
+
+    public @NonNull ProofController getOrCreateFor(
+            @NonNull final ActiveRosters activeRosters,
+            @NonNull final HistoryProofConstruction construction,
+            @NonNull final ReadableHistoryStore historyStore,
+            @Nullable final HintsConstruction activeHintsConstruction,
+            @NonNull final HistoryProofConstruction activeProofConstruction,
+            @NonNull final TssConfig tssConfig,
+            @Nullable final KeyProvenanceSigner sourceSigner) {
         requireNonNull(activeRosters);
         requireNonNull(construction);
         requireNonNull(historyStore);
@@ -100,6 +125,7 @@ public class ProofControllers {
         // controller created before that construction had a scheme must be replaced to agree with it
         final var sourceWeights = maybeWeightsFrom(activeHintsConstruction);
         if (currentConstructionId() != construction.constructionId()
+                || !Objects.equals(controllerBinding, construction.keyProvenance())
                 || !Objects.equals(sourceWeights, controllerSourceWeights)) {
             if (controller != null) {
                 controller.cancelPendingWork();
@@ -110,7 +136,9 @@ public class ProofControllers {
                     historyStore,
                     activeHintsConstruction,
                     activeProofConstruction,
-                    tssConfig);
+                    tssConfig,
+                    sourceSigner);
+            controllerBinding = construction.keyProvenance();
             controllerSourceWeights = sourceWeights;
         }
         return requireNonNull(controller);
@@ -163,7 +191,8 @@ public class ProofControllers {
             @NonNull final ReadableHistoryStore historyStore,
             @Nullable final HintsConstruction activeHintsConstruction,
             @NonNull final HistoryProofConstruction activeProofConstruction,
-            @NonNull final TssConfig tssConfig) {
+            @NonNull final TssConfig tssConfig,
+            @Nullable final KeyProvenanceSigner sourceSigner) {
         final var weights = activeRosters.transitionWeights(maybeWeightsFrom(activeHintsConstruction));
         if (!weights.sourceNodesHaveTargetThreshold()) {
             return new InertProofController(construction.constructionId());
@@ -175,8 +204,21 @@ public class ProofControllers {
             final var selfId = selfNodeInfoSupplier.get().nodeId();
             final var schnorrKeyPair = keyAccessor.getOrCreateSchnorrKeyPair(construction.constructionId());
             final var sourceProof = activeProofConstruction.targetProof();
+            final var provenanceSigner = construction.hasKeyProvenance() ? sourceSigner : null;
             final HistoryProver.Factory proverFactory = (s, t, k, p, w, r, x, l, m) -> new WrapsHistoryProver(
-                    s, t.wrapsMessageGracePeriod(), k, p, w, r, CompletableFuture::delayedExecutor, x, l, m, machine);
+                    s,
+                    t.wrapsMessageGracePeriod(),
+                    k,
+                    p,
+                    w,
+                    r,
+                    CompletableFuture::delayedExecutor,
+                    x,
+                    l,
+                    m,
+                    machine,
+                    provenanceSigner,
+                    construction.keyProvenance());
             return new ProofControllerImpl(
                     selfId,
                     schnorrKeyPair,
@@ -193,7 +235,8 @@ public class ProofControllers {
                     proverFactory,
                     sourceProof,
                     historyProofMetrics,
-                    tssConfig);
+                    tssConfig,
+                    provenanceSigner);
         }
     }
 
@@ -208,7 +251,8 @@ public class ProofControllers {
 
     /**
      * Returns whether the given construction grounds a chain of trust rather than extending one to a new roster;
-     * that is, whether it has the same roster as both source and target. This is the shape of the genesis
+     * that is, whether it has the same roster as both source and target and no previous key generation to certify
+     * its adoption. This is the shape of the genesis
      * construction, and of any construction later created to build a fresh genesis WRAPS proof for the roster
      * the network already has.
      *
@@ -217,7 +261,8 @@ public class ProofControllers {
      */
     public static boolean groundsChainOfTrust(@NonNull final HistoryProofConstruction construction) {
         requireNonNull(construction);
-        return !Bytes.EMPTY.equals(construction.sourceRosterHash())
+        return !construction.hasKeyProvenance()
+                && !Bytes.EMPTY.equals(construction.sourceRosterHash())
                 && construction.sourceRosterHash().equals(construction.targetRosterHash());
     }
 
