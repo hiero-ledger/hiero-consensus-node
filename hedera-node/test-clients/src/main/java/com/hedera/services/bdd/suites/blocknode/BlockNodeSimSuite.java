@@ -58,7 +58,10 @@ public class BlockNodeSimSuite {
                         nodeId = 0,
                         blockNodeIds = {0, 1, 2, 3},
                         blockNodePriorities = {0, 1, 2, 3},
-                        applicationPropertiesOverrides = {"blockStream.buffer.ackedBlocksToRetain", "25"})
+                        applicationPropertiesOverrides = {
+                            "blockStream.buffer.maxBlocks", "75",
+                            "blockStream.buffer.ackedBlocksToRetain", "35"
+                        })
             })
     @Order(1)
     final Stream<DynamicTest> node0StreamingBlockNodeConnectionDropsTrickle() {
