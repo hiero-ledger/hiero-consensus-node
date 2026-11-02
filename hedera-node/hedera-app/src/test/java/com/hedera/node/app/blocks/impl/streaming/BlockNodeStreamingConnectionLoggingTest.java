@@ -11,8 +11,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.block.internal.PublishStreamRequestBytes;
-import com.hedera.node.app.blocks.impl.streaming.BlockNodeStreamingConnection.BlockEndRequest;
-import com.hedera.node.app.blocks.impl.streaming.BlockNodeStreamingConnection.StreamRequest;
+import com.hedera.node.app.blocks.impl.streaming.BlockNodePublisherConnection.PublisherBlockEndRequest;
+import com.hedera.node.app.blocks.impl.streaming.BlockNodePublisherConnection.PublisherRequest;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
@@ -52,16 +52,17 @@ class BlockNodeStreamingConnectionLoggingTest extends BlockNodeCommunicationTest
     static {
         try {
             final Lookup lookup = MethodHandles.lookup();
-            final Class<?> cls = BlockNodeStreamingConnection.class;
+            final Class<?> streamingCls = BlockNodeStreamingConnection.class;
+            final Class<?> publisherCls = BlockNodePublisherConnection.class;
 
             connectionStateHandle = MethodHandles.privateLookupIn(AbstractBlockNodeConnection.class, lookup)
                     .findVarHandle(AbstractBlockNodeConnection.class, "stateRef", AtomicReference.class);
 
-            final Method sendRequest = cls.getDeclaredMethod("sendRequest", StreamRequest.class);
+            final Method sendRequest = publisherCls.getDeclaredMethod("sendRequest", PublisherRequest.class);
             sendRequest.setAccessible(true);
             sendRequestHandle = lookup.unreflect(sendRequest);
 
-            final Method handleEndOfStream = cls.getDeclaredMethod("handleEndOfStream", EndOfStream.class);
+            final Method handleEndOfStream = streamingCls.getDeclaredMethod("handleEndOfStream", EndOfStream.class);
             handleEndOfStream.setAccessible(true);
             handleEndOfStreamHandle = lookup.unreflect(handleEndOfStream);
         } catch (final Exception e) {
@@ -72,7 +73,8 @@ class BlockNodeStreamingConnectionLoggingTest extends BlockNodeCommunicationTest
     private static final long SLOW_REQ_THRESHOLD_MILLIS = 200;
 
     private BlockNodeStreamingConnection connection;
-    private LogCaptor logCaptor;
+    private LogCaptor streamingConnLogCaptor;
+    private LogCaptor publisherConnLogCaptor;
 
     ExecutorService blockingIoExecutor;
     private GrpcCall<PublishStreamRequestBytes, PublishStreamResponse> requestCall;
@@ -115,7 +117,8 @@ class BlockNodeStreamingConnectionLoggingTest extends BlockNodeCommunicationTest
                 0L,
                 streamingObs);
 
-        logCaptor = new LogCaptor(LogManager.getLogger(BlockNodeStreamingConnection.class));
+        streamingConnLogCaptor = new LogCaptor(LogManager.getLogger(BlockNodeStreamingConnection.class));
+        publisherConnLogCaptor = new LogCaptor(LogManager.getLogger(BlockNodePublisherConnection.class));
     }
 
     @AfterEach
@@ -124,7 +127,8 @@ class BlockNodeStreamingConnectionLoggingTest extends BlockNodeCommunicationTest
             blockingIoExecutor.shutdownNow();
         }
 
-        logCaptor.stopCapture();
+        streamingConnLogCaptor.stopCapture();
+        publisherConnLogCaptor.stopCapture();
     }
 
     @Test
@@ -147,11 +151,11 @@ class BlockNodeStreamingConnectionLoggingTest extends BlockNodeCommunicationTest
         final PublishStreamRequestBytes psr = PublishStreamRequestBytes.newBuilder()
                 .endOfBlock(BlockEnd.newBuilder().blockNumber(1))
                 .build();
-        final StreamRequest request = new BlockEndRequest(psr, 1, 2, 3_000, 1);
+        final PublisherRequest request = new PublisherBlockEndRequest(psr, 1, 2, 3_000, 1);
 
         invoke_sendRequest(request);
 
-        final List<String> warnLogs = logCaptor.warnLogs();
+        final List<String> warnLogs = publisherConnLogCaptor.warnLogs();
         assertLogOccurrence(
                 warnLogs, "Slow request detected (threshold: " + SLOW_REQ_THRESHOLD_MILLIS + "ms, observed: ", 1);
     }
@@ -169,13 +173,17 @@ class BlockNodeStreamingConnectionLoggingTest extends BlockNodeCommunicationTest
 
         invoke_handleEndOfStream(eos);
 
-        final List<String> infoLogs = logCaptor.infoLogs();
-        assertThat(infoLogs).hasSize(2);
-
-        assertThat(infoLogs.get(0))
+        final List<String> streamingConnInfoLogs = streamingConnLogCaptor.infoLogs();
+        assertThat(streamingConnInfoLogs).hasSize(2);
+        assertThat(streamingConnInfoLogs.get(0))
                 .contains(
                         "Received EndOfStream response (lastVerifiedBlock: 14, approxProblematicBlock: 16, responseCode: BAD_BLOCK_PROOF)");
-        assertThat(infoLogs.get(1)).contains("Closing connection (reason: TRANSIENT_END_STREAM_RECEIVED,");
+        assertThat(streamingConnInfoLogs.get(1)).contains("Streaming connection closed");
+
+        final List<String> publisherConnInfoLogs = publisherConnLogCaptor.infoLogs();
+        assertThat(publisherConnInfoLogs).hasSize(1);
+        assertThat(publisherConnInfoLogs.getFirst())
+                .contains("Closing connection (reason: TRANSIENT_END_STREAM_RECEIVED)");
     }
 
     // Utilities
@@ -185,7 +193,7 @@ class BlockNodeStreamingConnectionLoggingTest extends BlockNodeCommunicationTest
         return (AtomicReference<ConnectionState>) connectionStateHandle.get(connection);
     }
 
-    private void invoke_sendRequest(final StreamRequest request) throws Throwable {
+    private void invoke_sendRequest(final PublisherRequest request) throws Throwable {
         sendRequestHandle.invoke(connection, request);
     }
 

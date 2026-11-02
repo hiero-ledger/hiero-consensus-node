@@ -3,6 +3,7 @@ package com.hedera.node.config.data;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.config.types.BlockStreamWriterMode;
 import com.hedera.node.config.types.StreamMode;
 import java.time.Duration;
@@ -35,6 +36,27 @@ class BlockStreamConfigTest {
                     .getConfigData(BlockStreamConfig.class);
             assertThat(disabled.stateChangeDeltasEnabled()).isFalse();
         }
+    }
+
+    @Test
+    void blockSizeLimitsHaveIndependentDefaults() {
+        final var config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .getOrCreateConfig()
+                .getConfigData(BlockStreamConfig.class);
+
+        assertThat(config.maxBlockSizeBytes()).isEqualTo(20L * 1024 * 1024);
+        assertThat(config.maxBlockExecutionSizeBytes()).isEqualTo(100L * 1024 * 1024);
+    }
+
+    @Test
+    void maxBlockSizeLimitEnabledByDefault() {
+        final var config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .getOrCreateConfig()
+                .getConfigData(BlockStreamConfig.class);
+
+        assertThat(config.maxBlockSizeLimitEnabled()).isTrue();
     }
 
     @Test
@@ -91,6 +113,8 @@ class BlockStreamConfigTest {
                 1,
                 Duration.ofSeconds(2),
                 0,
+                0,
+                false,
                 8192,
                 Duration.ofMillis(10),
                 100,
