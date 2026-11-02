@@ -65,7 +65,8 @@ public class FalconNetwork extends SimulatedNetwork implements TimeTickReceiver 
             @NonNull final Random random,
             @NonNull final SimulatorTimeManager timeManager,
             @NonNull final TransactionGenerator transactionGenerator) {
-        super(random, timeManager, transactionGenerator, false);
+        // Falcon nodes receive no forwarded copies of their own events
+        super(random, timeManager, transactionGenerator, false, false);
     }
 
     /**
