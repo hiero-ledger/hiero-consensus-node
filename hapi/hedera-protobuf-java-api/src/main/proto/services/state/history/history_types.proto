@@ -4,6 +4,7 @@ package com.hedera.hapi.node.state.history;
 
 // SPDX-License-Identifier: Apache-2.0
 import "services/timestamp.proto";
+import "services/auxiliary/hints/hints_partial_signature.proto";
 import "google/protobuf/wrappers.proto";
 
 option java_package = "com.hederahashgraph.api.proto.java";
@@ -92,6 +93,12 @@ message HistoryProof {
    * required to keep extending the chain of trust.
    */
   bytes uncompressed_wraps_proof = 4;
+  /**
+   * The aggregate hinTS signature over the target verification key, made by the
+   * preceding signing generation. Required for rotation proof votes so consensus
+   * can validate and persist explicit key provenance. Absent for genesis.
+   */
+  bytes key_provenance_signature = 5;
 }
 
 /**
@@ -167,6 +174,14 @@ message HistoryProofConstruction {
    * retries so a restarted controller reconstructs the same address book.
    */
   proto.Timestamp proof_key_cutoff_time = 12;
+
+  /**
+   * The previous hinTS generation's signature authorizing this construction's
+   * target verification key. This survives WRAPS phases, retries, and proof
+   * completion, and is enqueued only when the construction becomes active.
+   * Absent for genesis, which has no preceding signing generation.
+   */
+  HintsKeyProvenance key_provenance = 13;
 }
 
 /**
@@ -292,6 +307,11 @@ message WrapsMessageDetails {
    * The message itself.
    */
   bytes message = 3;
+  /**
+   * The validated source-generation hinTS share accepted with this R1 message.
+   * Persisted with the message so restart replays the same eligible signer set.
+   */
+  com.hedera.hapi.services.auxiliary.hints.HintsPartialSignatureTransactionBody hints_partial_signature = 4;
 }
 
 /**
@@ -338,4 +358,26 @@ message AggregatedNodeSignatures {
    * The hinTS key that this signature witnesses.
    */
   bytes verification_key = 3;
+}
+
+/**
+ * An explicit link between consecutive hinTS signing generations.
+ *
+ * The signature MUST verify over exactly target_verification_key under
+ * source_verification_key at the aBFT threshold. The construction identifiers
+ * identify the local generations; they are not included in the signed message.
+ */
+message HintsKeyProvenance {
+  /** The hinTS construction whose signing key authorized the next key. */
+  uint64 source_hints_construction_id = 1;
+  /** The hinTS construction whose verification key is being adopted. */
+  uint64 target_hints_construction_id = 2;
+  /** The previous generation's verification key. */
+  bytes source_verification_key = 3;
+  /** The next generation's verification key, and the exact signed message. */
+  bytes target_verification_key = 4;
+  /** The aggregate hinTS signature from the previous signing generation. */
+  bytes signature = 5;
+  /** The history construction that certified adoption of the target key. */
+  uint64 history_construction_id = 6;
 }
