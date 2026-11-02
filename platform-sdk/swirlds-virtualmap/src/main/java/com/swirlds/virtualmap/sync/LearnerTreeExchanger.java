@@ -64,7 +64,7 @@ public final class LearnerTreeExchanger {
 
     /**
      * How often the applier thread logs the state of the leaf pipeline (responses waiting, hashing buffer,
-     * flusher) during reconnect.
+     * chunk status, flusher) during reconnect.
      */
     private static final long STATUS_LOG_INTERVAL_NANOS = Duration.ofSeconds(60).toNanos();
 
@@ -293,7 +293,8 @@ public final class LearnerTreeExchanger {
             logger.info(
                     RECONNECT.getMarker(),
                     "Learner leaf pipeline: appliedLeaves={}, responsesWaiting={}, applyMillis={}, "
-                            + "parkedMillis={}, waitingForPath={}, waitingMillis={}, hashingBuffer={}, flusher: {}",
+                            + "parkedMillis={}, waitingForPath={}, waitingMillis={}, hashingBuffer={}, "
+                            + "chunk status: {}, flusher: {}",
                     appliedLeaves,
                     responses.size(),
                     TimeUnit.NANOSECONDS.toMillis(applyNanos),
@@ -301,6 +302,7 @@ public final class LearnerTreeExchanger {
                     headPath,
                     (headPath == null) ? 0 : TimeUnit.NANOSECONDS.toMillis(now - headWaitStart),
                     vmapLearner.getHashingBufferSize(),
+                    traversalOrder.getStatus(),
                     vmapLearner.getFlusherStatus());
         }
     }
