@@ -205,6 +205,20 @@ class HistoryLibraryImplTest {
     }
 
     @Test
+    void addressBookCanRepeatTheSentinelKeyButNoOtherKey() {
+        // ProofControllerImpl relies on this to keep invalid and copied proof keys out of a target address book
+        final var key = subject.newSchnorrKeyPair().publicKey();
+        final var otherKey = subject.newSchnorrKeyPair().publicKey();
+        final var sentinel = HistoryLibrary.MISSING_SCHNORR_KEY.toByteArray();
+
+        assertDoesNotThrow(() -> subject.hashAddressBook(addressBookWith(key, otherKey, sentinel, sentinel)));
+        assertThrows(IllegalArgumentException.class, () -> subject.hashAddressBook(addressBookWith(key, key)));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> subject.hashAddressBook(addressBookWith(key, new byte[key.length])));
+    }
+
+    @Test
     void wrapsPhasesAndVerificationCoverAllMethods() {
         final var keys = subject.newSchnorrKeyPair();
 
@@ -407,6 +421,15 @@ class HistoryLibraryImplTest {
 
     private static final int VK_LENGTH = 1096;
     private static final SplittableRandom RANDOM = new SplittableRandom(1_234_567L);
+
+    private static HistoryLibrary.AddressBook addressBookWith(final byte[]... publicKeys) {
+        final var weights = new long[publicKeys.length];
+        Arrays.fill(weights, 1L);
+        return new HistoryLibrary.AddressBook(
+                weights,
+                publicKeys,
+                IntStream.rangeClosed(1, publicKeys.length).asLongStream().toArray());
+    }
 
     private static byte[] randomBytes(final int n) {
         final var bytes = new byte[n];

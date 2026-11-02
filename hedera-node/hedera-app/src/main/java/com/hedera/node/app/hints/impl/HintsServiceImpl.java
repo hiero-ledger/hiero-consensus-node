@@ -19,6 +19,8 @@ import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.HintsService;
+import com.hedera.node.app.hints.KeyProvenanceSigner;
+import com.hedera.node.app.hints.ReadableHintsStore;
 import com.hedera.node.app.hints.WritableHintsStore;
 import com.hedera.node.app.hints.handlers.HintsHandlers;
 import com.hedera.node.app.hints.schemas.V059HintsSchema;
@@ -169,6 +171,16 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
     @Override
     public @Nullable HintsConstruction activeConstruction() {
         return component.signingContext().activeConstruction();
+    }
+
+    @Override
+    public @Nullable KeyProvenanceSigner keyProvenanceFor(@NonNull final ReadableHintsStore hintsStore) {
+        requireNonNull(hintsStore);
+        final var construction = hintsStore.getActiveConstruction();
+        return construction.hasHintsScheme()
+                ? new KeyProvenanceSigner(
+                        library, component.keyAccessor(), construction, hintsStore.getCrsStateFor(construction))
+                : null;
     }
 
     @Override

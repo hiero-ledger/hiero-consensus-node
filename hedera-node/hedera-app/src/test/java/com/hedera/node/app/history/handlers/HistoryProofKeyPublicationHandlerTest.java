@@ -12,6 +12,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.state.history.WrapsPhase;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.hapi.services.auxiliary.hints.HintsPartialSignatureTransactionBody;
 import com.hedera.hapi.services.auxiliary.history.HistoryProofKeyPublicationTransactionBody;
 import com.hedera.node.app.history.ReadableHistoryStore;
 import com.hedera.node.app.history.WritableHistoryStore;
@@ -24,6 +25,7 @@ import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,6 +41,12 @@ class HistoryProofKeyPublicationHandlerTest {
     private static final long CONSTRUCTION_ID = 42L;
     private static final Bytes PROOF_KEY = Bytes.wrap("PK");
     private static final Bytes WRAPS_MESSAGE = Bytes.wrap("MSG");
+    private static final HintsPartialSignatureTransactionBody COMPANION =
+            HintsPartialSignatureTransactionBody.newBuilder()
+                    .constructionId(7)
+                    .message(Bytes.wrap("successor verification key"))
+                    .partialSignature(Bytes.wrap("source epoch share"))
+                    .build();
     private static final Instant CONSENSUS_NOW = Instant.ofEpochSecond(1_234_567L, 890);
 
     @Mock
@@ -135,13 +143,41 @@ class HistoryProofKeyPublicationHandlerTest {
         assertEquals(WRAPS_MESSAGE, publication.message());
         assertEquals(WrapsPhase.R1, publication.phase());
         assertEquals(CONSENSUS_NOW, publication.receiptTime());
+        assertNull(publication.hintsPartialSignature());
         verify(store).addWrapsMessage(CONSTRUCTION_ID, publication);
         verify(controllers, never()).getAnyInProgress();
     }
 
     @Test
+    void companionStaysPairedWithItsCreatorAndWrapsMessageWhenPersisted() {
+        givenWrapsMessagePublicationWith(WRAPS_MESSAGE, WrapsPhase.R1, CONSTRUCTION_ID, COMPANION);
+        given(nodeInfo.nodeId()).willReturn(NODE_ID);
+        given(context.creatorInfo()).willReturn(nodeInfo);
+        given(context.storeFactory()).willReturn(factory);
+        given(factory.writableStore(WritableHistoryStore.class)).willReturn(store);
+        given(context.consensusNow()).willReturn(CONSENSUS_NOW);
+        given(controllers.getInProgressById(CONSTRUCTION_ID)).willReturn(Optional.of(controller));
+        given(controller.addWrapsMessagePublication(any(ReadableHistoryStore.WrapsMessagePublication.class), eq(store)))
+                .willReturn(true);
+        given(controller.constructionId()).willReturn(CONSTRUCTION_ID);
+
+        subject.handle(context);
+
+        final var captor = ArgumentCaptor.forClass(ReadableHistoryStore.WrapsMessagePublication.class);
+        verify(controller).addWrapsMessagePublication(captor.capture(), eq(store));
+        final var publication = captor.getValue();
+        assertEquals(NODE_ID, publication.nodeId());
+        assertEquals(WRAPS_MESSAGE, publication.message());
+        assertEquals(WrapsPhase.R1, publication.phase());
+        assertEquals(CONSENSUS_NOW, publication.receiptTime());
+        assertEquals(COMPANION, publication.hintsPartialSignature());
+        assertEquals(7, publication.hintsPartialSignature().constructionId());
+        verify(store).addWrapsMessage(CONSTRUCTION_ID, publication);
+    }
+
+    @Test
     void doesNotPersistWrapsMessageIfControllerRejects() {
-        givenWrapsMessagePublicationWith(WRAPS_MESSAGE, WrapsPhase.R1);
+        givenWrapsMessagePublicationWith(WRAPS_MESSAGE, WrapsPhase.R1, CONSTRUCTION_ID, COMPANION);
         given(nodeInfo.nodeId()).willReturn(NODE_ID);
         given(context.creatorInfo()).willReturn(nodeInfo);
         given(context.storeFactory()).willReturn(factory);
@@ -191,10 +227,19 @@ class HistoryProofKeyPublicationHandlerTest {
 
     private void givenWrapsMessagePublicationWith(
             @NonNull final Bytes message, @NonNull final WrapsPhase phase, final long constructionId) {
+        givenWrapsMessagePublicationWith(message, phase, constructionId, null);
+    }
+
+    private void givenWrapsMessagePublicationWith(
+            @NonNull final Bytes message,
+            @NonNull final WrapsPhase phase,
+            final long constructionId,
+            @Nullable final HintsPartialSignatureTransactionBody companion) {
         final var op = HistoryProofKeyPublicationTransactionBody.newBuilder()
                 .wrapsMessage(message)
                 .phase(phase)
                 .constructionId(constructionId)
+                .hintsPartialSignature(companion)
                 .build();
         final var body =
                 TransactionBody.newBuilder().historyProofKeyPublication(op).build();

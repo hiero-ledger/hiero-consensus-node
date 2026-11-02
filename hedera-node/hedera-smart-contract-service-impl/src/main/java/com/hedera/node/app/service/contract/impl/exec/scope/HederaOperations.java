@@ -251,18 +251,18 @@ public interface HederaOperations {
      * Signing requirements are waived, and the record of this deletion should only be externalized if
      * the top-level HAPI transaction succeeds.
      *
-     * <p>The record of this creation should only be externalized if the top-level HAPI transaction succeeds.
-     *
      * @param evmAddress the EVM address of the contract to delete
+     * @param beneficiaryId the numeric account ID of the committed self-destruct's beneficiary
      */
-    void deleteAliasedContract(@NonNull Bytes evmAddress);
+    void deleteAliasedContract(@NonNull Bytes evmAddress, @NonNull AccountID beneficiaryId);
 
     /**
      * Convenience method to delete an unaliased contract with the given number.
      *
      * @param number the number of the contract to delete
+     * @param beneficiaryId the numeric account ID of the committed self-destruct's beneficiary
      */
-    void deleteUnaliasedContract(long number);
+    void deleteUnaliasedContract(long number, @NonNull AccountID beneficiaryId);
 
     /**
      * Returns a list of the account numbers that have been modified in this scope.
