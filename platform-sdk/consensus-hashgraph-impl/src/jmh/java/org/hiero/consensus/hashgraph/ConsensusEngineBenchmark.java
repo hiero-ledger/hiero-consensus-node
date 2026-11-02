@@ -3,7 +3,6 @@ package org.hiero.consensus.hashgraph;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executors;
@@ -15,8 +14,6 @@ import org.hiero.consensus.hashgraph.impl.ConsensusEngine;
 import org.hiero.consensus.hashgraph.impl.ConsensusEngineOutput;
 import org.hiero.consensus.hashgraph.impl.DefaultConsensusEngine;
 import org.hiero.consensus.hashgraph.impl.consensus.ConsensusImpl;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GeneratorEventGraphSource;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GeneratorEventGraphSourceBuilder;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
 import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
@@ -24,6 +21,12 @@ import org.hiero.consensus.metrics.platform.PlatformMetricsFactoryImpl;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.RosterWrapper;
+import org.hiero.otter.fixtures.falcon.recording.FalconRecorder;
+import org.hiero.otter.fixtures.falcon.recording.NodeRecording;
+import org.hiero.otter.fixtures.falcon.recording.Recording;
+import org.hiero.otter.fixtures.falcon.recording.RecordingSpec;
+import org.hiero.otter.fixtures.falcon.recording.Step;
+import org.hiero.otter.fixtures.falcon.recording.Step.Released;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -41,21 +44,28 @@ import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
 /**
- * Measures the latency of {@link DefaultConsensusEngine#addEvent(PlatformEvent)} on a pre-generated event graph.
+ * Measures the latency of {@link DefaultConsensusEngine#addEvent(PlatformEvent)} on the events of a simulated network.
  *
  * <p>Besides the consensus algorithm, {@link ConsensusImpl}, which {@link ConsensusImplBenchmark} measures alone, the
  * engine links each event to its parents, buffers events whose birth round lies in the future, moves the event window
  * when a round reaches consensus, and reports stale events. The benchmark calls the engine directly on its own thread,
  * without the wiring framework that runs the engine on a separate thread in production.
  *
- * <p>The graph is generated once per trial. The engine mutates the events it processes, so every invocation works on
- * fresh copies and a new engine, both created outside the measured region.
+ * <p>{@link FalconRecorder} simulates the network once per trial: one full node and cheap stand-ins for the other
+ * nodes, on the ping times of mainnet, with the transactions of mainnet and without signatures, which the engine does
+ * not read. The benchmark takes the events the full node's orphan buffer released, in that order. The engine buffers
+ * none of these events as future events and finds none of them stale, so those two paths only pass through here. The
+ * engine mutates the events it processes, so every invocation works on fresh copies and a new engine, both created
+ * outside the measured region.
+ *
+ * <p>The recording runs the event creator and the consensus code, so a change to them can change the events. The check
+ * of the engine's output then fails, and the expected numbers change in the same pull request.
  *
  * <p>The engine updates the production metrics implementation, {@link DefaultPlatformMetrics}, so the benchmark
  * measures the cost of the metric updates in {@code addEvent}. The metrics are not started: in production, their
  * periodic updaters and snapshots run on other threads, outside {@code addEvent}.
  *
- * <p>One invocation adds all events of the graph. The primary score is the mean time per event. A
+ * <p>One invocation adds all recorded events. The primary score is the mean time per event. A
  * {@link LatencyRecorder} also times every call, with one timestamp per call ({@link LatencyRecorder#lap()}), so each
  * latency also contains the output counting and the blackhole of the previous call. {@link LatencyProfiler} reports
  * the percentiles and the allocation per call. The allocation is measured around the calls only, because
@@ -68,7 +78,7 @@ import org.openjdk.jmh.infra.Blackhole;
  * <p>Each invocation's setup ends with {@code System.gc()}, so usually no garbage collection falls into the measured
  * calls. A pass during which one does is discarded and replaced by the next invocation, so the latency results and
  * {@code latency.mean} exclude garbage collection. JMH's primary score, measured by JMH itself, still includes
- * discarded passes.
+ * discarded passes. As in {@link ConsensusImplBenchmark}, the heap is sized for the recording of 32 nodes.
  *
  * <p>Run with {@code -prof org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler}.
  *
@@ -88,40 +98,43 @@ import org.openjdk.jmh.infra.Blackhole;
 @State(Scope.Thread)
 @Fork(
         value = 5,
-        jvmArgsAppend = {"-Xms2g", "-Xmx2g", "-XX:+AlwaysPreTouch"})
+        jvmArgsAppend = {"-Xms6g", "-Xmx6g", "-XX:+AlwaysPreTouch"})
 @Warmup(iterations = 1, time = 15)
 @Measurement(iterations = 2, time = 15)
 public class ConsensusEngineBenchmark {
 
-    /** The seed of the random number generator. The same seed produces the same graph. */
+    /** The seed of the simulation. The same seed produces the same events. */
     private static final long SEED = 0;
 
-    /** The number of events in the generated graph. */
-    private static final int NUMBER_OF_EVENTS = 100000;
+    /** The number of recorded events. */
+    private static final int NUMBER_OF_EVENTS = 100_000;
 
-    /** The maximum number of other parents of a generated event. */
-    private static final int MAX_OTHER_PARENTS = 4;
-
-    /** The number of nodes in the generated graph. */
-    @Param({"4", "10"})
+    /** The number of nodes in the simulated network. */
+    @Param({"10", "32"})
     public int numNodes;
 
-    /** The roster of the generated graph. */
+    /** The roster of the simulated network. */
     private RosterWrapper roster;
 
-    /** The generated events of the graph. */
-    private List<PlatformEvent> generatedEvents;
+    /** The configuration of the recorded node. */
+    private Configuration configuration;
 
-    /** The expected number of consensus rounds in the graph. */
+    /** The ID of the recorded node. */
+    private NodeId selfId;
+
+    /** The recorded events. */
+    private List<PlatformEvent> recordedEvents;
+
+    /** The expected number of consensus rounds of the recorded events. */
     private int expectedRounds;
 
-    /** The expected number of stale events in the graph. */
+    /** The expected number of stale events of the recorded events. */
     private int expectedStaleEvents;
 
     /** The executor the metrics require. It stays idle, because the metrics are not started. */
     private ScheduledExecutorService metricsExecutor;
 
-    /** The copies of the generated events that the engine processes in one invocation. */
+    /** The copies of the recorded events that the engine processes in one invocation. */
     private List<PlatformEvent> events;
 
     /** The consensus engine used in the benchmark. */
@@ -140,26 +153,29 @@ public class ConsensusEngineBenchmark {
     private LatencyRecorder recorder;
 
     /**
-     * Generates the event graph for the benchmark. This method is called once per trial.
+     * Records the events for the benchmark. This method is called once per trial.
      */
     @Setup(Level.Trial)
-    public void generateEvents() {
-        final GeneratorEventGraphSource generator = GeneratorEventGraphSourceBuilder.builder()
-                .seed(SEED)
-                .maxOtherParents(MAX_OTHER_PARENTS)
-                .realSignatures(false)
-                .numNodes(numNodes)
-                .populateNgen(true)
-                .build();
-        roster = generator.getRoster();
-        generatedEvents = generator.nextEvents(NUMBER_OF_EVENTS);
+    public void recordEvents() {
+        final Recording recording = FalconRecorder.record(
+                RecordingSpec.builder(numNodes, SEED, NUMBER_OF_EVENTS).build());
+        final NodeRecording node = recording.nodes().getFirst();
+        roster = recording.roster();
+        configuration = node.configuration();
+        selfId = node.nodeId();
+        recordedEvents = new ArrayList<>(NUMBER_OF_EVENTS);
+        for (final Step step : node.steps()) {
+            if (step instanceof final Released released) {
+                recordedEvents.add(released.event());
+            }
+        }
         switch (numNodes) {
-            case 4 -> {
-                expectedRounds = 14960;
+            case 10 -> {
+                expectedRounds = 1786;
                 expectedStaleEvents = 0;
             }
-            case 10 -> {
-                expectedRounds = 4041;
+            case 32 -> {
+                expectedRounds = 496;
                 expectedStaleEvents = 0;
             }
             default -> throw new IllegalArgumentException("No expected output for numNodes=" + numNodes);
@@ -176,19 +192,17 @@ public class ConsensusEngineBenchmark {
     }
 
     /**
-     * Prepares the benchmark invocation by copying the generated events and creating a new consensus engine. This
+     * Prepares the benchmark invocation by copying the recorded events and creating a new consensus engine. This
      * method is called once per invocation.
      */
     @Setup(Level.Invocation)
     public void prepareInvocation() {
         events = new ArrayList<>(NUMBER_OF_EVENTS);
-        for (final PlatformEvent generatedEvent : generatedEvents) {
-            events.add(copy(generatedEvent));
+        for (final PlatformEvent recordedEvent : recordedEvents) {
+            events.add(copy(recordedEvent));
         }
 
-        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
         final MetricsConfig metricsConfig = configuration.getConfigData(MetricsConfig.class);
-        final NodeId selfId = roster.nodeIdAtIndex(0);
         final DefaultPlatformMetrics metrics = new DefaultPlatformMetrics(
                 selfId,
                 new MetricKeyRegistry(),
@@ -234,8 +248,9 @@ public class ConsensusEngineBenchmark {
     }
 
     /**
-     * Copies the parts of a generated event that exist before it reaches consensus. The copy drops nGen and the
-     * sequence number, so they are copied separately.
+     * Copies the parts of a recorded event that exist before it reaches consensus. The copy drops nGen and the
+     * sequence number, so they are copied separately. It also drops the simulated time received: only the metrics read
+     * that time, and they compare it with the wall clock.
      */
     private static PlatformEvent copy(final PlatformEvent event) {
         final PlatformEvent copy = event.copyGossipedData();
