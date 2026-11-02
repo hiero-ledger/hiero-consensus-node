@@ -1,11 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.state;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CONSENSUS_GAS_EXHAUSTED;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_CONTRACT_ID;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.EXPLICIT_WRITE_TRACING;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
 
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.contract.ContractNonceInfo;
@@ -28,7 +32,9 @@ import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
 import com.hedera.node.app.service.contract.impl.state.StorageSizeChange;
 import com.hedera.node.app.service.contract.impl.state.TxStorageUsage;
 import com.hedera.node.app.service.token.api.ContractChangeSummary;
+import com.hedera.node.app.spi.throttle.ThrottleAdviser;
 import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -87,6 +93,9 @@ class RootProxyWorldUpdaterTest {
 
     @Mock
     private ContractStateStore store;
+
+    @Mock
+    private ThrottleAdviser throttleAdviser;
 
     private Enhancement enhancement;
     private RootProxyWorldUpdater subject;
@@ -206,6 +215,57 @@ class RootProxyWorldUpdaterTest {
         BDDMockito.then(rentCalculator).shouldHaveNoInteractions();
         BDDMockito.then(storageManager).shouldHaveNoInteractions();
         BDDMockito.then(hederaOperations).should().commit();
+    }
+
+    @Test
+    void outermostExecutionThrottlesCreatedContracts() {
+        givenSubjectWith(creationThrottleConfig(), enhancement);
+        givenOneCreatedContractWithNoStorageChanges();
+        given(context.throttleAdviser()).willReturn(throttleAdviser);
+        given(throttleAdviser.shouldThrottleNOfUnscaled(1, CRYPTO_CREATE)).willReturn(true);
+
+        // ContextTransactionProcessor runs the outermost execution at depth one
+        ContractExecutionDepth.enter();
+        try {
+            final var e = assertThrows(ResourceExhaustedException.class, subject::commit);
+            assertEquals(CONSENSUS_GAS_EXHAUSTED, e.getStatus());
+        } finally {
+            ContractExecutionDepth.exit();
+        }
+    }
+
+    @Test
+    void nestedExecutionLeavesCreationThrottleToOutermostCommit() {
+        givenSubjectWith(creationThrottleConfig(), enhancement);
+        givenOneCreatedContractWithNoStorageChanges();
+        // Lenient, since a nested commit must not consult the throttle
+        BDDMockito.lenient().when(context.throttleAdviser()).thenReturn(throttleAdviser);
+
+        ContractExecutionDepth.enter();
+        ContractExecutionDepth.enter();
+        try {
+            subject.commit();
+        } finally {
+            ContractExecutionDepth.exit();
+            ContractExecutionDepth.exit();
+        }
+
+        BDDMockito.then(context).should(never()).throttleAdviser();
+        assertEquals(List.of(CALLED_CONTRACT_ID), subject.getCreatedContractIds());
+    }
+
+    private void givenOneCreatedContractWithNoStorageChanges() {
+        given(context.dispatchMetadata())
+                .willReturn(new HandleContext.DispatchMetadata(EXPLICIT_WRITE_TRACING, Boolean.FALSE));
+        given(evmFrameState.getTxStorageUsage(true)).willReturn(new TxStorageUsage(List.of(), Set.of()));
+        given(hederaOperations.summarizeContractChanges())
+                .willReturn(new ContractChangeSummary(new ArrayList<>(List.of(CALLED_CONTRACT_ID)), new ArrayList<>()));
+    }
+
+    private static Configuration creationThrottleConfig() {
+        return HederaTestConfigBuilder.create()
+                .withValue("contracts.enforceCreationThrottle", "true")
+                .getOrCreateConfig();
     }
 
     private void givenSubjectWith(@NonNull final Configuration configuration, @NonNull final Enhancement enhancement) {

@@ -10,6 +10,7 @@ import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_SYNCHRONOUS_H
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATABLE;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asContractString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
 import static com.hedera.services.bdd.spec.assertions.NonFungibleTransfers.changingNFTBalances;
@@ -25,6 +26,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.burnToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCallWithFunctionAbi;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCustomCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
@@ -40,6 +42,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.getEcdsaPrivateKeyFromSpec;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.getEd25519PrivateKeyFromSpec;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
@@ -81,6 +84,7 @@ import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.throttle.CongestionThrottleService;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.LeakyRepeatableHapiTest;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
 import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
@@ -91,7 +95,7 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecNonFungibleToken;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.keys.TrieSigMapGenerator;
-import com.hedera.services.bdd.spec.transactions.contract.HapiContractCall;
+import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
 import com.hedera.services.bdd.utils.Signing;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
@@ -115,6 +119,8 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 @TargetEmbeddedMode(REPEATABLE)
 public class RepeatableIntegrationTests {
+    private static final String ONE_TPS_CRYPTO_CREATE_THROTTLES = "testSystemFiles/one-tps-crypto-create.json";
+
     @Contract(contract = "HRC755Contract", creationGas = 1_000_000, isImmutable = true)
     static SpecContract SIGNING_CONTRACT;
 
@@ -273,18 +279,74 @@ public class RepeatableIntegrationTests {
                 storageListMatches(target, 1));
     }
 
+    @RepeatableHapiTest({NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW, NEEDS_STATE_ACCESS})
+    final Stream<DynamicTest> nestedScheduledContractCreateUpdatesStorageCounts() {
+        final var slotsBefore = new AtomicLong();
+        final var createdId = new AtomicReference<String>();
+        final var factory = "NoncesExternalization";
+        return hapiTest(
+                uploadInitCode(factory),
+                viewSingleton(
+                        EntityIdService.NAME,
+                        ENTITY_COUNTS_STATE_ID,
+                        (EntityCounts counts) -> slotsBefore.set(counts.numContractStorageSlots())),
+                scheduleAndAuthorize(contractCreate(factory).omitAdminKey().gas(1_000_000L)),
+                getTxnRecord("scheduleCreation")
+                        .scheduled()
+                        .exposingTo(record -> createdId.set(
+                                asContractString(record.getReceipt().getContractID()))),
+                // The scheduled creation's constructor adds exactly 4 storage slots
+                viewSingleton(
+                        EntityIdService.NAME,
+                        ENTITY_COUNTS_STATE_ID,
+                        (EntityCounts counts) -> assertEquals(slotsBefore.get() + 4, counts.numContractStorageSlots())),
+                sourcingContextual(spec -> storageListMatches(createdId.get(), 4)));
+    }
+
+    @LeakyRepeatableHapiTest(
+            value = NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW,
+            overrides = {"contracts.enforceCreationThrottle"},
+            throttles = ONE_TPS_CRYPTO_CREATE_THROTTLES)
+    final Stream<DynamicTest> nestedContractCreationWithinCreationThrottleSucceeds() {
+        final var factory = "NoncesExternalization";
+        return hapiTest(
+                uploadInitCode(factory),
+                contractCreate(factory).gas(1_000_000L),
+                overriding("contracts.enforceCreationThrottle", "true"),
+                // The throttle admits one creation per second and the scheduled call creates one contract
+                scheduleAndAuthorize(
+                        contractCall(factory, "deployParentContract").gas(500_000L)));
+    }
+
+    @LeakyRepeatableHapiTest(
+            value = NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW,
+            overrides = {"contracts.enforceCreationThrottle"},
+            throttles = ONE_TPS_CRYPTO_CREATE_THROTTLES)
+    final Stream<DynamicTest> topLevelContractCreationWithinCreationThrottleSucceeds() {
+        final var factory = "NoncesExternalization";
+        return hapiTest(
+                uploadInitCode(factory),
+                contractCreate(factory).gas(1_000_000L),
+                overriding("contracts.enforceCreationThrottle", "true"),
+                // The constructor creates four contracts, more than the throttle admits per second
+                contractCustomCreate(factory, "Copy").gas(1_000_000L).hasKnownStatus(CONTRACT_REVERT_EXECUTED),
+                // A call that creates one contract is within the throttle
+                contractCall(factory, "deployParentContract").gas(500_000L));
+    }
+
     /**
-     * Schedules {@code call} with a payer keyed to {@link #SIGNING_CONTRACT}, which then authorizes it.
+     * Schedules {@code op} with a payer keyed to {@link #SIGNING_CONTRACT}, which then authorizes it.
      */
-    private static SpecOperation scheduleAndAuthorize(@NonNull final HapiContractCall call) {
+    private static <T extends HapiTxnOp<T>> SpecOperation scheduleAndAuthorize(@NonNull final HapiTxnOp<T> op) {
         final var scheduleIdRef = new AtomicReference<ScheduleID>();
         return blockingOrder(
                 cryptoCreate("schedulePayer")
                         .balance(ONE_HUNDRED_HBARS)
                         .keyShape(KeyShape.CONTRACT.signedWith(SIGNING_CONTRACT.name())),
-                scheduleCreate("schedule", call)
+                scheduleCreate("schedule", op)
                         .designatingPayer("schedulePayer")
-                        .exposingCreatedIdTo(scheduleIdRef::set),
+                        .exposingCreatedIdTo(scheduleIdRef::set)
+                        .via("scheduleCreation"),
                 sourcingContextual(spec -> SIGNING_CONTRACT
                         .call(
                                 "authorizeScheduleCall",

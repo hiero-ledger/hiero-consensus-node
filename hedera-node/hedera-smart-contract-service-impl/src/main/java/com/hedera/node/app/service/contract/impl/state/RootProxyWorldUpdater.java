@@ -108,7 +108,8 @@ public class RootProxyWorldUpdater extends ProxyWorldUpdater {
         final var contractChangeSummary = enhancement.operations().summarizeContractChanges();
         createdContractIds = contractChangeSummary.newContractIds();
 
-        if (contractsConfig.enforceCreationThrottle()) {
+        // The outermost execution also throttles the creations of nested executions
+        if (contractsConfig.enforceCreationThrottle() && !ContractExecutionDepth.isNested()) {
             final var creationCapacityIsAvailable =
                     !context.throttleAdviser().shouldThrottleNOfUnscaled(createdContractIds.size(), CRYPTO_CREATE);
             validateResource(creationCapacityIsAvailable, CONSENSUS_GAS_EXHAUSTED);
