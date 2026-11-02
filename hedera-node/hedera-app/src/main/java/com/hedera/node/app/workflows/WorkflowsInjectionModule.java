@@ -3,6 +3,8 @@ package com.hedera.node.app.workflows;
 
 import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.BACKEND_THROTTLE;
 
+import com.hedera.node.app.corrections.ServicesStateDefinitionLookup;
+import com.hedera.node.app.corrections.StateDefinitionLookup;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
 import com.hedera.node.app.throttle.ThrottleMetrics;
 import com.hedera.node.app.throttle.annotations.BackendThrottle;
@@ -50,6 +52,17 @@ public interface WorkflowsInjectionModule {
     @Singleton
     static NodeControlledPayerGuard provideNodeControlledPayerGuard() {
         return new LiveNodeControlledPayerGuard();
+    }
+
+    /**
+     * A real consensus node validates state errata against the schemas of its registered services; only the
+     * in-process standalone transaction executor (see {@code StandaloneModule}) binds a lookup that knows no states.
+     */
+    @Provides
+    @Singleton
+    static StateDefinitionLookup provideStateDefinitionLookup(
+            @NonNull final ServicesStateDefinitionLookup servicesStateDefinitionLookup) {
+        return servicesStateDefinitionLookup;
     }
 
     @Provides

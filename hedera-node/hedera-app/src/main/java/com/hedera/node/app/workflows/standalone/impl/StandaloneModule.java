@@ -5,6 +5,7 @@ import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.BACK
 import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.NOOP_THROTTLE;
 
 import com.hedera.hapi.platform.state.PlatformState;
+import com.hedera.node.app.corrections.StateDefinitionLookup;
 import com.hedera.node.app.hapi.utils.blocks.NativeTssVerifier;
 import com.hedera.node.app.hapi.utils.blocks.TssVerifier;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
@@ -51,6 +52,15 @@ public interface StandaloneModule {
     @Singleton
     static NodeControlledPayerGuard provideNodeControlledPayerGuard() {
         return new NoOpNodeControlledPayerGuard();
+    }
+
+    /**
+     * The standalone executor has no services registry, so it knows no states and rejects every state errata.
+     */
+    @Provides
+    @Singleton
+    static StateDefinitionLookup provideStateDefinitionLookup() {
+        return stateId -> null;
     }
 
     @Provides

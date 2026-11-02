@@ -151,6 +151,10 @@ public class GrpcUtils {
                     case NA -> throw new IllegalArgumentException("SystemUndelete target not available");
                 };
             case Freeze -> clients.getFreezeSvcStub(nodeAccountId, false, false).freeze(transaction);
+            case BlockAmendment ->
+                clients.getNetworkSvcStub(nodeAccountId, false, false).blockAmendment(transaction);
+            case StateErrata ->
+                clients.getNetworkSvcStub(nodeAccountId, false, false).stateErrata(transaction);
             case ConsensusCreateTopic ->
                 clients.getConsSvcStub(nodeAccountId, false, false).createTopic(transaction);
             case ConsensusUpdateTopic ->

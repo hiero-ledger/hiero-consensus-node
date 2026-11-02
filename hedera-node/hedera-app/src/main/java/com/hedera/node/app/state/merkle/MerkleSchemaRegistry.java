@@ -29,6 +29,7 @@ import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.SortedSet;
@@ -91,6 +92,25 @@ public class MerkleSchemaRegistry implements SchemaRegistry<SemanticVersion> {
                 () -> serviceName);
 
         return this;
+    }
+
+    /**
+     * Returns the definition of every state this service defines once all of its registered schemas are
+     * applied, keyed by state id. Like {@link #migrate}, this applies the state definitions and removals of
+     * every registered schema, in order.
+     *
+     * @param configuration the configuration to use when asking each schema for its state definitions
+     * @return the current state definitions of this service, keyed by state id
+     */
+    public @NonNull Map<Integer, StateDefinition<?, ?>> currentStateDefinitions(
+            @NonNull final Configuration configuration) {
+        requireNonNull(configuration);
+        final Map<Integer, StateDefinition<?, ?>> definitions = new HashMap<>();
+        for (final var schema : schemas) {
+            schema.statesToCreate(configuration).forEach(def -> definitions.put(def.stateId(), def));
+            schema.statesToRemove().forEach(definitions::remove);
+        }
+        return definitions;
     }
 
     /**

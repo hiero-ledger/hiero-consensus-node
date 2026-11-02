@@ -118,6 +118,8 @@ import "services/hook_dispatch.proto";
 import "services/registered_node_create.proto";
 import "services/registered_node_update.proto";
 import "services/registered_node_delete.proto";
+import "services/block_amendment.proto";
+import "services/state_errata.proto";
 
 /**
  * A wrapper around signed transaction bytes.<br/>
@@ -765,6 +767,22 @@ message TransactionBody {
          * maintenance done outside of transaction handling.
          */
         com.hedera.hapi.services.auxiliary.clpr.ClprMaintenanceTransactionBody clpr_maintenance = 92;
+
+        /**
+         * Amend the block stream record of one or more past blocks.
+         * <p>
+         * This transaction MUST be paid for by the treasury or system admin
+         * account. It does not change state.
+         */
+        com.hedera.hapi.node.network.BlockAmendmentTransactionBody block_amendment = 93;
+
+        /**
+         * Correct network state by applying state changes.
+         * <p>
+         * This transaction MUST be paid for by the treasury or system admin
+         * account.
+         */
+        com.hedera.hapi.node.network.StateErrataTransactionBody state_errata = 94;
     }
 
     /**

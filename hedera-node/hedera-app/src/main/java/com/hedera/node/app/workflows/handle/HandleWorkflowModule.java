@@ -4,6 +4,8 @@ package com.hedera.node.app.workflows.handle;
 import static com.hedera.node.app.info.DiskStartupNetworks.tryToExport;
 
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.node.app.corrections.BlockAmendmentHandler;
+import com.hedera.node.app.corrections.StateErrataHandler;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.handlers.HintsHandlers;
 import com.hedera.node.app.history.HistoryService;
@@ -138,7 +140,9 @@ public interface HandleWorkflowModule {
             @NonNull final HintsHandlers hintsHandlers,
             @NonNull final HistoryHandlers historyHandlers,
             @NonNull final MigrationRootHashVoteHandler migrationRootHashVoteHandler,
-            @NonNull final ClprHandlers clprHandlers) {
+            @NonNull final ClprHandlers clprHandlers,
+            @NonNull final BlockAmendmentHandler blockAmendmentHandler,
+            @NonNull final StateErrataHandler stateErrataHandler) {
         return new TransactionHandlers(
                 consensusHandlers.consensusCreateTopicHandler(),
                 consensusHandlers.consensusUpdateTopicHandler(),
@@ -215,6 +219,8 @@ public interface HandleWorkflowModule {
                 clprHandlers.clprRegisterConnectorHandler(),
                 clprHandlers.clprCompleteConnectorHandler(),
                 clprHandlers.clprDeregisterConnectorHandler(),
-                clprHandlers.clprEndpointPublicationHandler());
+                clprHandlers.clprEndpointPublicationHandler(),
+                blockAmendmentHandler,
+                stateErrataHandler);
     }
 }

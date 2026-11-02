@@ -1946,6 +1946,16 @@ enum HederaFunctionality {
      * (Internal-only) Externalize CLPR singleton maintenance.
      */
     ClprMaintenance = 129;
+
+    /**
+     * Amend the block stream record of one or more past blocks.
+     */
+    BlockAmendment = 130;
+
+    /**
+     * Correct network state by applying state changes.
+     */
+    StateErrata = 131;
 }
 
 /**

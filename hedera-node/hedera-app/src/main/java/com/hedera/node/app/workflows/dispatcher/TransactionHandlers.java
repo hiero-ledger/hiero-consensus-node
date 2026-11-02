@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.dispatcher;
 
+import com.hedera.node.app.corrections.BlockAmendmentHandler;
+import com.hedera.node.app.corrections.StateErrataHandler;
 import com.hedera.node.app.hints.handlers.CrsPublicationHandler;
 import com.hedera.node.app.hints.handlers.HintsKeyPublicationHandler;
 import com.hedera.node.app.hints.handlers.HintsPartialSignatureHandler;
@@ -159,4 +161,6 @@ public record TransactionHandlers(
         @NonNull ClprRegisterConnectorHandler clprRegisterConnectorHandler,
         @NonNull ClprCompleteConnectorHandler clprCompleteConnectorHandler,
         @NonNull ClprDeregisterConnectorHandler clprDeregisterConnectorHandler,
-        @NonNull ClprEndpointPublicationHandler clprEndpointPublicationHandler) {}
+        @NonNull ClprEndpointPublicationHandler clprEndpointPublicationHandler,
+        @NonNull BlockAmendmentHandler blockAmendmentHandler,
+        @NonNull StateErrataHandler stateErrataHandler) {}

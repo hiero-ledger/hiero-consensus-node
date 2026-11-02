@@ -38,6 +38,8 @@ import "block/stream/output/transaction_output.proto";
 import "block/stream/output/transaction_result.proto";
 import "block/stream/trace/trace_data.proto";
 import "block/stream/output/block_footer.proto";
+import "block/stream/state_proof.proto";
+import "services/block_amendment.proto";
 
 /**
  * A single item within a block stream.
@@ -277,7 +279,69 @@ message BlockItem {
          * A block item intentionally redacted from the stream.
          */
         RedactedItem redacted_item = 19;
+
+        /**
+         * An amendment to this block.
+         * <p>
+         * Items of this type SHALL appear only after the block footer and
+         * before the block proof(s).<br/>
+         * Items of this type SHALL NOT be included in any block hash.<br/>
+         * Multiple items of this type SHALL appear in the consensus order of
+         * the transactions that created them.
+         */
+        AmendmentItem amendment = 21;
     }
+}
+
+/**
+ * One amendment to the block that contains this item.
+ *
+ * An amendment never changes the original block. Consumers construct the
+ * amended view of a block by applying all of its amendment items, in order,
+ * to the block's original items (header through footer).
+ */
+message AmendmentItem {
+    oneof source {
+        /**
+         * An amendment that reached consensus in a later block, with proof.
+         */
+        ProvenAmendment proven = 1;
+
+        /**
+         * A state-only amendment applied locally by a Block Node operator.
+         * <p>
+         * The `block_number` of this amendment SHALL be the number of the
+         * block containing this item.<br/>
+         * This amendment SHALL contain only state change operations.<br/>
+         * This amendment is verifiable only by replaying state, and
+         * comparing the result to the `start_of_block_state_root_hash` in
+         * the footer of the following block.
+         */
+        com.hedera.hapi.node.network.BlockAmendment local_state_amendment = 2;
+    }
+}
+
+/**
+ * An amendment proven by the later block that contains it.
+ */
+message ProvenAmendment {
+    /**
+     * The number of the block that contains the `BlockAmendment`
+     * transaction.
+     */
+    uint64 source_block_number = 1;
+
+    /**
+     * A proof, from the source block, covering both the block item holding
+     * the `BlockAmendment` signed transaction and the block item holding its
+     * transaction result.
+     * <p>
+     * The transaction result status MUST be `SUCCESS`.<br/>
+     * The transaction MUST contain an amendment whose `block_number` is the
+     * number of the block containing this item. Consumers SHALL apply only
+     * that amendment, and ignore the transaction's amendments of other blocks.
+     */
+    StateProof proof = 2;
 }
 
 /**

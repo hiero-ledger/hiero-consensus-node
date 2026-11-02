@@ -127,6 +127,21 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
         }
 
         @Test
+        @DisplayName("Current state definitions apply every schema's creations and removals in order")
+        void currentStateDefinitionsApplyCreationsAndRemovalsInOrder() {
+            final var fruit =
+                    StateDefinition.keyValue(FRUIT_STATE_ID, FRUIT_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF);
+            final var country = StateDefinition.singleton(COUNTRY_STATE_ID, COUNTRY_STATE_KEY, ProtoBytes.PROTOBUF);
+            schemaRegistry.register(new TestSchema(version(0, 49, 0), Set.of(fruit, country), Set.of(), null));
+            schemaRegistry.register(new TestSchema(version(0, 50, 0), Set.of(), Set.of(COUNTRY_STATE_ID), null));
+
+            final var definitions = schemaRegistry.currentStateDefinitions(config);
+
+            assertThat(definitions).containsOnlyKeys(FRUIT_STATE_ID);
+            assertThat(definitions.get(FRUIT_STATE_ID)).isEqualTo(fruit);
+        }
+
+        @Test
         @DisplayName("Registering with the same schema twice")
         void registerTwice() {
             // Given a schema

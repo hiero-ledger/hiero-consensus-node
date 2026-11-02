@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.junit.support.translators;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
+import static com.hedera.hapi.node.base.HederaFunctionality.BLOCK_AMENDMENT;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_CLOSE_CHANNEL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CHANNEL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CONNECTOR;
@@ -52,6 +53,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.REGISTERED_NODE_UPDA
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_DELETE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_SIGN;
+import static com.hedera.hapi.node.base.HederaFunctionality.STATE_ERRATA;
 import static com.hedera.hapi.node.base.HederaFunctionality.STATE_SIGNATURE_TRANSACTION;
 import static com.hedera.hapi.node.base.HederaFunctionality.SYSTEM_DELETE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SYSTEM_UNDELETE;
@@ -219,6 +221,8 @@ public class BlockTransactionalUnitTranslator {
                     put(CLPR_REGISTER_CONNECTOR, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(CLPR_DEREGISTER_CONNECTOR, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(CLPR_COMPLETE_CONNECTOR, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
+                    put(BLOCK_AMENDMENT, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
+                    put(STATE_ERRATA, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                 }
             };
 

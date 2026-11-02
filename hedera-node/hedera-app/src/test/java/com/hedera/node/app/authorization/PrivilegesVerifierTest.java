@@ -18,6 +18,7 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hederahashgraph.api.proto.java.AccountID;
+import com.hederahashgraph.api.proto.java.BlockAmendmentTransactionBody;
 import com.hederahashgraph.api.proto.java.ClprCloseChannelTransactionBody;
 import com.hederahashgraph.api.proto.java.ClprUpdateLedgerConfigurationTransactionBody;
 import com.hederahashgraph.api.proto.java.ContractDeleteTransactionBody;
@@ -34,6 +35,7 @@ import com.hederahashgraph.api.proto.java.FileUpdateTransactionBody;
 import com.hederahashgraph.api.proto.java.FreezeTransactionBody;
 import com.hederahashgraph.api.proto.java.NodeCreateTransactionBody;
 import com.hederahashgraph.api.proto.java.SignedTransaction;
+import com.hederahashgraph.api.proto.java.StateErrataTransactionBody;
 import com.hederahashgraph.api.proto.java.SystemDeleteTransactionBody;
 import com.hederahashgraph.api.proto.java.SystemUndeleteTransactionBody;
 import com.hederahashgraph.api.proto.java.Transaction;
@@ -689,6 +691,33 @@ class PrivilegesVerifierTest {
                         EXCHANGE_RATES_ADMIN,
                         SystemOpAuthorization.UNAUTHORIZED),
                 Arguments.of(HederaFunctionality.CLPR_CLOSE_CHANNEL, CIVILIAN, SystemOpAuthorization.UNAUTHORIZED));
+    }
+
+    @ParameterizedTest(name = "{0} with payer {1} -> {2}")
+    @MethodSource("correctionAuthorizationCases")
+    void blockAmendmentsAndStateErrataRequireSuperUser(
+            HederaFunctionality operation, long payerNum, SystemOpAuthorization expected)
+            throws InvalidProtocolBufferException {
+        final var txn = txnWithPayer(payerNum);
+        switch (operation) {
+            case BLOCK_AMENDMENT -> txn.setBlockAmendment(BlockAmendmentTransactionBody.getDefaultInstance());
+            case STATE_ERRATA -> txn.setStateErrata(StateErrataTransactionBody.getDefaultInstance());
+            default -> throw new IllegalArgumentException("Unexpected correction operation: " + operation);
+        }
+
+        assertEquals(expected, subject.authForTestCase(accessor(txn)));
+    }
+
+    static Stream<Arguments> correctionAuthorizationCases() {
+        // Corrections require a super user (treasury or system admin). Every other system account, including
+        // those inside the default API permission range, and civilians are rejected.
+        return Stream.of(HederaFunctionality.BLOCK_AMENDMENT, HederaFunctionality.STATE_ERRATA)
+                .flatMap(operation -> Stream.of(
+                        Arguments.of(operation, TREASURY, SystemOpAuthorization.AUTHORIZED),
+                        Arguments.of(operation, SYSTEM_ADMIN, SystemOpAuthorization.AUTHORIZED),
+                        Arguments.of(operation, 40L, SystemOpAuthorization.UNAUTHORIZED),
+                        Arguments.of(operation, FREEZE_ADMIN, SystemOpAuthorization.UNAUTHORIZED),
+                        Arguments.of(operation, CIVILIAN, SystemOpAuthorization.UNAUTHORIZED)));
     }
 
     private TestCase accessor(TransactionBody.Builder transaction) throws InvalidProtocolBufferException {

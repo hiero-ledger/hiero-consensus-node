@@ -1,0 +1,234 @@
+syntax = "proto3";
+
+package com.hedera.hapi.node.network;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.network">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+/**
+ * A transaction body to amend the block stream record of one or more past
+ * blocks.
+ *
+ * An amendment corrects the record of a block whose contents were wrong
+ * (items missing, extra, or incorrect) even though the network executed
+ * correctly and state is correct. The original block is never rewritten.
+ * Block Nodes attach each successful amendment, with a proof from the block
+ * containing this transaction, to every block it amends.
+ *
+ * This transaction succeeds or fails as a whole; if any amended block is
+ * invalid, no block is amended.
+ *
+ * This transaction MUST be paid for by the treasury or system admin account.
+ *
+ * ### Block Stream Effects
+ * None. This transaction does not change state.
+ */
+message BlockAmendmentTransactionBody {
+    /**
+     * The amendments, one per amended block.
+     * <p>
+     * This list MUST NOT be empty.<br/>
+     * No two entries may have the same `block_number`.<br/>
+     * The order of entries has no meaning, because each entry amends a
+     * different block.
+     */
+    repeated BlockAmendment amendments = 1;
+}
+
+/**
+ * An amendment of a single past block.
+ *
+ * Every position in this message refers to the ORIGINAL items of the
+ * amended block, from its block header (index 0) through its block footer.
+ * Positions never refer to items inserted by this or any other amendment.
+ * Consequently, any number of amendments to the same block compose in
+ * consensus order without shifting each other's positions.
+ */
+message BlockAmendment {
+    /**
+     * The number of the block being amended.
+     * <p>
+     * This value MUST be less than the number of the block that contains
+     * the transaction with this amendment.
+     */
+    uint64 block_number = 1;
+
+    /**
+     * The edits to the original block.
+     * <p>
+     * No two operations in one amendment may target the same original item,
+     * the same original state change, or the same insertion point.<br/>
+     * An amendment MUST NOT combine a replace or remove of an item with any
+     * state change operation on that same item.
+     */
+    repeated BlockAmendmentOperation operations = 2;
+
+    /**
+     * Whether this amendment voids every earlier amendment of the same block.
+     * <p>
+     * If true, consumers SHALL discard all amendments of this block that
+     * precede this one in consensus order, and apply this amendment's
+     * operations to the original block as if no earlier amendment existed.
+     * Later amendments without this flag SHALL compose on top of this one.<br/>
+     * To correct a bad amendment, restate the complete intended set of edits
+     * against the original block with this flag set. To split a large
+     * restatement across several transactions, set this flag only on the
+     * first of them.<br/>
+     * An amendment with this flag set and no operations restores the
+     * original block.<br/>
+     * This flag affects only the block named by `block_number`.
+     */
+    bool void_previous_amendments = 3;
+}
+
+/**
+ * One edit to the original items of an amended block.
+ */
+message BlockAmendmentOperation {
+    oneof operation {
+        /**
+         * Insert new block items after an original item.
+         */
+        InsertBlockItems insert_block_items = 1;
+
+        /**
+         * Replace an original item.
+         */
+        ReplaceBlockItem replace_block_item = 2;
+
+        /**
+         * Remove an original item.
+         */
+        RemoveBlockItem remove_block_item = 3;
+
+        /**
+         * Insert state changes into an original `StateChanges` item.
+         */
+        InsertStateChanges insert_state_changes = 4;
+
+        /**
+         * Replace one state change of an original `StateChanges` item.
+         */
+        ReplaceStateChange replace_state_change = 5;
+
+        /**
+         * Remove one state change of an original `StateChanges` item.
+         */
+        RemoveStateChange remove_state_change = 6;
+    }
+}
+
+/**
+ * Insert new block items immediately after original item `after_item_index`.
+ * <p>
+ * To insert after a transactional unit, use the index of the unit's last
+ * item. The value MUST be less than the index of the block footer.
+ */
+message InsertBlockItems {
+    /**
+     * The index of the original item after which to insert.
+     */
+    uint32 after_item_index = 1;
+
+    /**
+     * The items to insert, in order.
+     * <p>
+     * Each entry is a serialized `com.hedera.hapi.block.stream.BlockItem`.<br/>
+     * This list MUST NOT be empty.<br/>
+     * An entry MUST NOT be a block header, round header, event header,
+     * block footer, block proof, record file, filtered item, redacted item,
+     * or amendment.
+     */
+    repeated bytes block_items = 2;
+}
+
+/**
+ * Replace original item `item_index`.
+ */
+message ReplaceBlockItem {
+    /**
+     * The index of the original item to replace.
+     */
+    uint32 item_index = 1;
+
+    /**
+     * The replacement, a serialized `com.hedera.hapi.block.stream.BlockItem`.
+     * <p>
+     * The same item kinds are disallowed as for `InsertBlockItems`.
+     */
+    bytes block_item = 2;
+}
+
+/**
+ * Remove original item `item_index`.
+ */
+message RemoveBlockItem {
+    /**
+     * The index of the original item to remove.
+     */
+    uint32 item_index = 1;
+}
+
+/**
+ * Insert state changes into the original `StateChanges` item at `item_index`,
+ * immediately before its original state change at `before_state_change_index`.
+ * <p>
+ * A `before_state_change_index` equal to the number of original state changes
+ * in the item appends at the end of that item.
+ */
+message InsertStateChanges {
+    /**
+     * The index of an original `StateChanges` item.
+     */
+    uint32 item_index = 1;
+
+    /**
+     * The index of the original state change before which to insert.
+     */
+    uint32 before_state_change_index = 2;
+
+    /**
+     * The state changes to insert, in order.
+     * <p>
+     * Each entry is a serialized `com.hedera.hapi.block.stream.output.StateChange`.<br/>
+     * This list MUST NOT be empty.
+     */
+    repeated bytes state_changes = 3;
+}
+
+/**
+ * Replace one original state change.
+ */
+message ReplaceStateChange {
+    /**
+     * The index of an original `StateChanges` item.
+     */
+    uint32 item_index = 1;
+
+    /**
+     * The index of the original state change within that item.
+     */
+    uint32 state_change_index = 2;
+
+    /**
+     * The replacement, a serialized `com.hedera.hapi.block.stream.output.StateChange`.
+     */
+    bytes state_change = 3;
+}
+
+/**
+ * Remove one original state change.
+ */
+message RemoveStateChange {
+    /**
+     * The index of an original `StateChanges` item.
+     */
+    uint32 item_index = 1;
+
+    /**
+     * The index of the original state change within that item.
+     */
+    uint32 state_change_index = 2;
+}

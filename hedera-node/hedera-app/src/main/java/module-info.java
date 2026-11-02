@@ -9,6 +9,7 @@ module com.hedera.node.app {
     exports com.hedera.node.app.blocks;
     exports com.hedera.node.app.components;
     exports com.hedera.node.app.config;
+    exports com.hedera.node.app.corrections;
     exports com.hedera.node.app.fees.congestion;
     exports com.hedera.node.app.fees.context;
     exports com.hedera.node.app.fees;

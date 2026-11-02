@@ -2178,4 +2178,34 @@ enum ResponseCodeEnum {
      * The submitting endpoint is charged a penalty fee.
      */
     CLPR_NO_PROGRESS = 571;
+
+    /**
+     * A block amendment targeted a block that is not before the block
+     * containing the amendment, or targeted the same block more than once.
+     */
+    INVALID_AMENDMENT_BLOCK_NUMBER = 572;
+
+    /**
+     * A block amendment operation was unparseable, empty, of a disallowed
+     * block item kind, duplicated, or conflicting with another operation.
+     */
+    INVALID_AMENDMENT_OPERATION = 573;
+
+    /**
+     * A block amendment transaction amended no block, or one of its block
+     * amendments neither contained an operation nor voided the previous
+     * amendments of its block.
+     */
+    EMPTY_BLOCK_AMENDMENT = 574;
+
+    /**
+     * A state errata change was unparseable, of an unsupported kind, targeted
+     * an unknown state, or did not match the types of its state.
+     */
+    INVALID_ERRATA_STATE_CHANGE = 575;
+
+    /**
+     * A state errata contained no state changes.
+     */
+    EMPTY_STATE_ERRATA = 576;
 }

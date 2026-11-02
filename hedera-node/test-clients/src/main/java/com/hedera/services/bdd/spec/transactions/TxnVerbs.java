@@ -74,7 +74,9 @@ import com.hedera.services.bdd.spec.transactions.node.HapiRegisteredNodeUpdate;
 import com.hedera.services.bdd.spec.transactions.schedule.HapiScheduleCreate;
 import com.hedera.services.bdd.spec.transactions.schedule.HapiScheduleDelete;
 import com.hedera.services.bdd.spec.transactions.schedule.HapiScheduleSign;
+import com.hedera.services.bdd.spec.transactions.system.HapiBlockAmendment;
 import com.hedera.services.bdd.spec.transactions.system.HapiFreeze;
+import com.hedera.services.bdd.spec.transactions.system.HapiStateErrata;
 import com.hedera.services.bdd.spec.transactions.system.HapiStateSignature;
 import com.hedera.services.bdd.spec.transactions.system.HapiSysDelete;
 import com.hedera.services.bdd.spec.transactions.system.HapiSysUndelete;
@@ -126,6 +128,7 @@ import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
+import java.util.function.ToLongFunction;
 import java.util.stream.IntStream;
 
 public class TxnVerbs {
@@ -882,6 +885,22 @@ public class TxnVerbs {
     }
 
     /* SYSTEM */
+    public static HapiBlockAmendment blockAmendment() {
+        return new HapiBlockAmendment();
+    }
+
+    public static HapiBlockAmendment blockAmendment(final long blockNumber) {
+        return new HapiBlockAmendment(blockNumber);
+    }
+
+    public static HapiBlockAmendment blockAmendment(@NonNull final ToLongFunction<HapiSpec> blockNumberFn) {
+        return new HapiBlockAmendment(blockNumberFn);
+    }
+
+    public static HapiStateErrata stateErrata() {
+        return new HapiStateErrata();
+    }
+
     public static HapiFreeze hapiFreeze(final Instant freezeStartTime) {
         return new HapiFreeze().startingAt(freezeStartTime);
     }

@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package com.hedera.hapi.node.network;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.network">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+/**
+ * A transaction body to correct network state.
+ *
+ * An errata corrects state that the network computed incorrectly. The
+ * changes apply to live state in the block that contains this transaction;
+ * history between the original mistake and this correction is unchanged.
+ *
+ * The changes are applied verbatim, in order, and atomically. No derived
+ * bookkeeping (for example entity counts) is performed; any such changes
+ * MUST be included explicitly.
+ *
+ * This transaction MUST be paid for by the treasury or system admin account.
+ *
+ * ### Block Stream Effects
+ * The resulting state changes appear in the block that contains this
+ * transaction, exactly as for any other transaction.
+ */
+message StateErrataTransactionBody {
+    /**
+     * The state changes to apply, in order.
+     * <p>
+     * Each entry is a serialized `com.hedera.hapi.block.stream.output.StateChange`.<br/>
+     * This list MUST NOT be empty.<br/>
+     * Each change MUST be a singleton update, map update, map delete, queue
+     * push, or queue pop, and MUST identify a state known to the network
+     * with keys and values of that state's types.
+     */
+    repeated bytes state_changes = 1;
+}

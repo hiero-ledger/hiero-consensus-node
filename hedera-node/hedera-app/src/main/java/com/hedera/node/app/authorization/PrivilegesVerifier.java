@@ -85,6 +85,9 @@ public class PrivilegesVerifier {
                         effectiveNumber(txBody.cryptoDeleteOrThrow().deleteAccountIDOrElse(AccountID.DEFAULT)));
             case NODE_CREATE -> checkNodeCreate(payerId);
             case CLPR_UPDATE_LEDGER_CONFIGURATION, CLPR_CLOSE_CHANNEL -> checkClprAdmin(payerId);
+
+            // Block stream amendments and state errata may only be paid for by the treasury or system admin
+            case BLOCK_AMENDMENT, STATE_ERRATA -> checkSuperUserOnly(payerId);
             default -> SystemPrivilege.UNNECESSARY;
         };
     }
@@ -201,6 +204,10 @@ public class PrivilegesVerifier {
     }
 
     private SystemPrivilege checkClprAdmin(@NonNull final AccountID payerId) {
+        return isSuperUser(payerId) ? AUTHORIZED : UNAUTHORIZED;
+    }
+
+    private SystemPrivilege checkSuperUserOnly(@NonNull final AccountID payerId) {
         return isSuperUser(payerId) ? AUTHORIZED : UNAUTHORIZED;
     }
 

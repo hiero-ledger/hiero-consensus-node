@@ -128,6 +128,8 @@ class AtomicBatchHandlerTest {
             // Privileged system admin operations
             HederaFunctionality.SYSTEM_DELETE,
             HederaFunctionality.SYSTEM_UNDELETE,
+            HederaFunctionality.BLOCK_AMENDMENT,
+            HederaFunctionality.STATE_ERRATA,
             // Unsupported
             HederaFunctionality.CRYPTO_ADD_LIVE_HASH,
             HederaFunctionality.CRYPTO_DELETE_LIVE_HASH,

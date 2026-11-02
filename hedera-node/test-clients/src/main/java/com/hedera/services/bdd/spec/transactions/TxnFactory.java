@@ -13,6 +13,7 @@ import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecSetup;
 import com.hedera.services.bdd.spec.utilops.mod.BodyMutation;
 import com.hederahashgraph.api.proto.java.AtomicBatchTransactionBody;
+import com.hederahashgraph.api.proto.java.BlockAmendmentTransactionBody;
 import com.hederahashgraph.api.proto.java.ClprCloseChannelTransactionBody;
 import com.hederahashgraph.api.proto.java.ClprCompleteChannelTransactionBody;
 import com.hederahashgraph.api.proto.java.ClprCompleteConnectorTransactionBody;
@@ -49,6 +50,7 @@ import com.hederahashgraph.api.proto.java.ScheduleCreateTransactionBody;
 import com.hederahashgraph.api.proto.java.ScheduleDeleteTransactionBody;
 import com.hederahashgraph.api.proto.java.ScheduleSignTransactionBody;
 import com.hederahashgraph.api.proto.java.ShardID;
+import com.hederahashgraph.api.proto.java.StateErrataTransactionBody;
 import com.hederahashgraph.api.proto.java.SystemDeleteTransactionBody;
 import com.hederahashgraph.api.proto.java.SystemUndeleteTransactionBody;
 import com.hederahashgraph.api.proto.java.Timestamp;
@@ -347,6 +349,14 @@ public class TxnFactory {
 
     public Consumer<ClprUpdateLedgerConfigurationTransactionBody.Builder>
             defaultDefClprUpdateLedgerConfigurationTransactionBody() {
+        return builder -> {};
+    }
+
+    public Consumer<BlockAmendmentTransactionBody.Builder> defaultDefBlockAmendmentTransactionBody() {
+        return builder -> {};
+    }
+
+    public Consumer<StateErrataTransactionBody.Builder> defaultDefStateErrataTransactionBody() {
         return builder -> {};
     }
 

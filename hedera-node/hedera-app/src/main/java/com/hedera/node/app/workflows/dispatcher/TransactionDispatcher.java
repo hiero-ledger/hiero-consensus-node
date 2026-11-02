@@ -171,7 +171,9 @@ public class TransactionDispatcher {
                     HISTORY_PROOF_KEY_PUBLICATION,
                     HISTORY_PROOF_VOTE,
                     MIGRATION_ROOT_HASH_VOTE,
-                    CRS_PUBLICATION -> true;
+                    CRS_PUBLICATION,
+                    BLOCK_AMENDMENT,
+                    STATE_ERRATA -> true;
             default -> false;
         };
     }
@@ -280,6 +282,9 @@ public class TransactionDispatcher {
             case CLPR_COMPLETE_CONNECTOR -> handlers.clprCompleteConnectorHandler();
             case CLPR_DEREGISTER_CONNECTOR -> handlers.clprDeregisterConnectorHandler();
             case CLPR_ENDPOINT_PUBLICATION -> handlers.clprEndpointPublicationHandler();
+
+            case BLOCK_AMENDMENT -> handlers.blockAmendmentHandler();
+            case STATE_ERRATA -> handlers.stateErrataHandler();
 
             case SYSTEM_DELETE ->
                 switch (txBody.systemDeleteOrThrow().id().kind()) {

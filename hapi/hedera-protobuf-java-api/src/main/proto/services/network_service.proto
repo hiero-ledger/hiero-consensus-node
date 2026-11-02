@@ -70,4 +70,18 @@ service NetworkService {
      * </blockquote></blockquote>
      */
     rpc uncheckedSubmit (Transaction) returns (TransactionResponse) {option deprecated = true;};
+
+    /**
+     * Amend the block stream record of one or more past blocks.
+     * <p>
+     * Only the treasury or system admin account may pay for this transaction.
+     */
+    rpc blockAmendment (Transaction) returns (TransactionResponse);
+
+    /**
+     * Correct network state by applying state changes.
+     * <p>
+     * Only the treasury or system admin account may pay for this transaction.
+     */
+    rpc stateErrata (Transaction) returns (TransactionResponse);
 }

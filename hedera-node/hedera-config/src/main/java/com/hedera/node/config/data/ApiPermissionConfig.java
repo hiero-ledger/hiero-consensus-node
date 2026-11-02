@@ -2,6 +2,7 @@
 package com.hedera.node.config.data;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
+import static com.hedera.hapi.node.base.HederaFunctionality.BLOCK_AMENDMENT;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_CLOSE_CHANNEL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CHANNEL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CONNECTOR;
@@ -70,6 +71,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_DELETE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_GET_INFO;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_SIGN;
+import static com.hedera.hapi.node.base.HederaFunctionality.STATE_ERRATA;
 import static com.hedera.hapi.node.base.HederaFunctionality.STATE_SIGNATURE_TRANSACTION;
 import static com.hedera.hapi.node.base.HederaFunctionality.SYSTEM_DELETE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SYSTEM_UNDELETE;
@@ -216,6 +218,8 @@ import java.util.function.Function;
  * @param createRegisteredNode        the permission for {@link HederaFunctionality#REGISTERED_NODE_CREATE} functionality
  * @param updateRegisteredNode        the permission for {@link HederaFunctionality#REGISTERED_NODE_UPDATE} functionality
  * @param deleteRegisteredNode        the permission for {@link HederaFunctionality#REGISTERED_NODE_DELETE} functionality
+ * @param blockAmendment              the permission for {@link HederaFunctionality#BLOCK_AMENDMENT} functionality
+ * @param stateErrata                 the permission for {@link HederaFunctionality#STATE_ERRATA} functionality
  */
 @ConfigData
 public record ApiPermissionConfig(
@@ -322,7 +326,9 @@ public record ApiPermissionConfig(
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange clprGetLedgerConfiguration,
         @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange clprEndpointPublication,
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange clprGetEndpointManifest,
-        @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange clprMaintenance) {
+        @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange clprMaintenance,
+        @ConfigProperty(defaultValue = "2-50") PermissionedAccountsRange blockAmendment,
+        @ConfigProperty(defaultValue = "2-50") PermissionedAccountsRange stateErrata) {
 
     private static final EnumMap<HederaFunctionality, Function<ApiPermissionConfig, PermissionedAccountsRange>>
             permissionKeys = new EnumMap<>(HederaFunctionality.class);
@@ -430,6 +436,8 @@ public record ApiPermissionConfig(
         permissionKeys.put(CLPR_ENDPOINT_PUBLICATION, c -> c.clprEndpointPublication);
         permissionKeys.put(CLPR_GET_ENDPOINT_MANIFEST, c -> c.clprGetEndpointManifest);
         permissionKeys.put(CLPR_MAINTENANCE, c -> c.clprMaintenance);
+        permissionKeys.put(BLOCK_AMENDMENT, c -> c.blockAmendment);
+        permissionKeys.put(STATE_ERRATA, c -> c.stateErrata);
     }
 
     /**

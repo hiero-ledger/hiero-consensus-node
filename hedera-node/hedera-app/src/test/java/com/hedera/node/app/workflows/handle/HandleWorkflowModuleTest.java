@@ -8,6 +8,8 @@ import static org.mockito.BDDMockito.given;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.hedera.node.app.corrections.BlockAmendmentHandler;
+import com.hedera.node.app.corrections.StateErrataHandler;
 import com.hedera.node.app.hints.handlers.CrsPublicationHandler;
 import com.hedera.node.app.hints.handlers.HintsHandlers;
 import com.hedera.node.app.hints.handlers.HintsKeyPublicationHandler;
@@ -282,6 +284,12 @@ class HandleWorkflowModuleTest {
     private UtilPrngHandler utilPrngHandler;
 
     @Mock
+    private BlockAmendmentHandler blockAmendmentHandler;
+
+    @Mock
+    private StateErrataHandler stateErrataHandler;
+
+    @Mock
     private HintsKeyPublicationHandler keyPublicationHandler;
 
     @TempDir
@@ -365,7 +373,9 @@ class HandleWorkflowModuleTest {
                 hintsHandlers,
                 historyHandlers,
                 migrationRootHashVoteHandler,
-                clprHandlers);
+                clprHandlers,
+                blockAmendmentHandler,
+                stateErrataHandler);
         assertInstanceOf(TransactionHandlers.class, handlers);
     }
 }
