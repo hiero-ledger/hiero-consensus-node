@@ -8,10 +8,13 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiFunction;
+import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.event.FutureEventBufferingOption;
@@ -65,6 +68,12 @@ public class FlickerIntake {
     /** Every event this harness has linked, by the name the test gave it. */
     private final Map<String, EventImpl> linkedEventsByName = new LinkedHashMap<>();
 
+    /**
+     * Names by content hash. The linker's factory is handed only {@code (PlatformEvent, parents)} — no name — so the
+     * recorder's name is resolved here at link time. The hash is available by then because the hasher has already run.
+     */
+    private final Map<Hash, String> eventNameByHash = new HashMap<>();
+
     /** Every round this harness has produced, in the order it produced them. */
     private final List<ConsensusRound> consensusRounds = new ArrayList<>();
 
@@ -75,19 +84,51 @@ public class FlickerIntake {
     private final int roundsNonAncient;
 
     /**
-     * Constructor.
+     * Constructor. The algorithm's intermediate state is not recorded.
      *
      * @param configuration the configuration supplying {@code ConsensusConfig}
      * @param roster        the roster the algorithm runs under
      */
     public FlickerIntake(@NonNull final Configuration configuration, @NonNull final RosterWrapper roster) {
+        this(configuration, roster, null);
+    }
+
+    /**
+     * Constructor.
+     *
+     * @param configuration the configuration supplying {@code ConsensusConfig}
+     * @param roster        the roster the algorithm runs under
+     * @param traceLog      where the algorithm's changes are recorded, or null not to record them. When supplied, the
+     *                      linker is given a factory producing {@link RecordingEventImpl} instead of {@link EventImpl}.
+     */
+    public FlickerIntake(
+            @NonNull final Configuration configuration,
+            @NonNull final RosterWrapper roster,
+            @Nullable final ConsensusTraceLog traceLog) {
         Objects.requireNonNull(configuration);
         Objects.requireNonNull(roster);
 
         this.roundsNonAncient =
                 configuration.getConfigData(ConsensusConfig.class).roundsNonAncient();
-        this.linker = new ConsensusLinker(NoOpLinkerLogsAndMetrics.getInstance());
+        final BiFunction<PlatformEvent, List<EventImpl>, EventImpl> eventFactory = traceLog == null
+                ? EventImpl::new
+                : (event, parents) -> new RecordingEventImpl(event, parents, nameOf(event), traceLog);
+
+        this.linker = new ConsensusLinker(NoOpLinkerLogsAndMetrics.getInstance(), eventFactory);
         this.consensus = new ConsensusImpl(configuration, Time.getCurrent(), new NoOpConsensusMetrics(), roster, 0L);
+    }
+
+    /**
+     * The name {@link #add(String, PlatformEvent)} was given for this event, resolved by content hash at link time.
+     */
+    @NonNull
+    private String nameOf(@NonNull final PlatformEvent event) {
+        final String name = eventNameByHash.get(event.getHash());
+        if (name == null) {
+            throw new IllegalStateException("The linker asked for an event this harness never named. Every event "
+                    + "reaching the linker must arrive through add(name, event).");
+        }
+        return name;
     }
 
     /**
@@ -105,6 +146,7 @@ public class FlickerIntake {
     @NonNull
     public List<ConsensusRound> add(@NonNull final String name, @NonNull final PlatformEvent event) {
         hasher.hashEvent(event);
+        eventNameByHash.put(event.getHash(), name);
 
         // Ancient first: the orphan buffer also drops ancient events, so without this check an ancient event would be
         // reported below as a topological ordering problem, which it is not.
