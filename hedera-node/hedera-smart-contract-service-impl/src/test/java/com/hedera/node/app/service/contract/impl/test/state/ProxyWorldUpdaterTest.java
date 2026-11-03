@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.state;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_EXECUTION_EXCEPTION;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.FAILURE_DURING_LAZY_ACCOUNT_CREATION;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.MISSING_ENTITY_NUMBER;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_CONTRACT_ID;
@@ -22,10 +23,12 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -39,6 +42,7 @@ import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationCounter;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.*;
+import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
 import java.util.ArrayDeque;
 import java.util.List;
@@ -366,17 +370,108 @@ class ProxyWorldUpdaterTest {
 
     @Test
     void dispatchesDeletingLongZeroAddressByNumber() {
+        trackBeneficiary(subject, ADDRESS_6, SENDER_ID);
+
         subject.deleteAccount(ADDRESS_6);
 
         verify(hederaOperations)
-                .deleteUnaliasedContract(ADDRESS_6.getBytes().toBigInteger().longValueExact());
+                .deleteUnaliasedContract(ADDRESS_6.getBytes().toBigInteger().longValueExact(), SENDER_ID);
     }
 
     @Test
     void dispatchesDeletingEvmAddressByAddress() {
+        trackBeneficiary(subject, SOME_EVM_ADDRESS, SENDER_ID);
+
         subject.deleteAccount(SOME_EVM_ADDRESS);
 
-        verify(hederaOperations).deleteAliasedContract(aliasFrom(SOME_EVM_ADDRESS));
+        verify(hederaOperations).deleteAliasedContract(aliasFrom(SOME_EVM_ADDRESS), SENDER_ID);
+    }
+
+    @Test
+    void committedChildPreservesBeneficiaryEvenAfterItsAliasIsRemoved() {
+        final var child = subject.updater();
+        trackBeneficiary(child, SOME_EVM_ADDRESS, SENDER_ID);
+        child.commit();
+        // The alias no longer resolves, but deletion must use the ID captured during execution.
+        reset(evmFrameState);
+
+        subject.deleteAccount(SOME_EVM_ADDRESS);
+
+        verify(hederaOperations).deleteAliasedContract(aliasFrom(SOME_EVM_ADDRESS), SENDER_ID);
+    }
+
+    @Test
+    void revertedLaterSelfDestructCannotReplaceCommittedBeneficiary() {
+        final var successfulChild = subject.updater();
+        trackBeneficiary(successfulChild, SOME_EVM_ADDRESS, SENDER_ID);
+        successfulChild.commit();
+        final var revertedChild = subject.updater();
+        trackBeneficiary(revertedChild, SOME_EVM_ADDRESS, RELAYER_ID);
+        revertedChild.revert();
+        // Besu commits an updater after reverting it when clearing a failed frame.
+        revertedChild.commit();
+
+        subject.deleteAccount(SOME_EVM_ADDRESS);
+
+        verify(hederaOperations).deleteAliasedContract(aliasFrom(SOME_EVM_ADDRESS), SENDER_ID);
+        verify(hederaOperations, never()).deleteAliasedContract(aliasFrom(SOME_EVM_ADDRESS), RELAYER_ID);
+    }
+
+    @Test
+    void lastCommittedSelfDestructSuppliesBeneficiary() {
+        trackBeneficiary(subject, SOME_EVM_ADDRESS, SENDER_ID);
+        final var child = subject.updater();
+        trackBeneficiary(child, SOME_EVM_ADDRESS, RELAYER_ID);
+        child.commit();
+
+        subject.deleteAccount(SOME_EVM_ADDRESS);
+
+        verify(hederaOperations).deleteAliasedContract(aliasFrom(SOME_EVM_ADDRESS), RELAYER_ID);
+    }
+
+    @Test
+    void revertedAncestorDiscardsCommittedDescendantBeneficiary() {
+        final var child = subject.updater();
+        final var grandchild = child.updater();
+        trackBeneficiary(grandchild, SOME_EVM_ADDRESS, SENDER_ID);
+        grandchild.commit();
+        child.revert();
+        child.commit();
+
+        assertMissingBeneficiaryFailsSafely();
+    }
+
+    @Test
+    void failedCommitDoesNotPropagateBeneficiary() {
+        final var child = subject.updater();
+        trackBeneficiary(child, SOME_EVM_ADDRESS, SENDER_ID);
+        doThrow(new ResourceExhaustedException(com.hedera.hapi.node.base.ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED))
+                .when(hederaOperations)
+                .commit();
+
+        assertThrows(ResourceExhaustedException.class, child::commit);
+
+        assertMissingBeneficiaryFailsSafely();
+    }
+
+    @Test
+    void beneficiaryValidationAloneDoesNotRecordCommittedSelfDestruct() {
+        subject.tryTrackingSelfDestructBeneficiary(SOME_EVM_ADDRESS, OTHER_EVM_ADDRESS, frame);
+
+        assertMissingBeneficiaryFailsSafely();
+    }
+
+    private void assertMissingBeneficiaryFailsSafely() {
+        final var failure = assertThrows(HandleException.class, () -> subject.deleteAccount(SOME_EVM_ADDRESS));
+        assertEquals(CONTRACT_EXECUTION_EXCEPTION, failure.getStatus());
+        verify(hederaOperations, never()).deleteAliasedContract(any(), any());
+    }
+
+    private void trackBeneficiary(
+            final ProxyWorldUpdater updater, final Address deleted, final AccountID beneficiaryId) {
+        given(evmFrameState.getAccount(OTHER_EVM_ADDRESS)).willReturn(mutableAccount);
+        given(mutableAccount.hederaId()).willReturn(beneficiaryId);
+        updater.trackSelfDestructBeneficiary(deleted, OTHER_EVM_ADDRESS, frame);
     }
 
     @Test

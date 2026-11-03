@@ -8,8 +8,12 @@ import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.CLPR;
 import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.contractWith;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.clprGetEndpointManifest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.clprGetLedgerConfiguration;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.contractCallLocal;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCloseChannel;
@@ -28,6 +32,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingAllOf;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -35,6 +40,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.VERIFY_CONFIG;
 import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.toBundleProofBytes;
 import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.toConfigProofBytes;
+import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.CLPR_SERVICE_ADDRESS_20;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_TRANSACTION_IN_BLACKLIST;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
@@ -57,6 +63,7 @@ import com.hedera.node.app.service.clpr.ClprService;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -214,6 +221,95 @@ public class ClprEnabledSuite {
                 .payingWith(CALLER)
                 .gas(GAS_TO_OFFER)
                 .hasKnownStatus(SUCCESS));
+        return hapiTest(operations.toArray(SpecOperation[]::new));
+    }
+
+    @LeakyHapiTest(
+            overrides = {
+                "clpr.messageExecutionCost",
+                "clpr.endpointMarginPercent",
+                "contracts.selfDestructs.externalization.enabled"
+            })
+    @DisplayName("A prepaid CLPR callback externalizes its committed constructor self-destruct")
+    final Stream<DynamicTest> prepaidCallbackExternalizesSelfDestruct() {
+        final var application = "SelfDestructClpr";
+        final var submittedBundle = "selfDestructBundle";
+        final var crypto = new ClprChannelCrypto();
+        final long executionCost = 1_000_000L;
+        final long endpointMargin = executionCost / 10;
+        final var operations = contractSetup();
+        operations.add(overridingAllOf(Map.of(
+                "clpr.messageExecutionCost", Long.toString(executionCost),
+                "clpr.endpointMarginPercent", "10",
+                "contracts.selfDestructs.externalization.enabled", "true")));
+        operations.add(uploadInitCode(application));
+        operations.add(contractCreate(application).refusingEthConversion());
+        final var txns = clprTxns(crypto);
+        for (final var name : List.of(
+                "updateLedgerConfiguration",
+                "registerChannel",
+                "completeChannel",
+                "registerConnector",
+                "completeConnector")) {
+            operations.add(dispatch(txns.get(name), false, false));
+        }
+        operations.add(cryptoTransfer(tinyBarsFromTo(GENESIS, CONNECTOR_CONTRACT, ONE_HUNDRED_HBARS)));
+        operations.add(withOpContext((spec, log) -> {
+            final var applicationId = spec.registry().getContractId(application);
+            final var payload = ClprMessagePayload.newBuilder()
+                    .setMessage(ClprMessage.newBuilder()
+                            .setConnectorId(ByteString.copyFrom(crypto.connectorId()))
+                            .setTargetApplication(ByteString.copyFrom(asSolidityAddress(applicationId)))
+                            .setSender(ByteString.copyFrom(new byte[20]))
+                            .setMessageData(ByteString.EMPTY))
+                    .build();
+            allRunFor(
+                    spec,
+                    clprSubmitBundle()
+                            .channelId(crypto.channelId())
+                            .endpointNodeId(0L)
+                            .bundlePayload(toBundleProofBytes(
+                                    ClprChannelStatus.ACTIVE, 0L, 0L, new byte[32], List.of(payload)))
+                            .payingWith(CALLER)
+                            .via(submittedBundle)
+                            .hasKnownStatus(SUCCESS),
+                    getTxnRecord(submittedBundle).exposingAllTo(records -> {
+                        final var creations = records.stream()
+                                .filter(r -> r.hasContractCreateResult())
+                                .toList();
+                        assertEquals(1, creations.size(), "The CLPR callback creates exactly one child");
+                        final var creation = creations.getFirst();
+                        assertEquals(SUCCESS, creation.getReceipt().getStatus());
+                        final var deletedId = creation.getReceipt().getContractID();
+                        final var deletions = records.stream()
+                                .filter(r -> !r.hasContractCreateResult()
+                                        && r.getReceipt().getContractID().equals(deletedId))
+                                .toList();
+                        assertEquals(1, deletions.size(), "The committed deletion is externalized exactly once");
+                        final var deletion = deletions.getFirst();
+                        assertEquals(SUCCESS, deletion.getReceipt().getStatus());
+                        assertEquals(0L, deletion.getTransactionFee());
+                        assertEquals(0, deletion.getTransferList().getAccountAmountsCount());
+                        assertTrue(records.indexOf(creation) < records.indexOf(deletion));
+                        final var callbacks = records.stream()
+                                .filter(r -> r.hasContractCallResult()
+                                        && r.getContractCallResult()
+                                                .getContractID()
+                                                .equals(applicationId))
+                                .toList();
+                        assertEquals(1, callbacks.size());
+                        assertEquals(SUCCESS, callbacks.getFirst().getReceipt().getStatus());
+                        assertEquals(0L, callbacks.getFirst().getTransactionFee(), "Callback gas is prepaid");
+                        assertTrue(callbacks.getFirst().getContractCallResult().getGasUsed() > 0);
+                        spec.registry().saveContractId("deletedClprChild", deletedId);
+                    }),
+                    getContractInfo("deletedClprChild").has(contractWith().isDeleted()));
+        }));
+        operations.add(contractCallLocal(application, "deliveries")
+                .exposingTypedResultsTo(results -> assertEquals(BigInteger.ONE, results[0])));
+        operations.add(getContractInfo(application).has(contractWith().isNotDeleted()));
+        operations.add(
+                getAccountBalance(CONNECTOR_CONTRACT).hasTinyBars(ONE_HUNDRED_HBARS - executionCost - endpointMargin));
         return hapiTest(operations.toArray(SpecOperation[]::new));
     }
 

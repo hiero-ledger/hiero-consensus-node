@@ -6,17 +6,20 @@ import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.state.history.HintsKeyProvenance;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
 import com.hedera.hapi.node.state.history.WrapsMessageDetails;
 import com.hedera.hapi.node.state.history.WrapsMessageHistory;
 import com.hedera.hapi.node.state.history.WrapsPhase;
+import com.hedera.hapi.services.auxiliary.hints.HintsPartialSignatureTransactionBody;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.Comparator;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -51,7 +54,14 @@ public interface ReadableHistoryStore {
             long nodeId,
             @NonNull Bytes message,
             @NonNull WrapsPhase phase,
-            @NonNull Instant receiptTime) implements Comparable<WrapsMessagePublication> {
+            @NonNull Instant receiptTime,
+            @Nullable HintsPartialSignatureTransactionBody hintsPartialSignature)
+            implements Comparable<WrapsMessagePublication> {
+        public WrapsMessagePublication(
+                long nodeId, @NonNull Bytes message, @NonNull WrapsPhase phase, @NonNull Instant receiptTime) {
+            this(nodeId, message, phase, receiptTime, null);
+        }
+
         public WrapsMessagePublication {
             requireNonNull(message);
             requireNonNull(phase);
@@ -73,7 +83,11 @@ public interface ReadableHistoryStore {
                 final long nodeId, @NonNull final WrapsMessageHistory history) {
             return history.messages().stream()
                     .map(details -> new WrapsMessagePublication(
-                            nodeId, details.message(), details.phase(), asInstant(details.publicationTimeOrThrow())))
+                            nodeId,
+                            details.message(),
+                            details.phase(),
+                            asInstant(details.publicationTimeOrThrow()),
+                            details.hintsPartialSignature()))
                     .toList();
         }
 
@@ -81,9 +95,17 @@ public interface ReadableHistoryStore {
          * Returns this publication as a {@link WrapsMessageDetails}.
          */
         public WrapsMessageDetails asWrapsMessageDetails() {
-            return new WrapsMessageDetails(asTimestamp(receiptTime), phase, message);
+            return new WrapsMessageDetails(asTimestamp(receiptTime), phase, message, hintsPartialSignature);
         }
     }
+
+    /**
+     * Returns authorization links in adoption order. Genesis has no preceding
+     * generation and does not add an entry; retained signing generations do not
+     * add duplicate links when only their roster transport details change.
+     */
+    @NonNull
+    Iterator<HintsKeyProvenance> keyProvenance();
 
     /**
      * Returns the ledger id initiating the chain of trusted history, if known.
