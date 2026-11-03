@@ -11,6 +11,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
 import com.hedera.hapi.node.state.history.HintsKeyProvenance;
+import com.hedera.hapi.node.state.history.HintsKeyWitness;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
@@ -22,6 +23,7 @@ import com.hedera.node.app.history.handlers.HistoryHandlers;
 import com.hedera.node.app.history.schemas.V071HistorySchema;
 import com.hedera.node.app.history.schemas.V0730HistorySchema;
 import com.hedera.node.app.history.schemas.V0790HistorySchema;
+import com.hedera.node.app.history.schemas.V0800HistorySchema;
 import com.hedera.node.app.info.TssStartupNetworks;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
@@ -37,6 +39,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.SortedMap;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
@@ -51,6 +54,12 @@ public class HistoryServiceImpl implements HistoryService {
     private final HistoryServiceComponent component;
 
     private final Supplier<Network> genesisNetworkSupplier;
+
+    private final KeyWitnessPublisher witnessPublisher = new KeyWitnessPublisher(this::submitKeyWitness);
+
+    private CompletableFuture<Void> submitKeyWitness(final HintsKeyWitness witness) {
+        return component.submissions().submitKeyWitness(witness);
+    }
 
     /**
      * If not null, the proof of the history ending at the current roster.
@@ -209,6 +218,11 @@ public class HistoryServiceImpl implements HistoryService {
                 // No-op
             }
         }
+        witnessPublisher.reconcile(
+                historyStore,
+                now,
+                isActive,
+                activeHintsConstruction == null ? 0 : activeHintsConstruction.constructionId());
     }
 
     @Override
@@ -235,7 +249,13 @@ public class HistoryServiceImpl implements HistoryService {
     }
 
     @Override
+    public void publishKeyWitness(@NonNull final Bytes verificationKey, @NonNull final HintsKeyWitness witness) {
+        witnessPublisher.offer(verificationKey, witness);
+    }
+
+    @Override
     public void stop() {
+        witnessPublisher.stop();
         component.controllers().stop();
     }
 
@@ -266,6 +286,7 @@ public class HistoryServiceImpl implements HistoryService {
         registry.register(new V071HistorySchema(this));
         registry.register(new V0730HistorySchema(this));
         registry.register(new V0790HistorySchema(this));
+        registry.register(new V0800HistorySchema(this));
     }
 
     @Override

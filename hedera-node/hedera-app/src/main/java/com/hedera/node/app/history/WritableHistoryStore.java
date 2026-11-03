@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.history.HintsKeyProvenance;
+import com.hedera.hapi.node.state.history.HintsKeyWitness;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
@@ -188,6 +189,26 @@ public interface WritableHistoryStore extends ReadableHistoryStore {
     boolean handoff(@NonNull Roster fromRoster, @Nullable Roster toRoster, @Nullable Bytes toRosterHash);
 
     /**
+     * Performs handoff and atomically records the activation boundary for the
+     * incoming generation's witness. A null boundary is reserved for legacy
+     * callers whose historical activation time is unavailable.
+     */
+    boolean handoff(
+            @NonNull Roster fromRoster,
+            @Nullable Roster toRoster,
+            @Nullable Bytes toRosterHash,
+            @Nullable Instant activationTime);
+
+    /**
+     * Stores an already cryptographically verified witness for an adopted generation.
+     * First accepted bytes are immutable; later submissions never replace them.
+     *
+     * @return true only when a new witness was stored; false for malformed,
+     * unadopted, ineligible, or already completed submissions
+     */
+    boolean setKeyWitness(@NonNull HintsKeyWitness witness);
+
+    /**
      * Rebinds a completed active construction after the caller verifies that the adopted roster has
      * exactly the same node IDs and weights as its prepared target. Preserves the proof and source
      * identity. Returns false without mutation if the expected active target is not complete.
@@ -210,9 +231,11 @@ public interface WritableHistoryStore extends ReadableHistoryStore {
     default void advanceWrapsSigningPhase(
             final long constructionId, @NonNull final WrapsPhase phase, @Nullable final Instant gracePeriodEndTime) {
         requireNonNull(phase);
-        updateWrapsSigningState(constructionId, builder -> builder.phase(phase)
-                .gracePeriodEndTime(Optional.ofNullable(gracePeriodEndTime)
-                        .map(HapiUtils::asTimestamp)
-                        .orElse(Timestamp.DEFAULT)));
+        updateWrapsSigningState(
+                constructionId,
+                builder -> builder.phase(phase)
+                        .gracePeriodEndTime(Optional.ofNullable(gracePeriodEndTime)
+                                .map(HapiUtils::asTimestamp)
+                                .orElse(Timestamp.DEFAULT)));
     }
 }

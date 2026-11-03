@@ -4,6 +4,7 @@ package com.hedera.hapi.node.state.history;
 
 // SPDX-License-Identifier: Apache-2.0
 import "services/timestamp.proto";
+import "services/basic_types.proto";
 import "services/auxiliary/hints/hints_partial_signature.proto";
 import "google/protobuf/wrappers.proto";
 
@@ -390,4 +391,41 @@ message HintsKeyProvenance {
   bytes signature = 5;
   /** The history construction that certified adoption of the target key. */
   uint64 history_construction_id = 6;
+}
+
+/**
+ * A compact proof of actual block signing by an adopted hinTS key.
+ *
+ * Reconstruct the directly signed block root as
+ * hashInternalNode(hashLeaf(Timestamp.PROTOBUF(timestamp)), sibling_hash).
+ * The timestamp is the left child of that root. The signature MUST verify
+ * under the target verification key recorded in the adopted provenance link.
+ * Construction identifiers are bookkeeping and are not signed.
+ */
+message HintsKeyWitness {
+  /** The adopted hinTS generation whose block signature this carries. */
+  uint64 target_hints_construction_id = 1;
+  /** The directly signed block's canonical consensus timestamp. */
+  proto.Timestamp timestamp = 2;
+  /** The right child of the directly signed block root. */
+  bytes sibling_hash = 3;
+  /** The hinTS aggregate signature over the reconstructed block root. */
+  bytes signature = 4;
+  /** The hash algorithm used by this block, independent of current configuration. */
+  proto.BlockHashAlgorithm hash_algorithm = 5;
+}
+
+/**
+ * Durable companion of an adopted provenance link, keyed by its target hinTS
+ * construction ID. A missing witness means publication is still pending.
+ * Historical links imported from the adoption queue may lack activation_time;
+ * an absent activation boundary MUST NOT be replaced with the current time.
+ */
+message HintsKeyWitnessRecord {
+  /** The existing predecessor authorization, retained unchanged. */
+  HintsKeyProvenance provenance = 1;
+  /** The activation boundary; a witness block must start strictly after it. */
+  proto.Timestamp activation_time = 2;
+  /** The first valid witness accepted in consensus order, if available. */
+  HintsKeyWitness witness = 3;
 }

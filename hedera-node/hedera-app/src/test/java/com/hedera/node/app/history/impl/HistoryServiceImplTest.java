@@ -13,9 +13,13 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.isA;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -37,6 +41,7 @@ import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.WritableHistoryStore;
 import com.hedera.node.app.history.handlers.HistoryHandlers;
 import com.hedera.node.app.history.schemas.V071HistorySchema;
+import com.hedera.node.app.history.schemas.V0800HistorySchema;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.config.data.TssConfig;
@@ -46,6 +51,7 @@ import com.hedera.node.internal.network.NodeTssMetadata;
 import com.hedera.node.internal.network.TssMetadata;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.state.lifecycle.SchemaRegistry;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
@@ -109,6 +115,15 @@ class HistoryServiceImplTest {
     private KeyProvenanceSigner sourceSigner;
 
     private HistoryServiceImpl subject;
+
+    @Test
+    void registersTheWitnessSchemaAlongsideExistingHistorySchemas() {
+        withMockSubject();
+        final var registry = mock(SchemaRegistry.class);
+        subject.registerSchemas(registry);
+        verify(registry).register(isA(V0800HistorySchema.class));
+        verify(registry, times(4)).register(any());
+    }
 
     @Test
     void metadataAsExpected() {
@@ -581,6 +596,7 @@ class HistoryServiceImplTest {
     }
 
     private void withMockSubject() {
+        lenient().when(store.keyProvenanceWithWitnesses()).thenAnswer(ignored -> java.util.Collections.emptyIterator());
         subject = new HistoryServiceImpl(component);
     }
 

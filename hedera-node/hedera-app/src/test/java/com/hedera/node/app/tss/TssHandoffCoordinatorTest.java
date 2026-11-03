@@ -28,6 +28,7 @@ import com.hedera.node.app.hints.WritableHintsStore;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.WritableHistoryStore;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
@@ -393,6 +394,32 @@ class TssHandoffCoordinatorTest {
 
         verify(historyStore).handoff(PREVIOUS_ROSTER, ADOPTED_ROSTER, ADOPTED_ROSTER_HASH);
         verify(hintsService).handoff(hintsStore, PREVIOUS_ROSTER, ADOPTED_ROSTER, ADOPTED_ROSTER_HASH);
+        verify(historyService).setLatestHistoryProof(proof);
+    }
+
+    @Test
+    void recordsActivationBoundaryDuringJointPromotion() {
+        final var boundary = Instant.ofEpochSecond(1_800_000_000L, 123);
+        final var proof = wrapsProof(VERIFICATION_KEY);
+        given(hintsStore.getNextConstruction()).willReturn(hintsConstruction(VERIFICATION_KEY));
+        given(historyStore.getNextConstruction()).willReturn(historyConstruction(proof));
+        given(historyStore.handoff(PREVIOUS_ROSTER, ADOPTED_ROSTER, ADOPTED_ROSTER_HASH, boundary))
+                .willReturn(true);
+        given(hintsService.handoff(hintsStore, PREVIOUS_ROSTER, ADOPTED_ROSTER, ADOPTED_ROSTER_HASH))
+                .willReturn(true);
+
+        assertTrue(TssHandoffCoordinator.tryJointHandoff(
+                historyStore,
+                hintsStore,
+                historyService,
+                hintsService,
+                PREVIOUS_ROSTER,
+                ADOPTED_ROSTER,
+                ADOPTED_ROSTER_HASH,
+                boundary));
+
+        verify(historyStore).handoff(PREVIOUS_ROSTER, ADOPTED_ROSTER, ADOPTED_ROSTER_HASH, boundary);
+        verify(historyStore, never()).handoff(any(), any(), any());
         verify(historyService).setLatestHistoryProof(proof);
     }
 

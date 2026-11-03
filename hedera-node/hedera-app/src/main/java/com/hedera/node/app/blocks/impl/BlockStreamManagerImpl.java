@@ -41,6 +41,7 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
+import com.hedera.hapi.node.state.history.HintsKeyWitness;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockItemWriter;
@@ -1005,6 +1006,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     traceDataHash,
                     newBlockStreamInfo.blockTime());
             final var finalBlockRootHash = rootAndSiblingHashes.blockRootHash();
+            final var signedPreviousBlockHash = lastBlockHash;
+            final var signedBlockTimestamp = blockTimestamp;
+            final var signedDigestType = digestType();
 
             // Create BlockFooter with the three essential hashes:
             final var blockFooter = com.hedera.hapi.block.stream.output.BlockFooter.newBuilder()
@@ -1053,6 +1057,28 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                                     signedBlockNumber,
                                     finalBlockRootHash);
                         } else {
+                            if (attempt.constructionId() > 0 && attempt.verificationKey() != null) {
+                                try {
+                                    final var witness = HintsKeyWitness.newBuilder()
+                                            .targetHintsConstructionId(attempt.constructionId())
+                                            .timestamp(signedBlockTimestamp)
+                                            .siblingHash(BlockRootTree.timestampSiblingHash(
+                                                    signedDigestType,
+                                                    signedPreviousBlockHash,
+                                                    rootAndSiblingHashes.siblingHashes()))
+                                            .signature(signature)
+                                            .hashAlgorithm(signedDigestType == DigestType.SHA_256 ? SHA2_256 : SHA2_384)
+                                            .build();
+                                    // Publish even if this block has already been closed with an indirect proof.
+                                    // The callback is tied to the original signing attempt and only submits work.
+                                    blockHashSigner.publishKeyWitness(attempt.verificationKey(), witness);
+                                } catch (RuntimeException e) {
+                                    log.warn(
+                                            "Failed to offer key witness for directly signed block #{}",
+                                            signedBlockNumber,
+                                            e);
+                                }
+                            }
                             finishProofWithSignature(
                                     finalBlockRootHash,
                                     signature,
@@ -1113,12 +1139,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                         return null;
                     });
 
-            final var exportNetworkToDisk =
-                    switch (diskNetworkExport) {
-                        case NEVER -> false;
-                        case EVERY_BLOCK -> true;
-                        case ONLY_FREEZE_BLOCK -> roundNum == freezeRoundNumber;
-                    };
+            final var exportNetworkToDisk = switch (diskNetworkExport) {
+                case NEVER -> false;
+                case EVERY_BLOCK -> true;
+                case ONLY_FREEZE_BLOCK -> roundNum == freezeRoundNumber;
+            };
             if (exportNetworkToDisk) {
                 final var exportPath = Paths.get(diskNetworkExportFile);
                 final var infoTypes = EnumSet.of(InfoType.ROSTER, InfoType.NODE_DETAILS);

@@ -6,16 +6,24 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
+import com.hedera.hapi.node.base.BlockHashAlgorithm;
+import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.state.history.HintsKeyProvenance;
+import com.hedera.hapi.node.state.history.HintsKeyWitness;
+import com.hedera.hapi.node.state.history.HintsKeyWitnessRecord;
 import com.hedera.hapi.node.state.history.WrapsPhase;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.services.auxiliary.hints.HintsPartialSignatureTransactionBody;
 import com.hedera.hapi.services.auxiliary.history.HistoryProofKeyPublicationTransactionBody;
+import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.node.app.history.ReadableHistoryStore;
 import com.hedera.node.app.history.WritableHistoryStore;
+import com.hedera.node.app.history.impl.HintsKeyWitnessVerifier;
 import com.hedera.node.app.history.impl.ProofController;
 import com.hedera.node.app.history.impl.ProofControllers;
 import com.hedera.node.app.spi.info.NodeInfo;
@@ -53,6 +61,9 @@ class HistoryProofKeyPublicationHandlerTest {
     private ProofControllers controllers;
 
     @Mock
+    private HintsKeyWitnessVerifier witnessVerifier;
+
+    @Mock
     private PreHandleContext preHandleContext;
 
     @Mock
@@ -77,7 +88,151 @@ class HistoryProofKeyPublicationHandlerTest {
 
     @BeforeEach
     void setUp() {
-        subject = new HistoryProofKeyPublicationHandler(controllers);
+        subject = new HistoryProofKeyPublicationHandler(controllers, witnessVerifier);
+    }
+
+    @Test
+    void publishesWitnessForAdoptedGenerationIndependentlyOfProofController() {
+        final var witness = witnessAt(CONSENSUS_NOW.minusSeconds(1));
+        final var record = witnessRecord(CONSENSUS_NOW.minusSeconds(2));
+        givenWitnessPublication(witness, record);
+        given(witnessVerifier.verify(witness, record.provenanceOrThrow().targetVerificationKey()))
+                .willReturn(true);
+        given(store.setKeyWitness(witness)).willReturn(true);
+
+        subject.handle(context);
+
+        verify(store).setKeyWitness(witness);
+        verifyNoInteractions(controllers);
+    }
+
+    @Test
+    void allowsHistoricalBackfillWithoutInventingAnActivationBoundary() {
+        // Use positive timestamps while making the witness a year older than publication.
+        final var publicationTime = CONSENSUS_NOW.plusSeconds(31_536_000);
+        final var historical = witnessAt(CONSENSUS_NOW);
+        final var record = witnessRecord(null);
+        givenWitnessPublication(historical, record);
+        given(context.consensusNow()).willReturn(publicationTime);
+        given(witnessVerifier.verify(historical, record.provenanceOrThrow().targetVerificationKey()))
+                .willReturn(true);
+
+        subject.handle(context);
+
+        verify(store).setKeyWitness(historical);
+        verifyNoInteractions(controllers);
+    }
+
+    @Test
+    void rejectsCertificateForUnadoptedCandidate() {
+        final var witness = witnessAt(CONSENSUS_NOW.minusSeconds(1));
+        givenWitnessPublication(witness, null);
+
+        subject.handle(context);
+
+        verify(store, never()).setKeyWitness(any());
+        verifyNoInteractions(witnessVerifier, controllers);
+    }
+
+    @Test
+    void duplicateWitnessCannotReplaceFirstConsensusAcceptedProof() {
+        final var witness = witnessAt(CONSENSUS_NOW.minusSeconds(1));
+        final var record = witnessRecord(null)
+                .copyBuilder()
+                .witness(witnessAt(CONSENSUS_NOW.minusSeconds(2)))
+                .build();
+        givenWitnessPublication(witness, record);
+
+        subject.handle(context);
+
+        verify(store, never()).setKeyWitness(any());
+        verifyNoInteractions(witnessVerifier, controllers);
+    }
+
+    @Test
+    void rejectsBlockAtOrBeforeActivationBoundary() {
+        final var witness = witnessAt(CONSENSUS_NOW.minusSeconds(1));
+        givenWitnessPublication(witness, witnessRecord(CONSENSUS_NOW.minusSeconds(1)));
+
+        subject.handle(context);
+
+        verify(store, never()).setKeyWitness(any());
+        verifyNoInteractions(witnessVerifier);
+    }
+
+    @Test
+    void rejectsFutureTimestamp() {
+        final var witness = witnessAt(CONSENSUS_NOW.plusSeconds(1));
+        givenWitnessPublication(witness, witnessRecord(null));
+
+        subject.handle(context);
+
+        verify(store, never()).setKeyWitness(any());
+        verifyNoInteractions(witnessVerifier);
+    }
+
+    @Test
+    void rejectsSignatureThatDoesNotVerifyUnderAdoptedKey() {
+        final var witness = witnessAt(CONSENSUS_NOW.minusSeconds(1));
+        final var record = witnessRecord(null);
+        givenWitnessPublication(witness, record);
+        given(witnessVerifier.verify(witness, record.provenanceOrThrow().targetVerificationKey()))
+                .willReturn(false);
+
+        subject.handle(context);
+
+        verify(store, never()).setKeyWitness(any());
+    }
+
+    @Test
+    void malformedWitnessNeverReachesNativeVerification() {
+        final var witness = witnessAt(CONSENSUS_NOW.minusSeconds(1))
+                .copyBuilder()
+                .siblingHash(Bytes.wrap("short"))
+                .build();
+        givenWitnessPublication(witness, witnessRecord(null));
+
+        subject.handle(context);
+
+        verify(store, never()).setKeyWitness(any());
+        verifyNoInteractions(witnessVerifier);
+    }
+
+    private static HintsKeyWitness witnessAt(final Instant time) {
+        return HintsKeyWitness.newBuilder()
+                .targetHintsConstructionId(CONSTRUCTION_ID)
+                .timestamp(new Timestamp(time.getEpochSecond(), time.getNano()))
+                .siblingHash(Bytes.wrap(new byte[48]))
+                .signature(Bytes.wrap(new byte[HintsLibraryImpl.SIGNATURE_LENGTH]))
+                .hashAlgorithm(BlockHashAlgorithm.SHA2_384)
+                .build();
+    }
+
+    private static HintsKeyWitnessRecord witnessRecord(@Nullable final Instant activationTime) {
+        return HintsKeyWitnessRecord.newBuilder()
+                .provenance(HintsKeyProvenance.newBuilder()
+                        .sourceHintsConstructionId(CONSTRUCTION_ID - 1)
+                        .targetHintsConstructionId(CONSTRUCTION_ID)
+                        .targetVerificationKey(Bytes.wrap(new byte[HintsLibraryImpl.VK_LENGTH]))
+                        .build())
+                .activationTime(
+                        activationTime == null
+                                ? null
+                                : new Timestamp(activationTime.getEpochSecond(), activationTime.getNano()))
+                .build();
+    }
+
+    private void givenWitnessPublication(final HintsKeyWitness witness, @Nullable final HintsKeyWitnessRecord record) {
+        given(context.body())
+                .willReturn(TransactionBody.newBuilder()
+                        .historyProofKeyPublication(HistoryProofKeyPublicationTransactionBody.newBuilder()
+                                .keyWitness(witness)
+                                .build())
+                        .build());
+        given(context.storeFactory()).willReturn(factory);
+        given(factory.writableStore(WritableHistoryStore.class)).willReturn(store);
+        given(store.getKeyWitnessRecord(witness.targetHintsConstructionId())).willReturn(record);
+        lenient().when(context.consensusNow()).thenReturn(CONSENSUS_NOW);
     }
 
     @Test

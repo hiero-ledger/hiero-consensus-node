@@ -32,5 +32,7 @@ public interface HistoryServiceComponent {
 
     ProofControllers controllers();
 
+    HistorySubmissions submissions();
+
     Supplier<Configuration> configSupplier();
 }

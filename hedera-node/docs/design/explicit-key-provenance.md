@@ -94,9 +94,103 @@ re-anchor that retains the hinTS generation and a transport-only roster rebind
 also create no new link. Equal roster hashes are not, by themselves, evidence
 that a signing generation is unchanged.
 
-The queue is append-only in this change. No consumer, pruning rule, or retention
-limit is introduced: deleting old links requires an explicit future policy that
-preserves the provenance needed by consumers.
+The queue remains append-only. Its links and their durable block-signing
+witnesses have no pruning rule or retention limit: deleting either requires an
+explicit policy preserving historical catch-up.
+
+## Durable block-signing witnesses
+
+A predecessor's signature authorizes a candidate key before handoff. It does
+not establish that the network adopted the candidate. In particular, a completed
+pending construction can be replaced without entering the adoption queue. An
+untrusted endpoint can retain and replay its certificate after replacement.
+
+`HINTS_KEY_WITNESSES` is a companion map keyed by target hinTS construction ID.
+Each `HintsKeyWitnessRecord` contains the adopted `HintsKeyProvenance`, an
+optional activation timestamp, and an optional `HintsKeyWitness`. Handoff
+initializes the pending record in the same savepoint as the existing queue
+append and both promotions. The queue's type and adoption ordering are unchanged.
+
+The compact witness contains the target construction ID, a consensus timestamp,
+one sibling hash, the block aggregate signature, and the block hash algorithm.
+It reconstructs the directly signed block root as
+
+```
+hashInternalNode(hashLeaf(Timestamp.PROTOBUF.toBytes(timestamp)), siblingHash)
+```
+
+The timestamp is always the left child at depth one. SHA-256 and SHA-384 use
+their existing block-tree domain separation, with exactly 32- and 48-byte sibling
+hashes respectively. The signature must verify under the certificate's exact
+target verification key at the strict greater-than-one-third threshold. No WRAPS
+proof is duplicated in this witness: consumers establish key authority by
+verifying the provenance chain from their own trusted key.
+
+### Production and consensus admission
+
+The block signing attempt captures its construction ID and verification key.
+Once its aggregate signature is available, the node can publish a witness using
+the `key_witness` variant of `HistoryProofKeyPublicationTransactionBody`. The
+timestamp and sibling come from that same directly signed block; an indirect
+proof for a different block cannot substitute its timestamp or root.
+
+Consensus processing accepts a witness only for a generation already in the
+companion map. It validates the proof's shape and signature, rejects timestamps
+after the publication's consensus time, and, when the activation boundary is
+known, requires a timestamp strictly after that boundary. This excludes a block
+that started before a runtime handoff. Runtime adoption records the handoff's
+consensus time; restart adoption uses the last consensus timestamp in the
+startup state. Both paths then wait for an eligible block to be signed.
+
+The first accepted witness is immutable. Consensus transaction order selects it,
+not local asynchronous completion order. Repeated publications do not replace
+the proof. Submitting a transaction or completing a local signature future is
+not evidence that the witness was persisted. Publication retries until consensus
+state contains it, and delayed signatures retain their original generation
+binding even after another handoff.
+
+No rotation waits for witness publication. An active generation missing its
+witness can use a later signed block, including after restart or reconnect.
+Retired generations can be backfilled through the same publication variant
+using existing historical block data; retired nodes do not need to sign again.
+Restart migration creates pending records for older queue entries that lack a
+companion record. Their activation boundary is explicitly unknown, so migration
+does not invent a recent boundary that would reject genuine historical proofs.
+
+### Retrieval and consumer acceptance
+
+`ReadableHistoryStore.getKeyWitnessRecord(id)` retrieves one record;
+`keyProvenanceWithWitnesses()` exposes augmented records in queue adoption order.
+The protobuf codec and typed state-change encoding make the records available
+for endpoint reconstruction and serialization. An absent witness means pending
+publication or missing historical data, not an invalid adoption. Endpoints must
+preserve the distinction rather than manufacture a proof or silently advance a
+consumer through an unwitnessed batch endpoint.
+
+For gas-bounded catch-up, a consumer verifies a bounded certificate segment
+starting at its currently trusted key, verifies the retained witness under the
+segment's exact endpoint key, and only then commits the new anchor. Any failure
+must preserve the previous anchor. Only the endpoint witness needs verification
+in a batch; intermediate generations may lack witnesses. Keeping a witness for
+every generation lets callers choose arbitrary batch boundaries.
+
+For example, a January anchor can advance through several transactions ending
+at January 20, February 8, and later historical keys before accepting a December
+message. Old witness timestamps remain valid for this historical operation.
+Forward progress is checked against the stored checkpoint; message freshness is
+a separate policy and must not apply a wall-clock age limit to key catch-up.
+`HintsKeyProvenanceVerifier` provides a bounded reference implementation returning
+a new immutable checkpoint only after the complete batch succeeds. It does not
+write a caller's checkpoint or enforce application-message freshness.
+
+Construction IDs remain unsigned bookkeeping. The cryptographic chain follows
+the actual keys, and the witness proves use of the endpoint key, not an
+independently authenticated generation number. Neither asserted queue membership
+nor a successor's self-signed block root replaces the predecessor certificate.
+The security argument assumes honest nodes sign actual block roots using
+activated generations and the applicable threshold fault bound holds. It does
+not establish that a historical key is still current or solve later compromise
+of retired signing keys.
 
 ## Restart, retries, and upgrades
 
