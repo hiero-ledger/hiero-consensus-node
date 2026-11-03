@@ -1,10 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
+import androidx.build.gradle.gcpbuildcache.ApplicationDefaultGcpCredentials
+import androidx.build.gradle.gcpbuildcache.GcpBuildCache
+import org.hiero.gradle.environment.EnvAccess
+
 pluginManagement {
     includeBuild("gradle/benchmark-tracking")
 }
 
 plugins {
     id("org.hiero.gradle.build") version "0.7.11"
+    id("androidx.build.gradle.gcpbuildcache") version "1.0.2"
     id("com.hedera.pbj.pbj-compiler") version "0.16.2" apply false
     id("org.gradlex.java-module-packaging") version "1.3" apply false
 }
@@ -111,5 +116,17 @@ gradle.lifecycle.afterProject {
                 }
             }
         }
+    }
+}
+
+buildCache {
+    // replaces remote cache config from 'org.hiero.gradle.build'
+    remote<GcpBuildCache> {
+        val gcpProjectNumber = providers.environmentVariable("GCP_PROJECT_NUMBER")
+        isEnabled = gcpProjectNumber.isPresent && !gradle.startParameter.isOffline
+        projectId = gcpProjectNumber.getOrElse("")
+        bucketName = "gradle-build-cache"
+        credentials = ApplicationDefaultGcpCredentials
+        isPush = EnvAccess.isCiServer(providers)
     }
 }

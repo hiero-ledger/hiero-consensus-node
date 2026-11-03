@@ -87,12 +87,9 @@ on:
       codecov-token:
         description: "Codecov Token"
         required: false
-      gradle-cache-username:
-        description: "Gradle Cache Username"
-        required: true
-      gradle-cache-password:
-        description: "Gradle Cache Password"
-        required: true
+      gcp-project-number:
+        description: "GCP Project Number"
+        required: false
     outputs:
       failure-mode:
         description: "Failure Mode"
@@ -146,8 +143,7 @@ jobs:
       java-distribution: "${{ inputs.java-distribution }}"
     secrets:
       access-token: ${{ secrets.access-token }}
-      gradle-cache-username: ${{ secrets.gradle-cache-username }}
-      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+      gcp-project-number: ${{ secrets.gcp-project-number }}
 
   dependency-check:
     name: "${{ inputs.custom-job-label }} Dependency (Module Info)"
@@ -161,8 +157,7 @@ jobs:
       java-version: "${{ inputs.java-version }}"
     secrets:
       access-token: ${{ secrets.access-token }}
-      gradle-cache-username: ${{ secrets.gradle-cache-username }}
-      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+      gcp-project-number: ${{ secrets.gcp-project-number }}
 
   mats-unit-tests:
     name: Unit Tests
@@ -177,8 +172,7 @@ jobs:
       java-distribution: "${{ inputs.java-distribution }}"
     secrets:
       access-token: ${{ secrets.access-token }}
-      gradle-cache-username: ${{ secrets.gradle-cache-username }}
-      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+      gcp-project-number: ${{ secrets.gcp-project-number }}
       codacy-project-token: ${{ secrets.codacy-project-token }}
       codecov-token: ${{ secrets.codecov-token }}
 
@@ -196,8 +190,7 @@ jobs:
       enable-network-log-capture: "true"
     secrets:
       access-token: ${{ secrets.access-token }}
-      gradle-cache-username: ${{ secrets.gradle-cache-username }}
-      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+      gcp-project-number: ${{ secrets.gcp-project-number }}
 
   mats-hapi-tests:
     name: HAPI Tests
@@ -213,8 +206,7 @@ jobs:
       enable-network-log-capture: "true"
     secrets:
       access-token: ${{ secrets.access-token }}
-      gradle-cache-username: ${{ secrets.gradle-cache-username }}
-      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+      gcp-project-number: ${{ secrets.gcp-project-number }}
 
   mats-otter-tests:
     name: Otter Tests
@@ -232,8 +224,7 @@ jobs:
       enable-falcon-tests: ${{ inputs.enable-falcon-tests == 'true' }}
     secrets:
       access-token: ${{ secrets.access-token }}
-      gradle-cache-username: ${{ secrets.gradle-cache-username }}
-      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+      gcp-project-number: ${{ secrets.gcp-project-number }}
 
   mats-benchmark-smoke:
     name: Benchmark Smoke
@@ -248,8 +239,7 @@ jobs:
       java-distribution: "${{ inputs.java-distribution }}"
     secrets:
       access-token: ${{ secrets.access-token }}
-      gradle-cache-username: ${{ secrets.gradle-cache-username }}
-      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+      gcp-project-number: ${{ secrets.gcp-project-number }}
 
   mats-gradle-determinism:
     name: Gradle Determinism
@@ -264,8 +254,7 @@ jobs:
       java-distribution: "${{ inputs.java-distribution }}"
     secrets:
       github-token: ${{ secrets.access-token }}
-      gradle-cache-username: ${{ secrets.gradle-cache-username }}
-      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+      gcp-project-number: ${{ secrets.gcp-project-number }}
 
   mats-docker-determinism:
     name: Docker Determinism
@@ -280,8 +269,7 @@ jobs:
       java-distribution: "${{ inputs.java-distribution }}"
     secrets:
       github-token: ${{ secrets.access-token }}
-      gradle-cache-username: ${{ secrets.gradle-cache-username }}
-      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+      gcp-project-number: ${{ secrets.gcp-project-number }}
 
   # The EVM functional tests (871) take their solo, mirror node and relay versions from .citr-env. PR checks (600)
   # pass the PR's merge commit as citr-vars-ref, so a PR that is behind its base branch still runs with the base
