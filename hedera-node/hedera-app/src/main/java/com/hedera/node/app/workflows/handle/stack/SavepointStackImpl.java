@@ -96,6 +96,10 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
     @Nullable
     private Map<StreamBuilder, TransactionID> batchInnerIdsByBuilder;
 
+    // Values attached to this stack, also visible to the stacks of the dispatches made from it
+    @Nullable
+    private Map<Class<?>, Object> attachments;
+
     @Nullable
     private final ImmediateStateChangeListener immediateStateChangeListener;
 
@@ -471,6 +475,38 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         for (var savepoint : stack) {
             savepoint.forEachOtherBuilder(consumer, builderClass, baseBuilder);
         }
+    }
+
+    @Override
+    public <T> void attach(@NonNull final Class<T> type, @NonNull final T value) {
+        requireNonNull(type);
+        requireNonNull(value);
+        if (attachments == null) {
+            attachments = new HashMap<>();
+        }
+        if (attachments.putIfAbsent(type, value) != null) {
+            throw new IllegalStateException("A " + type.getSimpleName() + " is already attached to this stack");
+        }
+    }
+
+    @Override
+    public void detach(@NonNull final Class<?> type) {
+        requireNonNull(type);
+        if (attachments != null) {
+            attachments.remove(type);
+        }
+    }
+
+    @Override
+    @Nullable
+    public <T> T findInLineage(@NonNull final Class<T> type) {
+        requireNonNull(type);
+        final var value = attachments == null ? null : attachments.get(type);
+        if (value != null) {
+            return type.cast(value);
+        }
+        // A child stack also sees the values attached to the stacks of the dispatches that enclose it
+        return state instanceof SavepointStackImpl parent ? parent.findInLineage(type) : null;
     }
 
     /**

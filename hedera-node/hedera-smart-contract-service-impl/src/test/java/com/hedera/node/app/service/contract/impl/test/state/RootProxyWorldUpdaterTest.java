@@ -14,7 +14,7 @@ import static org.mockito.Mockito.never;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.contract.ContractNonceInfo;
 import com.hedera.hapi.node.state.contract.SlotKey;
-import com.hedera.node.app.service.contract.impl.exec.ContractExecutionDepth;
+import com.hedera.node.app.service.contract.impl.exec.StorageAccountingScope;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.SystemContractOperations;
@@ -97,6 +97,9 @@ class RootProxyWorldUpdaterTest {
     @Mock
     private ThrottleAdviser throttleAdviser;
 
+    @Mock
+    private StorageAccountingScope storageAccountingScope;
+
     private Enhancement enhancement;
     private RootProxyWorldUpdater subject;
 
@@ -146,13 +149,14 @@ class RootProxyWorldUpdaterTest {
 
         final var aExpiry = 1_234_567;
         final var aSlotsUsedBeforeCommit = 101;
-        final var sizeIncludingPendingRemovals = 123L;
+        final var slotsUsedBeforeCommit = 123L;
         final var mockChangedKeys = Set.of(new SlotKey(A_CONTRACT_ID, Bytes.wrap("123")));
-        // Three keys being removed in pending changes
-        final var sizeExcludingPendingRemovals = sizeIncludingPendingRemovals - 3;
+        // Four keys being added and three removed in pending changes
+        final var slotsUsedAfterCommit = slotsUsedBeforeCommit + 4 - 3;
+        given(storageAccountingScope.isOwner()).willReturn(true);
         given(context.dispatchMetadata())
                 .willReturn(new HandleContext.DispatchMetadata(EXPLICIT_WRITE_TRACING, Boolean.FALSE));
-        given(evmFrameState.getKvStateSize()).willReturn(sizeIncludingPendingRemovals);
+        given(evmFrameState.getKvStateSize()).willReturn(slotsUsedBeforeCommit);
         given(evmFrameState.getTxStorageUsage(true)).willReturn(new TxStorageUsage(pendingChanges(), mockChangedKeys));
         given(evmFrameState.getRentFactorsFor(A_CONTRACT_ID))
                 .willReturn(new RentFactors(aSlotsUsedBeforeCommit, aExpiry));
@@ -160,7 +164,7 @@ class RootProxyWorldUpdaterTest {
         final var rentInTinycents = 666_666L;
         final var rentInTinybars = 111_111L;
         // A contract is allocating 2 slots net
-        given(rentCalculator.computeFor(sizeExcludingPendingRemovals, 2, aSlotsUsedBeforeCommit, aExpiry))
+        given(rentCalculator.computeFor(slotsUsedAfterCommit, 2, aSlotsUsedBeforeCommit, aExpiry))
                 .willReturn(rentInTinycents);
         given(hederaOperations.valueInTinybars(rentInTinycents)).willReturn(rentInTinybars);
         given(hederaOperations.getStore()).willReturn(store);
@@ -171,8 +175,7 @@ class RootProxyWorldUpdaterTest {
 
         subject.commit();
 
-        inOrder.verify(storageSizeValidator)
-                .assertValid(sizeExcludingPendingRemovals, hederaOperations, expectedSizeChanges());
+        inOrder.verify(storageSizeValidator).assertValid(slotsUsedAfterCommit, hederaOperations, expectedSizeChanges());
         inOrder.verify(hederaOperations).chargeStorageRent(A_CONTRACT_ID, rentInTinybars, true);
         inOrder.verify(storageManager)
                 .persistChanges(
@@ -189,7 +192,32 @@ class RootProxyWorldUpdaterTest {
     }
 
     @Test
-    void nestedExecutionValidatesButLeavesRentAndPersistenceToOutermostCommit() {
+    void validatesAggregateSlotsIncludingPendingInsertions() {
+        final var slotsUsedBeforeCommit = 10L;
+        final var oneInsertion = List.of(new StorageAccesses(
+                A_CONTRACT_ID, List.of(new StorageAccess(A_KEY_BEING_ADDED, UInt256.ZERO, UInt256.ONE))));
+        // Not the scope owner, so the commit only validates
+        given(storageAccountingScope.isOwner()).willReturn(false);
+        given(context.dispatchMetadata())
+                .willReturn(new HandleContext.DispatchMetadata(EXPLICIT_WRITE_TRACING, Boolean.FALSE));
+        given(evmFrameState.getKvStateSize()).willReturn(slotsUsedBeforeCommit);
+        given(evmFrameState.getTxStorageUsage(true)).willReturn(new TxStorageUsage(oneInsertion, Set.of()));
+        given(hederaOperations.summarizeContractChanges())
+                .willReturn(new ContractChangeSummary(new ArrayList<>(), new ArrayList<>()));
+
+        subject.commit();
+
+        BDDMockito.then(storageSizeValidator)
+                .should()
+                .assertValid(
+                        slotsUsedBeforeCommit + 1,
+                        hederaOperations,
+                        List.of(new StorageSizeChange(A_CONTRACT_ID, 0, 1)));
+    }
+
+    @Test
+    void nestedExecutionValidatesButLeavesRentAndPersistenceToScopeOwner() {
+        given(storageAccountingScope.isOwner()).willReturn(false);
         given(context.dispatchMetadata())
                 .willReturn(new HandleContext.DispatchMetadata(EXPLICIT_WRITE_TRACING, Boolean.FALSE));
         given(evmFrameState.getKvStateSize()).willReturn(123L);
@@ -201,54 +229,36 @@ class RootProxyWorldUpdaterTest {
         given(hederaOperations.summarizeContractChanges())
                 .willReturn(new ContractChangeSummary(new ArrayList<>(), new ArrayList<>()));
 
-        ContractExecutionDepth.enter();
-        ContractExecutionDepth.enter();
-        try {
-            subject.commit();
-        } finally {
-            ContractExecutionDepth.exit();
-            ContractExecutionDepth.exit();
-        }
+        subject.commit();
 
-        // Three pending removals
-        BDDMockito.then(storageSizeValidator).should().assertValid(120L, hederaOperations, expectedSizeChanges());
+        // Four pending insertions and three pending removals
+        BDDMockito.then(storageSizeValidator).should().assertValid(124L, hederaOperations, expectedSizeChanges());
         BDDMockito.then(rentCalculator).shouldHaveNoInteractions();
         BDDMockito.then(storageManager).shouldHaveNoInteractions();
         BDDMockito.then(hederaOperations).should().commit();
     }
 
     @Test
-    void outermostExecutionThrottlesCreatedContracts() {
+    void scopeOwnerThrottlesCreatedContracts() {
         givenSubjectWith(creationThrottleConfig(), enhancement);
         givenOneCreatedContractWithNoStorageChanges();
+        given(storageAccountingScope.isOwner()).willReturn(true);
         given(context.throttleAdviser()).willReturn(throttleAdviser);
         given(throttleAdviser.shouldThrottleNOfUnscaled(1, CRYPTO_CREATE)).willReturn(true);
 
-        // ContextTransactionProcessor runs the outermost execution at depth one
-        ContractExecutionDepth.enter();
-        try {
-            final var e = assertThrows(ResourceExhaustedException.class, subject::commit);
-            assertEquals(CONSENSUS_GAS_EXHAUSTED, e.getStatus());
-        } finally {
-            ContractExecutionDepth.exit();
-        }
+        final var e = assertThrows(ResourceExhaustedException.class, subject::commit);
+        assertEquals(CONSENSUS_GAS_EXHAUSTED, e.getStatus());
     }
 
     @Test
-    void nestedExecutionLeavesCreationThrottleToOutermostCommit() {
+    void nestedExecutionLeavesCreationThrottleToScopeOwner() {
         givenSubjectWith(creationThrottleConfig(), enhancement);
         givenOneCreatedContractWithNoStorageChanges();
+        given(storageAccountingScope.isOwner()).willReturn(false);
         // Lenient, since a nested commit must not consult the throttle
         BDDMockito.lenient().when(context.throttleAdviser()).thenReturn(throttleAdviser);
 
-        ContractExecutionDepth.enter();
-        ContractExecutionDepth.enter();
-        try {
-            subject.commit();
-        } finally {
-            ContractExecutionDepth.exit();
-            ContractExecutionDepth.exit();
-        }
+        subject.commit();
 
         BDDMockito.then(context).should(never()).throttleAdviser();
         assertEquals(List.of(CALLED_CONTRACT_ID), subject.getCreatedContractIds());
@@ -276,7 +286,8 @@ class RootProxyWorldUpdaterTest {
                 rentCalculator,
                 storageManager,
                 storageSizeValidator,
-                context);
+                context,
+                storageAccountingScope);
     }
 
     private List<StorageAccesses> pendingChanges() {

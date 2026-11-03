@@ -16,7 +16,6 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertFailsWith;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.EMPTY_METADATA;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -30,7 +29,7 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.streams.ContractBytecode;
 import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.ContextTransactionProcessor;
-import com.hedera.node.app.service.contract.impl.exec.ContractExecutionDepth;
+import com.hedera.node.app.service.contract.impl.exec.StorageAccountingScope;
 import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
 import com.hedera.node.app.service.contract.impl.exec.delegation.CodeDelegationResult;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging;
@@ -131,6 +130,9 @@ class ContextTransactionProcessorTest {
     @Mock
     private ContractOperationStreamBuilder streamBuilder;
 
+    @Mock
+    private StorageAccountingScope storageAccountingScope;
+
     private static final Configuration BASE_CONFIG = HederaTestConfigBuilder.create()
             .withValue("contracts.evm.ethTransaction.zeroHapiFees.enabled", true)
             .withValue("contracts.evm.pectraEnabled", false)
@@ -162,7 +164,8 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                contractMetrics);
+                contractMetrics,
+                storageAccountingScope);
 
         given(enhancement.operations()).willReturn(hederaOperations);
         given(rootProxyWorldUpdater.enhancement()).willReturn(enhancement);
@@ -216,7 +219,8 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                contractMetrics);
+                contractMetrics,
+                storageAccountingScope);
 
         given(enhancement.operations()).willReturn(hederaOperations);
         given(rootProxyWorldUpdater.enhancement()).willReturn(enhancement);
@@ -270,7 +274,8 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                contractMetrics);
+                contractMetrics,
+                storageAccountingScope);
 
         given(enhancement.operations()).willReturn(hederaOperations);
         given(rootProxyWorldUpdater.enhancement()).willReturn(enhancement);
@@ -306,7 +311,8 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                contractMetrics);
+                contractMetrics,
+                storageAccountingScope);
 
         given(enhancement.operations()).willReturn(hederaOperations);
         given(rootProxyWorldUpdater.enhancement()).willReturn(enhancement);
@@ -354,7 +360,8 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                contractMetrics);
+                contractMetrics,
+                storageAccountingScope);
 
         given(enhancement.operations()).willReturn(hederaOperations);
         given(rootProxyWorldUpdater.enhancement()).willReturn(enhancement);
@@ -389,7 +396,8 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                contractMetrics);
+                contractMetrics,
+                storageAccountingScope);
 
         given(context.body()).willReturn(transactionBody);
         final var payer = AccountID.DEFAULT;
@@ -421,7 +429,8 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                contractMetrics);
+                contractMetrics,
+                storageAccountingScope);
 
         given(context.body()).willReturn(transactionBody);
         given(context.payer()).willReturn(RELAYER_ID);
@@ -452,7 +461,8 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                contractMetrics);
+                contractMetrics,
+                storageAccountingScope);
 
         given(context.body()).willReturn(transactionBody);
         final var payer = AccountID.DEFAULT;
@@ -484,7 +494,8 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                contractMetrics);
+                contractMetrics,
+                storageAccountingScope);
 
         given(context.body()).willReturn(transactionBody);
         final var payer = AccountID.DEFAULT;
@@ -520,7 +531,8 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                contractMetrics);
+                contractMetrics,
+                storageAccountingScope);
 
         given(context.body()).willReturn(transactionBody);
         final var payer = AccountID.DEFAULT;
@@ -556,7 +568,8 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                contractMetrics);
+                contractMetrics,
+                storageAccountingScope);
 
         given(context.body()).willReturn(transactionBody);
         given(context.payer()).willReturn(SENDER_ID);
@@ -568,7 +581,11 @@ class ContextTransactionProcessorTest {
                 .willReturn(HEVM_Exception);
 
         final var outcome = subject.call();
-        verify(rootProxyWorldUpdater).commit();
+        // The execution commits while its storage accounting scope is open
+        final var inOrder = inOrder(storageAccountingScope, rootProxyWorldUpdater);
+        inOrder.verify(storageAccountingScope).open();
+        inOrder.verify(rootProxyWorldUpdater).commit();
+        inOrder.verify(storageAccountingScope).close();
         assertEquals(INVALID_CONTRACT_ID, outcome.status());
     }
 
@@ -587,16 +604,14 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                contractMetrics);
+                contractMetrics,
+                storageAccountingScope);
 
         assertFailsWith(INVALID_ETHEREUM_TRANSACTION, subject::call);
-        // The depth is restored even though call() threw
-        ContractExecutionDepth.enter();
-        try {
-            assertFalse(ContractExecutionDepth.isNested());
-        } finally {
-            ContractExecutionDepth.exit();
-        }
+        // The scope is closed even though call() threw
+        final var inOrder = inOrder(storageAccountingScope);
+        inOrder.verify(storageAccountingScope).open();
+        inOrder.verify(storageAccountingScope).close();
     }
 
     @Test
@@ -617,7 +632,8 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                contractMetrics);
+                contractMetrics,
+                storageAccountingScope);
 
         final var payer = AccountID.DEFAULT;
         given(context.body()).willReturn(transactionBody);
@@ -727,7 +743,8 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                contractMetrics);
+                contractMetrics,
+                storageAccountingScope);
     }
 
     @Test
@@ -745,7 +762,8 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                contractMetrics);
+                contractMetrics,
+                storageAccountingScope);
 
         given(rootProxyWorldUpdater.enhancement()).willReturn(enhancement);
         given(enhancement.operations()).willReturn(hederaOperations);
@@ -785,7 +803,8 @@ class ContextTransactionProcessorTest {
                 hevmTransactionFactory,
                 processor,
                 customGasCharging,
-                contractMetrics);
+                contractMetrics,
+                storageAccountingScope);
 
         given(rootProxyWorldUpdater.enhancement()).willReturn(enhancement);
         given(enhancement.operations()).willReturn(hederaOperations);
