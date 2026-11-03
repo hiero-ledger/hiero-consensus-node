@@ -56,7 +56,7 @@ public record BlockStreamConfig(
         @ConfigProperty(defaultValue = "20971520") @Min(0) @NetworkProperty
         long maxBlockSizeBytes,
 
-        @ConfigProperty(defaultValue = "104857600") @Min(0) @NetworkProperty
+        @ConfigProperty(defaultValue = "52428800") @Min(0) @NetworkProperty
         long maxBlockExecutionSizeBytes,
 
         @ConfigProperty(defaultValue = "true") @NetworkProperty
