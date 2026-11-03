@@ -98,7 +98,8 @@ mirror REST stay in tinybar. It is a breaking change and requires a HIP.
   mental model (`msg.value` equals the relay's `value`).
 * Bad: breaking for existing contracts with tinybar constants (exact-value checks, refunds mixing `msg.value` and a
   tinybar fee, exchange-rate comparisons, HTS payable creates, tinybar `.call{value:}` amounts). It requires a HIP, a
-  mainnet bytecode scan, a coordinated Mirror Node `web3` change, ecosystem migration, and carries fund-safety risk if any conversion is missed. Sub-tinybar remainder semantics need a
+  mainnet bytecode scan, a coordinated Mirror Node `web3` change, ecosystem migration, and carries fund-safety risk if
+  any conversion is missed. Sub-tinybar remainder semantics need a
   decision.
 
 ### Option 2: Make no behavior change and fix the documentation to describe the actual behavior
@@ -108,8 +109,10 @@ Keep tinybar semantics inside the EVM. Correct the published docs per
 [hedera-docs#801](https://github.com/hashgraph/hedera-docs/pull/801):
 
 * State plainly: **inside Solidity, `msg.value`, `address.balance`, and the value operand of `call` are tinybars (8
-  decimals), while only JSON-RPC wire values (`value`, `eth_getBalance`, `eth_gasPrice`) are weibars (18 decimals)**,
-  and that the node divides an Ethereum transaction's weibar value by 10^10 before the EVM runs.
+  decimals), while weibars (18 decimals) appear only at the Ethereum-transaction and JSON-RPC boundary (the signed
+  transaction `value`, `eth_getBalance`, `eth_gasPrice`)**. State also that the node divides an Ethereum
+  transaction's weibar `value` by 10^10 before the EVM runs, dropping any sub-tinybar remainder, and that a native
+  `ContractCall` `amount` is already in tinybar.
 * Pages to correct: `evm/development/troubleshooting`, `evm/hedera-services/system-contracts/exchange-rate`,
   `evm/hedera-services/hts-solidity/create-tokens` (payable-amount rule: price plus 20%, short payment returns
   `INSUFFICIENT_TX_FEE` and a zero address without reverting), `evm/tokens/whbar`, `evm/differences/hbar-decimals`
@@ -121,9 +124,8 @@ Keep tinybar semantics inside the EVM. Correct the published docs per
 * Fix the WHBAR page: the reference contract (`hashgraph/hedera-smart-contracts`,
   `examples/tokens/whbar/contracts/WHBAR.sol`) uses `msg.value` as tinybars directly, so the Solidity-side wrap
   example is `deposit{value: 10 * 10**8}()`, and only the JSON-RPC/ethers `value` is 10^18. Also correct the source
-  link.
-  Verify the other docs examples empirically on a Solo/testnet network before publishing (compile with solc >= 0.8.24
-  and run).
+  link. Verify the other docs examples empirically on a Solo/testnet network before publishing (compile with solc >=
+  0.8.24 and run).
 * Good: no risk to deployed contracts or funds, no HIP, activation or Mirror Node change. It fixes the immediate harm
   (developers following wrong docs), and it can ship now.
 * Bad: Hedera stays non-equivalent to Ethereum for value semantics, every wei-based Ethereum library needs
@@ -150,13 +152,6 @@ Reasons:
 * Positive: developers get correct guidance, no consensus change or activation, no risk to funds.
 * Negative: value semantics remain a documented Ethereum divergence, the `amsterdam-hedera` spec-test fork keeps the
   `BALANCE` workaround, and tooling that assumes wei needs documented adapters.
-* Follow-ups:
-    * Review and merge [hedera-docs#801](https://github.com/hashgraph/hedera-docs/pull/801).
-    * Add the `BALANCE`/`msg.value` unit to the "differences from Ethereum" page.
-    * Annotate the spec-test workaround as an intended deviation.
-    * Add a unit test and javadoc on `DispatchingEvmFrameState.getBalance()` and `HederaEvmTransaction.weiValue()`
-      stating the unit is tinybar despite the `Wei` type name, so the behavior is no longer implicit.
-    * Run the mainnet bytecode scan to inform whether to reopen Option 1.
 
 ### Dependencies
 
@@ -169,19 +164,19 @@ Reasons:
 
 **2. Smart Contract team**
 
-* A Solo or testnet network and solc >= 0.8.24, to verify every documentation example empirically (slice 3).
+* A Solo or testnet network and solc >= 0.8.24, to verify every documentation example empirically (issue 2).
 
 No consensus-node release, HIP or Mirror Node change is required for Option 2. Slice 2 below is
 the only change in this repository, and it is documentation and tests only.
 
-### Feature Slicing
+### Feature Slicing (Issues)
 
 Each slice is independently shippable and ordered by value.
 
 | # | Slice                            | Scope                                                                                                                                                                                                      | Estimate |
 |---|----------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------|
-| 2 | Pin the behavior in this repo    | Javadoc on `DispatchingEvmFrameState.getBalance()` and `HederaEvmTransaction.weiValue()` stating the unit is tinybar, plus unit tests asserting `BALANCE`/`CALLVALUE` return tinybars, and no logic change | 1d       |
-| 3 | Verify docs examples empirically | Compile and run the corrected snippets (exchange-rate, create-tokens, WHBAR) against Solo and fix any remaining wrong example (WHBAR source already checked)                                               | 1d       |
+| 1 | Pin the behavior in this repo    | Javadoc on `DispatchingEvmFrameState.getBalance()` and `HederaEvmTransaction.weiValue()` stating the unit is tinybar, plus unit tests asserting `BALANCE`/`CALLVALUE` return tinybars, and no logic change | 1d       |
+| 2 | Verify docs examples empirically | Compile and run the corrected snippets (exchange-rate, create-tokens, WHBAR) against Solo and fix any remaining wrong example (WHBAR source already checked)                                               | 1d       |
 
 Slices 1 and 2 can start immediately and in parallel.
 
