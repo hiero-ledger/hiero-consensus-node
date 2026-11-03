@@ -30,9 +30,11 @@ import com.hedera.node.app.fees.AppFeeCharging;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.signature.DefaultKeyVerifier;
 import com.hedera.node.app.spi.fees.FeeCharging;
+import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.ComputeDispatchFeesAsTopLevel;
 import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.workflows.TransactionChecker;
@@ -112,39 +114,41 @@ public class DispatchValidator {
         if (creatorError != null) {
             return newCreatorError(dispatch.creatorInfo().accountId(), creatorError);
         }
-        // An atomic batch is only as valid as its inner transactions, and ingest checks each of them against the
-        // same state the batch is about to run on. So before any inner runs, repeat those per-inner checks here;
-        // an inner that fails one is a batch the submitting node should have rejected, and the node is charged
-        // for it as for any other due-diligence failure. (An inner that fails later, while the batch runs, was
-        // made to fail by an earlier inner and is the batch payer's problem, not the node's.)
-        final var innerCreatorError = innerCreatorErrorIfKnown(dispatch);
-        if (innerCreatorError != null) {
-            return newCreatorError(dispatch.creatorInfo().accountId(), innerCreatorError);
-        } else {
-            final var payer =
-                    getPayerAccount(dispatch.readableStoreFactory(), dispatch.payerId(), dispatch.txnCategory());
-            final var category = dispatch.txnCategory();
-            // Check payer signature for all batch inner transactions, scheduled, and user transactions
-            final var requiresPayerSig = category == SCHEDULED || category == USER || category == BATCH_INNER;
-            if (requiresPayerSig && !isHollow(payer)) {
-                // Skip payer verification for hollow accounts because ingest only submits valid signatures
-                // for hollow payers; and if an account is still hollow here, its alias cannot have changed
-                final var verification = dispatch.keyVerifier().verificationFor(payer.keyOrThrow());
-                if (verification.failed()) {
-                    return newCreatorError(dispatch.creatorInfo().accountId(), INVALID_PAYER_SIGNATURE);
-                }
+        final var payer = getPayerAccount(dispatch.readableStoreFactory(), dispatch.payerId(), dispatch.txnCategory());
+        final var category = dispatch.txnCategory();
+        // Check payer signature for all batch inner transactions, scheduled, and user transactions
+        final var requiresPayerSig = category == SCHEDULED || category == USER || category == BATCH_INNER;
+        if (requiresPayerSig && !isHollow(payer)) {
+            // Skip payer verification for hollow accounts because ingest only submits valid signatures
+            // for hollow payers; and if an account is still hollow here, its alias cannot have changed
+            final var verification = dispatch.keyVerifier().verificationFor(payer.keyOrThrow());
+            if (verification.failed()) {
+                return newCreatorError(dispatch.creatorInfo().accountId(), INVALID_PAYER_SIGNATURE);
             }
-            final var duplicateCheckResult = category != USER && category != NODE && category != BATCH_INNER
-                    ? NO_DUPLICATE
-                    : recordCache.hasDuplicate(
-                            dispatch.txnInfo().txBody().transactionIDOrThrow(),
-                            dispatch.creatorInfo().nodeId());
-            return switch (duplicateCheckResult) {
-                case NO_DUPLICATE -> getFinalPayerValidation(payer, DuplicateStatus.NO_DUPLICATE, dispatch);
-                case SAME_NODE -> newCreatorError(dispatch.creatorInfo().accountId(), DUPLICATE_TRANSACTION);
-                case OTHER_NODE -> getFinalPayerValidation(payer, DuplicateStatus.DUPLICATE, dispatch);
-            };
         }
+        final var duplicateCheckResult = category != USER && category != NODE && category != BATCH_INNER
+                ? NO_DUPLICATE
+                : recordCache.hasDuplicate(
+                        dispatch.txnInfo().txBody().transactionIDOrThrow(),
+                        dispatch.creatorInfo().nodeId());
+        return switch (duplicateCheckResult) {
+            case NO_DUPLICATE -> {
+                // An atomic batch is only as valid as its inner transactions, and ingest checks each of them against
+                // the same state the batch is about to run on. So before any inner runs, repeat those per-inner checks
+                // here; an inner that fails one is a batch the submitting node should have rejected, and the node is
+                // charged for it as for any other due-diligence failure. (An inner that fails later, while the batch
+                // runs, was made to fail by an earlier inner and is the batch payer's problem, not the node's.)
+                // Only a batch that is about to run has its inners checked: a duplicate batch never runs them, and a
+                // copy re-sent through other nodes must charge its payer as any other duplicate does, not each node
+                // for an inner that the first copy made fail.
+                final var innerCreatorError = innerCreatorErrorIfKnown(dispatch);
+                yield innerCreatorError != null
+                        ? newCreatorError(dispatch.creatorInfo().accountId(), innerCreatorError)
+                        : getFinalPayerValidation(payer, DuplicateStatus.NO_DUPLICATE, dispatch);
+            }
+            case SAME_NODE -> newCreatorError(dispatch.creatorInfo().accountId(), DUPLICATE_TRANSACTION);
+            case OTHER_NODE -> getFinalPayerValidation(payer, DuplicateStatus.DUPLICATE, dispatch);
+        };
     }
 
     /**
@@ -261,8 +265,15 @@ public class DispatchValidator {
             if (duplicateCheckResult == SAME_NODE) {
                 return DUPLICATE_TRANSACTION;
             }
-            final var fees = dispatch.handleContext()
-                    .dispatchComputeFees(body, payerId, ComputeDispatchFeesAsTopLevel.YES, txInfo.signatureMap());
+            // Ingest computes the same fees for the inner, so a body whose fees cannot be computed would have
+            // failed there too; report it as the node's error instead of letting it escape the dispatch
+            final Fees fees;
+            try {
+                fees = dispatch.handleContext()
+                        .dispatchComputeFees(body, payerId, ComputeDispatchFeesAsTopLevel.YES, txInfo.signatureMap());
+            } catch (HandleException e) {
+                return e.getStatus();
+            }
             final var validation = feeCharging.validate(
                     payer,
                     creatorInfo.accountId(),

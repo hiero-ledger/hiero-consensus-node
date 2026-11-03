@@ -9,6 +9,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_AMOUNTS
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_DURATION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PAYER_ACCOUNT_DELETED;
@@ -37,6 +38,7 @@ import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
@@ -63,6 +65,7 @@ import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.ComputeDispatchFeesAsTopLevel;
 import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.InsufficientNetworkFeeException;
 import com.hedera.node.app.spi.workflows.InsufficientNonFeeDebitsException;
 import com.hedera.node.app.spi.workflows.InsufficientServiceFeeException;
@@ -696,8 +699,6 @@ class DispatchValidatorTest {
         givenBatchDispatch(innerPreHandle(SO_FAR_SO_GOOD, OK, GOOD_INNER_SIG));
         final var innerPayer = givenInnerPayer(payer -> payer.tinybarBalance(123L));
         givenInnerNonDuplicate();
-        givenValidPayerSig();
-        givenNonDuplicate(BATCH_TXN_BODY);
         given(dispatch.fees()).willReturn(FEES);
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
         final var batchPayer = givenPayer(payer -> payer.tinybarBalance(123L));
@@ -715,6 +716,43 @@ class DispatchValidatorTest {
                         INNER_FEES.withoutServiceComponent(),
                         NOT_INGEST,
                         CHECK_OFFERED_FEE);
+    }
+
+    @Test
+    void batchDuplicatedByOtherNodeIsPayerErrorWithoutCheckingItsInners() throws PreCheckException {
+        givenBatchDispatch(innerPreHandle(SO_FAR_SO_GOOD, OK, GOOD_INNER_SIG));
+        given(recordCache.hasDuplicate(BATCH_TXN_BODY.transactionIDOrThrow(), CREATOR_NODE_ID.id()))
+                .willReturn(HederaRecordCache.DuplicateCheckResult.OTHER_NODE);
+        given(dispatch.fees()).willReturn(FEES);
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        final var batchPayer = givenPayer(payer -> payer.tinybarBalance(123L));
+        // The inner's payer is gone (would be PAYER_ACCOUNT_NOT_FOUND), but a duplicate batch never runs its inners,
+        // so this is still the batch payer's duplicate to pay for, not a creator error that would charge every node
+        // the batch was re-sent through
+        lenient().when(readableAccountStore.getAccountById(INNER_PAYER_ID)).thenReturn(null);
+
+        final var report = subject.validateFeeChargingScenario(dispatch);
+
+        assertEquals(
+                newPayerError(CREATOR_ACCOUNT_ID, batchPayer, DUPLICATE_TRANSACTION, CAN_PAY_SERVICE_FEE, DUPLICATE),
+                report);
+        verify(readableAccountStore, never()).getAccountById(INNER_PAYER_ID);
+        verify(handleContext, never())
+                .dispatchComputeFees(any(), any(), any(ComputeDispatchFeesAsTopLevel.class), any());
+    }
+
+    @Test
+    void batchInnerWhoseFeesCannotBeComputedIsCreatorError() {
+        givenBatchDispatch(innerPreHandle(SO_FAR_SO_GOOD, OK, GOOD_INNER_SIG));
+        givenInnerPayer(payer -> payer.tinybarBalance(123L));
+        givenInnerNonDuplicate();
+        given(handleContext.dispatchComputeFees(
+                        INNER_TXN_BODY, INNER_PAYER_ID, ComputeDispatchFeesAsTopLevel.YES, INNER_SIG_MAP))
+                .willThrow(new HandleException(INVALID_TRANSACTION_BODY));
+
+        final var report = subject.validateFeeChargingScenario(dispatch);
+
+        assertEquals(newCreatorError(CREATOR_ACCOUNT_ID, INVALID_TRANSACTION_BODY), report);
     }
 
     @Test
@@ -747,6 +785,20 @@ class DispatchValidatorTest {
                         INNER_TXN_BODY, INNER_PAYER_ID, ComputeDispatchFeesAsTopLevel.YES, INNER_SIG_MAP))
                 .thenReturn(INNER_FEES);
         lenient().when(creatorInfo.nodeId()).thenReturn(CREATOR_NODE_ID.id());
+        // The batch's own payer, signature and duplicate checks pass, so that its inners are checked
+        lenient().when(dispatch.payerId()).thenReturn(PAYER_ACCOUNT_ID);
+        lenient()
+                .when(readableAccountStore.getAccountById(PAYER_ACCOUNT_ID))
+                .thenReturn(Account.newBuilder()
+                        .accountId(PAYER_ACCOUNT_ID)
+                        .key(Key.DEFAULT)
+                        .tinybarBalance(123L)
+                        .build());
+        lenient().when(dispatch.keyVerifier()).thenReturn(keyVerifier);
+        lenient().when(keyVerifier.verificationFor(Key.DEFAULT)).thenReturn(PASSED_VERIFICATION);
+        lenient()
+                .when(recordCache.hasDuplicate(BATCH_TXN_BODY.transactionIDOrThrow(), CREATOR_NODE_ID.id()))
+                .thenReturn(HederaRecordCache.DuplicateCheckResult.NO_DUPLICATE);
     }
 
     private Account givenInnerPayer(@NonNull final Consumer<Account.Builder> spec) {
