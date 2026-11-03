@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.history.impl;
 
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
@@ -18,6 +20,7 @@ import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
 
 /**
@@ -72,10 +75,22 @@ public interface HistoryProver {
         record Completed(@NonNull HistoryProof proof) implements Outcome {}
 
         /**
-         * Prover has irrecoverably failed for the given reason.
-         * The controller should deterministically fail the construction with this reason.
+         * Prover has failed for the given reason. The controller should deterministically either restart the
+         * construction's signing protocol, or fail the construction with this reason.
+         *
+         * @param reason the reason for the failure
+         * @param missingNodeIds the ids of any R1 participants whose later messages never arrived
          */
-        record Failed(@NonNull String reason) implements Outcome {}
+        record Failed(@NonNull String reason, @NonNull Set<Long> missingNodeIds) implements Outcome {
+            public Failed {
+                requireNonNull(reason);
+                missingNodeIds = Set.copyOf(missingNodeIds);
+            }
+
+            public Failed(@NonNull final String reason) {
+                this(reason, Set.of());
+            }
+        }
     }
 
     /**

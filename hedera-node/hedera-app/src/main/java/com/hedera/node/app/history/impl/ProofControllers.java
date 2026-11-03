@@ -24,6 +24,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.SortedMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;
@@ -49,6 +50,12 @@ public class ProofControllers {
      */
     @Nullable
     private ProofController controller;
+
+    /**
+     * If not null, the source weights from the active hinTS construction that {@link #controller} was created with.
+     */
+    @Nullable
+    private SortedMap<Long, Long> controllerSourceWeights;
 
     @Nullable
     private HintsKeyProvenance controllerBinding;
@@ -114,8 +121,12 @@ public class ProofControllers {
         requireNonNull(construction);
         requireNonNull(historyStore);
         requireNonNull(activeProofConstruction);
+        // A controller created from state takes its source weights from the hinTS construction active now, so a
+        // controller created before that construction had a scheme must be replaced to agree with it
+        final var sourceWeights = maybeWeightsFrom(activeHintsConstruction);
         if (currentConstructionId() != construction.constructionId()
-                || !Objects.equals(controllerBinding, construction.keyProvenance())) {
+                || !Objects.equals(controllerBinding, construction.keyProvenance())
+                || !Objects.equals(sourceWeights, controllerSourceWeights)) {
             if (controller != null) {
                 controller.cancelPendingWork();
             }
@@ -128,6 +139,7 @@ public class ProofControllers {
                     tssConfig,
                     sourceSigner);
             controllerBinding = construction.keyProvenance();
+            controllerSourceWeights = sourceWeights;
         }
         return requireNonNull(controller);
     }

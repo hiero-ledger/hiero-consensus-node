@@ -10,6 +10,7 @@ import static com.hedera.node.app.history.impl.ProofControllers.groundsChainOfTr
 import static com.hedera.node.app.history.impl.ProofControllers.groundsGenesisProof;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -290,6 +291,48 @@ class ProofControllersTest {
                         HistoryProofConstruction.DEFAULT,
                         DEFAULT_CONFIG.getConfigData(TssConfig.class),
                         sourceSigner));
+    }
+
+    @Test
+    void replacesControllerOnceTheActiveHintsConstructionHasAScheme() {
+        // At genesis the history construction can start before the hinTS scheme exists, using roster weights
+        given(activeRosters.transitionWeights(null)).willReturn(weights);
+        final var partyWeights = new TreeMap<>(Map.of(1L, 1L, 2L, 1L));
+        final var partyWeightedWeights = mock(RosterTransitionWeights.class);
+        given(activeRosters.transitionWeights(partyWeights)).willReturn(partyWeightedWeights);
+        final var hintsWithScheme = HintsConstruction.newBuilder()
+                .hintsScheme(HintsScheme.newBuilder()
+                        .nodePartyIds(new NodePartyId(1L, 0, 1L), new NodePartyId(2L, 1, 1L))
+                        .build())
+                .build();
+        final var tssConfig = DEFAULT_CONFIG.getConfigData(TssConfig.class);
+
+        final var first = subject.getOrCreateFor(
+                activeRosters,
+                ONE_CONSTRUCTION,
+                historyStore,
+                HintsConstruction.DEFAULT,
+                HistoryProofConstruction.DEFAULT,
+                tssConfig);
+        final var second = subject.getOrCreateFor(
+                activeRosters,
+                ONE_CONSTRUCTION,
+                historyStore,
+                hintsWithScheme,
+                HistoryProofConstruction.DEFAULT,
+                tssConfig);
+        final var third = subject.getOrCreateFor(
+                activeRosters,
+                ONE_CONSTRUCTION,
+                historyStore,
+                hintsWithScheme,
+                HistoryProofConstruction.DEFAULT,
+                tssConfig);
+
+        // A controller rebuilt from state would use the party weights, so the controller is replaced once
+        assertNotSame(first, second);
+        assertSame(second, third);
+        verify(activeRosters).transitionWeights(partyWeights);
     }
 
     @Test
