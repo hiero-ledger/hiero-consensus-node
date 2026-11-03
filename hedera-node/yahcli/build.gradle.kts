@@ -26,6 +26,11 @@ tasks.withType<JavaCompile>().configureEach { options.compilerArgs.add("-Xlint:-
 
 application.mainClass = "com.hedera.services.yahcli.Yahcli"
 
+tasks.fatModuleJar {
+    enableNativeAccess =
+        listOf("com.hedera.common.nativesupport", "com.hedera.cryptography.libsecp256k1")
+}
+
 tasks.register<Copy>("copyYahCli") {
     group = "copy"
     from(tasks.fatModuleJar)
