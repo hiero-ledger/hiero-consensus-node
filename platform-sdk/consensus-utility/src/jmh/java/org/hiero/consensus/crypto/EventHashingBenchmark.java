@@ -63,10 +63,12 @@ import org.openjdk.jmh.annotations.Warmup;
  * {@link LatencyProfiler} reports the percentiles and the allocation per hash. JMH's primary score, the mean time per
  * event of the whole pass, includes the receiving; track {@code latency.mean} instead.
  *
- * <p>The first call of a pass, right after the setup, is hashed but not timed. On an Apple M4 laptop, its median was
- * 3.0–3.3 µs without transactions and 4.1–4.5 µs with two, against about 0.38 µs and 1.0 µs for the other calls.
- * Without transactions, timing it put p99.99 at 3.1–8.6 µs, against 0.8–1.1 µs without it, in the same run; with two,
- * other calls already reach that percentile. No such setup precedes an event in production.
+ * <p>The first call of a pass comes right after the setup and is much slower than the others, so it is hashed but not
+ * timed. On an Apple M4 laptop, its median was 3.0–3.3 µs without transactions and 4.1–4.5 µs with two, against about
+ * 0.38 µs and 1.0 µs for the other calls. One call in {@value #NUMBER_OF_EVENTS} is exactly the share above p99.99, so
+ * timing the first call of every pass would set p99.99. Without transactions, p99.99 was 3.1–8.6 µs when the first
+ * call was timed and 0.8–1.1 µs when it was not, in the same run; with two transactions, timing it made no measurable
+ * difference, because other calls are as slow. No such setup precedes an event in production.
  *
  * <p>Each latency also contains one reading of the clock, which is a noticeable part of a call this short. On an Apple
  * M4 laptop, an empty call, {@code resume()} directly followed by {@code lap()}, took 11.2–11.3 ns on average, about 3%
@@ -77,26 +79,25 @@ import org.openjdk.jmh.annotations.Warmup;
  * although receiving allocates several kilobytes per event. A pass during which one does is discarded and replaced by
  * the next invocation, so the latency results and {@code latency.mean} exclude garbage collection.
  *
- * <p>Each fork settles at its own latency level and keeps it. On the benchmark machine, {@code latency.mean} varies by
- * 1.9% between forks without transactions and by 0.7% with two, against 0.07% and 0.18% between the iterations of one
- * fork, although every fork allocates the same and the machine was quiet. The difference is about the same in
- * nanoseconds in both parameter sets. Its cause is unknown
- * (<a href="https://github.com/hiero-ledger/hiero-consensus-node/issues/27940">#27940</a>), and it sets the number of
- * forks.
+ * <p>Each fork settles at its own latency level and keeps it. On the benchmark machine, in four runs of 10 forks each,
+ * {@code latency.mean} varied by 1.9–3.5% between forks without transactions and by 0.7–3.1% with two, against less
+ * than 0.2% between the iterations of one fork, although every fork allocates the same and the machine was quiet. The
+ * cause is unknown (<a href="https://github.com/hiero-ledger/hiero-consensus-node/issues/27940">#27940</a>), and it
+ * sets the number of forks.
  *
  * <p>Run with {@code -prof org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler}.
  *
  * <h2>Calibration</h2>
  * <ul>
- *   <li>Date / commit: 2026-10-28, bf9d6a86f4</li>
+ *   <li>Date / commit: 2026-10-30, c86eb4c04f</li>
  *   <li>Machine: hl-cn-benchmark-lin, AS-2115GT-HNTR, AMD EPYC 9254 24-Core Processor, JDK 25.0.2, -XX:ActiveProcessorCount=12 -Xms1g -Xmx1g -XX:+AlwaysPreTouch</li>
  *   <li>Parameter sets: transactionsPerEvent=0 / transactionsPerEvent=2</li>
  *   <li>Steady state after: 5 s / 0 s</li>
- *   <li>Noise (latency.mean, CV): 0.07% / 0.18% per 10 s iteration, 1.92% / 0.66% between forks, - / - between runs (1 of 1 / 1 of 1 runs quiet)</li>
- *   <li>Expected detectable regression: 1.18% / 0.41% (95 % CI half-width of one run)</li>
- *   <li>Samples per iteration: 2.9 M / 1.7 M; expected stable: mean, p50, p90, p99, p99.99 / mean, p50, p90, p99.9, p99.99</li>
+ *   <li>Noise (latency.mean, CV): 0.08% / 0.07% per 10 s iteration, 3.28% / 1.17% between forks, - / - between runs (1 of 1 / 1 of 1 runs quiet)</li>
+ *   <li>Expected detectable regression: 2.02% / 0.72% (95 % CI half-width of one run)</li>
+ *   <li>Samples per iteration: 2.5 M / 1.6 M; expected stable: mean, p50, p90, p99, p99.99 / mean, p50, p90, p99, p99.9, p99.99</li>
  *   <li>Runtime: 5.1 / 5.1 min per parameter set</li>
- *   <li>Raw data: https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/40678159284, https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/40687277605</li>
+ *   <li>Raw data: https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/40678159284, https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/41018710598</li>
  * </ul>
  */
 @State(Scope.Thread)
@@ -121,8 +122,8 @@ public class EventHashingBenchmark {
      * the generated events or to the hashing changes it.
      */
     private static final Map<Integer, String> EXPECTED_DIGESTS = Map.of(
-            0, "052929850f50a96db68dab2e13b514ee740a1f2b52c13e083c1f4daef62722ec",
-            2, "49ac621ed6d3c6fe77fc685d33a1e0c5ed84c87bb1dccfefc53b52990f5f3712");
+            0, "9223171760a17caf361d0c52ce6a95071dc06107183a0026f254f57ff07a3c93",
+            2, "9e2819c4a599199a7a6ef68ddbd64a58389f7831b5848c8715eb6e8c20da3bbb");
 
     /** The number of transactions of every event. */
     @Param({"0", "2"})
@@ -134,7 +135,7 @@ public class EventHashingBenchmark {
     /** The generated events, as their creators created them. */
     private List<PlatformEvent> generatedEvents;
 
-    /** The events that the hasher hashed in one invocation, kept for the check after it. */
+    /** The events that the hasher hashed in one invocation, kept to calculate the digest for verification. */
     private PlatformEvent[] events;
 
     /** The latency recorder for the benchmark. */
