@@ -179,7 +179,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         this.localOutputDirectory = requireNonNull(outputDirectory, "outputDirectory must not be null");
         this.timeManager = requireNonNull(timeManager, "timeManager must not be null");
 
-        this.resultsCollector = new NodeResultsCollector(selfId, consensusRoundPool);
+        this.resultsCollector = new NodeResultsCollector(selfId, consensusRoundPool, false);
         this.nodeConfiguration =
                 new ContainerNodeConfiguration(() -> lifeCycle, networkConfiguration.overrideProperties());
         if (nodeConfiguration.current().getConfigData(EventConfig.class).enableEventCutover()) {
