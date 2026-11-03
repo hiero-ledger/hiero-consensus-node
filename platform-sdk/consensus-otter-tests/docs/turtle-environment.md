@@ -256,11 +256,11 @@ classDiagram
 Unless a test sets another topology, the network is a geographic mesh (`GeoMeshTopologyConfiguration.DEFAULT`): 20% of
 the connections are within a region, 40% within a continent, and 40% intercontinental.
 
-| Connection type  | Latency     | Jitter |
-|------------------|-------------|--------|
-| Same region      | 5–30 ms     | 7.5%   |
-| Same continent   | 30–80 ms    | 10.0%  |
-| Intercontinental | 80–300 ms   | 12.5%  |
+| Connection type  |  Latency  | Jitter |
+|------------------|-----------|--------|
+| Same region      | 5–30 ms   | 7.5%   |
+| Same continent   | 30–80 ms  | 10.0%  |
+| Intercontinental | 80–300 ms | 12.5%  |
 
 ### Event Transmission Flow
 
