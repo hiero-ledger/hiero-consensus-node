@@ -95,6 +95,7 @@ public interface Node extends MiniNode {
      * {@inheritDoc}
      */
     @Override
+    @NonNull
     AsyncNodeActions withTimeout(@NonNull Duration timeout);
 
     /**

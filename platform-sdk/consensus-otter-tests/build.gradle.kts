@@ -31,7 +31,10 @@ testing {
         }
 
         targets.named("testOtter") {
-            testTask { dependsOn(":consensus-otter-docker-app:assemble") }
+            testTask {
+                useJUnitPlatform { excludeTags("falcon") }
+                dependsOn(":consensus-otter-docker-app:assemble")
+            }
         }
 
         // Runs tests against the Container environment
@@ -58,6 +61,10 @@ testing {
     suites.register<JvmTestSuite>("testChaos") {
         targets.configureEach { testTask { dependsOn(":consensus-otter-docker-app:assemble") } }
     }
+}
+
+testFixturesModuleInfo {
+    runtimeOnly("org.hiero.consensus.event.creator.instrumented.test.fixtures")
 }
 
 testModuleInfo {

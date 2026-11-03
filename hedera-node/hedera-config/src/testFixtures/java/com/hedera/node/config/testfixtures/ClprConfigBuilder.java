@@ -35,9 +35,6 @@ public final class ClprConfigBuilder {
     private boolean verifyProofsAtSender = true;
     private String peerEndpointsFile = "data/clpr/peer-endpoints.json";
     private long nodeSubmitBundleMaxFee = 1_000_000_000L;
-    private String caCrtPath = "";
-    private String caKeyPath = "";
-    private int mtlsPort = 50214;
     private Duration manifestGracePeriod = Duration.ofSeconds(300);
     private Duration manifestGraceExtension = Duration.ofSeconds(300);
     private int manifestMaxGraceExtensions = 2;
@@ -176,21 +173,6 @@ public final class ClprConfigBuilder {
         return this;
     }
 
-    public ClprConfigBuilder caCrtPath(final String caCrtPath) {
-        this.caCrtPath = caCrtPath;
-        return this;
-    }
-
-    public ClprConfigBuilder caKeyPath(final String caKeyPath) {
-        this.caKeyPath = caKeyPath;
-        return this;
-    }
-
-    public ClprConfigBuilder mtlsPort(final int mtlsPort) {
-        this.mtlsPort = mtlsPort;
-        return this;
-    }
-
     public ClprConfigBuilder manifestGracePeriod(final Duration manifestGracePeriod) {
         this.manifestGracePeriod = manifestGracePeriod;
         return this;
@@ -248,9 +230,6 @@ public final class ClprConfigBuilder {
                 nodeSubmitBundleMaxFee,
                 verifyProofsAtSender,
                 peerEndpointsFile,
-                caCrtPath,
-                caKeyPath,
-                mtlsPort,
                 manifestGracePeriod,
                 manifestGraceExtension,
                 manifestMaxGraceExtensions,

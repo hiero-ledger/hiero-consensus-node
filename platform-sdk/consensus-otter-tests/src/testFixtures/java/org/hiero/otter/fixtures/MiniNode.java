@@ -43,6 +43,7 @@ public interface MiniNode {
      * @param timeout the duration to wait before considering the operation as failed
      * @return an instance of {@link AsyncMiniNodeActions} that can be used to perform node actions
      */
+    @NonNull
     AsyncMiniNodeActions withTimeout(@NonNull Duration timeout);
 
     /**

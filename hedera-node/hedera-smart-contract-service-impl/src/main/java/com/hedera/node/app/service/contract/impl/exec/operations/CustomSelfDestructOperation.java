@@ -52,11 +52,11 @@ public class CustomSelfDestructOperation extends AbstractOperation {
      */
     public enum UseEIP6780Semantics {
         /**
-         * Use EIP-6780 behaviour
+         * Do not use EIP-6780 behaviour
          */
         NO,
         /**
-         * Do not use EIP-6780 behaviour
+         * Use EIP-6780 behaviour
          */
         YES
     }

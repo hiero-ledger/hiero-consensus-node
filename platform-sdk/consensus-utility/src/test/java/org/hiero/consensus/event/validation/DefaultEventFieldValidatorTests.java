@@ -195,6 +195,29 @@ class DefaultEventFieldValidatorTests {
     }
 
     @Test
+    @DisplayName("An event with two parents from the same creator, not next to each other, is invalid")
+    void parentsFromSameCreatorApart() {
+        final PlatformEvent selfParent =
+                new TestingEventBuilder(random).setCreatorId(NodeId.of(3)).build();
+        final List<PlatformEvent> otherParents = List.of(
+                new TestingEventBuilder(random).setCreatorId(NodeId.of(1)).build(),
+                new TestingEventBuilder(random).setCreatorId(NodeId.of(2)).build(),
+                new TestingEventBuilder(random).setCreatorId(NodeId.of(1)).build());
+
+        final PlatformEvent validEvent = new TestingEventBuilder(random)
+                .setSelfParent(selfParent)
+                .setOtherParents(otherParents.subList(0, 2))
+                .build();
+        final PlatformEvent invalidEvent = new TestingEventBuilder(random)
+                .setSelfParent(selfParent)
+                .setOtherParents(otherParents)
+                .build();
+
+        assertThat(validator.isValid(validEvent)).isTrue();
+        assertThat(validator.isValid(invalidEvent)).isFalse();
+    }
+
+    @Test
     @DisplayName("An event must have a birth round greater than or equal to the max of all parent birth rounds.")
     void invalidBirthRound() {
         final PlatformEvent selfParent1 = new TestingEventBuilder(random)

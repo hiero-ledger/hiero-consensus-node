@@ -42,8 +42,10 @@ its own override mechanism too — see "Overriding a config file" below.
 
 ### Configure metrics scraping
 
+#### Live
+
 VictoriaMetrics scrapes your app's endpoints continuously, the same way
-Prometheus would — there is no other mode yet (see note below).
+Prometheus would. For a finished run's metrics dump, see "Historical" below.
 
 `local.env`:
 
@@ -70,10 +72,82 @@ METRIC_LABELS={"environment":"localhost","node_id":"0"}
 
 </details>
 
-Historical metrics import (e.g. re-loading an old run's metrics dump) isn't
-supported yet — the plan is to mirror `import-logs.sh` below, against
-VictoriaMetrics' own import API, once there's a concrete need. Out of scope
-for now.
+#### Historical
+
+A finished run's metrics dump — a text file of Prometheus-format lines with a
+millisecond timestamp, `name{labels} value timestamp`, such as
+`platform_trans_per_sec{node="0"} 17.0 1771419351507` — is loaded with
+`./scripts/import-metrics.sh <source-dir> '<labels-json>' [file-pattern]`. The
+samples land at the times they were recorded, not at the time of the import,
+so widen Grafana's time range to the run (it defaults to the last hour).
+
+Every file in one invocation gets the same labels, so run it once per node
+(or per run) whose series must stay distinguishable. `[file-pattern]` picks
+the file out of a directory holding several (it defaults to `*.txt`):
+
+```sh
+./scripts/import-metrics.sh /path/to/stats '{"environment":"localhost","node_id":"0"}' metrics-node-0.txt
+./scripts/import-metrics.sh /path/to/stats '{"environment":"localhost","node_id":"1"}' metrics-node-1.txt
+```
+
+Wizard mode is available for the same script, and offers the previous source
+directory as the default for the next node:
+
+```sh
+cd hiero-observability/local-stack
+./scripts/import-metrics-wizard.sh
+```
+
+> [!IMPORTANT]
+> **VictoriaMetrics drops samples older than `METRICS_RETENTION`** (15 days by
+> default) and still answers "success", so a dump of an older run needs a
+> longer retention first. Set it in `local.env` — e.g. `METRICS_RETENTION=365d`
+> — and run `make restart` before importing. If it is too short, the script
+> fails and reports how many samples were dropped.
+
+<details>
+  <summary><ins>Click to expand</ins></summary>
+
+- **Labels.** `<labels-json>` is a flat JSON map of string values, exactly
+  like `METRIC_LABELS`, and is added to every series in the matched files.
+  A label of the same name already in the file is **replaced**, not
+  duplicated — the other labels in the file are kept. Include `environment`
+  yourself: production dashboards filter on it (and on `node_id`/`node`), so
+  without it a reused dashboard shows nothing for the imported series.
+  Dumps that already carry a `node="0"` label keep it next to your
+  `node_id`.
+- **Script usage.** `<source-dir>` is a host path, mounted read-only and
+  searched recursively; a relative path is resolved against your current
+  directory, not against `local-stack/`. Files are matched by basename
+  (`find -name` syntax, e.g. `metrics-node-*.txt`). Requires `make up`
+  already running: this talks to the same `victoriametrics` service the live
+  stack does. An unreadable source directory, a pattern that matches nothing
+  and malformed labels all fail before anything is sent.
+- **Re-importing is safe.** VictoriaMetrics runs with
+  `-dedup.minScrapeInterval=1ms`, so the same series at the same timestamp
+  is stored once and running a file twice does not double its samples. A
+  different label set creates separate series, which is how two runs or
+  nodes stay apart.
+- **Why the import API instead of a scrape.** A scrape stamps every sample
+  with "now"; VictoriaMetrics' `/api/v1/import/prometheus` keeps the
+  timestamps written in the file. The dump is posted as-is — the labels
+  travel as query arguments (`extra_label`), so the file is never rewritten
+  and a large one is streamed. This runs in a one-shot container on the
+  stack's network (the `metrics-importer` service in `docker-compose.import.yml`), so nothing extra is
+  needed on the host.
+- **How dropped samples are detected.** VictoriaMetrics reports no error
+  for a dropped sample; the only trace is a counter per reason —
+  `vm_rows_ignored_total{reason=...}` (older than `METRICS_RETENTION`, too
+  far in the future, over a label limit) and `vm_rows_invalid_total` (a
+  malformed line). The importer reads them before and after each file and
+  fails, naming the reason, if one moved. That is why each file takes about
+  two seconds longer than the upload itself — VictoriaMetrics refreshes
+  those counters at most once a second.
+- **Metrics from `make up` are untouched.** Imported series only share a
+  store with the scraped ones; they are told apart by the labels you chose.
+
+</details>
+
 --------
 
 ### Configure logs ingestion
@@ -316,7 +390,14 @@ See `defaults.env` — it is the authoritative, commented list. In outline:
   selftest`'s normal path, so Compose never needs a value for them unless
   `import-logs.sh` (the only supported way to run it) is the one loading
   that file — and it always sets its own values first (see "Historical"
-  under "Configure logs ingestion" above).
+  under "Configure logs ingestion" above). `IMPORT_METRICS_DIR`/
+  `IMPORT_METRICS_INCLUDE`/`IMPORT_METRICS_LABELS` follow the same rule
+  for `import-metrics.sh`, which loads the same file (see "Historical"
+  under "Configure metrics scraping" above). Because that file holds both
+  importers and Compose interpolates every service in it, each script sets
+  only its own variables and the file gives every `IMPORT_*` one a `:-`
+  default — never used, but it keeps the other importer's variables from
+  failing or warning.
 
 </details>
 
@@ -454,7 +535,10 @@ own Compose project, its own ephemeral host ports), feeds it purpose-built
 fixtures, and asserts that metric names, static labels, stream labels,
 `log_name` derivation, multi-line grouping, real (not ingestion-time)
 timestamps, an old entry's queryability, and `import-logs.sh`'s explicit
-labels all survive the pipeline intact, then tears itself down, including
+labels all survive the pipeline intact. It also runs `import-metrics.sh`
+twice on one file and checks the samples kept their timestamps and labels and
+were stored once, and that an import past retention or with invalid labels
+fails. Then it tears itself down, including
 its volumes. This is the whole point of the exercise: it queries metric
 names like `selftest_requests_total` and camelCase
 `selftest_blockStream_round_duration_seconds` **exactly**, so anything that
@@ -559,7 +643,10 @@ target is red by default until you set `SCRAPE_TARGETS`.
 
 Widen the time range first. Then check that the series carry the labels
 the query filters on — production dashboards filter on `environment` and
-`node_id`, which come from your `METRIC_LABELS`.
+`node_id`, which come from your `METRIC_LABELS` (or, for an imported dump,
+from the labels you passed to `import-metrics.sh`). For an old dump, also
+check that `METRICS_RETENTION` reaches back to it — see "Historical" under
+"Configure metrics scraping".
 
 </details>
 

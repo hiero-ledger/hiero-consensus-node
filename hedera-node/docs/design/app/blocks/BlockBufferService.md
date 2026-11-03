@@ -66,6 +66,7 @@ To change the number of required unique acknowledgements, you can update the app
 Within the block buffer, there are two capacity limits that are enforced:
 - Max number of unacknowledged blocks - governed by `blockStream.buffer.maxBlocks`.
 - Max number of bytes consumed by the buffer for unacknowledge blocks - governed by `blockStream.buffer.maxBytes`.
+- Max number of in-progress blocks - governed by `blockStream.buffer.maxInProgressBlocks`.
 
 When the pruner runs, it will first check if there are any acknowledged blocks that can be pruned. Once this is complete,
 the number of unacknowledged blocks and the total bytes consumed by unacknowledged blocks is calculated. (Note: in-progress
@@ -77,36 +78,39 @@ If the buffer is not saturated with unacknowledged blocks, then the buffer may r
 acknowledged blocks to retain is determined by the `blockStream.buffer.ackedBlocksToRetain` configuration. However, this
 is overruled if the buffer starts to be become saturated with unacknowledged blocks. This feature is only a best-effort.
 
-### Buffer State
+### Buffer Saturation
 
-The buffer can be in one of three states at any given time:
-- Zero/Low Saturation: There are no blocks unacked or there are some but not enough to warrant any actions.
-- Action Stage Saturation: Once the buffer reaches a level of saturation called the 'action stage', proactive actions
-are taken to attempt buffery recovery. Currently, this means forcing a connection to a different block node.
-- Full Saturation: The buffer is full of unacked blocks and no more blocks can be opened until recovery happens (i.e.
-blocks are acknowledged.)
+A common term used when talking about the block buffer is "saturation". In this context, saturation is the ratio of
+incomplete or unacknowledged blocks/bytes that reside in the buffer versus some configured maximum. When "saturation is
+increasing" it means that the buffer contains a growing number of unacknowledged blocks. When the buffer becomes
+saturated, it means the buffer has exhausted its capacity for holding unacknowledged blocks, at which point back
+pressure may be engaged.
 
-Over the course of the buffer's lifecycle there are several state transitions that can occur, each with its own set of
-actions to take:
+There are currently three distinct facets, or inputs, that contribute to buffer saturation:
+- Number of unacknowledged blocks as a simple count of blocks relative to the maximum number of blocks permitted, which
+is governed by the application property: `blockStream.buffer.maxBlocks`.
+- Number of bytes consumed by unacknowledged blocks relative to the maximum bytes permitted, which is governed by the
+application property: `blockStream.buffer.maxBytes`.
+- Number of in-progress blocks as a simple count of blocks relative to the maximum in-progress blocks permitted, which
+is governed by the application property: `blockStream.buffer.maxInProgressBlocks`.
 
-|        From         |           To            | Back Pressure Action | Action Stage? |
-|---------------------|-------------------------|----------------------|---------------|
-| Zero/Low Saturation | Fully Saturated         | Enabled              | Yes           |
-| Zero/Low Saturation | Action Stage Saturation | -                    | Yes           |
-| Zero/Low Saturation | Zero/Low Saturation     | -                    | No            |
-| Action Stage        | Fully Saturated         | Enabled              | Yes           |
-| Action Stage        | Action Stage            | -                    | Yes           |
-| Action Stage        | Zero/Low Saturation     | -                    | No            |
-| Fully Saturated     | Fully Saturated         | Enabled              | Yes           |
-| Fully Saturated     | Action Stage            | Disabled             | Yes           |
-| Fully Saturated     | Zero/Low Saturation     | Disabled             | No            |
+If either of these facets grows above a certain threshold, then the buffer may reach what's called the action stage.
+The action stage is a state where the buffer is unhealthy and thus proactive measures should be taken - if possible - to
+remediate the buffer issues. For example, if the buffer reaches the action stage due to too many unacknowledged blocks,
+then the consensus node may attempt to switch to a different block node to get acknowledgements faster. If these
+proactive measures do not help alleviate the issue, then the situation may worsen until the buffer becomes fully
+saturated. At this point of full saturation, the buffer can apply back pressure and begin to halt the processing of new
+transactions and building new blocks. Once back pressure is engaged, the consensus node continuously checks the buffer
+for recovery. Once the buffer has recovered to a sufficient level, controlled by the application property
+`blockStream.buffer.recoveryThreshold`, the consensus node will exit back pressure and start allowing transactions and
+blocks again.
 
-Additionally, upon each iteration a secondary check will be performed to determine if back pressure needs to be disabled
-if the buffer saturation falls below the recovery threshold. This check is performed regardless of the above operations.
-
-<sup>2</sup> Disabling back pressure has an additional gate in form of a recovery threshold. This is configured by
-`blockStream.buffer.recoveryThreshold`. If this property is configured to 70.0, then the buffer saturated must be less
-than or equal to 70% before back pressure is disabled.
+Not all sources of back pressure, or buffer unhealthiness in general, are responded to in the same manner. For example,
+if the source of the issue is a lack of acknowledgements, then the consensus may switch to different block nodes.
+However, if the source of the issue is too many in-progress blocks, switching block nodes will serve no purpose. In such
+a case, there may not be any action the buffer or its downstream related components can do. (Too many in-progress blocks
+may be a symptom of slow consensus or slow transaction processing and thus migrating to a different block node will have
+no effect.)
 
 ### Backpressure Implementation
 

@@ -129,10 +129,9 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
 
     /// Flush interval for full rehash, in hash slots (~96MB of heap). The listener flushes collected
     /// chunks once `number of chunks * 2 ^ chunkHeight` reaches this value. Every flush has a fixed
-    /// cost (a new data file, metadata update, etc.) and creates a data file to compact later. Note
-    /// that the listener doesn't apply backpressure: while a flush is in progress, hashing threads
-    /// keep collecting chunks, and the next batch may exceed the interval, if flushes are slower
-    /// than hashing.
+    /// cost (a new data file, metadata update, etc.) and creates a data file to compact later. While
+    /// a flush is in progress, hashing threads fill one next batch up to the same size, then block
+    /// until the flush completes, so memory is bounded by about twice the interval.
     private static final int FULL_REHASH_FLUSH_INTERVAL = 2_000_000;
 
     /**
@@ -499,9 +498,16 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             setHashPrivate(rootHash);
             logger.info(
                     STARTUP.getMarker(), "Full rehash took {} seconds", (System.currentTimeMillis() - start) / 1000);
+        } catch (final RuntimeException | Error e) {
+            // Release hashing threads blocked on flusher backpressure, make sure no new flushes are started, and
+            // stop the flusher thread. Rehash tasks aren't interrupted, so without this they would wait till the
+            // running flush completes
+            chunkListener.cancel();
+            throw e;
         } finally {
-            // On success, all rehash tasks are already complete. On failure, tasks that are still running, e.g.
-            // hash chunk flushes, are left to finish on their own, and the pool terminates after that
+            // On success, all rehash tasks are already complete. On failure, a hash chunk flush that is still
+            // running is left to finish on its own: either in the flusher thread, which exits after that, or,
+            // if it's the final flush, in a rehash task, and the pool terminates after that
             rehashPool.shutdown();
         }
     }
@@ -656,7 +662,18 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         assert currentModifyingThreadRef.compareAndSet(null, Thread.currentThread());
         try {
             requireNonNull(key, NO_NULL_KEYS_ALLOWED_MESSAGE);
-            final long path = records.findPath(key);
+            final long path;
+            VirtualLeafBytes existing = cache.lookupLeafByKey(key);
+            if (existing != null) {
+                path = existing.path();
+            } else {
+                try {
+                    path = dataSource.findKey(key);
+                } catch (final IOException ex) {
+                    throw new UncheckedIOException(ex);
+                }
+            }
+
             if (path == INVALID_PATH) {
                 // The key is not stored. So add a new entry and return.
                 add(key, value, valueCodec, valueBytes);
@@ -665,9 +682,6 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
                 return;
             }
 
-            // Check the leaf is in cache, so we can reuse its old path. If not, the leaf is in
-            // the data source, and the path above can be used as the old path
-            final VirtualLeafBytes<V> existing = cache.lookupLeafByPath(path);
             final VirtualLeafBytes<V> updated;
             if (existing != null) {
                 updated = valueCodec != null

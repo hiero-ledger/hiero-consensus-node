@@ -146,11 +146,19 @@ public class DispatchProcessor {
      */
     public void processDispatch(
             @NonNull final Dispatch dispatch, @Nullable final Details hollowAccountCompletionsDetails) {
+        processDispatch(dispatch, hollowAccountCompletionsDetails, false);
+    }
+
+    /** Processes a submitted transaction using normal fee charging, with an optional block-capacity rejection. */
+    public void processDispatch(
+            @NonNull final Dispatch dispatch,
+            @Nullable final Details hollowAccountCompletionsDetails,
+            final boolean blockFull) {
         requireNonNull(dispatch);
         final var validation = validator.validateFeeChargingScenario(dispatch);
         if (!validation.creatorDidDueDiligence()) {
             if (isClprSubmitBundle(dispatch)) {
-                logger.warn(
+                logger.debug(
                         "[CLPR-DISPATCH] creator due diligence failed; charging creator txId={} status={}",
                         dispatch.txnInfo().transactionID(),
                         validation.errorStatusOrThrow());
@@ -159,7 +167,7 @@ public class DispatchProcessor {
         } else {
             final var fees = chargePayer(dispatch, validation, false);
             if (!alreadyFailed(dispatch, validation)) {
-                tryHandle(dispatch, validation, fees, hollowAccountCompletionsDetails);
+                tryHandle(dispatch, validation, fees, hollowAccountCompletionsDetails, blockFull);
             }
         }
         dispatchUsageManager.finalizeAndSaveUsage(dispatch);
@@ -254,10 +262,14 @@ public class DispatchProcessor {
             @NonNull final Dispatch dispatch,
             @NonNull final FeeCharging.Validation validation,
             @NonNull final Fees fees,
-            @Nullable final HollowAccountCompletions.Details details) {
+            @Nullable final HollowAccountCompletions.Details details,
+            final boolean blockFull) {
         final var functionality = dispatch.txnInfo().functionality();
         boolean success = false;
         try {
+            if (blockFull) {
+                throw ThrottleException.newNativeThrottleException();
+            }
             dispatchUsageManager.screenForCapacity(dispatch);
             dispatcher.dispatchHandle(dispatch.handleContext());
             dispatch.streamBuilder().status(SUCCESS);
@@ -272,7 +284,7 @@ public class DispatchProcessor {
             success = true;
         } catch (HandleException e) {
             if (isClprSubmitBundle(dispatch)) {
-                logger.warn(
+                logger.debug(
                         "[CLPR-DISPATCH] HandleException txId={} status={} message={}",
                         dispatch.txnInfo().transactionID(),
                         e.getStatus(),
@@ -285,7 +297,7 @@ public class DispatchProcessor {
             e.maybeReplay(feeCharging.customized(dispatch), dispatch.handleContext());
         } catch (ThrottleException e) {
             if (isClprSubmitBundle(dispatch)) {
-                logger.warn(
+                logger.debug(
                         "[CLPR-DISPATCH] throttled txId={} status={} message={}",
                         dispatch.txnInfo().transactionID(),
                         e.getStatus(),
@@ -386,7 +398,7 @@ public class DispatchProcessor {
     private void chargeCreator(@NonNull final Dispatch dispatch, @NonNull final FeeCharging.Validation validation) {
         dispatch.streamBuilder().status(validation.errorStatusOrThrow());
         if (isClprSubmitBundle(dispatch)) {
-            logger.warn(
+            logger.debug(
                     "[CLPR-DISPATCH] charge creator txId={} creator={} networkFee={} status={}",
                     dispatch.txnInfo().transactionID(),
                     dispatch.creatorInfo().accountId(),
@@ -463,7 +475,7 @@ public class DispatchProcessor {
     private boolean alreadyFailed(@NonNull final Dispatch dispatch, @NonNull final FeeCharging.Validation validation) {
         if (validation.maybeErrorStatus() != null) {
             if (isClprSubmitBundle(dispatch)) {
-                logger.warn(
+                logger.debug(
                         "[CLPR-DISPATCH] skipping handler due to validation error txId={} status={}",
                         dispatch.txnInfo().transactionID(),
                         validation.errorStatusOrThrow());
@@ -474,7 +486,7 @@ public class DispatchProcessor {
         final var authorizationFailure = maybeAuthorizationFailure(dispatch);
         if (authorizationFailure != null) {
             if (isClprSubmitBundle(dispatch)) {
-                logger.warn(
+                logger.debug(
                         "[CLPR-DISPATCH] skipping handler due to authorization failure txId={} status={} "
                                 + "category={} payer={}",
                         dispatch.txnInfo().transactionID(),
@@ -487,7 +499,7 @@ public class DispatchProcessor {
         }
         if (failsSignatureVerification(dispatch)) {
             if (isClprSubmitBundle(dispatch)) {
-                logger.warn(
+                logger.debug(
                         "[CLPR-DISPATCH] skipping handler due to signature verification failure txId={} "
                                 + "requiredKeys={} hollowAccounts={}",
                         dispatch.txnInfo().transactionID(),

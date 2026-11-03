@@ -1,7 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.intake.impl.signature;
 
+import static org.hiero.consensus.benchmark.tools.event.EmpiricalDistribution.constant;
+import static org.hiero.consensus.benchmark.tools.event.EventShape.MAINNET;
+import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
+import static org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory.randomRosterWithKeys;
 import static org.hiero.consensus.model.test.fixtures.roster.RosterWrapperHistoryFactory.createRosterWrapperHistory;
+import static org.hiero.consensus.test.fixtures.WeightGenerators.GAUSSIAN;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
@@ -11,18 +16,17 @@ import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.SigningSchema;
+import org.hiero.consensus.benchmark.tools.event.EventShape;
+import org.hiero.consensus.benchmark.tools.event.EventStreamGenerator;
 import org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler;
 import org.hiero.consensus.benchmark.tools.histogram.LatencyRecorder;
 import org.hiero.consensus.event.DefaultIntakeEventCounter;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GeneratorEventGraphSource;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GeneratorEventGraphSourceBuilder;
 import org.hiero.consensus.metrics.config.MetricsConfig_;
 import org.hiero.consensus.metrics.platform.DefaultMetricsProvider;
+import org.hiero.consensus.model.event.EventHashFactory;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.test.fixtures.roster.RosterWithKeys;
-import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
-import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -43,9 +47,14 @@ import org.openjdk.jmh.infra.Blackhole;
  * Measures the latency of {@link DefaultEventSignatureValidator#validateSignature(PlatformEvent)}, which verifies the
  * signature of every event a node receives from its peers.
  *
- * <p>The events are generated and signed once per trial, with keys and a graph derived from fixed seeds. The validator
- * does not change the events, so every invocation verifies the same events. All signatures are valid, as they are in
- * production, and the validator uses the production verifier, {@link CryptoUtils#verifySignature}, which creates a new
+ * <p>{@link EventStreamGenerator} generates and signs the events once per trial, from fixed seeds. Each has the shape of
+ * the median mainnet event ({@link EventShape#MAINNET}), four other parents and no transactions, and is hashed with
+ * SHA-256, as in production after the event cutover. Only the hash is signed, so the shape of the events does not
+ * change the validator's work, and one shape is enough. Every invocation verifies the events as received anew
+ * ({@link EventStreamGenerator#receive(List)}), with new buffers for their signatures and hashes: PBJ's {@code Bytes}
+ * caches the memory segment that the Ed25519 verifier creates from it ({@code Bytes#toMemorySegment}), so verifying the
+ * same objects again would skip work that a node does for every event it receives. All signatures are valid, as they are in production, and the validator uses the
+ * production verifier, {@link CryptoUtils#verifySignature}, which creates a new
  * verifier for the creator's public key on every call. The validator's other collaborators are the production ones as
  * well: the platform metrics of {@link DefaultMetricsProvider}, started as on a node, and a
  * {@link DefaultIntakeEventCounter}. Only the metrics output is disabled, so that the benchmark opens no Prometheus port
@@ -59,22 +68,25 @@ import org.openjdk.jmh.infra.Blackhole;
  * <p>Each invocation's setup ends with {@code System.gc()}, so usually no garbage collection falls into the measured
  * calls. A pass during which one does is discarded and replaced by the next invocation.
  *
- * <p>The calibration detected no warmup in the mean, but in the first 5 s of a fork, p99.9 was up to 31% higher than
- * later. A warmup iteration of 5 s keeps these slow calls out of the measured iterations.
+ * <p>In the first 5 s of a fork, RSA's mean was about 7% higher than later, in every fork; Ed25519's mean showed no
+ * warmup. A warmup iteration of 5 s keeps these slow calls out of the measured iterations.
+ *
+ * <p>The calibration's iterations of 5 s record too few calls for the highest percentiles, which {@link LatencyProfiler}
+ * then leaves out: the block lists no p99.99, and no p99.9 for RSA, for want of data.
  *
  * <p>Run with {@code -prof org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler}.
  *
  * <h2>Calibration</h2>
  * <ul>
- *   <li>Date / commit: 2026-10-22, 3e9c98d32d</li>
+ *   <li>Date / commit: 2026-10-27, bf25c42c07</li>
  *   <li>Machine: hl-cn-benchmark-lin, AS-2115GT-HNTR, AMD EPYC 9254 24-Core Processor, JDK 25.0.2, -XX:ActiveProcessorCount=12 -Xms2g -Xmx2g -XX:+AlwaysPreTouch</li>
  *   <li>Parameter sets: signingSchema=ED25519 / signingSchema=RSA</li>
- *   <li>Steady state after: 0 s / 0 s</li>
- *   <li>Noise (latency.mean, CV): 0.19% / 0.17% per 5 s iteration, 0.02% / 0.15% between forks, - / - between runs (1 of 1 / 1 of 1 runs quiet)</li>
- *   <li>Expected detectable regression: 0.08% / 0.30% (95 % CI half-width of one run)</li>
- *   <li>Samples per iteration: 1.5 M / 1.3 M; expected stable: mean, p50, p90, p99, p99.9 / mean, p50, p90, p99, p99.9</li>
- *   <li>Runtime: 2.4 / 3.0 min per parameter set</li>
- *   <li>Raw data: https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/39719427212</li>
+ *   <li>Steady state after: 0 s / 5 s</li>
+ *   <li>Noise (latency.mean, CV): 0.18% / 0.10% per 5 s iteration, 0.03% / 0.22% between forks, 0.02% / 0.00% between runs (3 of 3 / 3 of 3 runs quiet)</li>
+ *   <li>Expected detectable regression: 0.09% / 0.44% (95 % CI half-width of one run)</li>
+ *   <li>Samples per iteration: 1.8 M / 1.3 M; expected stable: mean, p50, p90, p99, p99.9 / mean, p50, p90, p99</li>
+ *   <li>Runtime: 2.7 / 3.4 min per parameter set</li>
+ *   <li>Raw data: https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/40471021847, https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/40471025600, https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/40471029121</li>
  * </ul>
  */
 @State(Scope.Thread)
@@ -82,26 +94,36 @@ import org.openjdk.jmh.infra.Blackhole;
         value = 1,
         jvmArgsAppend = {"-Xms2g", "-Xmx2g", "-XX:+AlwaysPreTouch"})
 @Warmup(iterations = 1, time = 5)
-@Measurement(iterations = 2, time = 70)
+@Measurement(iterations = 2, time = 80)
 public class EventSignatureValidatorBenchmark {
 
     /** The seed of the random number generators. The same seed produces the same keys and events. */
     private static final long SEED = 0;
 
     /**
-     * The number of nodes, and therefore of distinct public keys. In alternating local runs with 4, 10, and 30 nodes,
-     * the latency of Ed25519 did not change; with RSA, 30 nodes had a p50 about 0.35% higher, a constant offset.
+     * The number of nodes, and therefore of distinct public keys: 32, as in the other consensus-layer benchmarks. One
+     * count is enough. In alternating local runs with 4, 10, and 30 nodes, the latency of Ed25519 did not change; with
+     * RSA, 30 nodes had a p50 about 0.35% higher, a constant offset.
      */
-    private static final int NUMBER_OF_NODES = 4;
+    private static final int NUMBER_OF_NODES = 32;
 
     /** The number of events validated in one invocation. */
     private static final int NUMBER_OF_EVENTS = 10_000;
+
+    /** The shape of the events: the median of each quantity of the mainnet shape. */
+    private static final EventShape SHAPE = new EventShape(
+            constant(MAINNET.otherParents().median()),
+            constant(MAINNET.transactionsPerEvent().median()),
+            constant(MAINNET.transactionSize().median()));
 
     /** The signing schema of the nodes' keys. */
     @Param({"ED25519", "RSA"})
     public SigningSchema signingSchema;
 
     /** The generated, signed events. */
+    private List<PlatformEvent> generatedEvents;
+
+    /** Fresh copies of the generated events, verified in the current invocation. */
     private List<PlatformEvent> events;
 
     /** The provider of the validator's metrics, running for the whole trial. */
@@ -121,25 +143,23 @@ public class EventSignatureValidatorBenchmark {
      */
     @Setup(Level.Trial)
     public void generateEvents() {
-        final RosterWithKeys rosterWithKeys = RosterWrapperFactory.randomRosterWithKeys(
-                new Random(SEED), NUMBER_OF_NODES, WeightGenerators.GAUSSIAN, signingSchema);
-        final GeneratorEventGraphSource generator = GeneratorEventGraphSourceBuilder.builder()
-                .rosterWithKeys(rosterWithKeys)
-                .seed(SEED)
-                .realSignatures(true)
-                .build();
-        events = generator.nextEvents(NUMBER_OF_EVENTS);
+        // Every event birth round is past the cutover, so every event is hashed with SHA-256.
+        EventHashFactory.initialize(0);
+        final RosterWithKeys rosterWithKeys =
+                randomRosterWithKeys(new Random(SEED), NUMBER_OF_NODES, GAUSSIAN, signingSchema);
+        final RosterWrapper roster = rosterWithKeys.roster();
+        generatedEvents = EventStreamGenerator.generateSignedEvents(
+                SHAPE, roster, NUMBER_OF_EVENTS, SEED, rosterWithKeys.privateKeys());
 
         final Configuration configuration = new TestConfigBuilder()
                 .withValue(MetricsConfig_.DISABLE_METRICS_OUTPUT, true)
                 .getOrCreateConfig();
-        final RosterWrapper roster = rosterWithKeys.roster();
         metricsProvider = new DefaultMetricsProvider(configuration);
         validator = new DefaultEventSignatureValidator(
                 metricsProvider.createPlatformMetrics(roster.nodeIdAtIndex(0)),
                 Time.getCurrent(),
                 CryptoUtils::verifySignature,
-                createRosterWrapperHistory(0L, roster),
+                createRosterWrapperHistory(ROUND_FIRST, roster),
                 new DefaultIntakeEventCounter(roster));
         metricsProvider.start();
     }
@@ -157,10 +177,12 @@ public class EventSignatureValidatorBenchmark {
      */
     @Setup(Level.Invocation)
     public void prepareInvocation() {
+        events = EventStreamGenerator.receive(generatedEvents);
         acceptedEvents = 0;
         recorder = LatencyProfiler.recorder();
 
-        // Collect the garbage of the previous invocation now, so that it is not collected during the measured calls.
+        // Collect the garbage of the setup and of the previous invocation now, so that it is not collected during the
+        // measured calls.
         System.gc();
     }
 
@@ -173,6 +195,7 @@ public class EventSignatureValidatorBenchmark {
             throw new IllegalStateException(
                     "Expected " + NUMBER_OF_EVENTS + " accepted events, but got " + acceptedEvents);
         }
+        events = null;
         recorder = null;
     }
 

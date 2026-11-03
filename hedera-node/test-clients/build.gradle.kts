@@ -10,8 +10,6 @@ plugins {
 
 description = "Hedera Services Test Clients for End to End Tests (EET)"
 
-testModuleInfo { requires("org.junit.jupiter.params") }
-
 // Detect available resources and scale JVM settings accordingly
 class TestResourceArgumentsProvider : CommandLineArgumentProvider {
     override fun asArguments(): Iterable<String> {
@@ -83,6 +81,8 @@ mainModuleInfo {
     runtimeOnly("org.junit.jupiter.engine")
     runtimeOnly("org.junit.platform.launcher")
 }
+
+testModuleInfo { requires("org.mockito") }
 
 sourceSets { create("rcdiff") }
 
@@ -205,8 +205,7 @@ val prCheckPropOverrides =
         "hapiTestCryptoSerial" to
             "tss.hintsEnabled=true,tss.historyEnabled=true,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,block.stateproof.verification.enabled=true",
         "hapiTestSmartContract" to
-            "blockStream.writerMode=FILE_AND_GRPC,blockStream.streamWrappedRecordBlocks=true,tss.historyEnabled=false,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
-        "hapiTestSmartContractSerial" to "tss.historyEnabled=false",
+            "blockStream.writerMode=FILE_AND_GRPC,blockStream.streamWrappedRecordBlocks=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         // hapiTestRestart exercises repeated freeze/upgrade/restart cycles. On main this ran with
         // tss.historyEnabled=false by config default; with the new branch default of true the
         // genesis chain-of-trust proof (and its real-crypto signatures, since this test sets
@@ -249,8 +248,11 @@ val prCheckPropOverrides =
         "hapiTestClpr" to
             "tss.forceMockSignatures=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestClprEmbedded" to "tss.forceMockSignatures=true",
+        // The TSS fixtures' WRAPS history proof is set up as one large genesis
+        // savepoint; disable the block size circuit breaker so genesis output is not
+        // suppressed and the block stream can be validated
         "hapiTestClprMultinetwork" to
-            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.forceMockSignatures=false",
+            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.forceMockSignatures=false,blockStream.maxBlockSizeBytes=0",
     )
 
 // Overridable per-task DEFAULTS. Unlike prCheckPropOverrides (delivered as node environment
@@ -351,10 +353,14 @@ fun hapiTestOverrides(name: String, embedded: Boolean, remote: Boolean): Map<Str
 }
 
 // hapiTestRestart reconnects the same node repeatedly; the 10m production throttle would starve it.
+// hapiTestClprMultinetwork restarts single nodes while their peers keep running; OBSERVING lets a
+// restarted node learn its latest self event from them before creating new ones, so it does not
+// branch.
 val prCheckPlatformOverrides =
     mapOf(
         "hapiTestRestart" to
-            "platformStatus.observingStatusDelay=10s,reconnect.minimumTimeBetweenReconnects=10s"
+            "platformStatus.observingStatusDelay=10s,reconnect.minimumTimeBetweenReconnects=10s",
+        "hapiTestClprMultinetwork" to "platformStatus.observingStatusDelay=10s",
     )
 val prCheckPrepareUpgradeOffsets = mapOf("hapiTestAdhoc" to "PT300S")
 // We don't want to run stream or log validation for these tasks
@@ -645,10 +651,16 @@ fun TaskContainer.registerHapiTest(
             } else {
                 includeTags(
                     if (ciTagExpression.isBlank()) defaultTags
-                    // The embedded CLPR task runs only its own suites; we deliberately do not
-                    // append (or run) STREAM_VALIDATION / LOG_VALIDATION for CLPR. Matched by task
-                    // name, not by reading the tag expression as a string.
-                    else if (name == "hapiTestClprEmbedded") "(${ciTagExpression})"
+                    // The single-network CLPR tasks run their own suites followed by log and
+                    // stream validation against the shared network. Matched by task name, not by
+                    // reading the tag expression as a string.
+                    else if (name == "hapiTestClpr")
+                        "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(EMBEDDED|REPEATABLE|MULTINETWORK)"
+                    else if (name == "hapiTestClprEmbedded")
+                        "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(INTEGRATION|ISS|MULTINETWORK)"
+                    // We don't want to run stream or log validation for ISS or BLOCK_NODE; the
+                    // multi-network CLPR task validates its network groups in its own
+                    // MultiNetworkValidationTest instead
                     else if (
                         ciDefaultTagsWithoutStreamAndLogValidation != null &&
                             name in prCheckWithoutStreamAndLogValidation

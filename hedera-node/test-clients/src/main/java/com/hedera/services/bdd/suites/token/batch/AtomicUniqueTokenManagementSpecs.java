@@ -93,6 +93,8 @@ class AtomicUniqueTokenManagementSpecs {
     private static final String CUSTOM_PAYER = "customPayer";
     private static final String WIPE_KEY = "wipeKey";
     private static final String BATCH_OPERATOR = "batchOperator";
+    private static final String BATCH_TXN = "batchTxn";
+    private static final String ADMIN_KEY = "adminKey";
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
@@ -730,6 +732,150 @@ class AtomicUniqueTokenManagementSpecs {
                                         .batchKey(BATCH_OPERATOR))
                                 .payingWith(BATCH_OPERATOR)
                                 .hasKnownStatus(INNER_TRANSACTION_FAILED));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> wipeAndTransferInSameBatch() {
+        return defaultHapiSpec("WipeAndTransferInSameBatch")
+                .given(
+                        newKeyNamed(SUPPLY_KEY),
+                        newKeyNamed(WIPE_KEY),
+                        cryptoCreate(TOKEN_TREASURY),
+                        cryptoCreate(ACCOUNT),
+                        tokenCreate(NFT)
+                                .tokenType(NON_FUNGIBLE_UNIQUE)
+                                .supplyType(TokenSupplyType.INFINITE)
+                                .initialSupply(0)
+                                .supplyKey(SUPPLY_KEY)
+                                .wipeKey(WIPE_KEY)
+                                .treasury(TOKEN_TREASURY),
+                        tokenAssociate(ACCOUNT, NFT),
+                        mintToken(NFT, List.of(metadata(MEMO_1), metadata(MEMO_2))),
+                        cryptoTransfer(movingUnique(NFT, 1L).between(TOKEN_TREASURY, ACCOUNT)))
+                .when(atomicBatch(
+                                wipeTokenAccount(NFT, ACCOUNT, List.of(1L)).batchKey(BATCH_OPERATOR),
+                                cryptoTransfer(movingUnique(NFT, 2L).between(TOKEN_TREASURY, ACCOUNT))
+                                        .batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR)
+                        .via(BATCH_TXN))
+                .then(
+                        getTxnRecord(BATCH_TXN).showsNoTransfers(),
+                        getAccountBalance(ACCOUNT).hasTokenBalance(NFT, 1),
+                        getAccountBalance(TOKEN_TREASURY).hasTokenBalance(NFT, 0),
+                        getTokenNftInfo(NFT, 2).hasAccountID(ACCOUNT));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> mintAndTransferInSameBatch() {
+        return defaultHapiSpec("MintAndTransferInSameBatch")
+                .given(
+                        newKeyNamed(SUPPLY_KEY),
+                        cryptoCreate(TOKEN_TREASURY),
+                        cryptoCreate(ACCOUNT),
+                        tokenCreate(NFT)
+                                .tokenType(NON_FUNGIBLE_UNIQUE)
+                                .supplyType(TokenSupplyType.INFINITE)
+                                .initialSupply(0)
+                                .supplyKey(SUPPLY_KEY)
+                                .treasury(TOKEN_TREASURY),
+                        tokenAssociate(ACCOUNT, NFT),
+                        mintToken(NFT, List.of(metadata(MEMO_1), metadata(MEMO_2))))
+                .when(atomicBatch(
+                                mintToken(NFT, List.of(metadata("memo"))).batchKey(BATCH_OPERATOR),
+                                cryptoTransfer(movingUnique(NFT, 2L).between(TOKEN_TREASURY, ACCOUNT))
+                                        .batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR)
+                        .via(BATCH_TXN))
+                .then(
+                        getTxnRecord(BATCH_TXN).showsNoTransfers(),
+                        getAccountBalance(ACCOUNT).hasTokenBalance(NFT, 1),
+                        getAccountBalance(TOKEN_TREASURY).hasTokenBalance(NFT, 2),
+                        getTokenNftInfo(NFT, 2).hasAccountID(ACCOUNT));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> burnAndTransferInSameBatch() {
+        return defaultHapiSpec("BurnAndTransferInSameBatch")
+                .given(
+                        newKeyNamed(SUPPLY_KEY),
+                        cryptoCreate(TOKEN_TREASURY),
+                        cryptoCreate(ACCOUNT),
+                        tokenCreate(NFT)
+                                .tokenType(NON_FUNGIBLE_UNIQUE)
+                                .supplyType(TokenSupplyType.INFINITE)
+                                .initialSupply(0)
+                                .supplyKey(SUPPLY_KEY)
+                                .treasury(TOKEN_TREASURY),
+                        tokenAssociate(ACCOUNT, NFT),
+                        mintToken(NFT, List.of(metadata(MEMO_1), metadata(MEMO_2))),
+                        cryptoTransfer(movingUnique(NFT, 1L).between(TOKEN_TREASURY, ACCOUNT)))
+                .when(atomicBatch(
+                                burnToken(NFT, List.of(2L)).batchKey(BATCH_OPERATOR),
+                                cryptoTransfer(movingUnique(NFT, 1L).between(ACCOUNT, TOKEN_TREASURY))
+                                        .batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR)
+                        .via(BATCH_TXN))
+                .then(
+                        getTxnRecord(BATCH_TXN).showsNoTransfers(),
+                        getAccountBalance(ACCOUNT).hasTokenBalance(NFT, 0),
+                        getAccountBalance(TOKEN_TREASURY).hasTokenBalance(NFT, 1),
+                        getTokenNftInfo(NFT, 2).hasCostAnswerPrecheck(INVALID_NFT_ID));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> mintDeleteAndDissociateInSameBatch() {
+        return defaultHapiSpec("MintDeleteAndDissociateInSameBatch")
+                .given(
+                        newKeyNamed(SUPPLY_KEY),
+                        newKeyNamed(ADMIN_KEY),
+                        cryptoCreate(TOKEN_TREASURY),
+                        tokenCreate(NFT)
+                                .tokenType(NON_FUNGIBLE_UNIQUE)
+                                .supplyType(TokenSupplyType.INFINITE)
+                                .initialSupply(0)
+                                .supplyKey(SUPPLY_KEY)
+                                .adminKey(ADMIN_KEY)
+                                .treasury(TOKEN_TREASURY))
+                .when(atomicBatch(
+                                mintToken(NFT, List.of(metadata(MEMO_1))).batchKey(BATCH_OPERATOR),
+                                tokenDelete(NFT).batchKey(BATCH_OPERATOR),
+                                tokenDissociate(TOKEN_TREASURY, NFT).batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR)
+                        .via(BATCH_TXN))
+                .then(
+                        getTxnRecord(BATCH_TXN).showsNoTransfers(),
+                        getTokenInfo(NFT).isDeleted(),
+                        getAccountInfo(TOKEN_TREASURY).hasNoTokenRelationship(NFT));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> mintTransferDeleteAndDissociateInSameBatch() {
+        return defaultHapiSpec("MintTransferDeleteAndDissociateInSameBatch")
+                .given(
+                        newKeyNamed(SUPPLY_KEY),
+                        newKeyNamed(ADMIN_KEY),
+                        cryptoCreate(TOKEN_TREASURY),
+                        cryptoCreate(ACCOUNT),
+                        tokenCreate(NFT)
+                                .tokenType(NON_FUNGIBLE_UNIQUE)
+                                .supplyType(TokenSupplyType.INFINITE)
+                                .initialSupply(0)
+                                .supplyKey(SUPPLY_KEY)
+                                .adminKey(ADMIN_KEY)
+                                .treasury(TOKEN_TREASURY),
+                        tokenAssociate(ACCOUNT, NFT))
+                .when(atomicBatch(
+                                mintToken(NFT, List.of(metadata(MEMO_1))).batchKey(BATCH_OPERATOR),
+                                cryptoTransfer(movingUnique(NFT, 1L).between(TOKEN_TREASURY, ACCOUNT))
+                                        .batchKey(BATCH_OPERATOR),
+                                tokenDelete(NFT).batchKey(BATCH_OPERATOR),
+                                tokenDissociate(ACCOUNT, NFT).batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR)
+                        .via(BATCH_TXN))
+                .then(
+                        getTxnRecord(BATCH_TXN).showsNoTransfers(),
+                        getTokenInfo(NFT).isDeleted(),
+                        getAccountInfo(ACCOUNT).hasNoTokenRelationship(NFT));
     }
 
     @HapiTest

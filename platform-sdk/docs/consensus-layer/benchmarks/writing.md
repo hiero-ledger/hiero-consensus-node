@@ -112,6 +112,8 @@ turns the recorded times into JMH results. Its Javadoc lists them and how JMH co
   - p99.99 needs about 10⁶ recorded calls per iteration, because `LatencyProfiler` computes the percentiles of each
     iteration separately. Calibration sets the iteration length for it
     ([calibration.md](calibration.md#iterations-and-samples)).
+  - `LatencyProfiler` skips a percentile in an iteration with fewer than 100 calls above it, and `latency.skipped`
+    names the percentile and the calls it needs.
 - **Track `latency.mean`, not the primary score.** The primary score also includes the passes discarded because a
   garbage collection ran in them (see below).
   - The median (p50) does not replace the mean: when most calls are fast and a few are slow, the median shows only the

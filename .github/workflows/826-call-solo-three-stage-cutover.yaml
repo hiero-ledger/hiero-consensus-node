@@ -12,7 +12,7 @@ on:
         required: false
         type: string
       solo-version:
-        description: "The Solo version to install for this cutover with Block Node v0.44.2."
+        description: "The Solo version to install for this cutover. Block Node versions are pinned in the scenario script."
         required: true
         type: string
       java-version:
@@ -20,7 +20,7 @@ on:
         required: false
         type: string
       starting-tag:
-        description: "Optional published CN tag for stage 1. Leave blank to use the checkout local build for all three stages."
+        description: "Optional published CN tag for the stage 0 genesis baseline. Leave blank to use the script default (v0.78.1); all three stages use the checkout local build."
         required: false
         type: string
     outputs:
@@ -77,9 +77,9 @@ jobs:
           # Pinned rather than caller-supplied: this checks out an external repository and the
           # job holds a writable Gradle cache, so a caller-influenced ref is a cache-poisoning
           # vector (CodeQL actions/cache-poisoning/poisonable-step, alert #135). The deployed
-          # Block Node chart version is pinned inside the scenario script, and these sources are
+          # Block Node chart version is pinned separately inside the scenario script; these sources are
           # used for offline wrapping, jumpstart generation and serverStatus/proto diagnostics.
-          ref: v0.45.0-sha256.1
+          ref: v0.45.0-rc2
           path: hiero-block-node
           fetch-depth: 0
           token: ${{ github.token }}
@@ -126,7 +126,7 @@ jobs:
           grpcurl --version
 
       - name: Build Consensus Node Local Artifacts
-        # All three configuration stages use this local build by default.
+        # All three configuration stages upgrade the published baseline to this local build.
         run: ${GRADLE_EXEC} assemble
 
       - name: Run Three-Stage Block Stream Cutover Scenario

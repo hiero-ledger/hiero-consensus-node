@@ -31,7 +31,7 @@ class ClprNetworkLocksProviderTest {
     @DisplayName("A test locks each of its networks, by resolved name, as a reader")
     void readerLocksEachNetwork() throws Exception {
         assertEquals(Map.of("ledgerA", READ, "ledgerB", READ), locksOf(ReaderTests.class, "byValue"));
-        assertEquals(Map.of("ledgerA_mtls", READ, "ledgerB_mtls", READ), locksOf(ReaderTests.class, "byName"));
+        assertEquals(Map.of("ledgerA_tls", READ, "ledgerB_tls", READ), locksOf(ReaderTests.class, "byName"));
     }
 
     @Test
@@ -78,7 +78,7 @@ class ClprNetworkLocksProviderTest {
             return Stream.empty();
         }
 
-        @MultiNetworkHapiTest({@Network(name = "ledgerA_mtls"), @Network(name = "ledgerB_mtls")})
+        @MultiNetworkHapiTest({@Network(name = "ledgerA_tls"), @Network(name = "ledgerB_tls")})
         Stream<DynamicTest> byName() {
             return Stream.empty();
         }

@@ -2,6 +2,7 @@
 package com.hedera.node.app.workflows.handle;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.THROTTLED_AT_CONSENSUS;
 import static com.hedera.hapi.services.auxiliary.clpr.ClprMaintenanceReason.ENDPOINT_MANIFEST_RECONCILIATION;
 import static com.hedera.hapi.services.auxiliary.clpr.ClprMaintenanceReason.GENESIS_INITIALIZATION;
 import static com.hedera.hapi.services.auxiliary.clpr.ClprMaintenanceReason.UPGRADE_INITIALIZATION;
@@ -20,6 +21,7 @@ import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartR
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartUserTransaction;
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartUserTransactionPreHandleResultP2;
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartUserTransactionPreHandleResultP3;
+import static com.hedera.node.app.throttle.ThrottleAccumulator.throttleExempt;
 import static com.hedera.node.app.workflows.handle.TransactionType.ORDINARY_TRANSACTION;
 import static com.hedera.node.app.workflows.handle.TransactionType.POST_UPGRADE_TRANSACTION;
 import static com.hedera.node.app.workflows.handle.record.SystemTransactions.MAX_NANOS_PER_SYSTEM_DISPATCH;
@@ -790,6 +792,9 @@ public class HandleWorkflow {
      * As a side effect on the workflow internal state, updates the {@link BlockStreamManager}'s last interval process
      * time to the latest time known to have been processed; and the {@link #lastExecutedSecond} value to the last
      * second of the interval for which all scheduled transactions were executed.
+     * <p>
+     * Scheduled executions are exempt from the {@code StreamMode.BLOCKS} block execution budget, so they run here
+     * even after {@link BlockStreamManager#hasReachedMaxBlockSize()} is {@code true}.
      *
      * @param state the state to execute scheduled transactions from
      * @param executionStart the start of the interval to execute transactions in
@@ -919,6 +924,28 @@ public class HandleWorkflow {
     }
 
     /**
+     * Returns whether this transaction may still execute after the block budget is full; that is, whether it supports
+     * a network protocol that must keep progressing, or otherwise has a throttle-exempt payer.
+     */
+    private boolean isExecutionBudgetExempt(@NonNull final ParentTxn parentTxn) {
+        return switch (parentTxn.functionality()) {
+            case HINTS_PARTIAL_SIGNATURE,
+                    MIGRATION_ROOT_HASH_VOTE,
+                    HINTS_KEY_PUBLICATION,
+                    HINTS_PREPROCESSING_VOTE,
+                    CRS_PUBLICATION,
+                    HISTORY_PROOF_KEY_PUBLICATION,
+                    HISTORY_ASSEMBLY_SIGNATURE,
+                    HISTORY_PROOF_VOTE,
+                    CLPR_ENDPOINT_PUBLICATION -> true;
+            // Nodes relay bundles with their own throttle-exempt accounts, but bundles can dispatch application
+            // contract calls; and a rejected bundle is safely re-synced from channel state in a later block
+            case CLPR_SUBMIT_BUNDLE -> false;
+            default -> throttleExempt(parentTxn.txnInfo().payerID(), configProvider.getConfiguration());
+        };
+    }
+
+    /**
      * Executes the user transaction and returns the output that should be externalized in the
      * block stream. (And if still producing records, the precomputed records.)
      * <p>
@@ -937,6 +964,10 @@ public class HandleWorkflow {
         try {
             final var platformStateStore =
                     new ReadablePlatformStateStore(state.getReadableStates(PlatformStateService.NAME));
+            // Non-exempt block-full submissions follow normal consensus throttle fee charging.
+            final boolean blockFull = streamMode == BLOCKS
+                    && blockStreamManager.hasReachedMaxBlockSize()
+                    && !isExecutionBudgetExempt(parentTxn);
             if (this.initTrigger != EVENT_STREAM_RECOVERY
                     && eventBirthRound <= platformStateStore.getLatestFreezeRound()) {
                 if (streamMode != RECORDS) {
@@ -960,13 +991,22 @@ public class HandleWorkflow {
                         hollowAccountCompletions.completeHollowAccounts(parentTxn, dispatch);
                 // In case a TSS callback needs access to the current dispatch's savepoint stack
                 this.inFlightDispatch = dispatch;
-                dispatchProcessor.processDispatch(dispatch, hollowAccountCompletionsDetails);
+                if (blockFull) {
+                    dispatchProcessor.processDispatch(dispatch, hollowAccountCompletionsDetails, true);
+                } else {
+                    dispatchProcessor.processDispatch(dispatch, hollowAccountCompletionsDetails);
+                }
                 updateWorkflowMetrics(parentTxn);
             }
             final var blockNumber = currentBlockNumber();
             final var handleOutput = parentTxn
                     .stack()
                     .buildHandleOutput(parentTxn.consensusNow(), exchangeRateManager.exchangeRates(), blockNumber);
+            if (streamMode == BLOCKS) {
+                blockStreamManager.recordSubmittedTransaction(
+                        handleOutput.blockRecordSourceOrThrow().blockItems(),
+                        blockFull && parentTxn.baseBuilder().status() == THROTTLED_AT_CONSENSUS);
+            }
             recordCache.addRecordSource(
                     parentTxn.creatorInfo().nodeId(),
                     parentTxn.txnInfo().transactionID(),
@@ -1082,9 +1122,6 @@ public class HandleWorkflow {
         if (streamMode != RECORDS) {
             immediateStateChangeListener.resetKvStateChanges(null);
             immediateStateChangeListener.resetSingletonStateChanges();
-            if (includeSingletons) {
-                boundaryStateChangeListener.reset();
-            }
         }
         action.run();
         if (writableStates instanceof CommittableWritableStates committableWritableStates) {
@@ -1102,12 +1139,17 @@ public class HandleWorkflow {
                         .build());
             }
             if (includeSingletons) {
+                // Flush every singleton change not yet externalized in this block, not just the action's own: a
+                // singleton first written earlier in the block must be inserted before any key the action adds
+                // when the stream is replayed. Reset only after streaming, so the block's closing flush neither
+                // drops nor repeats these changes.
                 final var singletonChanges = boundaryStateChangeListener.allStateChanges();
                 if (!singletonChanges.isEmpty()) {
                     blockStreamManager.writeItem((now) -> BlockItem.newBuilder()
                             .stateChanges(new StateChanges(now, new ArrayList<>(singletonChanges)))
                             .build());
                 }
+                boundaryStateChangeListener.reset();
             }
         }
     }
@@ -1211,7 +1253,12 @@ public class HandleWorkflow {
                                     activeRoster,
                                     requireNonNull(candidateRoster),
                                     requireNonNull(candidateRosterHash));
-                        } else if (historyStore.handoff(activeRoster, candidateRoster, candidateRosterHash)) {
+                        } else if (historyStore.handoff(
+                                activeRoster,
+                                // A fresh genesis handoff keeps the active roster, so a pending candidate
+                                // roster must not remove the proof keys of the nodes it drops
+                                null,
+                                candidateRosterHash)) {
                             // Make sure we include the latest chain-of-trust proof in following block proofs
                             historyService.setLatestHistoryProof(construction.targetProofOrThrow());
                             // The ledger id is that of the history a genesis proof grounds its chain of
@@ -1268,7 +1315,7 @@ public class HandleWorkflow {
             // Fill any open construction (side-effect only): if a construction targets this node but does
             // not yet contain its publication, publish this node's current endpoint. This makes a
             // construction a full all-hands snapshot so the non-restarted target nodes contribute their own
-            // node-local endpoint (mtlsPort + CA cert) rather than being reconstructed by IP-keyed
+            // node-local endpoint (HAPI TLS port + certificate) rather than being reconstructed by IP-keyed
             // carry-over — which cannot distinguish nodes sharing an IP (e.g. a partial rotation).
             reconciler.contributeSelfToConstruction(
                     selfNodeId, ctx.constructionStore().get(), ctx.nodeStore(), ctx.clprConfig(), now);
@@ -1452,15 +1499,16 @@ public class HandleWorkflow {
                     // grounded in, so it takes the ACTIVE hinTS construction's key; one that extends the
                     // chain to a new roster takes the NEXT construction's. Note that even when this is
                     // null, the controller can still make progress on publishing proof keys as needed.
-                    final var vk = Optional.ofNullable(
-                                    groundsGenesisProof(
-                                                    historyStore.getNextConstruction(),
-                                                    historyStore.getLedgerId(),
-                                                    freshGenesisRequested)
-                                            ? hintsStore.getActiveConstruction().hintsScheme()
-                                            : hintsStore.getNextConstruction().hintsScheme())
+                    final var targetHintsConstruction = groundsGenesisProof(
+                                    historyStore.getNextConstruction(),
+                                    historyStore.getLedgerId(),
+                                    freshGenesisRequested)
+                            ? hintsStore.getActiveConstruction()
+                            : hintsStore.getNextConstruction();
+                    final var vk = Optional.ofNullable(targetHintsConstruction.hintsScheme())
                             .map(s -> s.preprocessedKeysOrThrow().verificationKey())
                             .orElse(null);
+                    final var sourceSigner = hintsService.keyProvenanceFor(hintsStore);
                     doStreamingOnlyKvChanges(
                             historyWritableStates,
                             null,
@@ -1471,8 +1519,10 @@ public class HandleWorkflow {
                                     workTime,
                                     tssConfig,
                                     isActive,
-                                    hintsService.activeConstruction(),
-                                    freshGenesisRequested));
+                                    hintsStore.getActiveConstruction(),
+                                    freshGenesisRequested,
+                                    sourceSigner,
+                                    targetHintsConstruction.constructionId()));
                 }
             }
         }

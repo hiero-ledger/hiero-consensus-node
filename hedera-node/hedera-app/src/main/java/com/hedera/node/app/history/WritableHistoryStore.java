@@ -4,6 +4,7 @@ package com.hedera.node.app.history;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.state.history.HintsKeyProvenance;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
@@ -18,6 +19,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.Optional;
+import java.util.Set;
 import java.util.SortedSet;
 import java.util.function.Consumer;
 
@@ -62,6 +64,22 @@ public interface WritableHistoryStore extends ReadableHistoryStore {
             @Nullable Bytes metadata);
 
     /**
+     * Also creates a new candidate when a matching construction's provenance
+     * binding refers to different signing generations, or when pre-feature WRAPS
+     * work began without a binding. A completed active construction is preserved
+     * while its successor is created in the next slot. The expected binding's history construction ID is ignored
+     * because replacement may allocate a new history construction.
+     */
+    @NonNull
+    HistoryProofConstruction getOrCreateConstruction(
+            @NonNull ActiveRosters activeRosters,
+            @NonNull Instant now,
+            @NonNull TssConfig tssConfig,
+            boolean freshGenesisRequested,
+            @Nullable Bytes metadata,
+            @Nullable HintsKeyProvenance expectedBinding);
+
+    /**
      * Includes the given proof key for the given node, assigning the given adoption time if the key
      * is immediately in use.
      *
@@ -100,6 +118,30 @@ public interface WritableHistoryStore extends ReadableHistoryStore {
     HistoryProofConstruction completeProof(long constructionId, @NonNull HistoryProof proof);
 
     /**
+     * Freezes the source and target signing generations before collecting WRAPS
+     * messages. The binding has an empty signature until consensus validates an
+     * aggregate; restart and WRAPS retries preserve it.
+     *
+     * @param constructionId the history construction ID
+     * @param provenance the unsigned generation binding
+     * @return the updated construction
+     */
+    @NonNull
+    HistoryProofConstruction bindKeyProvenance(long constructionId, @NonNull HintsKeyProvenance provenance);
+
+    /**
+     * Persists an already verified authorization of this construction's target key.
+     * The link must match the construction's bound metadata; an existing link may
+     * only be completed once, or written again unchanged. Does not append to the adoption queue.
+     *
+     * @param constructionId the history construction ID
+     * @param provenance the verified previous-generation authorization
+     * @return the updated construction
+     */
+    @NonNull
+    HistoryProofConstruction setKeyProvenance(long constructionId, @NonNull HintsKeyProvenance provenance);
+
+    /**
      * Fails the construction with the given ID, providing a reason.
      * @param constructionId the construction ID
      * @param reason the reason
@@ -112,9 +154,23 @@ public interface WritableHistoryStore extends ReadableHistoryStore {
      * nodes and resetting the WRAPS signing state to {@code R1} while incrementing retry count.
      * @param constructionId the construction ID
      * @param sourceNodeIds the source node IDs whose WRAPS messages should be purged
+     * @param excludedNodeIds the source node IDs whose WRAPS messages later attempts should ignore
+     * @param gracePeriodEndTime if not null, the end of the grace period for the restarted {@code R1}
      * @return the updated construction
      */
-    HistoryProofConstruction restartWrapsSigning(long constructionId, @NonNull SortedSet<Long> sourceNodeIds);
+    HistoryProofConstruction restartWrapsSigning(
+            long constructionId,
+            @NonNull SortedSet<Long> sourceNodeIds,
+            @NonNull SortedSet<Long> excludedNodeIds,
+            @Nullable Instant gracePeriodEndTime);
+
+    /**
+     * Adds the given source nodes to those whose WRAPS messages the construction with the given ID ignores.
+     * @param constructionId the construction ID
+     * @param nodeIds the source node IDs to exclude
+     * @return the updated construction
+     */
+    HistoryProofConstruction excludeFromWrapsSigning(long constructionId, @NonNull Set<Long> nodeIds);
 
     /**
      * Sets the ledger ID to the given bytes.

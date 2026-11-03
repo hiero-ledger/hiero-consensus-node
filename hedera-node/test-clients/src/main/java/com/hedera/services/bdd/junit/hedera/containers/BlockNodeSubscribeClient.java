@@ -80,6 +80,24 @@ public class BlockNodeSubscribeClient implements AutoCloseable {
     }
 
     /**
+     * Queries the block node's server status and returns the newest block it has stored, so a request for
+     * blocks up to it can be served entirely from storage.
+     *
+     * @return the last available block number, or -1 if the block node is empty or its status cannot be retrieved
+     */
+    public long getLastAvailableBlock() {
+        try (final var serviceClient = createServiceClient()) {
+            final long lastAvailable =
+                    serviceClient.serverStatus(ServerStatusRequest.DEFAULT).lastAvailableBlock();
+            // An empty block node reports uint64_max
+            return lastAvailable < 0 ? -1 : lastAvailable;
+        } catch (final Exception e) {
+            log.error("Failed to get server status from block node {}:{}", host, port, e);
+            return -1;
+        }
+    }
+
+    /**
      * Probes the block node's server status endpoint to confirm its gRPC port is serving requests.
      *
      * <p>Deliberately ignores the response contents. {@link #getNextExpectedBlock()} returns
@@ -171,6 +189,9 @@ public class BlockNodeSubscribeClient implements AutoCloseable {
             }
             if (status != null) {
                 onError(new IllegalStateException("Received data after terminal subscription status " + status));
+            } else if (rangeComplete() && !response.hasStatus()) {
+                // The block node can send one more live block past the requested end before its final status
+                return;
             } else if (response.hasBlockItems()) {
                 currentBlockItems.addAll(response.blockItemsOrThrow().blockItems());
             } else if (response.hasEndOfBlock()) {
@@ -219,6 +240,10 @@ public class BlockNodeSubscribeClient implements AutoCloseable {
                 terminated = true;
                 done.countDown();
             }
+        }
+
+        private boolean rangeComplete() {
+            return blocks.size() - 1L == endBlock - startBlock;
         }
 
         List<Block> await(final Duration timeout) throws InterruptedException {

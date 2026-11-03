@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.internal;
 
-import static org.hiero.otter.fixtures.internal.AbstractNode.UNSET_WEIGHT;
+import static org.hiero.otter.fixtures.internal.AbstractMiniNode.UNSET_WEIGHT;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;

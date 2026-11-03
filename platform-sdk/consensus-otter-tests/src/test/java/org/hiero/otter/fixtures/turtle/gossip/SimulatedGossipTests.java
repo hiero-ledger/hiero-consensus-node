@@ -274,7 +274,8 @@ class SimulatedGossipTests {
         final NodeId selfId = NodeId.of(0);
         final NodeId peer1 = NodeId.of(1);
         final NodeId peer2 = NodeId.of(2);
-        final SimulatedNetworkConnectivity network = new SimulatedNetworkConnectivity(Randotron.create());
+        final SimulatedNetworkConnectivity network =
+                new SimulatedNetworkConnectivity(Randotron.create(), Instant.EPOCH);
         final TestNode node = addNode(network, selfId, PlatformStatus.ACTIVE, new ArrayList<>(), new ArrayList<>());
         final SimulatedGossip self = node.gossip();
 

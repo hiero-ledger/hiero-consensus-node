@@ -55,9 +55,9 @@ docstring describes the method.
 
 ### Iterations and samples
 
-- **Each iteration records enough calls for the highest reported percentile.** p99.99 needs at least 10⁶ calls per
-  iteration, so that it rests on the 100 slowest; `LatencyProfiler` reports it only from such iterations. Calibration
-  aims higher (the script's `--samples`), so that a slower night still reaches it.
+- **Each iteration records enough calls for the highest reported percentile.** p99.99 is the time that only 0.01% of
+  the calls exceed. With about 10⁶ calls per iteration, it rests on the 100 slowest calls (the script's `--samples`).
+  If that makes the run too long, `LatencyProfiler` skips p99.99 ([writing.md](writing.md#reporting)).
 - **Make the iterations longer rather than combining the histograms of several iterations.** Longer iterations need no
   change to `LatencyProfiler`.
 - **More iterations help only if the iterations of a fork differ more than the forks do.** If the forks differ more,

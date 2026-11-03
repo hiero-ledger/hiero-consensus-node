@@ -289,11 +289,25 @@ public class TokenCreateHandler extends BaseTokenHandler implements TransactionH
     /**
      * Get the expiry metadata for the token to be created from the transaction body.
      *
+     * @param context handle context
      * @param op token creation transaction body
      * @return given expiry metadata
      */
-    private ExpiryMeta getExpiryMeta(@NonNull final TokenCreateTransactionBody op) {
-        final var impliedExpiry = op.hasExpiry() ? op.expiry().seconds() : NA;
+    private ExpiryMeta getExpiryMeta(
+            @NonNull final HandleContext context, @NonNull final TokenCreateTransactionBody op) {
+        final long impliedExpiry;
+        if (op.hasExpiry()) {
+            impliedExpiry = op.expiry().seconds();
+        } else {
+            // Without an explicit expiry, imply one from a usable auto-renew period, falling back to the
+            // maximum entity lifetime; never leave ExpiryMeta.NA to be persisted as the token's expiry
+            final var maxLifetime =
+                    context.configuration().getConfigData(EntitiesConfig.class).maxLifetime();
+            final var autoRenewSeconds =
+                    op.hasAutoRenewPeriod() ? op.autoRenewPeriod().seconds() : NA;
+            final var lifetime = autoRenewSeconds > 0 ? Math.min(autoRenewSeconds, maxLifetime) : maxLifetime;
+            impliedExpiry = context.consensusNow().getEpochSecond() + lifetime;
+        }
 
         return new ExpiryMeta(
                 impliedExpiry,
@@ -326,7 +340,7 @@ public class TokenCreateHandler extends BaseTokenHandler implements TransactionH
         tokenCreateValidator.validate(context, accountStore, op, config);
 
         // validate expiration and auto-renew account if present
-        final var givenExpiryMeta = getExpiryMeta(op);
+        final var givenExpiryMeta = getExpiryMeta(context, op);
         final var resolvedExpiryMeta = context.expiryValidator()
                 .resolveCreationAttempt(false, givenExpiryMeta, HederaFunctionality.TOKEN_CREATE);
 
