@@ -509,9 +509,10 @@ class SavepointStackImplTest extends StateTestBase {
         final var records = new java.util.ArrayList<com.hedera.hapi.node.transaction.TransactionRecord>();
         handleOutput.recordSourceOrThrow().forEachTxnRecord(records::add);
 
-        assertThat(records).singleElement().satisfies(record -> assertThat(
-                        record.receiptOrThrow().blockNumber())
-                .isNull());
+        assertThat(records)
+                .singleElement()
+                .satisfies(record ->
+                        assertThat(record.receiptOrThrow().blockNumber()).isNull());
     }
 
     @Test

@@ -64,7 +64,7 @@ class TestResourceArgumentsProvider : CommandLineArgumentProvider {
                 ?: ((totalMemoryGib - testClientHeapGib) * 1024 * 0.8).toInt().coerceAtLeast(2048)
 
         logger.lifecycle(
-            "Test resource detection: cpus=$availableCpus, totalMem=${String.format("%.1f", totalMemoryGib)}GiB -> processorCount=$testProcessorCount, clientHeap=$testMaxHeap, nodePool=${nodePoolMib}m"
+            "Test resource detection: cpus=$availableCpus, totalMem=${String.format("%.1f", totalMemoryGib)}GiB -> processorCount=$testProcessorCount, clientHeap=$testMaxHeap, nodePool=${nodePoolMib}m",
         )
 
         return listOf(
@@ -82,7 +82,10 @@ mainModuleInfo {
     runtimeOnly("org.junit.platform.launcher")
 }
 
-testModuleInfo { requires("org.mockito") }
+testModuleInfo {
+    requires("org.junit.jupiter.params")
+    requires("org.mockito")
+}
 
 sourceSets { create("rcdiff") }
 
@@ -584,7 +587,7 @@ fun TaskContainer.registerHapiTest(
             "--enable-native-access=" +
                 "com.hedera.common.nativesupport," +
                 "com.hedera.cryptography.libsecp256k1," +
-                "com.hedera.cryptography.libsodium"
+                "com.hedera.cryptography.libsodium",
         )
         // Isolate each subtask's working directory so logs are not overwritten
         systemProperty("hapi.spec.subtask.name", name)
@@ -666,7 +669,7 @@ fun TaskContainer.registerHapiTest(
                             name in prCheckWithoutStreamAndLogValidation
                     )
                         "(${ciTagExpression}${ciDefaultTagsWithoutStreamAndLogValidation})"
-                    else "(${ciTagExpression}${ciDefaultTags})"
+                    else "(${ciTagExpression}${ciDefaultTags})",
                 )
             }
             if (excludeTags != null) {

@@ -27,7 +27,7 @@ import org.junit.jupiter.api.Tag;
  * the channel commit-reveal scheme (§5.1.1 anti-squatting rationale):
  *
  * <ul>
- *   <li><b>Phase 1 — {@code registerConnector}</b> (§6.3): body carries only a 32-byte
+ *   <li><b>Phase 1 — {@code registerConnector}</b> (§6.3): body carries the existing channel ID and a 32-byte
  *       {@code ownership_commitment = keccak256(connector_id || public_key)}; no Connector
  *       state is created.</li>
  *   <li><b>Phase 2 — {@code completeConnector}</b> (§6.3): re-derives
@@ -51,7 +51,7 @@ import org.junit.jupiter.api.Tag;
  *
  * <p>What's kept here: the two pre-body precheck assertions that don't depend on the body
  * shape ({@code CLPR_NOT_ENABLED} on both register and deregister) and a body-shape check
- * for the new register API ({@code commitment.length() == 32}).
+ * for the new register API ({@code commitment.length() == 32} and a 32-byte channel ID).
  */
 @Tag(CLPR)
 public class ClprConnectorSuite {
@@ -68,6 +68,7 @@ public class ClprConnectorSuite {
                 uploadInitCode(CONNECTOR_CONTRACT),
                 contractCreate(CONNECTOR_CONTRACT),
                 clprRegisterConnector()
+                        .channelId(new byte[32])
                         .commitment(new byte[32])
                         .payingWith(GENESIS)
                         .hasPrecheck(CLPR_NOT_ENABLED));
@@ -78,6 +79,7 @@ public class ClprConnectorSuite {
         // Spec §6.3: registerConnector body carries a 32-byte ownership_commitment.
         // ClprRegisterConnectorHandler.pureChecks enforces the length invariant.
         return hapiTest(clprRegisterConnector()
+                .channelId(new byte[32])
                 .commitment(new byte[16]) // wrong length
                 .payingWith(GENESIS)
                 .hasPrecheck(INVALID_TRANSACTION_BODY));

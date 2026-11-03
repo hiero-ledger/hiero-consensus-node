@@ -88,11 +88,12 @@ public class RootProxyWorldUpdater extends ProxyWorldUpdater {
         final boolean explicitWriteTracing = Boolean.TRUE.equals(
                 context.dispatchMetadata().getMetadataIfPresent(EXPLICIT_WRITE_TRACING, Boolean.class));
         txStorageUsage = evmFrameState.getTxStorageUsage(!explicitWriteTracing);
-        final var writes = txStorageUsage.accesses();
+        final var writes = storageManager.getPersistenceChanges(
+                enhancement, txStorageUsage.accesses(), enhancement.operations().getStore());
         // Validate the effects on size are legal
         final var sizeEffects = summarizeSizeEffects(writes);
         storageSizeValidator.assertValid(
-                sizeEffects.finalSlotsUsed(), enhancement.operations(), sizeEffects.sizeChanges());
+                sizeEffects.finalSlotsUsed(), enhancement.nativeOperations(), sizeEffects.sizeChanges());
         // Nested executions commit into the owner's savepoints, so only the owner charges rent for and persists
         // the changes of its whole scope
         if (storageAccountingScope.isOwner()) {
