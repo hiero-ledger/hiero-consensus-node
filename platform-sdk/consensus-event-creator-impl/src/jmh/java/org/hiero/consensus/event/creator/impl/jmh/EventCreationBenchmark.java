@@ -84,7 +84,7 @@ import org.openjdk.jmh.annotations.Warmup;
  * </ul>
  * Setting a new event window, about once per round, and a new platform status are part of neither.
  *
- * <p>Timing starts with the first event window that makes events ancient, in round 29 or 30 of the recordings. Before
+ * <p>Timing starts with the first event window that makes events ancient, in round 29 of both recordings. Before
  * it, every pass repeats what a node goes through once after it starts: its first creation takes many times as long as
  * the later ones, and the event creator's collections grow from empty. Timed, these calls would set the slowest
  * percentiles. They are replayed paused.
@@ -128,7 +128,7 @@ public class EventCreationBenchmark {
     private static final BytesSigner NO_SIGNATURE = _ -> Bytes.EMPTY;
 
     /** The number of nodes in the simulated network. */
-    @Param({"10", "32"})
+    @Param({"10", "28"})
     public int numNodes;
 
     /** What one call of the recording does. */
@@ -345,8 +345,8 @@ public class EventCreationBenchmark {
      */
     private String expectedLastCreated() {
         return switch (numNodes) {
-            case 10 -> "d6597d3f25b6fcbd38204d233fecb256";
-            case 32 -> "ff2eda38b4a90664215f5098f78e3459";
+            case 10 -> "f0903a67847a80904b9862ded96afceb";
+            case 28 -> "976448271408d71c3f7ef40f4e048a76";
             default -> throw new IllegalArgumentException("No expected last event for numNodes=" + numNodes);
         };
     }

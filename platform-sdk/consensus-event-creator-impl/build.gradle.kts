@@ -24,7 +24,7 @@ jmh {
 }
 
 benchmarkTracking {
-    // the recording of 32 nodes takes more than the smoke run's heap and over a minute per fork;
+    // the recording of 28 nodes takes more than the smoke run's heap and over a minute per fork;
     // one parameter set is enough for the smoke run
     smokeArgs = listOf("-p", "numNodes=10")
 }
