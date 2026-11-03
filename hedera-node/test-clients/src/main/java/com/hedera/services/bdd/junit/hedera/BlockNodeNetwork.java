@@ -41,6 +41,7 @@ public class BlockNodeNetwork {
     private final Map<Long, BlockNodeContainer> blockNodeContainerById = new HashMap<>();
     private final Map<Long, Boolean> blockNodeHighLatencyById = new HashMap<>();
     private final Map<Long, BlockNodeTlsMode> blockNodeTlsModeById = new HashMap<>();
+    private final Map<Long, Boolean> blockNodeCatchUpFromPeersById = new HashMap<>();
 
     // SubProcessNode configuration for Block Nodes (just priorities for now)
     private final Map<Long, long[]> blockNodePrioritiesBySubProcessNodeId = new HashMap<>();
@@ -229,7 +230,9 @@ public class BlockNodeNetwork {
             if (mode == BlockNodeMode.REAL) {
                 startRealBlockNodeContainer(blockNodeId);
             } else if (mode == BlockNodeMode.SIMULATOR) {
-                startSimulatorNode(entry.getKey(), null);
+                startSimulatorNode(
+                        blockNodeId,
+                        catchesUpFromPeers(blockNodeId) ? () -> highestPeerVerifiedBlock(blockNodeId) : null);
             }
         }
     }
@@ -329,24 +332,22 @@ public class BlockNodeNetwork {
      */
     private static @Nullable BlockNodeTlsConfig tlsConfigFor(
             @NonNull final BlockNodeTlsMode tlsMode, final boolean streaming) {
-        final boolean enabled =
-                switch (tlsMode) {
-                    case NONE -> false;
-                    case PUBLISH_ONLY -> streaming;
-                    case SERVICE_ONLY -> !streaming;
-                    case ALL, ALL_BAD_FINGERPRINT, ALL_NO_FINGERPRINT -> true;
-                };
+        final boolean enabled = switch (tlsMode) {
+            case NONE -> false;
+            case PUBLISH_ONLY -> streaming;
+            case SERVICE_ONLY -> !streaming;
+            case ALL, ALL_BAD_FINGERPRINT, ALL_NO_FINGERPRINT -> true;
+        };
         if (!enabled) {
             return null;
         }
         // null leaves the fingerprint unset, which makes the consensus node fall back to the platform trust store
-        final String fingerprint =
-                switch (tlsMode) {
-                    case ALL_BAD_FINGERPRINT -> UNMATCHED_FINGERPRINT;
-                    case ALL_NO_FINGERPRINT -> null;
-                    case NONE, PUBLISH_ONLY, SERVICE_ONLY, ALL ->
-                        SelfSignedCert.shared().sha384Fingerprint();
-                };
+        final String fingerprint = switch (tlsMode) {
+            case ALL_BAD_FINGERPRINT -> UNMATCHED_FINGERPRINT;
+            case ALL_NO_FINGERPRINT -> null;
+            case NONE, PUBLISH_ONLY, SERVICE_ONLY, ALL ->
+                SelfSignedCert.shared().sha384Fingerprint();
+        };
         return BlockNodeTlsConfig.newBuilder()
                 .enabled(true)
                 .certificateSha384(fingerprint)
@@ -450,6 +451,28 @@ public class BlockNodeNetwork {
 
     public Map<Long, BlockNodeTlsMode> getBlockNodeTlsModeById() {
         return blockNodeTlsModeById;
+    }
+
+    public Map<Long, Boolean> getBlockNodeCatchUpFromPeersById() {
+        return blockNodeCatchUpFromPeersById;
+    }
+
+    /**
+     * Returns whether the given simulator adopts its peers' latest verified block when it is behind them.
+     */
+    public boolean catchesUpFromPeers(final long id) {
+        return blockNodeCatchUpFromPeersById.getOrDefault(id, false);
+    }
+
+    /**
+     * Returns the highest block verified by any simulator other than the given one, or -1 if there is none.
+     */
+    public long highestPeerVerifiedBlock(final long id) {
+        return simulatedBlockNodeById.entrySet().stream()
+                .filter(entry -> entry.getKey() != id)
+                .mapToLong(entry -> entry.getValue().getLastVerifiedBlockNumber())
+                .max()
+                .orElse(-1L);
     }
 
     public void setRsaBootstrapJson(@NonNull final String rsaBootstrapJson) {

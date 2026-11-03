@@ -73,7 +73,10 @@ public class ClprSendMessageSuite {
                         .configProofBytes(toConfigProofBytes(defaultLedgerConfig()))
                         .payingWith(GENESIS),
                 // §6.3 commit-reveal connector setup — the actual proto API migration.
-                clprRegisterConnector().commitment(crypto.connectorCommitment()).payingWith(GENESIS),
+                clprRegisterConnector()
+                        .channelId(crypto.channelId())
+                        .commitment(crypto.connectorCommitment())
+                        .payingWith(GENESIS),
                 clprCompleteConnector()
                         .connectorId(crypto.connectorId())
                         .publicKey(crypto.publicKey())

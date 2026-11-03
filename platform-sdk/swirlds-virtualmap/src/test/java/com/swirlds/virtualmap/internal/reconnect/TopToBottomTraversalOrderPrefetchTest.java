@@ -453,6 +453,58 @@ class TopToBottomTraversalOrderPrefetchTest {
     }
 
     // ═════════════════════════════════════════════════════════════════════════
+    // Status reporting
+    // ═════════════════════════════════════════════════════════════════════════
+
+    @Nested
+    @DisplayName("getStatus reports the state of active chunks")
+    class StatusTests {
+
+        @Test
+        @DisplayName("A new traversal reports the first chunk with its seeded internals")
+        void statusAfterStart() {
+            final var order = new TopToBottomTraversalOrder();
+            order.start(CHUNK_FIRST, CHUNK_LAST, CHUNK_FIRST, CHUNK_LAST);
+
+            assertEquals(
+                    "activeChunks=1, queuedInternals=16, cleanPaths=0, someDirtyPaths=0",
+                    order.getStatus(),
+                    "Chunk 1 is seeded with 16 internals (31–46)");
+        }
+
+        @Test
+        @DisplayName("Status sums the state of the current and pre-fetched chunks")
+        void statusIncludesPrefetchedChunks() {
+            final var order = new TopToBottomTraversalOrder();
+            order.start(CHUNK_FIRST, CHUNK_LAST, CHUNK_FIRST, CHUNK_LAST);
+
+            drainInternals(order);
+            // Path 31 (rank 5) is dirty: drills down to 8 rank-8 children (255–262), queued in chunk 1
+            order.nodeReceived(31L, false);
+            // Path 32 (rank 5) is clean
+            order.nodeReceived(32L, true);
+            // Path 262 (rank 8) is dirty within RANK_STEP of the leaf rank. It doesn't cover leaf 1023
+            order.nodeReceived(262L, false);
+            // Leaf 1023 has no known parent status: stall, chunk 2 is pre-fetched with 16 internals (47–62)
+            assertEquals(PATH_NOT_AVAILABLE_YET, order.getNextLeafPathToSend());
+
+            assertEquals(
+                    "activeChunks=2, queuedInternals=24, cleanPaths=1, someDirtyPaths=1",
+                    order.getStatus(),
+                    "Status must include both the current chunk and the pre-fetched one");
+        }
+
+        @Test
+        @DisplayName("Simple mode reports no status")
+        void statusInSimpleMode() {
+            final var order = new TopToBottomTraversalOrder();
+            order.start(SIMPLE_FIRST, SIMPLE_LAST, SIMPLE_FIRST, SIMPLE_LAST);
+
+            assertEquals("", order.getStatus(), "Simple mode has no chunks to report");
+        }
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
     // Promotion at end of tree
     // ═════════════════════════════════════════════════════════════════════════
 

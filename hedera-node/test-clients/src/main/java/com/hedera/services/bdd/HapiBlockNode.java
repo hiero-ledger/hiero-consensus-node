@@ -45,6 +45,12 @@ public @interface HapiBlockNode {
          * Which of this block node's APIs are served over TLS. Only honoured by {@link BlockNodeMode#SIMULATOR}.
          */
         BlockNodeTlsMode tls() default BlockNodeTlsMode.NONE;
+
+        /**
+         * If true, this block node adopts its peers' latest verified block whenever it is behind them, as a block
+         * node backfilling from other block nodes would. Only honoured by {@link BlockNodeMode#SIMULATOR}.
+         */
+        boolean catchUpFromPeers() default false;
     }
 
     /**

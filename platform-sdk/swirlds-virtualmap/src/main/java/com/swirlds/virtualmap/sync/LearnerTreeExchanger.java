@@ -19,7 +19,6 @@ import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.LockSupport;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -58,28 +57,21 @@ public final class LearnerTreeExchanger {
     /**
      * Related to the queue above. If a response is received out of order, it's temporarily stored
      * in this map.
+     *
+     * <p>This map has no explicit size limit. Receivers are throttled by flusher backpressure: they block
+     * in {@code storeDirtyLeaf()} while the flusher is busy, then {@code AsyncInputStream} stops reading
+     * the socket. That doesn't cover the applier falling behind while the flusher keeps up, for example if
+     * hashing is slower than the network: receivers keep publishing here, and clean leaf responses never
+     * block at all. In that case, this map grows until the applier catches up. Its size is reported as
+     * {@code responsesWaiting} in the periodic status log.
      */
     private final Map<Long, PullVirtualTreeResponse> responses = new ConcurrentHashMap<>();
 
     private final AtomicBoolean lastLeafSent = new AtomicBoolean(false);
 
     /**
-     * Max number of leaf requests sent to the teacher, whose responses are not fed to the hasher yet.
-     * When this limit is reached, {@link #getNextPathToSend()} stops returning leaf paths. Without this
-     * limit, nothing bounds the number of leaf responses buffered in {@link #responses}, when leaves are
-     * received faster than they are hashed.
-     */
-    private final int maxInFlightLeaves;
-
-    /**
-     * Number of leaf requests sent to the teacher, whose responses are not fed to the hasher yet. Equals
-     * the size of {@link #anticipatedLeafPaths}, which is not used directly as the deque size is O(n).
-     */
-    private final AtomicLong inFlightLeaves = new AtomicLong();
-
-    /**
-     * How often the applier thread logs the state of the leaf pipeline (in-flight leaves, hashing buffer,
-     * flusher) during reconnect.
+     * How often the applier thread logs the state of the leaf pipeline (responses waiting, hashing buffer,
+     * chunk status, flusher) during reconnect.
      */
     private static final long STATUS_LOG_INTERVAL_NANOS = Duration.ofSeconds(60).toNanos();
 
@@ -94,21 +86,14 @@ public final class LearnerTreeExchanger {
      *      the traversal order defining which paths to request
      * @param stats
      *      a ReconnectMapStats object to collect reconnect metrics
-     * @param maxInFlightLeaves
-     *      max number of leaf requests whose responses are not fed to the hasher yet
      */
     public LearnerTreeExchanger(
             @NonNull final VirtualMapLearner vmapLearner,
             @NonNull final NodeTraversalOrder traversalOrder,
-            @NonNull final LearnerSyncMetrics stats,
-            final int maxInFlightLeaves) {
+            @NonNull final LearnerSyncMetrics stats) {
         this.vmapLearner = Objects.requireNonNull(vmapLearner, "vmapLearner is null");
         this.traversalOrder = Objects.requireNonNull(traversalOrder, "traversalOrder is null");
         this.stats = Objects.requireNonNull(stats, "mapStats is null");
-        if (maxInFlightLeaves <= 0) {
-            throw new IllegalArgumentException("maxInFlightLeaves must be positive: " + maxInFlightLeaves);
-        }
-        this.maxInFlightLeaves = maxInFlightLeaves;
     }
 
     /**
@@ -162,12 +147,6 @@ public final class LearnerTreeExchanger {
             return intPath;
         }
         synchronized (this) {
-            // Backpressure: don't request more leaves until the applier feeds some of the already
-            // requested ones to the hasher. Checked under the lock, so concurrent senders can't
-            // overshoot the limit; the applier only ever decreases the counter
-            if (inFlightLeaves.get() >= maxInFlightLeaves) {
-                return NodeTraversalOrder.PATH_NOT_AVAILABLE_YET;
-            }
             // If the last leaf path is sent, all subsequent calls to getNextPathToSend()
             // are expected to return INVALID_PATH, so there is no need to check
             // lastLeafPath.get() here again
@@ -178,7 +157,6 @@ public final class LearnerTreeExchanger {
                 assert (leafPath < 0) || isLeafOnTeacher(leafPath);
                 if (leafPath > 0) {
                     anticipatedLeafPaths.add(leafPath);
-                    inFlightLeaves.incrementAndGet();
                 }
             }
             return leafPath;
@@ -208,9 +186,9 @@ public final class LearnerTreeExchanger {
             // which drains this map in anticipatedLeafPaths FIFO order. Receiver threads stay free to
             // keep draining the socket instead of blocking on a long contiguous-backlog drain.
             //
-            // Publish before the store below: the store may flush to disk on this thread, or block on
-            // flusher backpressure. If the response were published after that, the applier would stall
-            // on this path for the whole flush, while other receivers keep filling the map.
+            // Publish before the store below: the store may block on flusher backpressure until the running
+            // flush completes. If the response were published after that, the applier would stall on this
+            // path for the whole flush, while other receivers keep filling the map.
             responses.put(responsePath, response);
             // Eager, order-independent store: stale-key tracking + leaf store, done in parallel on this
             // receiver the moment the leaf arrives. Only the ordered hash-feed (dirtyLeafReceived, on the
@@ -254,7 +232,6 @@ public final class LearnerTreeExchanger {
             final long applyStart = System.nanoTime();
             handleResponse(r);
             anticipatedLeafPaths.remove();
-            inFlightLeaves.decrementAndGet();
             status.applied(applyStart, System.nanoTime());
         }
 
@@ -276,7 +253,6 @@ public final class LearnerTreeExchanger {
             }
             final long applyStart = System.nanoTime();
             handleResponse(r);
-            inFlightLeaves.decrementAndGet();
             status.applied(applyStart, System.nanoTime());
         }
         status.log(System.nanoTime(), null, 0);
@@ -323,18 +299,17 @@ public final class LearnerTreeExchanger {
             lastLogNanos = now;
             logger.info(
                     RECONNECT.getMarker(),
-                    "Learner leaf pipeline: appliedLeaves={}, inFlightLeaves={} (max {}), responsesWaiting={}, "
-                            + "applyMillis={}, parkedMillis={}, waitingForPath={}, waitingMillis={}, "
-                            + "hashingBuffer={}, flusher: {}",
+                    "Learner leaf pipeline: appliedLeaves={}, responsesWaiting={}, applyMillis={}, "
+                            + "parkedMillis={}, waitingForPath={}, waitingMillis={}, hashingBuffer={}, "
+                            + "chunk status: {}, flusher: {}",
                     appliedLeaves,
-                    inFlightLeaves.get(),
-                    maxInFlightLeaves,
                     responses.size(),
                     TimeUnit.NANOSECONDS.toMillis(applyNanos),
                     TimeUnit.NANOSECONDS.toMillis(parkedNanos),
                     headPath,
                     (headPath == null) ? 0 : TimeUnit.NANOSECONDS.toMillis(now - headWaitStart),
                     vmapLearner.getHashingBufferSize(),
+                    traversalOrder.getStatus(),
                     vmapLearner.getFlusherStatus());
         }
     }
