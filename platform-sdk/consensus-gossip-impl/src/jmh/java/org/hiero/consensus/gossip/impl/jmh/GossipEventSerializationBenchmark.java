@@ -146,16 +146,16 @@ public class GossipEventSerializationBenchmark {
     /** The number of events written or read in one invocation. */
     private static final int NUMBER_OF_EVENTS = 10_000;
 
-    /** The number of nodes that create the events: 32, as in the other consensus-layer benchmarks. */
-    private static final int NUMBER_OF_NODES = 32;
+    /** The number of nodes that create the events: 28, as in the other consensus-layer benchmarks. */
+    private static final int NUMBER_OF_NODES = 28;
 
     /**
      * The SHA-256 digest of the serialized form of all events, by the number of transactions per event. A change to
      * the generated events changes it.
      */
     private static final Map<Integer, String> EXPECTED_DIGESTS = Map.of(
-            0, "c291032c9a54ecaf691f8b55ec779661204ccc6f94f7f0edcc6a568ffaafe7ab",
-            2, "2c1513343e60e542e3e00dada9c331d3f0caba16dd3c6a2cb8e069cacb064d2b");
+            0, "29fd710621a3a00c546c12025957af6e5aa0489e3d686340fb32bce8f2be3eb6",
+            2, "ae32ba9f9d23b68ff4302f5dc2e81f323220beee351fd8bdf39f2f5bdc13f723");
 
     /** The state of {@code write}: the events and the stream they are written to. */
     @State(Scope.Thread)

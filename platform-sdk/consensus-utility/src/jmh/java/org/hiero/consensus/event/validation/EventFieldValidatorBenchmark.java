@@ -121,7 +121,7 @@ public class EventFieldValidatorBenchmark {
      * The number of nodes that create the events. It does not change the validator's work, which only needs more nodes
      * than an event has parents.
      */
-    private static final int NUMBER_OF_NODES = 32;
+    private static final int NUMBER_OF_NODES = 28;
 
     /**
      * The transaction limits of the execution layer's defaults: {@code transaction.maxBytes} and

@@ -115,15 +115,15 @@ public class EventHashingBenchmark {
     private static final int NUMBER_OF_EVENTS = 10_000;
 
     /** The number of nodes that create the events. It only has to exceed the number of parents of an event. */
-    private static final int NUMBER_OF_NODES = 32;
+    private static final int NUMBER_OF_NODES = 28;
 
     /**
      * The SHA-256 digest of the hashes of all events, in order, by the number of transactions per event. A change to
      * the generated events or to the hashing changes it.
      */
     private static final Map<Integer, String> EXPECTED_DIGESTS = Map.of(
-            0, "9223171760a17caf361d0c52ce6a95071dc06107183a0026f254f57ff07a3c93",
-            2, "9e2819c4a599199a7a6ef68ddbd64a58389f7831b5848c8715eb6e8c20da3bbb");
+            0, "31f56f3f0726e1cbd1b4b5f8342c84b93f125e0642c208a18edca1fac1301a2e",
+            2, "d3f80b137c1f39914da40535b74145c12ed097c6c4980bf04d9046514de958fb");
 
     /** The number of transactions of every event. */
     @Param({"0", "2"})

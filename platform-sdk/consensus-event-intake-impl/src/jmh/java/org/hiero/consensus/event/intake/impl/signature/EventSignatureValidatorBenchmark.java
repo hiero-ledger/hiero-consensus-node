@@ -101,11 +101,11 @@ public class EventSignatureValidatorBenchmark {
     private static final long SEED = 0;
 
     /**
-     * The number of nodes, and therefore of distinct public keys: 32, as in the other consensus-layer benchmarks. One
+     * The number of nodes, and therefore of distinct public keys: 28, as in the other consensus-layer benchmarks. One
      * count is enough. In alternating local runs with 4, 10, and 30 nodes, the latency of Ed25519 did not change; with
      * RSA, 30 nodes had a p50 about 0.35% higher, a constant offset.
      */
-    private static final int NUMBER_OF_NODES = 32;
+    private static final int NUMBER_OF_NODES = 28;
 
     /** The number of events validated in one invocation. */
     private static final int NUMBER_OF_EVENTS = 10_000;
