@@ -82,6 +82,8 @@ mainModuleInfo {
     runtimeOnly("org.junit.platform.launcher")
 }
 
+testModuleInfo { requires("org.mockito") }
+
 sourceSets { create("rcdiff") }
 
 val unitTest =
