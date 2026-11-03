@@ -143,6 +143,9 @@ jobs:
     needs:
       - resolve-versions
       - build-consensus-node
+    # The build matrix reports one result, so without this a single failed ref build would skip the legs of every
+    # ref. Legs of the failed ref still start and fail at 821's artifact download; the other refs run normally.
+    if: ${{ !cancelled() && needs.resolve-versions.result == 'success' }}
     strategy:
       fail-fast: false
       max-parallel: 2
@@ -216,11 +219,10 @@ jobs:
         run: |
           JOBS=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/jobs?per_page=100" --jq '.jobs[]' | jq -sc .)
           export JOBS
-          # legs of a ref whose build failed never start, so there are no leg jobs to summarize
+          # legs of a ref whose build failed still start and fail at the artifact download, so every leg has a job
+          LEGS=$(bash .github/workflows/support/scripts/summarize-bn-matrix.sh)
           if [[ "${BUILD_RESULT}" != "success" ]]; then
-            LEGS="- :x: Consensus node build ${BUILD_RESULT}; its legs did not run (see the build jobs)"
-          else
-            LEGS=$(bash .github/workflows/support/scripts/summarize-bn-matrix.sh)
+            LEGS="- :x: Consensus node build ${BUILD_RESULT} for at least one ref (see the build jobs)"$'\n'"${LEGS}"
           fi
           if grep -q ':x:' <<< "${LEGS}"; then HEADER=":x: Block Node version matrix has failures"; else HEADER=":white_check_mark: Block Node version matrix passed"; fi
           {
