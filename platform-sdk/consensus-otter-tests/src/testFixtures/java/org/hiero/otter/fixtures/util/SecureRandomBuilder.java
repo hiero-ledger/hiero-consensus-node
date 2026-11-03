@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.otter.fixtures.internal.simulator;
+package org.hiero.otter.fixtures.util;
 
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;

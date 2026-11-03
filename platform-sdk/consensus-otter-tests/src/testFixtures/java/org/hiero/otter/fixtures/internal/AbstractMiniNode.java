@@ -188,6 +188,16 @@ public abstract class AbstractMiniNode implements MiniNode {
     }
 
     /**
+     * Gets the keys and certificates of this node.
+     *
+     * @return the keys and certificates
+     */
+    @NonNull
+    public KeysAndCerts keysAndCerts() {
+        return keysAndCerts;
+    }
+
+    /**
      * Gets the gossip CA certificate for this node.
      *
      * @return the gossip CA certificate
