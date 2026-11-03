@@ -152,33 +152,30 @@ Reasons:
 * Positive: developers get correct guidance, no consensus change or activation, no risk to funds.
 * Negative: value semantics remain a documented Ethereum divergence, the `amsterdam-hedera` spec-test fork keeps the
   `BALANCE` workaround, and tooling that assumes wei needs documented adapters.
+* Scope: no consensus-node release, HIP or Mirror Node change is required. Ticket 1 in Feature Slicing is the only
+  change in this repository, and it is documentation and tests only.
 
 ### Dependencies
 
 **1. Documentation team**
 
 * [hedera-docs#801](https://github.com/hashgraph/hedera-docs/pull/801): review and merge (open, no reviews yet). Needed
-  for all documentation corrections (slices 1, 3, 4).
+  for all documentation corrections.
 * Agreement on the wording "tinybar inside Solidity, weibar on the JSON-RPC wire". Needed for #801 and the new
   "Hedera EVM vs Ethereum" differences entry.
 
 **2. Smart Contract team**
 
-* A Solo or testnet network and solc >= 0.8.24, to verify every documentation example empirically (issue 2).
+* A Solo or testnet network and solc >= 0.8.24, to verify every documentation example empirically (ticket 2).
 
-No consensus-node release, HIP or Mirror Node change is required for Option 2. Slice 2 below is
-the only change in this repository, and it is documentation and tests only.
+### Feature Slicing (Tickets)
 
-### Feature Slicing (Issues)
+Each tickets is independently shippable and ordered by value.
 
-Each slice is independently shippable and ordered by value.
-
-| # | Slice                            | Scope                                                                                                                                                                                                      | Estimate |
+| # | Title                            | Scope                                                                                                                                                                                                      | Estimate |
 |---|----------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------|
 | 1 | Pin the behavior in this repo    | Javadoc on `DispatchingEvmFrameState.getBalance()` and `HederaEvmTransaction.weiValue()` stating the unit is tinybar, plus unit tests asserting `BALANCE`/`CALLVALUE` return tinybars, and no logic change | 1d       |
 | 2 | Verify docs examples empirically | Compile and run the corrected snippets (exchange-rate, create-tokens, WHBAR) against Solo and fix any remaining wrong example (WHBAR source already checked)                                               | 1d       |
-
-Slices 1 and 2 can start immediately and in parallel.
 
 ## References
 
