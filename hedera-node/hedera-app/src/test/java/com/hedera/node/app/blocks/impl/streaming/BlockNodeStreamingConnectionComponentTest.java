@@ -25,7 +25,9 @@ import com.hedera.hapi.block.internal.EndStreamBytes;
 import com.hedera.hapi.block.internal.PublishStreamRequestBytes;
 import com.hedera.hapi.block.internal.PublishStreamRequestBytes.RequestOneOfType;
 import com.hedera.hapi.block.stream.BlockItem;
-import com.hedera.node.app.blocks.impl.streaming.BlockNodeStreamingConnection.SendRequestResult;
+import com.hedera.node.app.blocks.impl.streaming.BlockNodePublisherConnection.PublisherBlockItemsRequest;
+import com.hedera.node.app.blocks.impl.streaming.BlockNodePublisherConnection.PublisherRequest;
+import com.hedera.node.app.blocks.impl.streaming.BlockNodePublisherConnection.SendRequestResult;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeHelidonGrpcConfiguration;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeHelidonHttpConfiguration;
@@ -92,19 +94,20 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
     static {
         try {
             final Lookup lookup = MethodHandles.lookup();
-            final Class<?> cls = BlockNodeStreamingConnection.class;
+            final Class<?> streamingCls = BlockNodeStreamingConnection.class;
+            final Class<?> publisherCls = BlockNodePublisherConnection.class;
 
-            streamingBlockNumberHandle = MethodHandles.privateLookupIn(cls, lookup)
-                    .findVarHandle(cls, "streamingBlockNumber", AtomicLong.class);
-            workerThreadRefHandle = MethodHandles.privateLookupIn(cls, lookup)
-                    .findVarHandle(cls, "workerThreadRef", AtomicReference.class);
+            streamingBlockNumberHandle = MethodHandles.privateLookupIn(streamingCls, lookup)
+                    .findVarHandle(streamingCls, "streamingBlockNumber", AtomicLong.class);
+            workerThreadRefHandle = MethodHandles.privateLookupIn(streamingCls, lookup)
+                    .findVarHandle(streamingCls, "workerThreadRef", AtomicReference.class);
 
-            final Method sendRequest =
-                    cls.getDeclaredMethod("sendRequest", BlockNodeStreamingConnection.StreamRequest.class);
+            final Method sendRequest = publisherCls.getDeclaredMethod("sendRequest", PublisherRequest.class);
             sendRequest.setAccessible(true);
             sendRequestHandle = lookup.unreflect(sendRequest);
 
-            final Method calculateRequestTimeout = cls.getDeclaredMethod("calculateRequestTimeout", long.class);
+            final Method calculateRequestTimeout =
+                    publisherCls.getDeclaredMethod("calculateRequestTimeout", long.class);
             calculateRequestTimeout.setAccessible(true);
             calculateRequestTimeoutHandle = lookup.unreflect(calculateRequestTimeout);
         } catch (final Exception e) {
@@ -1237,8 +1240,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         // Send request in a separate thread
         final Thread testThread = Thread.ofVirtual().start(() -> {
             try {
-                sendRequest(new BlockNodeStreamingConnection.BlockItemsStreamRequest(
-                        request, 1L, 1, 1, false, false, 3_000, 1));
+                sendRequest(new PublisherBlockItemsRequest(request, 1L, 1, 1, false, false, 3_000, 1));
             } catch (final RuntimeException e) {
                 exceptionRef.set(e);
             }
@@ -1293,7 +1295,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         final CountDownLatch latch = new CountDownLatch(1);
         Thread.ofVirtual().start(() -> {
             try {
-                connection.close(CloseReason.CONNECTION_ERROR, true);
+                connection.close(CloseReason.CONNECTION_ERROR, true, EndStream.Code.RESET);
             } finally {
                 isInterrupted.set(Thread.currentThread().isInterrupted());
                 latch.countDown();
@@ -1533,7 +1535,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         verify(metrics, times(3)).recordRequestBlockItemCount(2);
         verify(metrics, times(3)).recordRequestBytes(anyLong());
         verify(metrics, times(4)).recordRequestLatency(anyLong());
-        verify(metrics).recordRequestEndStreamSent(PublishStreamRequest.EndStream.Code.RESET);
+        verify(metrics).recordRequestEndStreamSent(PublishStreamRequest.EndStream.Code.ERROR);
         verify(requestCall, times(7)).sendRequest(any(PublishStreamRequestBytes.class), anyBoolean());
         verify(requestCall).completeRequests();
         verifyNoMoreInteractions(requestCall);
@@ -1750,12 +1752,12 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         return (long) calculateRequestTimeoutHandle.invoke(connection, payloadSizeInBytes);
     }
 
-    private SendRequestResult sendRequest(final BlockNodeStreamingConnection.StreamRequest request) {
+    private SendRequestResult sendRequest(final PublisherRequest request) {
         return sendRequest(connection, request);
     }
 
     private SendRequestResult sendRequest(
-            final BlockNodeStreamingConnection connection, final BlockNodeStreamingConnection.StreamRequest request) {
+            final BlockNodeStreamingConnection connection, final PublisherRequest request) {
         try {
             return (SendRequestResult) sendRequestHandle.invoke(connection, request);
         } catch (final Throwable e) {

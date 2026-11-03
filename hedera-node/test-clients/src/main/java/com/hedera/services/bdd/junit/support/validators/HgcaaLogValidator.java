@@ -109,6 +109,8 @@ public class HgcaaLogValidator {
                 // Not present on OS X
                 List.of("Native library besu blake2bf is not present"),
                 List.of("Restarted WRAPS signing"),
+                // Only node3's, which InvalidProofKeyLivenessTest makes publish keys that can't be used
+                List.of("ProofControllerImpl", "Ignoring proof key from node3 for construction"),
                 // A WRAPS-extensible history proof is a single ~63MB savepoint batch, which trips
                 // the streamMode=BOTH block size circuit breaker (blockStream.maxBlockSizeBytes)
                 List.of("BlockStreamManagerImpl", "suppressing savepoint output for the rest of the block"),
