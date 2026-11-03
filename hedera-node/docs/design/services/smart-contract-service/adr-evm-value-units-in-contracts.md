@@ -8,7 +8,7 @@ Inside the Hedera EVM, `BALANCE`, `SELFBALANCE` (`address.balance`) and `CALLVAL
 EVM-equivalent value. For example, an account holding 0.29 HBAR reports `29_000_000` instead of
 `290_000_000_000_000_000` ([#27582](https://github.com/hiero-ledger/hiero-consensus-node/issues/27582)).
 
-Where the tinybar behavior comes from (verified in this repo at `c31ff872a52`):
+Where the tinybar behavior comes from (verified in https://github.com/hiero-ledger/hiero-consensus-node at `c31ff872a52`):
 
 | Opcode                   | Code path                                                                                                                                 | Unit    |
 |--------------------------|-------------------------------------------------------------------------------------------------------------------------------------------|---------|
@@ -19,7 +19,7 @@ Where the tinybar behavior comes from (verified in this repo at `c31ff872a52`):
 Ethereum transactions arrive with `value` in weibar (`EthTxData.value`) and are divided by `WEIBARS_IN_A_TINYBAR`
 before the EVM runs (`EthTxData.getAmount()` / `effectiveTinybarValue()`), so only the JSON-RPC wire format is weibar.
 
-There seems no document recording a deliberate decision to expose tinybars to Solidity: no design doc in this repo, no
+There seems no document recording a deliberate decision to expose tinybars to Solidity: no design doc in https://github.com/hiero-ledger/hiero-consensus-node, no
 comment at the original code and [HIP-410]([HIP-410](https://hips.hedera.com/#hip-410)) defines weibar only for the
 transaction envelope and never mentions
 `msg.value`.
@@ -27,12 +27,12 @@ transaction envelope and never mentions
 Worse, the **published Hedera documentation describes the opposite**. These pages say `msg.value` is 18-decimal
 inside contracts:
 
-* [troubleshooting](https://docs.hedera.com/evm/development/troubleshooting): "Inside an EVM contract, `msg.value`,
+* [Troubleshooting](https://docs.hedera.com/evm/development/troubleshooting): "Inside an EVM contract, `msg.value`,
   `balance`, and `gasPrice` all use 18 decimals".
-* [exchange-rate system contract](https://docs.hedera.com/evm/hedera-services/system-contracts/exchange-rate): example
+* [Exchange Rate System Contract](https://docs.hedera.com/evm/hedera-services/system-contracts/exchange-rate): example
   multiplies `tinycentsToTinybars` by `10**10` before comparing with `msg.value`.
 * [WHBAR](https://docs.hedera.com/evm/tokens/whbar): `deposit{value: 10 * 10**18}()`.
-* [decimal handling](https://docs.hedera.com/evm/differences/hbar-decimals): contradicts itself (one row says the EVM
+* [Decimal Handling](https://docs.hedera.com/evm/differences/hbar-decimals): contradicts itself (one row says the EVM
   keeps 8 decimals, another says `msg.value` is 18).
 
 [hedera-docs#792](https://github.com/hashgraph/hedera-docs/issues/792) (open, 2026-10-06) reports exactly this: the
