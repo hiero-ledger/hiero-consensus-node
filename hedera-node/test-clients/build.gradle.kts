@@ -82,7 +82,10 @@ mainModuleInfo {
     runtimeOnly("org.junit.platform.launcher")
 }
 
-testModuleInfo { requires("org.junit.jupiter.params") }
+testModuleInfo {
+    requires("org.junit.jupiter.params")
+    requires("org.mockito")
+}
 
 sourceSets { create("rcdiff") }
 
