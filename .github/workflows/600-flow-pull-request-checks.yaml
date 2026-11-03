@@ -70,6 +70,7 @@ jobs:
       enable-unit-tests: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-integration-tests: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-hapi-tests: ${{ needs.detect-change-type.outputs.enable-tests }}
+      enable-hapi-tests-no-tss: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-otter-tests: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-snyk-scan: ${{ needs.detect-change-type.outputs.enable-tests }}
       java-version: ${{ needs.extract-jdk-version.outputs.jdk-version }}

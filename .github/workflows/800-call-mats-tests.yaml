@@ -28,6 +28,11 @@ on:
         type: string
         required: false
         default: "false"
+      enable-hapi-tests-no-tss:
+        description: "HAPI Testing (No TSS) Enabled"
+        type: string
+        required: false
+        default: "false"
       enable-otter-tests:
         description: "Otter Tests Enabled"
         type: string
@@ -203,6 +208,23 @@ jobs:
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
+  mats-hapi-tests-no-tss:
+    name: HAPI Tests (No TSS)
+    if: ${{ inputs.enable-hapi-tests-no-tss == 'true' }}
+    uses: ./.github/workflows/860-call-execute-hapi-no-tss.yaml
+    needs:
+      - commit-info
+      - compile-and-spotless
+    with:
+      ref: ${{ needs.commit-info.outputs.sha || '' }}
+      java-version: "${{ inputs.java-version }}"
+      java-distribution: "${{ inputs.java-distribution }}"
+      enable-network-log-capture: "true"
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
   mats-otter-tests:
     name: Otter Tests
     if: ${{ inputs.enable-otter-tests == 'true' }}
@@ -282,6 +304,7 @@ jobs:
       - mats-unit-tests
       - mats-integration-tests
       - mats-hapi-tests
+      - mats-hapi-tests-no-tss
       - mats-otter-tests
       - mats-snyk-scan
       - mats-gradle-determinism
@@ -304,6 +327,7 @@ jobs:
             ${{ needs.mats-unit-tests.result }}
             ${{ needs.mats-integration-tests.result }}
             ${{ needs.mats-hapi-tests.result }}
+            ${{ needs.mats-hapi-tests-no-tss.result }}
             ${{ needs.mats-otter-tests.result }}
             ${{ needs.mats-snyk-scan.result }}
             ${{ needs.mats-gradle-determinism.result }}
@@ -315,6 +339,7 @@ jobs:
             ${{ needs.mats-unit-tests.outputs.failure-mode || 'none' }}
             ${{ needs.mats-integration-tests.outputs.failure-mode || 'none' }}
             ${{ needs.mats-hapi-tests.outputs.failure-mode || 'none' }}
+            ${{ needs.mats-hapi-tests-no-tss.outputs.failure-mode || 'none' }}
             ${{ needs.mats-otter-tests.outputs.failure-mode || 'none' }}
             ${{ needs.mats-snyk-scan.outputs.failure-mode || 'none' }}
             ${{ needs.mats-gradle-determinism.outputs.failure-mode || 'none' }}
@@ -326,6 +351,7 @@ jobs:
             mats-unit-tests
             mats-integration-tests
             mats-hapi-tests
+            mats-hapi-tests-no-tss
             mats-otter-tests
             mats-snyk-scan
             mats-gradle-determinism

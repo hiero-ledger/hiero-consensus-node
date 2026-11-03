@@ -49,6 +49,10 @@ on:
         type: string
         description: "Run Block Node Regression Panel"
         default: "false"
+      enable-sha256-roster-rekey-panel:
+        type: string
+        description: "Run Solo SHA-256 Roster Rekey Panel"
+        default: "true"
       solo-version:
         type: string
         description: "The solo version to use for the regression panels"
@@ -255,6 +259,19 @@ jobs:
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
+  solo-sha256-roster-rekey-panel:
+    name: Solo SHA-256 Roster Rekey Panel
+    needs:
+      - commit-info
+      - build
+    if: ${{ needs.build.result == 'success' && inputs.enable-sha256-roster-rekey-panel == 'true' }}
+    uses: ./.github/workflows/858-call-solo-sha256-roster-rekey.yaml
+    with:
+      ref: ${{ needs.commit-info.outputs.sha }}
+      custom-job-name: "${{ inputs.custom-job-label }} Solo SHA-256 Roster Rekey"
+      solo-version: "${{ inputs.solo-version }}"
+      java-version: "${{ inputs.java-version }}"
+
   xts-otter-tests:
     name: XTS Otter Tests
     needs:
@@ -405,6 +422,7 @@ jobs:
       - xts-hammer-tests
       - xts-hapi-tests
       - xts-hapi-tests-testnet
+      - solo-sha256-roster-rekey-panel
       - xts-otter-tests
       - hedera-node-jrs-panel
       - sdk-tck-regression-panel
@@ -429,6 +447,7 @@ jobs:
             ${{ needs.xts-hammer-tests.result }}
             ${{ needs.xts-hapi-tests.result }}
             ${{ needs.xts-hapi-tests-testnet.result }}
+            ${{ needs.solo-sha256-roster-rekey-panel.result }}
             ${{ needs.xts-otter-tests.result }}
             ${{ needs.hedera-node-jrs-panel.result }}
             ${{ needs.sdk-tck-regression-panel.result }}
@@ -442,6 +461,7 @@ jobs:
             ${{ needs.xts-hammer-tests.outputs.failure-mode || 'none' }}
             ${{ needs.xts-hapi-tests.outputs.failure-mode || 'none' }}
             ${{ needs.xts-hapi-tests-testnet.outputs.failure-mode || 'none' }}
+            ${{ needs.solo-sha256-roster-rekey-panel.outputs.failure-mode || 'none' }}
             ${{ needs.xts-otter-tests.outputs.failure-mode || 'none' }}
             ${{ needs.hedera-node-jrs-panel.outputs.failure-mode || 'none' }}
             ${{ needs.sdk-tck-regression-panel.outputs.failure-mode || 'none' }}
@@ -455,6 +475,7 @@ jobs:
             xts-hammer-tests
             xts-hapi-tests
             xts-hapi-tests-testnet
+            solo-sha256-roster-rekey-panel
             xts-otter-tests
             hedera-node-jrs-panel
             sdk-tck-regression-panel

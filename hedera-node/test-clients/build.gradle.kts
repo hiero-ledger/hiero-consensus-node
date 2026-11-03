@@ -139,6 +139,11 @@ val prCheckTags =
         "hapiTestBlockHashingSha256" to "BLOCK_HASHING|STREAM_VALIDATION",
         "hapiTestNodeStaking" to "(NODE_STAKING)&!(SERIAL)",
         "hapiTestNodeStakingSerial" to "(NODE_STAKING&SERIAL)",
+        // TSS-disabled variants for PR checks on code paths that normally need TSS
+        "hapiTestRestartNoTss" to "RESTART|UPGRADE",
+        "hapiTestNDReconnectNoTss" to "ND_RECONNECT",
+        "hapiTestAtomicBatchSerialNoTss" to "(ATOMIC_BATCH&SERIAL)",
+        "hapiTestTimeConsumingSerialNoTss" to "LONG_RUNNING",
     )
 
 val remoteCheckTags =
@@ -151,6 +156,10 @@ val remoteCheckTags =
                     "hapiTestNodeStaking",
                     "hapiTestToken",
                     "hapiTestTokenSerial",
+                    "hapiTestRestartNoTss",
+                    "hapiTestNDReconnectNoTss",
+                    "hapiTestAtomicBatchSerialNoTss",
+                    "hapiTestTimeConsumingSerialNoTss",
                 )
         }
         .mapKeys { (key, _) -> key.replace("hapiTest", "remoteTest") }
@@ -185,6 +194,10 @@ val prCheckStartPorts =
         "hapiTestGenesisSubProcess" to "30000",
         "hapiTestNodeStaking" to "30200",
         "hapiTestTimeConsumingSerial" to "30400",
+        "hapiTestRestartNoTss" to "30600",
+        "hapiTestNDReconnectNoTss" to "31000",
+        "hapiTestAtomicBatchSerialNoTss" to "31200",
+        "hapiTestTimeConsumingSerialNoTss" to "31400",
     )
 // TSS is off by default on this branch, so the tasks that exercise it pin the hinTS/history
 // flags here (applied with or without the testnet profile)
@@ -240,6 +253,16 @@ val prCheckPropOverrides =
             "blockStream.writerMode=FILE,nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
         "hapiTestNodeStakingSerial" to
             "blockStream.writerMode=FILE,nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
+        // TSS-disabled variants: explicit tss.hintsEnabled/historyEnabled/forceMockSignatures
+        // overrides ensure these tasks run with TSS fully off regardless of branch defaults
+        "hapiTestRestartNoTss" to
+            "blockStream.writerMode=FILE,tss.hintsEnabled=false,tss.historyEnabled=false,tss.forceMockSignatures=true,block.stateproof.verification.enabled=false,tss.forceHandoffs=true,blockStream.blockPeriod=1s,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
+        "hapiTestNDReconnectNoTss" to
+            "tss.hintsEnabled=false,tss.historyEnabled=false,tss.forceMockSignatures=true,block.stateproof.verification.enabled=false",
+        "hapiTestAtomicBatchSerialNoTss" to
+            "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,tss.hintsEnabled=false,tss.historyEnabled=false,tss.forceMockSignatures=true,block.stateproof.verification.enabled=false",
+        "hapiTestTimeConsumingSerialNoTss" to
+            "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,tss.hintsEnabled=false,tss.historyEnabled=false,tss.forceMockSignatures=true,block.stateproof.verification.enabled=false",
     )
 
 // Pins needed only while the production block stream and TSS defaults are pre-cutover; the
@@ -334,7 +357,9 @@ fun hapiTestOverrides(name: String, embedded: Boolean, remote: Boolean): Map<Str
 val prCheckPlatformOverrides =
     mapOf(
         "hapiTestRestart" to
-            "platformStatus.observingStatusDelay=10s,reconnect.minimumTimeBetweenReconnects=10s"
+            "platformStatus.observingStatusDelay=10s,reconnect.minimumTimeBetweenReconnects=10s",
+        "hapiTestRestartNoTss" to
+            "platformStatus.observingStatusDelay=10s,reconnect.minimumTimeBetweenReconnects=10s",
     )
 val prCheckPrepareUpgradeOffsets = mapOf("hapiTestAdhoc" to "PT300S")
 val prCheckAssertAtLeastOneWraps =

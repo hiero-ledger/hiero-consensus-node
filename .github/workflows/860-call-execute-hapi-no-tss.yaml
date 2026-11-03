@@ -1,0 +1,379 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "860: [CALL] Exec HAPI Tests (No TSS)"
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "The branch, tag or SHA to checkout."
+        required: false
+        type: string
+        default: ""
+      java-distribution:
+        description: "Java JDK Distribution:"
+        required: false
+        type: string
+        default: "temurin"
+      java-version:
+        description: "Java JDK Version:"
+        required: false
+        type: string
+      node-version:
+        description: "NodeJS Version:"
+        required: false
+        type: string
+        default: "24"
+      enable-network-log-capture:
+        description: "Network Log Capture Enabled"
+        required: false
+        type: string
+        default: "false"
+      name-suffix:
+        description: "Suffix for the job, check and artifact names (keeps reruns apart from MATS)"
+        required: false
+        type: string
+        default: ""
+    secrets:
+      access-token:
+        description: "The GitHub access token used to checkout the repository, submodules, and make GitHub API calls."
+        required: true
+      gradle-cache-username:
+        description: "The username used to authenticate with the Gradle Build Cache Node."
+        required: true
+      gradle-cache-password:
+        description: "The password used to authenticate with the Gradle Build Cache Node."
+        required: true
+
+    outputs:
+      failure-mode:
+        description: "Indicates the failure mode of the workflow, if any."
+        value: ${{ jobs.set-failure-mode.outputs.failure-mode }}
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  id-token: write
+  actions: read
+  pull-requests: write
+  statuses: write
+  checks: write
+  contents: read
+
+env:
+  GRADLE_CACHE_USERNAME: ${{ secrets.gradle-cache-username }}
+  GRADLE_CACHE_PASSWORD: ${{ secrets.gradle-cache-password }}
+  GRADLE_EXEC: ionice -c 2 -n 2 nice -n 19 ./gradlew
+  CG_EXEC: ionice -c 2 -n 2 nice -n 19
+
+jobs:
+  hapi-tests-restart-no-tss:
+    name: "HAPI Tests (Restart, No TSS)${{ inputs.name-suffix }}"
+    runs-on: hl-cn-hapi-lin-lg
+    steps:
+      - name: Prepare Runner
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+        with:
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref }}"
+          checkout-fetch-depth: "1"
+          checkout-token: "${{ secrets.access-token }}"
+          setup-java: "true"
+          java-version: "${{ inputs.java-version }}"
+          java-distribution: "${{ inputs.java-distribution }}"
+          setup-gradle: "true"
+          setup-testlens: "true"
+          gradle-cache-read-only: "false"
+          setup-node: "true"
+          node-version: "${{ inputs.node-version }}"
+
+      - name: Clean Prior Test Outputs
+        run: rm -rf hedera-node/test-clients/build/test-results/testSubprocess
+
+      - name: HAPI Testing (Restart, No TSS)
+        id: gradle-run
+        env:
+          LC_ALL: en.UTF-8
+          LANG: en_US.UTF-8
+        run: ${GRADLE_EXEC} hapiTestRestartNoTss
+
+      - name: Publish HAPI Test (Restart, No TSS) Reports
+        uses: step-security/publish-unit-test-result-action@681100d67b09305624c089873f12c545ee7cbc24 # v2.23.0
+        with:
+          check_name: "Node: HAPI Test (Restart, No TSS)${{ inputs.name-suffix }} Results"
+          json_thousands_separator: ","
+          junit_files: "hedera-node/test-clients/build/test-results/testSubprocess/**/TEST-*.xml"
+          comment_mode: errors
+
+      - name: Upload HAPI Test (Restart, No TSS) Report Artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: "HAPI Test (Restart, No TSS)${{ inputs.name-suffix }} Reports"
+          path: "hedera-node/test-clients/build/test-results/testSubprocess/**/TEST-*.xml"
+          retention-days: 7
+
+      - name: Upload HAPI Test (Restart, No TSS) Network Logs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ !cancelled() && inputs.enable-network-log-capture && steps.gradle-run.conclusion == 'failure' }}
+        with:
+          name: "HAPI Test (Restart, No TSS)${{ inputs.name-suffix }} Network Logs"
+          path: |
+            hedera-node/test-clients/build/*-test/**/output/**
+            hedera-node/test-clients/build/*-test/*.log
+            hedera-node/test-clients/output/**
+          retention-days: 7
+
+      - name: Upload HAPI Test (Restart, No TSS) Failure Artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ !cancelled() && steps.gradle-run.conclusion == 'failure' }}
+        with:
+          name: "HAPI Test (Restart, No TSS)${{ inputs.name-suffix }} Failure Artifacts"
+          path: |
+            hedera-node/test-clients/build/**/*.blk.gz
+            hedera-node/test-clients/build/**/*.rcd.gz
+            hedera-node/test-clients/build/**/*.pb
+            hedera-node/test-clients/build/**/*.pces
+            hedera-node/test-clients/build/*-test/**/output/**
+            hedera-node/test-clients/build/*-test/**/*.log
+            hedera-node/test-clients/output/**
+          retention-days: 7
+
+  hapi-tests-nd-reconnect-no-tss:
+    name: "HAPI Tests (ND Reconnect, No TSS)${{ inputs.name-suffix }}"
+    runs-on: hl-cn-hapi-lin-lg
+    steps:
+      - name: Prepare Runner
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+        with:
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref }}"
+          checkout-fetch-depth: "1"
+          checkout-token: "${{ secrets.access-token }}"
+          setup-java: "true"
+          java-version: "${{ inputs.java-version }}"
+          java-distribution: "${{ inputs.java-distribution }}"
+          setup-gradle: "true"
+          setup-testlens: "true"
+          gradle-cache-read-only: "false"
+          setup-node: "true"
+          node-version: "${{ inputs.node-version }}"
+
+      - name: Clean Prior Test Outputs
+        run: rm -rf hedera-node/test-clients/build/test-results/testSubprocess
+
+      - name: HAPI Testing (ND Reconnect, No TSS)
+        id: gradle-run
+        env:
+          LC_ALL: en.UTF-8
+          LANG: en_US.UTF-8
+        run: ${GRADLE_EXEC} hapiTestNDReconnectNoTss
+
+      - name: Publish HAPI Test (ND Reconnect, No TSS) Reports
+        uses: step-security/publish-unit-test-result-action@681100d67b09305624c089873f12c545ee7cbc24 # v2.23.0
+        with:
+          check_name: "Node: HAPI Test (ND Reconnect, No TSS)${{ inputs.name-suffix }} Results"
+          json_thousands_separator: ","
+          junit_files: "hedera-node/test-clients/build/test-results/testSubprocess/**/TEST-*.xml"
+          comment_mode: errors
+
+      - name: Upload HAPI Test (ND Reconnect, No TSS) Report Artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: "HAPI Test (ND Reconnect, No TSS)${{ inputs.name-suffix }} Reports"
+          path: "hedera-node/test-clients/build/test-results/testSubprocess/**/TEST-*.xml"
+          retention-days: 7
+
+      - name: Upload HAPI Test (ND Reconnect, No TSS) Network Logs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ !cancelled() && inputs.enable-network-log-capture && steps.gradle-run.conclusion == 'failure' }}
+        with:
+          name: "HAPI Test (ND Reconnect, No TSS)${{ inputs.name-suffix }} Network Logs"
+          path: |
+            hedera-node/test-clients/build/*-test/**/output/**
+            hedera-node/test-clients/build/*-test/*.log
+            hedera-node/test-clients/output/**
+          retention-days: 7
+
+      - name: Upload HAPI Test (ND Reconnect, No TSS) Failure Artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ !cancelled() && steps.gradle-run.conclusion == 'failure' }}
+        with:
+          name: "HAPI Test (ND Reconnect, No TSS)${{ inputs.name-suffix }} Failure Artifacts"
+          path: |
+            hedera-node/test-clients/build/**/*.blk.gz
+            hedera-node/test-clients/build/**/*.rcd.gz
+            hedera-node/test-clients/build/**/*.pb
+            hedera-node/test-clients/build/**/*.pces
+            hedera-node/test-clients/build/*-test/**/output/**
+            hedera-node/test-clients/build/*-test/**/*.log
+            hedera-node/test-clients/output/**
+          retention-days: 7
+
+  hapi-tests-atomic-batch-serial-no-tss:
+    name: "HAPI Tests (Atomic Batch Serial, No TSS)${{ inputs.name-suffix }}"
+    runs-on: hl-cn-hapi-lin-lg
+    steps:
+      - name: Prepare Runner
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+        with:
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref }}"
+          checkout-fetch-depth: "1"
+          checkout-token: "${{ secrets.access-token }}"
+          setup-java: "true"
+          java-version: "${{ inputs.java-version }}"
+          java-distribution: "${{ inputs.java-distribution }}"
+          setup-gradle: "true"
+          setup-testlens: "true"
+          gradle-cache-read-only: "false"
+          setup-node: "true"
+          node-version: "${{ inputs.node-version }}"
+
+      - name: Clean Prior Test Outputs
+        run: rm -rf hedera-node/test-clients/build/test-results/testSubprocess
+
+      - name: HAPI Testing (Atomic Batch Serial, No TSS)
+        id: gradle-run
+        env:
+          LC_ALL: en.UTF-8
+          LANG: en_US.UTF-8
+        run: ${GRADLE_EXEC} hapiTestAtomicBatchSerialNoTss
+
+      - name: Publish HAPI Test (Atomic Batch Serial, No TSS) Reports
+        uses: step-security/publish-unit-test-result-action@681100d67b09305624c089873f12c545ee7cbc24 # v2.23.0
+        with:
+          check_name: "Node: HAPI Test (Atomic Batch Serial, No TSS)${{ inputs.name-suffix }} Results"
+          json_thousands_separator: ","
+          junit_files: "hedera-node/test-clients/build/test-results/testSubprocess/**/TEST-*.xml"
+          comment_mode: errors
+
+      - name: Upload HAPI Test (Atomic Batch Serial, No TSS) Report Artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: "HAPI Test (Atomic Batch Serial, No TSS)${{ inputs.name-suffix }} Reports"
+          path: "hedera-node/test-clients/build/test-results/testSubprocess/**/TEST-*.xml"
+          retention-days: 7
+
+      - name: Upload HAPI Test (Atomic Batch Serial, No TSS) Network Logs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ !cancelled() && inputs.enable-network-log-capture && steps.gradle-run.conclusion == 'failure' }}
+        with:
+          name: "HAPI Test (Atomic Batch Serial, No TSS)${{ inputs.name-suffix }} Network Logs"
+          path: |
+            hedera-node/test-clients/build/*-test/**/output/**
+            hedera-node/test-clients/build/*-test/*.log
+            hedera-node/test-clients/output/**
+          retention-days: 7
+
+      - name: Upload HAPI Test (Atomic Batch Serial, No TSS) Failure Artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ !cancelled() && steps.gradle-run.conclusion == 'failure' }}
+        with:
+          name: "HAPI Test (Atomic Batch Serial, No TSS)${{ inputs.name-suffix }} Failure Artifacts"
+          path: |
+            hedera-node/test-clients/build/**/*.blk.gz
+            hedera-node/test-clients/build/**/*.rcd.gz
+            hedera-node/test-clients/build/**/*.pb
+            hedera-node/test-clients/build/**/*.pces
+            hedera-node/test-clients/build/*-test/**/output/**
+            hedera-node/test-clients/build/*-test/**/*.log
+            hedera-node/test-clients/output/**
+          retention-days: 7
+
+  hapi-tests-time-consuming-no-tss:
+    name: "HAPI Tests (Time Consuming Serial, No TSS)${{ inputs.name-suffix }}"
+    runs-on: hl-cn-hapi-lin-lg
+    steps:
+      - name: Prepare Runner
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+        with:
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref }}"
+          checkout-fetch-depth: "1"
+          checkout-token: "${{ secrets.access-token }}"
+          setup-java: "true"
+          java-version: "${{ inputs.java-version }}"
+          java-distribution: "${{ inputs.java-distribution }}"
+          setup-gradle: "true"
+          setup-testlens: "true"
+          gradle-cache-read-only: "false"
+          setup-node: "true"
+          node-version: "${{ inputs.node-version }}"
+
+      - name: Clean Prior Test Outputs
+        run: rm -rf hedera-node/test-clients/build/test-results/testSubprocess
+
+      - name: HAPI Testing (Time Consuming Serial, No TSS)
+        id: gradle-run
+        env:
+          LC_ALL: en.UTF-8
+          LANG: en_US.UTF-8
+        run: ${GRADLE_EXEC} hapiTestTimeConsumingSerialNoTss
+
+      - name: Publish HAPI Test (Time Consuming Serial, No TSS) Reports
+        uses: step-security/publish-unit-test-result-action@681100d67b09305624c089873f12c545ee7cbc24 # v2.23.0
+        with:
+          check_name: "Node: HAPI Test (Time Consuming Serial, No TSS)${{ inputs.name-suffix }} Results"
+          json_thousands_separator: ","
+          junit_files: "hedera-node/test-clients/build/test-results/testSubprocess/**/TEST-*.xml"
+          comment_mode: errors
+
+      - name: Upload HAPI Test (Time Consuming Serial, No TSS) Report Artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: "HAPI Test (Time Consuming Serial, No TSS)${{ inputs.name-suffix }} Reports"
+          path: "hedera-node/test-clients/build/test-results/testSubprocess/**/TEST-*.xml"
+          retention-days: 7
+
+      - name: Upload HAPI Test (Time Consuming Serial, No TSS) Network Logs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ !cancelled() && inputs.enable-network-log-capture && steps.gradle-run.conclusion == 'failure' }}
+        with:
+          name: "HAPI Test (Time Consuming Serial, No TSS)${{ inputs.name-suffix }} Network Logs"
+          path: |
+            hedera-node/test-clients/build/*-test/**/output/**
+            hedera-node/test-clients/build/*-test/*.log
+            hedera-node/test-clients/output/**
+          retention-days: 7
+
+      - name: Upload HAPI Test (Time Consuming Serial, No TSS) Failure Artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ !cancelled() && steps.gradle-run.conclusion == 'failure' }}
+        with:
+          name: "HAPI Test (Time Consuming Serial, No TSS)${{ inputs.name-suffix }} Failure Artifacts"
+          path: |
+            hedera-node/test-clients/build/**/*.blk.gz
+            hedera-node/test-clients/build/**/*.rcd.gz
+            hedera-node/test-clients/build/**/*.pb
+            hedera-node/test-clients/build/**/*.pces
+            hedera-node/test-clients/build/*-test/**/output/**
+            hedera-node/test-clients/build/*-test/**/*.log
+            hedera-node/test-clients/output/**
+          retention-days: 7
+
+  set-failure-mode:
+    name: Set Failure Mode
+    runs-on: hl-cn-default-lin-sm
+    outputs:
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
+    needs:
+      - hapi-tests-restart-no-tss
+      - hapi-tests-nd-reconnect-no-tss
+      - hapi-tests-atomic-batch-serial-no-tss
+      - hapi-tests-time-consuming-no-tss
+    if: ${{ always() }}
+    steps:
+      - name: Set Failure Mode
+        id: set-failure-mode
+        run: |
+          statuses=(
+            "${{ needs.hapi-tests-restart-no-tss.result }}"
+            "${{ needs.hapi-tests-nd-reconnect-no-tss.result }}"
+            "${{ needs.hapi-tests-atomic-batch-serial-no-tss.result }}"
+            "${{ needs.hapi-tests-time-consuming-no-tss.result }}"
+          )
+          mode="none"
+          for s in "${statuses[@]}"; do
+            [[ "$s" == "failure" ]] && mode="test" && break
+          done
+          echo "failure-mode=${mode}" >> "${GITHUB_OUTPUT}"
