@@ -88,7 +88,7 @@ public class DefaultEventCreationManager implements EventCreationManager {
      * @param time provides the time source for the event creator
      * @param signatureTransactionCheck checks for pending signature transactions
      * @param eventCreator creates events
-     * @param roster current roster
+     * @param roster active roster
      * @param selfId id of current node
      */
     public DefaultEventCreationManager(

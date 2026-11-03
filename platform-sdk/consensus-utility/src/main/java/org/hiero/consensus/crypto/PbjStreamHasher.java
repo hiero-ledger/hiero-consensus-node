@@ -15,6 +15,7 @@ import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.HashingOutputStream;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.model.event.EventHashFactory;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
@@ -25,10 +26,14 @@ import org.hiero.consensus.model.transaction.TransactionWrapper;
  */
 public class PbjStreamHasher implements EventHasher {
 
-    /** The hashing stream for the event. */
-    private final MessageDigest eventDigest = DigestType.SHA_384.buildDigest();
+    private final MessageDigest sha256EventDigest = DigestType.SHA_256.buildDigest();
+    private final MessageDigest sha384EventDigest = DigestType.SHA_384.buildDigest();
 
-    final WritableSequentialData eventStream = new WritableStreamingData(new HashingOutputStream(eventDigest));
+    private final WritableSequentialData sha256EventStream =
+            new WritableStreamingData(new HashingOutputStream(sha256EventDigest));
+    private final WritableSequentialData sha384EventStream =
+            new WritableStreamingData(new HashingOutputStream(sha384EventDigest));
+
     /** The hashing stream for the transactions. */
     private final MessageDigest transactionDigest = DigestType.SHA_384.buildDigest();
 
@@ -64,20 +69,36 @@ public class PbjStreamHasher implements EventHasher {
      * @param transactions the transactions to hash
      * @return the hash of the event
      */
+    @SuppressWarnings("ForLoopReplaceableByForEach")
     @NonNull
     private Hash hashEvent(
             @NonNull final EventCore eventCore,
             @NonNull final List<EventDescriptor> parents,
             @NonNull final List<TransactionWrapper> transactions) {
         boolean success = false;
+
+        final DigestType digestType;
+        final MessageDigest eventDigest;
+        final WritableSequentialData eventStream;
+        if (EventHashFactory.isBirthRoundPostCutover(eventCore.birthRound())) {
+            digestType = DigestType.SHA_256;
+            eventDigest = sha256EventDigest;
+            eventStream = sha256EventStream;
+        } else {
+            digestType = DigestType.SHA_384;
+            eventDigest = sha384EventDigest;
+            eventStream = sha384EventStream;
+        }
+
         try {
             EventCore.PROTOBUF.write(eventCore, eventStream);
-            for (final EventDescriptor parent : parents) {
-                EventDescriptor.PROTOBUF.write(parent, eventStream);
+            for (int i = 0, parentsSize = parents.size(); i < parentsSize; i++) {
+                EventDescriptor.PROTOBUF.write(parents.get(i), eventStream);
             }
-            for (final TransactionWrapper transaction : transactions) {
+            for (int i = 0, transactionsSize = transactions.size(); i < transactionsSize; i++) {
+                final TransactionWrapper transaction = transactions.get(i);
                 transactionStream.writeBytes(Objects.requireNonNull(transaction.getApplicationTransaction()));
-                processTransactionHash(transaction);
+                processTransactionHash(eventStream, transaction);
             }
             success = true;
         } catch (final IOException e) {
@@ -89,10 +110,11 @@ public class PbjStreamHasher implements EventHasher {
             }
         }
 
-        return new Hash(eventDigest.digest(), DigestType.SHA_384);
+        return new Hash(eventDigest.digest(), digestType);
     }
 
-    private void processTransactionHash(final TransactionWrapper transaction) {
+    private void processTransactionHash(
+            final WritableSequentialData eventStream, final TransactionWrapper transaction) {
         final byte[] hash = transactionDigest.digest();
         transaction.setHash(Bytes.wrap(hash));
         eventStream.writeBytes(hash);

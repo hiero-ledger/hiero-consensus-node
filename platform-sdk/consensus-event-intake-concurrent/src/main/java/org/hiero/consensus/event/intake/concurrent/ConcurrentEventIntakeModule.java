@@ -24,9 +24,9 @@ import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.roster.RosterWrapperHistory;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;
 import org.hiero.consensus.orphan.OrphanBuffer;
-import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.transaction.TransactionLimits;
 import org.hiero.consensus.wiring.framework.component.ComponentWiring;
 import org.hiero.consensus.wiring.framework.model.WiringModel;
@@ -69,7 +69,7 @@ public class ConcurrentEventIntakeModule implements EventIntakeModule {
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
             @NonNull final Time time,
-            @NonNull final RosterHistory rosterHistory,
+            @NonNull final RosterWrapperHistory rosterHistory,
             @NonNull final IntakeEventCounter intakeEventCounter,
             @NonNull final TransactionLimits transactionLimits,
             @Nullable final EventPipelineTracker pipelineTracker) {
@@ -203,7 +203,7 @@ public class ConcurrentEventIntakeModule implements EventIntakeModule {
      */
     @Override
     @NonNull
-    public InputWire<RosterHistory> rosterHistoryInputWire() {
+    public InputWire<RosterWrapperHistory> rosterHistoryInputWire() {
         return requireNonNull(processorWiring, "Not initialized")
                 .getInputWire(EventIntakeProcessor::updateRosterHistory);
     }

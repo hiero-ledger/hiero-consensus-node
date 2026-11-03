@@ -28,6 +28,7 @@
     { "name":  "GAS",                            "fee": 852 },
     { "name":  "ALLOWANCES",                     "fee": 500000000 },
     { "name":  "TOKEN_ASSOCIATE",                "fee": 500000000 },
+    { "name":  "TOKEN_DISSOCIATE",               "fee": 500000000 },
     { "name":  "TOKEN_CREATE_WITH_CUSTOM_FEE",   "fee": 10000000000 },
     { "name":  "TOKEN_MINT_NFT_BASE",            "fee": 190000000 },
     { "name":  "TOKEN_MINT_NFT",                 "fee": 200000000 },
@@ -468,8 +469,7 @@
         {
           "name": "TokenDissociateFromAccount",
           "baseFee": 499000000,
-          "extras": [
-          ]
+          "extras": [ {"name": "TOKEN_DISSOCIATE", "includedCount": 1 }]
         },
         {
           "name": "TokenGrantKycToAccount",
@@ -786,6 +786,57 @@
           "name": "RegisteredNodeDelete",
           "baseFee": 9000000,
           "extras": []
+        }
+      ]
+    },
+    {
+      "name": "Clpr",
+      "schedule": [
+        {
+          "name": "ClprUpdateLedgerConfiguration",
+          "baseFee": 10000000,
+          "extras": []
+        },
+        {
+          "name": "ClprRegisterChannel",
+          "baseFee": 10000000,
+          "extras": []
+        },
+        {
+          "name": "ClprCompleteChannel",
+          "baseFee": 10000000,
+          "extras": []
+        },
+        {
+          "name": "ClprCloseChannel",
+          "baseFee": 10000000,
+          "extras": []
+        },
+        {
+          "name": "ClprSubmitBundle",
+          "baseFee": 10000000,
+          "extras": []
+        },
+        {
+          "name": "ClprRegisterConnector",
+          "baseFee": 10000000,
+          "extras": []
+        },
+        {
+          "name": "ClprCompleteConnector",
+          "baseFee": 10000000,
+          "extras": []
+        },
+        {
+          "name": "ClprDeregisterConnector",
+          "baseFee": 10000000,
+          "extras": []
+        },
+        {
+          "name": "ClprEndpointPublication",
+          "baseFee": 0,
+          "extras": [],
+          "nodeNetworkFeeExempt": true
         }
       ]
     }

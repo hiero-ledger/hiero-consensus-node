@@ -16,6 +16,7 @@ import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSch
 import static com.hedera.node.app.service.networkadmin.impl.schemas.V0490FreezeSchema.FREEZE_TIME_STATE_ID;
 import static com.hedera.node.app.service.networkadmin.impl.schemas.V0490FreezeSchema.FREEZE_TIME_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFOS_STATE_ID;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.hiero.consensus.roster.RosterStateId.ROSTERS_STATE_ID;
@@ -23,6 +24,9 @@ import static org.hiero.consensus.roster.RosterStateId.ROSTER_STATE_STATE_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mock.Strictness.LENIENT;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -50,11 +54,16 @@ import com.hedera.node.app.service.networkadmin.FreezeService;
 import com.hedera.node.app.service.roster.RosterService;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.spi.fixtures.TransactionFactory;
+import com.hedera.node.app.workflows.handle.HandleWorkflowModule;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.test.fixtures.FunctionWritableSingletonState;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -70,6 +79,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
@@ -275,6 +285,163 @@ public class PlatformStateUpdatesTest implements TransactionFactory {
         verify(rosterExportHelper).accept(any(), captor.capture());
         final var path = captor.getValue();
         assertEquals("candidate-network.json", path.getFileName().toString());
+    }
+
+    @Test
+    void exportHelperFailureIsSwallowedAndCandidateRosterRemainsCommitted() {
+        // given a PREPARE_UPGRADE that yields a valid candidate roster with export enabled
+        givenValidCandidateForExport();
+        // and a node-local failure raised by the roster export helper
+        doThrow(new UncheckedIOException(new IOException("simulated failure during roster export")))
+                .when(rosterExportHelper)
+                .accept(any(), any());
+
+        // when/then: the export is best-effort, so a failure must NOT escape handleTxBody (otherwise the
+        // caller — DispatchProcessor — would roll back the stack and discard the committed candidate roster)
+        assertThatCode(() -> subject.handleTxBody(state, prepareUpgradeTxn(), configWith(true, true)))
+                .doesNotThrowAnyException();
+
+        // and the candidate roster stays committed on this node (no divergence vs. healthy nodes)
+        assertThat(committedCandidateRoster()).isNotNull();
+    }
+
+    @Test
+    void malformedExportPathIsSwallowedAndCandidateRosterRemainsCommitted() {
+        // given a valid candidate roster with export enabled but a syntactically invalid export path,
+        // so Paths.get(...) inside doExport raises InvalidPathException (the vector tryToExport cannot catch)
+        givenValidCandidateForExport();
+        final var badPathConfig = HederaTestConfigBuilder.create()
+                .withValue("networkAdmin.createCandidateRosterOnPrepareUpgrade", "true")
+                .withValue("networkAdmin.exportCandidateRoster", "true")
+                .withValue("networkAdmin.candidateRosterExportFile", "candidate\u0000roster.json")
+                .getOrCreateConfig();
+
+        // when/then: the malformed-path exception must NOT escape handleTxBody
+        assertThatCode(() -> subject.handleTxBody(state, prepareUpgradeTxn(), badPathConfig))
+                .doesNotThrowAnyException();
+
+        // and the candidate roster stays committed on this node
+        assertThat(committedCandidateRoster()).isNotNull();
+    }
+
+    @Test
+    void realExportHelperRootPathFailureIsSwallowedAndCandidateRosterRemainsCommitted() {
+        // Uses the REAL export helper (HandleWorkflowModule.provideRosterExportHelper -> DiskStartupNetworks
+        // .tryToExport), not a mock, to exercise the actual call path. A configured export path of "/" resolves to a
+        // filesystem root whose getParent() is null, so tryToExport throws NullPointerException at
+        // requireNonNull(absolutePath.getParent()) — an unchecked exception NOT caught by its catch(IOException).
+        final var realSubject = new PlatformStateUpdates(HandleWorkflowModule.provideRosterExportHelper());
+        givenValidCandidateForExport();
+        final var rootPathConfig = HederaTestConfigBuilder.create()
+                .withValue("networkAdmin.createCandidateRosterOnPrepareUpgrade", "true")
+                .withValue("networkAdmin.exportCandidateRoster", "true")
+                .withValue("networkAdmin.candidateRosterExportFile", "/")
+                .getOrCreateConfig();
+
+        // the NPE from tryToExport must NOT escape handleTxBody
+        assertThatCode(() -> realSubject.handleTxBody(state, prepareUpgradeTxn(), rootPathConfig))
+                .doesNotThrowAnyException();
+
+        // and the candidate roster stays committed on this node
+        assertThat(committedCandidateRoster()).isNotNull();
+    }
+
+    @Test
+    void diskFullDuringWriteIsSwallowedAndCandidateRosterRemainsCommitted() {
+        // Faithful disk-full-during-write: uses the REAL helper -> DiskStartupNetworks.tryToExport, which opens a
+        // stream and lets PBJ write the roster JSON to it. We stub Files.newOutputStream to return a stream that
+        // fails mid-write, so WritableStreamingData wraps the IOException as UncheckedIOException (unchecked) — which
+        // is NOT caught by tryToExport's catch(IOException). Verify the doExport wrap swallows it and keeps the roster.
+        final var realSubject = new PlatformStateUpdates(HandleWorkflowModule.provideRosterExportHelper());
+        givenValidCandidateForExport();
+        final var tmpDir = System.getProperty("java.io.tmpdir");
+        final var cfg = HederaTestConfigBuilder.create()
+                .withValue("networkAdmin.createCandidateRosterOnPrepareUpgrade", "true")
+                .withValue("networkAdmin.exportCandidateRoster", "true")
+                .withValue("networkAdmin.candidateRosterExportFile", tmpDir + "/candidate-roster.json")
+                .getOrCreateConfig();
+        final OutputStream failingOnWrite = new OutputStream() {
+            @Override
+            public void write(final int b) throws IOException {
+                throw new IOException("No space left on device");
+            }
+
+            @Override
+            public void write(final byte[] b, final int off, final int len) throws IOException {
+                throw new IOException("No space left on device");
+            }
+        };
+        // Default to real Files methods (so createDirectories/createTempFile/deleteIfExists behave normally and
+        // unrelated initializers are unaffected); override only newOutputStream to return the failing stream.
+        try (MockedStatic<Files> files = mockStatic(Files.class, CALLS_REAL_METHODS)) {
+            files.when(() -> Files.newOutputStream(any(Path.class))).thenReturn(failingOnWrite);
+
+            // the UncheckedIOException from the write must NOT escape handleTxBody
+            assertThatCode(() -> realSubject.handleTxBody(state, prepareUpgradeTxn(), cfg))
+                    .doesNotThrowAnyException();
+        }
+
+        // and the candidate roster stays committed on this node
+        assertThat(committedCandidateRoster()).isNotNull();
+    }
+
+    @Test
+    void invalidTempFilePrefixIsSwallowedAndCandidateRosterRemainsCommitted() {
+        // Files.createTempFile throws IllegalArgumentException when the prefix (derived from the configured filename)
+        // cannot form a candidate file name. A real config can't easily produce this (getFileName() yields a single
+        // sanitized element, and a NUL path triggers InvalidPathException earlier), so we force the IAE via a Files
+        // stub to prove the doExport wrap also swallows this unchecked type — it escapes tryToExport's
+        // catch(IOException).
+        final var realSubject = new PlatformStateUpdates(HandleWorkflowModule.provideRosterExportHelper());
+        givenValidCandidateForExport();
+        final var tmpDir = System.getProperty("java.io.tmpdir");
+        final var cfg = HederaTestConfigBuilder.create()
+                .withValue("networkAdmin.createCandidateRosterOnPrepareUpgrade", "true")
+                .withValue("networkAdmin.exportCandidateRoster", "true")
+                .withValue("networkAdmin.candidateRosterExportFile", tmpDir + "/candidate-roster.json")
+                .getOrCreateConfig();
+        try (MockedStatic<Files> files = mockStatic(Files.class, CALLS_REAL_METHODS)) {
+            files.when(() -> Files.createTempFile(any(Path.class), any(String.class), any(String.class)))
+                    .thenThrow(new IllegalArgumentException("Invalid prefix or suffix"));
+
+            // the IllegalArgumentException from createTempFile must NOT escape handleTxBody
+            assertThatCode(() -> realSubject.handleTxBody(state, prepareUpgradeTxn(), cfg))
+                    .doesNotThrowAnyException();
+        }
+
+        // and the candidate roster stays committed on this node
+        assertThat(committedCandidateRoster()).isNotNull();
+    }
+
+    private TransactionBody prepareUpgradeTxn() {
+        return TransactionBody.newBuilder()
+                .freeze(FreezeTransactionBody.newBuilder().freezeType(PREPARE_UPGRADE))
+                .build();
+    }
+
+    private void givenValidCandidateForExport() {
+        final var freezeTime = Timestamp.newBuilder().seconds(123L).nanos(456).build();
+        freezeTimeBackingStore.set(freezeTime);
+        nodes.put(
+                new EntityNumber(0L),
+                Node.newBuilder()
+                        .weight(1)
+                        .gossipCaCertificate(Bytes.fromHex("0123"))
+                        .gossipEndpoint(new ServiceEndpoint(Bytes.EMPTY, 50211, "test.org"))
+                        .build());
+        stakingInfo.put(
+                new EntityNumber(0L),
+                StakingNodeInfo.newBuilder().stake(1000).weight(1).build());
+    }
+
+    private Roster committedCandidateRoster() {
+        final var candidateHash = state.getWritableStates(RosterService.NAME)
+                .<RosterState>getSingleton(ROSTER_STATE_STATE_ID)
+                .get()
+                .candidateRosterHash();
+        return state.getWritableStates(RosterService.NAME)
+                .<ProtoBytes, Roster>get(ROSTERS_STATE_ID)
+                .get(new ProtoBytes(candidateHash));
     }
 
     @Test

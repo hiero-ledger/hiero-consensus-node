@@ -9,6 +9,7 @@ import static com.hedera.hapi.streams.SidecarType.CONTRACT_STATE_CHANGE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.ACTION_SIDECARS_VALIDATION_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.ACTION_SIDECARS_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.BYTECODE_SIDECARS_VARIABLE;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CLPR_DISPATCH_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CONFIG_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.HAPI_RECORD_BUILDER_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.HOOK_OWNER_ADDRESS;
@@ -110,8 +111,12 @@ public class FrameBuilder {
         final var value = transaction.weiValue();
         final var ledgerConfig = config.getConfigData(LedgerConfig.class);
         final var nominalCoinbase = asLongZeroAddress(ledgerConfig.fundingAccount());
-        final var contextVariables =
-                contextVariablesFrom(config, opsDurationCounter, context, transaction.hookOwnerAddress(worldUpdater));
+        final var contextVariables = contextVariablesFrom(
+                config,
+                opsDurationCounter,
+                context,
+                transaction.hookOwnerAddress(worldUpdater),
+                transaction.isClprDispatch());
         final var builder = MessageFrame.builder()
                 .maxStackSize(MAX_STACK_SIZE)
                 .worldUpdater(worldUpdater.updater())
@@ -128,22 +133,21 @@ public class FrameBuilder {
                 .miningBeneficiary(nominalCoinbase)
                 .blockHashLookup(context.blocks()::blockHashOf)
                 .contextVariables(contextVariables);
-        // add accessLists and codeDelegations authorities to "warmed" addresses
-        if ((transaction.accessLists() != null && !transaction.accessLists().isEmpty())
-                || !codeDelegationAccessedAddresses.isEmpty()) {
-            final Set<Address> accessListWarmAddresses = new HashSet<>(codeDelegationAccessedAddresses);
+        // add coinbase, accessLists and codeDelegations authorities to "warmed" addresses
+        final Set<Address> accessListWarmAddresses = new HashSet<>(codeDelegationAccessedAddresses);
+        // EIP-3651: the coinbase address is warm at the start of transaction execution
+        accessListWarmAddresses.add(nominalCoinbase);
+        // add accessLists to "warmed" addresses
+        if (transaction.accessLists() != null && !transaction.accessLists().isEmpty()) {
             final Multimap<Address, Bytes32> accessListWarmStorage = HashMultimap.create();
-            // add accessLists to "warmed" addresses
-            if (transaction.accessLists() != null) {
-                for (final AccessListItem accessList : transaction.accessLists()) {
-                    final Address address = Address.wrap(accessList.address());
-                    accessListWarmAddresses.add(address);
-                    accessListWarmStorage.putAll(address, accessList.storageKeys());
-                }
+            for (final AccessListItem accessList : transaction.accessLists()) {
+                final Address address = Address.wrap(accessList.address());
+                accessListWarmAddresses.add(address);
+                accessListWarmStorage.putAll(address, accessList.storageKeys());
             }
-            builder.eip2930AccessListWarmAddresses(accessListWarmAddresses);
             builder.eip2930AccessListWarmStorage(accessListWarmStorage);
         }
+        builder.eip2930AccessListWarmAddresses(accessListWarmAddresses);
         // finish initial frame
         if (transaction.isCreate()) {
             return finishedAsCreate(to, builder, transaction);
@@ -163,7 +167,8 @@ public class FrameBuilder {
             @NonNull final Configuration config,
             @NonNull final OpsDurationCounter opsDurationCounter,
             @NonNull final HederaEvmContext context,
-            @Nullable final Address hookOwnerAddress) {
+            @Nullable final Address hookOwnerAddress,
+            final boolean isClprDispatch) {
         final Map<String, Object> contextEntries = new HashMap<>();
         contextEntries.put(CONFIG_CONTEXT_VARIABLE, config);
         contextEntries.put(TINYBAR_VALUES_CONTEXT_VARIABLE, context.tinybarValues());
@@ -191,6 +196,9 @@ public class FrameBuilder {
         contextEntries.put(OPS_DURATION_COUNTER, opsDurationCounter);
         if (hookOwnerAddress != null) {
             contextEntries.put(HOOK_OWNER_ADDRESS, hookOwnerAddress);
+        }
+        if (isClprDispatch) {
+            contextEntries.put(CLPR_DISPATCH_CONTEXT_VARIABLE, true);
         }
         contextEntries.put(INVALID_ADDRESS_CONTEXT_VARIABLE, new InvalidAddressContext());
         return contextEntries;

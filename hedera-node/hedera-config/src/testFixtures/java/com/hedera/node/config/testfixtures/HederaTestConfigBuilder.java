@@ -35,6 +35,7 @@ import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.BlockStreamJumpstartConfig;
 import com.hedera.node.config.data.BootstrapConfig;
 import com.hedera.node.config.data.CacheConfig;
+import com.hedera.node.config.data.ClprConfig;
 import com.hedera.node.config.data.ConsensusConfig;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.EntitiesConfig;
@@ -146,6 +147,7 @@ public final class HederaTestConfigBuilder {
                 .withConfigDataType(BlockRecordStreamConfig.class)
                 .withConfigDataType(BootstrapConfig.class)
                 .withConfigDataType(CacheConfig.class)
+                .withConfigDataType(ClprConfig.class)
                 .withConfigDataType(ConsensusConfig.class)
                 .withConfigDataType(ContractsConfig.class)
                 .withConfigDataType(HooksConfig.class)

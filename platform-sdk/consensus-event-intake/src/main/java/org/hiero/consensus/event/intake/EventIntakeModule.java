@@ -11,7 +11,7 @@ import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.roster.RosterHistory;
+import org.hiero.consensus.model.roster.RosterWrapperHistory;
 import org.hiero.consensus.transaction.TransactionLimits;
 import org.hiero.consensus.wiring.framework.component.InputWireLabel;
 import org.hiero.consensus.wiring.framework.model.WiringModel;
@@ -41,7 +41,7 @@ public interface EventIntakeModule {
             @NonNull Configuration configuration,
             @NonNull Metrics metrics,
             @NonNull Time time,
-            @NonNull RosterHistory rosterHistory,
+            @NonNull RosterWrapperHistory rosterHistory,
             @NonNull IntakeEventCounter intakeEventCounter,
             @NonNull TransactionLimits transactionLimits,
             @Nullable EventPipelineTracker eventPipelineTracker);
@@ -97,7 +97,7 @@ public interface EventIntakeModule {
      */
     @InputWireLabel("roster history")
     @NonNull
-    InputWire<RosterHistory> rosterHistoryInputWire();
+    InputWire<RosterWrapperHistory> rosterHistoryInputWire();
 
     /**
      * Get an {@link InputWire} to clear the state of the internal components.

@@ -9,10 +9,7 @@ import com.swirlds.config.api.ConfigProperty;
  *
  * @param tolerateMismatchedVersion   If true, a node will tolerate peers with a different software version. If false,
  *                                    connections to peers with different software versions will be severed.
- * @param tolerateMismatchedEpochHash If true, a node will tolerate peers with a different epoch hash. If false,
- *                                    connections to peers with different epoch hashes will be severed.
  */
 @ConfigData("protocol")
 public record ProtocolConfig(
-        @ConfigProperty(defaultValue = "false") boolean tolerateMismatchedVersion,
-        @ConfigProperty(defaultValue = "false") boolean tolerateMismatchedEpochHash) {}
+        @ConfigProperty(defaultValue = "false") boolean tolerateMismatchedVersion) {}

@@ -39,7 +39,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Stream;
-import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
@@ -167,18 +167,25 @@ public class MerkleDbTestUtils {
     }
 
     /**
-     * Creates a hash containing an int repeated 6 times as longs.
+     * Creates a deterministic test hash using {@link Cryptography#DEFAULT_DIGEST_TYPE}.
      *
-     * @return hash with digest an array of 6 longs determined by the given value
+     * <p>The input integer's four bytes are repeated consecutively in big-endian
+     * order throughout the digest. Any trailing bytes that cannot hold a complete
+     * copy remain zero. No cryptographic hashing is performed.
+     *
+     * @param value the value used to populate the hash bytes
+     * @return a test hash with the default digest type and its required length
      */
     public static Hash hash(final int value) {
-        final byte[] hardCoded =
+        final byte[] valueBytes =
                 new byte[] {(byte) (value >>> 24), (byte) (value >>> 16), (byte) (value >>> 8), (byte) value};
-        final byte[] digest = new byte[DigestType.SHA_384.digestLength()];
-        for (int i = 0; i < 6; i++) {
-            System.arraycopy(hardCoded, 0, digest, i * 6 + 4, 4);
+        final byte[] digest = new byte[Cryptography.DEFAULT_DIGEST_TYPE.digestLength()];
+
+        for (int offset = 0; offset + valueBytes.length <= digest.length; offset += valueBytes.length) {
+            System.arraycopy(valueBytes, 0, digest, offset, valueBytes.length);
         }
-        return new Hash(digest, DigestType.SHA_384);
+
+        return new Hash(digest, Cryptography.DEFAULT_DIGEST_TYPE);
     }
 
     /** Code from method java.util.Collections.shuffle(); */

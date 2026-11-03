@@ -319,9 +319,9 @@ public class FileBlockItemWriter implements BlockItemWriter {
 
     private static Block parseBlock(final byte[] bytes, final int maxReadDepth, final int maxReadSize)
             throws ParseException {
-        // parseStrict shorthand omitted: we also need to validate max depth, requiring the multi-arg overload.
+        // Reject unknown fields while retaining the configured depth and size limits.
         return Block.PROTOBUF.parse(
-                Bytes.wrap(bytes).toReadableSequentialData(), false, false, maxReadDepth, maxReadSize);
+                Bytes.wrap(bytes).toReadableSequentialData(), true, false, maxReadDepth, maxReadSize);
     }
 
     /**

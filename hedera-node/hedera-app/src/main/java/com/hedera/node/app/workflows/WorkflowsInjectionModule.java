@@ -6,6 +6,7 @@ import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.BACK
 import com.hedera.node.app.throttle.ThrottleAccumulator;
 import com.hedera.node.app.throttle.ThrottleMetrics;
 import com.hedera.node.app.throttle.annotations.BackendThrottle;
+import com.hedera.node.app.workflows.clpr.ClprSyncWorkflowInjectionModule;
 import com.hedera.node.app.workflows.handle.HandleWorkflowModule;
 import com.hedera.node.app.workflows.handle.dispatch.LiveNodeControlledPayerGuard;
 import com.hedera.node.app.workflows.handle.dispatch.NodeControlledPayerGuard;
@@ -27,6 +28,7 @@ import javax.inject.Singleton;
  */
 @Module(
         includes = {
+            ClprSyncWorkflowInjectionModule.class,
             HandleWorkflowModule.class,
             IngestWorkflowInjectionModule.class,
             PreHandleWorkflowInjectionModule.class,

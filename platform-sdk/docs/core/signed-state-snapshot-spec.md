@@ -37,7 +37,7 @@ affecting `saved/…/<round>/`.
 <round>/
 ├── stateMetadata.txt                ← SavedStateMetadata (human-readable k/v)
 ├── hashInfo.txt                     ← state-hash mnemonic + info string
-├── currentRoster.json               ← active Roster as PBJ JSON
+├── activeRoster.json               ← active Roster as PBJ JSON
 ├── consensusSnapshot.json           ← ConsensusSnapshot as PBJ JSON
 ├── signatureSet.pbj                 ← SigSet (PBJ binary)
 ├── settingsUsed.txt                 ← effective Configuration dump
@@ -99,7 +99,7 @@ writer.write(String.format(PlatformStateUtils.HASH_INFO_TEMPLATE, mnemonic));
 The file contains a mnemonic of the virtual map root hash and is provided for
 informational purposes only.
 
-### 2.3 `currentRoster.json`
+### 2.3 `activeRoster.json`
 
 `Roster.JSON.toJSON(roster)` — PBJ’s JSON encoding of the active `Roster`
 retrieved via `SignedState.getRoster()`. Schema (`roster.proto`, HAPI):

@@ -10,8 +10,6 @@ description = "Consensus Event Intake API"
 mainModuleInfo { annotationProcessor("com.swirlds.config.processor") }
 
 jmhModuleInfo {
-    requires("com.hedera.node.hapi")
-    requires("com.hedera.pbj.runtime")
     requires("com.swirlds.config.extensions.test.fixtures")
     requires("org.hiero.base.concurrent")
     requires("org.hiero.base.crypto")

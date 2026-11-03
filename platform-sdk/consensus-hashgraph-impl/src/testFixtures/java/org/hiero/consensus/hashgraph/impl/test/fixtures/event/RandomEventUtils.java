@@ -70,7 +70,9 @@ public class RandomEventUtils {
                 birthRound,
                 timestamp,
                 convertedTransactions,
-                random.nextLong(0, Long.MAX_VALUE));
+                random.nextLong(0, Long.MAX_VALUE),
+                timestamp,
+                List.of());
 
         if (fakeHash) {
             unsignedEvent.setHash(CryptoRandomUtils.randomHash(random));

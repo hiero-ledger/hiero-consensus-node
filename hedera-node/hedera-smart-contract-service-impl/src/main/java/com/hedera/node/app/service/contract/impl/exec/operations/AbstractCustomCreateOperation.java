@@ -180,7 +180,6 @@ public abstract class AbstractCustomCreateOperation extends AbstractOperation {
         frame.addLogs(childFrame.getLogs());
         frame.addCreates(childFrame.getCreates());
         frame.addSelfDestructs(childFrame.getSelfDestructs());
-        frame.incrementGasRefund(childFrame.getGasRefund());
         frame.popStackItems(getStackItemsConsumed());
         if (childFrame.getState() == MessageFrame.State.COMPLETED_SUCCESS) {
             final var creation = childFrame.getContractAddress();

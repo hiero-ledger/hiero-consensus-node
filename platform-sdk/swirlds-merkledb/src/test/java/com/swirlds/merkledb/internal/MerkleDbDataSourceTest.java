@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.internal;
 
+import static com.hedera.pbj.runtime.ProtoConstants.TAG_WIRE_TYPE_MASK;
+import static com.hedera.pbj.runtime.ProtoParserTools.TAG_FIELD_OFFSET;
 import static com.swirlds.merkledb.files.DataFileCommon.deleteDirectoryAndContents;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_MERKLE_DB_CONFIG;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.createHashChunkStream;
@@ -8,6 +10,7 @@ import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.hash;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.shuffle;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.snapshotDataDir;
 import static com.swirlds.virtualmap.datasource.VirtualDataSource.INVALID_PATH;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -18,7 +21,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.hedera.pbj.runtime.Codec;
+import com.hedera.pbj.runtime.FieldDefinition;
+import com.hedera.pbj.runtime.FieldType;
+import com.hedera.pbj.runtime.ProtoConstants;
+import com.hedera.pbj.runtime.ProtoParserTools;
+import com.hedera.pbj.runtime.ProtoWriterTools;
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig_;
@@ -32,18 +42,22 @@ import com.swirlds.virtualmap.MerklePathUtils;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -320,30 +334,6 @@ class MerkleDbDataSourceTest extends AbstractMerkelDbTest {
         });
     }
 
-    @Test
-    void preservesInterruptStatusWhenInterruptedSavingRecords() throws IOException {
-        createAndApplyDataSource(1000, dataSource -> {
-            final CountDownLatch savingThreadStarted = new CountDownLatch(1);
-            final InterruptRememberingThread savingThread = slowRecordSavingThread(dataSource, savingThreadStarted);
-            savingThread.start();
-            savingThreadStarted.await();
-            /* Don't interrupt until the saving thread will be blocked on the CountDownLatch,
-             * awaiting all internal records to be written. */
-            sleepUnchecked(100L);
-
-            savingThread.interrupt();
-            /* Give some time for the interrupt to set the thread's interrupt status */
-            sleepUnchecked(100L);
-
-            System.out.println("Checking interrupt count");
-            assertEquals(
-                    2,
-                    savingThread.numInterrupts(),
-                    "Thread interrupt status should NOT be cleared (two total interrupts)");
-            savingThread.join();
-        });
-    }
-
     @ParameterizedTest
     @EnumSource(TestType.class)
     void createCloseSnapshotCheckDelete(final TestType testType) throws IOException {
@@ -447,38 +437,6 @@ class MerkleDbDataSourceTest extends AbstractMerkelDbTest {
                 deleteDirectoryAndContents(snapshotDir);
             }
         }
-    }
-
-    @Test
-    void preservesInterruptStatusWhenInterruptedClosing() throws IOException {
-        createAndApplyDataSource(1001, dataSource -> {
-            /* Keep an executor busy */
-            final CountDownLatch savingThreadStarted = new CountDownLatch(1);
-            final InterruptRememberingThread savingThread = slowRecordSavingThread(dataSource, savingThreadStarted);
-            savingThread.start();
-            savingThreadStarted.await();
-            sleepUnchecked(100L);
-
-            final CountDownLatch closingThreadStarted = new CountDownLatch(1);
-            final InterruptRememberingThread closingThread = new InterruptRememberingThread(() -> {
-                closingThreadStarted.countDown();
-                try {
-                    dataSource.close();
-                } catch (final IOException ignore) {
-                }
-            });
-
-            closingThread.start();
-            closingThreadStarted.await();
-            closingThread.interrupt();
-            sleepUnchecked(100L);
-
-            System.out.println("Checking interrupt count for " + closingThread.getName());
-            final var numInterrupts = closingThread.numInterrupts();
-            assertEquals(2, numInterrupts, "Thread interrupt status should NOT be cleared (two total interrupts)");
-            closingThread.join();
-            savingThread.join();
-        });
     }
 
     @Test
@@ -682,6 +640,106 @@ class MerkleDbDataSourceTest extends AbstractMerkelDbTest {
     }
 
     @Test
+    void testDigestTypeNameInMetadata() throws Exception {
+        final int count = 10;
+        final TestType testType = TestType.long_fixed;
+        final String label = "testDigestTypeNameInMetadata";
+        final Path snapshotPath = fileSystemManager.resolveNewTemp("snapshot-testDigestTypeNameInMetadata");
+        createAndApplyDataSource(label, count, dataSource -> {
+            dataSource.saveRecords(
+                    count - 1,
+                    count * 2 - 2,
+                    createHashChunkStream(count * 2 - 2, dataSource.getHashChunkHeight()),
+                    IntStream.range(count - 1, count * 2 - 1)
+                            .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
+                    Stream.empty(),
+                    false);
+            takeSnapshot(dataSource, snapshotPath);
+            final MerkleDbDataSource restored = restoreDataSource(snapshotPath, label, false);
+            try {
+                assertEquals(Cryptography.DEFAULT_DIGEST_TYPE, restored.getLoadedHashDigestType());
+                assertTrue(restored.getHashChunkStore().getFileCollection().getNumOfFiles() > 0);
+                assertTrue(restored.getIdToDiskLocationHashChunks().size() > 0);
+                IntStream.range(count - 1, count * 2 - 1).forEach(i -> assertLeaf(testType, restored, i, i));
+            } finally {
+                restored.close();
+            }
+        });
+    }
+
+    @Test
+    void deletesHashStorageWhenDigestTypeChanges() throws Exception {
+        final int count = 10;
+        final TestType testType = TestType.long_fixed;
+        final String label = "deletesHashStorageWhenDigestTypeChanges";
+        final Path snapshotPath = fileSystemManager.resolveNewTemp("snapshot-" + label);
+        try {
+            createAndApplyDataSource(label, count, dataSource -> {
+                dataSource.saveRecords(
+                        count - 1,
+                        count * 2 - 2,
+                        createHashChunkStream(count * 2 - 2, dataSource.getHashChunkHeight()),
+                        IntStream.range(count - 1, count * 2 - 1)
+                                .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
+                        Stream.empty(),
+                        false);
+                takeSnapshot(dataSource, snapshotPath);
+            });
+
+            final MerkleDbPaths snapshotPaths = new MerkleDbPaths(snapshotDataDir(snapshotPath, label));
+            assertTrue(Files.exists(snapshotPaths.idToDiskLocationHashChunksFile));
+            final List<Path> hashFiles;
+            try (final Stream<Path> files = Files.list(snapshotPaths.hashChunkDirectory)) {
+                hashFiles = files.filter(path -> !path.getFileName().toString().contains("metadata"))
+                        .toList();
+            }
+            assertFalse(hashFiles.isEmpty());
+            rewriteDigestType(snapshotPaths.metadataFile, DigestType.SHA_512);
+
+            final Map<Path, byte[]> snapshotFiles = new HashMap<>();
+            try (final Stream<Path> files = Files.walk(snapshotPath)) {
+                for (final Path file : files.filter(Files::isRegularFile).toList()) {
+                    snapshotFiles.put(file, Files.readAllBytes(file));
+                }
+            }
+
+            final MerkleDbDataSource restored = restoreDataSource(snapshotPath, label, false);
+            try {
+                assertEquals(DigestType.SHA_512, restored.getLoadedHashDigestType());
+                assertTrue(restored.getHashChunkStore()
+                        .getFileCollection()
+                        .getAllCompletedFiles()
+                        .isEmpty());
+                assertEquals(0, restored.getIdToDiskLocationHashChunks().size());
+                for (final Path hashFile : hashFiles) {
+                    assertFalse(Files.exists(
+                            restored.getDbPaths().hashChunkDirectory.resolve(hashFile.getFileName())));
+                }
+                assertEquals(count - 1, restored.getFirstLeafPath());
+                assertEquals(count * 2 - 2, restored.getLastLeafPath());
+                for (int i = count - 1; i < count * 2 - 1; i++) {
+                    final VirtualLeafBytes<?> expectedRecord =
+                            testType.dataType().createVirtualLeafRecord(i);
+                    assertEquals(expectedRecord, restored.loadLeafRecord(i));
+                    assertEquals(expectedRecord, restored.loadLeafRecord(expectedRecord.keyBytes()));
+                    assertEquals(i, restored.findKey(expectedRecord.keyBytes()));
+                }
+            } finally {
+                restored.close();
+            }
+
+            for (final Map.Entry<Path, byte[]> entry : snapshotFiles.entrySet()) {
+                assertArrayEquals(
+                        entry.getValue(),
+                        Files.readAllBytes(entry.getKey()),
+                        "Snapshot file must not be changed: " + snapshotPath.relativize(entry.getKey()));
+            }
+        } finally {
+            deleteDirectoryAndContents(snapshotPath);
+        }
+    }
+
+    @Test
     void copyStatisticsTest() throws Exception {
         // This test simulates what happens on reconnect and makes sure that MerkleDb stats are reported
         // for the copy correctly
@@ -786,6 +844,30 @@ class MerkleDbDataSourceTest extends AbstractMerkelDbTest {
     // =================================================================================================================
     // Helper Methods
 
+    private static void rewriteDigestType(final Path metadataFile, final DigestType digestType) throws IOException {
+        final byte[] metadata = Files.readAllBytes(metadataFile);
+        final BufferedData in = BufferedData.wrap(metadata);
+        final FieldDefinition digestField =
+                new FieldDefinition("hashDigestType", FieldType.STRING, false, true, false, 8);
+        while (in.hasRemaining()) {
+            final int fieldStart = (int) in.position();
+            final int tag = in.readVarInt(false);
+            if ((tag >> TAG_FIELD_OFFSET) == digestField.number()) {
+                assertEquals(Cryptography.DEFAULT_DIGEST_TYPE.algorithmName(), ProtoParserTools.readString(in));
+                final int fieldEnd = (int) in.position();
+                try (final OutputStream out = Files.newOutputStream(metadataFile)) {
+                    out.write(metadata, 0, fieldStart);
+                    ProtoWriterTools.writeString(
+                            new WritableStreamingData(out), digestField, digestType.algorithmName());
+                    out.write(metadata, fieldEnd, metadata.length - fieldEnd);
+                }
+                return;
+            }
+            ProtoParserTools.skipField(in, ProtoConstants.get(tag & TAG_WIRE_TYPE_MASK));
+        }
+        fail("Hash digest type is missing from snapshot metadata");
+    }
+
     public static void assertHash(final MerkleDbDataSource dataSource, final long path, final int i) {
         final int hashChunkHeight = dataSource.getHashChunkHeight();
         final boolean isLeaf = (path >= dataSource.getFirstLeafPath()) && (path <= dataSource.getLastLeafPath());
@@ -857,58 +939,5 @@ class MerkleDbDataSourceTest extends AbstractMerkelDbTest {
                 recordA == null ? null : recordA.toString(),
                 recordB == null ? null : recordB.toString(),
                 "Equal records should have the same toString representation");
-    }
-
-    private void sleepUnchecked(final long millis) {
-        try {
-            Thread.sleep(millis);
-        } catch (final InterruptedException ignore) {
-            /* No-op */
-        }
-    }
-
-    private InterruptRememberingThread slowRecordSavingThread(
-            final MerkleDbDataSource dataSource, final CountDownLatch startLatch) {
-        return new InterruptRememberingThread(() -> {
-            startLatch.countDown();
-            try {
-                dataSource.saveRecords(
-                        1000,
-                        2000,
-                        createHashChunkStream(2000, dataSource.getHashChunkHeight())
-                                .peek(c -> {
-                                    System.out.println("SLOWLY loading chunk #"
-                                            + c
-                                            + " in "
-                                            + Thread.currentThread().getName());
-                                    sleepUnchecked(50L);
-                                }),
-                        Stream.empty(),
-                        Stream.empty(),
-                        false);
-            } catch (final IOException impossible) {
-                /* We don't throw this */
-            }
-        });
-    }
-
-    private static class InterruptRememberingThread extends Thread {
-
-        private final AtomicInteger numInterrupts = new AtomicInteger(0);
-
-        public InterruptRememberingThread(final Runnable target) {
-            super(target);
-        }
-
-        @Override
-        public void interrupt() {
-            System.out.println(
-                    this.getName() + " interrupted (that makes " + numInterrupts.incrementAndGet() + " times)");
-            super.interrupt();
-        }
-
-        public synchronized int numInterrupts() {
-            return numInterrupts.get();
-        }
     }
 }

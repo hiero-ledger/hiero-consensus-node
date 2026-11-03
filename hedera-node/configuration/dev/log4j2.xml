@@ -352,5 +352,9 @@
     <Logger name="grpc-access-log" level="INFO" additivity="false">
       <AppenderRef ref="GrpcAccessLog" />
     </Logger>
+    <Logger name="com.hedera.node.app.service.clpr" level="debug" additivity="false">
+        <AppenderRef ref="Console"/>
+        <AppenderRef ref="RollingFile"/>
+    </Logger>
   </Loggers>
 </Configuration>

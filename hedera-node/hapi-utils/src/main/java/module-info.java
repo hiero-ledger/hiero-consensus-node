@@ -19,6 +19,8 @@ module com.hedera.node.app.hapi.utils {
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
+    requires transitive com.swirlds.state.api;
+    requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.event.stream;
     requires transitive com.esaulpaugh.headlong;
@@ -30,8 +32,8 @@ module com.hedera.node.app.hapi.utils {
     requires transitive tuweni.bytes;
     requires com.hedera.cryptography.libsecp256k1;
     requires com.hedera.cryptography.libxkcp;
+    requires com.hedera.cryptography.wraps;
     requires com.swirlds.base;
-    requires org.hiero.base.crypto;
     requires org.hiero.consensus.utility;
     requires com.fasterxml.jackson.databind;
     requires com.google.common;

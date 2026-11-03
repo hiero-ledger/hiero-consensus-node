@@ -69,9 +69,9 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@4d9f0ba0025fe599b4ebab900eb7f3a1d93ef4c2 # v5.0.0
 
-      - name: Build State Validator Uber shadowJar
+      - name: Build State Validator Uber fatModuleJar
         run: |
-          ./gradlew --stacktrace :hedera-state-validator:shadowJar
+          ./gradlew --stacktrace :hedera-state-validator:fatModuleJar
 
       - name: Determine version and artifact
         id: version-and-artifact

@@ -65,6 +65,18 @@ public class DefaultPcesModule implements PcesModule {
     @Nullable
     private InlinePcesWriter pcesWriter;
 
+    @Nullable
+    private InputWire<PlatformEvent> eventsToWriteInputWire;
+
+    @Nullable
+    private InputWire<EventWindow> initialEventWindowInputWire;
+
+    @Nullable
+    private InputWire<Long> minimumBirthRoundInputWire;
+
+    @Nullable
+    private InputWire<Long> discontinuityInputWire;
+
     /**
      * {@inheritDoc}
      */
@@ -87,7 +99,7 @@ public class DefaultPcesModule implements PcesModule {
             throw new IllegalStateException("Already initialized");
         }
 
-        // Set up wiring
+        // Set up wired components
         this.consensusRoundDispatcher = new WireTransformer<>(
                 model, "Pces_ConsensusRoundDispatcher", "consensus round", UnaryOperator.identity());
         final WireTransformer<ConsensusRound, EventWindow> eventWindowExtractor = new WireTransformer<>(
@@ -96,11 +108,16 @@ public class DefaultPcesModule implements PcesModule {
         this.pcesWriterWiring = new ComponentWiring<>(model, InlinePcesWriter.class, wiringConfig.pcesInlineWriter());
         this.pcesReplayerWiring = PcesReplayerWiring.create(model);
 
+        // Set up input wires
+        eventsToWriteInputWire = pcesWriterWiring.getInputWire(InlinePcesWriter::writeEvent);
+        initialEventWindowInputWire = pcesWriterWiring.getInputWire(InlinePcesWriter::updateNonAncientEventBoundary);
+        minimumBirthRoundInputWire = pcesWriterWiring.getInputWire(InlinePcesWriter::setMinimumBirthRoundToStore);
+        discontinuityInputWire = pcesWriterWiring.getInputWire(InlinePcesWriter::registerDiscontinuity);
+
         // Wire components
+        assert initialEventWindowInputWire != null;
         consensusRoundDispatcher.getOutputWire().solderTo(eventWindowExtractor.getInputWire(), INJECT);
-        eventWindowExtractor
-                .getOutputWire()
-                .solderTo(pcesWriterWiring.getInputWire(InlinePcesWriter::updateNonAncientEventBoundary), INJECT);
+        eventWindowExtractor.getOutputWire().solderTo(initialEventWindowInputWire, INJECT);
         pcesReplayerWiring
                 .doneStreamingPcesOutputWire()
                 .solderTo(pcesWriterWiring.getInputWire(InlinePcesWriter::beginStreamingNewEvents));
@@ -112,9 +129,6 @@ public class DefaultPcesModule implements PcesModule {
                     .getOutputWire()
                     .solderForMonitoring(platformEvent -> pipelineTracker.recordEvent("pces", platformEvent));
         }
-
-        // Force not soldered wires to be built
-        pcesWriterWiring.getInputWire(InlinePcesWriter::registerDiscontinuity);
 
         // Create and bind components
         final PcesFileTracker initialPcesFiles;
@@ -174,7 +188,7 @@ public class DefaultPcesModule implements PcesModule {
     @Override
     @NonNull
     public InputWire<PlatformEvent> eventsToWriteInputWire() {
-        return requireNonNull(pcesWriterWiring, "Not initialized").getInputWire(InlinePcesWriter::writeEvent);
+        return requireNonNull(eventsToWriteInputWire, "Not initialized");
     }
 
     /**
@@ -201,8 +215,7 @@ public class DefaultPcesModule implements PcesModule {
     @Override
     @NonNull
     public InputWire<EventWindow> initialEventWindowInputWire() {
-        return requireNonNull(pcesWriterWiring, "Not initialized")
-                .getInputWire(InlinePcesWriter::updateNonAncientEventBoundary);
+        return requireNonNull(initialEventWindowInputWire, "Not initialized");
     }
 
     /**
@@ -211,8 +224,7 @@ public class DefaultPcesModule implements PcesModule {
     @Override
     @NonNull
     public InputWire<Long> minimumBirthRoundInputWire() {
-        return requireNonNull(pcesWriterWiring, "Not initialized")
-                .getInputWire(InlinePcesWriter::setMinimumBirthRoundToStore);
+        return requireNonNull(minimumBirthRoundInputWire, "Not initialized");
     }
 
     /**
@@ -221,8 +233,7 @@ public class DefaultPcesModule implements PcesModule {
     @Override
     @NonNull
     public InputWire<Long> discontinuityInputWire() {
-        return requireNonNull(pcesWriterWiring, "Not initialized")
-                .getInputWire(InlinePcesWriter::registerDiscontinuity);
+        return requireNonNull(discontinuityInputWire, "Not initialized");
     }
 
     /**

@@ -85,6 +85,19 @@ public final class CommonUtils {
     }
 
     /**
+     * Returns a {@link MessageDigest} instance for the SHA-256 algorithm, throwing an unchecked exception if the
+     * algorithm is not found.
+     * @return a {@link MessageDigest} instance for the SHA-256 algorithm
+     */
+    public static MessageDigest sha256DigestOrThrow() {
+        try {
+            return MessageDigest.getInstance("SHA-256");
+        } catch (final NoSuchAlgorithmException fatal) {
+            throw new IllegalStateException(fatal);
+        }
+    }
+
+    /**
      * Returns a {@link MessageDigest} instance for the SHA-384 algorithm, throwing an unchecked exception if the
      * algorithm is not found.
      * @return a {@link MessageDigest} instance for the SHA-384 algorithm
@@ -95,6 +108,27 @@ public final class CommonUtils {
         } catch (final NoSuchAlgorithmException fatal) {
             throw new IllegalStateException(fatal);
         }
+    }
+
+    /**
+     * Returns a {@link MessageDigest} for the algorithm specified by {@code digestType}. Centralizes
+     * the choice driven by {@code BlockStreamConfig.digestType} so callers don't each re-derive the same lookup.
+     * @param digestType the digest algorithm to use
+     * @return the selected {@link MessageDigest}
+     */
+    public static MessageDigest digestOrThrow(final DigestType digestType) {
+        return digestType.buildDigest();
+    }
+
+    /**
+     * Hashes the given bytes with the digest selected by {@code digestType} (see {@link #digestOrThrow(DigestType)}).
+     * @param byteArray the bytes to hash
+     * @param digestType the digest algorithm to use
+     * @return the resulting hash
+     */
+    public static byte[] noThrowHashOf(@NonNull final byte[] byteArray, final DigestType digestType) {
+        requireNonNull(byteArray);
+        return digestOrThrow(digestType).digest(byteArray);
     }
 
     // SHA-384 hash functions with the default-provided message digest
@@ -225,6 +259,23 @@ public final class CommonUtils {
             return Math.addExact(addendA, addendB);
         } catch (final ArithmeticException ae) {
             return addendA > 0 ? Long.MAX_VALUE : Long.MIN_VALUE;
+        }
+    }
+
+    /**
+     * Subtracts one long from another, returning {@link Long#MAX_VALUE} or {@link Long#MIN_VALUE} if overflow or
+     * underflow occurs.
+     * @param minuend the value to subtract from
+     * @param subtrahend the value to subtract
+     * @return the difference, or {@link Long#MAX_VALUE} or {@link Long#MIN_VALUE} if overflow or underflow occurs
+     */
+    public static long clampedSubtract(final long minuend, final long subtrahend) {
+        try {
+            return Math.subtractExact(minuend, subtrahend);
+        } catch (final ArithmeticException ae) {
+            // Keyed on the subtrahend, not the minuend: subtraction overflows upward exactly when the
+            // subtrahend is negative (including minuend == 0 with subtrahend == Long.MIN_VALUE).
+            return subtrahend < 0 ? Long.MAX_VALUE : Long.MIN_VALUE;
         }
     }
 

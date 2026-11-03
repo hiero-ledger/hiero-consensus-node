@@ -23,7 +23,8 @@ public class GossipConfigurationExtension implements ConfigurationExtension {
                 ProtocolConfig.class,
                 SocketConfig.class,
                 SyncConfig.class,
-                BroadcastConfig.class);
+                BroadcastConfig.class,
+                TrafficShapingConfig.class);
     }
 
     /**

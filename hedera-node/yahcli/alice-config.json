@@ -1,0 +1,15 @@
+{
+  "protocol_version": 1,
+  "chain_id": "hiero:localneta",
+  "serviceAddress": "AAAAAAAAAAAAAAAAAAAAAAAAAW4=",
+  "initialTrustAnchor":   "i4W1a3NJ64i9rrFrPqOWJm5GgrU7oN+O90vysno38Ag=",
+  "initialTrustAnchorId": "i4W1a3NJ64i9rrFrPqOWJm5GgrU7oN+O90vysno38Ag=",
+  "throttles": {
+    "maxMessagesPerBundle":    1000,
+    "maxSyncsPerSec":            10,
+    "maxMessagePayloadBytes":  65536,
+    "maxGasPerMessage":      "300000",
+    "maxQueueDepth":           10000,
+    "maxSyncBytes":        "4194304"
+  }
+}

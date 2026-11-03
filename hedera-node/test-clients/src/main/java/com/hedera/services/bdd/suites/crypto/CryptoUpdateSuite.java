@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.crypto;
 
+import static com.hedera.services.bdd.junit.ContextRequirement.SYSTEM_ACCOUNT_KEYS;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -37,9 +38,11 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedBodyIds;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
+import static com.hedera.services.bdd.suites.HapiSuite.EMPTY_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.SYSTEM_ADMIN;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.HapiSuite.ZERO_BYTE_MEMO;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractUpdateSuite.ADMIN_KEY;
@@ -51,7 +54,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CONTRA
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_EXPIRATION_TIME;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_MAX_AUTO_ASSOCIATIONS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_STAKING_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ZERO_BYTE_IN_STRING;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REQUESTED_NUM_AUTOMATIC_ASSOCIATIONS_EXCEEDS_ASSOCIATION_LIMIT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -159,40 +161,6 @@ public class CryptoUpdateSuite {
                 cryptoUpdate(ACCOUNT_PARKER).maxAutomaticAssociations(1),
                 getAccountInfo(ACCOUNT_PARKER).hasMaxAutomaticAssociations(1),
                 getTxnRecord("tokenCreate").hasNewTokenAssociation(TOKEN_FUNGIBLE, ACCOUNT_ALICE));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> updateStakingFieldsWorks() {
-        final var stakedAccountId = 20;
-        return hapiTest(
-                newKeyNamed(ADMIN_KEY),
-                cryptoCreate("user").key(ADMIN_KEY).stakedAccountId(20).declinedReward(true),
-                getAccountInfo("user")
-                        .has(accountWith()
-                                .stakedAccountId(stakedAccountId)
-                                .noStakingNodeId()
-                                .isDeclinedReward(true)),
-                cryptoUpdate("user").newStakedNodeId(0L).newDeclinedReward(false),
-                getAccountInfo("user")
-                        .has(accountWith().noStakedAccountId().stakedNodeId(0L).isDeclinedReward(false)),
-                cryptoUpdate("user").newStakedNodeId(-1L),
-                cryptoUpdate("user").newStakedNodeId(-25L).hasKnownStatus(INVALID_STAKING_ID),
-                getAccountInfo("user")
-                        .has(accountWith().noStakedAccountId().noStakingNodeId().isDeclinedReward(false)),
-                cryptoUpdate("user").key(ADMIN_KEY).newStakedAccountId("20").newDeclinedReward(true),
-                getAccountInfo("user")
-                        .has(accountWith()
-                                .stakedAccountId(stakedAccountId)
-                                .noStakingNodeId()
-                                .isDeclinedReward(true))
-                        .logged(),
-                cryptoUpdate("user").key(ADMIN_KEY).newStakedAccountId("0.0.0"),
-                getAccountInfo("user")
-                        .has(accountWith().noStakedAccountId().noStakingNodeId().isDeclinedReward(true))
-                        .logged(),
-                // For completeness stake back to a node
-                cryptoUpdate("user").key(ADMIN_KEY).newStakedNodeId(1),
-                getAccountInfo("user").has(accountWith().stakedNodeId(1L).isDeclinedReward(true)));
     }
 
     @LeakyEmbeddedHapiTest(
@@ -315,7 +283,7 @@ public class CryptoUpdateSuite {
                         .key(secondKey)
                         .signedBy(firstKey)
                         .payingWith(GENESIS)
-                        .hasPrecheck(INVALID_SIGNATURE));
+                        .hasKnownStatus(INVALID_SIGNATURE));
     }
 
     @HapiTest
@@ -324,7 +292,7 @@ public class CryptoUpdateSuite {
         String secondMemo = "Second";
         return hapiTest(
                 cryptoCreate(TARGET_ACCOUNT).balance(0L).entityMemo(firstMemo),
-                cryptoUpdate(TARGET_ACCOUNT).entityMemo(ZERO_BYTE_MEMO).hasPrecheck(INVALID_ZERO_BYTE_IN_STRING),
+                cryptoUpdate(TARGET_ACCOUNT).entityMemo(ZERO_BYTE_MEMO).hasKnownStatus(INVALID_ZERO_BYTE_IN_STRING),
                 cryptoUpdate(TARGET_ACCOUNT).entityMemo(secondMemo),
                 getAccountDetails(TARGET_ACCOUNT)
                         .payingWith(GENESIS)
@@ -425,7 +393,40 @@ public class CryptoUpdateSuite {
                 newKeyNamed(ORIG_KEY).shape(KeyShape.SIMPLE),
                 newKeyNamed(UPD_KEY).shape(updKeySigs),
                 cryptoCreate(TEST_ACCOUNT).key(ORIG_KEY),
-                cryptoUpdate(TEST_ACCOUNT).key(UPD_KEY).hasPrecheck(INVALID_ADMIN_KEY));
+                cryptoUpdate(TEST_ACCOUNT).key(UPD_KEY).hasKnownStatus(INVALID_ADMIN_KEY));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> updateToEmptyKeyListFailsForRegularAccount() {
+        return hapiTest(
+                newKeyNamed(ORIG_KEY),
+                cryptoCreate(TEST_ACCOUNT).key(ORIG_KEY).balance(ONE_HUNDRED_HBARS),
+                cryptoUpdate(TEST_ACCOUNT)
+                        .protoKey(EMPTY_KEY)
+                        .payingWith(TEST_ACCOUNT)
+                        .signedBy(TEST_ACCOUNT)
+                        .hasKnownStatus(INVALID_ADMIN_KEY),
+                getAccountInfo(TEST_ACCOUNT).has(accountWith().key(ORIG_KEY)));
+    }
+
+    @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_KEYS)
+    final Stream<DynamicTest> systemAdminCanSetSystemAccountKeyToEmptyKeyList() {
+        final var systemAccount = "96";
+        final var originalKey = new AtomicReference<Key>();
+        return hapiTest(
+                getAccountInfo(systemAccount).exposingKeyTo(originalKey::set),
+                cryptoUpdate(systemAccount)
+                        .protoKey(EMPTY_KEY)
+                        .payingWith(SYSTEM_ADMIN)
+                        .signedBy(SYSTEM_ADMIN)
+                        .hasKnownStatus(SUCCESS),
+                getAccountInfo(systemAccount).has(accountWith().hasEmptyKey()),
+                // Restore the original key
+                sourcing(() -> cryptoUpdate(systemAccount)
+                        .protoKey(originalKey.get())
+                        .payingWith(SYSTEM_ADMIN)
+                        .signedBy(SYSTEM_ADMIN)),
+                sourcing(() -> getAccountInfo(systemAccount).has(accountWith().key(originalKey.get()))));
     }
 
     @HapiTest

@@ -6,6 +6,7 @@ import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertBlockNodeCommsLogDoesNotContainText;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.awaitBlockNodeCommsLogContainsText;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilNextBlocks;
 
 import com.hedera.services.bdd.HapiBlockNode;
@@ -14,6 +15,7 @@ import com.hedera.services.bdd.HapiBlockNode.SubProcessNodeConfig;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
+import com.hedera.services.bdd.spec.SpecOperation;
 import java.time.Duration;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
@@ -38,21 +40,23 @@ public class BlockNodeSuite {
                 @SubProcessNodeConfig(
                         nodeId = 0,
                         blockNodeIds = {0},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC",
-                            "blockStream.enableCutover", "false",
-                            "blockStream.streamWrappedRecordBlocks", "true",
-                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
-                            "tss.forceMockSignatures", "true"
-                        })
+                        blockNodePriorities = {0})
             })
     @Order(1)
     final Stream<DynamicTest> node0StreamingHappyPath() {
-        return validateHappyPath(20);
+        // node0 is its block node's only publisher, so it is never skipped
+        return validateHappyPath(
+                20,
+                "Sending request to block node (type: END_OF_BLOCK)",
+                assertBlockNodeCommsLogDoesNotContainText(
+                        byNodeId(0), "Received SkipBlock response", Duration.ofSeconds(0)));
     }
 
+    // All four block nodes share priority group 0, and the connection manager probes an entire priority
+    // group under a single blockNode.blockNodeStatusTimeout budget (one invokeAll call for the group).
+    // The 1s default cannot cover constructing four gRPC clients, each of which is itself allowed
+    // connectionManagementTimeout (3s), so on a loaded runner every probe times out and every block node
+    // is cooled down.
     @HapiTest
     @HapiBlockNode(
             blockNodeConfigs = {
@@ -67,58 +71,45 @@ public class BlockNodeSuite {
                         blockNodeIds = {0, 1, 2, 3},
                         blockNodePriorities = {0, 0, 0, 0},
                         applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC",
-                            "blockStream.enableCutover", "false",
-                            "blockStream.streamWrappedRecordBlocks", "true",
-                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
-                            "tss.forceMockSignatures", "true"
+                            "blockNode.blockNodeStatusTimeout", "10s",
+                            "blockNode.basicNodeCoolDownSeconds", "1"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 1,
                         blockNodeIds = {0, 1, 2, 3},
                         blockNodePriorities = {0, 0, 0, 0},
                         applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC",
-                            "blockStream.enableCutover", "false",
-                            "blockStream.streamWrappedRecordBlocks", "true",
-                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
-                            "tss.forceMockSignatures", "true"
+                            "blockNode.blockNodeStatusTimeout", "10s",
+                            "blockNode.basicNodeCoolDownSeconds", "1"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 2,
                         blockNodeIds = {0, 1, 2, 3},
                         blockNodePriorities = {0, 0, 0, 0},
                         applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC",
-                            "blockStream.enableCutover", "false",
-                            "blockStream.streamWrappedRecordBlocks", "true",
-                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
-                            "tss.forceMockSignatures", "true"
+                            "blockNode.blockNodeStatusTimeout", "10s",
+                            "blockNode.basicNodeCoolDownSeconds", "1"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 3,
                         blockNodeIds = {0, 1, 2, 3},
                         blockNodePriorities = {0, 0, 0, 0},
                         applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC",
-                            "blockStream.enableCutover", "false",
-                            "blockStream.streamWrappedRecordBlocks", "true",
-                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
-                            "tss.forceMockSignatures", "true"
+                            "blockNode.blockNodeStatusTimeout", "10s",
+                            "blockNode.basicNodeCoolDownSeconds", "1"
                         })
             })
     @Order(2)
     final Stream<DynamicTest> allP0NodesStreamingHappyPath() {
         // Use fewer blocks than the single-node test since 4 real block node containers
         // and 4 consensus nodes need more startup time, reducing the window for block production
-        return validateHappyPath(5);
+        // Nodes may share a block node, which takes each block from the first publisher and sends the
+        // others SkipBlock (so no END_OF_BLOCK from them); every publisher sends the block's items first
+        return validateHappyPath(5, "Sending request to block node (type: BLOCK_ITEMS)");
     }
 
-    private Stream<DynamicTest> validateHappyPath(final int blocksToWait) {
+    private Stream<DynamicTest> validateHappyPath(
+            final int blocksToWait, final String streamingLogText, final SpecOperation... extraChecks) {
         return hapiTest(
                 waitUntilNextBlocks(blocksToWait).withBackgroundTraffic(true),
 
@@ -170,8 +161,7 @@ public class BlockNodeSuite {
                 // Block processing error assertions
                 assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0), " not found in buffer (latestBlock: ", Duration.ofSeconds(0)),
-                assertBlockNodeCommsLogDoesNotContainText(
-                        byNodeId(0), "Received SkipBlock response for block ", Duration.ofSeconds(0)),
+                blockingOrder(extraChecks),
                 assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0), "Received ResendBlock response for block ", Duration.ofSeconds(0)),
                 assertBlockNodeCommsLogDoesNotContainText(
@@ -190,7 +180,6 @@ public class BlockNodeSuite {
                 // High latency assertions
                 assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0), "Block node has exceeded high latency threshold", Duration.ofSeconds(0)),
-                awaitBlockNodeCommsLogContainsText(
-                        byNodeId(0), "Sending request to block node (type: END_OF_BLOCK)", Duration.ofSeconds(30)));
+                awaitBlockNodeCommsLogContainsText(byNodeId(0), streamingLogText, Duration.ofSeconds(30)));
     }
 }

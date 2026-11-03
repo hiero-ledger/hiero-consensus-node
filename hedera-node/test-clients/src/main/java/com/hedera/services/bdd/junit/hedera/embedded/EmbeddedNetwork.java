@@ -8,6 +8,8 @@ import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATA
 import static com.hedera.services.bdd.junit.hedera.subprocess.ConditionStatus.PENDING;
 import static com.hedera.services.bdd.junit.hedera.subprocess.ConditionStatus.REACHED;
 import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.conditionFuture;
+import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.prCheckDefaultOverrides;
+import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.prCheckOverrides;
 import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.classicMetadataFor;
 import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.generateNetworkConfig;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.updateBootstrapProperties;
@@ -39,6 +41,7 @@ import com.hederahashgraph.api.proto.java.TransactionResponse;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -219,9 +222,26 @@ public class EmbeddedNetwork extends AbstractNetwork {
             @NonNull final Consumer<EmbeddedHedera> start, @NonNull final Map<String, String> bootstrapOverrides) {
         // Initialize the working directory
         embeddedNode.initWorkingDir(network);
-        if (!bootstrapOverrides.isEmpty()) {
-            updateBootstrapProperties(embeddedNode.getExternalPath(APPLICATION_PROPERTIES), bootstrapOverrides);
+
+        // Apply the per-task build.gradle.kts overrides (hapi.spec.test.overrides) as the base layer so
+        // embedded specs honor the same node config as subprocess specs do (subprocess gets them as env
+        // vars via ProcessUtils). Without this, e.g. the CLPR tasks' clpr.enabled=true never reaches an
+        // embedded @Tag(CLPR) spec, which then runs with CLPR at its config default (false on this repo).
+        // The test's own bootstrapOverrides layer on top (per-test wins), then the embedded-mandatory
+        // settings below: embedded networks require mocked TSS signatures and a 1-min staking period.
+        final Map<String, String> effectiveOverrides = new HashMap<>(prCheckDefaultOverrides());
+        effectiveOverrides.putAll(prCheckOverrides());
+        effectiveOverrides.putAll(bootstrapOverrides);
+        effectiveOverrides.put("tss.forceMockSignatures", "true");
+        effectiveOverrides.put("staking.periodMins", "1");
+        if (mode == REPEATABLE) {
+            // With CLPR enabled, the endpoint-manifest reconciler gossips this node's ClprEndpointPublication
+            // asynchronously; repeatable mode handles only the first buffered transaction per round, so that
+            // priority publication would displace (and drop) the next user transaction and break determinism.
+            // No repeatable suite exercises CLPR; its embedded coverage runs in CONCURRENT mode.
+            effectiveOverrides.putIfAbsent("clpr.enabled", "false");
         }
+        updateBootstrapProperties(embeddedNode.getExternalPath(APPLICATION_PROPERTIES), effectiveOverrides);
         embeddedNode.start();
         // Start the embedded Hedera "network"
         embeddedHedera = switch (mode) {

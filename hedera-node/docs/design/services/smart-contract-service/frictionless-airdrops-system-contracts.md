@@ -76,7 +76,7 @@ New system contract functions must be added to a new `IHRC904` interface to supp
 
 #### Input limitations
 
-- The `airdropTokens` function will accept an array of `TokenTransferList` with a maximum of 10 elements by default managed by `tokens.maxAllowedAirdropTransfersPerTx` configuration.
+- The `airdropTokens` function accepts an array of `TokenTransferList`. The total number of fungible account amounts is limited by `ledger.tokenTransfers.maxLen`, and the total number of NFT transfers is limited by `ledger.nftTransfers.maxLen`; both default to 10.
 - The `cancelAirdrops` function will accept an array of `PendingAirdrop` with a maximum of 10 elements by default managed by `tokens.maxAllowedPendingAirdropsToCancel` configuration.
 - The `claimAirdrops` function will accept an array of `PendingAirdrop` with a maximum of 10 elements by default managed by `tokens.maxAllowedPendingAirdropsToClaim` configuration.
 - The `rejectTokens` function will accept array of `address` and `NftID` with a maximum of 10 elements combined by default managed by `ledger.tokenRejects.maxLen` configuration. Same limitation applies to `rejectTokenNFTs` function.

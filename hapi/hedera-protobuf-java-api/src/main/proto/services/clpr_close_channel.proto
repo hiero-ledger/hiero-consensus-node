@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package com.hedera.hapi.node.clpr;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.clpr">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+/**
+ * Initiates graceful closure of a CLPR Channel, or deletes an abandoned
+ * pending ownership commitment. Requires the CLPR admin key.
+ *
+ * When channel_id maps to an existing ACTIVE or PAUSED Channel,
+ * transitions it to CLOSING. No new sendMessage calls are accepted.
+ * All inbound Data Messages continue to be dispatched normally. Queues drain
+ * through CLOSING -> DRAINED -> CLOSED.
+ *
+ * When no Channel exists for channel_id and ownership_commitment is
+ * set, the matching entry in PENDING_COMMITMENTS is deleted (admin sweep
+ * of an abandoned commitment from a registerChannel that was never
+ * completed).
+ */
+message ClprCloseChannelTransactionBody {
+    /**
+     * 32-byte Channel ID to close.
+     */
+    bytes channel_id = 1;
+
+    /**
+     * 32-byte ownership commitment to delete when no Channel exists yet
+     * (PENDING state). Required when closing an abandoned commitment.
+     * Ignored when a Channel record is found for channel_id.
+     */
+    bytes ownership_commitment = 2;
+}

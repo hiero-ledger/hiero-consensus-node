@@ -1,0 +1,85 @@
+/**
+ * # CLPR Maintenance
+ * A system-initiated (i.e. internal) transaction to externalize changes the
+ * network makes to the CLPR singletons outside of transaction handling.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package com.hedera.hapi.services.auxiliary.clpr;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hedera.hapi.services.auxiliary.clpr.legacy";
+// <<<pbj.java_package = "com.hedera.hapi.services.auxiliary.clpr">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+/**
+ * The reason the network changed the CLPR singletons outside of
+ * transaction handling.
+ */
+enum ClprMaintenanceReason {
+    /**
+     * No reason given; never used by a node.
+     */
+    CLPR_MAINTENANCE_REASON_UNSPECIFIED = 0;
+
+    /**
+     * Genesis setup initialized the CLPR singletons.
+     */
+    GENESIS_INITIALIZATION = 1;
+
+    /**
+     * Post-upgrade setup initialized CLPR singletons missing from the
+     * state of the prior software version.
+     */
+    UPGRADE_INITIALIZATION = 2;
+
+    /**
+     * Post-upgrade setup reconciled the endpoint manifest with the new
+     * active roster (for example, by opening a construction that prunes a
+     * removed node).
+     */
+    UPGRADE_ROSTER_RECONCILIATION = 3;
+
+    /**
+     * Per-round endpoint manifest reconciliation advanced or closed a
+     * manifest construction.
+     */
+    ENDPOINT_MANIFEST_RECONCILIATION = 4;
+}
+
+/**
+ * A system initiated transaction to externalize CLPR singleton changes
+ * (ledger configuration, endpoint manifest, and endpoint manifest
+ * construction) that the network makes outside of transaction handling.
+ *
+ * This transaction SHALL be issued only when such maintenance changes at
+ * least one CLPR singleton value, including in rounds with no user
+ * transactions.<br/>
+ * This transaction SHALL use a reserved consensus time before the next event
+ * or user transaction.<br/>
+ * This transaction MUST NOT be sent by a client and SHALL be rejected if
+ * received by any node.<br/>
+ * This transaction SHALL NOT be charged fees.<br/>
+ * This transaction SHALL be present in the block stream, but not the record
+ * stream.
+ *
+ * ### Block Stream Effects
+ * The state changes of this transaction are authoritative, and are the only
+ * record of the changed singleton values; this body deliberately does not
+ * repeat them. A block stream consumer that replays state MUST apply these
+ * state changes, and MUST NOT execute any transaction handler for this
+ * transaction.
+ */
+message ClprMaintenanceTransactionBody {
+    /**
+     * The reason for the maintenance.
+     */
+    ClprMaintenanceReason reason = 1;
+}

@@ -6,87 +6,69 @@ import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.MessageDigest;
-import java.util.Objects;
+import org.hiero.base.concurrent.ThreadLocalStorage;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 
 /**
- * Utility class to compute Merkle hashes for a virtual map.
- * <p>
- * This class <b>is not thread safe</b>, but it can be used in a thread-safe manner by using the {@link #threadSafeDefault()} method to get a thread-local instance.
+ * A set of utility methods to compute Merkle hashes for a virtual map.
  */
 public final class MerkleHasher {
 
-    /**
-     * This thread-local gets a message digest that can be used for hashing on a per-thread basis.
-     */
-    private static final ThreadLocal<MerkleHasher> THREAD_LOCAL_DEFAULT =
-            ThreadLocal.withInitial(() -> new MerkleHasher(Cryptography.DEFAULT_DIGEST_TYPE));
-
-    private final DigestType digestType;
-    private final WritableMessageDigest digestWriter;
+    private MerkleHasher() {}
 
     /**
-     * Create hasher with default digest type - {@link Cryptography#DEFAULT_DIGEST_TYPE}
-     */
-    public MerkleHasher() {
-        this(Cryptography.DEFAULT_DIGEST_TYPE);
-    }
-
-    /**
-     * Create hasher with provided digest type
+     * Calculates the empty root hash for a Merkle tree. Hash digest type is {@link
+     * Cryptography#DEFAULT_DIGEST_TYPE}.
      *
-     * @param digestType digest type to build digest from and use for hashing
-     */
-    public MerkleHasher(@NonNull DigestType digestType) {
-        this.digestType = Objects.requireNonNull(digestType, "digestType cannot be null");
-
-        digestWriter = new WritableMessageDigest(digestType.buildDigest());
-    }
-
-    /**
-     * @return thread-local instance using {@link Cryptography#DEFAULT_DIGEST_TYPE} - thread safe.
-     */
-    @NonNull
-    public static MerkleHasher threadSafeDefault() {
-        return THREAD_LOCAL_DEFAULT.get();
-    }
-
-    /**
-     * @return digest type that is used for hashing
-     */
-    @NonNull
-    public DigestType getDigestType() {
-        return digestType;
-    }
-
-    /**
-     * Calculates the empty root hash for a Merkle tree using the specified digest type.
-     *
-     * @param digestType the type of digest to use
      * @return the empty root hash
      */
     @NonNull
-    public static Hash emptyRootHash(DigestType digestType) {
-        final MessageDigest md = digestType.buildDigest();
+    public static Hash emptyRootHash() {
+        final MessageDigest md = Cryptography.DEFAULT_DIGEST_TYPE.buildDigest();
         md.update((byte) 0x00);
-        return new Hash(md.digest(), digestType);
+        return new Hash(md.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
     }
 
     /**
-     * Calculates a hash for an internal node from its left and right child hashes.
+     * Calculates hash bytes for an internal node from its left and right child hashes. Hash digest type
+     * is {@link Cryptography#DEFAULT_DIGEST_TYPE}.
      *
      * <p>The left hash must always be provided. The right hash is typically provided, too.
-     * However, this method may also be called with a null right hash to calculate a root
-     * hash for a tree with only one leaf node.
+     * However, this method may also be called with a null right hash to calculate a root hash for a tree with only one
+     * leaf node.
      *
-     * @param left the left child hash
+     * <p>A note about performance: if this method is called from performance-critical code, consider
+     * obtaining a writable message digest and pass it to {@link #internalNodeHashBytes(byte[], byte[],
+     * WritableMessageDigest)} instead of calling this method.
+     *
+     * @param left  the left child hash
      * @param right the right child hash, or null if there is no right child
      * @return the calculated internal node hash
      */
     @NonNull
-    public byte[] internalNodeHashBytes(@NonNull byte[] left, @Nullable byte[] right) {
+    public static byte[] internalNodeHashBytes(@NonNull byte[] left, @Nullable byte[] right) {
+        final WritableMessageDigest digestWriter =
+                ThreadLocalStorage.getWritableMessageDigest(Cryptography.DEFAULT_DIGEST_TYPE.algorithmName());
+        return internalNodeHashBytes(left, right, digestWriter);
+    }
+
+    /**
+     * Calculates hash bytes for an internal node from its left and right child hashes.
+     *
+     * <p>The left hash must always be provided. The right hash is typically provided, too.
+     * However, this method may also be called with a null right hash to calculate a root hash for a tree with only one
+     * leaf node.
+     *
+     * @param left  the left child hash
+     * @param right the right child hash, or null if there is no right child
+     * @param digestWriter the message digest used to hash child hash bytes
+     * @return the calculated internal node hash
+     */
+    @NonNull
+    public static byte[] internalNodeHashBytes(
+            @NonNull byte[] left, @Nullable byte[] right, @NonNull final WritableMessageDigest digestWriter) {
         // Unique value to make sure internal node hashes are different from leaf hashes. This
         // value indicates the number of child nodes. All internal virtual nodes have 2 children
         // except a root node in a tree with just one element / leaf.
@@ -100,42 +82,88 @@ public final class MerkleHasher {
     }
 
     /**
-     * Calculates a hash for an internal node from its left and right child node hashes.
-     * This method may be called with the null righ hash to calculate the root hash for a tree with only one leaf node.
+     * Calculates a hash for an internal node from its left and right child node hashes. This method may be called with
+     * the null righ hash to calculate the root hash for a tree with only one leaf node.
      *
-     * @param left the left child hash
+     * @param left  the left child hash
      * @param right the right child hash, or null if there is no right child
      * @return the calculated internal node hash
      */
     @NonNull
-    public Hash internalNodeHash(@NonNull final Hash left, @Nullable final Hash right) {
+    public static Hash internalNodeHash(
+            @NonNull final Hash left,
+            @Nullable final Hash right,
+            @NonNull final WritableMessageDigest digestWriter,
+            @NonNull final DigestType digestType) {
         final byte[] leftBytes = left.copyToByteArray();
         final byte[] rightBytes = (right != null) ? right.copyToByteArray() : null;
-        final byte[] hashBytes = internalNodeHashBytes(leftBytes, rightBytes);
+        final byte[] hashBytes = internalNodeHashBytes(leftBytes, rightBytes, digestWriter);
         return new Hash(hashBytes, digestType);
+    }
+
+    /**
+     * Calculates the hash of a leaf record. Hash digest type is {@link Cryptography#DEFAULT_DIGEST_TYPE}.
+     *
+     * <p>A note about performance: if this method is called from performance-critical code, consider
+     * obtaining a writable message digest and pass it to {@link #leafNodeHashBytes(VirtualLeafBytes,
+     * WritableMessageDigest)} instead of calling this method.
+     *
+     * @param leaf the leaf bytes to hash
+     * @return the computed hash
+     */
+    @NonNull
+    public static byte[] leafNodeHashBytes(@NonNull final VirtualLeafBytes<?> leaf) {
+        final WritableMessageDigest digestWriter =
+                ThreadLocalStorage.getWritableMessageDigest(Cryptography.DEFAULT_DIGEST_TYPE.algorithmName());
+        return leafNodeHashBytes(leaf, digestWriter);
     }
 
     /**
      * Calculates the hash of a leaf record.
      *
      * @param leaf the leaf bytes to hash
+     * @param digestWriter the message digest used to hash leaf bytes
      * @return the computed hash
      */
     @NonNull
-    public byte[] leafNodeHashBytes(@NonNull final VirtualLeafBytes<?> leaf) {
+    public static byte[] leafNodeHashBytes(
+            @NonNull final VirtualLeafBytes<?> leaf, @NonNull final WritableMessageDigest digestWriter) {
         leaf.writeToForHashing(digestWriter);
         // Calling digest() resets the digest
         return digestWriter.digest();
     }
 
     /**
-     * Computes the hash of a leaf record.
+     * Computes the hash of a leaf record. Hash digest type is {@link Cryptography#DEFAULT_DIGEST_TYPE}.
+     *
+     * <p>A note about performance: if this method is called from performance-critical code, consider
+     * obtaining a writable message digest and the corresponding message digest type and pass them
+     * to {@link #leafNodeHash(VirtualLeafBytes, WritableMessageDigest, DigestType)} instead of
+     * calling this method.
      *
      * @param leaf the leaf bytes to hash
      * @return the computed hash
      */
     @NonNull
-    public Hash leafNodeHash(@NonNull final VirtualLeafBytes<?> leaf) {
-        return new Hash(leafNodeHashBytes(leaf), digestType);
+    public static Hash leafNodeHash(@NonNull final VirtualLeafBytes<?> leaf) {
+        final WritableMessageDigest digestWriter =
+                ThreadLocalStorage.getWritableMessageDigest(Cryptography.DEFAULT_DIGEST_TYPE.algorithmName());
+        return new Hash(leafNodeHashBytes(leaf, digestWriter), Cryptography.DEFAULT_DIGEST_TYPE);
+    }
+
+    /**
+     * Computes the hash of a leaf record.
+     *
+     * @param leaf the leaf bytes to hash
+     * @param digestWriter the message digest to hash leaf bytes
+     * @param digestType the message digest type
+     * @return the computed hash
+     */
+    @NonNull
+    public static Hash leafNodeHash(
+            @NonNull final VirtualLeafBytes<?> leaf,
+            @NonNull final WritableMessageDigest digestWriter,
+            @NonNull final DigestType digestType) {
+        return new Hash(leafNodeHashBytes(leaf, digestWriter), digestType);
     }
 }

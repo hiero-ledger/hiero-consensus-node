@@ -11,7 +11,7 @@ import static com.hedera.services.bdd.junit.hedera.subprocess.NodeStatus.GrpcSta
 import static com.hedera.services.bdd.junit.hedera.subprocess.NodeStatus.GrpcStatus.NA;
 import static com.hedera.services.bdd.junit.hedera.subprocess.NodeStatus.GrpcStatus.UP;
 import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.conditionFuture;
-import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.destroyAnySubProcessNodeWithId;
+import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.destroyAnySubProcessNodeFor;
 import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.startSubProcessNodeFrom;
 import static com.hedera.services.bdd.junit.hedera.subprocess.StatusLookupAttempt.newLogAttempt;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.ERROR_REDIRECT_FILE;
@@ -32,10 +32,12 @@ import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -171,6 +173,38 @@ public class SubProcessNode extends AbstractLocalNode<SubProcessNode> implements
         return stopFuture;
     }
 
+    /**
+     * Stops the node like {@link #stopFuture()}, but asks it to exit (SIGTERM) instead of killing it, so its shutdown
+     * hooks run. In particular the preconsensus event writer then flushes and closes its file, so on restart the node
+     * replays every event it created; a killed node can lose its newest events, which its peers already have, and then
+     * branch its own event chain. Falls back to a forced kill if the node has not exited within {@code timeout}.
+     *
+     * @param timeout how long to wait for the node to exit before killing it
+     * @return a future that completes once the node has exited
+     */
+    public CompletableFuture<Void> gracefulStopFuture(@NonNull final Duration timeout) {
+        final var handle = processHandle;
+        if (handle == null) {
+            return CompletableFuture.completedFuture(null);
+        }
+        log.info("Stopping node{} with PID '{}' gracefully", metadata.nodeId(), handle.pid());
+        if (!handle.destroy()) {
+            log.warn("May have failed to ask node{} with PID '{}' to stop", metadata.nodeId(), handle.pid());
+        }
+        return handle.onExit()
+                .<Void>thenApply(exited -> null)
+                .completeOnTimeout(null, timeout.toMillis(), TimeUnit.MILLISECONDS)
+                .thenCompose(ignored -> {
+                    if (handle.isAlive()) {
+                        log.warn("Node{} did not exit within {}; killing it", metadata.nodeId(), timeout);
+                        return stopFuture();
+                    }
+                    log.info("Stopped node{} with PID '{}'", metadata.nodeId(), handle.pid());
+                    processHandle = null;
+                    return CompletableFuture.completedFuture(null);
+                });
+    }
+
     @Override
     public boolean dumpThreads() {
         requireNonNull(processHandle);
@@ -218,7 +252,7 @@ public class SubProcessNode extends AbstractLocalNode<SubProcessNode> implements
             final int configVersion, @NonNull final Map<String, String> envOverrides) {
         assertStopped();
         assertWorkingDirInitialized();
-        destroyAnySubProcessNodeWithId(metadata.nodeId());
+        destroyAnySubProcessNodeFor(metadata.networkName(), metadata.nodeId());
         processHandle = startSubProcessNodeFrom(metadata, configVersion, envOverrides);
         return this;
     }

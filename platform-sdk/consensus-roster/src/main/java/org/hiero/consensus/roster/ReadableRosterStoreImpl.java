@@ -2,6 +2,7 @@
 package org.hiero.consensus.roster;
 
 import static java.util.Objects.requireNonNull;
+import static java.util.stream.Collectors.toMap;
 
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -15,9 +16,10 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
-import java.util.stream.Collectors;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.consensus.model.roster.ConsensusLayerRosterInputs;
 
 /**
  * Provides read-only methods for interacting with the underlying data storage mechanisms for
@@ -37,14 +39,64 @@ public class ReadableRosterStoreImpl implements ReadableRosterStore {
     private final ReadableKVState<ProtoBytes, Roster> rosterMap;
 
     /**
-     * Create a new {@link ReadableRosterStore} instance.
+     * The digest type for roster hashes when the state holds none yet; otherwise rosters are hashed like the stored ones.
+     */
+    private final DigestType defaultDigestType;
+
+    /**
+     * Create a new {@link ReadableRosterStore} instance. Rosters are hashed with the digest type of the stored roster
+     * hashes, or the platform's default digest type when there are none yet.
      *
      * @param readableStates The state to use.
      */
     public ReadableRosterStoreImpl(@NonNull final ReadableStates readableStates) {
+        this(readableStates, Cryptography.DEFAULT_DIGEST_TYPE);
+    }
+
+    /**
+     * Create a new {@link ReadableRosterStore} instance.
+     *
+     * @param readableStates The state to use.
+     * @param defaultDigestType the digest type for roster hashes when the state holds none yet
+     */
+    public ReadableRosterStoreImpl(
+            @NonNull final ReadableStates readableStates, @NonNull final DigestType defaultDigestType) {
         requireNonNull(readableStates);
         this.rosterState = readableStates.getSingleton(RosterStateId.ROSTER_STATE_STATE_ID);
         this.rosterMap = readableStates.get(RosterStateId.ROSTERS_STATE_ID);
+        this.defaultDigestType = requireNonNull(defaultDigestType);
+    }
+
+    /**
+     * Hashes a roster with the digest type of the stored roster hashes, so the result can be compared with them and
+     * used to look rosters up.
+     *
+     * @param roster the roster to hash
+     * @return the roster's hash
+     */
+    @NonNull
+    public Bytes rosterHashOf(@NonNull final Roster roster) {
+        return RosterUtils.hash(roster, rosterDigestType()).getBytes();
+    }
+
+    /**
+     * Returns the digest type of the stored roster hashes, or the default one while none is stored.
+     *
+     * @return the digest type roster hashes are computed with
+     */
+    @NonNull
+    protected DigestType rosterDigestType() {
+        final var currentRosterState = rosterState.get();
+        if (currentRosterState != null) {
+            final var storedHash = currentRosterState.roundRosterPairs().isEmpty()
+                    ? currentRosterState.candidateRosterHash()
+                    : currentRosterState.roundRosterPairs().getFirst().activeRosterHash();
+            final var storedDigestType = DigestType.digestLengthToDigestType((int) storedHash.length());
+            if (storedDigestType != null) {
+                return storedDigestType;
+            }
+        }
+        return defaultDigestType;
     }
 
     /**
@@ -67,7 +119,7 @@ public class ReadableRosterStoreImpl implements ReadableRosterStore {
     @Nullable
     @Override
     public Roster getActiveRoster() {
-        final var activeRosterHash = getCurrentRosterHash();
+        final var activeRosterHash = getActiveRosterHash();
         if (activeRosterHash == null) {
             return null;
         }
@@ -88,7 +140,7 @@ public class ReadableRosterStoreImpl implements ReadableRosterStore {
      */
     @Nullable
     @Override
-    public Bytes getCurrentRosterHash() {
+    public Bytes getActiveRosterHash() {
         final RosterState rosterStateSingleton = rosterState.get();
         if (rosterStateSingleton == null) {
             return null;
@@ -118,14 +170,14 @@ public class ReadableRosterStoreImpl implements ReadableRosterStore {
      */
     @NonNull
     @Override
-    public RosterHistory getRosterHistory() {
-        final List<RoundRosterPair> roundRosterPairs =
-                requireNonNull(rosterState.get()).roundRosterPairs();
-        final Map<Bytes, Roster> mappedRosterMap = roundRosterPairs.stream()
-                .collect(Collectors.toMap(
-                        RoundRosterPair::activeRosterHash,
-                        pair -> Objects.requireNonNull(get(pair.activeRosterHash()))));
-        return new RosterHistory(roundRosterPairs, mappedRosterMap);
+    public ConsensusLayerRosterInputs getConsensusLayerRosterInputs() {
+        final RosterState rosterState = requireNonNull(this.rosterState.get());
+        final List<RoundRosterPair> history = rosterState.roundRosterPairs();
+        final Map<Bytes, Roster> rosterMap = history.stream()
+                .collect(
+                        toMap(RoundRosterPair::activeRosterHash, pair -> requireNonNull(get(pair.activeRosterHash()))));
+
+        return new ConsensusLayerRosterInputs(history, rosterMap);
     }
 
     /**

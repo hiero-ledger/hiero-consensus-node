@@ -92,7 +92,7 @@ public class AverageAndMaxTimeStat {
     }
 
     public void update(final long start, final long end) {
-        updateInternal(end - start);
+        updateNanos(end - start);
     }
 
     /**
@@ -101,15 +101,15 @@ public class AverageAndMaxTimeStat {
      * @param start the start time
      */
     public void update(@NonNull final Instant start) {
-        updateInternal(Duration.between(start, Instant.now()).toNanos());
+        updateNanos(Duration.between(start, Instant.now()).toNanos());
     }
 
     /**
-     * Internal method to update the metrics
+     * Update the metrics with a duration measured in nanoseconds.
      *
      * @param nanos the duration (in nanoseconds) that should be stored
      */
-    private void updateInternal(final long nanos) {
+    public void updateNanos(final long nanos) {
         // the value is stored as nanos and converted upon retrieval
         average.update(nanos);
         max.update(nanos);

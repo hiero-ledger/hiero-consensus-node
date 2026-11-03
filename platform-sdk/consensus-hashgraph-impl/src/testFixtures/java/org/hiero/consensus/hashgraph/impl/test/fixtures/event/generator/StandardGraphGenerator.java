@@ -293,7 +293,7 @@ public class StandardGraphGenerator implements GraphGenerator {
 
         for (int index = 0; index < eventSourceCount; index++) {
             final EventSource source = eventSources.get(index);
-            final NodeId nodeId = roster.rosterEntry(index).nodeId();
+            final NodeId nodeId = roster.nodeIdAtIndex(index);
             source.setNodeId(nodeId);
         }
     }
@@ -333,10 +333,10 @@ public class StandardGraphGenerator implements GraphGenerator {
         final List<List<Double>> matrix = new ArrayList<>(sources.size());
 
         for (int nodeIndex = 0; nodeIndex < sources.size(); nodeIndex++) {
-            final NodeId nodeId = roster.rosterEntry(nodeIndex).nodeId();
+            final NodeId nodeId = roster.nodeIdAtIndex(nodeIndex);
             final List<Double> affinityVector = new ArrayList<>(sources.size());
             for (int otherNodeIndex = 0; otherNodeIndex < sources.size(); otherNodeIndex++) {
-                final NodeId otherNodeId = roster.rosterEntry(otherNodeIndex).nodeId();
+                final NodeId otherNodeId = roster.nodeIdAtIndex(otherNodeIndex);
                 if (Objects.equals(nodeId, otherNodeId)) {
                     affinityVector.add(0.0);
                 } else {
@@ -386,7 +386,7 @@ public class StandardGraphGenerator implements GraphGenerator {
      */
     @Override
     public EventSource getSource(@NonNull final NodeId nodeID) {
-        final int nodeIndex = roster.getIndex(nodeID);
+        final int nodeIndex = roster.index(nodeID);
         return sources.get(nodeIndex);
     }
 
@@ -447,8 +447,7 @@ public class StandardGraphGenerator implements GraphGenerator {
         if (roster.size() == 1) {
             return null;
         }
-        final List<Double> affinityVector =
-                getOtherParentAffinityVector(eventIndex, roster.getIndex(source.getNodeId()));
+        final List<Double> affinityVector = getOtherParentAffinityVector(eventIndex, roster.index(source.getNodeId()));
         final int nodeIndex = weightedChoice(getRandom(), affinityVector);
         return sources.get(nodeIndex);
     }
@@ -547,7 +546,7 @@ public class StandardGraphGenerator implements GraphGenerator {
         // currently, we only support removing a node at restart, so this process mimics what happens at restart
 
         // remove the node from the address book and the sources
-        final int nodeIndex = roster.getIndex(nodeId);
+        final int nodeIndex = roster.index(nodeId);
         sources.remove(nodeIndex);
 
         final List<RosterEntry> newRosterEntries = roster.rosterEntries().stream()

@@ -43,7 +43,7 @@ public class HashgraphGuiFromPcesMain {
      * The name of the JSON file containing the {@link Roster} used to create the events in the PCES directory. Must be
      * located in {@link #ROOT_DIR}.
      */
-    private static final String ROSTER_FILE = "currentRoster.json";
+    private static final String ROSTER_FILE = "activeRoster.json";
 
     /**
      * The name of the JSON file containing the {@link com.hedera.hapi.platform.state.ConsensusSnapshot} to start the

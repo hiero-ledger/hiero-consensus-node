@@ -144,12 +144,11 @@ public class DispatchUsageManager {
      * {@link HederaFunctionality#CRYPTO_CREATE} or {@link HederaFunctionality#TOKEN_ASSOCIATE_TO_ACCOUNT}
      * operations.
      *
-     * <p>This mirrors the claim made at ingest by {@code ThrottleAccumulator.shouldThrottleCryptoTransfer}: a
-     * transfer charges capacity for exactly one of {implicit creations, auto associations} - implicit creations
-     * take precedence, and auto associations are only charged when
-     * {@link EntitiesConfig#unlimitedAutoAssociationsEnabled()} is set. The reclaim therefore undoes exactly that
-     * one leg, and leaks implicit-creation capacity back into the same (normal or high-volume) bucket it was
-     * charged to.
+     * <p>This mirrors the claim made at ingest by {@code ThrottleAccumulator.shouldThrottleCryptoTransfer}: the
+     * two legs are additive, so a transfer doing both charges both buckets, and auto associations are charged
+     * only when {@link EntitiesConfig#unlimitedAutoAssociationsEnabled()} is set. The claim picks one bucket
+     * (normal or high-volume) for both legs from the implicit creation count, so the reclaim leaks each leg it
+     * charged back into that same bucket.
      *
      * @param dispatch the failed dispatch
      * @param function the functionality of the dispatch
@@ -157,19 +156,16 @@ public class DispatchUsageManager {
     private void reclaimFailedFrontendCapacity(
             @NonNull final Dispatch dispatch, @NonNull final HederaFunctionality function) {
         final var txnBody = dispatch.txnInfo().txBody();
+        // Without implicit creations the claim never uses the high-volume bucket
+        boolean useHighVolumeBucket = false;
         if (canAutoCreate(function)) {
             final var readableAccountStore = dispatch.readableStoreFactory().readableStore(ReadableAccountStore.class);
             final var numImplicitCreations = throttleServiceManager.numImplicitCreations(txnBody, readableAccountStore);
-            if (numImplicitCreations > 0) {
-                if (usedSelfFrontendThrottleCapacity(numImplicitCreations, txnBody)) {
-                    final var useHighVolumeBucket = throttleServiceManager.usesHighVolumeBucketForImplicitCreations(
-                            txnBody, function, numImplicitCreations);
-                    throttleServiceManager.reclaimFrontendThrottleCapacity(
-                            numImplicitCreations, CRYPTO_CREATE, useHighVolumeBucket);
-                }
-                // Implicit creations took precedence at claim time, so the auto-association leg was never
-                // charged and must not be reclaimed.
-                return;
+            if (numImplicitCreations > 0 && usedSelfFrontendThrottleCapacity(numImplicitCreations, txnBody)) {
+                useHighVolumeBucket = throttleServiceManager.usesHighVolumeBucketForImplicitCreations(
+                        txnBody, function, numImplicitCreations);
+                throttleServiceManager.reclaimFrontendThrottleCapacity(
+                        numImplicitCreations, CRYPTO_CREATE, useHighVolumeBucket);
             }
         }
         if (canAutoAssociate(function)) {
@@ -179,9 +175,8 @@ public class DispatchUsageManager {
             if (numAutoAssociations > 0
                     && dispatch.config().getConfigData(EntitiesConfig.class).unlimitedAutoAssociationsEnabled()
                     && usedSelfFrontendThrottleCapacity(numAutoAssociations, txnBody)) {
-                // Auto associations for a CRYPTO_TRANSFER are always claimed against the normal bucket
                 throttleServiceManager.reclaimFrontendThrottleCapacity(
-                        numAutoAssociations, TOKEN_ASSOCIATE_TO_ACCOUNT, false);
+                        numAutoAssociations, TOKEN_ASSOCIATE_TO_ACCOUNT, useHighVolumeBucket);
             }
         }
     }

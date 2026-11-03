@@ -28,7 +28,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class QueueThreadObjectStreamTest {
-    private static final Hash initialHash = new Hash(new byte[DigestType.SHA_384.digestLength()]);
+    private static final Hash initialHash = new Hash(new byte[DigestType.SHA_384.digestLength()], DigestType.SHA_384);
     private static Cryptography cryptography;
     private static WriteToStreamConsumer consumer;
     private static QueueThreadObjectStream<ObjectForTestStream> queueThread;
@@ -41,7 +41,8 @@ class QueueThreadObjectStreamTest {
     @BeforeAll
     static void init() {
         cryptography = mock(Cryptography.class);
-        when(cryptography.digestSync(any(SelfSerializable.class))).thenReturn(CryptoRandomUtils.randomHash());
+        when(cryptography.digestSync(any(SelfSerializable.class), any(DigestType.class)))
+                .thenReturn(CryptoRandomUtils.randomHash());
     }
 
     @BeforeEach

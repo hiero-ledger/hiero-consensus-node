@@ -58,11 +58,7 @@ public class BlockNodeSimSuite {
                         nodeId = 0,
                         blockNodeIds = {0, 1, 2, 3},
                         blockNodePriorities = {0, 1, 2, 3},
-                        applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC",
-                            "blockStream.buffer.ackedBlocksToRetain", "25"
-                        })
+                        applicationPropertiesOverrides = {"blockStream.buffer.ackedBlocksToRetain", "25"})
             })
     @Order(1)
     final Stream<DynamicTest> node0StreamingBlockNodeConnectionDropsTrickle() {
@@ -162,8 +158,6 @@ public class BlockNodeSimSuite {
                             BLOCK_PERIOD_SECONDS + "s",
                             "blockStream.streamMode",
                             "BLOCKS",
-                            "blockStream.writerMode",
-                            "FILE_AND_GRPC",
                             "blockNode.forcedSwitchRescheduleDelay",
                             "30s",
                             "blockStream.streamWrappedRecordBlocks",
@@ -191,7 +185,7 @@ public class BlockNodeSimSuite {
                         Duration.ofMinutes(2),
                         Duration.ofMinutes(2),
                         // look for the saturation reaching the action stage (50%)
-                        "ByBlockCount: 50.0000%",
+                        "ByBlockCount: 50.0%",
                         // look for the log that shows the monitor detected buffer saturation
                         "Streaming connection update requested",
                         "buffer-unhealthy",
@@ -206,7 +200,7 @@ public class BlockNodeSimSuite {
                         Duration.ofMinutes(2),
                         Duration.ofMinutes(2),
                         // saturation should fall back to low levels after switching to node 1
-                        "ByBlockCount: 0.0000%")));
+                        "ByBlockCount: 0.0%")));
     }
 
     @HapiTest
@@ -221,8 +215,6 @@ public class BlockNodeSimSuite {
                         applicationPropertiesOverrides = {
                             "blockStream.streamMode",
                             "BLOCKS",
-                            "blockStream.writerMode",
-                            "FILE_AND_GRPC",
                             "blockStream.buffer.maxBlocks",
                             "60",
                             "blockStream.buffer.isBufferPersistenceEnabled",
@@ -273,7 +265,7 @@ public class BlockNodeSimSuite {
                         timeRef::get,
                         Duration.ofMinutes(3),
                         Duration.ofMinutes(3),
-                        "ByBlockCount: 0.0000%")));
+                        "ByBlockCount: 0.0%")));
     }
 
     /**
@@ -293,7 +285,6 @@ public class BlockNodeSimSuite {
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
                             "blockStream.streamMode", "BLOCKS",
-                            "blockStream.writerMode", "FILE_AND_GRPC",
                             "blockStream.blockPeriod", BLOCK_PERIOD_SECONDS + "s",
                             "blockStream.streamWrappedRecordBlocks", "false",
                             "blockNode.maxEndOfStreamsAllowed", "50",
@@ -317,15 +308,19 @@ public class BlockNodeSimSuite {
                         byNodeId(0), "Received ResendBlock response for block ", Duration.ofSeconds(30)),
                 waitUntilNextBlocks(2).withBackgroundTraffic(true),
 
-                // BehindPublisher for a buffered block -> switch to N+1 in place (no reconnect).
+                // BehindPublisher one below the last verified block -> in-place switch to the last verified block,
+                // which is always buffered (lastVerified + 1 may not be open yet right after a block boundary).
+                // Assert the exact blocks, since the stream handshake may already have logged these messages.
                 blockNode(0).getLastVerifiedBlockExposing(lastVerified),
-                sourcingContextual(spec -> blockNode(0).sendNodeBehindPublisherImmediately(lastVerified.get())),
-                awaitBlockNodeCommsLogContainsText(
-                        byNodeId(0), "Received BehindPublisher response for block ", Duration.ofSeconds(30)),
-                awaitBlockNodeCommsLogContainsText(
+                sourcingContextual(spec -> blockNode(0).sendNodeBehindPublisherImmediately(lastVerified.get() - 1)),
+                sourcingContextual(spec -> awaitBlockNodeCommsLogContainsText(
                         byNodeId(0),
-                        "Block node reported it is behind; will start streaming block ",
-                        Duration.ofSeconds(30)),
+                        "Received BehindPublisher response for block " + (lastVerified.get() - 1),
+                        Duration.ofSeconds(30))),
+                sourcingContextual(spec -> awaitBlockNodeCommsLogContainsText(
+                        byNodeId(0),
+                        "Block node reported it is behind; will start streaming block " + lastVerified.get(),
+                        Duration.ofSeconds(30))),
                 waitUntilNextBlocks(2).withBackgroundTraffic(true),
 
                 // SkipBlock -> received and handled gracefully; stream continues. The exact
@@ -417,7 +412,6 @@ public class BlockNodeSimSuite {
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
                             "blockStream.streamMode", "BLOCKS",
-                            "blockStream.writerMode", "FILE_AND_GRPC",
                             "blockStream.blockPeriod", BLOCK_PERIOD_SECONDS + "s",
                             "blockStream.streamWrappedRecordBlocks", "false",
                             "blockStream.buffer.maxBlocks", "15",
@@ -480,7 +474,6 @@ public class BlockNodeSimSuite {
                         blockNodePriorities = {0, 1},
                         applicationPropertiesOverrides = {
                             "blockStream.streamMode", "BLOCKS",
-                            "blockStream.writerMode", "FILE_AND_GRPC",
                             "blockStream.blockPeriod", BLOCK_PERIOD_SECONDS + "s",
                             "blockStream.streamWrappedRecordBlocks", "false",
                             "blockNode.globalCoolDownSeconds", "0",
@@ -542,7 +535,6 @@ public class BlockNodeSimSuite {
                         blockNodePriorities = {0, 1},
                         applicationPropertiesOverrides = {
                             "blockStream.streamMode", "BLOCKS",
-                            "blockStream.writerMode", "FILE_AND_GRPC",
                             "blockStream.blockPeriod", BLOCK_PERIOD_SECONDS + "s",
                             "blockStream.streamWrappedRecordBlocks", "false",
                             "blockNode.highLatencyThreshold", "1s",

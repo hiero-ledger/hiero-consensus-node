@@ -10,6 +10,7 @@ import java.util.Objects;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.CryptographyException;
+import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Message;
 import org.hiero.base.crypto.SerializableHashable;
@@ -90,18 +91,19 @@ public class CryptoEngine implements Cryptography {
      */
     @NonNull
     @Override
-    public Hash digestSync(@NonNull final byte[] message) {
-        return new Hash(digestSyncInternal(message, digestProvider), DEFAULT_DIGEST_TYPE);
+    public Hash digestSync(@NonNull final byte[] message, @NonNull final DigestType digestType) {
+        return new Hash(digestSyncInternal(message, digestType, digestProvider), digestType);
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public byte[] digestBytesSync(@NonNull final SelfSerializable serializable) {
+    public byte[] digestBytesSync(@NonNull final SelfSerializable serializable, @NonNull final DigestType digestType) {
         Objects.requireNonNull(serializable, "serializable must not be null");
+        Objects.requireNonNull(digestType, "digestType must not be null");
         try {
-            return serializationDigestProvider.compute(serializable, DEFAULT_DIGEST_TYPE);
+            return serializationDigestProvider.compute(serializable, digestType);
         } catch (final NoSuchAlgorithmException ex) {
             throw new CryptographyException(ex, LogMarker.EXCEPTION);
         }
@@ -111,8 +113,11 @@ public class CryptoEngine implements Cryptography {
      * {@inheritDoc}
      */
     @Override
-    public Hash digestSync(@NonNull final SerializableHashable serializableHashable, final boolean setHash) {
-        final Hash hash = new Hash(digestBytesSync(serializableHashable), DEFAULT_DIGEST_TYPE);
+    public Hash digestSync(
+            @NonNull final SerializableHashable serializableHashable,
+            final boolean setHash,
+            @NonNull final DigestType digestType) {
+        final Hash hash = new Hash(digestBytesSync(serializableHashable, digestType), digestType);
         if (setHash) {
             serializableHashable.setHash(hash);
         }
@@ -121,8 +126,8 @@ public class CryptoEngine implements Cryptography {
 
     @NonNull
     @Override
-    public byte[] digestBytesSync(@NonNull final byte[] message) {
-        return digestSyncInternal(message, digestProvider);
+    public byte[] digestBytesSync(@NonNull final byte[] message, @NonNull final DigestType digestType) {
+        return digestSyncInternal(message, digestType, digestProvider);
     }
 
     /**
@@ -181,9 +186,11 @@ public class CryptoEngine implements Cryptography {
      */
     @NonNull
     @Override
-    public Hash calcRunningHash(@NonNull final Hash runningHash, @NonNull final Hash newHashToAdd) {
+    public Hash calcRunningHash(
+            @NonNull final Hash runningHash, @NonNull final Hash newHashToAdd, @NonNull final DigestType digestType) {
+        Objects.requireNonNull(digestType, "digestType must not be null");
         try {
-            return runningHashProvider.compute(runningHash, newHashToAdd, Cryptography.DEFAULT_DIGEST_TYPE);
+            return runningHashProvider.compute(runningHash, newHashToAdd, digestType);
         } catch (final NoSuchAlgorithmException e) {
             throw new CryptographyException(e, LogMarker.EXCEPTION);
         }
@@ -191,15 +198,20 @@ public class CryptoEngine implements Cryptography {
     /**
      * Common private utility method for performing synchronous digest computations.
      *
-     * @param message  the message contents to be hashed
-     * @param provider the underlying provider to be used
+     * @param message    the message contents to be hashed
+     * @param digestType the type of the digest to compute
+     * @param provider   the underlying provider to be used
      * @return the cryptographic hash for the given message contents
      */
-    private @NonNull byte[] digestSyncInternal(@NonNull final byte[] message, @NonNull final DigestProvider provider) {
+    private @NonNull byte[] digestSyncInternal(
+            @NonNull final byte[] message,
+            @NonNull final DigestType digestType,
+            @NonNull final DigestProvider provider) {
         Objects.requireNonNull(message, "message must not be null");
+        Objects.requireNonNull(digestType, "digestType must not be null");
         Objects.requireNonNull(provider, "provider must not be null");
         try {
-            return provider.compute(message, Cryptography.DEFAULT_DIGEST_TYPE);
+            return provider.compute(message, digestType);
         } catch (final NoSuchAlgorithmException ex) {
             throw new CryptographyException(ex, LogMarker.EXCEPTION);
         }

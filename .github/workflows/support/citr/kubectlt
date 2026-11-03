@@ -11,7 +11,7 @@ timeout --signal=KILL --preserve-status --foreground ${timeout} ${KBCTL} "$@" >/
 result=$?
 if [ ${result} -ne 137 ]
 then
-  grep -E 'Internal error occurred|context deadline exceeded' /tmp/stdout.$$ /tmp/stderr.$$ >/dev/null
+  grep -E 'Internal error occurred|context deadline exceeded|i/o timeout|server misbehaving' /tmp/stdout.$$ /tmp/stderr.$$ >/dev/null
   if [ $? -eq 0 ]
   then
     sleep 30

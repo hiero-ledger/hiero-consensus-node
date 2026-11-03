@@ -13,6 +13,9 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import org.hiero.hapi.fees.FeeScheduleUtils;
 import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.FeeSchedule;
@@ -20,6 +23,8 @@ import org.hiero.hapi.support.fees.NetworkFee;
 import org.hiero.hapi.support.fees.NodeFee;
 import org.hiero.hapi.support.fees.ServiceFeeSchedule;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /**
  * Unit tests for {@link FeeScheduleUtils#isValid(FeeSchedule)} validating all HIP-1261 rules.
@@ -56,6 +61,29 @@ public class FeeScheduleTest {
             assertNotNull(fin, "Test resource genesis/simpleFeesSchedules.json is missing");
             final var buf = FeeSchedule.JSON.parse(new ReadableStreamingData(fin));
             assertTrue(FeeScheduleUtils.isValid(buf), "Fee schedule validation failed");
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(
+            strings = {
+                "genesis",
+                "../configuration/mainnet/upgrade",
+                "../configuration/testnet/upgrade",
+                "../configuration/previewnet/upgrade"
+            })
+    void shippedSchedulesChargeTokenDissociatePerToken(final String dir) throws ParseException, IOException {
+        try (InputStream fin = dir.equals("genesis")
+                ? FeeScheduleTest.class.getClassLoader().getResourceAsStream("genesis/simpleFeesSchedules.json")
+                : Files.newInputStream(Path.of(dir, "simpleFeesSchedules.json"))) {
+            assertNotNull(fin, "Missing simpleFeesSchedules.json in " + dir);
+            final var schedule = FeeSchedule.JSON.parse(new ReadableStreamingData(fin));
+            final var dissociate =
+                    FeeScheduleUtils.lookupServiceFee(schedule, HederaFunctionality.TOKEN_DISSOCIATE_FROM_ACCOUNT);
+            assertNotNull(dissociate, "No TokenDissociate fee in " + dir);
+            assertTrue(
+                    dissociate.extras().stream().anyMatch(ref -> ref.name() == Extra.TOKEN_DISSOCIATE),
+                    "TokenDissociate has no TOKEN_DISSOCIATE extra in " + dir);
         }
     }
 

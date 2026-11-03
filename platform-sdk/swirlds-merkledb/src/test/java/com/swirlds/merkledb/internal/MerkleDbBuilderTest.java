@@ -161,16 +161,13 @@ class MerkleDbBuilderTest extends AbstractFileManagerAwareTest {
         final MerkleDbDataSourceBuilder builder =
                 new MerkleDbDataSourceBuilder("merkledb-state", DEFAULT_CONFIGURATION, fileSystemManager, INITIAL_SIZE);
         final VirtualDataSource dataSource1 = builder.build("test", null, false, false);
-        try {
-            dataSource1.saveRecords(100, 200, Stream.of(), Stream.of(), Stream.of(), false);
-        } finally {
-            dataSource1.close(true);
-        }
+        dataSource1.saveRecords(100, 200, Stream.of(), Stream.of(), Stream.of(), false);
         final VirtualDataSource dataSource2 = builder.build("test", null, false, false);
         try {
             Assertions.assertEquals(100, dataSource2.getFirstLeafPath());
             Assertions.assertEquals(200, dataSource2.getLastLeafPath());
         } finally {
+            dataSource1.close();
             dataSource2.close();
         }
     }
@@ -182,18 +179,27 @@ class MerkleDbBuilderTest extends AbstractFileManagerAwareTest {
                 "snapshotMetadataMustNotBeCorrupted", DEFAULT_CONFIGURATION, fileSystemManager, 100);
 
         final VirtualDataSource original = builder.build(LABEL, null, false, false);
-        original.saveRecords(42, 84, createHashChunkStream(84, 2), Stream.of(), Stream.of(), false);
         final Path snapshotPath = fileSystemManager.resolveNewTemp("merkledb-snapshotMetadataMustNotBeCorrupted");
-        builder.snapshot(snapshotPath, original);
-        original.close();
+        try {
+            original.saveRecords(42, 84, createHashChunkStream(84, 2), Stream.of(), Stream.of(), false);
+            builder.snapshot(snapshotPath, original);
+        } finally {
+            // Close even on failure, a leaked data source fails the open database checks of all later tests
+            original.close();
+        }
 
         final Map<Path, byte[]> snapshotMetadataFiles = collectMetadataFiles(snapshotPath);
 
         final VirtualDataSource restored1 = builder.build(LABEL, snapshotPath, false, false);
-        final long firstLeafPath = restored1.getFirstLeafPath();
-        final long lastLeafPath = restored1.getLastLeafPath();
-        restored1.saveRecords(85, 170, createHashChunkStream(170, 2), Stream.of(), Stream.of(), false);
-        restored1.close();
+        final long firstLeafPath;
+        final long lastLeafPath;
+        try {
+            firstLeafPath = restored1.getFirstLeafPath();
+            lastLeafPath = restored1.getLastLeafPath();
+            restored1.saveRecords(85, 170, createHashChunkStream(170, 2), Stream.of(), Stream.of(), false);
+        } finally {
+            restored1.close();
+        }
 
         for (final Map.Entry<Path, byte[]> e : snapshotMetadataFiles.entrySet()) {
             final Path path = e.getKey();

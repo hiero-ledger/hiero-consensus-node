@@ -16,6 +16,7 @@ package proto;
 
 // SPDX-License-Identifier: Apache-2.0
 import "services/basic_types.proto";
+import "services/timestamp.proto";
 import "services/transaction_record.proto";
 import "services/response_code.proto";
 
@@ -103,4 +104,15 @@ message TransactionReceiptEntry {
  */
 message TransactionReceiptEntries {
     repeated TransactionReceiptEntry entries = 1;
+
+    /**
+     * The consensus time of the round these receipts were committed in.
+     * <p>
+     * These receipts SHALL be purged no later than the maximum transaction
+     * valid duration after this time, even if a receipt has a later
+     * transaction valid start.<br/>
+     * This value MAY be unset for receipts committed by an earlier software
+     * version.
+     */
+    Timestamp consensus_timestamp = 2;
 }

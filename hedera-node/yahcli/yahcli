@@ -1,4 +1,15 @@
 #! /bin/sh
-# Silence protobuf's UnsafeUtil sun.misc.Unsafe deprecation warnings on JDK 25.
-# The netty System.loadLibrary warning is handled via the JAR's Enable-Native-Access manifest.
-java --sun-misc-unsafe-memory-access=allow -jar yahcli.jar "${@}"
+# Locate the yahcli.jar that sits next to this script regardless of CWD.
+DIR="$(cd "$(dirname "$0")" && pwd)"
+JAR="$DIR/yahcli.jar"
+
+# Prefer the JDK pointed at by $JAVA_HOME (the project requires JDK 25 to run
+# the shadow jar — the system 'java' on PATH is often older and produces an
+# UnsupportedClassVersionError).
+if [ -n "$JAVA_HOME" ] && [ -x "$JAVA_HOME/bin/java" ]; then
+    JAVA="$JAVA_HOME/bin/java"
+else
+    JAVA="java"
+fi
+
+exec "$JAVA" -jar "$JAR" "$@"

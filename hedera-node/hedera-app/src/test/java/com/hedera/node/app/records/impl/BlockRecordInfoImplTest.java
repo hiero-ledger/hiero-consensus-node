@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.records.impl;
 
-import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
+import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.RECORD_HASH_SIZE;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -45,7 +45,7 @@ class BlockRecordInfoImplTest {
 
     /** A distinct, deterministic 48-byte (SHA-384-length) hash filled with the given byte. */
     private static Bytes hash(final int seed) {
-        final var bytes = new byte[HASH_SIZE];
+        final var bytes = new byte[RECORD_HASH_SIZE];
         java.util.Arrays.fill(bytes, (byte) seed);
         return Bytes.wrap(bytes);
     }

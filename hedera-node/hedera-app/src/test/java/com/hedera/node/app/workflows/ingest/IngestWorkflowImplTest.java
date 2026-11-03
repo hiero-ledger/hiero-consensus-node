@@ -9,29 +9,36 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BOD
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PLATFORM_NOT_ACTIVE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PLATFORM_TRANSACTION_NOT_CREATED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_EXPIRED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_HAS_UNKNOWN_FIELDS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mock.Strictness.LENIENT;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.Duration;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.SignatureMap;
+import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.consensus.ConsensusCreateTopicTransactionBody;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.transaction.TransactionResponse;
 import com.hedera.node.app.fixtures.AppTestBase;
 import com.hedera.node.app.quiescence.TxPipelineTracker;
 import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.throttle.ThrottleUsage;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.config.ConfigProvider;
@@ -44,6 +51,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Instant;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -347,6 +355,131 @@ class IngestWorkflowImplTest extends AppTestBase {
             assertThat(response.nodeTransactionPrecheckCode()).isEqualTo(FAIL_INVALID);
             // And the cost will be zero
             assertThat(response.cost()).isZero();
+        }
+    }
+
+    @Nested
+    @DisplayName("Restored transactions")
+    final class RestoredTransactionTests {
+        private Bytes serializedSignedTx;
+        private Bytes wrapped;
+
+        @BeforeEach
+        void setUp() {
+            serializedSignedTx = SignedTransaction.PROTOBUF.toBytes(signedTx);
+            wrapped = Transaction.PROTOBUF.toBytes(Transaction.newBuilder()
+                    .signedTransactionBytes(serializedSignedTx)
+                    .build());
+        }
+
+        @Test
+        @DisplayName("A restored transaction is wrapped, checked and submitted like a gRPC one")
+        void submitsRestoredTransaction() throws PreCheckException {
+            stubChecksPass(List.of());
+
+            assertThat(workflow.submitRestoredTransaction(serializedSignedTx)).isEqualTo(OK);
+            verify(submissionManager).submit(transactionBody, serializedSignedTx, false);
+        }
+
+        @Test
+        @DisplayName("A failed precheck is returned and nothing is submitted")
+        void returnsPrecheckFailure() throws PreCheckException {
+            doThrow(new PreCheckException(TRANSACTION_EXPIRED))
+                    .when(ingestChecker)
+                    .runAllChecks(eq(state), eq(wrapped), eq(configuration), any());
+
+            assertThat(workflow.submitRestoredTransaction(serializedSignedTx)).isEqualTo(TRANSACTION_EXPIRED);
+            verify(submissionManager, never()).submit(any(), any(), anyBoolean());
+        }
+
+        @Test
+        @DisplayName("Throttle capacity is reclaimed when a restored transaction is not submitted")
+        void reclaimsThrottleCapacityOnFailure() throws PreCheckException {
+            final var usage = mock(ThrottleUsage.class);
+            stubChecksPass(List.of(usage));
+            doThrow(new PreCheckException(BUSY)).when(submissionManager).submit(any(), any(), anyBoolean());
+
+            assertThat(workflow.submitRestoredTransaction(serializedSignedTx)).isEqualTo(BUSY);
+            verify(usage).reclaimCapacity();
+        }
+
+        @Test
+        @DisplayName(
+                "A legacy (bodyBytes+sigMap) restored transaction is rewrapped, not re-wrapped as signedTransactionBytes")
+        void submitsLegacyRestoredTransaction() throws PreCheckException {
+            final var legacySigMap = SignatureMap.newBuilder().build();
+            final var legacySignedTx = new SignedTransaction(signedTx.bodyBytes(), legacySigMap, true);
+            final var legacySerializedSignedTx = SignedTransaction.PROTOBUF.toBytes(legacySignedTx);
+            final var legacyWrapped = Transaction.PROTOBUF.toBytes(Transaction.newBuilder()
+                    .bodyBytes(signedTx.bodyBytes())
+                    .sigMap(legacySigMap)
+                    .build());
+            final var transactionInfo = new TransactionInfo(
+                    legacySignedTx,
+                    transactionBody,
+                    legacySigMap,
+                    randomBytes(100),
+                    HederaFunctionality.CONSENSUS_CREATE_TOPIC,
+                    legacySerializedSignedTx);
+            doAnswer(invocation -> {
+                        final var result = invocation.getArgument(3, IngestChecker.Result.class);
+                        result.setThrottleUsages(List.of());
+                        result.setTxnInfo(transactionInfo);
+                        return null;
+                    })
+                    .when(ingestChecker)
+                    .runAllChecks(eq(state), eq(legacyWrapped), eq(configuration), any());
+
+            assertThat(workflow.submitRestoredTransaction(legacySerializedSignedTx))
+                    .isEqualTo(OK);
+            verify(ingestChecker).runAllChecks(eq(state), eq(legacyWrapped), eq(configuration), any());
+            verify(submissionManager).submit(transactionBody, legacySerializedSignedTx, false);
+        }
+
+        @Test
+        @DisplayName(
+                "The real TransactionChecker rebuilds byte-identical signed bytes for a legacy bodyBytes+sigMap transaction")
+        void legacyTransactionCheckerRoundTripsToTheSameBytes() throws PreCheckException {
+            final var legacyBody = TransactionBody.newBuilder()
+                    .transactionID(TransactionID.newBuilder()
+                            .accountID(AccountID.newBuilder().accountNum(1001).build())
+                            .transactionValidStart(asTimestamp(Instant.now()))
+                            .build())
+                    .transactionValidDuration(Duration.newBuilder().seconds(60).build())
+                    .consensusCreateTopic(
+                            ConsensusCreateTopicTransactionBody.newBuilder().build())
+                    .build();
+            final var legacyBodyBytes = TransactionBody.PROTOBUF.toBytes(legacyBody);
+            final var legacySigMap = SignatureMap.newBuilder().build();
+            final var legacyTx = Transaction.newBuilder()
+                    .bodyBytes(legacyBodyBytes)
+                    .sigMap(legacySigMap)
+                    .build();
+
+            final var realChecker = new TransactionChecker(configProvider, metrics);
+            final var txInfo = realChecker.check(legacyTx, 6144);
+
+            final var expected =
+                    SignedTransaction.PROTOBUF.toBytes(new SignedTransaction(legacyBodyBytes, legacySigMap, true));
+            assertThat(txInfo.serializedSignedTxOrThrow()).isEqualTo(expected);
+        }
+
+        private void stubChecksPass(final List<ThrottleUsage> usages) throws PreCheckException {
+            final var transactionInfo = new TransactionInfo(
+                    signedTx,
+                    transactionBody,
+                    SignatureMap.newBuilder().build(),
+                    randomBytes(100),
+                    HederaFunctionality.CONSENSUS_CREATE_TOPIC,
+                    serializedSignedTx);
+            doAnswer(invocation -> {
+                        final var result = invocation.getArgument(3, IngestChecker.Result.class);
+                        result.setThrottleUsages(usages);
+                        result.setTxnInfo(transactionInfo);
+                        return null;
+                    })
+                    .when(ingestChecker)
+                    .runAllChecks(eq(state), eq(wrapped), eq(configuration), any());
         }
     }
 

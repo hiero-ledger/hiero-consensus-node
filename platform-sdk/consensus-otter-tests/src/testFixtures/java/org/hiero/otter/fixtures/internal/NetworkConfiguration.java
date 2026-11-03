@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.internal;
 
-import static org.hiero.otter.fixtures.internal.AbstractNode.UNSET_WEIGHT;
+import static org.hiero.otter.fixtures.internal.AbstractMiniNode.UNSET_WEIGHT;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -11,7 +11,7 @@ import java.time.Duration;
 import java.util.List;
 import org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerConfiguration;
 import org.hiero.otter.fixtures.Configurable;
-import org.hiero.otter.fixtures.Node;
+import org.hiero.otter.fixtures.MiniNode;
 
 /**
  * Configuration object for network-level settings in the Otter test framework.
@@ -32,7 +32,7 @@ public class NetworkConfiguration implements Configurable<NetworkConfiguration> 
 
     /** The version of each node in the network */
     @NonNull
-    private SemanticVersion version = Node.DEFAULT_VERSION;
+    private SemanticVersion version = MiniNode.DEFAULT_VERSION;
 
     /** Node configuration values */
     @NonNull

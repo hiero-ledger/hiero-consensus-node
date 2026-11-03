@@ -37,6 +37,7 @@ import com.hedera.node.app.service.file.impl.test.FileTestBase;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import org.hiero.base.crypto.CryptographyProvider;
+import org.hiero.base.crypto.DigestType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -210,7 +211,7 @@ class FileGetInfoTest extends FileTestBase {
     }
 
     private FileInfo getExpectedUpgradeInfo() {
-        final var upgradeHash = hex(CryptographyProvider.getInstance().digestBytesSync(contents));
+        final var upgradeHash = hex(CryptographyProvider.getInstance().digestBytesSync(contents, DigestType.SHA_384));
         return FileInfo.newBuilder()
                 .memo(upgradeHash)
                 .fileID(fileUpgradeFileId)

@@ -7,6 +7,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.model.event.EventHashFactory;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 
 /**
@@ -31,8 +32,9 @@ public record SyncData(EventWindow eventWindow, List<Hash> tipHashes, boolean do
                 gossipWindow.latestConsensusRound() + 1,
                 gossipWindow.ancientThreshold(),
                 gossipWindow.expiredThreshold());
-        final var tips =
-                syncData.tips().stream().map(it -> new Hash(it.toByteArray())).collect(Collectors.toList());
+        final var tips = syncData.tips().stream()
+                .map(it -> EventHashFactory.hash(it.toByteArray()))
+                .collect(Collectors.toList());
         return new SyncData(eventWindow, tips, syncData.skipSendingEvents());
     }
 

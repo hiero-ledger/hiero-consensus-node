@@ -5,7 +5,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.roster.RosterHistory;
+import org.hiero.consensus.model.roster.RosterWrapperHistory;
 import org.hiero.consensus.wiring.framework.component.InputWireLabel;
 
 /**
@@ -53,7 +53,7 @@ public interface EventIntakeProcessor {
      * @param rosterHistory the roster history read from state
      */
     @InputWireLabel("roster history")
-    void updateRosterHistory(@NonNull RosterHistory rosterHistory);
+    void updateRosterHistory(@NonNull RosterWrapperHistory rosterHistory);
 
     /**
      * Clear all internal state (deduplication tracking, verifier cache, etc.).

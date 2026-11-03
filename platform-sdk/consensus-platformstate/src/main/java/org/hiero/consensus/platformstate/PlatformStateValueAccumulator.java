@@ -82,6 +82,13 @@ public class PlatformStateValueAccumulator implements PlatformStateModifier {
 
     private boolean lastFrozenTimeUpdated;
 
+    /**
+     * The minimum birth round of events created post-cutover.
+     */
+    private long eventCutoverMinBirthRound;
+
+    private boolean eventCutoverMinBirthRoundUpdated;
+
     @NonNull
     @Override
     public SemanticVersion getCreationSoftwareVersion() {
@@ -268,6 +275,17 @@ public class PlatformStateValueAccumulator implements PlatformStateModifier {
         return latestFreezeRound;
     }
 
+    @Override
+    public long getEventCutoverMinBirthRound() {
+        return eventCutoverMinBirthRound;
+    }
+
+    @Override
+    public void setEventCutoverMinBirthRound(final long eventCutoverMinBirthRound) {
+        this.eventCutoverMinBirthRound = eventCutoverMinBirthRound;
+        eventCutoverMinBirthRoundUpdated = true;
+    }
+
     /**
      * Sets the last freezeTime based on which the nodes were frozen.
      *
@@ -319,6 +337,10 @@ public class PlatformStateValueAccumulator implements PlatformStateModifier {
 
     public boolean isLatestFreezeRoundUpdated() {
         return latestFreezeRoundUpdated;
+    }
+
+    public boolean isEventCutoverMinBirthRoundUpdated() {
+        return eventCutoverMinBirthRoundUpdated;
     }
 
     @Override

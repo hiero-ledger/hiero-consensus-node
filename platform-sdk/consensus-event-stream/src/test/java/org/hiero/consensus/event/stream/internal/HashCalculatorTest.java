@@ -11,6 +11,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import org.hiero.base.crypto.CryptographyProvider;
+import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 import org.hiero.base.io.SelfSerializable;
@@ -45,7 +46,7 @@ class HashCalculatorTest {
         HashCalculatorForStream<ObjectForTestStream> hashCalculator = new HashCalculatorForStream<>();
         assertNull(object.getHash(), "the object's Hash should be null after initialization");
         // calculate expected Hash
-        Hash expected = CryptographyProvider.getInstance().digestSync((SelfSerializable) object);
+        Hash expected = CryptographyProvider.getInstance().digestSync((SelfSerializable) object, DigestType.SHA_384);
         assertNotNull(expected, "the object's expected Hash should not be null");
         assertNull(object.getHash(), "the object's Hash should be null after calculated expected Hash");
         // hashCalculator calculates and set Hash for this object

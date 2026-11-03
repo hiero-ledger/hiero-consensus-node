@@ -175,7 +175,7 @@ public final class BlockRecordFormatV7 implements BlockRecordFormat {
         public static final Codec<RecordStreamItemV7> PROTOBUF = new RecordStreamItemV7ProtoCodec();
     }
 
-    public static final class RecordStreamItemV7ProtoCodec implements Codec<RecordStreamItemV7> {
+    public static final class RecordStreamItemV7ProtoCodec extends Codec<RecordStreamItemV7> {
 
         private static final RecordStreamItemV7 DEFAULT_VALUE = new RecordStreamItemV7(null, null, null, null, 0, 0);
 
@@ -186,7 +186,7 @@ public final class BlockRecordFormatV7 implements BlockRecordFormat {
 
         @NonNull
         @Override
-        public RecordStreamItemV7 parse(
+        protected RecordStreamItemV7 parseImpl(
                 @NonNull final ReadableSequentialData readableSequentialData,
                 final boolean strictMode,
                 final boolean parseUnknownFields,
@@ -196,25 +196,13 @@ public final class BlockRecordFormatV7 implements BlockRecordFormat {
             return new RecordStreamItemV7(null, null, null, null, 0, 0);
         }
 
-        public @NonNull RecordStreamItemV7 parse(
-                @NonNull final ReadableSequentialData input, final boolean strictMode, final int maxDepth) {
-            return new RecordStreamItemV7(null, null, null, null, 0, 0);
-        }
-
-        public void write(@NonNull RecordStreamItemV7 item, @NonNull WritableSequentialData output) {
+        @Override
+        protected void writeImpl(@NonNull RecordStreamItemV7 item, @NonNull WritableSequentialData output) {
             // TBD
-        }
-
-        public int measure(@NonNull ReadableSequentialData input) {
-            return 0;
         }
 
         public int measureRecord(RecordStreamItemV7 item) {
             return 0;
-        }
-
-        public boolean fastEquals(@NonNull RecordStreamItemV7 item, @NonNull ReadableSequentialData input) {
-            return false;
         }
     }
 }
