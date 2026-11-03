@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.hashgraph.impl.test.fixtures.consensus;
+package org.hiero.consensus.hashgraph.impl.test.fixtures.flicker;
 
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -13,11 +13,6 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
  * A snapshot anchor is what makes the restart, init-judge and roster-change code paths reachable at all: a roster is
  * supplied only at construction, so testing a roster change means continuing an already-built graph under a new
  * roster, not starting over.
- * <p>
- * Snapshots are always <b>captured from a real run, never hand-assembled</b>. The engine cannot produce a snapshot
- * whose {@code minimumJudgeInfoList} is shorter than the non-ancient window — {@code getAncientThreshold} throws if no
- * entry exists for exactly the round it computes — so a hand-built snapshot risks encoding a state that could never
- * occur.
  */
 public final class ConsensusSnapshots {
 

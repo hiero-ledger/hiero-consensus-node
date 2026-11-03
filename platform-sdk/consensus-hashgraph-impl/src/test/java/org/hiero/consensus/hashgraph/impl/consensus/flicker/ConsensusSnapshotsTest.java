@@ -4,7 +4,7 @@ package org.hiero.consensus.hashgraph.impl.consensus.flicker;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.ConsensusSnapshots.snapshotAtRound;
+import static org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.ConsensusSnapshots.snapshotAtRound;
 
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.JudgeId;

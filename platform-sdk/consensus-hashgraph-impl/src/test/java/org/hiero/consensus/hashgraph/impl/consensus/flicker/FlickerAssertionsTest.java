@@ -2,7 +2,7 @@
 package org.hiero.consensus.hashgraph.impl.consensus.flicker;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.ConsensusSnapshots.snapshotAtRound;
+import static org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.ConsensusSnapshots.snapshotAtRound;
 import static org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.FlickerAssertions.assertJudges;
 import static org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.FlickerAssertions.judgeNames;
 
