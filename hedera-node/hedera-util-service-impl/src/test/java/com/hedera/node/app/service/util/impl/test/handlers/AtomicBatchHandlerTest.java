@@ -403,17 +403,13 @@ class AtomicBatchHandlerTest {
     void failsOnInnerScheduleTx(final TransactionBody.DataOneOfType scheduleTxnType) throws PreCheckException {
         final var builder = newTxnBodyBuilder(payerId2, consensusTimestamp, SIMPLE_KEY_A)
                 .nodeAccountID(ATOMIC_BATCH_NODE_ACCOUNT_ID);
-        final var innerTxnBody =
-                switch (scheduleTxnType) {
-                    case SCHEDULE_CREATE ->
-                        builder.scheduleCreate(ScheduleCreateTransactionBody.DEFAULT)
-                                .build();
-                    case SCHEDULE_SIGN ->
-                        builder.scheduleSign(ScheduleSignTransactionBody.DEFAULT)
-                                .build();
-                    default ->
-                        throw new IllegalArgumentException("Not a schedule transaction type: " + scheduleTxnType);
-                };
+        final var innerTxnBody = switch (scheduleTxnType) {
+            case SCHEDULE_CREATE ->
+                builder.scheduleCreate(ScheduleCreateTransactionBody.DEFAULT).build();
+            case SCHEDULE_SIGN ->
+                builder.scheduleSign(ScheduleSignTransactionBody.DEFAULT).build();
+            default -> throw new IllegalArgumentException("Not a schedule transaction type: " + scheduleTxnType);
+        };
         final var bytes = transactionsToBytes(innerTxnFrom("123"));
         given(preHandleContext.body()).willReturn(newAtomicBatch(payerId1, consensusTimestamp, bytes));
         given(transactionParser.parse(eq(bytes.getFirst()), any())).willReturn(innerTxnBody);
