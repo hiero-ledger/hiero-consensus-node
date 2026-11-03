@@ -74,7 +74,7 @@ public class TurtleNetwork extends SimulatedNetwork implements TimeTickReceiver 
     @Override
     @NonNull
     protected TurtleNode doCreateNode(@NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
-        final SimulatedGossip simulatedGossip = new SimulatedGossip(simulatedNetworkConnectivity, nodeId);
+        final SimulatedGossip simulatedGossip = new SimulatedGossip(gossipNetwork, nodeId);
         addEventReceiver(simulatedGossip);
         final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));
         return new TurtleNode(
@@ -96,7 +96,7 @@ public class TurtleNetwork extends SimulatedNetwork implements TimeTickReceiver 
     @NonNull
     protected InstrumentedNode doCreateInstrumentedNode(
             @NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
-        final SimulatedGossip simulatedGossip = new SimulatedGossip(simulatedNetworkConnectivity, nodeId);
+        final SimulatedGossip simulatedGossip = new SimulatedGossip(gossipNetwork, nodeId);
         addEventReceiver(simulatedGossip);
         final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));
         return new InstrumentedTurtleNode(
@@ -175,7 +175,7 @@ public class TurtleNetwork extends SimulatedNetwork implements TimeTickReceiver 
             return;
         }
 
-        simulatedNetworkConnectivity.tick(now);
+        simulatedNetworkConnectivity().tick(now);
         turtleTransactionGenerator.tick(now, nodes());
 
         // Iteration order over nodes does not need to be deterministic -- nodes are not permitted to communicate with

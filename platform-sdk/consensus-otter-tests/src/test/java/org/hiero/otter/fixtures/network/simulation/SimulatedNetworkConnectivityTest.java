@@ -54,17 +54,16 @@ class SimulatedNetworkConnectivityTest {
 
     @BeforeEach
     void setUp() {
-        network = new SimulatedNetworkConnectivity(new Random(0), START);
-        setUpNodes();
-        now = 0;
-        network.tick(at(0));
+        createNetwork(0);
     }
 
-    private void setUpNodes() {
+    private void createNetwork(final long seed) {
         node0 = new RecordingReceiver(NODE_0);
         node1 = new RecordingReceiver(NODE_1);
         node2 = new RecordingReceiver(NODE_2);
-        network.setUp(List.of(node0, node1, node2));
+        network = new SimulatedNetworkConnectivity(new Random(seed), START, List.of(node0, node1, node2));
+        now = 0;
+        network.tick(at(0));
     }
 
     @Test
@@ -81,47 +80,27 @@ class SimulatedNetworkConnectivityTest {
     }
 
     @Test
-    @DisplayName("connections set before the network is set up are applied in order when it is")
-    void connectionsSetBeforeSetUpAreAppliedInOrder() {
-        network = new SimulatedNetworkConnectivity(new Random(0), START);
-        network.setConnections(connections(true));
-        network.setConnections(connections(false));
-        network.setConnections(connections(true));
-        setUpNodes();
+    @DisplayName("the event receivers may be given in any order")
+    void eventReceiversMayBeGivenInAnyOrder() {
+        node0 = new RecordingReceiver(NODE_0);
+        node1 = new RecordingReceiver(NODE_1);
+        node2 = new RecordingReceiver(NODE_2);
+        network = new SimulatedNetworkConnectivity(new Random(0), START, List.of(node2, node0, node1));
         network.tick(at(0));
-
-        // the links came up again after the first connections, so they wait out a reconnect delay
-        submit(NODE_0);
-        tickTo(1);
-        tickTo(MIN_RECONNECT_DELAY_MILLIS - 1);
-        assertThat(node1.receivedEvents).isEmpty();
-        tickTo(MAX_RECONNECT_DELAY_MILLIS);
-        assertThat(node1.receivedEvents).hasSize(1);
-    }
-
-    @Test
-    @DisplayName("setting up again with the same nodes keeps the network, and with other nodes is rejected")
-    void settingUpAgainKeepsTheNetwork() {
         network.setConnections(connections(true));
 
-        // the same nodes in a different order are still the same nodes
-        network.setUp(
-                List.of(new RecordingReceiver(NODE_2), new RecordingReceiver(NODE_0), new RecordingReceiver(NODE_1)));
         submit(NODE_0);
         tickTo(1);
         tickTo(101);
         assertThat(node1.receivedEvents).hasSize(1);
-
-        assertThatThrownBy(() -> network.setUp(List.of(new RecordingReceiver(NODE_0), new RecordingReceiver(NODE_1))))
-                .isInstanceOf(IllegalStateException.class);
+        assertThat(node2.receivedEvents).hasSize(1);
     }
 
     @Test
     @DisplayName("a node cannot have more than one event receiver")
     void duplicateEventReceiversAreRejected() {
-        final SimulatedNetworkConnectivity fresh = new SimulatedNetworkConnectivity(new Random(0), START);
-
-        assertThatThrownBy(() -> fresh.setUp(List.of(new RecordingReceiver(NODE_0), new RecordingReceiver(NODE_0))))
+        assertThatThrownBy(() -> new SimulatedNetworkConnectivity(
+                        new Random(0), START, List.of(new RecordingReceiver(NODE_0), new RecordingReceiver(NODE_0))))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -290,10 +269,7 @@ class SimulatedNetworkConnectivityTest {
     @DisplayName("the reconnect delay is 5 round trips give or take 20%")
     void reconnectDelayIsWithinJitterOfFiveRoundTrips() {
         for (long seed = 0; seed < 20; seed++) {
-            network = new SimulatedNetworkConnectivity(new Random(seed), START);
-            setUpNodes();
-            now = 0;
-            network.tick(at(0));
+            createNetwork(seed);
             network.setConnections(connections(true));
             network.setConnections(connections(false));
             tickTo(10);

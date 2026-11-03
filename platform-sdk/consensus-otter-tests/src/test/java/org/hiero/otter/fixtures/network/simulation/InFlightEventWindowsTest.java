@@ -44,9 +44,7 @@ class InFlightEventWindowsTest {
 
         final BiPredicate<NodeId, NodeId> connected =
                 (sender, receiver) -> !downConnections.contains(Map.entry(sender, receiver));
-        inFlightEventWindows = new InFlightEventWindows(connected, START);
-
-        inFlightEventWindows.setUp(List.of(NODE_0, NODE_1, NODE_2));
+        inFlightEventWindows = new InFlightEventWindows(List.of(NODE_0, NODE_1, NODE_2), connected, START);
 
         node0 = new RecordingReceiver(NODE_0);
     }

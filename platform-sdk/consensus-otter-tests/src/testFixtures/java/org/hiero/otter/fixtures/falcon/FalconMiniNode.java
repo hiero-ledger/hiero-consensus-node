@@ -38,7 +38,7 @@ import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
 import org.hiero.otter.fixtures.internal.NetworkConfiguration;
 import org.hiero.otter.fixtures.internal.simulator.SecureRandomBuilder;
 import org.hiero.otter.fixtures.network.simulation.EventReceiver;
-import org.hiero.otter.fixtures.network.simulation.SimulatedNetworkConnectivity;
+import org.hiero.otter.fixtures.network.simulation.GossipNetwork;
 
 @SuppressWarnings("ForLoopReplaceableByForEach")
 public class FalconMiniNode extends AbstractMiniNode implements MiniNode, TimeTickReceiver, EventReceiver {
@@ -50,7 +50,7 @@ public class FalconMiniNode extends AbstractMiniNode implements MiniNode, TimeTi
     private final Time time;
 
     /** The network connectivity for this node. */
-    private final SimulatedNetworkConnectivity networkConnectivity;
+    private final GossipNetwork gossipNetwork;
 
     /** The configuration for this node. */
     private final NodeConfiguration nodeConfiguration;
@@ -79,13 +79,13 @@ public class FalconMiniNode extends AbstractMiniNode implements MiniNode, TimeTi
             @NonNull final Time time,
             @NonNull final NodeId selfId,
             @NonNull final KeysAndCerts keysAndCerts,
-            @NonNull final SimulatedNetworkConnectivity networkConnectivity,
+            @NonNull final GossipNetwork gossipNetwork,
             @NonNull final NetworkConfiguration networkConfiguration) {
         super(selfId, keysAndCerts, networkConfiguration);
 
         this.random = requireNonNull(random);
         this.time = requireNonNull(time);
-        this.networkConnectivity = requireNonNull(networkConnectivity);
+        this.gossipNetwork = requireNonNull(gossipNetwork);
         this.nodeConfiguration =
                 new FalconNodeConfiguration(() -> lifeCycle, networkConfiguration.overrideProperties());
     }
@@ -116,7 +116,7 @@ public class FalconMiniNode extends AbstractMiniNode implements MiniNode, TimeTi
             currentEventWindow = eventWindow;
             final List<PlatformEvent> orderedEvents = intake.setEventWindow(eventWindow);
             eventCreationManager.setEventWindow(eventWindow);
-            networkConnectivity.updateEventWindow(selfId, eventWindow);
+            gossipNetwork.updateEventWindow(selfId, eventWindow);
             registerAndSubmit(orderedEvents);
         }
         return true;
@@ -134,7 +134,7 @@ public class FalconMiniNode extends AbstractMiniNode implements MiniNode, TimeTi
             final PlatformEvent orderedEvent = orderedEvents.get(i);
             eventCreationManager.registerEvent(orderedEvent);
             orderedEvent.setSenderId(selfId);
-            networkConnectivity.submitEvent(orderedEvent);
+            gossipNetwork.submitEvent(orderedEvent);
         }
     }
 

@@ -56,16 +56,14 @@ class InFlightEventsTest {
     /**
      * Creates the structure under test, set up for the given nodes.
      *
-     * @param nodeIds the nodes of the network, in node id order
+     * @param nodeIds the nodes of the network
      * @return the structure under test
      */
     @NonNull
     private InFlightEvents createInFlightEvents(@NonNull final List<NodeId> nodeIds) {
         final BiPredicate<NodeId, NodeId> connected =
                 (sender, receiver) -> !downConnections.contains(Map.entry(sender, receiver));
-        final InFlightEvents created = new InFlightEvents(connected, nodeId -> eventWindow, START);
-        created.setUp(nodeIds);
-        return created;
+        return new InFlightEvents(nodeIds, connected, nodeId -> eventWindow, START);
     }
 
     @Test
