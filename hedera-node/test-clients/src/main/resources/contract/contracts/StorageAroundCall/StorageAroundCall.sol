@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.0;
 
-// Writes its own storage, optionally around a call to another contract
+// Writes its own storage, optionally around calls to another contract
 contract StorageAroundCall {
     mapping(uint256 => uint256) public values;
 
@@ -23,14 +23,16 @@ contract StorageAroundCall {
         uint256 keyBefore,
         uint256 valueBefore,
         address target,
-        bytes calldata data,
+        bytes[] calldata calls,
         uint256 keyAfter,
         uint256 valueAfter,
         bool revertAfter
     ) external {
         values[keyBefore] = valueBefore;
-        (bool success, ) = target.call(data);
-        require(success);
+        for (uint256 i = 0; i < calls.length; i++) {
+            (bool success, ) = target.call(calls[i]);
+            require(success);
+        }
         values[keyAfter] = valueAfter;
         if (revertAfter) {
             revert();

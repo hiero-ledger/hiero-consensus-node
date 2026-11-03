@@ -9,6 +9,7 @@ import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATABLE;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContractString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
@@ -19,20 +20,29 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCustomCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
+import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewContract;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewSingleton;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
+import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.RELAYER;
+import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
+import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
 import static com.hedera.services.bdd.suites.contract.Utils.mirrorAddrWith;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONSENSUS_GAS_EXHAUSTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_CONTRACT_STORAGE_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_STORAGE_IN_PRICE_REGIME_HAS_BEEN_USED;
@@ -49,6 +59,7 @@ import com.hedera.hapi.node.state.contract.SlotKey;
 import com.hedera.hapi.node.state.contract.SlotValue;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.service.contract.ContractService;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -69,9 +80,11 @@ import com.swirlds.state.spi.ReadableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -95,6 +108,12 @@ public class RepeatableNestedContractStorageTests {
     private static final String SCHEDULE_SERVICE = "0x000000000000000000000000000000000000016b";
     private static final Function AUTHORIZE_SCHEDULE = new Function("authorizeSchedule(address)");
     private static final TupleType SET_AND_PASS_ARGS = TupleType.parse("(uint32,address)");
+    private static final TupleType FORWARD_ARGS = TupleType.parse("(address,bytes)");
+    private static final Function SET_CALL_SET =
+            new Function("setCallSet(uint256,uint256,address,bytes[],uint256,uint256,bool)");
+    private static final Function SET = new Function("set(uint256,uint256)");
+    private static final Function EXECUTE_CALL_ON_PAYER_SIGNATURE =
+            new Function("executeCallOnPayerSignature(address,address,uint256,uint256,uint64,bytes)");
     // Writes its own storage around a call, so its storage is written by both outer and nested executions
     private static final String WRITER = "StorageAroundCall";
     private static final Write NO_WRITE = new Write(0, 0);
@@ -105,10 +124,14 @@ public class RepeatableNestedContractStorageTests {
     @Contract(contract = "SetAndPassHook", creationGas = 1_000_000L)
     static SpecContract SET_AND_PASS_HOOK;
 
+    // As a hook, forwards the call encoded in its hook data
+    @Contract(contract = "CodeDelegationContract", creationGas = 5_000_000L)
+    static SpecContract FORWARDING_HOOK;
+
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.overrideInClass(Map.of("hooks.hooksEnabled", "true"));
-        testLifecycle.doAdhoc(SIGNING_CONTRACT.getInfo(), SET_AND_PASS_HOOK.getInfo());
+        testLifecycle.doAdhoc(SIGNING_CONTRACT.getInfo(), SET_AND_PASS_HOOK.getInfo(), FORWARDING_HOOK.getInfo());
     }
 
     @RepeatableHapiTest({NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW, NEEDS_STATE_ACCESS})
@@ -407,11 +430,201 @@ public class RepeatableNestedContractStorageTests {
                                 writerCall(
                                                 "setCallSet",
                                                 authorizingArgs(
-                                                        scheduleId.get(), new Write(1, 1), new Write(3, 3), false))
+                                                        List.of(scheduleId.get()),
+                                                        new Write(1, 1),
+                                                        new Write(3, 3),
+                                                        false))
                                         .gas(2_000_000L)
                                         .batchKey(batchOperator))
                         .signedByPayerAnd(batchOperator)),
                 getScheduleInfo("batched").isExecuted(),
+                slotCountChangedBy(slotsBefore, 3),
+                storageValuesAre(WRITER, 1, 2, 3));
+    }
+
+    @RepeatableHapiTest({NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW, NEEDS_STATE_ACCESS})
+    final Stream<DynamicTest> executionNestedTwoLevelsDeepIsCountedByTheOutermostExecution() {
+        final var slotsBefore = new AtomicLong();
+        final var innerId = new AtomicReference<ScheduleID>();
+        final var middleId = new AtomicReference<ScheduleID>();
+        return hapiTest(
+                writerCreated(),
+                recordSlotCount(slotsBefore),
+                scheduledForWriter("inner", writerCall("set", 3, 3), innerId),
+                // The middle scheduled call writes keys 2 and 4 around authorizing the inner one
+                sourcing(() -> scheduledForWriter(
+                        "middle",
+                        writerCall(
+                                        "setCallSet",
+                                        authorizingArgs(
+                                                List.of(innerId.get()), new Write(2, 2), new Write(4, 4), false))
+                                .gas(2_000_000L),
+                        middleId)),
+                writerAuthorizing("outer", List.of(middleId), new Write(1, 1), new Write(5, 5), false, SUCCESS),
+                scheduledStatusIs("middle", SUCCESS),
+                scheduledStatusIs("inner", SUCCESS),
+                slotCountChangedBy(slotsBefore, 5),
+                storageValuesAre(WRITER, 1, 2, 3, 4, 5));
+    }
+
+    @RepeatableHapiTest({NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW, NEEDS_STATE_ACCESS})
+    final Stream<DynamicTest> executionNestedThroughScheduleCreationIsCountedByTheOutermostExecution() {
+        final var slotsBefore = new AtomicLong();
+        return hapiTest(
+                writerCreated(),
+                cryptoCreate("callPayer").balance(ONE_HUNDRED_HBARS).keyShape(KeyShape.CONTRACT.signedWith(WRITER)),
+                recordSlotCount(slotsBefore),
+                // The writer schedules a call to itself that its own key lets execute immediately, and writes keys 1
+                // and 3 around it
+                sourcingContextual(spec -> writerCall("setCallSet", new Object[] {
+                            BigInteger.ONE,
+                            BigInteger.ONE,
+                            asHeadlongAddress(SCHEDULE_SERVICE),
+                            new byte[][] {
+                                EXECUTE_CALL_ON_PAYER_SIGNATURE
+                                        .encodeCallWithArgs(
+                                                mirrorAddrWith(spec.registry().getContractId(WRITER)),
+                                                mirrorAddrWith(spec.registry().getAccountID("callPayer")),
+                                                BigInteger.valueOf(
+                                                        spec.consensusTime().getEpochSecond() + 3_600),
+                                                BigInteger.valueOf(200_000L),
+                                                BigInteger.ZERO,
+                                                SET.encodeCallWithArgs(BigInteger.TWO, BigInteger.TWO)
+                                                        .array())
+                                        .array()
+                            },
+                            BigInteger.valueOf(3),
+                            BigInteger.valueOf(3),
+                            false
+                        })
+                        .gas(2_000_000L)
+                        .hasKnownStatus(SUCCESS)),
+                slotCountChangedBy(slotsBefore, 3),
+                storageValuesAre(WRITER, 1, 2, 3));
+    }
+
+    @RepeatableHapiTest({NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW, NEEDS_STATE_ACCESS})
+    final Stream<DynamicTest> siblingNestedExecutionsAreCountedByTheirOutermostExecution() {
+        final var slotsBefore = new AtomicLong();
+        final var firstId = new AtomicReference<ScheduleID>();
+        final var secondId = new AtomicReference<ScheduleID>();
+        return hapiTest(
+                writerCreated(),
+                recordSlotCount(slotsBefore),
+                scheduledForWriter("first", writerCall("set", 2, 2), firstId),
+                // The second scheduled call updates the first one's key and inserts another
+                scheduledForWriter("second", writerCall("setTwo", 2, 3, 3, 3), secondId),
+                writerAuthorizing(
+                        "outer", List.of(firstId, secondId), new Write(1, 1), new Write(4, 4), false, SUCCESS),
+                scheduledStatusIs("first", SUCCESS),
+                scheduledStatusIs("second", SUCCESS),
+                slotCountChangedBy(slotsBefore, 4),
+                storageValuesAre(WRITER, 1, 3, 3, 4));
+    }
+
+    @LeakyRepeatableHapiTest(
+            value = {NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW, NEEDS_STATE_ACCESS},
+            overrides = {"contracts.maxKvPairs.individual"})
+    final Stream<DynamicTest> siblingNestedInsertionsBeyondContractLimitFailOuterCall() {
+        final var slotsBefore = new AtomicLong();
+        final var firstId = new AtomicReference<ScheduleID>();
+        final var secondId = new AtomicReference<ScheduleID>();
+        return hapiTest(
+                writerCreated(),
+                writerCall("set", 1, 1),
+                recordSlotCount(slotsBefore),
+                scheduledForWriter("first", writerCall("set", 2, 2), firstId),
+                scheduledForWriter("second", writerCall("set", 3, 3), secondId),
+                overriding("contracts.maxKvPairs.individual", "2"),
+                // Each scheduled insertion fits alone, but the outer call's commit sees both
+                writerAuthorizing(
+                        "outer", List.of(firstId, secondId), NO_WRITE, NO_WRITE, false, MAX_CONTRACT_STORAGE_EXCEEDED),
+                getScheduleInfo("first").isNotExecuted(),
+                getScheduleInfo("second").isNotExecuted(),
+                slotCountChangedBy(slotsBefore, 0),
+                storageValuesAre(WRITER, 1));
+    }
+
+    @LeakyRepeatableHapiTest(
+            value = NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW,
+            overrides = {"contracts.enforceCreationThrottle"},
+            throttles = ONE_TPS_CRYPTO_CREATE_THROTTLES)
+    final Stream<DynamicTest> nestedCreationsBeyondCreationThrottleFailOuterCall() {
+        final var factory = "NoncesExternalization";
+        return hapiTest(
+                uploadInitCode(factory),
+                writerCreated(),
+                overriding("contracts.enforceCreationThrottle", "true"),
+                // The scheduled creation's constructor creates four more contracts, and the outer call's commit
+                // applies the throttle to all of them
+                writeAroundAuthorizing(
+                        "creating",
+                        contractCreate(factory).omitAdminKey().gas(1_000_000L),
+                        NO_WRITE,
+                        NO_WRITE,
+                        false,
+                        CONTRACT_REVERT_EXECUTED),
+                getTxnRecord("creatingOuter")
+                        .hasPriority(recordWith()
+                                .contractCallResult(resultWith().error(revertReason(CONSENSUS_GAS_EXHAUSTED)))),
+                getScheduleInfo("creating").isNotExecuted());
+    }
+
+    @RepeatableHapiTest({NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW, NEEDS_STATE_ACCESS})
+    final Stream<DynamicTest> hookExecutionCountsTheExecutionsNestedInIt() {
+        final var slotsBefore = new AtomicLong();
+        final var scheduleId = new AtomicReference<ScheduleID>();
+        return hapiTest(
+                writerCreated(),
+                cryptoCreate("hookOwner").withHooks(accountAllowanceHook(1L, FORWARDING_HOOK.name())),
+                scheduledForWriter("hooked", writerCall("set", 2, 2), scheduleId),
+                recordSlotCount(slotsBefore),
+                // The hook calls the writer, which writes keys 1 and 3 around authorizing the schedule
+                sourcingContextual(spec -> cryptoTransfer(movingHbar(1).between("hookOwner", FUNDING))
+                        .withPreHookFor(
+                                "hookOwner",
+                                1L,
+                                1_000_000L,
+                                FORWARD_ARGS.encode(Tuple.of(
+                                        mirrorAddrWith(spec.registry().getContractId(WRITER)),
+                                        SET_CALL_SET
+                                                .encodeCallWithArgs(authorizingArgs(
+                                                        List.of(scheduleId.get()),
+                                                        new Write(1, 1),
+                                                        new Write(3, 3),
+                                                        false))
+                                                .array())))),
+                getScheduleInfo("hooked").isExecuted(),
+                scheduledStatusIs("hooked", SUCCESS),
+                slotCountChangedBy(slotsBefore, 3),
+                storageValuesAre(WRITER, 1, 2, 3));
+    }
+
+    @RepeatableHapiTest({NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW, NEEDS_STATE_ACCESS})
+    final Stream<DynamicTest> ethereumTransactionCountsTheExecutionsNestedInIt() {
+        final var slotsBefore = new AtomicLong();
+        final var scheduleId = new AtomicReference<ScheduleID>();
+        return hapiTest(
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
+                cryptoCreate(RELAYER).balance(ONE_MILLION_HBARS),
+                writerCreated(),
+                scheduledForWriter("ethereum", writerCall("set", 2, 2), scheduleId),
+                recordSlotCount(slotsBefore),
+                sourcing(() -> ethereumCall(
+                                WRITER,
+                                "setCallSet",
+                                authorizingArgs(List.of(scheduleId.get()), new Write(1, 1), new Write(3, 3), false))
+                        .type(EthTxData.EthTransactionType.EIP1559)
+                        .signingWith(SECP_256K1_SOURCE_KEY)
+                        .payingWith(RELAYER)
+                        .nonce(0)
+                        .maxFeePerGas(50L)
+                        .maxPriorityGas(2L)
+                        .gasLimit(2_000_000L)
+                        .hasKnownStatus(SUCCESS)),
+                getScheduleInfo("ethereum").isExecuted(),
+                scheduledStatusIs("ethereum", SUCCESS),
                 slotCountChangedBy(slotsBefore, 3),
                 storageValuesAre(WRITER, 1, 2, 3));
     }
@@ -450,20 +663,49 @@ public class RepeatableNestedContractStorageTests {
             @NonNull final ResponseCodeEnum expectedStatus) {
         final var scheduleId = new AtomicReference<ScheduleID>();
         return blockingOrder(
+                scheduledForWriter(schedule, scheduledOp, scheduleId),
+                writerAuthorizing(schedule + "Outer", List.of(scheduleId), before, after, revertAfter, expectedStatus));
+    }
+
+    /**
+     * Schedules {@code scheduledOp} with a payer keyed to {@link #WRITER}, so that {@link #WRITER} can authorize it.
+     */
+    private static SpecOperation scheduledForWriter(
+            @NonNull final String schedule,
+            @NonNull final HapiTxnOp<?> scheduledOp,
+            @NonNull final AtomicReference<ScheduleID> scheduleId) {
+        return blockingOrder(
                 cryptoCreate(schedule + "Payer")
                         .balance(ONE_HUNDRED_HBARS)
                         .keyShape(KeyShape.CONTRACT.signedWith(WRITER)),
                 scheduleCreate(schedule, scheduledOp)
                         .designatingPayer(schedule + "Payer")
                         .exposingCreatedIdTo(scheduleId::set)
-                        .via(schedule + "Creation"),
-                sourcing(() -> writerCall("setCallSet", authorizingArgs(scheduleId.get(), before, after, revertAfter))
-                        .gas(2_000_000L)
-                        .hasKnownStatus(expectedStatus)));
+                        .via(schedule + "Creation"));
+    }
+
+    /**
+     * Calls {@link #WRITER} to write {@code before}, authorize the given schedules, write {@code after}, and
+     * optionally revert.
+     */
+    private static SpecOperation writerAuthorizing(
+            @NonNull final String txnName,
+            @NonNull final List<AtomicReference<ScheduleID>> scheduleIds,
+            @NonNull final Write before,
+            @NonNull final Write after,
+            final boolean revertAfter,
+            @NonNull final ResponseCodeEnum expectedStatus) {
+        return sourcing(() -> writerCall(
+                        "setCallSet",
+                        authorizingArgs(
+                                scheduleIds.stream().map(AtomicReference::get).toList(), before, after, revertAfter))
+                .gas(2_000_000L)
+                .via(txnName)
+                .hasKnownStatus(expectedStatus));
     }
 
     private static Object[] authorizingArgs(
-            @NonNull final ScheduleID scheduleId,
+            @NonNull final List<ScheduleID> scheduleIds,
             @NonNull final Write before,
             @NonNull final Write after,
             final boolean revertAfter) {
@@ -471,11 +713,19 @@ public class RepeatableNestedContractStorageTests {
             BigInteger.valueOf(before.key()),
             BigInteger.valueOf(before.value()),
             asHeadlongAddress(SCHEDULE_SERVICE),
-            AUTHORIZE_SCHEDULE.encodeCallWithArgs(mirrorAddrWith(scheduleId)).array(),
+            scheduleIds.stream()
+                    .map(scheduleId -> AUTHORIZE_SCHEDULE
+                            .encodeCallWithArgs(mirrorAddrWith(scheduleId))
+                            .array())
+                    .toArray(byte[][]::new),
             BigInteger.valueOf(after.key()),
             BigInteger.valueOf(after.value()),
             revertAfter
         };
+    }
+
+    private static String revertReason(@NonNull final ResponseCodeEnum status) {
+        return "0x" + HexFormat.of().formatHex(status.name().getBytes(StandardCharsets.UTF_8));
     }
 
     private static SpecOperation writerCreated() {
