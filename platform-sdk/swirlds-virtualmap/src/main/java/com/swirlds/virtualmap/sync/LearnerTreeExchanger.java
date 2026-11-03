@@ -57,6 +57,13 @@ public final class LearnerTreeExchanger {
     /**
      * Related to the queue above. If a response is received out of order, it's temporarily stored
      * in this map.
+     *
+     * <p>This map has no explicit size limit. Receivers are throttled by flusher backpressure: they block
+     * in {@code storeDirtyLeaf()} while the flusher is busy, then {@code AsyncInputStream} stops reading
+     * the socket. That doesn't cover the applier falling behind while the flusher keeps up, for example if
+     * hashing is slower than the network: receivers keep publishing here, and clean leaf responses never
+     * block at all. In that case, this map grows until the applier catches up. Its size is reported as
+     * {@code responsesWaiting} in the periodic status log.
      */
     private final Map<Long, PullVirtualTreeResponse> responses = new ConcurrentHashMap<>();
 
