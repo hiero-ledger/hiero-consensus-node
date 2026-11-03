@@ -22,4 +22,12 @@ public interface BlockStreamAssertion extends StreamAssertion {
      * @return true if the assertion has succeeded
      */
     boolean test(@NonNull Block block) throws AssertionError;
+
+    /**
+     * Returns true if this assertion reads state change values, and so needs any partial updates in a block
+     * expanded to full values; such a block's bytes no longer match its proof.
+     */
+    default boolean wantsFullStateValues() {
+        return false;
+    }
 }

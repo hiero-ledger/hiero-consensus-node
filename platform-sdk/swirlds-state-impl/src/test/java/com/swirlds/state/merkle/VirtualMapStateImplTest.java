@@ -22,6 +22,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
+import com.hedera.hapi.node.state.token.Account;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.state.MutabilityException;
@@ -644,6 +645,83 @@ public class VirtualMapStateImplTest extends MerkleTestBase {
         }
 
         @Test
+        void priorValueListenersReceiveCommittedValuesThroughTheVirtualMapBridge() {
+            addKvState(virtualMapState.getRoot(), fruitMetadata, C_KEY, CHERRY);
+            virtualMapState.initializeState(fruitMetadata);
+            virtualMapState.initializeState(countryMetadata);
+            given(kvListener.requiresPreviousValue(FRUIT_STATE_ID)).willReturn(true);
+            given(singletonListener.requiresPreviousValue(COUNTRY_STATE_ID)).willReturn(true);
+            virtualMapState.registerCommitListener(kvListener);
+            virtualMapState.registerCommitListener(singletonListener);
+            virtualMapState.registerCommitListener(queueListener);
+
+            final var states = virtualMapState.getWritableStates(FIRST_SERVICE);
+            final var fruitState = states.get(FRUIT_STATE_ID);
+            final var countryState = states.getSingleton(COUNTRY_STATE_ID);
+            // Do not read before either write: the bridge must capture the stored value itself.
+            fruitState.put(C_KEY, EGGPLANT);
+            countryState.put(ESTONIA);
+            ((CommittableWritableStates) states).commit();
+            verify(kvListener).mapUpdateChange(FRUIT_STATE_ID, C_KEY, CHERRY, EGGPLANT);
+            verify(singletonListener).singletonUpdateChange(COUNTRY_STATE_ID, FRANCE, ESTONIA);
+
+            fruitState.put(C_KEY, BANANA);
+            countryState.put(GHANA);
+            ((CommittableWritableStates) states).commit();
+            verify(kvListener).mapUpdateChange(FRUIT_STATE_ID, C_KEY, EGGPLANT, BANANA);
+            verify(singletonListener).singletonUpdateChange(COUNTRY_STATE_ID, ESTONIA, GHANA);
+
+            fruitState.remove(C_KEY);
+            countryState.put(null);
+            ((CommittableWritableStates) states).commit();
+            verify(kvListener).mapDeleteChange(FRUIT_STATE_ID, C_KEY);
+            verify(singletonListener).singletonDeleteChange(COUNTRY_STATE_ID);
+            fruitState.put(C_KEY, CHERRY);
+            countryState.put(FRANCE);
+            ((CommittableWritableStates) states).commit();
+            verify(kvListener).mapUpdateChange(FRUIT_STATE_ID, C_KEY, null, CHERRY);
+            verify(singletonListener).singletonUpdateChange(COUNTRY_STATE_ID, null, FRANCE);
+        }
+
+        @Test
+        void virtualMapBridgePreservesOriginalValueWhileStorageShedsTracking() {
+            // Account is a tracked diff root; small wrappers such as ProtoBytes have no copy-builder tracking.
+            final int accountStateId = 12;
+            final StateMetadata<ProtoBytes, Account> accountMetadata = new StateMetadata<>(
+                    FIRST_SERVICE,
+                    StateDefinition.keyValue(accountStateId, "ACCOUNTS", ProtoBytes.PROTOBUF, Account.PROTOBUF));
+            virtualMapState
+                    .getRoot()
+                    .put(
+                            StateUtils.getStateKeyForKv(accountStateId, C_KEY, ProtoBytes.PROTOBUF),
+                            StateUtils.getStateValueForKv(
+                                    accountStateId,
+                                    Account.newBuilder().memo("old").build()),
+                            new StateValue.StateValueCodec<>(accountStateId, Account.PROTOBUF));
+            virtualMapState.initializeState(accountMetadata);
+            given(kvListener.requiresPreviousValue(accountStateId)).willReturn(true);
+            virtualMapState.registerCommitListener(kvListener);
+            virtualMapState.registerCommitListener(singletonListener);
+            virtualMapState.registerCommitListener(queueListener);
+            final var states = virtualMapState.getWritableStates(FIRST_SERVICE);
+            final var accounts = states.<ProtoBytes, Account>get(accountStateId);
+            final var prior = accounts.get(C_KEY);
+            final var next = prior.copyBuilder().memo("new").build();
+            assertThat(next.$copyBuilderOrigin()).isSameAs(prior);
+            accounts.put(C_KEY, next);
+            ((CommittableWritableStates) states).commit();
+            final var stored = accounts.get(C_KEY);
+            assertThat(stored).isEqualTo(next).isNotSameAs(next);
+            assertThat(stored.$copyBuilderOrigin()).isNull();
+            verify(kvListener)
+                    .mapUpdateChange(
+                            org.mockito.ArgumentMatchers.eq(accountStateId),
+                            org.mockito.ArgumentMatchers.eq(C_KEY),
+                            org.mockito.ArgumentMatchers.same(prior),
+                            org.mockito.ArgumentMatchers.same(next));
+        }
+
+        @Test
         void appropriateListenersAreInvokedOnCommit() {
             virtualMapState.initializeState(fruitMetadata);
             virtualMapState.initializeState(countryMetadata);
@@ -671,6 +749,9 @@ public class VirtualMapStateImplTest extends MerkleTestBase {
             verify(singletonListener).singletonUpdateChange(COUNTRY_STATE_ID, ESTONIA);
             verify(queueListener).queuePushChange(STEAM_STATE_ID, BIOLOGY);
             verify(queueListener).queuePopChange(STEAM_STATE_ID);
+
+            verify(kvListener, org.mockito.Mockito.atLeastOnce()).requiresPreviousValue(FRUIT_STATE_ID);
+            verify(singletonListener, org.mockito.Mockito.atLeastOnce()).requiresPreviousValue(COUNTRY_STATE_ID);
 
             verifyNoMoreInteractions(kvListener);
             verifyNoMoreInteractions(singletonListener);

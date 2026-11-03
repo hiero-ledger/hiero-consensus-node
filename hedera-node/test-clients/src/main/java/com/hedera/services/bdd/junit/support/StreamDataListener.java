@@ -18,10 +18,23 @@ public interface StreamDataListener {
     }
 
     /**
+     * Returns true if this listener reads state change values, and so needs any partial updates in a block
+     * expanded to full values. Proofs must not be checked against such a block's bytes.
+     */
+    default boolean wantsFullStateValues() {
+        return false;
+    }
+
+    /**
      * Called when a new block is received.
      * @param block the new block
      */
     default void onNewBlock(@NonNull final Block block) {}
+
+    /** Called instead of onNewBlock when full state values cannot be reconstructed. */
+    default void onBlockError(@NonNull final Throwable error) {
+        throw new AssertionError("Cannot reconstruct full block state values", error);
+    }
 
     default void onNewItem(RecordStreamItem item) {}
 

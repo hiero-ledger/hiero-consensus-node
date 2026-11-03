@@ -31,6 +31,7 @@ import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.block.stream.output.StateIdentifier;
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.HintsKeySet;
@@ -41,7 +42,9 @@ import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.BlockImplUtils;
 import com.hedera.node.app.blocks.impl.BlockStreamManagerImpl;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
+import com.hedera.node.app.hapi.utils.blocks.BinaryStateChangeParser;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
+import com.hedera.node.app.hapi.utils.blocks.StateChangeDeltas;
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.pbj.runtime.ParseException;
@@ -492,10 +495,22 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
     }
 
     private StreamHashContext cutoverHashContextFrom(@NonNull final Block firstPostCutoverBlock) {
+        final var priorBytes = state.getSingleton(StateIdentifier.STATE_ID_BLOCKS.protoOrdinal());
+        final SingletonUpdateChange baseline;
+        try {
+            baseline = priorBytes == null
+                    ? null
+                    : SingletonUpdateChange.newBuilder()
+                            .blockInfoValue(BlockInfo.PROTOBUF.parse(priorBytes))
+                            .build();
+        } catch (ParseException e) {
+            throw new IllegalStateException("Invalid prior BlockInfo at cutover", e);
+        }
         final var blockInfo = BlockStreamAccess.computeSingletonValueFromUpdates(
                 List.of(firstPostCutoverBlock),
                 SingletonUpdateChange::blockInfoValue,
-                StateIdentifier.STATE_ID_BLOCKS.protoOrdinal());
+                StateIdentifier.STATE_ID_BLOCKS.protoOrdinal(),
+                baseline);
         if (blockInfo == null
                 || blockInfo.previousWrappedRecordBlockRootHash() == null
                 || blockInfo.previousWrappedRecordBlockRootHash().equals(Bytes.EMPTY)) {
@@ -746,11 +761,13 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
             if (stateChange.stateId() == STATE_ID_HINTS_KEY_SETS.protoOrdinal()) {
                 switch (stateChange.changeOperation().kind()) {
                     case MAP_UPDATE -> {
-                        final var key =
-                                stateChange.mapUpdateOrThrow().keyOrThrow().hintsPartyIdKeyOrThrow();
-                        final var value =
-                                stateChange.mapUpdateOrThrow().valueOrThrow().hintsKeySetValueOrThrow();
-                        hintsKeySets.put(new PartyKey(key.partyId(), key.numParties(), key.crsId()), value);
+                        final var update = stateChange.mapUpdateOrThrow();
+                        final var key = update.keyOrThrow().hintsPartyIdKeyOrThrow();
+                        final var partyKey = new PartyKey(key.partyId(), key.numParties(), key.crsId());
+                        // A partial update only carries the changed fields of the key set
+                        final var value = (HintsKeySet)
+                                StateChangeDeltas.applyMap(stateChange.stateId(), hintsKeySets.get(partyKey), update);
+                        hintsKeySets.put(partyKey, value);
                         maybePreprocessInputsChanged = true;
                     }
                     case MAP_DELETE -> {

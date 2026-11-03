@@ -4,6 +4,7 @@ module com.hedera.node.hapi {
     exports com.hedera.hapi.block.internal;
     exports com.hedera.hapi.block.stream.input;
     exports com.hedera.hapi.block.stream.output.protoc;
+    exports com.hedera.hapi.block.stream.output.schema;
     exports com.hedera.hapi.block.stream.output;
     exports com.hedera.hapi.block.stream.protoc;
     exports com.hedera.hapi.block.stream.schema;

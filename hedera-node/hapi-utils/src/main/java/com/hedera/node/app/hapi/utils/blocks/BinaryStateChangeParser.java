@@ -1,7 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.services.bdd.junit.support.validators.block;
+package com.hedera.node.app.hapi.utils.blocks;
 
 import com.hedera.hapi.block.stream.output.StateChanges;
+import com.hedera.hapi.block.stream.output.StateIdentifier;
+import com.hedera.hapi.block.stream.output.schema.SingletonUpdateChangeSchema;
+import com.hedera.hapi.node.base.TokenAssociation;
+import com.hedera.hapi.node.state.common.EntityIDPair;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.ProtoParserTools;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
@@ -10,6 +15,7 @@ import com.swirlds.state.BinaryState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
+import java.util.ArrayList;
 
 /**
  * Parses binary protobuf {@link StateChanges} and applies mutations through the {@link BinaryState} API.
@@ -19,16 +25,17 @@ import java.io.IOException;
  * {@link BinaryState} methods, which handle key composition, value wrapping, and queue state management
  * internally.
  */
-final class BinaryStateChangeParser {
+public final class BinaryStateChangeParser {
     private BinaryStateChangeParser() {
         throw new UnsupportedOperationException("Utility class");
     }
 
-    static void applyStateChanges(@NonNull final BinaryState binaryState, @NonNull final Bytes stateChangesBytes) {
+    public static void applyStateChanges(
+            @NonNull final BinaryState binaryState, @NonNull final Bytes stateChangesBytes) {
         applyStateChanges(binaryState, stateChangesBytes, null);
     }
 
-    static void applyStateChanges(
+    public static void applyStateChanges(
             @NonNull final BinaryState binaryState,
             @NonNull final Bytes stateChangesBytes,
             @Nullable final BinaryStateChangeSummary stateChangesSummary) {
@@ -127,8 +134,38 @@ final class BinaryStateChangeParser {
             final int stateId,
             @NonNull final ReadableSequentialData input,
             final long endPosition) {
-        final Bytes rawValue = readOneOfPayload(input, endPosition, "SingletonUpdateChange");
-        binaryState.updateSingleton(stateId, rawValue);
+        Bytes rawValue = null;
+        boolean partial = false;
+        boolean unknownMetadata = false;
+        final var clearedFields = new ArrayList<Integer>();
+        while (input.position() < endPosition) {
+            final int tag = input.readVarInt(false);
+            if (tag == (SingletonUpdateChangeSchema.PARTIAL.number() << 3)) {
+                partial = readPartial(input);
+            } else if (tag == ((SingletonUpdateChangeSchema.CLEARED_FIELDS.number() << 3) | 2)) {
+                readClearedFields(input, endPosition, clearedFields);
+            } else if (tag == (SingletonUpdateChangeSchema.CLEARED_FIELDS.number() << 3)) {
+                clearedFields.add(ProtoParserTools.readUint32(input));
+            } else if ((tag & 7) == 2
+                    && SingletonUpdateChangeSchema.getField(tag >>> 3) != null
+                    && SingletonUpdateChangeSchema.getField(tag >>> 3).oneOf()) {
+                if (rawValue != null) {
+                    throw new IllegalArgumentException("Multiple singleton values");
+                }
+                rawValue = readPayload(input, endPosition);
+            } else {
+                unknownMetadata = true;
+                skipField(input, tag);
+            }
+        }
+        if (partial && unknownMetadata) throw new IllegalArgumentException("Unknown partial singleton metadata");
+        if (rawValue == null || input.position() != endPosition) {
+            throw new IllegalArgumentException("Missing or malformed singleton value");
+        }
+        binaryState.updateSingleton(
+                stateId,
+                StateChangeDeltas.applyBytes(
+                        partial ? binaryState.getSingleton(stateId) : null, rawValue, partial, clearedFields));
     }
 
     private static void processMapUpdateChange(
@@ -138,6 +175,9 @@ final class BinaryStateChangeParser {
             final long endPosition) {
         Bytes rawKey = null;
         Bytes rawValue = null;
+        boolean partial = false;
+        boolean unknownMetadata = false;
+        final var clearedFields = new ArrayList<Integer>();
         while (input.position() < endPosition) {
             final int tag = input.readVarInt(false);
             switch (tag) {
@@ -145,23 +185,68 @@ final class BinaryStateChangeParser {
                 case 10 -> {
                     final int messageLength = input.readVarInt(false);
                     if (messageLength > 0) {
-                        rawKey = readMapKeyPayload(input, input.position() + messageLength);
+                        rawKey = readMapKeyPayload(stateId, input, input.position() + messageLength);
                     }
                 }
                 // value: field 2, message => (2 << 3) | 2 = 18
                 case 18 -> {
                     final int messageLength = input.readVarInt(false);
-                    if (messageLength > 0) {
-                        rawValue = readOneOfPayload(input, input.position() + messageLength, "MapChangeValue");
+                    if (messageLength <= 0 || messageLength > endPosition - input.position() || rawValue != null) {
+                        throw new IllegalArgumentException("Invalid MapChangeValue");
+                    }
+                    final long valueEnd = input.position() + messageLength;
+                    final int valueTag = input.readVarInt(false);
+                    if ((valueTag & 7) != 2 || (valueTag >>> 3) == 0) {
+                        throw new IllegalArgumentException("Invalid value type");
+                    }
+                    rawValue = readPayload(input, valueEnd);
+                    if (input.position() != valueEnd) {
+                        throw new IllegalArgumentException("Multiple map values");
                     }
                 }
-                default -> skipField(input, tag);
+                case 32 -> partial = readPartial(input);
+                case 42 -> readClearedFields(input, endPosition, clearedFields);
+                case 40 -> clearedFields.add(ProtoParserTools.readUint32(input));
+                case 24 -> readPartial(input); // Independent business-level identical flag
+                default -> {
+                    unknownMetadata = true;
+                    skipField(input, tag);
+                }
             }
         }
-        if (rawKey == null || rawValue == null) {
+        if (partial && unknownMetadata) throw new IllegalArgumentException("Unknown partial map metadata");
+        if (rawKey == null || rawValue == null || input.position() != endPosition) {
             throw new IllegalStateException("MapChangeKey or MapChangeValue missing");
         }
-        binaryState.updateKv(stateId, rawKey, rawValue);
+        binaryState.updateKv(
+                stateId,
+                rawKey,
+                StateChangeDeltas.applyBytes(
+                        partial ? binaryState.getKv(stateId, rawKey) : null, rawValue, partial, clearedFields));
+    }
+
+    private static void readClearedFields(
+            final ReadableSequentialData input, final long endPosition, final java.util.List<Integer> cleared) {
+        final var payload = readPayload(input, endPosition).toReadableSequentialData();
+        while (payload.hasRemaining()) {
+            cleared.add(ProtoParserTools.readUint32(payload));
+        }
+    }
+
+    private static boolean readPartial(final ReadableSequentialData input) {
+        final int value = input.readVarInt(false);
+        if (value != 0 && value != 1) {
+            throw new IllegalArgumentException("Invalid partial flag");
+        }
+        return value == 1;
+    }
+
+    private static Bytes readPayload(final ReadableSequentialData input, final long endPosition) {
+        final int length = input.readVarInt(false);
+        if (length < 0 || length > endPosition - input.position() || length > input.remaining()) {
+            throw new IllegalArgumentException("Invalid delimited field length");
+        }
+        return input.readBytes(length);
     }
 
     private static void processMapDeleteChange(
@@ -177,7 +262,7 @@ final class BinaryStateChangeParser {
                 case 10 -> {
                     final int messageLength = input.readVarInt(false);
                     if (messageLength > 0) {
-                        rawKey = readMapKeyPayload(input, input.position() + messageLength);
+                        rawKey = readMapKeyPayload(stateId, input, input.position() + messageLength);
                     }
                 }
                 default -> skipField(input, tag);
@@ -226,12 +311,15 @@ final class BinaryStateChangeParser {
      * Token relationship keys are the important exception: block stream uses TokenAssociation while state stores
      * EntityIDPair, whose field ordering is different.
      */
-    private static Bytes readMapKeyPayload(@NonNull final ReadableSequentialData input, final long endPosition) {
+    private static Bytes readMapKeyPayload(
+            final int stateId, @NonNull final ReadableSequentialData input, final long endPosition) {
         Bytes payload = null;
+        int fieldNumber = -1;
         while (input.position() < endPosition) {
             final int tag = input.readVarInt(false);
             final var wireType = ProtoConstants.get(tag & ProtoConstants.TAG_WIRE_TYPE_MASK);
             if (payload == null && wireType == ProtoConstants.WIRE_TYPE_DELIMITED) {
+                fieldNumber = tag >>> 3;
                 final int length = input.readVarInt(false);
                 payload = input.readBytes(length);
             } else {
@@ -240,6 +328,14 @@ final class BinaryStateChangeParser {
         }
         if (payload == null) {
             throw new IllegalStateException("MapChangeKey payload missing");
+        }
+        if (stateId == StateIdentifier.STATE_ID_TOKEN_RELS.protoOrdinal() && fieldNumber == 2) {
+            try {
+                final var association = TokenAssociation.PROTOBUF.parse(payload);
+                return EntityIDPair.PROTOBUF.toBytes(new EntityIDPair(association.accountId(), association.tokenId()));
+            } catch (ParseException e) {
+                throw new IllegalStateException("Failed to normalize token relationship key", e);
+            }
         }
         return payload;
     }

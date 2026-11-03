@@ -13,9 +13,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
+import com.hedera.node.app.hapi.utils.blocks.StateChangeDeltas;
+import com.hedera.node.app.hapi.utils.blocks.StateChangeReconstructor;
 import com.hedera.services.bdd.junit.hedera.BlockNodeNetwork;
 import com.hedera.services.bdd.junit.hedera.BlockNodeReader;
 import com.hedera.services.bdd.junit.support.BlockSourceFactory;
+import com.hedera.services.bdd.junit.support.FullStateValues;
 import com.hedera.services.bdd.junit.support.StreamDataListener;
 import com.hedera.services.bdd.junit.support.StreamFileAccess;
 import com.hedera.services.bdd.junit.support.translators.BlockTransactionalUnitTranslator;
@@ -96,6 +99,9 @@ public class SidecarWatcher {
      * block-stream-only mode (see the 4-arg constructor).
      */
     private final Runnable unsubscribe;
+
+    private final java.util.concurrent.atomic.AtomicReference<Throwable> blockStreamFailure =
+            new java.util.concurrent.atomic.AtomicReference<>();
 
     private final Queue<ExpectedSidecar> expectedSidecars = new LinkedBlockingDeque<>();
     private final Queue<TransactionSidecarRecord> actualSidecars = new LinkedBlockingDeque<>();
@@ -262,6 +268,7 @@ public class SidecarWatcher {
      * @throws AssertionError if there are mismatched sidecars or pending sidecars
      */
     public void assertExpectations(@NonNull final HapiSpec spec) {
+        assertNoBlockStreamFailure();
         // Ensure our listener has more than fair opportunity to observe all expected sidecars
         triggerAndCloseAtLeastOneFileIfNotInterrupted(spec);
         triggerAndCloseAtLeastOneFileIfNotInterrupted(spec);
@@ -287,10 +294,12 @@ public class SidecarWatcher {
             drainActualSidecars();
         }
 
+        assertNoBlockStreamFailure();
         // Stop listening for any more actual sidecars, then drain anything already queued.
         unsubscribe.run();
         drainUnseenSidecarsFromStorage();
         drainActualSidecars();
+        assertNoBlockStreamFailure();
 
         assertTrue(thereAreNoMismatchedSidecars(), getMismatchErrors());
         assertTrue(
@@ -386,7 +395,7 @@ public class SidecarWatcher {
             final var split = new RoleFreeBlockUnitSplit();
             final boolean[] foundGenesis = {false};
             int added = 0;
-            for (final var block : blocks) {
+            for (final var block : withFullStateValues(blocks)) {
                 added += pumpBlockSidecars(block, translator, split, foundGenesis);
             }
             // Surface the drain outcome so a reconstruction gap is diagnosable: "read 0 blocks" points
@@ -411,6 +420,32 @@ public class SidecarWatcher {
         } catch (final RuntimeException e) {
             log.warn("Failed to re-scan block stream for sidecars from {}; continuing", source, e);
             return false;
+        }
+    }
+
+    private void assertNoBlockStreamFailure() {
+        final var failure = blockStreamFailure.get();
+        if (failure != null)
+            throw new AssertionError("Cannot expand block state changes for sidecar translation", failure);
+    }
+
+    /** Expands partial state changes for translation, failing if a complete baseline is unavailable. */
+    List<Block> withFullStateValues(@NonNull final List<Block> blocks) {
+        if (blocks.stream().noneMatch(StateChangeDeltas::hasPartialUpdates)) {
+            return blocks;
+        }
+        final var reconstructor = new StateChangeReconstructor();
+        final var diskValues = new FullStateValues();
+        try {
+            return blocks.stream()
+                    .map(block -> blockNodeNetwork == null
+                            ? diskValues.expand(java.util.Objects.requireNonNull(blockStreamPath), block)
+                            : reconstructor.fullValuesForTranslation(block))
+                    .toList();
+        } catch (final RuntimeException e) {
+            blockStreamFailure.compareAndSet(null, e);
+            ensureUnsubscribed();
+            throw new AssertionError("Cannot expand partial state changes for sidecar translation", e);
         }
     }
 
