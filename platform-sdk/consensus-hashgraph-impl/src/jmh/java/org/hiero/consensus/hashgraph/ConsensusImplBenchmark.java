@@ -67,9 +67,10 @@ import org.openjdk.jmh.infra.Blackhole;
  * <p>Each invocation's setup ends with {@code System.gc()}, so usually no garbage collection falls into the measured
  * calls. A pass during which one does is discarded and replaced by the next invocation, so the latency results and
  * {@code latency.mean} exclude garbage collection. JMH's primary score, measured by JMH itself, still includes
- * discarded passes. The heap is sized for the recording of 32 nodes: in a local heap sweep, it did not finish within
- * three minutes at 3 GB and filled 4 GB. The configured 6 GB adds a buffer, and no collection fell into the measured
- * calls. The calibration on the benchmark machine discarded no pass.
+ * discarded passes. The heap is sized for the recording of 28 nodes, which keeps less than 3 GB live: in a local heap
+ * sweep, it did not finish within four minutes at 2 GB, and it needed 63 full collections at 3 GB, 2 at 4 GB, and 1 at
+ * the configured 6 GB. No collection fell into the measured calls. The calibration on the benchmark machine discarded
+ * no pass.
  *
  * <p>Run with {@code -prof org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler}.
  *
@@ -101,7 +102,7 @@ public class ConsensusImplBenchmark {
     private static final int NUMBER_OF_EVENTS = 100_000;
 
     /** The number of nodes in the simulated network. */
-    @Param({"10", "32"})
+    @Param({"10", "28"})
     public int numNodes;
 
     /** The roster of the simulated network. */
@@ -145,8 +146,8 @@ public class ConsensusImplBenchmark {
             }
         }
         expectedRounds = switch (numNodes) {
-            case 10 -> 1786;
-            case 32 -> 496;
+            case 10 -> 1931;
+            case 28 -> 601;
             default -> throw new IllegalArgumentException("No expected round count for numNodes=" + numNodes);
         };
     }
