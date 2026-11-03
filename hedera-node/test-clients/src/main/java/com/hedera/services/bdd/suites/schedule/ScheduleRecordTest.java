@@ -71,6 +71,7 @@ import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsAssertion;
 import com.hederahashgraph.api.proto.java.TransactionID;
 import java.security.SecureRandom;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
@@ -85,42 +86,57 @@ public class ScheduleRecordTest {
         final var creation = "scheduledConstructor";
         final var finished = "finished";
         return hapiTest(
-                streamMustIncludePassFrom(spec -> new VisibleItemsAssertion(
-                        spec,
-                        (s, items) -> {
-                            // Immediate scheduled execution shares the triggering schedule-create record family.
-                            final var entries = items.get(creation).entries().stream()
-                                    .filter(e -> e.function() != NodeStakeUpdate)
-                                    .toList();
-                            assertEquals(
-                                    List.of(ScheduleCreate, ContractCreate, ContractCreate, ContractDelete),
-                                    entries.stream().map(e -> e.function()).toList());
-                            final var trigger = entries.getFirst().txnRecord();
-                            final var parent = entries.get(1).txnRecord();
-                            final var deletion = entries.getLast();
-                            assertEquals(SUCCESS, parent.getReceipt().getStatus());
-                            assertTrue(parent.getTransactionID().getScheduled());
-                            assertEquals(SUCCESS, deletion.finalStatus());
-                            assertEquals(
-                                    parent.getReceipt().getContractID(),
-                                    deletion.body().getContractDeleteInstance().getContractID());
-                            assertEquals(
-                                    parent.getReceipt().getContractID(),
-                                    deletion.txnRecord().getReceipt().getContractID());
-                            assertEquals(
-                                    s.registry().getAccountID(PAYER),
-                                    deletion.body().getContractDeleteInstance().getTransferAccountID());
-                            assertEquals(
-                                    trigger.getConsensusTimestamp(),
-                                    deletion.txnRecord().getParentConsensusTimestamp());
-                            assertTrue(deletion.txnRecord().getTransactionID().getNonce() > 0);
-                            assertEquals(0, deletion.txnRecord().getTransactionFee());
-                            assertEquals(
-                                    0, deletion.txnRecord().getTransferList().getAccountAmountsCount());
-                        },
-                        NO,
-                        creation,
-                        finished)),
+                streamMustIncludePassFrom(
+                        spec -> new VisibleItemsAssertion(
+                                spec,
+                                (s, items) -> {
+                                    // Immediate scheduled execution shares the schedule-create record family.
+                                    final var entries = items.get(creation).entries().stream()
+                                            .filter(e -> e.function() != NodeStakeUpdate)
+                                            .toList();
+                                    assertEquals(
+                                            List.of(ScheduleCreate, ContractCreate, ContractCreate, ContractDelete),
+                                            entries.stream()
+                                                    .map(e -> e.function())
+                                                    .toList());
+                                    final var trigger = entries.getFirst().txnRecord();
+                                    final var parent = entries.get(1).txnRecord();
+                                    final var deletion = entries.getLast();
+                                    assertEquals(SUCCESS, parent.getReceipt().getStatus());
+                                    assertTrue(parent.getTransactionID().getScheduled());
+                                    assertEquals(SUCCESS, deletion.finalStatus());
+                                    assertEquals(
+                                            parent.getReceipt().getContractID(),
+                                            deletion.body()
+                                                    .getContractDeleteInstance()
+                                                    .getContractID());
+                                    assertEquals(
+                                            parent.getReceipt().getContractID(),
+                                            deletion.txnRecord().getReceipt().getContractID());
+                                    assertEquals(
+                                            s.registry().getAccountID(PAYER),
+                                            deletion.body()
+                                                    .getContractDeleteInstance()
+                                                    .getTransferAccountID());
+                                    assertEquals(
+                                            trigger.getConsensusTimestamp(),
+                                            deletion.txnRecord().getParentConsensusTimestamp());
+                                    assertTrue(deletion.txnRecord()
+                                                    .getTransactionID()
+                                                    .getNonce()
+                                            > 0);
+                                    assertEquals(0, deletion.txnRecord().getTransactionFee());
+                                    assertEquals(
+                                            0,
+                                            deletion.txnRecord()
+                                                    .getTransferList()
+                                                    .getAccountAmountsCount());
+                                },
+                                NO,
+                                creation,
+                                finished),
+                        // Under MISC start-up load the record stream can lag well past the 5s default
+                        Duration.ofSeconds(30)),
                 startNewRecordFile(),
                 uploadInitCode(contract),
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
