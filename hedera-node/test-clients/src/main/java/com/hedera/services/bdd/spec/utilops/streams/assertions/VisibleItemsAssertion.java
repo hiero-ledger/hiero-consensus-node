@@ -10,12 +10,14 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.node.app.hapi.utils.forensics.RecordStreamEntry;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.stream.proto.RecordStreamItem;
+import com.hederahashgraph.api.proto.java.TransactionID;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.logging.log4j.LogManager;
@@ -51,6 +53,14 @@ public class VisibleItemsAssertion implements RecordStreamAssertion {
      * dropped on overflow.
      */
     private final List<RecordStreamItem> pendingItems = new ArrayList<>();
+
+    /**
+     * The registered transaction IDs of {@link #allIds} as of the last sweep of {@link #pendingItems}.
+     * A pending item can only start matching once one of these changes, so sweeps are skipped until then;
+     * otherwise every stream item would re-check the whole buffer against the registry.
+     */
+    @Nullable
+    private List<Optional<TransactionID>> idsAtLastSweep = null;
 
     /**
      * Cached flag that becomes true once every expected ID has at least one
@@ -197,6 +207,12 @@ public class VisibleItemsAssertion implements RecordStreamAssertion {
      */
     private void sweepPendingItems() {
         if (!pendingItems.isEmpty() && !allIdsHaveItems) {
+            final var currentIds =
+                    allIds.stream().map(id -> spec.registry().getMaybeTxnId(id)).toList();
+            if (currentIds.equals(idsAtLastSweep)) {
+                return;
+            }
+            idsAtLastSweep = currentIds;
             final var it = pendingItems.iterator();
             while (it.hasNext()) {
                 if (tryMatch(it.next())) {
