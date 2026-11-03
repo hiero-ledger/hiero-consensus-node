@@ -42,7 +42,7 @@ public class BlockNodeSuite {
             })
     @Order(1)
     final Stream<DynamicTest> node0StreamingHappyPath() {
-        return validateHappyPath(20);
+        return validateHappyPath(20, "Sending request to block node (type: END_OF_BLOCK)");
     }
 
     // All four block nodes share priority group 0, and the connection manager probes an entire priority
@@ -96,10 +96,12 @@ public class BlockNodeSuite {
     final Stream<DynamicTest> allP0NodesStreamingHappyPath() {
         // Use fewer blocks than the single-node test since 4 real block node containers
         // and 4 consensus nodes need more startup time, reducing the window for block production
-        return validateHappyPath(5);
+        // Nodes may share a block node, which takes each block from the first publisher and sends the
+        // others SkipBlock (so no END_OF_BLOCK from them); every publisher still gets the acknowledgement
+        return validateHappyPath(5, "BlockAcknowledgement received for block");
     }
 
-    private Stream<DynamicTest> validateHappyPath(final int blocksToWait) {
+    private Stream<DynamicTest> validateHappyPath(final int blocksToWait, final String streamingLogText) {
         return hapiTest(
                 waitUntilNextBlocks(blocksToWait).withBackgroundTraffic(true),
 
@@ -171,7 +173,6 @@ public class BlockNodeSuite {
                 // High latency assertions
                 assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0), "Block node has exceeded high latency threshold", Duration.ofSeconds(0)),
-                awaitBlockNodeCommsLogContainsText(
-                        byNodeId(0), "Sending request to block node (type: END_OF_BLOCK)", Duration.ofSeconds(30)));
+                awaitBlockNodeCommsLogContainsText(byNodeId(0), streamingLogText, Duration.ofSeconds(30)));
     }
 }
