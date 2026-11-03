@@ -45,7 +45,7 @@ env:
   GRADLE_MANIFEST_PATH: ${{ github.workspace }}/.manifests/gradle
   GRADLE_MANIFEST_GENERATOR: .github/workflows/support/scripts/generate-gradle-artifact-baseline.sh
   GRADLE_CACHE_USERNAME: ${{ secrets.gradle-cache-username }}
-  GRADLE_CACHE_PASSWORD: ${{ secrets.gradle-cache-password }}
+  # GRADLE_CACHE_PASSWORD: ${{ secrets.gradle-cache-password }}
   LC_ALL: C.UTF-8
 
 jobs:
