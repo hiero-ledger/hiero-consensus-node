@@ -21,6 +21,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -113,6 +114,11 @@ public class HashLeafFlusher {
 
     // Passed to the data source with every flush, see VirtualDataSource.saveRecords()
     private final boolean reconnectContext;
+
+    // Flush stats, reported by getStatus(). Updated by the flusher thread and by the thread that calls finish()
+    private final AtomicLong flushCount = new AtomicLong();
+    private final AtomicLong totalFlushMillis = new AtomicLong();
+    private volatile long lastFlushMillis;
 
     // Data accumulated for a single flush
     private final class Batch {
@@ -422,6 +428,25 @@ public class HashLeafFlusher {
         }
     }
 
+    /// Returns a short human-readable summary of this flusher's state, for reconnect status logs: the size of
+    /// the batch being filled, whether a flush is running, flush stats, and the total time producers were
+    /// blocked on backpressure, including an ongoing stall.
+    ///
+    /// @return the flusher state summary
+    @NonNull
+    public synchronized String getStatus() {
+        final Batch current = batch;
+        final long ongoingStallMs = (backpressureSince == 0) ? 0 : System.currentTimeMillis() - backpressureSince;
+        return "pendingLeaves=" + ((current == null) ? 0 : current.leaves.size())
+                + ", pendingDeletedLeaves=" + ((current == null) ? 0 : current.deletedLeaves.size())
+                + ", pendingHashChunks=" + ((current == null) ? 0 : current.hashChunks.size())
+                + ", flushInProgress=" + ((flushingFuture != null) && (flushingFuture.state() == Future.State.RUNNING))
+                + ", flushes=" + flushCount.get()
+                + ", totalFlushMillis=" + totalFlushMillis.get()
+                + ", lastFlushMillis=" + lastFlushMillis
+                + ", backpressureWaitMillis=" + (backpressureTotalMs + ongoingStallMs);
+    }
+
     // Logs the total time producers were blocked on backpressure, in finish() or cancel(). If producers are
     // still blocked, e.g. when cancelled, the ongoing stall is included. Must be called with the lock held
     private void logBackpressureTotal() {
@@ -453,6 +478,9 @@ public class HashLeafFlusher {
             throwIfInterrupted();
             final long end = System.currentTimeMillis();
             statistics.recordFlush(end - start);
+            flushCount.incrementAndGet();
+            totalFlushMillis.addAndGet(end - start);
+            lastFlushMillis = end - start;
             logger.debug(logMarker, "Flushed in {} ms", end - start);
         } catch (IOException e) {
             throw new UncheckedIOException(e);

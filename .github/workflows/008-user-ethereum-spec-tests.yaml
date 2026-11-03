@@ -302,6 +302,11 @@ jobs:
               echo "127.0.0.1:${port} is already listening (solo port-forward still active)"
               return 0
             fi
+            if [[ -z "${target}" ]]; then
+              echo "::error::127.0.0.1:${port} is not listening and there is nothing to forward it to"
+              kubectl -n "${SOLO_NAMESPACE}" get pods,svc -o wide --show-labels || true
+              return 1
+            fi
             echo "Forwarding ${target} port ${remote_port} to 127.0.0.1:${port}"
             kubectl -n "${SOLO_NAMESPACE}" port-forward "${target}" "${port}:${remote_port}" >"${log}" 2>&1 &
             for _ in $(seq 1 15); do
@@ -316,10 +321,14 @@ jobs:
             kubectl -n "${SOLO_NAMESPACE}" get svc -o wide || true
             return 1
           }
-          # solo names the relay release "relay-<node alias>" and finds its pod by the instance label.
-          relay_pod=$(kubectl -n "${SOLO_NAMESPACE}" get pods -l app.kubernetes.io/instance=relay-node1 -o name 2>/dev/null | head -n 1 || true)
+          # solo names the relay release relay-<component id> (relay-1 since v0.95.0, relay-node1 before), so look
+          # the relay up by the label its chart gives it whatever the release is called, as solo itself does: the
+          # relay chart includes the relay and websocket charts under the aliases "relay" and "ws", so the relay's
+          # pod and service carry app.kubernetes.io/name=relay and the websocket's carry =ws.
+          relay_pod=$(kubectl -n "${SOLO_NAMESPACE}" get pods -l app.kubernetes.io/name=relay -o name 2>/dev/null | head -n 1 || true)
+          relay_svc=$(kubectl -n "${SOLO_NAMESPACE}" get svc -l app.kubernetes.io/name=relay -o name 2>/dev/null | head -n 1 || true)
           ensure_forward 38081 svc/mirror-1-rest http
-          ensure_forward 37546 "${relay_pod:-svc/relay-node1}" 7546
+          ensure_forward 37546 "${relay_pod:-${relay_svc}}" 7546
 
       # Solo reports readiness before the mirror node REST backend serves data, and the relay needs the mirror
       # node for its own startup queries. Wait for both before running the tests.

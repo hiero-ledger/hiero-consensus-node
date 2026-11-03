@@ -149,7 +149,6 @@ open module com.hedera.node.test.clients {
     requires org.apache.logging.log4j.core;
     requires org.apache.logging.log4j;
     requires org.assertj.core;
-    requires org.bouncycastle.provider;
     requires org.hyperledger.besu.datatypes;
     requires org.hyperledger.besu.evm;
     requires org.hyperledger.besu.internal.crypto;

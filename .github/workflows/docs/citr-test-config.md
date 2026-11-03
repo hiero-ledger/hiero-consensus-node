@@ -52,7 +52,6 @@ the time constraint. The time limit for MATS is critical because it is also run 
 
 |                       Test Name                        |                                             Workflow                                             |                                                   Required Parameters                                                   |                                               Required Workflow Secrets                                               | Precursor Steps |
 |--------------------------------------------------------|--------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------|-----------------|
-| MATS - Snyk Checks                                     | [801: [CALL] Snyk Scan](/.github/workflows/801-call-snyk-scan.yaml)                              | `ref: <commit-sha>`                                                                                                     | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`<br/>`snyk-token`                               | build           |
 | MATS - Compile and Spotless Check                      | [802: [CALL] Compile And Spotless](/.github/workflows/802-call-compile-and-spotless-check.yaml)  | `ref: <commit-sha>`                                                                                                     | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`                                                |                 |
 | MATS - Unit Tests                                      | [803: [CALL] Exec Unit Tests](/.github/workflows/803-call-execute-unit-tests.yaml)               | `ref: <commit-sha>`                                                                                                     | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`<br/>`codacy-project-token`<br/>`codecov-token` | build           |
 | MATS - Integration Tests                               | [804: [CALL] Exec Integration Tests](/.github/workflows/804-call-execute-integration-tests.yaml) | `ref: <commit-sha>`<br/>`enable-network-log-capture: true`                                                              | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`                                                | build           |
@@ -342,6 +341,20 @@ the final disposition); `GET api/v1/suites/results?build_number=<n>&suite_type=s
 | `fail` | `failed` |
 | Infrastructure error, including a Jenkins build that never started | `not_run` (TODO: refine, e.g. `isolated_issue`, once the Chewie semantics are confirmed) |
 | Workflow run cancelled | `cancelled` |
+
+### Test Breakdowns
+
+The test is based primarily on **NLG** (network-load-generator)’s LongevityLoadTest, and its main coverage includes:
+
+| Test Type(running in parallel) | TPS |
+| --- | --- |
+| Crypto | ~5K |
+| HCS | ~2K |
+| NFT | ~3K |
+| Smartcontract | ~50 |
+| Heliswap | ~300 |
+| Best coverage of All Hedera Major Tx Types | < 100 TPS |
+| Re-connects | At most 2 nodes in re-connect at the same time |
 
 
 ## SDPT
