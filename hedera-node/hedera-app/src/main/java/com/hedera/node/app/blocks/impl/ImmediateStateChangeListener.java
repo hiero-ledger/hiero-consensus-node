@@ -48,6 +48,7 @@ import com.hedera.hapi.node.state.hints.HintsPartyId;
 import com.hedera.hapi.node.state.hints.PreprocessingVote;
 import com.hedera.hapi.node.state.hints.PreprocessingVoteId;
 import com.hedera.hapi.node.state.history.ConstructionNodeId;
+import com.hedera.hapi.node.state.history.HintsKeyProvenance;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
 import com.hedera.hapi.node.state.history.ProofKeySet;
 import com.hedera.hapi.node.state.history.RecordedHistorySignature;
@@ -118,7 +119,7 @@ public class ImmediateStateChangeListener implements StateChangeListener {
         if (isImmediateSingleton(stateId)) {
             singletonStateChanges.add(StateChange.newBuilder()
                     .stateId(stateId)
-                    .singletonUpdate(new SingletonUpdateChange(singletonUpdateChangeValueFor(value)))
+                    .singletonUpdate(new SingletonUpdateChange(false, List.of(), singletonUpdateChangeValueFor(value)))
                     .build());
         }
     }
@@ -169,7 +170,11 @@ public class ImmediateStateChangeListener implements StateChangeListener {
         Objects.requireNonNull(value, "value must not be null");
         final boolean identical = logicallyIdenticalMapping != null && logicallyIdenticalMapping.test(key);
 
-        final var change = new MapUpdateChange(mapChangeKeyFor(key), mapChangeValueFor(value), identical);
+        final var change = MapUpdateChange.newBuilder()
+                .key(mapChangeKeyFor(key))
+                .value(mapChangeValueFor(value))
+                .identical(identical)
+                .build();
         final var stateChange =
                 StateChange.newBuilder().stateId(stateId).mapUpdate(change).build();
         kvStateChanges.add(stateChange);
@@ -387,6 +392,9 @@ public class ImmediateStateChangeListener implements StateChangeListener {
         switch (value) {
             case ProtoBytes protoBytesElement -> {
                 return new OneOf<>(QueuePushChange.ValueOneOfType.PROTO_BYTES_ELEMENT, protoBytesElement.value());
+            }
+            case HintsKeyProvenance hintsKeyProvenance -> {
+                return new OneOf<>(QueuePushChange.ValueOneOfType.HINTS_KEY_PROVENANCE_ELEMENT, hintsKeyProvenance);
             }
             case TransactionReceiptEntries transactionReceiptEntriesElement -> {
                 return new OneOf<>(

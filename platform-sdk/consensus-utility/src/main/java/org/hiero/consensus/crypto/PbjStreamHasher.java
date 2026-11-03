@@ -69,6 +69,7 @@ public class PbjStreamHasher implements EventHasher {
      * @param transactions the transactions to hash
      * @return the hash of the event
      */
+    @SuppressWarnings("ForLoopReplaceableByForEach")
     @NonNull
     private Hash hashEvent(
             @NonNull final EventCore eventCore,
@@ -91,10 +92,11 @@ public class PbjStreamHasher implements EventHasher {
 
         try {
             EventCore.PROTOBUF.write(eventCore, eventStream);
-            for (final EventDescriptor parent : parents) {
-                EventDescriptor.PROTOBUF.write(parent, eventStream);
+            for (int i = 0, parentsSize = parents.size(); i < parentsSize; i++) {
+                EventDescriptor.PROTOBUF.write(parents.get(i), eventStream);
             }
-            for (final TransactionWrapper transaction : transactions) {
+            for (int i = 0, transactionsSize = transactions.size(); i < transactionsSize; i++) {
+                final TransactionWrapper transaction = transactions.get(i);
                 transactionStream.writeBytes(Objects.requireNonNull(transaction.getApplicationTransaction()));
                 processTransactionHash(eventStream, transaction);
             }
