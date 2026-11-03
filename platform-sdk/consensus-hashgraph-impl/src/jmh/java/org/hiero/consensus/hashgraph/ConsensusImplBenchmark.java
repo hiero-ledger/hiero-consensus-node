@@ -76,23 +76,23 @@ import org.openjdk.jmh.infra.Blackhole;
  *
  * <h2>Calibration</h2>
  * <ul>
- *   <li>Date / commit: 2026-10-30, 9c2a43e271</li>
+ *   <li>Date / commit: 2026-11-03, 2b129c77e0</li>
  *   <li>Machine: hl-cn-benchmark-lin, AS-2115GT-HNTR, AMD EPYC 9254 24-Core Processor, JDK 25.0.2, -XX:ActiveProcessorCount=12 -Xms6g -Xmx6g -XX:+AlwaysPreTouch</li>
- *   <li>Parameter sets: numNodes=10 / numNodes=32</li>
- *   <li>Steady state after: 5 s / 5 s</li>
- *   <li>Noise (latency.mean, CV): 0.05% / 0.11% per 40 s iteration, 0.33% / 1.08% between forks, - / - between runs (1 of 1 / 1 of 1 runs quiet)</li>
- *   <li>Expected detectable regression: 0.29% / 0.95% (95 % CI half-width of one run)</li>
- *   <li>Samples per iteration: 4.5 M / 1.4 M; expected stable: mean, p50, p90, p99, p99.9, p99.99 / mean, p50, p90, p99, p99.9, p99.99, max</li>
- *   <li>Runtime: 9.0 / 18.7 min per parameter set</li>
- *   <li>Raw data: https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/41100676127, https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/41120602526</li>
+ *   <li>Parameter sets: numNodes=10 / numNodes=28</li>
+ *   <li>Steady state after: 5 s / 0 s</li>
+ *   <li>Noise (latency.mean, CV): 0.10% / 0.08% per 30 s iteration, 0.31% / 0.53% between forks, - / - between runs (1 of 1 / 1 of 1 runs quiet)</li>
+ *   <li>Expected detectable regression: 0.36% / 0.60% (95 % CI half-width of one run)</li>
+ *   <li>Samples per iteration: 3.3 M / 1.3 M; expected stable: mean, p50, p90, p99, p99.9, p99.99 / mean, p50, p90, p99, p99.9, p99.99, max</li>
+ *   <li>Runtime: 4.4 / 8.8 min per parameter set</li>
+ *   <li>Raw data: https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/41641833481, https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/41654357977</li>
  * </ul>
  */
 @State(Scope.Thread)
 @Fork(
-        value = 5,
+        value = 3,
         jvmArgsAppend = {"-Xms6g", "-Xmx6g", "-XX:+AlwaysPreTouch"})
 @Warmup(iterations = 1, time = 10)
-@Measurement(iterations = 2, time = 40)
+@Measurement(iterations = 2, time = 30)
 public class ConsensusImplBenchmark {
 
     /** The seed of the simulation. The same seed produces the same events. */
