@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.clpr.verify;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
 import com.hedera.hapi.node.state.clpr.ClprMessageKey;
 import com.hedera.hapi.node.state.clpr.ClprMessageValue;
@@ -11,6 +12,7 @@ import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import java.time.Duration;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -29,6 +31,12 @@ class ClprProofExtractionTest {
                     .runningHashAfterProcessing(Bytes.wrap(new byte[32]))
                     .build())
             .build();
+
+    // 08 FA FF FF FF 0F: tag 0x08 (field-1, wire-type 0), then the 5-byte varint
+    // FA FF FF FF 0F decodes to 0xFFFFFFFA = -6 as a signed Java int.
+    // Without a len < 0 guard, pos += len resets pos to 0 and the while loop never exits.
+    private static final byte[] NEGATIVE_LEN_PAYLOAD =
+            new byte[] {0x08, (byte) 0xFA, (byte) 0xFF, (byte) 0xFF, (byte) 0xFF, 0x0F};
 
     @Test
     @DisplayName("given a keyed state item, then extractStateItemKey returns the serialized StateKey")
@@ -96,6 +104,29 @@ class ClprProofExtractionTest {
 
         assertThat(ClprProofExtraction.readFirstVarintTag(StateKey.PROTOBUF.toBytes(channelKey)))
                 .isNotEqualTo(ClprProofExtraction.SK_MESSAGE_KEY_TAG);
+    }
+
+    @Test
+    void extractStateItemValue_returnsNullForNegativeLengthField() {
+        final var input = Bytes.wrap(NEGATIVE_LEN_PAYLOAD);
+        assertTimeoutPreemptively(
+                Duration.ofSeconds(2), () -> assertThat(ClprProofExtraction.extractStateItemValue(input))
+                        .isNull());
+    }
+
+    @Test
+    void extractStateItemValue_returnsValueBytesForWellFormedStateItem() {
+        // 1A 03 61 62 63 = tag 0x1A (field 3, length-delimited = SI_VALUE_TAG), len=3, "abc"
+        final var input = Bytes.wrap(new byte[] {0x1A, 0x03, 0x61, 0x62, 0x63});
+        final var result = ClprProofExtraction.extractStateItemValue(input);
+        assertThat(result).isNotNull();
+        assertThat(result.toByteArray()).isEqualTo(new byte[] {0x61, 0x62, 0x63});
+    }
+
+    @Test
+    void unwrapStateValueField_returnsNullForNegativeLengthField() {
+        final var input = Bytes.wrap(NEGATIVE_LEN_PAYLOAD);
+        assertThat(ClprProofExtraction.unwrapStateValueField(input)).isNull();
     }
 
     private static Bytes stateItem(final StateKey key, final StateValue value) {

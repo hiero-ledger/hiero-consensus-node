@@ -342,6 +342,20 @@ the final disposition); `GET api/v1/suites/results?build_number=<n>&suite_type=s
 | Infrastructure error, including a Jenkins build that never started | `not_run` (TODO: refine, e.g. `isolated_issue`, once the Chewie semantics are confirmed) |
 | Workflow run cancelled | `cancelled` |
 
+### Test Breakdowns
+
+The test is based primarily on **NLG** (network-load-generator)’s LongevityLoadTest, and its main coverage includes:
+
+| Test Type(running in parallel) | TPS |
+| --- | --- |
+| Crypto | ~5K |
+| HCS | ~2K |
+| NFT | ~3K |
+| Smartcontract | ~50 |
+| Heliswap | ~300 |
+| Best coverage of All Hedera Major Tx Types | < 100 TPS |
+| Re-connects | At most 2 nodes in re-connect at the same time |
+
 
 ## SDPT
 
