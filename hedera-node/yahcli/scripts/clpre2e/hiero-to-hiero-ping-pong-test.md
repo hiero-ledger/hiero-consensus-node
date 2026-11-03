@@ -81,14 +81,18 @@ Edit `clpr-hiero-bob/hedera-node/configuration/dev/application.properties`
 and uncomment/add:
 
 ```properties
-clpr.chainId=hiero:localnetb
+contracts.chainId=299
 grpc.port=50311
 grpc.nodeOperatorPort=50313
 ```
 
+The CLPR chain ID is derived from `contracts.chainId` as `eip155:<contracts.chainId>`,
+so alice (`contracts.chainId=298`, already set in this file) is `eip155:298` and bob is
+`eip155:299`.
+
 This is the source file the Gradle `copyNodeDataAndConfig` task copies into
-`build/node/data/config/` on every `./gradlew :app:run`. It already has these
-lines commented out as examples — just uncomment and set the values.
+`build/node/data/config/` on every `./gradlew :app:run`. It already has `contracts.chainId`
+set and the gRPC ports commented out as examples — just change and uncomment the values.
 
 `application.properties` only overrides the gRPC ports. The **gossip port** lives
 in a separate file, `genesis-network.json`, and defaults to `31013` on both
