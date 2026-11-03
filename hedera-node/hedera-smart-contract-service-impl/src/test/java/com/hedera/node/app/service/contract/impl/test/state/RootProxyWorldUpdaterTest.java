@@ -248,7 +248,7 @@ class RootProxyWorldUpdaterTest {
                 .should()
                 .assertValid(
                         slotsUsedBeforeCommit + 1,
-                        hederaOperations,
+                        hederaNativeOperations,
                         List.of(new StorageSizeChange(A_CONTRACT_ID, 0, 1)));
     }
 
@@ -269,7 +269,7 @@ class RootProxyWorldUpdaterTest {
         subject.commit();
 
         // Four pending insertions and three pending removals
-        BDDMockito.then(storageSizeValidator).should().assertValid(124L, hederaOperations, expectedSizeChanges());
+        BDDMockito.then(storageSizeValidator).should().assertValid(124L, hederaNativeOperations, expectedSizeChanges());
         BDDMockito.then(rentCalculator).shouldHaveNoInteractions();
         BDDMockito.then(storageManager).shouldHaveNoInteractions();
         BDDMockito.then(hederaOperations).should().commit();
