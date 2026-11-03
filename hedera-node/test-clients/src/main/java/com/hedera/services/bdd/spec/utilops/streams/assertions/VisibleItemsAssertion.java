@@ -45,7 +45,7 @@ public class VisibleItemsAssertion implements RecordStreamAssertion {
 
     /**
      * Items that did not match any registered spec ID when first seen.  These are
-     * retried on each subsequent {@link #isApplicableTo} call because the spec
+     * retried whenever a registered ID changes (see {@link #idsAtLastSweep}) because the spec
      * registry may not yet have had the transaction ID registered at the time the
      * record-stream file was processed (the monitor thread can read a flushed file
      * before the main test thread finishes the {@code .via()} registration).
