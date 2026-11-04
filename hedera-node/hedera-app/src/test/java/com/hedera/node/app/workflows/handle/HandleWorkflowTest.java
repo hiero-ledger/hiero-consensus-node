@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
 import static com.hedera.hapi.services.auxiliary.clpr.ClprMaintenanceReason.ENDPOINT_MANIFEST_RECONCILIATION;
 import static com.hedera.hapi.services.auxiliary.clpr.ClprMaintenanceReason.GENESIS_INITIALIZATION;
 import static com.hedera.hapi.services.auxiliary.clpr.ClprMaintenanceReason.UPGRADE_INITIALIZATION;
@@ -22,6 +23,9 @@ import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSch
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILES_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFOS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_NETWORK_REWARDS_STATE_ID;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.SCHEDULED;
+import static com.hedera.node.app.workflows.handle.TransactionType.ORDINARY_TRANSACTION;
+import static com.hedera.node.app.workflows.handle.dispatch.ChildDispatchFactory.getTxnInfoFrom;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.BOTH;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
@@ -83,6 +87,7 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.node.state.roster.RosterState;
 import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.hapi.node.state.token.NetworkStakingRewards;
+import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -92,6 +97,7 @@ import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.hapi.services.auxiliary.clpr.ClprMaintenanceReason;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockStreamManager;
+import com.hedera.node.app.blocks.impl.BlockStreamBuilder;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
@@ -111,6 +117,7 @@ import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.roster.RosterService;
+import com.hedera.node.app.service.schedule.ExecutableTxn;
 import com.hedera.node.app.service.schedule.ExecutableTxnIterator;
 import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.token.TokenService;
@@ -127,6 +134,7 @@ import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.app.state.HederaRecordCache;
+import com.hedera.node.app.state.recordcache.BlockRecordSource;
 import com.hedera.node.app.throttle.CongestionMetrics;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
@@ -136,7 +144,9 @@ import com.hedera.node.app.workflows.clpr.ClprSubmissions;
 import com.hedera.node.app.workflows.handle.cache.CacheWarmer;
 import com.hedera.node.app.workflows.handle.record.MigrationRootHashSubmissions;
 import com.hedera.node.app.workflows.handle.record.SystemTransactions;
+import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import com.hedera.node.app.workflows.handle.steps.HollowAccountCompletions;
+import com.hedera.node.app.workflows.handle.steps.ParentTxn;
 import com.hedera.node.app.workflows.handle.steps.ParentTxnFactory;
 import com.hedera.node.app.workflows.handle.steps.StakePeriodChanges;
 import com.hedera.node.config.ConfigProvider;
@@ -186,7 +196,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.Mockito;
+import org.mockito.invocation.InvocationOnMock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.stubbing.Answer;
 
 @ExtendWith(MockitoExtension.class)
 class HandleWorkflowTest {
@@ -1497,6 +1509,117 @@ class HandleWorkflowTest {
         // Old formula: NOW + (maxPrecedingRecords + 1) = NOW + 4
         // New formula: NOW + txnOffsetNanos = NOW + 104
         verify(stakePeriodManager).setCurrentStakePeriodFor(eq(NOW.plusNanos(104)));
+    }
+
+    /**
+     * A scheduled transaction that fails after its pre-handle but before its dispatch runs (for example in
+     * its fee calculation) must be externalized as {@code FAIL_INVALID} on its own: the other schedules due in
+     * the same interval still execute, the failed schedule is still removed from state, and the interval is
+     * marked processed up to its checked end rather than skipped to the current consensus time.
+     */
+    @Test
+    void scheduledTxnFailingBeforeItsDispatchDoesNotAbortTheInterval() {
+        final var creatorId = NodeId.of(0);
+        given(event.getCreatorId()).willReturn(creatorId);
+        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(event.allParentsIterator()).willReturn(emptyIterator());
+        given(networkInfo.nodeInfo(creatorId.id())).willReturn(creatorInfo);
+        given(round.iterator()).willAnswer(ignore -> List.of(event).iterator());
+        // The interval starts further back than scheduling.maxExpirySecsToCheckPerUserTxn (30s), so the
+        // checked interval ends before consensusNow and the two possible end markers are distinguishable
+        final var executionStart = NOW.minusSeconds(100);
+        final var checkedIntervalEnd = executionStart.plusSeconds(30);
+        given(blockStreamManager.lastIntervalProcessTime()).willReturn(executionStart);
+        given(blockStreamManager.lastUsedConsensusTime()).willReturn(NOW);
+        given(exchangeRateManager.exchangeRates()).willReturn(ExchangeRateSet.DEFAULT);
+        final var entityIdStates =
+                mock(WritableStates.class, withSettings().extraInterfaces(CommittableWritableStates.class));
+        given(state.getWritableStates(EntityIdService.NAME)).willReturn(entityIdStates);
+        given(state.getWritableStates(ScheduleService.NAME))
+                .willReturn(
+                        mock(WritableStates.class, withSettings().extraInterfaces(CommittableWritableStates.class)));
+        givenSubjectWith(BLOCKS, BlockStreamWriterMode.FILE, emptyList(), Map.of("scheduling.longTermEnabled", "true"));
+
+        final var failingTxn = scheduledTxnWithMemo("fails before dispatch");
+        final var laterTxn = scheduledTxnWithMemo("still runs");
+        final var schedIter = mock(ExecutableTxnIterator.class);
+        given(schedIter.hasNext()).willReturn(true, true, false);
+        willAnswer(new Answer<ExecutableTxn<?>>() {
+                    private int calls = 0;
+
+                    @Override
+                    public ExecutableTxn<?> answer(final InvocationOnMock invocation) {
+                        return calls++ == 0 ? failingTxn : laterTxn;
+                    }
+                })
+                .given(schedIter)
+                .next();
+        given(scheduleService.executableTxns(any(), any(), any())).willReturn(schedIter);
+        final var failingParent = parentTxnFor(failingTxn);
+        final var laterParent = parentTxnFor(laterTxn);
+        given(parentTxnFactory.createSystemTxn(
+                        eq(state), any(), any(), eq(ORDINARY_TRANSACTION), any(), eq(failingTxn.body())))
+                .willReturn(failingParent);
+        given(parentTxnFactory.createSystemTxn(
+                        eq(state), any(), any(), eq(ORDINARY_TRANSACTION), any(), eq(laterTxn.body())))
+                .willReturn(laterParent);
+        // The first schedule fails while its dispatch is created, after createSystemTxn has returned
+        given(parentTxnFactory.createDispatch(eq(failingParent), any(), any(), eq(SCHEDULED)))
+                .willThrow(new IllegalStateException("cannot compute fees"));
+        final var laterDispatch = mock(Dispatch.class);
+        given(parentTxnFactory.createDispatch(eq(laterParent), any(), any(), eq(SCHEDULED)))
+                .willReturn(laterDispatch);
+        given(laterParent.stack().buildHandleOutput(any(), any(), any()))
+                .willReturn(new HandleOutput(new BlockRecordSource(List.of()), null, NOW.plusNanos(1)));
+
+        subject.handleRound(state, round, txns -> {});
+
+        // Only the later schedule is dispatched, and both are removed from state
+        verify(dispatchProcessor).processDispatch(laterDispatch);
+        verify(dispatchProcessor, times(1)).processDispatch(any());
+        verify(schedIter, times(2)).remove();
+        // The failed schedule is externalized as FAIL_INVALID with its stack rolled back
+        verify(failingParent.stack()).rollbackFullStack();
+        verify(recordCache)
+                .addRecordSource(
+                        eq(creatorInfo.nodeId()),
+                        eq(failingTxn.body().transactionIDOrThrow()),
+                        eq(HederaRecordCache.DueDiligenceFailure.NO),
+                        any());
+        @SuppressWarnings("unchecked")
+        final ArgumentCaptor<List<BlockItem>> itemsCaptor = ArgumentCaptor.forClass(List.class);
+        verify(blockStreamManager, times(2)).writeSavepointItems(itemsCaptor.capture(), any());
+        final var statuses = itemsCaptor.getAllValues().stream()
+                .flatMap(List::stream)
+                .filter(BlockItem::hasTransactionResult)
+                .map(item -> item.transactionResultOrThrow().status())
+                .toList();
+        assertEquals(List.of(FAIL_INVALID), statuses);
+        // The interval is marked processed up to its checked end, not skipped to consensusNow
+        verify(blockStreamManager).setLastIntervalProcessTime(checkedIntervalEnd);
+        verify(blockStreamManager, never()).setLastIntervalProcessTime(NOW);
+    }
+
+    private static ExecutableTxn<BlockStreamBuilder> scheduledTxnWithMemo(@NonNull final String memo) {
+        final var payerId = AccountID.newBuilder().accountNum(1234L).build();
+        final var body = TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder()
+                        .accountID(payerId)
+                        .transactionValidStart(Timestamp.newBuilder().nanos(memo.hashCode() & 0x7fffffff)))
+                .memo(memo)
+                .cryptoTransfer(CryptoTransferTransactionBody.DEFAULT)
+                .build();
+        return new ExecutableTxn<>(body, payerId, key -> true, NOW.minusSeconds(90), BlockStreamBuilder.class, b -> {});
+    }
+
+    private ParentTxn parentTxnFor(@NonNull final ExecutableTxn<?> executableTxn) {
+        final var parentTxn = mock(ParentTxn.class);
+        final var stack = mock(SavepointStackImpl.class);
+        given(parentTxn.stack()).willReturn(stack);
+        given(parentTxn.txnInfo()).willReturn(getTxnInfoFrom(executableTxn.payerId(), executableTxn.body()));
+        given(parentTxn.consensusNow()).willReturn(NOW.plusNanos(1));
+        given(parentTxn.creatorInfo()).willReturn(creatorInfo);
+        return parentTxn;
     }
 
     /**

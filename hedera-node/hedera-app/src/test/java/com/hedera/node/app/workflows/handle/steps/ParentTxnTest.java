@@ -9,7 +9,7 @@ import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.AC
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_LABEL;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.INTERNAL_SYSTEM_TRANSACTION;
 import static com.hedera.node.app.workflows.handle.TransactionType.ORDINARY_TRANSACTION;
-import static com.hedera.node.app.workflows.prehandle.PreHandleResult.Status.PRE_HANDLE_FAILURE;
+import static com.hedera.node.app.workflows.prehandle.PreHandleResult.Status.UNKNOWN_FAILURE;
 import static java.util.Collections.emptyMap;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -18,12 +18,12 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.block.stream.BlockItem;
@@ -56,6 +56,7 @@ import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.throttle.NetworkUtilizationManager;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
@@ -424,19 +425,7 @@ class ParentTxnTest {
 
     @Test
     void systemTxnWhosePreHandleFailsUnexpectedlyIsCreatedAsFailInvalid() throws Exception {
-        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(BLOCKS_CONFIG, 1));
-        // The payer must exist with a key for the pre-handle context to be built
-        final var accounts = new MapWritableKVState<AccountID, Account>(ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL);
-        accounts.put(
-                PAYER_ID,
-                Account.newBuilder().accountId(PAYER_ID).key(Key.DEFAULT).build());
-        final var tokenStates = mock(WritableStates.class);
-        given(tokenStates.<AccountID, Account>get(anyInt())).willReturn(accounts);
-        given(state.getWritableStates(TokenService.NAME)).willReturn(tokenStates);
-        final var body = TransactionBody.newBuilder()
-                .transactionID(TransactionID.newBuilder().accountID(PAYER_ID))
-                .cryptoTransfer(CryptoTransferTransactionBody.DEFAULT)
-                .build();
+        final var body = givenSystemTxnWithExistingPayer();
         willThrow(new IllegalStateException("unexpected"))
                 .given(dispatcher)
                 .dispatchPreHandle(any(PreHandleContext.class));
@@ -446,8 +435,42 @@ class ParentTxnTest {
                 factory.createSystemTxn(state, creatorInfo, CONSENSUS_NOW, ORDINARY_TRANSACTION, PAYER_ID, body);
 
         verify(dispatcher).dispatchPreHandle(any(PreHandleContext.class));
-        assertEquals(PRE_HANDLE_FAILURE, subject.preHandleResult().status());
+        assertEquals(UNKNOWN_FAILURE, subject.preHandleResult().status());
         assertEquals(FAIL_INVALID, subject.preHandleResult().responseCode());
+    }
+
+    @Test
+    void systemTxnWhosePureChecksFailUnexpectedlyIsCreatedAsFailInvalid() throws Exception {
+        final var body = givenSystemTxnWithExistingPayer();
+        willThrow(new IllegalArgumentException("unexpected"))
+                .given(dispatcher)
+                .dispatchPureChecks(any(PureChecksContext.class));
+
+        final var factory = createUserTxnFactory();
+        final var subject =
+                factory.createSystemTxn(state, creatorInfo, CONSENSUS_NOW, ORDINARY_TRANSACTION, PAYER_ID, body);
+
+        verify(dispatcher).dispatchPureChecks(any(PureChecksContext.class));
+        verify(dispatcher, never()).dispatchPreHandle(any(PreHandleContext.class));
+        assertEquals(UNKNOWN_FAILURE, subject.preHandleResult().status());
+        assertEquals(FAIL_INVALID, subject.preHandleResult().responseCode());
+    }
+
+    private TransactionBody givenSystemTxnWithExistingPayer() {
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(BLOCKS_CONFIG, 1));
+        // The payer must exist with a key for the pre-handle context to be built
+        final var accounts = new MapWritableKVState<AccountID, Account>(ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL);
+        accounts.put(
+                PAYER_ID,
+                Account.newBuilder().accountId(PAYER_ID).key(Key.DEFAULT).build());
+        // (Not reached when pure checks already fail, so these stubs are lenient)
+        final var tokenStates = mock(WritableStates.class);
+        lenient().when(tokenStates.<AccountID, Account>get(ACCOUNTS_STATE_ID)).thenReturn(accounts);
+        lenient().when(state.getWritableStates(TokenService.NAME)).thenReturn(tokenStates);
+        return TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder().accountID(PAYER_ID))
+                .cryptoTransfer(CryptoTransferTransactionBody.DEFAULT)
+                .build();
     }
 
     private ParentTxnFactory createUserTxnFactory() {

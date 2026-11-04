@@ -7,12 +7,14 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.SCHEDULED;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
+import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
 import static com.hedera.node.app.workflows.handle.TransactionType.INTERNAL_TRANSACTION;
 import static com.hedera.node.app.workflows.handle.dispatch.ChildDispatchFactory.functionOfTxn;
 import static com.hedera.node.app.workflows.handle.dispatch.ChildDispatchFactory.getKeyVerifier;
 import static com.hedera.node.app.workflows.handle.dispatch.ChildDispatchFactory.getTxnInfoFrom;
 import static com.hedera.node.app.workflows.prehandle.PreHandleResult.Status.PRE_HANDLE_FAILURE;
 import static com.hedera.node.app.workflows.prehandle.PreHandleResult.Status.SO_FAR_SO_GOOD;
+import static com.hedera.node.app.workflows.prehandle.PreHandleResult.Status.UNKNOWN_FAILURE;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Collections.emptySet;
@@ -21,6 +23,7 @@ import static org.hiero.hapi.fees.HighVolumePricingCalculator.HIGH_VOLUME_PRICIN
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.blocks.BlockStreamManager;
@@ -57,6 +60,7 @@ import com.hedera.node.app.store.WritableStoreFactory;
 import com.hedera.node.app.throttle.AppThrottleAdviser;
 import com.hedera.node.app.throttle.NetworkUtilizationManager;
 import com.hedera.node.app.workflows.TransactionChecker;
+import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.handle.Dispatch;
 import com.hedera.node.app.workflows.handle.DispatchHandleContext;
@@ -508,25 +512,36 @@ public class ParentTxnFactory {
                     null,
                     0);
         } catch (final PreCheckException e) {
-            return new PreHandleResult(
-                    null,
-                    null,
-                    PRE_HANDLE_FAILURE,
-                    e.responseCode(),
-                    txInfo,
-                    emptySet(),
-                    null,
-                    emptySet(),
-                    null,
-                    null,
-                    0);
+            return failedSystemPreHandle(PRE_HANDLE_FAILURE, e.responseCode(), txInfo);
         } catch (final RuntimeException e) {
             // An unexpected failure while checking one system transaction must not escape to its caller, where it
             // would abort the processing of every other transaction in the same batch (e.g. the other schedules
-            // expiring in the same interval); fail just this transaction instead
-            log.error("Unexpected exception while pre-handling system transaction {}", body, e);
-            return new PreHandleResult(
-                    null, null, PRE_HANDLE_FAILURE, FAIL_INVALID, txInfo, emptySet(), null, emptySet(), null, null, 0);
+            // expiring in the same interval); fail just this transaction instead. This is still a software bug,
+            // so keep the alert marker in the log
+            log.error(
+                    "{} - unexpected exception while pre-handling system transaction {} ({})",
+                    ALERT_MESSAGE,
+                    txInfo.transactionID(),
+                    txInfo.functionality(),
+                    e);
+            return failedSystemPreHandle(UNKNOWN_FAILURE, FAIL_INVALID, txInfo);
         }
+    }
+
+    /**
+     * Returns the pre-handle result of a system transaction whose checks failed with the given status and
+     * response code, so that it is dispatched only to be charged and externalized as failed.
+     *
+     * @param status the pre-handle status
+     * @param responseCode the response code to externalize
+     * @param txInfo the transaction info
+     * @return the failed pre-handle result
+     */
+    private static PreHandleResult failedSystemPreHandle(
+            @NonNull final PreHandleResult.Status status,
+            @NonNull final ResponseCodeEnum responseCode,
+            @NonNull final TransactionInfo txInfo) {
+        return new PreHandleResult(
+                null, null, status, responseCode, txInfo, emptySet(), null, emptySet(), null, null, 0);
     }
 }

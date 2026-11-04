@@ -1003,11 +1003,14 @@ public class HandleWorkflow {
             @NonNull final ExecutableTxn<? extends StreamBuilder> executableTxn) {
         final var scheduledTxn = parentTxnFactory.createSystemTxn(
                 state, creatorInfo, consensusNow, ORDINARY_TRANSACTION, executableTxn.payerId(), executableTxn.body());
-        final var baseBuilder = baseBuilderFor(executableTxn, scheduledTxn);
-        final var dispatch =
-                parentTxnFactory.createDispatch(scheduledTxn, baseBuilder, executableTxn.keyVerifier(), SCHEDULED);
-        stakePeriodChanges.advanceTimeTo(scheduledTxn, true);
+        // Everything that can fail for this one scheduled transaction stays inside the try, so that a failure
+        // (e.g. in its fee calculation) is externalized as FAIL_INVALID for it alone instead of escaping to the
+        // interval loop and skipping every other schedule due in the same interval
         try {
+            final var baseBuilder = baseBuilderFor(executableTxn, scheduledTxn);
+            final var dispatch =
+                    parentTxnFactory.createDispatch(scheduledTxn, baseBuilder, executableTxn.keyVerifier(), SCHEDULED);
+            stakePeriodChanges.advanceTimeTo(scheduledTxn, true);
             dispatchProcessor.processDispatch(dispatch);
             final var blockNumber = currentBlockNumber();
             final var handleOutput = scheduledTxn
