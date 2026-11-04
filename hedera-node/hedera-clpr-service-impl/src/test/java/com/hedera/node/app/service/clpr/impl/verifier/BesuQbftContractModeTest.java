@@ -210,6 +210,69 @@ class BesuQbftContractModeTest {
                     .hasMessageContaining("is not proven");
         }
 
+        @Test
+        void configAtAChangeBlockSealedByAQuorumOfTheNewArrayIsAccepted() {
+            // The header is sealed by the parent's set {0..3}; its state adds 4. All four old members sealed, which
+            // is also a quorum (4) of the five-member array, so the config is accepted with the proven array: the
+            // set that seals the next block.
+            final Chain chain = chain(set(0, 1, 2, 3, 4));
+            final byte[] header = header(CURRENT_BLOCK, chain.stateRoot(), keys(0, 1, 2, 3));
+
+            final var verified = CONFIG_SUBJECT.verifyConfigPayload(configPayload(chain, header, source(chain)));
+
+            assertThat(BesuQbftVerifier.TrustAnchor.decode(verified.ledgerConfiguration()
+                                    .initialTrustAnchor()
+                                    .toByteArray())
+                            .validatorSetEncoded())
+                    .isEqualTo(encodedSet(0, 1, 2, 3, 4));
+        }
+
+        @Test
+        void configAtAChangeBlockNotSealedByTheNewArrayIsRejected() {
+            // The header's state replaces 3 with 4, but 3 (an old member) sealed it.
+            final Chain chain = chain(set(0, 1, 2, 4));
+            final byte[] header = header(CURRENT_BLOCK, chain.stateRoot(), keys(0, 1, 2, 3));
+
+            assertThatThrownBy(() -> CONFIG_SUBJECT.verifyConfigPayload(configPayload(chain, header, source(chain))))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("not in the validator set");
+        }
+
+        @Test
+        void configHeaderListingValidatorsIsRejected() {
+            final Chain chain = chain(set(0, 1, 2, 3));
+            final byte[] header = headerListing(CURRENT_BLOCK, chain.stateRoot(), addrs(0, 1, 2, 3), keys(0, 1, 2));
+
+            assertThatThrownBy(() -> CONFIG_SUBJECT.verifyConfigPayload(configPayload(chain, header, source(chain))))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("a contract-mode header must list none");
+        }
+
+        @Test
+        void unpaddedStorageKeysAreAccepted() {
+            // eth_getProof may return slot keys without leading zeros (e.g. 0x03 for the length slot).
+            final Chain chain = chain(set(0, 1, 2, 3));
+            final byte[] header = header(CURRENT_BLOCK, chain.stateRoot(), keys(0, 1, 2));
+            final var padded = source(chain);
+            final List<StorageProofEntry> entries = new ArrayList<>(padded.validatorContractStorageProofs());
+            entries.set(
+                    0,
+                    entries.getFirst()
+                            .copyBuilder()
+                            .key(Bytes.wrap(new byte[] {3}))
+                            .build());
+            final var unpadded =
+                    padded.copyBuilder().validatorContractStorageProofs(entries).build();
+
+            final var verified = CONFIG_SUBJECT.verifyConfigPayload(configPayload(chain, header, unpadded));
+
+            assertThat(BesuQbftVerifier.TrustAnchor.decode(verified.ledgerConfiguration()
+                                    .initialTrustAnchor()
+                                    .toByteArray())
+                            .validatorSetEncoded())
+                    .isEqualTo(encodedSet(0, 1, 2, 3));
+        }
+
         private void assertArrayRejected(final ValidatorArray array, final String message) {
             final Chain chain = chain(array, false);
             final byte[] header = header(CURRENT_BLOCK, chain.stateRoot(), keys(0));
@@ -319,6 +382,109 @@ class BesuQbftContractModeTest {
 
             assertThat(BUNDLE_SUBJECT.verifyBundle(payload, anchor, CHANNEL_ID).newTrustAnchor())
                     .isEqualTo(encodedSet(4, 5, 6));
+        }
+
+        @Test
+        void currentHeaderListingValidatorsIsRejected() {
+            final byte[] payload = bundle(
+                    headerListing(CURRENT_BLOCK, anchored.stateRoot(), addrs(0, 1, 2, 3), keys(0, 1, 2)),
+                    List.of(),
+                    contractProof(anchored, false));
+
+            assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(payload, anchor, CHANNEL_ID))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("a contract-mode header must list none");
+        }
+
+        @Test
+        void hopHeaderListingValidatorsIsRejected() {
+            final Chain afterHop = chain(set(3, 4, 5, 6));
+            final byte[] hop = Rlp.encodeList(List.of(
+                    headerListing(1_500L, afterHop.stateRoot(), addrs(3, 4, 5, 6), keys(0, 1, 2)),
+                    contractProof(afterHop, true)));
+            final byte[] payload = bundle(
+                    header(CURRENT_BLOCK, afterHop.stateRoot(), keys(4, 5, 6)),
+                    List.of(hop),
+                    contractProof(afterHop, false));
+
+            assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(payload, anchor, CHANNEL_ID))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("hops[0].changeBlockHeader lists validators");
+        }
+
+        @Test
+        void hopWithAnotherValidatorCodeHashIsRejected() {
+            final Chain upgraded = chain(new ValidatorArray(4, addrs(3, 4, 5, 6)), false, filled(32, 0x56));
+            assertHopRejected(upgraded, contractProof(upgraded, true), "does not match the anchored");
+        }
+
+        @Test
+        void hopProvingAnotherContractOrSlotIsRejected() {
+            final Chain afterHop = chain(set(3, 4, 5, 6));
+            assertHopRejected(
+                    afterHop,
+                    contractProof(afterHop, true, filled(20, 0x45), ARRAY_SLOT),
+                    "validator contract proof is for 0x");
+            assertHopRejected(afterHop, contractProof(afterHop, true, VALIDATOR_CONTRACT, uint256(4)), "array slot");
+        }
+
+        @Test
+        void hopWithoutTheFullArrayIsRejected() {
+            final Chain afterHop = chain(set(3, 4, 5, 6));
+            final List<byte[]> withoutLastElement = arrayEntries(afterHop).subList(0, 4);
+
+            assertHopRejected(afterHop, contractProof(afterHop, false), "is not proven");
+            assertHopRejected(afterHop, contractProofWithEntries(afterHop, withoutLastElement), "is not proven");
+        }
+
+        @Test
+        void trustedSetOfMoreThan256IsRejected() {
+            final List<byte[]> members = new ArrayList<>();
+            for (int i = 1; i <= BesuQbftVerifier.MAX_CONTRACT_MODE_VALIDATORS + 1; i++) {
+                final byte[] member = new byte[20];
+                ByteBuffer.wrap(member, 12, 8).putLong(i);
+                members.add(member);
+            }
+            final byte[] payload = bundle(
+                    header(CURRENT_BLOCK, anchored.stateRoot(), keys(0, 1, 2)),
+                    BesuQbftVerifier.encodeValidatorSet(members),
+                    List.of(),
+                    contractProof(anchored, false));
+
+            assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(payload, anchor, CHANNEL_ID))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("at most " + BesuQbftVerifier.MAX_CONTRACT_MODE_VALIDATORS);
+        }
+
+        @Test
+        void storageListOfMoreThan257EntriesIsRejected() {
+            final Chain changed = chain(set(0, 1, 2, 4));
+            final byte[] entry = arrayEntries(changed).getFirst();
+            final List<byte[]> entries = new ArrayList<>();
+            for (int i = 0; i <= BesuQbftVerifier.MAX_CONTRACT_MODE_VALIDATORS + 1; i++) {
+                entries.add(entry);
+            }
+            final byte[] payload = bundle(
+                    header(CURRENT_BLOCK, changed.stateRoot(), keys(0, 1, 2)),
+                    List.of(),
+                    contractProofWithEntries(changed, entries));
+
+            assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(payload, anchor, CHANNEL_ID))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("at most " + (BesuQbftVerifier.MAX_CONTRACT_MODE_VALIDATORS + 1));
+        }
+
+        /** A bundle crossing one hop to {@code afterHop}, whose proof is {@code hopProof}, must fail with {@code message}. */
+        private void assertHopRejected(final Chain afterHop, final byte[] hopProof, final String message) {
+            final byte[] hop = Rlp.encodeList(List.of(header(1_500L, afterHop.stateRoot(), keys(0, 1, 2)), hopProof));
+            final byte[] payload = bundle(
+                    header(CURRENT_BLOCK, afterHop.stateRoot(), keys(4, 5, 6)),
+                    List.of(hop),
+                    contractProof(afterHop, false));
+
+            assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(payload, anchor, CHANNEL_ID))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining(message);
         }
 
         @Test
@@ -537,6 +703,24 @@ class BesuQbftContractModeTest {
         }
 
         @Test
+        void malformedPayloadIsARejectedProof() {
+            // A current header whose state root is not 32 bytes fails a low-level length check; in contract mode,
+            // as in header mode, that is reported as a rejected proof, not an unchecked exception.
+            final byte[] header = header(CURRENT_BLOCK, new byte[31], keys(0, 1, 2));
+            final byte[] payload = Rlp.encodeList(List.of(
+                    header,
+                    Rlp.encodeList(
+                            List.of(encodedSet(0, 1, 2, 3), Rlp.encodeList(List.of()), contractProof(anchored, false))),
+                    Rlp.encodeList(List.of()),
+                    channelStorageProof(),
+                    Rlp.encodeBytes(new byte[0])));
+
+            assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(payload, anchor, CHANNEL_ID))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("malformed input");
+        }
+
+        @Test
         void headerModePayloadIsRejectedUnderAContractModeAnchor() {
             final byte[] header = header(CURRENT_BLOCK, anchored.stateRoot(), keys(0, 1, 2));
             final byte[] headerModeSource = Rlp.encodeList(List.of(encodedSet(0, 1, 2, 3), Rlp.encodeList(List.of())));
@@ -701,6 +885,23 @@ class BesuQbftContractModeTest {
                 Rlp.encodeList(entries))));
     }
 
+    /** A contract proof of {@code chain} whose storage list is exactly {@code entries}. */
+    private static byte[] contractProofWithEntries(final Chain chain, final List<byte[]> entries) {
+        return Rlp.encodeBytes(Rlp.encodeList(List.of(
+                Rlp.encodeBytes(VALIDATOR_CONTRACT),
+                nodeList(chain.stateNodes()),
+                Rlp.encodeBytes(ARRAY_SLOT),
+                Rlp.encodeList(entries))));
+    }
+
+    /** The storage entries proving {@code chain}'s array: its length slot and every element slot. */
+    private static List<byte[]> arrayEntries(final Chain chain) {
+        final byte[] storageNodes = nodeList(chain.storageNodes());
+        return arraySlots(chain).stream()
+                .map(slot -> Rlp.encodeList(List.of(Rlp.encodeBytes(slot), storageNodes)))
+                .toList();
+    }
+
     private static byte[] hop(final long blockNumber, final Chain chain, final List<byte[]> signers) {
         return Rlp.encodeList(List.of(header(blockNumber, chain.stateRoot(), signers), contractProof(chain, true)));
     }
@@ -747,19 +948,25 @@ class BesuQbftContractModeTest {
 
     /** A contract-mode header (empty validator list in extra-data) sealed by {@code signers}. */
     private static byte[] header(final long blockNumber, final byte[] stateRoot, final List<byte[]> signers) {
-        final byte[] unsealed = rawHeader(blockNumber, stateRoot, extraData(List.of()));
+        return headerListing(blockNumber, stateRoot, List.of(), signers);
+    }
+
+    /** A header listing {@code listed} in its extra-data (as a header-mode header does), sealed by {@code signers}. */
+    private static byte[] headerListing(
+            final long blockNumber, final byte[] stateRoot, final List<byte[]> listed, final List<byte[]> signers) {
+        final byte[] unsealed = rawHeader(blockNumber, stateRoot, extraData(listed, List.of()));
         final Rlp.Item headerItem = Rlp.decodeOne(unsealed);
         final byte[] commitHash = BesuQbftVerifier.buildCommitSealHash(
                 headerItem, Rlp.decodeOne(headerItem.children().get(12).asBytes()));
         final List<byte[]> seals =
                 signers.stream().map(k -> sign(commitHash, k)).toList();
-        return rawHeader(blockNumber, stateRoot, extraData(seals));
+        return rawHeader(blockNumber, stateRoot, extraData(listed, seals));
     }
 
-    private static byte[] extraData(final List<byte[]> seals) {
+    private static byte[] extraData(final List<byte[]> listed, final List<byte[]> seals) {
         return Rlp.encodeList(List.of(
                 Rlp.encodeBytes(new byte[32]),
-                Rlp.encodeList(List.of()),
+                Rlp.encodeList(listed.stream().map(Rlp::encodeBytes).toList()),
                 Rlp.encodeBytes(new byte[0]),
                 Rlp.encodeUint(0L),
                 Rlp.encodeList(seals.stream().map(Rlp::encodeBytes).toList())));

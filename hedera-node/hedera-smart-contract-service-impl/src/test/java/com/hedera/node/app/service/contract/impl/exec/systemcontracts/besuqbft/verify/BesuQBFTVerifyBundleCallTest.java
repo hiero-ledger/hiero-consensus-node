@@ -274,6 +274,31 @@ class BesuQBFTVerifyBundleCallTest extends CallTestBase {
     }
 
     @Test
+    void rejectsContractModeAdvanceWithoutAProvenStorageRoot() {
+        // A contract-mode successor needs the validator contract's storage root; an advance that lacks one fails
+        // the call cleanly instead of storing a malformed anchor.
+        final var currentAnchor = new BesuQbftVerifier.TrustAnchor(
+                BesuQbftVerifier.encodeValidatorSet(List.of(VALIDATOR_ADDR)),
+                SERVICE_ADDR,
+                CODE_HASH,
+                ANCHOR_BLOCK,
+                new BesuQbftVerifier.ValidatorContract(
+                        filled(20, 0x55), filled(32, 0x56), filled(32, 0x57), filled(32, 0x58)));
+        final var verified = new BesuQbftVerifier.VerifiedBundle(
+                filled(32, 0x01),
+                contentBytes(relayedMetadata(filled(32, 0x02))),
+                provenMetadata(),
+                BesuQbftVerifier.encodeValidatorSet(List.of(NEW_VALIDATOR_ADDR)),
+                blockNumberId(PROVEN_BLOCK),
+                new byte[0],
+                new byte[0]);
+
+        final var result = executeWith(verified, channelContext(CHANNEL_ID, SERVICE_ADDR), currentAnchor.encode());
+
+        assertThat(result.responseCode()).isEqualTo(CLPR_BUNDLE_VERIFICATION_FAILED);
+    }
+
+    @Test
     void acceptsRelayClaimedTrustAnchorEqualToTheProvenRotation() {
         final byte[] provenSet = BesuQbftVerifier.encodeValidatorSet(List.of(NEW_VALIDATOR_ADDR));
         final var content = ClprBundleContent.newBuilder()

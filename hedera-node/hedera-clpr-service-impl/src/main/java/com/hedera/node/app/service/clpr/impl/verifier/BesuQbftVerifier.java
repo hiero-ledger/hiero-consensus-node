@@ -224,46 +224,51 @@ public final class BesuQbftVerifier {
     }
 
     /**
-     * Decode and verify a QBFT bundle payload, binding the proven Channel storage slots to
-     * {@code channelId}. The four queue-metadata slots and the {@code endpointManifestVersion} slot are
+     * Decode and verify a QBFT bundle payload against the channel's trust anchor, binding the proven Channel
+     * storage slots to {@code channelId}. The anchor's mode selects the verification: header mode
+     * ({@link #verifyHeaderModeBundle}) or contract mode ({@link #verifyContractModeBundle}). Any failure,
+     * including one caused by a malformed payload, is reported as a {@link ProofException}.
+     *
+     * @param bundlePayload the RLP-encoded bundle payload
+     * @param trustAnchor the channel's trust anchor
+     * @param channelId the 32-byte id of the channel the bundle is submitted to
+     * @return the verified block hash, the protobuf-serialized {@code ClprBundleContent}, the proven queue
+     *     metadata and any proven trust-anchor or endpoint-manifest advance; in contract mode a proven advance
+     *     also carries the validator contract's storage root at the current block
+     * @throws ProofException if the bundle does not verify
+     */
+    @NonNull
+    public VerifiedBundle verifyBundle(
+            @NonNull final byte[] bundlePayload,
+            @NonNull final TrustAnchor trustAnchor,
+            @NonNull final byte[] channelId) {
+        Objects.requireNonNull(bundlePayload, "bundlePayload");
+        Objects.requireNonNull(trustAnchor, "trustAnchor");
+        Objects.requireNonNull(channelId, "channelId");
+        return rejectingMalformedInput(() -> switch (trustAnchor.mode()) {
+            case TrustAnchor.HEADER_MODE -> verifyHeaderModeBundle(bundlePayload, trustAnchor, channelId);
+            case TrustAnchor.CONTRACT_MODE -> verifyContractModeBundle(bundlePayload, trustAnchor, channelId);
+            default -> throw ProofException.besuQbft("unknown trust anchor mode " + trustAnchor.mode());
+        });
+    }
+
+    /**
+     * Verifies a bundle against a header-mode anchor (validators listed in block headers), binding the proven
+     * Channel storage slots to {@code channelId}. The four queue-metadata slots and the {@code endpointManifestVersion} slot are
      * identified by recomputing their canonical storage keys — {@code keccak256(channelId || 15)} (the
      * {@code _channels} mapping base) plus field offsets {@code {1,2,4,5}} and {@code 16}. A sixth proven
      * slot that matches none of the expected Channel keys is taken to be the running-hash slot of the
      * bundle's last message; its key is returned so the system contract can bind it to a message id
      * ({@link #findLastMessageId}). More than one such leftover is a hard error.
      *
-     * @param bundlePayload the RLP-encoded payload as produced by
-     *     {@code QbftBundleConstructor.PayloadRlpEncoder.encodeQbftBundlePayload}
-     * @param trustAnchor the RLP-encoded trusted validator set ({@link #encodeValidatorSet})
-     * @param anchorBlockNumber the block at which the trusted set was last confirmed; every hop and the
-     *     current block must come after it (replay floor)
-     * @param channelId the 32-byte id of the channel the bundle is submitted to
-     * @return the verified block hash, the protobuf-serialized {@code ClprBundleContent}, the proven
-     *     queue metadata and any proven trust-anchor or endpoint-manifest advance
-     * @throws ProofException if RLP decoding fails or any structural check is violated
+     * <p>The trust anchor's validator set authenticates the seals; its anchor block is the replay floor: every
+     * hop and the current block must come after it.
      */
     @NonNull
-    public VerifiedBundle verifyBundle(
-            @NonNull final byte[] bundlePayload,
-            @NonNull final byte[] trustAnchor,
-            final long anchorBlockNumber,
-            @NonNull final byte[] channelId) {
-        Objects.requireNonNull(bundlePayload, "bundlePayload");
-        Objects.requireNonNull(trustAnchor, "trustAnchor");
-        Objects.requireNonNull(channelId, "channelId");
-        return rejectingMalformedInput(
-                () -> verifyBundleUnchecked(bundlePayload, trustAnchor, anchorBlockNumber, channelId));
-    }
-
-    @NonNull
-    private VerifiedBundle verifyBundleUnchecked(
-            @NonNull final byte[] bundlePayload,
-            @NonNull final byte[] trustAnchor,
-            final long anchorBlockNumber,
-            @NonNull final byte[] channelId) {
-        Objects.requireNonNull(bundlePayload, "bundlePayload");
-        Objects.requireNonNull(trustAnchor, "trustAnchor");
-        Objects.requireNonNull(channelId, "channelId");
+    private VerifiedBundle verifyHeaderModeBundle(
+            @NonNull final byte[] bundlePayload, @NonNull final TrustAnchor anchor, @NonNull final byte[] channelId) {
+        final byte[] trustAnchor = anchor.validatorSetEncoded();
+        final long anchorBlockNumber = anchor.anchorBlockNumber();
         if (channelId.length != CHANNEL_ID_LENGTH) {
             throw ProofException.besuQbft("channelId must be " + CHANNEL_ID_LENGTH + " bytes, got " + channelId.length);
         }
@@ -357,32 +362,6 @@ public final class BesuQbftVerifier {
     }
 
     /**
-     * Decode and verify a QBFT bundle payload against a trust anchor of either mode: a header-mode anchor is
-     * verified as in {@link #verifyBundle(byte[], byte[], long, byte[])}, a contract-mode anchor as in
-     * {@link #verifyContractModeBundle}.
-     *
-     * @param bundlePayload the RLP-encoded bundle payload
-     * @param trustAnchor the channel's trust anchor
-     * @param channelId the 32-byte id of the channel the bundle is submitted to
-     * @return as {@link #verifyBundle(byte[], byte[], long, byte[])}; in contract mode a proven advance also
-     *     carries the validator contract's storage root at the current block
-     * @throws ProofException if the bundle does not verify
-     */
-    @NonNull
-    public VerifiedBundle verifyBundle(
-            @NonNull final byte[] bundlePayload,
-            @NonNull final TrustAnchor trustAnchor,
-            @NonNull final byte[] channelId) {
-        Objects.requireNonNull(trustAnchor, "trustAnchor");
-        final ValidatorContract validatorContract = trustAnchor.validatorContract();
-        if (validatorContract == null) {
-            return verifyBundle(
-                    bundlePayload, trustAnchor.validatorSetEncoded(), trustAnchor.anchorBlockNumber(), channelId);
-        }
-        return verifyContractModeBundle(bundlePayload, trustAnchor, validatorContract, channelId);
-    }
-
-    /**
      * Verifies a bundle against a contract-mode anchor. Field 1 is {@code RLP([trustedSet, hops, contractProof])}:
      *
      * <ul>
@@ -406,10 +385,8 @@ public final class BesuQbftVerifier {
     private VerifiedBundle verifyContractModeBundle(
             @NonNull final byte[] bundlePayload,
             @NonNull final TrustAnchor trustAnchor,
-            @NonNull final ValidatorContract validatorContract,
             @NonNull final byte[] channelId) {
-        Objects.requireNonNull(bundlePayload, "bundlePayload");
-        Objects.requireNonNull(channelId, "channelId");
+        final ValidatorContract validatorContract = Objects.requireNonNull(trustAnchor.validatorContract());
         if (channelId.length != CHANNEL_ID_LENGTH) {
             throw ProofException.besuQbft("channelId must be " + CHANNEL_ID_LENGTH + " bytes, got " + channelId.length);
         }
@@ -464,6 +441,7 @@ public final class BesuQbftVerifier {
                 throw ProofException.besuQbft(name + " block number " + blockNumber
                         + " is not strictly greater than previous " + lastBlockNumber);
             }
+            requireNoListedValidators(hopHeader, name + ".changeBlockHeader");
             verifyQbftSealAgainstValidatorSet(hopHeader, validators);
             final ResolvedValidators resolved = resolveValidators(
                     ValidatorContractProof.decode(hop.children().get(1), name + ".contractProof"),
@@ -494,6 +472,7 @@ public final class BesuQbftVerifier {
             throw ProofException.besuQbft("block header number " + currentBlockNumber
                     + " is not after the last hop or the anchor block (" + lastBlockNumber + ")");
         }
+        requireNoListedValidators(headerItem, "block header");
         verifyQbftSealAgainstValidatorSet(headerItem, validators);
         final byte[] stateRoot32 = stateRoot(headerItem, "block header");
         final byte[] blockHash32 = besuBlockHash(headerItem);
@@ -744,7 +723,7 @@ public final class BesuQbftVerifier {
             @NonNull final byte[] configPayload, @NonNull final byte[] endpointManifestProofBytes) {
         Objects.requireNonNull(configPayload, "configPayload");
         Objects.requireNonNull(endpointManifestProofBytes, "endpointManifestProofBytes");
-        return rejectingMalformedInput(() -> verifyConfigPayloadUnchecked(configPayload, endpointManifestProofBytes));
+        return rejectingMalformedInput(() -> verifyConfig(configPayload, endpointManifestProofBytes));
     }
 
     /**
@@ -764,7 +743,7 @@ public final class BesuQbftVerifier {
     }
 
     @NonNull
-    private VerifiedConfig verifyConfigPayloadUnchecked(
+    private VerifiedConfig verifyConfig(
             @NonNull final byte[] configPayload, @NonNull final byte[] endpointManifestProofBytes) {
         Objects.requireNonNull(configPayload, "configPayload");
         Objects.requireNonNull(endpointManifestProofBytes, "endpointManifestProofBytes");
@@ -808,8 +787,11 @@ public final class BesuQbftVerifier {
         final byte[] blockHash32 = besuBlockHash(currentHeaderItem);
 
         // --- 2. The initial validator set: listed in the header (header mode), or proven from the validator
-        // contract's array under the header's state root (contract mode, when field 7 is present). A change block
-        // fails the seal check below: it is sealed by the set before the change, not by the array it holds.
+        // contract's array under the header's state root (contract mode, when field 7 is present). In contract mode
+        // the header is sealed by the set in its parent's state; the seal check below accepts it only if that set's
+        // signers are also a quorum of the proven array. A change block can pass when they are (e.g. a member was
+        // added and every old member sealed); that is still sound, because the proven array is the set that seals
+        // the next block, which is what the anchor must hold.
         final QbftContractModeValidatorSource contractModeSource = payload.contractModeValidatorSource();
         final ResolvedValidators contractModeValidators;
         final List<byte[]> configValidators;
@@ -817,6 +799,7 @@ public final class BesuQbftVerifier {
             contractModeValidators = null;
             configValidators = extractValidators(currentHeaderItem);
         } else {
+            requireNoListedValidators(currentHeaderItem, "currentBlockHeader");
             final ValidatorContractProof proof = ValidatorContractProof.of(contractModeSource);
             contractModeValidators =
                     resolveValidators(proof, stateRoot32, proof.contract20(), proof.arraySlot32(), null, null);
@@ -1136,23 +1119,7 @@ public final class BesuQbftVerifier {
      * @throws IllegalArgumentException if any address is not exactly 20 bytes
      */
     static List<byte[]> extractValidators(@NonNull final Rlp.Item headerItem) {
-        final byte[] extraDataRlp =
-                headerItem.children().get(HEADER_EXTRA_DATA_INDEX).asBytes();
-        final Rlp.Item extra;
-        try {
-            extra = Rlp.decodeOne(extraDataRlp);
-        } catch (final RuntimeException e) {
-            throw ProofException.besuQbft("blockHeader.extraData is not valid RLP: " + e.getMessage());
-        }
-        if (!extra.isList() || extra.children().size() != QBFT_EXTRA_FIELDS) {
-            throw ProofException.besuQbft(
-                    "blockHeader.extraData is not a QBFT extra-data RLP list of " + QBFT_EXTRA_FIELDS + " fields");
-        }
-        final Rlp.Item validatorsItem = extra.children().get(QBFT_EXTRA_INDEX_VALIDATORS);
-        if (!validatorsItem.isList()) {
-            throw ProofException.besuQbft("blockHeader.extraData.validators is not an RLP list");
-        }
-        final List<Rlp.Item> validatorItems = validatorsItem.children();
+        final List<Rlp.Item> validatorItems = listedValidatorItems(headerItem);
         if (validatorItems.isEmpty()) {
             throw ProofException.besuQbft("blockHeader.extraData.validators list is empty");
         }
@@ -1169,6 +1136,42 @@ public final class BesuQbftVerifier {
             }
         }
         return validators;
+    }
+
+    /**
+     * Requires a contract-mode header to list no validators in its extra-data, as Besu's contract-mode
+     * {@code QbftValidatorsValidationRule} does: in contract mode the set comes from the validator contract, so a
+     * header that lists validators belongs to a header-mode network.
+     *
+     * @throws ProofException if the header lists any validator
+     */
+    private static void requireNoListedValidators(@NonNull final Rlp.Item headerItem, @NonNull final String name) {
+        if (!listedValidatorItems(headerItem).isEmpty()) {
+            throw ProofException.besuQbft(
+                    name + " lists validators in its extra-data; a contract-mode header must list none");
+        }
+    }
+
+    /** The items of a header's QBFT extra-data validators list. */
+    @NonNull
+    private static List<Rlp.Item> listedValidatorItems(@NonNull final Rlp.Item headerItem) {
+        final byte[] extraDataRlp =
+                headerItem.children().get(HEADER_EXTRA_DATA_INDEX).asBytes();
+        final Rlp.Item extra;
+        try {
+            extra = Rlp.decodeOne(extraDataRlp);
+        } catch (final RuntimeException e) {
+            throw ProofException.besuQbft("blockHeader.extraData is not valid RLP: " + e.getMessage());
+        }
+        if (!extra.isList() || extra.children().size() != QBFT_EXTRA_FIELDS) {
+            throw ProofException.besuQbft(
+                    "blockHeader.extraData is not a QBFT extra-data RLP list of " + QBFT_EXTRA_FIELDS + " fields");
+        }
+        final Rlp.Item validatorsItem = extra.children().get(QBFT_EXTRA_INDEX_VALIDATORS);
+        if (!validatorsItem.isList()) {
+            throw ProofException.besuQbft("blockHeader.extraData.validators is not an RLP list");
+        }
+        return validatorsItem.children();
     }
 
     /**
@@ -1277,8 +1280,8 @@ public final class BesuQbftVerifier {
             throw ProofException.besuQbft("validator array proof has " + entries.size() + " entries; at most "
                     + (MAX_CONTRACT_MODE_VALIDATORS + 1) + " (length and elements) are accepted");
         }
-        // Entries may come in any order; extra entries are ignored and, for a slot proven twice, the first proof
-        // is used (each is verified against the storage root, so both prove the same value).
+        // Entries may come in any order. Only the entry for each needed slot is verified: entries for other slots are
+        // ignored, and for a slot listed twice only the first entry is used (a bad first entry fails the bundle).
         final Map<BytesKey, byte[][]> proofBySlot = new HashMap<>();
         for (int i = 0; i < entries.size(); i++) {
             final SlotProof entry = entries.get(i);
@@ -2477,6 +2480,9 @@ public final class BesuQbftVerifier {
      *   <li>A proxy validator contract is not supported: the pinned code hash is the proxy's, so an upgrade of the
      *       implementation would go unnoticed.</li>
      * </ul>
+     *
+     * <p>Each array element is read as the low 20 bytes of its slot; the upper 12 bytes are ignored, as Solidity's
+     * {@code address(uint160(value))} does.
      *
      * @param address20 the validator contract's address
      * @param arraySlot32 the storage slot of its {@code address[]} validator array
