@@ -2,6 +2,8 @@
 package com.swirlds.virtualmap.sync.streams;
 
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
+import static org.hiero.base.concurrent.SpinThenParkBackoff.SPIN_LIMIT;
+import static org.hiero.base.concurrent.SpinThenParkBackoff.backOff;
 
 import com.swirlds.virtualmap.sync.MerkleSynchronizationException;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -11,7 +13,6 @@ import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.LockSupport;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.jctools.queues.MpscVarHandleArrayQueue;
@@ -68,13 +69,9 @@ public class AsyncOutputStream {
     /// enforcing the exact bound with `offerIfBelowThreshold`.
     private final MpscVarHandleArrayQueue<byte[]> outputQueue;
 
-    // Backoff tuning. The values are heuristics, not derived from a model; OutputQueueBench (base-concurrent)
-    // was used to check that they don't limit throughput.
+    // Backoff caps for SpinThenParkBackoff. The values are heuristics, not derived from a model;
+    // OutputQueueBench (base-concurrent) was used to check that they don't limit throughput.
 
-    /// Spin iterations before parking in [#backOff(int, int)]. 128 [Thread#onSpinWait()] hints take a few
-    /// microseconds, which covers the usual gap between two messages; parking costs a system call and a
-    /// scheduler wake-up (tens of microseconds on Linux), so it is only worth it once the wait gets longer.
-    private static final int SPIN_LIMIT = 128;
     /// Producers waiting for space: parks grow 1µs, 2µs, ... up to `1µs << 7` (128µs). A slot frees up
     /// as soon as the writer takes one message, so producers must notice quickly; 128µs keeps that delay
     /// small while 16 waiting producers don't burn CPU. With this cap the slow-consumer benchmark still runs
@@ -307,23 +304,5 @@ public class AsyncOutputStream {
     protected void writeMessage(@NonNull final byte[] messageBytes) throws IOException {
         outputStream.writeInt(messageBytes.length);
         outputStream.write(messageBytes);
-    }
-
-    /// Progressive backoff: [#SPIN_LIMIT] spin hints, then parks of growing length, capped at
-    /// `1µs << maxParkShift`.
-    /// [LockSupport#parkNanos] returns immediately if the thread is interrupted, so callers
-    /// observe interrupts on their next check.
-    private static int backOff(final int idle, final int maxParkShift) {
-        if (idle < SPIN_LIMIT) {
-            // first SPIN_LIMIT calls: stay on the CPU, the next message is likely microseconds away
-            Thread.onSpinWait();
-        } else {
-            // after that, park for 1µs << n, where n counts the parks so far: 1µs, 2µs, 4µs, ...
-            // capped at 1µs << maxParkShift
-            LockSupport.parkNanos(1_000L << Math.min(idle - SPIN_LIMIT, maxParkShift));
-        }
-        // the caller passes the result back in on the next call. Capping it keeps the park length at its
-        // maximum and stops the counter from growing (and eventually overflowing) during a long wait
-        return Math.min(idle + 1, SPIN_LIMIT + maxParkShift);
     }
 }
