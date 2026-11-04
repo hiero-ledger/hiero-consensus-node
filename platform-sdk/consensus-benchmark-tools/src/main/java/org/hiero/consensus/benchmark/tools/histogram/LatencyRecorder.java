@@ -57,6 +57,10 @@ import java.util.List;
  * <p>Each pause costs a clock read and two reads of the allocated bytes, outside the recorded latencies. A garbage
  * collection during a pause still discards the pass, because it can leave work for the measured calls.
  *
+ * <p>{@code pause()} on a paused pass, {@code resume()} on a running one, and {@link #stopMeasurement()} on a paused one
+ * throw, because each would count the allocation wrongly. A loop that times only some of its calls, and pauses only
+ * where a timed call follows an untimed one or the other way round, asks {@link #isPaused()}.
+ *
  * <p>Reading the clock takes time and has a limited resolution. On Apple Silicon, {@link System#nanoTime()} advances in
  * steps of about 42 ns, so latencies below a few microseconds are coarse on a Mac.
  *
@@ -150,6 +154,9 @@ public final class LatencyRecorder {
     /** The bytes allocated by the current thread at the latest {@link #pause()}. */
     private long allocatedBytesAtPause;
 
+    /** Whether the running pass is paused. */
+    private boolean paused;
+
     /** The number of garbage collections in the JVM at the start of the running pass. */
     private long gcCountAtStart;
 
@@ -174,6 +181,7 @@ public final class LatencyRecorder {
      */
     public void startMeasurement() {
         passHistogram.reset();
+        paused = false;
         gcCountAtStart = totalGcCount();
         allocatedBytesAtStart = THREAD_MX_BEAN.getCurrentThreadAllocatedBytes();
         // last, so that the reads above are not part of the first latency
@@ -193,25 +201,51 @@ public final class LatencyRecorder {
     /**
      * Pauses the pass, so that the work until {@link #resume()} counts neither in a latency nor in the allocation. Call
      * it right after {@link #lap()}, and call {@code resume()} before the next measured call.
+     *
+     * @throws IllegalStateException if the pass is paused already
      */
     public void pause() {
+        if (paused) {
+            throw new IllegalStateException("The pass is paused already");
+        }
+        paused = true;
         allocatedBytesAtPause = THREAD_MX_BEAN.getCurrentThreadAllocatedBytes();
     }
 
     /**
      * Resumes the pass paused by {@link #pause()} and starts the next lap. Call it right before the next measured call.
+     *
+     * @throws IllegalStateException if the pass is not paused
      */
     public void resume() {
+        if (!paused) {
+            throw new IllegalStateException("The pass is not paused");
+        }
+        paused = false;
         allocatedBytesAtStart += THREAD_MX_BEAN.getCurrentThreadAllocatedBytes() - allocatedBytesAtPause;
         // last, so that the read above is not part of the next latency
         lapStart = System.nanoTime();
     }
 
     /**
+     * Returns whether the pass is paused: {@link #pause()} was called, and {@link #resume()} not since.
+     *
+     * @return true if the pass is paused
+     */
+    public boolean isPaused() {
+        return paused;
+    }
+
+    /**
      * Ends the pass started by {@link #startMeasurement()}. Call it right after the measured calls. Keeps the pass's
      * latencies and allocation if no garbage collection ran during it, and discards them otherwise.
+     *
+     * @throws IllegalStateException if the pass is paused
      */
     public void stopMeasurement() {
+        if (paused) {
+            throw new IllegalStateException("The pass is paused; resume it before stopping the measurement");
+        }
         final long passAllocatedBytes = THREAD_MX_BEAN.getCurrentThreadAllocatedBytes() - allocatedBytesAtStart;
         if (totalGcCount() == gcCountAtStart) {
             histogram.add(passHistogram);
