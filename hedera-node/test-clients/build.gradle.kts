@@ -144,7 +144,7 @@ val prCheckTags =
         "hapiTestAtomicBatchSerial" to "(ATOMIC_BATCH&SERIAL)",
         "hapiTestStateThrottling" to "(STATE_THROTTLING&SERIAL)",
         "hapiTestClpr" to "CLPR",
-        "hapiTestPreCutover" to "PRE_CUTOVER",
+        "hapiTestPreCutover" to "PRE_CUTOVER|BLOCK_HASHING",
         "hapiTestClprMultinetwork" to "MULTINETWORK",
         "hapiTestNodeStaking" to "(NODE_STAKING)&!(SERIAL)",
         "hapiTestNodeStakingSerial" to "(NODE_STAKING&SERIAL)",
@@ -271,17 +271,42 @@ val prCheckDefaultOverrides =
         "hapiTestClprEmbedded" to "clpr.enabled=true",
         "hapiTestClprMultinetwork" to "clpr.enabled=true",
     )
-// -PhapiTestConfigProfile=testnet (or env HAPI_TEST_CONFIG_PROFILE) runs the HAPI tasks with a
-// GRPC-only writer, so block nodes are their only sink (used by XTS 829)
+// -PhapiTestConfigProfile=pre-cutover (or env HAPI_TEST_CONFIG_PROFILE) runs the HAPI tasks in the
+// pre-cutover world MATS ran before the defaults switched (used by XTS 829)
 val hapiTestConfigProfile =
     providers
         .gradleProperty("hapiTestConfigProfile")
         .orElse(providers.environmentVariable("HAPI_TEST_CONFIG_PROFILE"))
         .getOrElse("")
+// The pre-cutover production defaults. The writer is FILE_AND_GRPC in both worlds; pinning it would
+// attach a block node to every task, since in BOTH mode only an explicit writer does that
+val preCutoverConfigValues =
+    mapOf(
+        "blockStream.streamMode" to "BOTH",
+        "blockStream.enableCutover" to "false",
+        "blockStream.streamWrappedRecordBlocks" to "true",
+        "blockStream.buffer.isBufferPersistenceEnabled" to "false",
+        "tss.forceMockSignatures" to "true",
+    )
+// The pins these tasks had while the pre-cutover values were the defaults
+val preCutoverTaskOverrides =
+    mapOf(
+        "hapiTestAdhoc" to "tss.forceMockSignatures=false",
+        "hapiTestCrypto" to "tss.forceMockSignatures=false",
+        "hapiTestCryptoSerial" to "tss.forceMockSignatures=false",
+        // writerMode=FILE_AND_GRPC (here and on hapiTestMisc) is what attaches a block node
+        "hapiTestSmartContract" to "blockStream.writerMode=FILE_AND_GRPC,tss.historyEnabled=false",
+        "hapiTestSmartContractSerial" to "tss.historyEnabled=false",
+        "hapiTestRestart" to "tss.forceMockSignatures=false",
+        "hapiTestMisc" to "blockStream.writerMode=FILE_AND_GRPC",
+        "hapiTestWraps" to "tss.forceMockSignatures=false",
+        "hapiTestNodeStaking" to "tss.forceMockSignatures=false",
+        "hapiTestClprMultinetwork" to "tss.forceMockSignatures=false",
+    )
 val profileOverrides: Map<String, String> =
     when (hapiTestConfigProfile) {
         "" -> emptyMap()
-        "testnet" -> mapOf("blockStream.writerMode" to "GRPC")
+        "pre-cutover" -> preCutoverConfigValues
         else -> throw GradleException("Unknown hapiTestConfigProfile '$hapiTestConfigProfile'")
     }
 // These tasks deliberately run another world: records-only, pre-cutover, or per-test pins
@@ -294,20 +319,21 @@ val profileExemptTasks =
         "hapiTestBlockNodeCommunication",
     )
 
-fun profileAppliesTo(name: String, embedded: Boolean, remote: Boolean) =
-    profileOverrides.isNotEmpty() && !embedded && !remote && name !in profileExemptTasks
+fun profileAppliesTo(name: String, remote: Boolean) =
+    profileOverrides.isNotEmpty() && !remote && name !in profileExemptTasks
 
 fun String.toOverrideMap(): Map<String, String> =
     split(",")
         .filter { it.isNotBlank() }
         .associate { it.substringBefore("=") to it.substringAfter("=") }
 
-// The testnet profile (if active) with prCheckPropOverrides on top; embedded networks have no
-// block node and only fake TSS, so they keep FILE and mock signatures
+// The pre-cutover profile and its task pins (if active), with prCheckPropOverrides on top; embedded
+// networks have no block node and only fake TSS, so they keep FILE and mock signatures
 fun hapiTestOverrides(name: String, embedded: Boolean, remote: Boolean): Map<String, String> {
     val overrides = linkedMapOf<String, String>()
-    if (profileAppliesTo(name, embedded, remote)) {
+    if (profileAppliesTo(name, remote)) {
         overrides.putAll(profileOverrides)
+        preCutoverTaskOverrides[name]?.let { overrides.putAll(it.toOverrideMap()) }
     }
     prCheckPropOverrides[name]?.let { overrides.putAll(it.toOverrideMap()) }
     if (embedded) {
@@ -562,6 +588,10 @@ fun TaskContainer.registerHapiTest(
                 "hapi.spec.test.overrides",
                 testOverrides.entries.joinToString(",") { (key, value) -> "$key=$value" },
             )
+            // Embedded nodes run in this JVM, so the profile reaches them as system properties
+            if (embeddedMode != null && profileAppliesTo(name, hapiSpecRemote)) {
+                testOverrides.forEach { (key, value) -> systemProperty(key, value) }
+            }
         }
         if (prCheckPlatformOverrides.containsKey(name)) {
             systemProperty("hapi.spec.platform.overrides", prCheckPlatformOverrides.getValue(name))

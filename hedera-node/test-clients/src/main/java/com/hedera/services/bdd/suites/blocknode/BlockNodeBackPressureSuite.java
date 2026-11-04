@@ -65,16 +65,15 @@ public class BlockNodeBackPressureSuite {
                 waitUntilNextBlocks(5),
                 doingContextual(spec -> time.set(Instant.now())),
                 blockNode(0).shutDownImmediately(),
-                // Blocks keep coming: the file writer keeps every block on disk, so the saturated
-                // buffer prunes unacknowledged blocks instead of back-pressuring
+                // Back pressure would stall at 15 unacked blocks; 20 more show the full buffer prunes them instead.
+                // Not waiting for Saturated: pruning holds the count at 14 of 15 unless a check lands between blocks
                 waitUntilNextBlocks(20).withBackgroundTraffic(true),
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
                         byNodeId(0),
                         time::get,
                         Duration.ofMinutes(2),
                         Duration.ofMinutes(1),
-                        "Block buffer has become unhealthy",
-                        "->Saturated]")),
+                        "Block buffer has become unhealthy")),
                 assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0), "Block buffer is saturated; backpressure is being enabled", Duration.ofSeconds(0)),
                 assertBlockNodeCommsLogDoesNotContainText(

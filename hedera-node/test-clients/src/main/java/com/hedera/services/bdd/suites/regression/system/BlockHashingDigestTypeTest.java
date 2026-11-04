@@ -39,8 +39,12 @@ import org.junit.jupiter.api.Tag;
 
 /**
  * Checks block hashing under the network's configured {@code blockStream.digestType}, and that the hashes outside
- * the block root tree stay SHA-384 whatever that setting is. Every assertion follows the configured digest type, and
- * the end-of-task stream validators then re-derive every block's root hash, proof and state changes with it.
+ * the block root tree stay SHA-384 whatever that setting is.
+ *
+ * <p>Every assertion follows the configured digest type and stream mode, so the class runs in all three stream
+ * modes: {@code hapiTestMisc} (BLOCKS), {@code hapiTestMiscRecords} (RECORDS) and {@code hapiTestPreCutover} (BOTH).
+ * Where blocks exist, the end-of-task stream validators then re-derive every block's root hash, proof and state
+ * changes with the same digest type.
  */
 @Tag(BLOCK_HASHING)
 public class BlockHashingDigestTypeTest {
