@@ -63,7 +63,8 @@ import org.openjdk.jmh.infra.Blackhole;
 /// java -jar platform-sdk/swirlds-virtualmap/build/libs/swirlds-virtualmap-*-jmh-merged.jar \
 ///     ConcurrentBlockingIteratorBench -prof gc
 /// ```
-/// Add `-prof perfnorm` on Linux for context switches and cycles per leaf.
+/// On Linux, add `-prof perfnorm:events=cycles,instructions,context-switches` for cycles and context switches per
+/// leaf. The events must be listed: the default ones don't include context switches.
 @State(Scope.Benchmark)
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
