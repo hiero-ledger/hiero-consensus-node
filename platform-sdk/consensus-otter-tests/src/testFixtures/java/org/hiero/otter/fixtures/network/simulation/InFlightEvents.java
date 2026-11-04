@@ -3,6 +3,7 @@ package org.hiero.otter.fixtures.network.simulation;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -49,16 +50,18 @@ public class InFlightEvents extends InFlightConnections<EventInTransit> {
     /**
      * Constructor.
      *
+     * @param nodeIds      the ids of all nodes in the network, in any order
      * @param connected    reports whether the connection from a sender to a receiver is currently up
      * @param eventWindows gives the current event window of a node
      * @param start        the instant arrival times are measured from, which should be close to the start of the
      *                     simulation
      */
     public InFlightEvents(
+            @NonNull final Collection<NodeId> nodeIds,
             @NonNull final BiPredicate<NodeId, NodeId> connected,
             @NonNull final Function<NodeId, EventWindow> eventWindows,
             @NonNull final Instant start) {
-        super(connected, start);
+        super(nodeIds, connected, start);
         this.eventWindows = Objects.requireNonNull(eventWindows);
     }
 

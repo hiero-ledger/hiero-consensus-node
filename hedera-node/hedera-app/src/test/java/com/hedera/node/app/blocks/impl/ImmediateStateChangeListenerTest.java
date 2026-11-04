@@ -42,6 +42,7 @@ import com.hedera.hapi.node.state.hints.HintsPartyId;
 import com.hedera.hapi.node.state.hints.PreprocessingVote;
 import com.hedera.hapi.node.state.hints.PreprocessingVoteId;
 import com.hedera.hapi.node.state.history.ConstructionNodeId;
+import com.hedera.hapi.node.state.history.HintsKeyProvenance;
 import com.hedera.hapi.node.state.history.RecordedHistorySignature;
 import com.hedera.hapi.node.state.hooks.EvmHookSlotKey;
 import com.hedera.hapi.node.state.hooks.EvmHookState;
@@ -62,6 +63,8 @@ import com.hedera.hapi.node.state.tss.TssVoteMapKey;
 import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.services.auxiliary.tss.TssMessageTransactionBody;
 import com.hedera.hapi.services.auxiliary.tss.TssVoteTransactionBody;
+import com.hedera.node.app.hapi.utils.blocks.BlockStreamUtils;
+import com.hedera.node.app.history.schemas.V0790HistorySchema;
 import com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
@@ -287,6 +290,23 @@ class ImmediateStateChangeListenerTest {
         assertEquals(QUEUE_PUSH, stateChange.changeOperation().kind());
         assertEquals(STATE_ID, stateChange.stateId());
         assertEquals(PROTO_BYTES.value(), stateChange.queuePush().protoBytesElement());
+    }
+
+    @Test
+    void provenanceQueueChangesCanBeReplayedWithoutLosingFields() throws Exception {
+        final var provenance = HintsKeyProvenance.newBuilder()
+                .sourceHintsConstructionId(1L)
+                .targetHintsConstructionId(2L)
+                .historyConstructionId(3L)
+                .sourceVerificationKey(com.hedera.pbj.runtime.io.buffer.Bytes.wrap("old"))
+                .targetVerificationKey(com.hedera.pbj.runtime.io.buffer.Bytes.wrap("new"))
+                .signature(com.hedera.pbj.runtime.io.buffer.Bytes.wrap("signature"))
+                .build();
+        listener.queuePushChange(V0790HistorySchema.HINTS_KEY_PROVENANCE_STATE_ID, provenance);
+        final var change = listener.getStateChanges().getFirst();
+        final var restored = StateChange.PROTOBUF.parse(StateChange.PROTOBUF.toBytes(change));
+        assertEquals(V0790HistorySchema.HINTS_KEY_PROVENANCE_STATE_ID, restored.stateId());
+        assertEquals(provenance, BlockStreamUtils.queuePushFor(restored.queuePushOrThrow()));
     }
 
     @Test

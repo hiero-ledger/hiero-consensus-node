@@ -2,6 +2,9 @@
 package com.hedera.node.app.service.contract.impl.test.infra;
 
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
+import static com.hedera.node.app.service.token.HookDispatchUtils.HTS_HOOKS_CONTRACT_NUM;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.BDDMockito.given;
@@ -74,6 +77,22 @@ class IterableStorageManagerTest {
     void setUp() {
         lenient().when(enhancement.nativeOperations()).thenReturn(hederaNativeOperations);
         lenient().when(hederaNativeOperations.writableEvmHookStore()).thenReturn(writableEvmHookStore);
+    }
+
+    @Test
+    void leavesHookStorageAndReadOnlyAccessesUnchangedForPersistence() {
+        final var hookAccesses = new StorageAccesses(
+                ContractID.newBuilder().contractNum(HTS_HOOKS_CONTRACT_NUM).build(),
+                List.of(StorageAccess.newWrite(UInt256.ZERO, UInt256.ONE, UInt256.ZERO)));
+        final var readOnly = StorageAccess.newRead(UInt256.ZERO, UInt256.ONE);
+        final var normalAccesses = new StorageAccesses(CONTRACT_1, List.of(readOnly));
+
+        final var actual = subject.getPersistenceChanges(enhancement, List.of(hookAccesses, normalAccesses), store);
+
+        assertSame(hookAccesses, actual.getFirst());
+        assertEquals(normalAccesses, actual.getLast());
+        assertSame(readOnly, actual.getLast().accesses().getFirst());
+        verifyNoMoreInteractions(store);
     }
 
     @Test
