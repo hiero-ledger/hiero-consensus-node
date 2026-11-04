@@ -62,8 +62,9 @@ class BesuQBFTProofBindingAuditTest extends CallTestBase {
                 new byte[0],
                 new byte[0]);
         try (final var ignored = mockConstruction(
-                BesuQbftVerifier.class, (mock, context) -> given(mock.verifyBundle(any(), any(), anyLong(), any()))
-                        .willReturn(proven))) {
+                BesuQbftVerifier.class,
+                (mock, context) ->
+                        given(mock.verifyBundle(any(), any(), anyLong(), any())).willReturn(proven))) {
             final var subject = new BesuQBFTVerifyBundleCall(
                     mockEnhancement(),
                     gasCalculator,

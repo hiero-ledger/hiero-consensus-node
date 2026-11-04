@@ -345,9 +345,9 @@ class BesuQBFTVerifyBundleCallTest extends CallTestBase {
      * {@link #CHANNEL_ID}; any other channel id makes the mock return {@code null}, which fails the call.
      */
     private Call.PricedResult executeWith(final BesuQbftVerifier.VerifiedBundle verified, final byte[] channelContext) {
-        try (final MockedConstruction<BesuQbftVerifier> ignored =
-                mockConstruction(BesuQbftVerifier.class, (mock, ctx) -> given(
-                                mock.verifyBundle(any(), any(), anyLong(), aryEq(CHANNEL_ID)))
+        try (final MockedConstruction<BesuQbftVerifier> ignored = mockConstruction(
+                BesuQbftVerifier.class,
+                (mock, ctx) -> given(mock.verifyBundle(any(), any(), anyLong(), aryEq(CHANNEL_ID)))
                         .willReturn(verified))) {
             return new BesuQBFTVerifyBundleCall(
                             mockEnhancement(),
