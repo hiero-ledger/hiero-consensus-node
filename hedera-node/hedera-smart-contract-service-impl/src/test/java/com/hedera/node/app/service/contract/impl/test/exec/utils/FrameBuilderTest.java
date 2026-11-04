@@ -410,7 +410,7 @@ class FrameBuilderTest {
         final var transaction = wellKnownHapiCall();
         givenContractExists();
         given(worldUpdater.updater()).willReturn(stackedUpdater);
-        given(blocks.blockValuesOf(GAS_LIMIT)).willReturn(blockValues);
+        given(blocks.blockValuesOf(DEFAULT_BLOCK_GAS_LIMIT)).willReturn(blockValues);
         given(worldUpdater.getHederaAccount(CALLED_CONTRACT_ID)).willReturn(account);
         given(account.getCode()).willReturn(CONTRACT_CODE.getBytes());
         final var config = HederaTestConfigBuilder.create()
