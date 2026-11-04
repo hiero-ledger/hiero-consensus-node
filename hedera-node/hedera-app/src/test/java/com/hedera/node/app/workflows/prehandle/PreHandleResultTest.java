@@ -16,11 +16,13 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.node.app.signature.SignatureVerificationFuture;
 import com.hedera.node.app.spi.fixtures.Scenarios;
+import com.hedera.node.app.spi.key.KeyRequirement;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.TransactionScenarioBuilder;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -109,6 +111,52 @@ final class PreHandleResultTest implements Scenarios {
                 null,
                 1L);
         assertThatThrownBy(() -> result.getVerificationResults().clear())
+                .isInstanceOf(UnsupportedOperationException.class);
+    }
+
+    @Test
+    void legacyConstructionDoesNotInferAccountAuthorityFromMatchingKey() {
+        final var key = ALICE.account().keyOrThrow();
+        final var result = new PreHandleResult(
+                ALICE.accountID(),
+                key,
+                SO_FAR_SO_GOOD,
+                OK,
+                null,
+                Set.of(key),
+                Set.of(key),
+                Set.of(),
+                Map.of(),
+                null,
+                1L);
+
+        assertThat(result.getRequiredKeyRequirements()).containsExactly(KeyRequirement.forKey(key));
+    }
+
+    @Test
+    void scopedRequirementsAreImmutableOrderedSnapshots() {
+        final var key = ALICE.account().keyOrThrow();
+        final var aliceRequirement = KeyRequirement.forAccount(ALICE.accountID(), key);
+        final var bobRequirement = KeyRequirement.forAccount(BOB.accountID(), key);
+        final var required = new LinkedHashSet<>(List.of(aliceRequirement, bobRequirement));
+        final var result = new PreHandleResult(
+                ALICE.accountID(),
+                key,
+                SO_FAR_SO_GOOD,
+                OK,
+                null,
+                Set.of(),
+                Set.of(),
+                Set.of(),
+                Map.of(),
+                null,
+                1L,
+                required);
+
+        required.clear();
+
+        assertThat(result.getRequiredKeyRequirements()).containsExactly(aliceRequirement, bobRequirement);
+        assertThatThrownBy(() -> result.getRequiredKeyRequirements().clear())
                 .isInstanceOf(UnsupportedOperationException.class);
     }
 

@@ -75,6 +75,8 @@ public class ScheduleNativeCall extends AbstractCall {
         final var scheduleCreateTransactionBody = bodyForScheduleCreate(scheduleTransactionBody);
         final var gasRequirement = dispatchGasCalculator.gasRequirement(
                 scheduleCreateTransactionBody, gasCalculator, enhancement, payerID);
+        // payerID is caller-supplied fee responsibility; execution authority stays bound to
+        // the trusted frame's sender in verificationStrategy, never to this payer field.
         final var recordBuilder = systemContractOperations()
                 .dispatch(
                         scheduleCreateTransactionBody,

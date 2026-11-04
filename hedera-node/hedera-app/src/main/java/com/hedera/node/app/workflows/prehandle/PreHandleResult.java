@@ -11,6 +11,7 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.signature.SignatureVerificationFuture;
+import com.hedera.node.app.spi.key.KeyRequirement;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.workflows.TransactionInfo;
@@ -46,6 +47,7 @@ import java.util.concurrent.Future;
  *                            are used as the key of this map.
  * @param innerResults {@link PreHandleResult}s of the inner transactions if this is an atomic batch transaction.
  * @param configVersion The version of the configuration that was used during pre-handle
+ * @param requiredKeyRequirements Required authorization requirements, preserving their originating identities
  */
 public record PreHandleResult(
         @Nullable AccountID payer,
@@ -58,12 +60,54 @@ public record PreHandleResult(
         @Nullable Set<Account> hollowAccounts,
         @Nullable Map<Key, SignatureVerificationFuture> verificationResults,
         @Nullable List<PreHandleResult> innerResults,
-        long configVersion) {
+        long configVersion,
+        @Nullable Set<KeyRequirement> requiredKeyRequirements) {
+
+    /**
+     * Compatibility constructor for callers that have only key material. Such callers cannot
+     * confer account authority: each key is deliberately treated as an explicit-key requirement.
+     */
+    public PreHandleResult(
+            @Nullable final AccountID payer,
+            @Nullable final Key payerKey,
+            @NonNull final Status status,
+            @NonNull final ResponseCodeEnum responseCode,
+            @Nullable final TransactionInfo txInfo,
+            @Nullable final Set<Key> requiredKeys,
+            @Nullable final Set<Key> optionalKeys,
+            @Nullable final Set<Account> hollowAccounts,
+            @Nullable final Map<Key, SignatureVerificationFuture> verificationResults,
+            @Nullable final List<PreHandleResult> innerResults,
+            final long configVersion) {
+        this(
+                payer,
+                payerKey,
+                status,
+                responseCode,
+                txInfo,
+                requiredKeys,
+                optionalKeys,
+                hollowAccounts,
+                verificationResults,
+                innerResults,
+                configVersion,
+                explicitRequirements(requiredKeys));
+    }
+
+    private static Set<KeyRequirement> explicitRequirements(@Nullable final Set<Key> keys) {
+        if (keys == null) {
+            return null;
+        }
+        final Set<KeyRequirement> requirements = new LinkedHashSet<>();
+        keys.forEach(key -> requirements.add(KeyRequirement.forKey(key)));
+        return requirements;
+    }
 
     /**
      * Returns whether this result's verification results are valid for the given context. This is <b>only</b>
      * true if all keys linked to the transaction are exactly the same as those determined to be necessary
-     * in the given context.
+     * in the given context. These futures are cryptographic evidence only, not authorization decisions.
+     * The caller must always use the newly collected requirements even when it reuses these futures.
      *
      * <p>Any change at all in a linked key means we must re-compute the verification results.
      *
@@ -108,6 +152,10 @@ public record PreHandleResult(
 
     public @NonNull Set<Key> getOptionalKeys() {
         return optionalKeys == null ? Collections.emptySet() : optionalKeys;
+    }
+
+    public @NonNull Set<KeyRequirement> getRequiredKeyRequirements() {
+        return requiredKeyRequirements == null ? Collections.emptySet() : requiredKeyRequirements;
     }
 
     public @NonNull Key getPayerKey() {
@@ -157,6 +205,9 @@ public record PreHandleResult(
         // after construction (see PreHandleWorkflow#preHandleTransaction).
         requiredKeys = requiredKeys == null ? null : Collections.unmodifiableSet(new LinkedHashSet<>(requiredKeys));
         optionalKeys = optionalKeys == null ? null : Collections.unmodifiableSet(new LinkedHashSet<>(optionalKeys));
+        requiredKeyRequirements = requiredKeyRequirements == null
+                ? null
+                : Collections.unmodifiableSet(new LinkedHashSet<>(requiredKeyRequirements));
         hollowAccounts =
                 hollowAccounts == null ? null : Collections.unmodifiableSet(new LinkedHashSet<>(hollowAccounts));
         verificationResults = verificationResults == null
