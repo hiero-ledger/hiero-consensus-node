@@ -12,6 +12,7 @@ import com.hedera.hapi.node.state.clpr.ClprQbftLedgerConfigurationPayload;
 import com.hedera.hapi.node.state.clpr.StorageProofEntry;
 import com.hedera.node.app.hapi.utils.EthSigsUtils;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
+import com.hedera.node.app.service.clpr.impl.verifier.evm.ProofBytes;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.sun.jna.ptr.IntByReference;
 import java.nio.ByteBuffer;
@@ -19,6 +20,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.stream.IntStream;
 import org.hyperledger.besu.nativelib.secp256k1.LibSecp256k1;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -286,7 +288,7 @@ class BesuQbftVerifierTest {
         }
 
         @Test
-        void genesisValidatorAddressNot20Bytes_throwsIllegalArgument() {
+        void genesisValidatorAddressNot20Bytes_throwsProofException() {
             byte[] shortAddr = new byte[19];
             byte[] headerRlp = buildRlpHeader(new byte[32], buildQbftExtra(List.of(shortAddr), List.of()), 15);
             byte[] payload = serialize(ClprQbftLedgerConfigurationPayload.newBuilder()
@@ -295,9 +297,21 @@ class BesuQbftVerifierTest {
                     .ledgerConfiguration(ledgerConfig(SERVICE_ADDR))
                     .build());
 
+            // A malformed payload is a rejected proof, not an unchecked error.
             assertThatThrownBy(() -> SUBJECT.verifyConfigPayload(payload))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(ProofException.class)
                     .hasMessageContaining("must be 20 bytes");
+        }
+
+        @Test
+        void malformedStateRootIsARejectedProof() {
+            byte[] badStateRoot = new byte[31];
+            byte[] currentHeader = buildSignedHeader(VALIDATOR_ADDR, badStateRoot, VALIDATOR_PRIV);
+            byte[] payload = minimalPayload(buildGenesisHeader(VALIDATOR_ADDR), currentHeader);
+
+            assertThatThrownBy(() -> SUBJECT.verifyConfigPayload(payload))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("malformed input");
         }
 
         @Test
@@ -336,7 +350,7 @@ class BesuQbftVerifierTest {
 
         @Test
         void duplicateSealFromSingleValidator_throwsProofException() {
-            // Single-validator set: signing twice produces a duplicate signer.
+            // Single-validator set signed twice: more seals than validators, rejected before any recovery.
             byte[] genesisHeader = buildGenesisHeader(VALIDATOR_ADDR);
             byte[] extraNoSeals = buildQbftExtra(List.of(VALIDATOR_ADDR), List.of());
             byte[] headerForHash = buildRlpHeader(new byte[32], extraNoSeals, 15);
@@ -349,7 +363,7 @@ class BesuQbftVerifierTest {
 
             assertThatThrownBy(() -> SUBJECT.verifyConfigPayload(payload))
                     .isInstanceOf(ProofException.class)
-                    .hasMessageContaining("duplicate committed seal from");
+                    .hasMessageContaining("carries 2 committed seals for a 1-validator set");
         }
 
         @Test
@@ -962,7 +976,7 @@ class BesuQbftVerifierTest {
             byte[] accountProofRlp = Rlp.encodeList(List.of(Rlp.encodeBytes(accountProof[1])));
             byte[] emptyBundle = Rlp.encodeList(List.of(
                     signedHeader,
-                    validatorSource(List.of()), // epoch headers (empty)
+                    validatorSource(List.of()), // no hops
                     accountProofRlp,
                     Rlp.encodeList(List.of()), // queue storage proof EMPTY → absent queue metadata
                     Rlp.encodeBytes(new byte[0]))); // bundle content EMPTY
@@ -987,7 +1001,7 @@ class BesuQbftVerifierTest {
                     List.of(buildBundleStorageEntry(manifestCommitmentSlot(), new byte[][] {storageMpt[1]})));
             byte[] bundle = Rlp.encodeList(List.of(
                     signedHeader,
-                    validatorSource(List.of()), // epoch headers (empty)
+                    validatorSource(List.of()), // no hops
                     Rlp.encodeList(List.of(Rlp.encodeBytes(accountProof[1]))), // account proof
                     Rlp.encodeList(List.of()), // queue storage proof EMPTY → absent queue metadata
                     Rlp.encodeBytes(new byte[0]), // bundle content EMPTY
@@ -1026,10 +1040,9 @@ class BesuQbftVerifierTest {
             byte[] stateRoot = accountProof[0];
             byte[] signedHeader = buildSignedHeader(VALIDATOR_ADDR, stateRoot, VALIDATOR_PRIV);
             byte[] accountProofRlp = Rlp.encodeList(List.of(Rlp.encodeBytes(accountProof[1])));
-            byte[] epochBlockHeadersRlp = validatorSource(List.of());
             return Rlp.encodeList(List.of(
                     signedHeader,
-                    epochBlockHeadersRlp,
+                    validatorSource(List.of()),
                     accountProofRlp,
                     storageProofRlp,
                     Rlp.encodeBytes(new byte[0])));
@@ -1082,7 +1095,7 @@ class BesuQbftVerifierTest {
 
             byte[] bundlePayload = Rlp.encodeList(List.of(
                     currentHeader,
-                    validatorSource(List.of()), // no epoch headers
+                    validatorSource(List.of()), // no hops
                     Rlp.encodeList(List.of(Rlp.encodeBytes(accountProof[1]))), // account proof
                     storageProofRlp,
                     Rlp.encodeBytes(new byte[0]))); // empty bundle content
@@ -1667,6 +1680,28 @@ class BesuQbftVerifierTest {
         }
 
         @Test
+        void unrecoverableSealsAreRejectedProofs() {
+            // r values that are not the x-coordinate of a curve point cannot be recovered; whatever the outcome, it is
+            // an address or a ProofException, never an unchecked exception.
+            byte[] hash = MiscCryptoUtils.keccak256DigestOf(new byte[] {0x06});
+            for (int r = 1; r <= 32; r++) {
+                byte[] seal = new byte[65];
+                seal[31] = (byte) r;
+                seal[63] = 1; // s = 1
+                try {
+                    assertThat(BesuQbftVerifier.recoverEthereumAddress(hash, seal))
+                            .hasSize(20);
+                } catch (final ProofException expected) {
+                    // rejected cleanly
+                }
+            }
+            byte[] zeroR = new byte[65];
+            zeroR[63] = 1;
+            assertThatThrownBy(() -> BesuQbftVerifier.recoverEthereumAddress(hash, zeroR))
+                    .isInstanceOf(ProofException.class);
+        }
+
+        @Test
         void validSignatureRecoversCorrectAddress() {
             byte[] hash = MiscCryptoUtils.keccak256DigestOf(new byte[] {0x03, 0x04, 0x05});
             byte[] sig = sign(hash, VALIDATOR_PRIV);
@@ -1675,13 +1710,13 @@ class BesuQbftVerifierTest {
     }
 
     @Nested
-    class EpochHeaderTests {
+    class HopTests {
 
         private static final BesuQbftVerifier BUNDLE_SUBJECT =
                 new BesuQbftVerifier(new BesuQbftVerifier.Config(SERVICE_ADDR, null));
 
         // Seven deterministic validator keys, A..G.
-        private static final List<byte[]> KEYS = java.util.stream.IntStream.range(0, 7)
+        private static final List<byte[]> KEYS = IntStream.range(0, 7)
                 .mapToObj(i -> {
                     final byte[] key = new byte[32];
                     Arrays.fill(key, (byte) (0x50 + i));
@@ -1696,7 +1731,7 @@ class BesuQbftVerifierTest {
         }
 
         private static List<byte[]> addrs(final int... indexes) {
-            return Arrays.stream(indexes).mapToObj(EpochHeaderTests::addr).toList();
+            return Arrays.stream(indexes).mapToObj(HopTests::addr).toList();
         }
 
         private static List<byte[]> keys(final int... indexes) {
@@ -1708,14 +1743,14 @@ class BesuQbftVerifierTest {
         }
 
         private static byte[] hop(final long blockNumber, final int[] listed, final int... signers) {
-            return buildEpochHeader(addrs(listed), blockNumber, new byte[32], keys(signers));
+            return buildHopHeader(addrs(listed), blockNumber, new byte[32], keys(signers));
         }
 
         /** A bundle whose current header lists {@code listed} and is sealed by {@code signers}. */
         private static byte[] bundle(final List<byte[]> hops, final int[] listed, final int... signers) {
             final byte[][] accountProof = buildAccountMptProof(SERVICE_ADDR, EMPTY_TRIE_ROOT, new byte[32]);
             final byte[] currentHeader = buildSignedHeaderMultiSeal(addrs(listed), accountProof[0], keys(signers));
-            return buildBundlePayloadWithEpochHeadersAndCurrentHeader(hops, currentHeader, accountProof);
+            return buildBundlePayloadWithHopsAndCurrentHeader(hops, currentHeader, accountProof);
         }
 
         private static int[] set(final int... indexes) {
@@ -1735,7 +1770,7 @@ class BesuQbftVerifierTest {
         @Test
         void headerWithExactlyQuorumSealsIsAccepted() {
             for (final int n : new int[] {1, 3, 4, 6, 7}) {
-                final int[] all = java.util.stream.IntStream.range(0, n).toArray();
+                final int[] all = IntStream.range(0, n).toArray();
                 final int[] quorumSigners = Arrays.copyOf(all, BesuQbftVerifier.quorum(n));
                 final var result = BUNDLE_SUBJECT.verifyBundle(
                         bundle(List.of(), all, quorumSigners), trusted(all), 0L, CHANNEL_ID);
@@ -1746,7 +1781,7 @@ class BesuQbftVerifierTest {
         @Test
         void headerWithOneSealBelowQuorumIsRejected() {
             for (final int n : new int[] {3, 4, 6, 7}) {
-                final int[] all = java.util.stream.IntStream.range(0, n).toArray();
+                final int[] all = IntStream.range(0, n).toArray();
                 final int[] tooFew = Arrays.copyOf(all, BesuQbftVerifier.quorum(n) - 1);
                 assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(
                                 bundle(List.of(), all, tooFew), trusted(all), 0L, CHANNEL_ID))
@@ -1766,6 +1801,15 @@ class BesuQbftVerifierTest {
         }
 
         @Test
+        void moreSealsThanValidatorsAreRejectedBeforeRecovery() {
+            // Five seals on a header listing four validators.
+            assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(
+                            bundle(List.of(), set(0, 1, 2, 3), 0, 1, 2, 3, 4), trusted(0, 1, 2, 3), 0L, CHANNEL_ID))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("carries 5 committed seals for a 4-validator set");
+        }
+
+        @Test
         void duplicateSealIsRejected() {
             assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(
                             bundle(List.of(), set(0, 1, 2, 3), 0, 0, 1, 2), trusted(0, 1, 2, 3), 0L, CHANNEL_ID))
@@ -1782,8 +1826,8 @@ class BesuQbftVerifierTest {
         }
 
         @Test
-        void emptyEpochHeaders_trustAnchorUnchanged() {
-            byte[] bundlePayload = buildBundlePayloadWithEpochHeaders(List.of());
+        void noHops_trustAnchorUnchanged() {
+            byte[] bundlePayload = buildBundlePayloadWithHops(List.of());
             var result = BUNDLE_SUBJECT.verifyBundle(bundlePayload, validatorSet(VALIDATOR_ADDR), 0L, CHANNEL_ID);
             assertThat(result.newTrustAnchor()).isEmpty();
             assertThat(result.newTrustAnchorId()).isEmpty();
@@ -1846,7 +1890,7 @@ class BesuQbftVerifierTest {
         }
 
         @Test
-        void epochHeaderValidatorSetIsOrderIndependent() {
+        void hopValidatorSetIsOrderIndependent() {
             final byte[] hopAscending = hop(30_000L, set(0, 1, 2, 3, 4), 0, 1, 2, 4);
             final byte[] hopDescending = hop(30_000L, set(4, 3, 2, 1, 0), 0, 1, 2, 4);
             final var resultAscending = BUNDLE_SUBJECT.verifyBundle(
@@ -1898,7 +1942,7 @@ class BesuQbftVerifierTest {
         }
 
         @Test
-        void outOfOrderEpochHeaders_throwsProofException() {
+        void outOfOrderHops_throwsProofException() {
             final byte[] addE = hop(60_000L, set(0, 1, 2, 3, 4), 0, 1, 2, 4);
             final byte[] removeA = hop(30_000L, set(1, 2, 3, 4), 1, 2, 4);
             assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(
@@ -1952,7 +1996,7 @@ class BesuQbftVerifierTest {
             final List<byte[]> withZero = List.of(addr(0), addr(1), addr(2), new byte[20]);
             final byte[] currentHeader = buildSignedHeaderMultiSeal(withZero, accountProof[0], keys(0, 1, 2));
             assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(
-                            buildBundlePayloadWithEpochHeadersAndCurrentHeader(List.of(), currentHeader, accountProof),
+                            buildBundlePayloadWithHopsAndCurrentHeader(List.of(), currentHeader, accountProof),
                             trusted(0, 1, 2, 3),
                             0L,
                             CHANNEL_ID))
@@ -2001,7 +2045,7 @@ class BesuQbftVerifierTest {
                 final byte[] currentHeader =
                         buildSignedHeaderMultiSeal(addrs(0, 1, 2, 3), accountProof[0], keys(0, 1, 2), fields);
                 final var result = BUNDLE_SUBJECT.verifyBundle(
-                        buildBundlePayloadWithEpochHeadersAndCurrentHeader(List.of(), currentHeader, accountProof),
+                        buildBundlePayloadWithHopsAndCurrentHeader(List.of(), currentHeader, accountProof),
                         trusted(0, 1, 2, 3),
                         0L,
                         CHANNEL_ID);
@@ -2029,29 +2073,24 @@ class BesuQbftVerifierTest {
                     .hasMessageContaining("expected at least 4");
         }
 
-        private static byte[] buildBundlePayloadWithEpochHeaders(List<byte[]> epochHeaders) {
+        private static byte[] buildBundlePayloadWithHops(List<byte[]> hops) {
             byte[][] accountProof = buildAccountMptProof(SERVICE_ADDR, EMPTY_TRIE_ROOT, new byte[32]);
             byte[] stateRoot = accountProof[0];
             byte[] currentHeader = buildSignedHeader(VALIDATOR_ADDR, stateRoot, VALIDATOR_PRIV);
-            return buildBundlePayloadWithEpochHeadersAndCurrentHeader(epochHeaders, currentHeader, accountProof);
+            return buildBundlePayloadWithHopsAndCurrentHeader(hops, currentHeader, accountProof);
         }
 
-        private static byte[] buildBundlePayloadWithEpochHeadersAndCurrentHeader(
-                List<byte[]> epochHeaders, byte[] currentHeader, byte[][] accountProof) {
-            return buildBundlePayloadWithValidatorSource(validatorSource(epochHeaders), currentHeader, accountProof);
+        private static byte[] buildBundlePayloadWithHopsAndCurrentHeader(
+                List<byte[]> hops, byte[] currentHeader, byte[][] accountProof) {
+            return buildBundlePayloadWithValidatorSource(validatorSource(hops), currentHeader, accountProof);
         }
 
         private static byte[] buildBundlePayloadWithValidatorSource(
                 byte[] validatorSourceRlp, byte[] currentHeader, byte[][] accountProof) {
             byte[] accountProofRlp = Rlp.encodeList(List.of(Rlp.encodeBytes(accountProof[1])));
             byte[] storageProofRlp = emptyTrieChannelStorageProof();
-            byte[] epochBlockHeadersRlp = validatorSourceRlp;
             return Rlp.encodeList(List.of(
-                    currentHeader,
-                    epochBlockHeadersRlp,
-                    accountProofRlp,
-                    storageProofRlp,
-                    Rlp.encodeBytes(new byte[0])));
+                    currentHeader, validatorSourceRlp, accountProofRlp, storageProofRlp, Rlp.encodeBytes(new byte[0])));
         }
     }
 
@@ -2220,10 +2259,10 @@ class BesuQbftVerifierTest {
     }
 
     /**
-     * Builds an epoch header declaring {@code nextValidators} and signed by {@code signerPrivKeys}
+     * Builds a hop header declaring {@code nextValidators} and signed by {@code signerPrivKeys}
      * (the current validator set).
      */
-    private static byte[] buildEpochHeader(
+    private static byte[] buildHopHeader(
             List<byte[]> nextValidators, long blockNumber, byte[] stateRoot, List<byte[]> signerPrivKeys) {
         byte[] extraNoSeals = buildQbftExtra(nextValidators, List.of());
         byte[] headerForHash = buildRlpHeaderWithBlockNumber(stateRoot, extraNoSeals, blockNumber, 15);
@@ -2329,7 +2368,7 @@ class BesuQbftVerifierTest {
 
     /** The 32-byte encoding of the endpoint-manifest commitment slot (18). */
     private static byte[] manifestCommitmentSlot() {
-        return com.hedera.node.app.service.clpr.impl.verifier.evm.ProofBytes.endpointManifestCommitmentSlot();
+        return ProofBytes.endpointManifestCommitmentSlot();
     }
 
     /** Serializes a minimal {@code ClprEndpointManifest} (empty endpoint list) as its proof preimage. */

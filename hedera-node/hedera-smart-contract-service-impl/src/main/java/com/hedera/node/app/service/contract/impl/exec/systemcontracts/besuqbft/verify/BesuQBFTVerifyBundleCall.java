@@ -27,6 +27,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.HexFormat;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hyperledger.besu.evm.frame.MessageFrame;
@@ -37,8 +38,8 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
  *
  * <p>The {@code bundlePayload} is the RLP-encoded structure produced by
  * {@code QbftBundleConstructor.PayloadRlpEncoder} in the {@code clpr-evm-endpoint} repo
- * (5-element top-level list: {@code [blockHeader, evmAccount, accountProof[],
- * storageProof[{key,value,proof[]}], bundleContent]}).
+ * (5-item top-level list {@code [blockHeader, validatorSource, accountProof[], storageProof[[key, proof[]]],
+ * bundleContent]}, or 7 items with an endpoint-manifest update).
  *
  * <p>The {@code trustAnchor} is a {@link BesuQbftVerifier.TrustAnchor}:
  * {@code RLP([mode, validatorSet, serviceAddress, codeHash, anchorBlockNumber])}. The validator set
@@ -50,7 +51,7 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
  * proven storage slots to the channel.
  *
  * <p>Decoding and Merkle-proof verification are delegated to
- * {@link BesuQbftVerifier#verifyBundle(byte[], byte[], byte[])}. Everything this call returns comes from
+ * {@link BesuQbftVerifier#verifyBundle(byte[], byte[], long, byte[])}. Everything this call returns comes from
  * the proof: the relayed queue metadata must equal the proven Channel slots, a partial bundle's metadata is
  * scoped to its proven last message, and a new trust anchor is returned only when the verifier proved a
  * rotation. The proven manifest is appended as the fifth tuple member.
@@ -86,7 +87,7 @@ public class BesuQBFTVerifyBundleCall extends AbstractCall {
 
     @Override
     public @NonNull PricedResult execute(@NonNull final MessageFrame frame) {
-        log.debug(
+        log.info(
                 "verifyBundle (QBFT) ENTER: bundlePayload={} bytes, trustAnchor={} bytes, channelContext={} bytes",
                 bundlePayload.length,
                 trustAnchor.length,
@@ -103,6 +104,12 @@ public class BesuQBFTVerifyBundleCall extends AbstractCall {
         }
         final byte[] trustedClprServiceAddress20 = anchor.serviceAddress20();
         final byte[] trustedClprServiceCodeHash32 = anchor.codeHash32();
+
+        log.info(
+                "verifyBundle (QBFT) trustAnchor decoded: trustedValidatorSet={}, trustedClprService={}, trustedClprServiceCodeHash={}",
+                Bytes.wrap(anchor.validatorSetEncoded()),
+                Bytes.wrap(trustedClprServiceAddress20),
+                Bytes.wrap(trustedClprServiceCodeHash32));
 
         // The channel context must name the same peer service as the trust anchor; its channel id binds
         // the proven Channel storage slots to this channel.
@@ -186,10 +193,16 @@ public class BesuQBFTVerifyBundleCall extends AbstractCall {
         if (reconciledContent == null) {
             return fail();
         }
+        if (provenTrustAnchor != null) {
+            log.info(
+                    "verifyBundle (QBFT): trust anchor advanced to {} trustAnchorId=0x{}",
+                    Bytes.wrap(verified.newTrustAnchor()),
+                    HexFormat.of().formatHex(verified.newTrustAnchorId()));
+        }
         final byte[] finalBundleContentBytes =
                 ClprBundleContent.PROTOBUF.toBytes(reconciledContent).toByteArray();
 
-        log.debug(
+        log.info(
                 "verifyBundle (QBFT) EXIT: SUCCESS blockHash={} content={} bytes trustAnchorAdvanced={}",
                 Bytes.wrap(verified.blockHash32()),
                 finalBundleContentBytes.length,

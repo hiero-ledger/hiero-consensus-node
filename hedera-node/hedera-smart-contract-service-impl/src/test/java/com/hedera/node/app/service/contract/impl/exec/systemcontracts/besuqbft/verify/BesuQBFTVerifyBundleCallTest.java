@@ -23,6 +23,8 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Cal
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.UnaryOperator;
 import org.junit.jupiter.api.Test;
@@ -63,7 +65,7 @@ class BesuQBFTVerifyBundleCallTest extends CallTestBase {
     }
 
     private static byte[] blockNumberId(final long blockNumber) {
-        return java.nio.ByteBuffer.allocate(Long.BYTES).putLong(blockNumber).array();
+        return ByteBuffer.allocate(Long.BYTES).putLong(blockNumber).array();
     }
 
     /** {@code channelId(32) || serviceAddress(20)}, as returned by {@code verifyConfig}. */
@@ -421,7 +423,7 @@ class BesuQBFTVerifyBundleCallTest extends CallTestBase {
 
     private static byte[] uint256(final long value) {
         final byte[] out = new byte[32];
-        java.nio.ByteBuffer.wrap(out, 24, Long.BYTES).putLong(value);
+        ByteBuffer.wrap(out, 24, Long.BYTES).putLong(value);
         return out;
     }
 
@@ -458,7 +460,7 @@ class BesuQBFTVerifyBundleCallTest extends CallTestBase {
 
     private static byte[] filled(final int length, final int value) {
         final byte[] bytes = new byte[length];
-        java.util.Arrays.fill(bytes, (byte) value);
+        Arrays.fill(bytes, (byte) value);
         return bytes;
     }
 }
