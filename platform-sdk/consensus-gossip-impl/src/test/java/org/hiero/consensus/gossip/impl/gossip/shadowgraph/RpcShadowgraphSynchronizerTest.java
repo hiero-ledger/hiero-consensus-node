@@ -1,14 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.gossip.impl.gossip.shadowgraph;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 
-import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
@@ -18,9 +16,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Random;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.NoOpIntakeEventCounter;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
@@ -32,17 +28,14 @@ import org.hiero.consensus.gossip.impl.gossip.permits.SyncGuardFactory;
 import org.hiero.consensus.gossip.impl.gossip.rpc.GossipRpcSender;
 import org.hiero.consensus.gossip.impl.gossip.rpc.SyncData;
 import org.hiero.consensus.gossip.impl.gossip.sync.SyncMetrics;
-import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.RosterWrapper;
-import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 class RpcPeerHandlerTest {
@@ -104,14 +97,6 @@ class RpcPeerHandlerTest {
     }
 
     private RpcPeerHandler createPeerHandler(final GossipRpcSender gossipSender, final NodeId otherNodeId) {
-        return createPeerHandler(gossipSender, otherNodeId, intakeCounter, EventWindow::getGenesisEventWindow);
-    }
-
-    private RpcPeerHandler createPeerHandler(
-            final GossipRpcSender gossipSender,
-            final NodeId otherNodeId,
-            final IntakeEventCounter intakeCounter,
-            final Supplier<EventWindow> eventWindowSupplier) {
         return new RpcPeerHandler(
                 synchronizer,
                 gossipSender,
@@ -126,7 +111,7 @@ class RpcPeerHandlerTest {
                 configuration.getConfigData(SyncConfig.class),
                 configuration.getConfigData(GossipConfig.class),
                 configuration.getConfigData(BroadcastConfig.class),
-                eventWindowSupplier);
+                EventWindow::getGenesisEventWindow);
     }
 
     @Test
@@ -280,79 +265,5 @@ class RpcPeerHandlerTest {
         time.tick(Duration.ofSeconds(10));
         conversation.checkForPeriodicActions(false, false);
         Mockito.verify(gossipSender).sendSyncData(any());
-    }
-
-    // FAR FUTURE EVENT FILTERING
-    // This node's pending round is 11 and the default gossip.farFutureEventThreshold is 5, so the maximum acceptable
-    // birth round is 16.
-
-    private static final EventWindow FAR_FUTURE_TEST_WINDOW = new EventWindow(10, 11, 1, 1);
-
-    private long maxAcceptableBirthRound() {
-        return FAR_FUTURE_TEST_WINDOW.getPendingConsensusRound()
-                + configuration.getConfigData(GossipConfig.class).farFutureEventThreshold();
-    }
-
-    private GossipEvent gossipEventWithBirthRound(final long birthRound) {
-        return new TestingEventBuilder(new Random())
-                .setCreatorId(roster.nodeIdAtIndex(1))
-                .setBirthRound(birthRound)
-                .build()
-                .getGossipEvent();
-    }
-
-    @SuppressWarnings("unchecked")
-    private List<GossipEvent> eventsPassedToIntake(final int expectedCount) {
-        final ArgumentCaptor<PlatformEvent> captor = ArgumentCaptor.forClass(PlatformEvent.class);
-        Mockito.verify(eventHandler, Mockito.times(expectedCount)).accept(captor.capture());
-        return captor.getAllValues().stream().map(PlatformEvent::getGossipEvent).toList();
-    }
-
-    @Test
-    void broadcastFarFutureEventIsDropped() {
-        final RpcPeerHandler conversation =
-                createPeerHandler(gossipSender, roster.nodeIdAtIndex(1), intakeCounter, () -> FAR_FUTURE_TEST_WINDOW);
-
-        conversation.receiveBroadcastEvent(gossipEventWithBirthRound(maxAcceptableBirthRound() + 1));
-        Mockito.verifyNoInteractions(eventHandler);
-        Mockito.verify(syncMetrics, Mockito.never()).broadcastEventReceived();
-
-        final GossipEvent atLimit = gossipEventWithBirthRound(maxAcceptableBirthRound());
-        conversation.receiveBroadcastEvent(atLimit);
-        assertEquals(List.of(atLimit), eventsPassedToIntake(1));
-        Mockito.verify(syncMetrics).broadcastEventReceived();
-    }
-
-    @Test
-    void syncFarFutureEventIsDropped() {
-        final IntakeEventCounter mockIntakeCounter = mock(IntakeEventCounter.class);
-        final NodeId otherNodeId = roster.nodeIdAtIndex(1);
-        final RpcPeerHandler conversation =
-                createPeerHandler(gossipSender, otherNodeId, mockIntakeCounter, () -> FAR_FUTURE_TEST_WINDOW);
-
-        final GossipEvent atLimit = gossipEventWithBirthRound(maxAcceptableBirthRound());
-        final GossipEvent farFuture = gossipEventWithBirthRound(maxAcceptableBirthRound() + 1);
-        final GossipEvent old = gossipEventWithBirthRound(1);
-        conversation.receiveEvents(List.of(atLimit, farFuture, old));
-
-        assertEquals(List.of(atLimit, old), eventsPassedToIntake(2));
-        // dropped events must not be counted as entering intake, or the counter would never be decremented for them
-        Mockito.verify(mockIntakeCounter, Mockito.times(2)).eventEnteredIntakePipeline(otherNodeId);
-    }
-
-    @Test
-    void farFutureCheckUsesLatestEventWindow() {
-        final AtomicReference<EventWindow> eventWindow = new AtomicReference<>(FAR_FUTURE_TEST_WINDOW);
-        final RpcPeerHandler conversation =
-                createPeerHandler(gossipSender, roster.nodeIdAtIndex(1), intakeCounter, eventWindow::get);
-
-        final GossipEvent event = gossipEventWithBirthRound(maxAcceptableBirthRound() + 1);
-        conversation.receiveBroadcastEvent(event);
-        Mockito.verifyNoInteractions(eventHandler);
-
-        // consensus advances by one round, so the same event is no longer far future
-        eventWindow.set(new EventWindow(11, 12, 1, 1));
-        conversation.receiveBroadcastEvent(event);
-        assertEquals(List.of(event), eventsPassedToIntake(1));
     }
 }

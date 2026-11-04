@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.gossip.impl.gossip.shadowgraph;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
@@ -12,9 +12,6 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
-import java.util.Set;
-import java.util.stream.Collectors;
-import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.event.NoOpIntakeEventCounter;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.gossip.impl.gossip.sync.SyncMetrics;
@@ -36,8 +33,12 @@ class ShadowgraphSynchronizerFarFutureTest {
 
     private static final int NUM_NODES = 4;
     private static final NodeId SELF_ID = NodeId.of(0);
+    private static final int UNLIMITED_EVENTS_PER_SYNC = 0;
 
-    /** This node is well ahead of the peer, so every event built by the tests is in its shadowgraph. */
+    /**
+     * This node's event window: well ahead of the peers in these tests, so no test event is a far future event for this
+     * node, and an ancient threshold of 1 so no test event is ancient.
+     */
     private static final EventWindow MY_WINDOW = new EventWindow(30, 31, 1, 1);
 
     private Random random;
@@ -63,7 +64,7 @@ class ShadowgraphSynchronizerFarFutureTest {
                 NUM_NODES,
                 mock(SyncMetrics.class),
                 new NoOpIntakeEventCounter(),
-                progress -> {});
+                _ -> {});
         synchronizer.updateEventWindow(MY_WINDOW);
         return synchronizer;
     }
@@ -73,7 +74,7 @@ class ShadowgraphSynchronizerFarFutureTest {
      * for an honest creator), adds them to the synchronizer, and returns them. Sequence numbers are strictly increasing
      * across all events built by a test, mirroring the orphan buffer's release order.
      */
-    private List<PlatformEvent> addChain(
+    private List<PlatformEvent> addSingleCreatorEventChain(
             final ShadowgraphSynchronizer synchronizer, final NodeId creator, final long... birthRounds) {
         final List<PlatformEvent> chain = new ArrayList<>();
         PlatformEvent selfParent = null;
@@ -91,10 +92,6 @@ class ShadowgraphSynchronizerFarFutureTest {
         return chain;
     }
 
-    private static Set<Hash> hashes(final List<PlatformEvent> events) {
-        return events.stream().map(PlatformEvent::getHash).collect(Collectors.toSet());
-    }
-
     private static List<PlatformEvent> createSendList(
             final ShadowgraphSynchronizer synchronizer, final EventWindow theirWindow) {
         return synchronizer.createSendList(SELF_ID, new HashSet<>(), MY_WINDOW, theirWindow, false);
@@ -107,20 +104,28 @@ class ShadowgraphSynchronizerFarFutureTest {
     @ParameterizedTest
     @ValueSource(ints = {0, 1, 5, 10})
     void boundaryIsPendingRoundPlusThreshold(final int threshold) {
-        final ShadowgraphSynchronizer synchronizer = createSynchronizer(threshold, 0);
+        final ShadowgraphSynchronizer synchronizer = createSynchronizer(threshold, UNLIMITED_EVENTS_PER_SYNC);
 
         final EventWindow theirWindow = new EventWindow(10, 11, 1, 1);
         final long maxAcceptable = theirWindow.getPendingConsensusRound() + threshold;
 
+        // A list of all events we expect to be sent to the peer
         final List<PlatformEvent> accepted = new ArrayList<>();
-        accepted.addAll(addChain(synchronizer, NodeId.of(1), 1, maxAcceptable - 1, maxAcceptable));
-        // far future for the peer
-        addChain(synchronizer, NodeId.of(2), maxAcceptable + 1, maxAcceptable + 5);
-        accepted.addAll(addChain(synchronizer, NodeId.of(3), maxAcceptable));
+
+        // Add some events to the shadowgraph that should pass the far future filter
+        accepted.addAll(addSingleCreatorEventChain(synchronizer, NodeId.of(1), 1, maxAcceptable - 1, maxAcceptable));
+
+        // Add some far future events to the shadowgraph that should not pass the far future filter
+        addSingleCreatorEventChain(synchronizer, NodeId.of(2), maxAcceptable + 1, maxAcceptable + 5);
+
+        // Add more events that should pass, but with a higher sequence number than events that should not pass.
+        accepted.addAll(addSingleCreatorEventChain(synchronizer, NodeId.of(3), maxAcceptable));
 
         final List<PlatformEvent> sendList = createSendList(synchronizer, theirWindow);
 
-        assertEquals(hashes(accepted), hashes(sendList), "only events at or below the boundary should be sent");
+        assertThat(sendList)
+                .as("only events at or below the boundary should be sent")
+                .containsExactlyInAnyOrderElementsOf(accepted);
     }
 
     /**
@@ -130,18 +135,21 @@ class ShadowgraphSynchronizerFarFutureTest {
     @Test
     void filterUsesPeerPendingRound() {
         final int threshold = 5;
-        final ShadowgraphSynchronizer synchronizer = createSynchronizer(threshold, 0);
+        final ShadowgraphSynchronizer synchronizer = createSynchronizer(threshold, UNLIMITED_EVENTS_PER_SYNC);
 
         // our pending round is 31 (max acceptable for us would be 36); the peer's is 11 (max acceptable 16)
-        final List<PlatformEvent> forPeer = addChain(synchronizer, NodeId.of(1), 5, 16);
-        addChain(synchronizer, NodeId.of(2), 17, 31);
+        // Add two events to the shadowgraph which are acceptable for the peer
+        final List<PlatformEvent> forPeer = addSingleCreatorEventChain(synchronizer, NodeId.of(1), 5, 16);
+        // Add two events to the shadowgraph which are NOT acceptable for the peer
+        addSingleCreatorEventChain(synchronizer, NodeId.of(2), 17, 31);
 
+        // Verify that only the events that match the peer's event window are sent
         final EventWindow peerBehind = new EventWindow(10, 11, 1, 1);
-        assertEquals(hashes(forPeer), hashes(createSendList(synchronizer, peerBehind)));
+        assertThat(createSendList(synchronizer, peerBehind)).containsExactlyInAnyOrderElementsOf(forPeer);
 
-        // a peer with the same pending round as ours receives everything
+        // Verify that a peer with the same pending round as ours receives everything
         final EventWindow peerLevel = new EventWindow(30, 31, 1, 1);
-        assertEquals(4, createSendList(synchronizer, peerLevel).size());
+        assertThat(createSendList(synchronizer, peerLevel)).hasSize(4);
     }
 
     /**
@@ -156,17 +164,16 @@ class ShadowgraphSynchronizerFarFutureTest {
         final ShadowgraphSynchronizer synchronizer = createSynchronizer(threshold, maxSyncEventCount);
 
         // far future events for the peer, released first so they have the lowest sequence numbers
-        addChain(synchronizer, NodeId.of(1), 17, 17, 18);
-        // acceptable events from a lagging creator, released later
-        final List<PlatformEvent> acceptable = addChain(synchronizer, NodeId.of(2), 10, 10, 11);
+        addSingleCreatorEventChain(synchronizer, NodeId.of(1), 17, 17, 18);
+        // acceptable events from a lagging creator, released later and therefore have a higher sequence number
+        final List<PlatformEvent> acceptable = addSingleCreatorEventChain(synchronizer, NodeId.of(2), 10, 10, 11);
 
         final EventWindow theirWindow = new EventWindow(10, 11, 1, 1);
         final List<PlatformEvent> sendList = createSendList(synchronizer, theirWindow);
 
-        assertEquals(
-                hashes(acceptable.subList(0, maxSyncEventCount)),
-                hashes(sendList),
-                "the truncated list must contain the lowest-sequence acceptable events, not be emptied by far future"
-                        + " events");
+        assertThat(sendList)
+                .as("the truncated list must contain the lowest-sequence acceptable events, not be emptied by far"
+                        + " future events")
+                .containsExactlyElementsOf(acceptable.subList(0, maxSyncEventCount));
     }
 }
