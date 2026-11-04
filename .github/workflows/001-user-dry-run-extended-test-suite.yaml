@@ -71,6 +71,11 @@ on:
         type: boolean
         default: true
         description: "Run EVM Functional Tests Panel"
+      enable-ethereum-spec-tests-panel:
+        required: true
+        type: boolean
+        default: true
+        description: "Run Ethereum Spec Tests Panel"
       enable-migration-testing-panel:
         required: true
         type: boolean
@@ -184,6 +189,7 @@ jobs:
           echo "Enable JSON-RPC Relay Regression Panel: ${{ inputs.enable-rpc-relay-regression-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Enable Block Node Regression Panel: ${{ inputs.enable-block-node-regression-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Enable EVM Functional Tests Panel: ${{ inputs.enable-evm-functional-tests-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "Enable Ethereum Spec Tests Panel: ${{ inputs.enable-ethereum-spec-tests-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Enable Migration Testing Panel: ${{ inputs.enable-migration-testing-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Enable Solo Three-Stage Block Stream Cutover Panel: ${{ inputs.enable-three-stage-block-stream-cutover-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "TCK Version: ${{ inputs.tck-version || needs.extract-citr-vars.outputs.tck-version }}" | tee -a "${GITHUB_STEP_SUMMARY}"
@@ -240,6 +246,7 @@ jobs:
       enable-rpc-relay-regression-panel: ${{ inputs.enable-rpc-relay-regression-panel }}
       enable-block-node-regression-panel: ${{ inputs.enable-block-node-regression-panel }}
       enable-evm-functional-tests-panel: ${{ inputs.enable-evm-functional-tests-panel }}
+      enable-ethereum-spec-tests-panel: ${{ inputs.enable-ethereum-spec-tests-panel }}
       java-version: ${{ needs.extract-jdk-version.outputs.jdk-version }}
       tck-version: "${{ inputs.tck-version || needs.extract-citr-vars.outputs.tck-version }}"
       js-sdk-version: "${{ inputs.js-sdk-version || needs.extract-citr-vars.outputs.js-sdk-version }}"

@@ -107,21 +107,21 @@ class ReconnectStateLearnerTest {
     }
 
     @Test
-    @DisplayName("By default, the learner isn't created if the signatures fail")
-    void learnerNotCreatedIfSignaturesFailByDefault() {
-        final ReconnectStateLearner defaultLearner = createReconnectLearner(false);
+    @DisplayName("Without the early copy, the learner isn't created if the signatures fail")
+    void learnerNotCreatedIfSignaturesFailWithoutEarlyCopy() {
+        final ReconnectStateLearner lateCopyLearner = createReconnectLearner(false);
         // The teacher disconnects instead of sending the signatures
         pairedStreams.disconnectTeacher();
 
-        assertThrows(RuntimeException.class, defaultLearner::execute);
+        assertThrows(RuntimeException.class, lateCopyLearner::execute);
 
         verify(synchronizer, never()).createLearner(any());
     }
 
     @Test
-    @DisplayName("By default, the learner is created after the signatures, on the reconnect thread")
-    void learnerCreatedAfterSignaturesByDefault() throws Exception {
-        final ReconnectStateLearner defaultLearner = createReconnectLearner(false);
+    @DisplayName("Without the early copy, the learner is created after the signatures, on the reconnect thread")
+    void learnerCreatedAfterSignaturesWithoutEarlyCopy() throws Exception {
+        final ReconnectStateLearner lateCopyLearner = createReconnectLearner(false);
         final AtomicReference<Thread> creatingThread = new AtomicReference<>();
         when(synchronizer.createLearner(any())).thenAnswer(invocation -> {
             creatingThread.set(Thread.currentThread());
@@ -132,7 +132,7 @@ class ReconnectStateLearnerTest {
                 .thenThrow(new MerkleSynchronizationException("test failure"));
         sendSignatures();
 
-        assertThrows(ReconnectStateException.class, defaultLearner::execute);
+        assertThrows(ReconnectStateException.class, lateCopyLearner::execute);
 
         assertSame(Thread.currentThread(), creatingThread.get(), "the learner should be created on this thread");
         final InOrder inOrder = inOrder(synchronizer);
