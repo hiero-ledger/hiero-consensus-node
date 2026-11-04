@@ -79,25 +79,27 @@ import org.openjdk.jmh.annotations.Warmup;
  * although receiving allocates several kilobytes per event. A pass during which one does is discarded and replaced by
  * the next invocation, so the latency results and {@code latency.mean} exclude garbage collection.
  *
- * <p>Each fork settles at its own latency level and keeps it. On the benchmark machine, in four runs of 10 forks each,
- * {@code latency.mean} varied by 1.9–3.5% between forks without transactions and by 0.7–3.1% with two, against less
- * than 0.2% between the iterations of one fork, although every fork allocates the same and the machine was quiet. The
- * cause is unknown (<a href="https://github.com/hiero-ledger/hiero-consensus-node/issues/27940">#27940</a>), and it
- * sets the number of forks.
+ * <p>Each fork settles at its own latency level and keeps it, although every fork allocates the same and the machine
+ * was quiet. On the benchmark machine, {@code latency.mean} varied between forks by 1.9–3.5% without transactions and
+ * by 0.7–3.1% with two in four runs of 10 forks each with 32 nodes. In the calibration run with 28 nodes, it varied by
+ * 1.7% and 13.7%: one fork with two transactions was 49% slower than the median. Between the iterations of one fork,
+ * it varied by less than 0.2%. The cause is unknown
+ * (<a href="https://github.com/hiero-ledger/hiero-consensus-node/issues/27940">#27940</a>). Bringing the noise of a
+ * run's result down to 0.5% would take 993 forks after that run, so the benchmark keeps 10.
  *
  * <p>Run with {@code -prof org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler}.
  *
  * <h2>Calibration</h2>
  * <ul>
- *   <li>Date / commit: 2026-10-30, c86eb4c04f</li>
+ *   <li>Date / commit: 2026-11-03, e5608e0366</li>
  *   <li>Machine: hl-cn-benchmark-lin, AS-2115GT-HNTR, AMD EPYC 9254 24-Core Processor, JDK 25.0.2, -XX:ActiveProcessorCount=12 -Xms1g -Xmx1g -XX:+AlwaysPreTouch</li>
  *   <li>Parameter sets: transactionsPerEvent=0 / transactionsPerEvent=2</li>
- *   <li>Steady state after: 5 s / 0 s</li>
- *   <li>Noise (latency.mean, CV): 0.08% / 0.07% per 10 s iteration, 3.28% / 1.17% between forks, - / - between runs (1 of 1 / 1 of 1 runs quiet)</li>
- *   <li>Expected detectable regression: 2.02% / 0.72% (95 % CI half-width of one run)</li>
- *   <li>Samples per iteration: 2.5 M / 1.6 M; expected stable: mean, p50, p90, p99, p99.99 / mean, p50, p90, p99, p99.9, p99.99</li>
+ *   <li>Steady state after: 5 s / 5 s</li>
+ *   <li>Noise (latency.mean, CV): 0.05% / 0.16% per 10 s iteration, 1.71% / 13.68% between forks, - / - between runs (1 of 1 / 1 of 1 runs quiet)</li>
+ *   <li>Expected detectable regression: 1.06% / 8.27% (95 % CI half-width of one run)</li>
+ *   <li>Samples per iteration: 2.6 M / 1.6 M; expected stable: mean, p50, p90, p99, p99.99 / p99.9, p99.99</li>
  *   <li>Runtime: 5.1 / 5.1 min per parameter set</li>
- *   <li>Raw data: https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/40678159284, https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/41018710598</li>
+ *   <li>Raw data: https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/41684201236, https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/41706891570</li>
  * </ul>
  */
 @State(Scope.Thread)
@@ -115,15 +117,15 @@ public class EventHashingBenchmark {
     private static final int NUMBER_OF_EVENTS = 10_000;
 
     /** The number of nodes that create the events. It only has to exceed the number of parents of an event. */
-    private static final int NUMBER_OF_NODES = 32;
+    private static final int NUMBER_OF_NODES = 28;
 
     /**
      * The SHA-256 digest of the hashes of all events, in order, by the number of transactions per event. A change to
      * the generated events or to the hashing changes it.
      */
     private static final Map<Integer, String> EXPECTED_DIGESTS = Map.of(
-            0, "9223171760a17caf361d0c52ce6a95071dc06107183a0026f254f57ff07a3c93",
-            2, "9e2819c4a599199a7a6ef68ddbd64a58389f7831b5848c8715eb6e8c20da3bbb");
+            0, "31f56f3f0726e1cbd1b4b5f8342c84b93f125e0642c208a18edca1fac1301a2e",
+            2, "d3f80b137c1f39914da40535b74145c12ed097c6c4980bf04d9046514de958fb");
 
     /** The number of transactions of every event. */
     @Param({"0", "2"})

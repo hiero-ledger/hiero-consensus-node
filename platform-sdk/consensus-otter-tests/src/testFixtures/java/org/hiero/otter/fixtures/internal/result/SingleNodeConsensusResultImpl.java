@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
@@ -20,6 +21,9 @@ public class SingleNodeConsensusResultImpl implements SingleNodeConsensusResult 
 
     // This class may be used in a multithreaded context, so we use volatile to ensure visibility of state changes
     private volatile long lastClearedRoundNum = -1L;
+    private volatile int preConsensusEventsStartIndex = 0;
+    private volatile int staleEventsStartIndex = 0;
+    private volatile boolean cleared = false;
 
     /**
      * Creates a new instance of {@link SingleNodeConsensusResultImpl}.
@@ -65,6 +69,24 @@ public class SingleNodeConsensusResultImpl implements SingleNodeConsensusResult 
      * {@inheritDoc}
      */
     @Override
+    @NonNull
+    public List<EventDescriptorWrapper> preConsensusEvents() {
+        return collector.currentPreConsensusEvents(preConsensusEventsStartIndex);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public List<EventDescriptorWrapper> staleEvents() {
+        return collector.currentStaleEvents(staleEventsStartIndex);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public void subscribe(@NonNull final ConsensusRoundSubscriber subscriber) {
         collector.subscribeConsensusRoundSubscriber(subscriber);
     }
@@ -78,5 +100,16 @@ public class SingleNodeConsensusResultImpl implements SingleNodeConsensusResult 
         if (lastRoundNum >= 0) {
             lastClearedRoundNum = lastRoundNum;
         }
+        preConsensusEventsStartIndex = collector.currentPreConsensusEventsCount();
+        staleEventsStartIndex = collector.currentStaleEventsCount();
+        cleared = true;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean isCleared() {
+        return cleared;
     }
 }

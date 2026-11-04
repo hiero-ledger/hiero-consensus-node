@@ -56,6 +56,9 @@ public class FalconNetwork extends SimulatedNetwork implements TimeTickReceiver 
     @Nullable
     private SigningSchema signingSchema;
 
+    /** The tipsets shared by the event creators of all mini nodes of this network. */
+    private final FalconSharedTipsets sharedTipsets = new FalconSharedTipsets();
+
     /**
      * Constructor for {@code FalconNetwork}.
      *
@@ -158,6 +161,7 @@ public class FalconNetwork extends SimulatedNetwork implements TimeTickReceiver 
                 keysAndCerts,
                 gossipNetwork,
                 networkConfiguration,
+                sharedTipsets,
                 transactionShape,
                 signingSchema != null);
         addEventReceiver(node);

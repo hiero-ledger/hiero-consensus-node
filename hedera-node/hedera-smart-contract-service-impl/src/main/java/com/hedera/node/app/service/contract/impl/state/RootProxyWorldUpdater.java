@@ -11,6 +11,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.contract.ContractNonceInfo;
 import com.hedera.node.app.service.contract.impl.annotations.TransactionScope;
+import com.hedera.node.app.service.contract.impl.exec.StorageAccountingScope;
 import com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaOperations;
 import com.hedera.node.app.service.contract.impl.infra.IterableStorageManager;
 import com.hedera.node.app.service.contract.impl.infra.RentCalculator;
@@ -38,6 +39,7 @@ public class RootProxyWorldUpdater extends ProxyWorldUpdater {
     private final IterableStorageManager storageManager;
     private final StorageSizeValidator storageSizeValidator;
     private final HandleContext context;
+    private final StorageAccountingScope storageAccountingScope;
 
     private boolean committed = false;
 
@@ -55,13 +57,15 @@ public class RootProxyWorldUpdater extends ProxyWorldUpdater {
             @NonNull final RentCalculator rentCalculator,
             @NonNull final IterableStorageManager storageManager,
             @NonNull final StorageSizeValidator storageSizeValidator,
-            @NonNull final HandleContext context) {
+            @NonNull final HandleContext context,
+            @NonNull final StorageAccountingScope storageAccountingScope) {
         super(enhancement, evmFrameStateFactory, null);
         this.contractsConfig = requireNonNull(contractsConfig);
         this.storageManager = requireNonNull(storageManager);
         this.rentCalculator = requireNonNull(rentCalculator);
         this.storageSizeValidator = requireNonNull(storageSizeValidator);
         this.context = context;
+        this.storageAccountingScope = requireNonNull(storageAccountingScope);
     }
 
     /**
@@ -69,8 +73,10 @@ public class RootProxyWorldUpdater extends ProxyWorldUpdater {
      * <ol>
      *     <li>Gets the list of pending storage changes and summarizes their effects on size.</li>
      *     <li>Validates the effects on size are legal.</li>
-     *     <li>For each increase in storage size, calculates rent and tries to charge the allocating contract.</li>
-     *     <li>"Rewrites" the pending storage changes to preserve per-contract linked lists.</li>
+     *     <li>For each increase in storage size, calculates rent and tries to charge the allocating contract
+     *     (storage accounting scope owner only).</li>
+     *     <li>"Rewrites" the pending storage changes to preserve per-contract linked lists (storage accounting scope
+     *     owner only).</li>
      * </ol>
      *
      * @throws ResourceExhaustedException if the storage size limit is exceeded or rent cannot be paid
@@ -88,22 +94,26 @@ public class RootProxyWorldUpdater extends ProxyWorldUpdater {
         final var sizeEffects = summarizeSizeEffects(writes);
         storageSizeValidator.assertValid(
                 sizeEffects.finalSlotsUsed(), enhancement.nativeOperations(), sizeEffects.sizeChanges());
-        // Charge rent for each increase in storage size
-        chargeRentFor(sizeEffects);
-        // "Rewrite" the pending storage changes to preserve per-contract linked lists
-        storageManager.persistChanges(
-                enhancement,
-                writes,
-                sizeEffects.sizeChanges(),
-                enhancement.operations().getStore(),
-                enhancement.nativeOperations().writableEvmHookStore());
+        // Nested executions commit into the owner's savepoints, so only the owner charges rent for and persists
+        // the changes of its whole scope
+        if (storageAccountingScope.isOwner()) {
+            // Charge rent for each increase in storage size
+            chargeRentFor(sizeEffects);
+            storageManager.persistChanges(
+                    enhancement,
+                    writes,
+                    sizeEffects.sizeChanges(),
+                    enhancement.operations().getStore(),
+                    enhancement.nativeOperations().writableEvmHookStore());
+        }
 
         // We now have an apparently valid change set, and want to capture some summary
         // information for the Hedera record
         final var contractChangeSummary = enhancement.operations().summarizeContractChanges();
         createdContractIds = contractChangeSummary.newContractIds();
 
-        if (contractsConfig.enforceCreationThrottle()) {
+        // The owner also throttles the creations of nested executions, so a denial fails the owner's whole execution
+        if (contractsConfig.enforceCreationThrottle() && storageAccountingScope.isOwner()) {
             final var creationCapacityIsAvailable =
                     !context.throttleAdviser().shouldThrottleNOfUnscaled(createdContractIds.size(), CRYPTO_CREATE);
             validateResource(creationCapacityIsAvailable, CONSENSUS_GAS_EXHAUSTED);
@@ -166,7 +176,7 @@ public class RootProxyWorldUpdater extends ProxyWorldUpdater {
     private record SizeEffects(long finalSlotsUsed, List<StorageSizeChange> sizeChanges) {}
 
     private SizeEffects summarizeSizeEffects(@NonNull final List<StorageAccesses> allChanges) {
-        // Usage counters include previously persisted nested changes, but not this commit's changes.
+        // The slot counts do not include the pending changes yet, so add their net effect
         var finalSlotsUsed = evmFrameState.getKvStateSize();
         final List<StorageSizeChange> sizeChanges = new ArrayList<>();
         for (final var changes : allChanges) {

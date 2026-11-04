@@ -306,6 +306,34 @@ void testWithRegularAssertion(@NonNull final TestEnvironment env) throws Interru
 }
 ```
 
+### Pre-Consensus and Stale Events
+
+Besides the consensus rounds, a consensus result returns the events a node emitted for pre-consensus handling
+(`preConsensusEvents()`) and the events it reported as stale (`staleEvents()`), counted from the last `clear()`.
+
+Two assertions check these events:
+
+- `hasNoLostEvents()` and `haveNoLostEvents()` verify that every pre-consensus event that the latest consensus round made
+  ancient has either reached consensus or become stale, but not both.
+- `hasNoUnannouncedEvents()` and `haveNoUnannouncedEvents()` verify that every event that has reached consensus or become
+  stale was emitted as a pre-consensus event first.
+
+The no-lost-events check is only valid while the nodes run without restarts, reconnects or freezes. After one of them,
+call `clear()` so that only the later results are checked, or leave the affected node out with `suppressingNode(...)`.
+`hasNoUnannouncedEvents()` needs every pre-consensus event since the node started, so it fails if `clear()` has been
+called on the result. Both assertions also fail if not all results have arrived (`allResultsArrived()`).
+
+```java
+    // Checks only the events since clear() was called
+    final MultipleNodeConsensusResults results = network.newConsensusResults();
+    results.clear();
+    timeManager.waitFor(Duration.ofSeconds(30));
+    assertThat(results).haveNoLostEvents();
+
+    // A new result has never been cleared and returns all events since the start
+    assertThat(network.newConsensusResults()).haveNoUnannouncedEvents();
+```
+
 ### Continuous Assertions
 
 Continuous assertions monitor conditions throughout test execution, failing fast when violations occur:
