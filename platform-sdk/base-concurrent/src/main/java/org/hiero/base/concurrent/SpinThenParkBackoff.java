@@ -21,6 +21,13 @@ import java.util.function.LongConsumer;
 ///
 /// A count below [#SPIN_LIMIT] means the waiting thread is still spinning. Callers may use that, e.g. to treat
 /// a queue that stays empty through the spin phase as drained.
+///
+/// Waiting threads aren't served in any particular order. A thread that has backed off to parks at the cap
+/// retries only once per park, while threads that are still spinning, or have just started waiting, retry all
+/// the time. So under steady contention, the thread that has waited the longest can keep losing freed slots.
+/// Where many threads compete, keep the cap low. A caller that needs a timeout shouldn't base it on how long
+/// the thread has waited: it should fail only when the other side makes no progress, e.g. when the consumer has
+/// taken no element for the whole timeout.
 public final class SpinThenParkBackoff {
 
     /// Spin iterations before parking. 128 [Thread#onSpinWait()] hints take a few microseconds, which covers
