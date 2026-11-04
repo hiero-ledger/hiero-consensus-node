@@ -44,13 +44,16 @@ class AtomicFileCreateSuite {
 
     @HapiTest
     final Stream<DynamicTest> createFailsWithExcessiveLifetime() {
-        return hapiTest(cryptoCreate(BATCH_OPERATOR), doWithStartupConfig("entities.maxLifetime", value -> atomicBatch(
-                        fileCreate("test")
-                                .lifetime(Long.parseLong(value) + 12_345L)
-                                .hasKnownStatus(AUTORENEW_DURATION_NOT_IN_RANGE)
-                                .batchKey(BATCH_OPERATOR))
-                .payingWith(BATCH_OPERATOR)
-                .hasKnownStatusFrom(INNER_TRANSACTION_FAILED)));
+        return hapiTest(
+                cryptoCreate(BATCH_OPERATOR),
+                doWithStartupConfig(
+                        "entities.maxLifetime",
+                        value -> atomicBatch(fileCreate("test")
+                                        .lifetime(Long.parseLong(value) + 12_345L)
+                                        .hasKnownStatus(AUTORENEW_DURATION_NOT_IN_RANGE)
+                                        .batchKey(BATCH_OPERATOR))
+                                .payingWith(BATCH_OPERATOR)
+                                .hasKnownStatusFrom(INNER_TRANSACTION_FAILED)));
     }
 
     @HapiTest

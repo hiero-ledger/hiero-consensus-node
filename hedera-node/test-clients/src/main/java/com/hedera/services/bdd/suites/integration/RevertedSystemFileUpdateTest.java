@@ -70,9 +70,12 @@ public class RevertedSystemFileUpdateTest {
                         .fee(ONE_HUNDRED_HBARS),
                 // Only the contract can now complete a schedule paid by the exchange-rate control account
                 cryptoUpdate(EXCHANGE_RATE_CONTROL).key(AUTHORIZER_KEY).payingWith(GENESIS),
-                scheduleCreate(RATE_UPDATE, fileUpdate(EXCHANGE_RATES).contents(spec -> spec.ratesProvider()
-                                .rateSetWith(10, 121)
-                                .toByteString()))
+                scheduleCreate(
+                                RATE_UPDATE,
+                                fileUpdate(EXCHANGE_RATES)
+                                        .contents(spec -> spec.ratesProvider()
+                                                .rateSetWith(10, 121)
+                                                .toByteString()))
                         .designatingPayer(EXCHANGE_RATE_CONTROL)
                         .payingWith(GENESIS)
                         .exposingCreatedIdTo(scheduleId::set),
@@ -109,9 +112,12 @@ public class RevertedSystemFileUpdateTest {
                 cryptoTransfer(tinyBarsFromTo(GENESIS, EXCHANGE_RATE_CONTROL, ADEQUATE_FUNDS))
                         .fee(ONE_HUNDRED_HBARS),
                 // Signed with the exchange-rate control key, so the schedule executes as a child of its creation
-                scheduleCreate("committedRateUpdate", fileUpdate(EXCHANGE_RATES).contents(spec -> spec.ratesProvider()
-                                .rateSetWith(10, 121)
-                                .toByteString()))
+                scheduleCreate(
+                                "committedRateUpdate",
+                                fileUpdate(EXCHANGE_RATES)
+                                        .contents(spec -> spec.ratesProvider()
+                                                .rateSetWith(10, 121)
+                                                .toByteString()))
                         .designatingPayer(EXCHANGE_RATE_CONTROL)
                         .payingWith(GENESIS)
                         .alsoSigningWith(EXCHANGE_RATE_CONTROL),

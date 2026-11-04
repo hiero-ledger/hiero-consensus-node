@@ -130,13 +130,16 @@ public class AtomicBatchNodeUpdateBlacklistTest {
                 cryptoCreate("forceBlockBoundary").payingWith(GENESIS),
                 // Keep node 1 inactive so the payout set is small and deterministic; nodes 2 and 3 stay active, so
                 // node 3 is paid (proving a payment happens) while node 2 must be skipped for declining in state.
-                mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> nodeRewards
-                        .copyBuilder()
-                        .nodeActivities(NodeActivity.newBuilder()
-                                .nodeId(1)
-                                .numMissedJudgeRounds(nodeRewards.numRoundsInStakingPeriod())
-                                .build())
-                        .build()),
+                mutateSingleton(
+                        TokenService.NAME,
+                        NODE_REWARDS_STATE_ID,
+                        (NodeRewards nodeRewards) -> nodeRewards
+                                .copyBuilder()
+                                .nodeActivities(NodeActivity.newBuilder()
+                                        .nodeId(1)
+                                        .numMissedJudgeRounds(nodeRewards.numRoundsInStakingPeriod())
+                                        .build())
+                                .build()),
                 getAccountBalance(NODE_REWARD).logged(),
                 waitUntilStartOfNextStakingPeriod(1),
                 cryptoCreate("nobody").payingWith(GENESIS),

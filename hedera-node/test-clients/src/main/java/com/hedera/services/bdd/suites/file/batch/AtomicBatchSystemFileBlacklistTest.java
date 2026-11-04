@@ -155,9 +155,12 @@ class AtomicBatchSystemFileBlacklistTest {
                 cryptoTransfer(tinyBarsFromTo(GENESIS, EXCHANGE_RATE_CONTROL, ADEQUATE_FUNDS))
                         .fee(ONE_HUNDRED_HBARS),
                 // Only the batch operator signs, so the schedule waits for the exchange-rate control signature
-                scheduleCreate("rateUpdate", fileUpdate(EXCHANGE_RATES).contents(spec -> spec.ratesProvider()
-                                .rateSetWith(10, 121)
-                                .toByteString()))
+                scheduleCreate(
+                                "rateUpdate",
+                                fileUpdate(EXCHANGE_RATES)
+                                        .contents(spec -> spec.ratesProvider()
+                                                .rateSetWith(10, 121)
+                                                .toByteString()))
                         .designatingPayer(EXCHANGE_RATE_CONTROL)
                         .payingWith(BATCH_OPERATOR),
                 getScheduleInfo("rateUpdate").isNotExecuted(),

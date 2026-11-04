@@ -150,11 +150,13 @@ class AtomicFileUpdateSuite {
         return hapiTest(
                 cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
                 fileCreate("test"),
-                doWithStartupConfig("entities.maxLifetime", maxLifetime -> atomicBatch(fileUpdate("test")
-                                .lifetime(parseLong(maxLifetime) + 12_345L)
-                                .hasKnownStatus(AUTORENEW_DURATION_NOT_IN_RANGE)
-                                .batchKey(BATCH_OPERATOR))
-                        .payingWith(BATCH_OPERATOR)
-                        .hasKnownStatusFrom(INNER_TRANSACTION_FAILED)));
+                doWithStartupConfig(
+                        "entities.maxLifetime",
+                        maxLifetime -> atomicBatch(fileUpdate("test")
+                                        .lifetime(parseLong(maxLifetime) + 12_345L)
+                                        .hasKnownStatus(AUTORENEW_DURATION_NOT_IN_RANGE)
+                                        .batchKey(BATCH_OPERATOR))
+                                .payingWith(BATCH_OPERATOR)
+                                .hasKnownStatusFrom(INNER_TRANSACTION_FAILED)));
     }
 }
