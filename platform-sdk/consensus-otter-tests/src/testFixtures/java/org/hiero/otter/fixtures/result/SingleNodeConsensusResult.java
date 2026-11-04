@@ -3,6 +3,7 @@ package org.hiero.otter.fixtures.result;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
@@ -49,6 +50,26 @@ public interface SingleNodeConsensusResult extends OtterResult {
      */
     @NonNull
     EventWindow getLatestEventWindow();
+
+    /**
+     * Returns the events that the node emitted for pre-consensus handling since the last {@link #clear()}, in the order
+     * they were emitted.
+     *
+     * @return the descriptors of the pre-consensus events
+     * @throws UnsupportedOperationException if the environment does not collect pre-consensus events
+     */
+    @NonNull
+    List<EventDescriptorWrapper> preConsensusEvents();
+
+    /**
+     * Returns the events that the node reported as stale since the last {@link #clear()}, in the order they were
+     * reported.
+     *
+     * @return the descriptors of the stale events
+     * @throws UnsupportedOperationException if the environment does not collect stale events
+     */
+    @NonNull
+    List<EventDescriptorWrapper> staleEvents();
 
     /**
      * Subscribes to {@link ConsensusRound}s created by the node.

@@ -123,7 +123,7 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver, 
 
         this.nodeConfiguration =
                 new FalconNodeConfiguration(() -> lifeCycle, networkConfiguration.overrideProperties());
-        this.resultsCollector = new NodeResultsCollector(selfId, consensusRoundPool);
+        this.resultsCollector = new NodeResultsCollector(selfId, consensusRoundPool, true);
     }
 
     /**
@@ -262,6 +262,16 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver, 
         wiring.eventWindowOutputWire().solderTo("EventWindowSubmitter_" + selfId, "event window", eventWindowSubmitter);
         wiring.consensusRoundOutputWire()
                 .solderTo("ResultsCollector", "consensus round", resultsCollector::addConsensusRound);
+        wiring.preConsensusEventOutputWire()
+                .solderTo(
+                        "PreConsensusEventCollector",
+                        "pre-consensus event",
+                        event -> resultsCollector.addPreConsensusEvent(event.getDescriptor()));
+        wiring.staleEventOutputWire()
+                .solderTo(
+                        "StaleEventCollector",
+                        "stale event",
+                        event -> resultsCollector.addStaleEvent(event.getDescriptor()));
         wiring.platformStatusOutputWire()
                 .solderTo("PlatformStatusCollector", "platform status", this::handlePlatformStatusChange);
 
