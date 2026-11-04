@@ -33,6 +33,7 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.AccountsConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import javax.inject.Inject;
@@ -123,6 +124,7 @@ public class CustomFeesValidator {
                             "Unexpected value for custom fee type: " + fee.fee().kind());
             }
         }
+        validateRoyaltyFractionsSum(customFees);
         return fees;
     }
 
@@ -187,6 +189,7 @@ public class CustomFeesValidator {
                 default -> throw new HandleException(CUSTOM_FEE_NOT_FULLY_SPECIFIED);
             }
         }
+        validateRoyaltyFractionsSum(customFees);
     }
 
     /**
@@ -282,6 +285,32 @@ public class CustomFeesValidator {
                         fee.feeCollectorAccountId(), denominatingTokenId, tokenRelationStore, tokenStore);
             }
         }
+    }
+
+    /**
+     * Validates that the royalty fees on a token do not in aggregate claim more than the whole
+     * exchanged value. Each fraction on its own is capped at one by {@link #validateRoyaltyFee}, so
+     * without this check a token could carry several royalties that are individually valid but
+     * together exceed the value the NFT sender receives.
+     *
+     * @param customFees the custom fees to validate
+     */
+    private void validateRoyaltyFractionsSum(@NonNull final List<CustomFee> customFees) {
+        // Summed as an exact rational; the product of denominators overflows a long well before the
+        // ten fees a token may declare.
+        var totalNumerator = BigInteger.ZERO;
+        var totalDenominator = BigInteger.ONE;
+        for (final var fee : customFees) {
+            if (!fee.hasRoyaltyFee()) {
+                continue;
+            }
+            final var fraction = fee.royaltyFeeOrThrow().exchangeValueFractionOrThrow();
+            final var numerator = BigInteger.valueOf(fraction.numerator());
+            final var denominator = BigInteger.valueOf(fraction.denominator());
+            totalNumerator = totalNumerator.multiply(denominator).add(numerator.multiply(totalDenominator));
+            totalDenominator = totalDenominator.multiply(denominator);
+        }
+        validateTrue(totalNumerator.compareTo(totalDenominator) <= 0, ROYALTY_FRACTION_CANNOT_EXCEED_ONE);
     }
 
     private void validateFractionalFeeForFeeScheduleUpdate(

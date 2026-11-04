@@ -8,8 +8,8 @@ Rules: [operations.md](/platform-sdk/docs/consensus-layer/benchmarks/operations.
 The developer creates the pull request; never create or edit one. Suggest a title and a description to paste:
 
 - **Title:** the type and the issue's subject, for example `perf: Fix HashgraphModuleBenchmark`.
-- **Description:** `Closes #<issue>.`, then a few lines: what changed, the decisions settled for the issue, and one
-  line per check with its result (steps 1–6). No session history and no findings beyond the work package.
+- **Description:** `Closes #<issue>.`, then what changed in a sentence or two, and the decisions settled for the
+  issue in a few words each. No check results, no session history, and no findings beyond the work package.
 
 Once merged, the nightly job picks the benchmark up: it finds every module that applies the plugin
 ([the nightly run](/platform-sdk/docs/consensus-layer/benchmarks/operations.md#the-nightly-run)). No workflow changes.

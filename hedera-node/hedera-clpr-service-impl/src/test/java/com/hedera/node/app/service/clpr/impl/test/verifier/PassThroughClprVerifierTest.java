@@ -86,4 +86,13 @@ class PassThroughClprVerifierTest {
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(CLPR_BUNDLE_VERIFICATION_FAILED));
     }
+
+    @Test
+    void localVerificationFailsClosedWhenUnsupported() {
+        assertThatThrownBy(() -> subject.verifyBundleLocally(Bytes.EMPTY, Bytes.EMPTY, Bytes.EMPTY, ignored -> {
+                    throw new AssertionError("Unsupported local verification must not execute the contract call");
+                }))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(CLPR_BUNDLE_VERIFICATION_FAILED));
+    }
 }

@@ -35,7 +35,6 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.BytesSignatureVerifier;
 import org.hiero.base.crypto.CryptographyException;
 import org.hiero.base.crypto.SigningFactory;
-import org.hiero.base.crypto.SigningSchema;
 import org.hiero.consensus.roster.RosterUtils;
 
 /**
@@ -80,9 +79,10 @@ public class RsaContext {
         requireNonNull(weightFn);
         final Map<Long, PublicKey> keys = new HashMap<>();
         for (final var entry : roster.rosterEntries()) {
+            // fetchGossipCaCertificate() already rejects certificates whose key has no supported signing schema
             final var certificate = RosterUtils.fetchGossipCaCertificate(entry);
             final var publicKey = certificate == null ? null : certificate.getPublicKey();
-            if (publicKey != null && isSupportedSigningKey(publicKey)) {
+            if (publicKey != null) {
                 keys.put(entry.nodeId(), publicKey);
             }
         }
@@ -164,15 +164,6 @@ public class RsaContext {
         final int divisor = Math.max(1, tssConfig.signingThresholdDivisor());
         final long threshold = totalWeight / divisor;
         return new Signing(blockHash, requireNonNull(rosterHash), threshold, weightSnapshot, onCompletion);
-    }
-
-    private static boolean isSupportedSigningKey(@NonNull final PublicKey publicKey) {
-        try {
-            SigningSchema.fromKeyType(publicKey);
-            return true;
-        } catch (final IllegalArgumentException e) {
-            return false;
-        }
     }
 
     private static long weightFor(@NonNull final LongUnaryOperator weightFn, final long nodeId) {

@@ -108,7 +108,7 @@ if (isJumboTransactionsEnabled) {
   final var allowedHederaFunctionalities =
           configuration.getConfigData(JumboTransactionsConfig.class).allowedHederaFunctionalities();
   if (allowedHederaFunctionalities.contains(fromPbj(txnInfo.functionality()))) {
-      final var bytesUsage = txnInfo.transaction().protobufSize();
+      final var bytesUsage = txnInfo.wireSize();
       final var maxRegularTxnSize =
               configuration.getConfigData(HederaConfig.class).transactionMaxBytes();
 

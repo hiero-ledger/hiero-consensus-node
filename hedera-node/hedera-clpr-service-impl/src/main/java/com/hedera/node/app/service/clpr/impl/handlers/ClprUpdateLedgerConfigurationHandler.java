@@ -3,6 +3,7 @@ package com.hedera.node.app.service.clpr.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CLPR_CONFIGURATION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
+import static com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator.areValidThrottles;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CLPR_SERVICE_ADDRESS;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
@@ -33,18 +34,6 @@ import javax.inject.Singleton;
 @Singleton
 public class ClprUpdateLedgerConfigurationHandler extends AbstractClprHandler {
 
-    /**
-     * Conservative floor on the headroom max_sync_bytes must reserve above max_message_payload_bytes
-     * for the proof envelope (channel leaf + one message leaf + sibling chain to block root +
-     * TSS signature + ClprSyncPayload framing). Spec §1.1 explicitly warns that if max_sync_bytes
-     * cannot carry a single max-sized message plus its proof overhead, the Channel deadlocks —
-     * the sender can never build a bundle that fits, the peer never acks, and the queue stalls
-     * forever. This is a floor, not a sizing recommendation; operators should size generously per
-     * the spec's rule of thumb {@code max_message_payload_bytes * max_messages_per_bundle +
-     * worst_case_proof_overhead}.
-     */
-    private static final long MIN_PROOF_OVERHEAD_BYTES = 65_536L;
-
     @Inject
     public ClprUpdateLedgerConfigurationHandler() {}
 
@@ -67,20 +56,10 @@ public class ClprUpdateLedgerConfigurationHandler extends AbstractClprHandler {
                 serviceAddress.length() == 0 || serviceAddress.equals(CLPR_SERVICE_ADDRESS),
                 INVALID_CLPR_CONFIGURATION);
 
-        // Validate throttles — all fields must be positive
-        final var throttles = config.throttlesOrElse(ClprThrottles.DEFAULT);
-        validateTruePreCheck(throttles.maxMessagesPerBundle() > 0, INVALID_CLPR_CONFIGURATION);
-        validateTruePreCheck(throttles.maxMessagePayloadBytes() > 0, INVALID_CLPR_CONFIGURATION);
-        validateTruePreCheck(throttles.maxQueueDepth() > 0, INVALID_CLPR_CONFIGURATION);
-        validateTruePreCheck(throttles.maxGasPerMessage() > 0, INVALID_CLPR_CONFIGURATION);
-        validateTruePreCheck(throttles.maxSyncBytes() > 0, INVALID_CLPR_CONFIGURATION);
-        // Spec §1.1 deadlock guard: max_sync_bytes MUST leave room for one max-sized message
-        // plus its proof+envelope overhead. Otherwise the first oversized message enqueued
-        // stalls the Channel — sender can never assemble a bundle that fits, peer never
-        // acks, queue never drains.
+        // Validate throttles — all fields must be positive and max_sync_bytes must leave room for one
+        // max-sized message plus its proof overhead
         validateTruePreCheck(
-                throttles.maxSyncBytes() >= (long) throttles.maxMessagePayloadBytes() + MIN_PROOF_OVERHEAD_BYTES,
-                INVALID_CLPR_CONFIGURATION);
+                areValidThrottles(config.throttlesOrElse(ClprThrottles.DEFAULT)), INVALID_CLPR_CONFIGURATION);
     }
 
     @Override

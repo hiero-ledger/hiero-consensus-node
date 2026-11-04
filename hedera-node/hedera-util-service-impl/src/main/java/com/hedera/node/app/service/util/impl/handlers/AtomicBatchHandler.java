@@ -22,7 +22,6 @@ import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.T
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.INNER_TRANSACTION_BYTES;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
@@ -142,7 +141,7 @@ public class AtomicBatchHandler implements TransactionHandler {
         // not using a stream below as throwing exception in the middle of a functional pipeline is a terrible idea
         for (final var txnBytes : txns) {
             final var innerTxBody = innerTxnCache.computeIfAbsent(txnBytes);
-            validateFalsePreCheck(isNotAllowedFunction(innerTxBody, atomicBatchConfig), BATCH_TRANSACTION_IN_BLACKLIST);
+            validateTruePreCheck(isAllowedFunction(innerTxBody, atomicBatchConfig), BATCH_TRANSACTION_IN_BLACKLIST);
             context.requireKeyOrThrow(innerTxBody.batchKey(), INVALID_BATCH_KEY);
             // the inner prehandle of each inner transaction happens in the prehandle workflow.
         }
@@ -268,19 +267,20 @@ public class AtomicBatchHandler implements TransactionHandler {
     }
 
     /**
-     * Checks if the given transaction type is not allowed to be included as an inner transaction in an atomic batch.
+     * Checks if the given transaction type is in the atomic batch whitelist, and so may be included as an inner
+     * transaction in an atomic batch.
      *
      * @param transactionBody the transaction body to check
      * @param config          the atomic batch configuration
-     * @return true if the transaction type is not allowed, false otherwise
+     * @return true if the transaction type is allowed, false otherwise
      */
-    private boolean isNotAllowedFunction(
+    private boolean isAllowedFunction(
             @NonNull final TransactionBody transactionBody, @NonNull final AtomicBatchConfig config) {
         try {
             final var hederaFunctionality = HapiUtils.functionOf(transactionBody);
-            return config.blacklist().functionalitySet().contains(hederaFunctionality);
+            return config.whitelist().functionalitySet().contains(hederaFunctionality);
         } catch (final UnknownHederaFunctionality e) {
-            return true;
+            return false;
         }
     }
 

@@ -40,15 +40,15 @@ The measured region is the part of the benchmark method that is timed: the calls
 
 - **The inputs are the same in every run.** Seed every random generator, and generate the data outside the measured
   region.
-- **Generate the data once per trial** (per fork and parameter set) in `@Setup(Level.Trial)`. The example generates its
-  event graph in
-  [`ConsensusImplBenchmark#generateEvents`](../../../consensus-hashgraph-impl/src/jmh/java/org/hiero/consensus/hashgraph/ConsensusImplBenchmark.java#generateEvents).
+- **Generate the data once per trial** (per fork and parameter set) in `@Setup(Level.Trial)`. The example records its
+  events in
+  [`ConsensusImplBenchmark#recordEvents`](../../../consensus-hashgraph-impl/src/jmh/java/org/hiero/consensus/hashgraph/ConsensusImplBenchmark.java#recordEvents).
 - **If the code under test changes its input, every call of the benchmark method gets fresh copies,** prepared in
   `@Setup(Level.Invocation)`. One call of the benchmark method, an invocation, then processes all the copies; this
   guide calls it a pass.
   - JMH's overhead per invocation does not matter when a pass takes a fraction of a second or more.
   - In the example, `ConsensusImpl` changes the events it processes, so `prepareInvocation` copies and relinks the
-    generated events for every pass.
+    recorded events for every pass.
 - **Check the output after every invocation** against an exact expected value, in `@TearDown(Level.Invocation)`. With
   the same inputs, every pass gives the same value.
   - In the example, `verifyInvocation` checks the number of decided rounds.
@@ -58,6 +58,9 @@ The measured region is the part of the benchmark method that is timed: the calls
     ([operations.md](operations.md#baseline-breaks)).
 - **Keep the setup's garbage out of the measured region.** If the per-invocation setup allocates, end it with
   `System.gc()`.
+- **Give the code under test its production collaborators,** such as the metrics provider and the intake counter, not
+  no-op or fake ones: a no-op hides a cost that a later change adds to the measured path. Turn off only output to the
+  outside, such as a Prometheus port or CSV files.
 
 ## Latency
 
@@ -72,7 +75,8 @@ Its Javadoc shows the pattern: `startMeasurement()`, `lap()` after each call, `s
   two calls; keep that work small.
 - **Pause the recorder around work that must not count,** such as calls of the code under test that another benchmark
   method measures: `pause()` right after a `lap()`, `resume()` right before the next measured call. The paused work
-  counts neither in a latency nor in `alloc.norm`, but JMH's primary score includes it.
+  counts neither in a latency nor in `alloc.norm`, but JMH's primary score includes it. Calling either in the wrong
+  state throws; a loop that pauses only where timed and untimed calls meet asks `isPaused()`.
 - **Do not use JMH's `Mode.SampleTime`.** It gets the slow calls wrong, and they matter most:
   - it times at most about 20 calls per millisecond, a random selection, which adds noise to the slow end;
   - when its buffer is full, it halves every count but keeps counts of 1, so rare slow calls weigh too much, and p99.99
@@ -109,6 +113,8 @@ turns the recorded times into JMH results. Its Javadoc lists them and how JMH co
   - p99.99 needs about 10⁶ recorded calls per iteration, because `LatencyProfiler` computes the percentiles of each
     iteration separately. Calibration sets the iteration length for it
     ([calibration.md](calibration.md#iterations-and-samples)).
+  - `LatencyProfiler` skips a percentile in an iteration with fewer than 100 calls above it, and `latency.skipped`
+    names the percentile and the calls it needs.
 - **Track `latency.mean`, not the primary score.** The primary score also includes the passes discarded because a
   garbage collection ran in them (see below).
   - The median (p50) does not replace the mean: when most calls are fast and a few are slow, the median shows only the

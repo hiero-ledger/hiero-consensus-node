@@ -13,17 +13,17 @@ on:
         type: string
         description: "Run Migration Testing Panel"
         default: "true"
-      enable-078-to-079-cutover-panel:
-        type: string
-        description: "Run Solo 0.78 to 0.79 Block Stream Cutover Panel"
-        default: "false"
+      enable-three-stage-block-stream-cutover-panel:
+        type: boolean
+        description: "Run Solo Three-Stage Block Stream Cutover Panel"
+        default: false
       solo-version:
         type: string
         description: "The solo version to use for the regression panels"
         default: "latest"
       cutover-solo-version:
         type: string
-        description: "The Solo version to use for the 0.78 to 0.79 cutover panel"
+        description: "The Solo version to use for the three-stage block-stream cutover panel"
         required: true
       solo-ge-0440:
         type: string
@@ -65,7 +65,7 @@ defaults:
     shell: bash
 
 # NOTE: There is deliberately no `build` (802 compile + spotless) job in this
-# workflow. Both optional panels (825 Migration Testing, 826 Solo 0.78 -> 0.79
+# workflow. Both optional panels (825 Migration Testing, 826 Solo 3-Stage
 # Cutover) build their own local hedera-node artifacts on their own runners, so
 # the 802 compile was a redundant second compile per cron cycle. The panel `if:`
 # conditions below are the 815 conditions with only the
@@ -180,15 +180,15 @@ jobs:
             echo "Coverage resumes automatically once the previous minor is tagged or its release branch is cut."
           } >> "${GITHUB_STEP_SUMMARY}"
 
-  solo-078-to-079-cutover-panel:
-    name: Solo 0.78 to 0.79 Cutover Panel
+  solo-three-stage-block-stream-cutover-panel:
+    name: Solo Three-Stage Block Stream Cutover Panel
     needs:
       - commit-info
-    if: ${{ inputs.enable-078-to-079-cutover-panel == 'true' }}
-    uses: ./.github/workflows/826-call-solo-078-to-079-cutover.yaml
+    if: ${{ inputs.enable-three-stage-block-stream-cutover-panel }}
+    uses: ./.github/workflows/826-call-solo-three-stage-cutover.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha }}
-      custom-job-name: "${{ inputs.custom-job-label }} Solo 0.78 -> 0.79 Cutover"
+      custom-job-name: "${{ inputs.custom-job-label }} Solo Three-Stage Block Stream Cutover"
       solo-version: "${{ inputs.cutover-solo-version }}"
       java-version: "${{ inputs.java-version }}"
 
@@ -200,7 +200,7 @@ jobs:
     needs:
       - commit-info
       - migration-testing-panel
-      - solo-078-to-079-cutover-panel
+      - solo-three-stage-block-stream-cutover-panel
     if: ${{ !cancelled() && always() }} # always run unless cancelled
     steps:
       - name: Initialize GitHub Job
@@ -215,13 +215,13 @@ jobs:
           INPUT_JOB_STATUSES: >-
             ${{ needs.commit-info.result }}
             ${{ needs.migration-testing-panel.result }}
-            ${{ needs.solo-078-to-079-cutover-panel.result }}
+            ${{ needs.solo-three-stage-block-stream-cutover-panel.result }}
           INPUT_JOB_FAILURE_MODES: >-
             none
             ${{ needs.migration-testing-panel.outputs.failure-mode || 'none' }}
-            ${{ needs.solo-078-to-079-cutover-panel.outputs.failure-mode || 'none' }}
+            ${{ needs.solo-three-stage-block-stream-cutover-panel.outputs.failure-mode || 'none' }}
           INPUT_JOB_NAMES: >-
             commit-info
             migration-testing-panel
-            solo-078-to-079-cutover-panel
+            solo-three-stage-block-stream-cutover-panel
         run: bash .github/workflows/support/scripts/set-failure-mode.sh

@@ -12,9 +12,9 @@ import edu.umd.cs.findbugs.annotations.Nullable;
  */
 public interface ContractDeleteStreamBuilder extends DeleteCapableTransactionStreamBuilder {
     /**
-     * Tracks the contract id deleted by a successful top-level contract deletion.
+     * Tracks the contract id deleted by a successful HAPI deletion or synthetic EVM self-destruct deletion.
      *
-     * @param contractId the {@link ContractID} of the deleted top-level contract
+     * @param contractId the {@link ContractID} of the deleted contract
      * @return this builder
      */
     @NonNull

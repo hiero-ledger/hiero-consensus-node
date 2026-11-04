@@ -2,12 +2,14 @@
 package org.hiero.otter.fixtures.network.simulation;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hiero.otter.fixtures.network.BandwidthLimit.UNLIMITED_BANDWIDTH;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import org.assertj.core.data.Percentage;
@@ -52,19 +54,16 @@ class SimulatedNetworkConnectivityTest {
 
     @BeforeEach
     void setUp() {
-        network = new SimulatedNetworkConnectivity(new Random(0));
-        addNodes();
-        now = 0;
-        network.tick(at(0));
+        createNetwork(0);
     }
 
-    private void addNodes() {
+    private void createNetwork(final long seed) {
         node0 = new RecordingReceiver(NODE_0);
         node1 = new RecordingReceiver(NODE_1);
         node2 = new RecordingReceiver(NODE_2);
-        network.addNode(NODE_0, node0);
-        network.addNode(NODE_1, node1);
-        network.addNode(NODE_2, node2);
+        network = new SimulatedNetworkConnectivity(new Random(seed), START, List.of(node0, node1, node2));
+        now = 0;
+        network.tick(at(0));
     }
 
     @Test
@@ -78,6 +77,31 @@ class SimulatedNetworkConnectivityTest {
 
         assertThat(node1.receivedEvents).hasSize(1);
         assertThat(node1.receivedEvents.getFirst().getDescriptor()).isEqualTo(event.getDescriptor());
+    }
+
+    @Test
+    @DisplayName("the event receivers may be given in any order")
+    void eventReceiversMayBeGivenInAnyOrder() {
+        node0 = new RecordingReceiver(NODE_0);
+        node1 = new RecordingReceiver(NODE_1);
+        node2 = new RecordingReceiver(NODE_2);
+        network = new SimulatedNetworkConnectivity(new Random(0), START, List.of(node2, node0, node1));
+        network.tick(at(0));
+        network.setConnections(connections(true));
+
+        submit(NODE_0);
+        tickTo(1);
+        tickTo(101);
+        assertThat(node1.receivedEvents).hasSize(1);
+        assertThat(node2.receivedEvents).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("a node cannot have more than one event receiver")
+    void duplicateEventReceiversAreRejected() {
+        assertThatThrownBy(() -> new SimulatedNetworkConnectivity(
+                        new Random(0), START, List.of(new RecordingReceiver(NODE_0), new RecordingReceiver(NODE_0))))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
@@ -245,10 +269,7 @@ class SimulatedNetworkConnectivityTest {
     @DisplayName("the reconnect delay is 5 round trips give or take 20%")
     void reconnectDelayIsWithinJitterOfFiveRoundTrips() {
         for (long seed = 0; seed < 20; seed++) {
-            network = new SimulatedNetworkConnectivity(new Random(seed));
-            addNodes();
-            now = 0;
-            network.tick(at(0));
+            createNetwork(seed);
             network.setConnections(connections(true));
             network.setConnections(connections(false));
             tickTo(10);
@@ -264,6 +285,94 @@ class SimulatedNetworkConnectivityTest {
         }
     }
 
+    @Test
+    @DisplayName("an own event on a link in broadcast mode arrives after the link latency")
+    void ownEventArrivesAfterLatency() {
+        network.setConnections(connections(true));
+
+        final PlatformEvent event = submit(NODE_0);
+        tickTo(1);
+        tickTo(100);
+        assertThat(node1.receivedEvents).isEmpty();
+        tickTo(101);
+
+        assertThat(node1.receivedEvents).hasSize(1);
+        assertThat(event.getTimeReceived()).isNotNull();
+        assertThat(node1.receivedEvents.getFirst().getTimeReceived()).isEqualTo(at(101));
+    }
+
+    @Test
+    @DisplayName("a forwarded copy arrives after hold-back, round trip, half the pause and the latency")
+    void forwardedCopyArrivesAfterSyncDelay() {
+        network.setConnections(connections(true));
+
+        // only the forwarded copy is submitted: the creator itself is not part of this test
+        forward(submit(NODE_0), NODE_1);
+        tickTo(1);
+        // 250 hold-back + 200 round trip + 50 half the pause + 100 latency
+        tickTo(600);
+        assertThat(forwardedBy(node2, NODE_1)).isEmpty();
+        tickTo(601);
+
+        assertThat(forwardedBy(node2, NODE_1)).hasSize(1);
+        assertThat(forwardedBy(node2, NODE_1).getFirst().getTimeReceived()).isEqualTo(at(601));
+    }
+
+    @Test
+    @DisplayName("a link leaves broadcast mode above a 900 ms round trip and returns 30 s after falling below it")
+    void broadcastModeFollowsRoundTrip() {
+        network.setConnections(uniform(Duration.ofMillis(500), true));
+
+        // no broadcast: no hold-back, 1000 round trip + 2.5 half the pause + 500 latency
+        submit(NODE_0);
+        tickTo(1);
+        tickTo(2000);
+        assertThat(node1.receivedEvents.getFirst().getTimeReceived()).isEqualTo(at(1).plusNanos(1_502_500_000L));
+
+        // the round trip falls to 200 ms
+        tickTo(10_000);
+        network.setConnections(uniform(Duration.ofMillis(100), true));
+
+        // still out of broadcast mode just before the 30 s have passed: 200 round trip + 2.5 + 100 latency
+        tickTo(39_990);
+        submit(NODE_0);
+        tickTo(39_991);
+        tickTo(41_000);
+        assertThat(node1.receivedEvents.get(1).getTimeReceived())
+                .isEqualTo(at(39_991).plusNanos(302_500_000L));
+
+        // back in broadcast mode: only the latency
+        submit(NODE_0);
+        tickTo(41_001);
+        tickTo(42_000);
+        assertThat(node1.receivedEvents.get(2).getTimeReceived()).isEqualTo(at(41_101));
+    }
+
+    @Test
+    @DisplayName("the receiver gets the creator's copy before a copy forwarded along a faster path")
+    void creatorsCopyArrivesFirst() {
+        final Map<ConnectionKey, ConnectionState> uneven = new HashMap<>();
+        setLatency(uneven, NODE_0, NODE_2, 250);
+        setLatency(uneven, NODE_0, NODE_1, 20);
+        setLatency(uneven, NODE_1, NODE_2, 120);
+        network.setConnections(uneven);
+
+        final PlatformEvent event = submit(NODE_0);
+        tickTo(1);
+        tickTo(21);
+        assertThat(node1.receivedEvents).hasSize(1);
+        forward(event, NODE_1);
+        tickTo(22);
+        tickTo(1000);
+
+        // creator's copy: 1 + 250. forwarded copy: 22 + 250 + 240 + 50 + 120
+        assertThat(node2.receivedEvents).hasSize(2);
+        assertThat(node2.receivedEvents.get(0).getSenderId()).isEqualTo(NODE_0);
+        assertThat(node2.receivedEvents.get(0).getTimeReceived()).isEqualTo(at(251));
+        assertThat(node2.receivedEvents.get(1).getSenderId()).isEqualTo(NODE_1);
+        assertThat(node2.receivedEvents.get(1).getTimeReceived()).isEqualTo(at(682));
+    }
+
     /**
      * Creates and submits an event from a node.
      */
@@ -275,6 +384,23 @@ class SimulatedNetworkConnectivityTest {
         event.setSenderId(creator);
         network.submitEvent(event);
         return event;
+    }
+
+    /**
+     * Submits a copy of an event as forwarded by a node.
+     */
+    private void forward(@NonNull final PlatformEvent event, @NonNull final NodeId forwarder) {
+        final PlatformEvent copy = event.copyGossipedData();
+        copy.setSenderId(forwarder);
+        network.submitEvent(copy);
+    }
+
+    @NonNull
+    private static List<PlatformEvent> forwardedBy(
+            @NonNull final RecordingReceiver receiver, @NonNull final NodeId sender) {
+        return receiver.receivedEvents.stream()
+                .filter(e -> sender.equals(e.getSenderId()))
+                .toList();
     }
 
     private void tickTo(final long millis) {
@@ -306,6 +432,36 @@ class SimulatedNetworkConnectivityTest {
             }
         }
         return connections;
+    }
+
+    /**
+     * Connections between all three nodes with the same latency.
+     */
+    @NonNull
+    private static Map<ConnectionKey, ConnectionState> uniform(final Duration latency, final boolean connected) {
+        final Map<ConnectionKey, ConnectionState> connections = new HashMap<>();
+        for (final NodeId sender : new NodeId[] {NODE_0, NODE_1, NODE_2}) {
+            for (final NodeId receiver : new NodeId[] {NODE_0, NODE_1, NODE_2}) {
+                if (!sender.equals(receiver)) {
+                    connections.put(
+                            new ConnectionKey(sender, receiver),
+                            new ConnectionState(
+                                    connected, latency, Percentage.withPercentage(0.0), UNLIMITED_BANDWIDTH));
+                }
+            }
+        }
+        return connections;
+    }
+
+    private static void setLatency(
+            @NonNull final Map<ConnectionKey, ConnectionState> connections,
+            @NonNull final NodeId a,
+            @NonNull final NodeId b,
+            final long millis) {
+        final ConnectionState state = new ConnectionState(
+                true, Duration.ofMillis(millis), Percentage.withPercentage(0.0), UNLIMITED_BANDWIDTH);
+        connections.put(new ConnectionKey(a, b), state);
+        connections.put(new ConnectionKey(b, a), state);
     }
 
     private static void cut(

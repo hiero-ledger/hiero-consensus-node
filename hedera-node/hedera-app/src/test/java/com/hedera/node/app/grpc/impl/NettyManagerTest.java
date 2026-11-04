@@ -7,8 +7,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.hedera.node.app.grpc.impl.netty.NettyGrpcServerManager;
 import com.hedera.node.app.services.ServicesRegistryImpl;
 import com.hedera.node.app.spi.fixtures.util.LogCaptor;
-import com.hedera.node.app.workflows.clpr.ClprCaCertManager;
-import com.hedera.node.app.workflows.clpr.ClprLeafCertManager;
 import com.hedera.node.app.workflows.clpr.ClprStreamingSyncSession;
 import com.hedera.node.app.workflows.clpr.ClprSyncWorkflow;
 import com.hedera.node.config.ConfigProvider;
@@ -41,8 +39,6 @@ final class NettyManagerTest extends GrpcTestBase {
                         throw new UnsupportedOperationException();
                     }
                 },
-                () -> new ClprLeafCertManager(new ClprCaCertManager(configProvider)),
-                () -> null,
                 metrics);
     }
 

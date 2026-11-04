@@ -6,6 +6,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.block.internal.BufferedBlock;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.node.app.blocks.impl.streaming.BlockBufferSaturationInfo.SaturationDetail;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeEndpoint;
 import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
@@ -179,18 +180,15 @@ public class BlockBufferService extends BlockStreamingBase {
     }
 
     /**
-     * @return the most recent block buffer check result, else null if a check hasn't been performed yet
+     * @return the most recent block buffer check result
      */
-    public @Nullable BlockBufferStatus latestBufferStatus() {
+    public @Nullable BlockBufferSaturationInfo latestBufferSaturationInfo() {
         final PruneResult latestResult = lastPruningResultRef.get();
 
         if (latestResult == null) {
             return null;
         }
-        return new BlockBufferStatus(
-                latestResult.timestamp,
-                latestResult.saturationInfo.maxSaturationPercent(),
-                latestResult.saturationInfo.isAtActionStage);
+        return latestResult.saturationInfo;
     }
 
     /**
@@ -978,27 +976,26 @@ public class BlockBufferService extends BlockStreamingBase {
             }
         }
 
-        final BigDecimal bufferCountSaturationPercent = BigDecimal.valueOf(finalUnackedBlockCount)
-                .divide(BigDecimal.valueOf(maxBlocksAllowed), 4, RoundingMode.HALF_EVEN)
-                .multiply(ONE_HUNDRED);
-        final BigDecimal bufferBytesSaturationPercent = BigDecimal.valueOf(finalUnackedBlockBytes)
-                .divide(BigDecimal.valueOf(maxBytesAllowed), 4, RoundingMode.HALF_EVEN)
-                .multiply(ONE_HUNDRED);
-        final BigDecimal bufferInProgressSaturationPercent = BigDecimal.valueOf(finalNumInProgress)
-                .divide(BigDecimal.valueOf(maxInProgressBlocksAllowed), 4, RoundingMode.HALF_EVEN)
-                .multiply(ONE_HUNDRED);
-        BigDecimal maxSaturation = bufferCountSaturationPercent.max(bufferBytesSaturationPercent);
-        maxSaturation = maxSaturation.max(bufferInProgressSaturationPercent);
         final double actionStage = actionStageThreshold();
-        final boolean isAtActionStage = maxSaturation.compareTo(BigDecimal.valueOf(actionStage)) >= 0;
-        final boolean isSaturated = maxSaturation.compareTo(ONE_HUNDRED) >= 0;
+        final SaturationDetail unackedBlockCountSaturation =
+                buildSaturationDetail(finalUnackedBlockCount, maxBlocksAllowed, actionStage);
+        final SaturationDetail unackedBlockBytesSaturation =
+                buildSaturationDetail(finalUnackedBlockBytes, maxBytesAllowed, actionStage);
+        final SaturationDetail inProgressBlocksSaturation =
+                buildSaturationDetail(finalNumInProgress, maxInProgressBlocksAllowed, actionStage);
+        final Instant now = Instant.now();
+        final BlockBufferSaturationInfo saturationInfo = new BlockBufferSaturationInfo(
+                now, unackedBlockCountSaturation, unackedBlockBytesSaturation, inProgressBlocksSaturation);
         final int liveBlockCount = blockBuffer.size();
         final long liveByteCount = bufferSizeInBytes.sum();
 
         blockStreamMetrics.recordBufferedBlocks(liveBlockCount);
         blockStreamMetrics.recordBufferedBlocksPendingAck(finalUnackedBlockCount);
         blockStreamMetrics.recordBufferSizeInBytes(liveByteCount);
-        blockStreamMetrics.recordBufferSaturation(maxSaturation.doubleValue());
+        blockStreamMetrics.recordBufferSaturation(saturationInfo.maxSaturationPercent());
+        blockStreamMetrics.recordInProgressBlocksSaturation(inProgressBlocksSaturation.percentage());
+        blockStreamMetrics.recordUnackedBlocksSaturation(unackedBlockCountSaturation.percentage());
+        blockStreamMetrics.recordUnackedBytesSaturation(unackedBlockBytesSaturation.percentage());
 
         if (logger.isDebugEnabled()) {
             logger.debug(
@@ -1013,24 +1010,30 @@ public class BlockBufferService extends BlockStreamingBase {
                     bytesPruned,
                     getContiguousRangesAsString(new ArrayList<>(blockBuffer.keySet())),
                     liveByteCount,
-                    finalHighestAckedBlock,
-                    bufferCountSaturationPercent.toPlainString(),
-                    bufferBytesSaturationPercent.toPlainString(),
-                    bufferInProgressSaturationPercent.toPlainString());
+                    finalHighestAckedBlock < 0 ? "<none>" : finalHighestAckedBlock,
+                    unackedBlockCountSaturation.percentage(),
+                    unackedBlockBytesSaturation.percentage(),
+                    inProgressBlocksSaturation.percentage());
         }
 
         return new PruneResult(
-                Instant.now(),
+                now,
                 new PruneConfig(maxBlocksAllowed, maxBytesAllowed, maxAckedBlocksToRetain),
                 new CheckInfo(numChecked, finalNumInProgress, finalUnackedBlockCount),
                 new PruneInfo(numPruned, bytesPruned, blocksPruned),
                 new LiveBufferInfo(liveBlockCount, liveByteCount, finalHighestAckedBlock),
-                new SaturationInfo(
-                        bufferCountSaturationPercent.doubleValue(),
-                        bufferBytesSaturationPercent.doubleValue(),
-                        bufferInProgressSaturationPercent.doubleValue(),
-                        isSaturated,
-                        isAtActionStage));
+                saturationInfo);
+    }
+
+    private SaturationDetail buildSaturationDetail(
+            final long current, final long maxAllowed, final double actionStageThreshold) {
+        final BigDecimal percentage = BigDecimal.valueOf(current)
+                .divide(BigDecimal.valueOf(maxAllowed), 4, RoundingMode.HALF_EVEN)
+                .multiply(ONE_HUNDRED);
+        final boolean isAtActionStage =
+                actionStageThreshold > 0 && percentage.compareTo(BigDecimal.valueOf(actionStageThreshold)) >= 0;
+
+        return new SaturationDetail(percentage.doubleValue(), isAtActionStage, current, maxAllowed);
     }
 
     record PruneConfig(int maxBlocks, long maxBytes, int maxAckedBlocksToRetain) {
@@ -1049,29 +1052,85 @@ public class BlockBufferService extends BlockStreamingBase {
         static final LiveBufferInfo NIL = new LiveBufferInfo(0, 0, -1);
     }
 
-    record SaturationInfo(
-            double blockCountSaturationPercent,
-            double bytesSaturationPercent,
-            double blocksInProgressSaturationPercent,
-            boolean isSaturated,
-            boolean isAtActionStage) {
-        static final SaturationInfo NIL = new SaturationInfo(0.0D, 0.0D, 0.0D, false, false);
-
-        double maxSaturationPercent() {
-            final double d = Double.max(blockCountSaturationPercent, bytesSaturationPercent);
-            return Double.max(d, blocksInProgressSaturationPercent);
-        }
-    }
-
     record PruneResult(
             Instant timestamp,
             PruneConfig config,
             CheckInfo checkInfo,
             PruneInfo pruneInfo,
             LiveBufferInfo liveBufferInfo,
-            SaturationInfo saturationInfo) {
+            BlockBufferSaturationInfo saturationInfo) {
         static final PruneResult NIL = new PruneResult(
-                Instant.MIN, PruneConfig.NIL, CheckInfo.NIL, PruneInfo.NIL, LiveBufferInfo.NIL, SaturationInfo.NIL);
+                Instant.MIN,
+                PruneConfig.NIL,
+                CheckInfo.NIL,
+                PruneInfo.NIL,
+                LiveBufferInfo.NIL,
+                BlockBufferSaturationInfo.NIL);
+    }
+
+    /**
+     * Logs the buffer transitioning from a healthy state to an unhealthy state.
+     *
+     * @param previousResult the previous buffer pruning result
+     * @param latestResult the latest buffer pruning result
+     */
+    private void maybeLogBufferUnhealthyTransition(final PruneResult previousResult, final PruneResult latestResult) {
+        if (!logger.isWarnEnabled()) {
+            return;
+        }
+
+        boolean shouldLog = false;
+        final StringBuilder sb = new StringBuilder("Block buffer has become unhealthy (reason:");
+
+        // check unacked block count saturation
+        shouldLog |= appendLogIfNecessary(
+                sb,
+                "unacked-blocks",
+                previousResult.saturationInfo.unackedBlocksSaturation(),
+                latestResult.saturationInfo.unackedBlocksSaturation());
+
+        // check unacked block bytes saturation
+        shouldLog |= appendLogIfNecessary(
+                sb,
+                "unacked-bytes",
+                previousResult.saturationInfo.unackedBytesSaturation(),
+                latestResult.saturationInfo.unackedBytesSaturation());
+
+        // check in-progress blocks saturation
+        shouldLog |= appendLogIfNecessary(
+                sb,
+                "in-progress-blocks",
+                previousResult.saturationInfo.inProgressBlocksSaturation(),
+                latestResult.saturationInfo.inProgressBlocksSaturation());
+
+        sb.append(")");
+
+        if (shouldLog) {
+            logger.warn("{}", sb);
+        }
+    }
+
+    private boolean appendLogIfNecessary(
+            final StringBuilder sb,
+            final String facet,
+            final SaturationDetail previous,
+            final SaturationDetail latest) {
+        boolean shouldLog = false;
+
+        if (!previous.isAtActionStage()) {
+            if (latest.isSaturated()) {
+                shouldLog = true;
+                sb.append(" ").append(facet).append("[Healthy->Saturated]");
+            } else if (latest.isAtActionStage()) {
+                shouldLog = true;
+                sb.append(" ").append(facet).append("[Healthy->ActionStage]");
+            }
+        } else if (!previous.isSaturated() && latest.isSaturated()) {
+            shouldLog = true;
+            sb.append(" ").append(facet).append("[ActionStage->Saturated]");
+        }
+
+        return shouldLog;
     }
 
     /**
@@ -1088,20 +1147,24 @@ public class BlockBufferService extends BlockStreamingBase {
         final PruneResult latestResult = pruneBuffer();
         final PruneResult previousResult = lastPruningResultRef.getAndSet(latestResult);
         final double actionStageThreshold = actionStageThreshold();
+        final double previousMaxSaturation = previousResult.saturationInfo.maxSaturationPercent();
+        final double latestMaxSaturation = latestResult.saturationInfo.maxSaturationPercent();
 
-        if (previousResult.saturationInfo.maxSaturationPercent() < actionStageThreshold) {
-            if (latestResult.saturationInfo.isSaturated) {
+        maybeLogBufferUnhealthyTransition(previousResult, latestResult);
+
+        if (previousMaxSaturation < actionStageThreshold) {
+            if (latestResult.saturationInfo.isSaturated()) {
                 /*
                 Zero -> Full
                 The buffer has transitioned from zero/low saturation levels to fully saturated. We need to ensure back
                 pressure is engaged and potentially change which Block Node we are connected to.
                  */
                 enableBackPressure(latestResult);
-            } else if (latestResult.saturationInfo.maxSaturationPercent() >= actionStageThreshold) {
+            } else if (latestMaxSaturation >= actionStageThreshold) {
                 /*
                 Zero -> Action Stage
                 The buffer has transitioned from zero/low saturation levels to exceeding the action stage threshold. We
-                don't need to engage back pressure, but we should take proactive measures and swap to a different
+                don't need to engage back pressure, but we should take proactive measures and maybe swap to a different
                 Block Node.
                  */
                 blockStreamMetrics.recordBackPressureActionStage();
@@ -1113,16 +1176,15 @@ public class BlockBufferService extends BlockStreamingBase {
                  */
                 blockStreamMetrics.recordBackPressureDisabled();
             }
-        } else if (!previousResult.saturationInfo.isSaturated
-                && previousResult.saturationInfo.maxSaturationPercent() >= actionStageThreshold) {
-            if (latestResult.saturationInfo.isSaturated) {
+        } else if (!previousResult.saturationInfo.isSaturated() && previousMaxSaturation >= actionStageThreshold) {
+            if (latestResult.saturationInfo.isSaturated()) {
                 /*
                 Action Stage -> Full
                 The buffer has transitioned from the action stage saturation level to being completely full/saturated.
                 Back pressure needs to be applied and possibly switch to a different Block Node.
                  */
                 enableBackPressure(latestResult);
-            } else if (latestResult.saturationInfo.maxSaturationPercent() >= actionStageThreshold) {
+            } else if (latestMaxSaturation >= actionStageThreshold) {
                 /*
                 Action Stage -> Action Stage
                 Before and after the pruning, the buffer saturation remained at the action stage level. Back pressure
@@ -1138,15 +1200,15 @@ public class BlockBufferService extends BlockStreamingBase {
                  */
                 blockStreamMetrics.recordBackPressureDisabled();
             }
-        } else if (previousResult.saturationInfo.isSaturated) {
-            if (latestResult.saturationInfo.isSaturated) {
+        } else if (previousResult.saturationInfo.isSaturated()) {
+            if (latestResult.saturationInfo.isSaturated()) {
                 /*
                 Full -> Full
                 Before and after pruning, the buffer remained fully saturated. Back pressure should be enabled - if not
                 already - and we should maybe swap to a different Block Node.
                  */
                 enableBackPressure(latestResult);
-            } else if (latestResult.saturationInfo.maxSaturationPercent() >= actionStageThreshold) {
+            } else if (latestMaxSaturation >= actionStageThreshold) {
                 /*
                 Full -> Action Stage
                 Before the pruning, the buffer was fully saturated, but after pruning the buffer is no longer fully
@@ -1176,7 +1238,7 @@ public class BlockBufferService extends BlockStreamingBase {
             }
         }
 
-        if (awaitingRecovery && !latestResult.saturationInfo.isSaturated) {
+        if (awaitingRecovery && !latestResult.saturationInfo.isSaturated()) {
             disableBackPressureIfRecovered(latestResult);
         }
     }
@@ -1247,9 +1309,18 @@ public class BlockBufferService extends BlockStreamingBase {
 
                 logger.warn(
                         "Block buffer is saturated; backpressure is being enabled (blockCountSaturation: {}%, bytesSaturation: {}%, blocksInProgressSaturation: {}%)",
-                        latestPruneResult.saturationInfo.blockCountSaturationPercent,
-                        latestPruneResult.saturationInfo.bytesSaturationPercent,
-                        latestPruneResult.saturationInfo.blocksInProgressSaturationPercent);
+                        latestPruneResult
+                                .saturationInfo
+                                .unackedBlocksSaturation()
+                                .percentage(),
+                        latestPruneResult
+                                .saturationInfo
+                                .unackedBytesSaturation()
+                                .percentage(),
+                        latestPruneResult
+                                .saturationInfo
+                                .inProgressBlocksSaturation()
+                                .percentage());
             } else {
                 // If the existing future is not null and not completed, re-use it
                 newCf = oldCf;

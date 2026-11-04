@@ -3,7 +3,7 @@ package com.swirlds.virtualmap.config;
 
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
-import com.swirlds.config.api.validation.annotation.Min;
+import com.swirlds.config.api.validation.annotation.Max;
 import com.swirlds.config.api.validation.annotation.Positive;
 import java.time.Duration;
 
@@ -16,12 +16,29 @@ import java.time.Duration;
  * @param asyncStreamIdleTimeout                 The amount of time that an {@code AsyncInputStream} and
  *                                               {@code AsyncOutputStream} will wait before throwing a timeout.
  * @param asyncStreamBufferSize                  The size of the buffers for async input and output streams.
+ *                                               The output stream rounds this value up to the next power of two
+ *                                               (the default 10000 becomes 16384) because its lock-free ring buffer
+ *                                               indexes slots with a bit mask. The default has no strict derivation,
+ *                                               so the larger effective capacity is acceptable. At most
+ *                                               1073741824 (2^30), the largest capacity of the ring buffer,
+ *                                               which is allocated in full up front.
  * @param asyncOutputStreamFlush                 In order to ensure that data is not languishing in the
  *                                               asyncOutputStream buffer a periodic flush is performed.
  * @param flushInterval                          During reconnect, hashes and leaves are periodically flushed to disk
- *                                               after they are processed. This interval indicates the number of items
- *                                               to collect before they are flushed. If zero, all data is flushed in the
- *                                               end of reconnect hashing only.
+ *                                               after they are processed. A flush is started once any of the following
+ *                                               reaches this value: the number of hash slots in collected hash chunks,
+ *                                               the number of updated leaves, or the number of deleted leaves. While a
+ *                                               flush is running, threads that receive leaves, hash, or delete old
+ *                                               leaves block once the next batch reaches this value, so about two
+ *                                               batches are kept in memory. Blocked receivers stop reading from the
+ *                                               teacher, so a single flush must complete well within the teacher's
+ *                                               {@code reconnect.teacher.asyncStreamIdleTimeout} and
+ *                                               {@code reconnect.socketTimeout}, otherwise reconnect fails. This
+ *                                               blocking is what throttles receiving to the disk write rate, so the
+ *                                               value must be positive. Every flush creates a new data file per
+ *                                               store, and reconnect data files are rarely compacted, so a small
+ *                                               interval leaves many small files behind, while a large interval
+ *                                               increases heap usage.
  */
 // spotless:off
 @ConfigData("reconnect.learner")
@@ -30,7 +47,7 @@ public record VirtualMapLearnerSyncConfig(
         @ConfigProperty(defaultValue = "16") @Positive int numReceiveThreads,
         @ConfigProperty(defaultValue = "256000000") @Positive int maxMessageSizeBytes,
         @ConfigProperty(defaultValue = "60s") Duration asyncStreamIdleTimeout,
-        @ConfigProperty(defaultValue = "10000") @Positive int asyncStreamBufferSize,
+        @ConfigProperty(defaultValue = "10000") @Positive @Max(1073741824) int asyncStreamBufferSize,
         @ConfigProperty(defaultValue = "8ms") Duration asyncOutputStreamFlush,
-        @Min(0) @ConfigProperty(defaultValue = "500000") int flushInterval) {}
+        @ConfigProperty(defaultValue = "2000000") @Positive int flushInterval) {}
 // spotless:on

@@ -80,6 +80,7 @@ class CustomMessageCallProcessorTest {
     private static final Address SENDER_ADDRESS = Address.fromHexString("0x222333444");
     private static final Address RECEIVER_ADDRESS = Address.fromHexString("0x33344455");
     private static final Address ADDRESS_6 = Address.fromHexString("0x6");
+    private static final Address COINBASE_ADDRESS = Address.fromHexString("0x62");
 
     private static final OpsDurationSchedule OPS_DURATION_TEST_SCHEDULE =
             new OpsDurationSchedule(Collections.nCopies(256, 1L), 1, 1, 1, 1, 1);
@@ -211,6 +212,43 @@ class CustomMessageCallProcessorTest {
         verify(frame).setOutputData(NOOP_OUTPUT_DATA);
         verify(frame).setState(MessageFrame.State.COMPLETED_SUCCESS);
         verify(frame).setExceptionalHaltReason(Optional.empty());
+    }
+
+    @Test
+    void internalCallToCoinbaseReturnsItsUnusedGas() {
+        givenNonExtantSystemAccountCall(COINBASE_ADDRESS);
+        given(frame.getDepth()).willReturn(1);
+        given(frame.getMiningBeneficiary()).willReturn(COINBASE_ADDRESS);
+
+        subject.start(frame, operationTracer);
+
+        verify(frame, never()).clearGasRemaining();
+        verify(frame).setOutputData(NOOP_OUTPUT_DATA);
+        verify(frame).setState(MessageFrame.State.COMPLETED_SUCCESS);
+        verify(frame).setExceptionalHaltReason(Optional.empty());
+    }
+
+    @Test
+    void topLevelCallToCoinbaseConsumesAllGas() {
+        givenNonExtantSystemAccountCall(COINBASE_ADDRESS);
+        given(frame.getDepth()).willReturn(0);
+
+        subject.start(frame, operationTracer);
+
+        verify(frame).clearGasRemaining();
+        verify(frame).setState(MessageFrame.State.COMPLETED_SUCCESS);
+    }
+
+    @Test
+    void internalCallToSystemAccountOtherThanCoinbaseConsumesAllGas() {
+        givenNonExtantSystemAccountCall(NON_EVM_PRECOMPILE_SYSTEM_ADDRESS);
+        given(frame.getDepth()).willReturn(1);
+        given(frame.getMiningBeneficiary()).willReturn(COINBASE_ADDRESS);
+
+        subject.start(frame, operationTracer);
+
+        verify(frame).clearGasRemaining();
+        verify(frame).setState(MessageFrame.State.COMPLETED_SUCCESS);
     }
 
     @ParameterizedTest
@@ -609,6 +647,14 @@ class CustomMessageCallProcessorTest {
     private void givenCallWithCode(@NonNull final Address contract) {
         given(frame.getContractAddress()).willReturn(contract);
         given(frame.getWorldUpdater()).willReturn(proxyWorldUpdater);
+    }
+
+    private void givenNonExtantSystemAccountCall(@NonNull final Address systemAccount) {
+        givenCallWithCode(systemAccount);
+        given(addressChecks.isSystemAccount(systemAccount)).willReturn(true);
+        given(frame.getValue()).willReturn(Wei.ZERO);
+        given(frame.getMessageFrameStack()).willReturn(stack);
+        given(stack.isEmpty()).willReturn(true);
     }
 
     private void givenWellKnownUserSpaceCall() {

@@ -123,18 +123,35 @@ public final class BlockNodeReader {
     }
 
     /**
-     * Returns every available block, from block {@code 0} up to the {@link #latestAvailableBlock() latest},
-     * in ascending order, or an empty list if none are available.
+     * Returns every available block, from block {@code 0} up to the latest stored block, in ascending order,
+     * or an empty list if none are available.
      *
      * @return all available blocks {@code [0, latest]} ascending, or empty
      */
     @NonNull
     public List<Block> allBlocks() {
-        final long latest = latestAvailableBlock();
+        final long latest = mode() == BlockNodeMode.REAL ? lastStoredBlock() : latestAvailableBlock();
         if (latest < 0) {
             return List.of();
         }
         return blocks(0L, latest);
+    }
+
+    /**
+     * Returns the newest block stored on a real block node. Unlike {@link #latestAvailableBlock()}, this
+     * excludes a block still being received, which a subscriber would only get as a partial live block.
+     */
+    private long lastStoredBlock() {
+        long best = -1L;
+        for (final var entry : network.getBlockNodeContainerById().entrySet()) {
+            final var container = entry.getValue();
+            try (final var client = new BlockNodeSubscribeClient(container.getHost(), container.getPort())) {
+                best = Math.max(best, client.getLastAvailableBlock());
+            } catch (final Exception e) {
+                log.warn("Failed to query real block node {} for its last stored block", entry.getKey(), e);
+            }
+        }
+        return best;
     }
 
     /**

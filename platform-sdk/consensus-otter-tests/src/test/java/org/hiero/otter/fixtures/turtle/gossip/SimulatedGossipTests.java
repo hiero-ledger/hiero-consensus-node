@@ -6,14 +6,18 @@ import static org.hiero.otter.fixtures.network.BandwidthLimit.UNLIMITED_BANDWIDT
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -32,8 +36,12 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
+import org.hiero.consensus.monitoring.FallenBehindMonitor;
+import org.hiero.consensus.monitoring.FallenBehindStatus;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.roster.test.fixtures.RosterFactory;
+import org.hiero.consensus.status.monitor.actions.FallenBehindAction;
+import org.hiero.consensus.status.monitor.actions.PlatformStatusAction;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.consensus.wiring.framework.model.TraceableWiringModel;
 import org.hiero.consensus.wiring.framework.model.WiringModel;
@@ -44,6 +52,7 @@ import org.hiero.consensus.wiring.framework.wires.input.BindableInputWire;
 import org.hiero.consensus.wiring.framework.wires.output.StandardOutputWire;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
 import org.hiero.otter.fixtures.network.Topology.ConnectionState;
+import org.hiero.otter.fixtures.network.simulation.GossipNetwork;
 import org.hiero.otter.fixtures.network.simulation.SimulatedNetworkConnectivity;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -80,7 +89,7 @@ class SimulatedGossipTests {
                 .sorted()
                 .toList();
 
-        final SimulatedNetworkConnectivity network = new SimulatedNetworkConnectivity(randotron);
+        final TestGossipNetwork gossipNetwork = new TestGossipNetwork();
 
         // We can safely choose large numbers because time is simulated
         final Duration averageDelay = Duration.ofMillis(randotron.nextInt(1, 1_000_000));
@@ -96,7 +105,6 @@ class SimulatedGossipTests {
                 }
             }
         }
-        network.setConnections(connections);
 
         // Each node will add received events to the appropriate list
         final Map<NodeId, List<PlatformEvent>> receivedEvents = new HashMap<>();
@@ -105,14 +113,18 @@ class SimulatedGossipTests {
         final Map<NodeId, Consumer<PlatformEvent>> eventSubmitters = new HashMap<>();
 
         // Wire things up
+        final List<SimulatedGossip> gossips = new ArrayList<>();
         for (final NodeId nodeId : nodeIds) {
             final List<PlatformEvent> receivedEventsForNode = new ArrayList<>();
             receivedEvents.put(nodeId, receivedEventsForNode);
-            eventSubmitters.put(
-                    nodeId,
-                    addNode(network, nodeId, PlatformStatus.ACTIVE, receivedEventsForNode, new ArrayList<>())
-                            .eventSubmitter());
+            final TestNode node =
+                    createNode(gossipNetwork, nodeId, PlatformStatus.ACTIVE, receivedEventsForNode, new ArrayList<>());
+            eventSubmitters.put(nodeId, node.eventSubmitter());
+            gossips.add(node.gossip());
         }
+        final SimulatedNetworkConnectivity network = new SimulatedNetworkConnectivity(randotron, time.now(), gossips);
+        gossipNetwork.connectivity = network;
+        network.setConnections(connections);
 
         // For each event, choose a random subset of nodes that will submit the event. Our end goal is to see
         // each event distributed at least once to each node in the network.
@@ -172,17 +184,20 @@ class SimulatedGossipTests {
         final NodeId selfId = NodeId.of(0);
         final NodeId peerId = NodeId.of(1);
 
-        final SimulatedNetworkConnectivity network = new SimulatedNetworkConnectivity(randotron);
+        final TestGossipNetwork gossipNetwork = new TestGossipNetwork();
+        final List<PlatformEvent> selfReceived = new ArrayList<>();
+        final List<PlatformEvent> peerReceived = new ArrayList<>();
+        final TestNode self = createNode(gossipNetwork, selfId, status, selfReceived, new ArrayList<>());
+        final TestNode peer = createNode(gossipNetwork, peerId, PlatformStatus.ACTIVE, peerReceived, new ArrayList<>());
+        final SimulatedNetworkConnectivity network =
+                new SimulatedNetworkConnectivity(randotron, time.now(), List.of(self.gossip(), peer.gossip()));
+        gossipNetwork.connectivity = network;
+
         final ConnectionState connectionState =
                 new ConnectionState(true, Duration.ofMillis(1), Percentage.withPercentage(0.0), UNLIMITED_BANDWIDTH);
         network.setConnections(Map.of(
                 new ConnectionKey(selfId, peerId), connectionState,
                 new ConnectionKey(peerId, selfId), connectionState));
-
-        final List<PlatformEvent> selfReceived = new ArrayList<>();
-        final List<PlatformEvent> peerReceived = new ArrayList<>();
-        final TestNode self = addNode(network, selfId, status, selfReceived, new ArrayList<>());
-        final TestNode peer = addNode(network, peerId, PlatformStatus.ACTIVE, peerReceived, new ArrayList<>());
 
         // submissions are unaffected by the status of the submitter
         final PlatformEvent submitted =
@@ -215,12 +230,11 @@ class SimulatedGossipTests {
 
     @Test
     void peerWindowProducesSyncProgress() {
-        final SimulatedNetworkConnectivity network = new SimulatedNetworkConnectivity(Randotron.create());
         final NodeId self = NodeId.of(0);
         final NodeId peer = NodeId.of(1);
         final List<SyncProgress> progress = new ArrayList<>();
-        final SimulatedGossip gossip = addNode(network, self, PlatformStatus.ACTIVE, new ArrayList<>(), progress)
-                .gossip();
+        final TestNode node = createSingleNodeNetwork(self, progress);
+        final SimulatedGossip gossip = node.gossip();
 
         final EventWindow peerWindow = new EventWindow(30, 31, 5, 1);
         assertTrue(gossip.receiveEventWindow(peer, peerWindow));
@@ -230,12 +244,11 @@ class SimulatedGossipTests {
 
     @Test
     void ownWindowChangeProducesSyncProgressForEveryPeer() {
-        final SimulatedNetworkConnectivity network = new SimulatedNetworkConnectivity(Randotron.create());
         final NodeId self = NodeId.of(0);
         final NodeId peerA = NodeId.of(1);
         final NodeId peerB = NodeId.of(2);
         final List<SyncProgress> progress = new ArrayList<>();
-        final TestNode node = addNode(network, self, PlatformStatus.ACTIVE, new ArrayList<>(), progress);
+        final TestNode node = createSingleNodeNetwork(self, progress);
         final SimulatedGossip gossip = node.gossip();
 
         final EventWindow windowA1 = new EventWindow(30, 31, 5, 1);
@@ -256,6 +269,82 @@ class SimulatedGossipTests {
     }
 
     /**
+     * A change of the node's own window must re-evaluate every peer using its last window, and the resulting status
+     * must gate events from that peer and send the node to BEHIND.
+     */
+    @Test
+    void ownWindowChangeReevaluatesAllPeers() {
+        final NodeId selfId = NodeId.of(0);
+        final NodeId peer1 = NodeId.of(1);
+        final NodeId peer2 = NodeId.of(2);
+        final TestNode node = createSingleNodeNetwork(selfId, new ArrayList<>());
+        final SimulatedGossip self = node.gossip();
+
+        final FallenBehindMonitor monitor = mock(FallenBehindMonitor.class);
+        final List<PlatformStatusAction> actions = new ArrayList<>();
+        self.provideFallenBehindMonitor(monitor);
+        self.provideStatusActionSubmitter(actions::add);
+
+        final EventWindow ownOld = new EventWindow(10, 11, 1, 1);
+        final EventWindow ownNew = new EventWindow(500, 501, 400, 300);
+        final EventWindow window1 = new EventWindow(100, 101, 50, 40);
+        final EventWindow window2 = new EventWindow(200, 201, 150, 140);
+
+        node.eventWindowSubmitter().accept(ownOld);
+        when(monitor.check(any(), any(), any())).thenReturn(FallenBehindStatus.NONE_FALLEN_BEHIND);
+        assertTrue(self.receiveEventWindow(peer1, window1));
+        assertTrue(self.receiveEventWindow(peer2, window2));
+        verify(monitor).check(ownOld, window1, peer1);
+        verify(monitor).check(ownOld, window2, peer2);
+
+        // only the own window moves: every peer is re-evaluated with its last window
+        when(monitor.check(ownNew, window1, peer1)).thenReturn(FallenBehindStatus.OTHER_FALLEN_BEHIND);
+        when(monitor.check(ownNew, window2, peer2)).thenReturn(FallenBehindStatus.SELF_FALLEN_BEHIND);
+        when(monitor.hasFallenBehind()).thenReturn(true);
+        node.eventWindowSubmitter().accept(ownNew);
+        verify(monitor).check(ownNew, window1, peer1);
+        verify(monitor).check(ownNew, window2, peer2);
+
+        // both peers are refused now, and the node goes to BEHIND exactly once
+        final PlatformEvent event1 =
+                new TestingEventBuilder(Randotron.create()).setCreatorId(peer1).build();
+        event1.setSenderId(peer1);
+        assertFalse(self.receiveEvent(event1));
+        assertEquals(1, actions.size());
+        assertTrue(actions.getFirst() instanceof FallenBehindAction);
+        node.eventWindowSubmitter().accept(ownNew);
+        assertEquals(1, actions.size());
+
+        // a peer that is no longer a problem is accepted again after its window is re-evaluated
+        when(monitor.check(ownNew, window1, peer1)).thenReturn(FallenBehindStatus.NONE_FALLEN_BEHIND);
+        assertTrue(self.receiveEventWindow(peer1, window1));
+        assertTrue(self.receiveEvent(event1));
+    }
+
+    /**
+     * Forwards to a simulated network that is only created after the nodes, because it is created with them.
+     */
+    private static final class TestGossipNetwork implements GossipNetwork {
+
+        private SimulatedNetworkConnectivity connectivity;
+
+        @Override
+        public void submitEvent(@NonNull final PlatformEvent event) {
+            connectivity.submitEvent(event);
+        }
+
+        @Override
+        public void updateEventWindow(@NonNull final NodeId nodeId, @NonNull final EventWindow eventWindow) {
+            connectivity.updateEventWindow(nodeId, eventWindow);
+        }
+
+        @Override
+        public void resetCursor(@NonNull final NodeId nodeId) {
+            connectivity.resetCursor(nodeId);
+        }
+    }
+
+    /**
      * A node of the simulated network.
      *
      * @param gossip the gossip instance of the node
@@ -268,9 +357,27 @@ class SimulatedGossipTests {
             @NonNull Consumer<EventWindow> eventWindowSubmitter) {}
 
     /**
-     * Creates a node with a gossip instance in the given status, and adds it to the network.
+     * Creates an active node and a simulated network with only that node in it.
      *
-     * @param network the network to add the node to
+     * @param nodeId the ID of the node
+     * @param syncProgress collects the sync progress the gossip instance reports
+     * @return the created node
+     */
+    @NonNull
+    private static TestNode createSingleNodeNetwork(
+            @NonNull final NodeId nodeId, @NonNull final List<SyncProgress> syncProgress) {
+        final TestGossipNetwork gossipNetwork = new TestGossipNetwork();
+        final TestNode node = createNode(gossipNetwork, nodeId, PlatformStatus.ACTIVE, new ArrayList<>(), syncProgress);
+        gossipNetwork.connectivity =
+                new SimulatedNetworkConnectivity(Randotron.create(), Instant.EPOCH, List.of(node.gossip()));
+        return node;
+    }
+
+    /**
+     * Creates a node with a gossip instance in the given status. The network still has to be created with the node's
+     * gossip instance.
+     *
+     * @param network the network the node is part of
      * @param nodeId the ID of the node
      * @param status the platform status the node is in
      * @param received collects the events the gossip instance forwards
@@ -278,8 +385,8 @@ class SimulatedGossipTests {
      * @return the created node
      */
     @SuppressWarnings("unchecked")
-    private static TestNode addNode(
-            @NonNull final SimulatedNetworkConnectivity network,
+    private static TestNode createNode(
+            @NonNull final GossipNetwork network,
             @NonNull final NodeId nodeId,
             @NonNull final PlatformStatus status,
             @NonNull final List<PlatformEvent> received,
@@ -321,7 +428,6 @@ class SimulatedGossipTests {
                 statusInput,
                 syncProgressOutput);
         statusCaptor.getValue().accept(status);
-        network.addNode(nodeId, gossip);
         model.start();
         return new TestNode(gossip, eventInput::inject, eventWindowCaptor.getValue());
     }

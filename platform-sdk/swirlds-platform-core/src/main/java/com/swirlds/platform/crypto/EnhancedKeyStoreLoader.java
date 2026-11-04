@@ -57,12 +57,11 @@ import org.bouncycastle.operator.jcajce.JceInputDecryptorProviderBuilder;
 import org.bouncycastle.pkcs.PKCS8EncryptedPrivateKeyInfo;
 import org.bouncycastle.pkcs.PKCSException;
 import org.bouncycastle.util.encoders.DecoderException;
-import org.bouncycastle.util.io.pem.PemObject;
-import org.bouncycastle.util.io.pem.PemWriter;
 import org.hiero.base.crypto.CertificateUtils;
 import org.hiero.base.crypto.CryptoConstants;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.KeyGeneratingException;
+import org.hiero.base.crypto.PEMEncoder;
 import org.hiero.base.crypto.SigningSchema;
 import org.hiero.consensus.PathsConfig;
 import org.hiero.consensus.crypto.KeyCertPurpose;
@@ -926,11 +925,9 @@ public class EnhancedKeyStoreLoader {
     public static void writePemFile(
             final boolean isPrivateKey, @NonNull final Path location, @NonNull final byte[] encoded)
             throws IOException {
-        final PemObject pemObj = new PemObject(isPrivateKey ? "PRIVATE KEY" : "CERTIFICATE", encoded);
         try (final FileOutputStream file = new FileOutputStream(location.toFile(), false);
-                final var out = new OutputStreamWriter(file);
-                final PemWriter writer = new PemWriter(out)) {
-            writer.writeObject(pemObj);
+                final var out = new OutputStreamWriter(file)) {
+            PEMEncoder.encode(out, isPrivateKey ? PEMEncoder.PRIVATE_KEY : PEMEncoder.CERTIFICATE, encoded);
             file.getFD().sync();
         }
     }

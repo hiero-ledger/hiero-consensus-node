@@ -102,6 +102,34 @@ class CryptoApproveAllowanceFeeCalculatorTest {
         }
 
         @Test
+        @DisplayName("calculateTxFee counts each NFT serial, and approve-for-all once")
+        void calculateTxFeeCountsEachNftSerial() {
+            // Given
+            lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
+            final var serialsAllowance = NftAllowance.newBuilder()
+                    .tokenId(TokenID.newBuilder().tokenNum(111).build())
+                    .spender(AccountID.newBuilder().accountNum(222).build())
+                    .serialNumbers(1L, 2L, 3L)
+                    .build();
+            final var approveForAll = NftAllowance.newBuilder()
+                    .tokenId(TokenID.newBuilder().tokenNum(333).build())
+                    .spender(AccountID.newBuilder().accountNum(222).build())
+                    .approvedForAll(Boolean.TRUE)
+                    .build();
+            final var op = CryptoApproveAllowanceTransactionBody.newBuilder()
+                    .nftAllowances(serialsAllowance, approveForAll)
+                    .build();
+            final var body =
+                    TransactionBody.newBuilder().cryptoApproveAllowance(op).build();
+
+            // When
+            final var result = feeCalculator.calculateTxFee(body, new SimpleFeeContextImpl(feeContext, null));
+
+            // Then: 3 serials + 1 approve-for-all = 4 allowances, so base fee (500000000) + 3 extras (1500000000)
+            assertThat(result.getServiceTotalTinycents()).isEqualTo(2000000000L);
+        }
+
+        @Test
         @DisplayName("calculateTxFee with mixed allowance types")
         void calculateTxFeeWithMixedAllowanceTypes() {
             // Given

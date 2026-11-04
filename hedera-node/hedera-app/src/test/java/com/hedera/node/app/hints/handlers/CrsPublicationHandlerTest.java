@@ -6,15 +6,11 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.anyLong;
 import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.hedera.hapi.node.state.hints.CRSStage;
-import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -108,15 +104,7 @@ public class CrsPublicationHandlerTest {
     @Test
     void testHandle() {
         when(controllers.getAnyInProgress()).thenReturn(Optional.of(controller));
-        when(hintsStore.getCrsState())
-                .thenReturn(CRSState.newBuilder()
-                        .stage(CRSStage.GATHERING_CONTRIBUTIONS)
-                        .crs(INITIAL_CRS)
-                        .nextContributingNodeId(0L)
-                        .build());
-
         assertDoesNotThrow(() -> subject.handle(handleContext));
-        verify(hintsStore).addCrsPublication(0L, CrsPublicationTransactionBody.DEFAULT);
         verify(controller).addCrsPublication(any(), any(), any(), anyLong());
     }
 
@@ -124,7 +112,6 @@ public class CrsPublicationHandlerTest {
     void testHandleNoInProgressController() {
         when(controllers.getAnyInProgress()).thenReturn(Optional.empty());
         assertDoesNotThrow(() -> subject.handle(handleContext));
-        verify(hintsStore, never()).addCrsPublication(anyInt(), any());
     }
 
     @Test

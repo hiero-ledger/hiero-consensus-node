@@ -39,12 +39,11 @@ import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.roster.RosterWrapperHistory;
 
 /**
- * Implementation of {@link EventIntakeProcessor}. Combines hashing, field validation,
- * deduplication, and signature verification into a single concurrent component.
+ * Implementation of {@link EventIntakeProcessor}. Combines hashing, field validation, deduplication, and signature
+ * verification into a single concurrent component.
  *
  * <p>All shared state is accessed through thread-safe structures ({@link ConcurrentHashMap},
- * {@code volatile} fields), making this component safe for use with a {@code CONCURRENT}
- * task scheduler.
+ * {@code volatile} fields), making this component safe for use with a {@code CONCURRENT} task scheduler.
  */
 public class ConcurrentEventIntakeProcessor implements EventIntakeProcessor {
     private static final Logger logger = LogManager.getLogger(ConcurrentEventIntakeProcessor.class);
@@ -65,16 +64,15 @@ public class ConcurrentEventIntakeProcessor implements EventIntakeProcessor {
     private volatile RosterWrapperHistory rosterHistory;
 
     /**
-     * Shared public key cache keyed by {@code (nodeId, birthRound)}.
-     * Ancient entries are evicted in {@link #setEventWindow}.
+     * Shared public key cache keyed by {@code (nodeId, birthRound)}. Ancient entries are evicted in
+     * {@link #setEventWindow}.
      */
     private final ConcurrentHashMap<VerifierKey, PublicKey> publicKeyCache = new ConcurrentHashMap<>();
 
     /**
-     * Per-thread verifier cache keyed by {@link PublicKey}.
-     * This resolves the situation where we don't know if BytesSignatureVerifier implementation is concurrent or not
-     * with minimal overhead.
-     * This cache is never cleaned up but memory is bounded by nodes × roster_changes × threads and acceptable (before DAB)
+     * Per-thread verifier cache keyed by {@link PublicKey}. This resolves the situation where we don't know if
+     * BytesSignatureVerifier implementation is concurrent or not with minimal overhead. This cache is never cleaned up
+     * but memory is bounded by nodes × roster_changes × threads and acceptable (before DAB)
      */
     private final ThreadLocal<HashMap<PublicKey, BytesSignatureVerifier>> threadLocalVerifiers =
             ThreadLocal.withInitial(HashMap::new);
@@ -123,14 +121,14 @@ public class ConcurrentEventIntakeProcessor implements EventIntakeProcessor {
     /**
      * Constructor.
      *
-     * @param metrics            the metrics system
-     * @param time               the time source
-     * @param eventHasher        hashes events
+     * @param metrics             the metrics system
+     * @param time                the time source
+     * @param eventHasher         hashes events
      * @param eventFieldValidator validates event fields
-     * @param verifierFactory    creates a {@link BytesSignatureVerifier} for a given public key
-     * @param rosterHistory      the complete roster history
-     * @param intakeEventCounter tracks event counts in the intake pipeline
-     * @param pipelineTracker    optional tracker for per-stage event delay metrics
+     * @param verifierFactory     creates a {@link BytesSignatureVerifier} for a given public key
+     * @param rosterHistory       the complete roster history
+     * @param intakeEventCounter  tracks event counts in the intake pipeline
+     * @param pipelineTracker     optional tracker for per-stage event delay metrics
      */
     public ConcurrentEventIntakeProcessor(
             @NonNull final Metrics metrics,
@@ -230,8 +228,7 @@ public class ConcurrentEventIntakeProcessor implements EventIntakeProcessor {
     }
 
     /**
-     * Record the pipeline delay for the given event at the named stage.
-     * No-op when pipeline tracking is disabled.
+     * Record the pipeline delay for the given event at the named stage. No-op when pipeline tracking is disabled.
      */
     private void recordStage(@NonNull final String stage, @NonNull final PlatformEvent event) {
         if (pipelineTracker != null) {
@@ -242,16 +239,15 @@ public class ConcurrentEventIntakeProcessor implements EventIntakeProcessor {
     /**
      * Checks for duplicates events.
      * <p>
-     * A duplicate event is defined as an event with an identical descriptor and identical signature to an event that has
-     * already been observed.
+     * A duplicate event is defined as an event with an identical descriptor and identical signature to an event that
+     * has already been observed.
      * <p>
-     * It is necessary to consider the signature bytes when determining if an event is a duplicate, not just the descriptor
-     * or hash. This guards against a malicious node gossiping the same event with different signatures, or a node gossiping
-     * another node's event with a modified signature. If we went only off the descriptor or hash, we might discard the
-     * correct version of an event as a duplicate, because a malicious version has already been received. Instead, the
-     * deduplication lets all versions of the event through that have a unique descriptor/signature pair, and the signature
-     * validator later will handle discarding bad versions.
-     *
+     * It is necessary to consider the signature bytes when determining if an event is a duplicate, not just the
+     * descriptor or hash. This guards against a malicious node gossiping the same event with different signatures, or a
+     * node gossiping another node's event with a modified signature. If we went only off the descriptor or hash, we
+     * might discard the correct version of an event as a duplicate, because a malicious version has already been
+     * received. Instead, the deduplication lets all versions of the event through that have a unique
+     * descriptor/signature pair, and the signature validator later will handle discarding bad versions.
      *
      * @param event the event to check
      * @return true if the event is a duplicate from a previous observed event

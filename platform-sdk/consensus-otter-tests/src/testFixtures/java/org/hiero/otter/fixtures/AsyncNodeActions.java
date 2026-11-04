@@ -9,21 +9,7 @@ import org.hiero.consensus.model.quiescence.QuiescenceCommand;
  * Interface for performing asynchronous node actions with a specified timeout.
  */
 @SuppressWarnings("unused")
-public interface AsyncNodeActions {
-
-    /**
-     * Start the node with the configured timeout.
-     *
-     * @see Node#start()
-     */
-    void start();
-
-    /**
-     * Kill the node without prior cleanup with the configured timeout.
-     *
-     * @see Node#killImmediately()
-     */
-    void killImmediately();
+public interface AsyncNodeActions extends AsyncMiniNodeActions {
 
     /**
      * Start a synthetic bottleneck on the node with a default delay of 100 milliseconds per round.
