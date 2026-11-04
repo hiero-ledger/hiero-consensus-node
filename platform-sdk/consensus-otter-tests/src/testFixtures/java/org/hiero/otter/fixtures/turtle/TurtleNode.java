@@ -164,7 +164,7 @@ public class TurtleNode extends AbstractNode implements Node, SimulatorTimeManag
             this.logging = requireNonNull(logging);
             this.nodeConfiguration = new TurtleNodeConfiguration(
                     () -> lifeCycle, networkConfiguration.overrideProperties(), outputDirectory);
-            this.resultsCollector = new NodeResultsCollector(selfId, consensusRoundPool);
+            this.resultsCollector = new NodeResultsCollector(selfId, consensusRoundPool, false);
         }
     }
 
