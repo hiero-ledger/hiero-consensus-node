@@ -7,7 +7,7 @@ import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.List;
 import org.hiero.base.utility.Threshold;
-import org.hiero.otter.fixtures.Node;
+import org.hiero.otter.fixtures.MiniNode;
 
 /**
  * Utility class for calculating quorums based on node weights.
@@ -37,7 +37,7 @@ public class QuorumCalculator {
      *                                  are also majorities)
      */
     @NonNull
-    public static List<Node> smallestStrongMinority(@NonNull final List<Node> nodes) {
+    public static <T extends MiniNode> List<T> smallestStrongMinority(@NonNull final List<T> nodes) {
         return findPartitionByWeight(nodes, Threshold.STRONG_MINORITY, Threshold.MAJORITY, OptimizationGoal.MINIMIZE);
     }
 
@@ -52,7 +52,7 @@ public class QuorumCalculator {
      *                                  are also super majorities)
      */
     @NonNull
-    public static List<Node> smallestMajority(@NonNull final List<Node> nodes) {
+    public static <T extends MiniNode> List<T> smallestMajority(@NonNull final List<T> nodes) {
         return findPartitionByWeight(nodes, Threshold.MAJORITY, Threshold.SUPER_MAJORITY, OptimizationGoal.MINIMIZE);
     }
 
@@ -66,7 +66,7 @@ public class QuorumCalculator {
      * @throws IllegalArgumentException if no valid partition exists
      */
     @NonNull
-    public static List<Node> smallestSuperMajority(@NonNull final List<Node> nodes) {
+    public static <T extends MiniNode> List<T> smallestSuperMajority(@NonNull final List<T> nodes) {
         return findPartitionByWeight(nodes, Threshold.SUPER_MAJORITY, null, OptimizationGoal.MINIMIZE);
     }
 
@@ -80,7 +80,7 @@ public class QuorumCalculator {
      * @throws IllegalArgumentException if no valid partition exists (e.g., all non-empty partitions are strong minorities)
      */
     @NonNull
-    public static List<Node> largestSubStrongMinority(@NonNull final List<Node> nodes) {
+    public static <T extends MiniNode> List<T> largestSubStrongMinority(@NonNull final List<T> nodes) {
         return findPartitionByWeight(nodes, null, Threshold.STRONG_MINORITY, OptimizationGoal.MAXIMIZE);
     }
 
@@ -97,8 +97,8 @@ public class QuorumCalculator {
      * @throws IllegalArgumentException if no valid partition exists
      */
     @NonNull
-    private static List<Node> findPartitionByWeight(
-            @NonNull final List<Node> nodes,
+    private static <T extends MiniNode> List<T> findPartitionByWeight(
+            @NonNull final List<T> nodes,
             @Nullable final Threshold lowerThreshold,
             @Nullable final Threshold upperThreshold,
             @NonNull final OptimizationGoal goal) {
@@ -106,8 +106,8 @@ public class QuorumCalculator {
             throw new IllegalArgumentException("Cannot find partition for empty node list");
         }
 
-        final long totalWeight = nodes.stream().mapToLong(Node::weight).sum();
-        List<Node> bestPartition = null;
+        final long totalWeight = nodes.stream().mapToLong(MiniNode::weight).sum();
+        List<T> bestPartition = null;
         long bestWeight = goal == OptimizationGoal.MINIMIZE ? Long.MAX_VALUE : -1;
 
         // Try all possible subsets
@@ -119,11 +119,11 @@ public class QuorumCalculator {
 
             // Build the current subset and calculate its weight
             // Skip nodes with zero weight as they don't contribute to thresholds
-            final List<Node> currentSubset = new ArrayList<>();
+            final List<T> currentSubset = new ArrayList<>();
             long currentWeight = 0;
 
             for (int i = subset.nextSetBit(0); i >= 0; i = subset.nextSetBit(i + 1)) {
-                final Node node = nodes.get(i);
+                final T node = nodes.get(i);
                 final long nodeWeight = node.weight();
                 if (nodeWeight > 0) {
                     currentSubset.add(node);

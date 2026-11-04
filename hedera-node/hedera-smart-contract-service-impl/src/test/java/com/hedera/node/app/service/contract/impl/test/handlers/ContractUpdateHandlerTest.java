@@ -17,6 +17,8 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.AN_ED25
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertFailsWith;
 import static com.hedera.node.app.service.token.api.AccountSummariesApi.SENTINEL_ACCOUNT_ID;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
+import static com.hedera.node.app.spi.fixtures.NestedKeys.nestedKeyList;
+import static com.hedera.node.app.spi.validation.AttributeValidator.MAX_NESTED_KEY_LEVELS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -277,6 +279,19 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
                 .contractUpdateInstance(ContractUpdateTransactionBody.newBuilder()
                         .contractID(targetContract)
                         .adminKey(Key.newBuilder().contractID(ContractID.DEFAULT)))
+                .transactionID(transactionID)
+                .build();
+
+        given(pureChecksContext.body()).willReturn(txn);
+        assertThrowsPreCheck(() -> subject.pureChecks(pureChecksContext), INVALID_ADMIN_KEY);
+    }
+
+    @Test
+    void overlyNestedAdminKeyFails() {
+        final var txn = TransactionBody.newBuilder()
+                .contractUpdateInstance(ContractUpdateTransactionBody.newBuilder()
+                        .contractID(targetContract)
+                        .adminKey(nestedKeyList(MAX_NESTED_KEY_LEVELS)))
                 .transactionID(transactionID)
                 .build();
 

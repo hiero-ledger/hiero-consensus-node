@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.clpr;
 
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 
@@ -16,15 +14,6 @@ import edu.umd.cs.findbugs.annotations.Nullable;
  * and asynchronously submits received bundles as transactions.
  */
 public interface ClprSyncWorkflow {
-
-    /**
-     * Called to handle a CLPR endpoint discovery request from a peer endpoint.
-     *
-     * @param requestBytes The raw protobuf bytes of the incoming {@code ClprDiscoverEndpointsRequest}.
-     * @param responseBuffer A {@link BufferedData} into which the outbound
-     *                       {@code ClprDiscoverEndpointsResponse} bytes are written.
-     */
-    void handleDiscovery(@NonNull Bytes requestBytes, @NonNull BufferedData responseBuffer);
 
     /**
      * Opens a server-side session for one inbound streaming {@code sync} call. A stream is a multi-message exchange

@@ -136,7 +136,7 @@ public class ClprServiceApiImpl implements ClprServiceApi {
                 configIsStale,
                 shortHex(channel.sentRunningHash()));
         if (queueDepth + reservedSlots >= maxQueueDepth) {
-            log.warn(
+            log.debug(
                     "[CLPR-SEND] queue full conn={} queueDepth={} reservedSlots={} maxQueueDepth={} "
                             + "nextMsgId={} ackedMsgId={}",
                     channelId,
@@ -331,8 +331,6 @@ public class ClprServiceApiImpl implements ClprServiceApi {
             return "MESSAGE_REPLY";
         } else if (payload.hasControl()) {
             return "CONTROL";
-        } else if (payload.hasRedactedMessage()) {
-            return "REDACTED";
         } else {
             return "EMPTY";
         }

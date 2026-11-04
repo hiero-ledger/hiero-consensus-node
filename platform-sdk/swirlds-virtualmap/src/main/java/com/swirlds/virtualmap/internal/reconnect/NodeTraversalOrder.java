@@ -60,4 +60,28 @@ public interface NodeTraversalOrder {
      * @param isClean indicates if the node at the given path matches the corresponding node on the teacher
      */
     void nodeReceived(final long path, final boolean isClean);
+
+    /**
+     * Returns a human-readable summary of traversal statistics collected during this reconnect. It's
+     * logged when the reconnect completes. Implementations that don't collect any statistics return
+     * an empty string.
+     *
+     * @return traversal statistics summary
+     */
+    default String getStatistics() {
+        return "";
+    }
+
+    /**
+     * Returns a short human-readable summary of the current traversal state, such as how much state is
+     * kept for nodes that are not fully processed yet. It's logged once a minute during reconnect, on the
+     * thread that feeds leaves to the hasher, so it must not block, and its cost must be small compared to
+     * that interval. May be called concurrently with other methods of this object. Implementations that
+     * don't report any state return an empty string.
+     *
+     * @return current traversal state summary
+     */
+    default String getStatus() {
+        return "";
+    }
 }

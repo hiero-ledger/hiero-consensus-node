@@ -20,7 +20,6 @@ import java.util.Set;
 public class TestSchema extends Schema<SemanticVersion> {
 
     public static final SemanticVersion CURRENT_VERSION = new SemanticVersion(0, 47, 0, "SNAPSHOT", "");
-    private final Runnable onMigrate;
     private final Runnable onRestart;
     private final Set<StateDefinition> statesToCreate;
     private final Set<Integer> statesToRemove;
@@ -37,29 +36,19 @@ public class TestSchema extends Schema<SemanticVersion> {
         this(version, null);
     }
 
-    public TestSchema(SemanticVersion version, Runnable onMigrate) {
-        this(version, Set.of(), Set.of(), onMigrate, null);
+    public TestSchema(SemanticVersion version, Runnable onRestart) {
+        this(version, Set.of(), Set.of(), onRestart);
     }
 
     public TestSchema(
             @NonNull final SemanticVersion version,
             @NonNull final Set<StateDefinition> statesToCreate,
             @NonNull final Set<Integer> statesToRemove,
-            @Nullable Runnable onMigrate,
             @Nullable Runnable onRestart) {
         super(version, SEMANTIC_VERSION_COMPARATOR);
-        this.onMigrate = onMigrate;
         this.onRestart = onRestart;
         this.statesToCreate = statesToCreate;
         this.statesToRemove = statesToRemove;
-    }
-
-    @Override
-    public void migrate(@NonNull final MigrationContext ctx) {
-        super.migrate(ctx);
-        if (onMigrate != null) {
-            onMigrate.run();
-        }
     }
 
     @NonNull
@@ -89,7 +78,6 @@ public class TestSchema extends Schema<SemanticVersion> {
     public static final class Builder {
 
         private SemanticVersion version = CURRENT_VERSION;
-        private Runnable onMigrate;
         private Runnable onRestart;
         private final Set<StateDefinition> statesToCreate = new HashSet<>();
         private final Set<Integer> statesToRemove = new HashSet<>();
@@ -114,11 +102,6 @@ public class TestSchema extends Schema<SemanticVersion> {
             return this;
         }
 
-        public Builder onMigrate(Runnable onMigrate) {
-            this.onMigrate = onMigrate;
-            return this;
-        }
-
         public Builder onRestart(Runnable onRestart) {
             this.onRestart = onRestart;
             return this;
@@ -135,7 +118,7 @@ public class TestSchema extends Schema<SemanticVersion> {
         }
 
         public TestSchema build() {
-            return new TestSchema(version, statesToCreate, statesToRemove, onMigrate, onRestart);
+            return new TestSchema(version, statesToCreate, statesToRemove, onRestart);
         }
     }
 }

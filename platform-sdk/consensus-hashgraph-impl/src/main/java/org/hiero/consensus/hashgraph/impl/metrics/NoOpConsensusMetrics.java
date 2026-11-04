@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.hashgraph.impl.metrics;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
 
 public class NoOpConsensusMetrics implements ConsensusMetrics {
     @Override
@@ -26,6 +28,11 @@ public class NoOpConsensusMetrics implements ConsensusMetrics {
 
     @Override
     public void consensusReached(final EventImpl event) {
+        // no-op
+    }
+
+    @Override
+    public void consensusRoundEmitted(@NonNull final ConsensusRound round) {
         // no-op
     }
 

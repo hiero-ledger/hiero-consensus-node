@@ -3,7 +3,6 @@ package com.hedera.node.app.service.clpr.impl.verifier.sei;
 
 import static com.hedera.node.app.service.clpr.impl.verifier.PbjTestUtils.appendUnknownField;
 import static com.hedera.node.app.service.clpr.impl.verifier.evm.ProofBytes.endpointManifestCommitmentSlot;
-import static com.hedera.node.app.service.clpr.impl.verifier.evm.ProofBytes.keccak256;
 import static com.hedera.node.app.service.clpr.impl.verifier.sei.SeiProto.bytesField;
 import static com.hedera.node.app.service.clpr.impl.verifier.sei.SeiProto.concat;
 import static com.hedera.node.app.service.clpr.impl.verifier.sei.SeiProto.messageField;
@@ -24,6 +23,7 @@ import com.hedera.hapi.node.state.clpr.SeiStorageProofEntry;
 import com.hedera.hapi.node.state.clpr.SeiTrustAnchor;
 import com.hedera.hapi.node.state.clpr.SeiValidatorSet;
 import com.hedera.hapi.node.state.clpr.SeiValidatorSetUpdate;
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.service.clpr.impl.verifier.ProofException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.math.BigInteger;
@@ -1196,7 +1196,8 @@ class SeiCometBftProofVerifierTest {
         /** A fully valid manifest bundle: slot-18 commitment == keccak256(preimage), preimage strict-parses. */
         private static byte[] validBundle(final ClprEndpointManifest manifest) {
             final byte[] preimage = preimageOf(manifest);
-            final var chain = chainWithManifestSlot(endpointManifestCommitmentSlot(), keccak256(preimage));
+            final var chain = chainWithManifestSlot(
+                    endpointManifestCommitmentSlot(), MiscCryptoUtils.keccak256DigestOf(preimage));
             return manifestBundle(bundleStateProof(chain), manifestEntry(chain), preimage);
         }
 
@@ -1219,7 +1220,8 @@ class SeiCometBftProofVerifierTest {
         @Test
         void rejectsKeyNotTargetingServiceContract() {
             final byte[] preimage = preimageOf(manifest(1L, SERVICE));
-            final var chain = chainWithManifestSlot(endpointManifestCommitmentSlot(), keccak256(preimage));
+            final var chain = chainWithManifestSlot(
+                    endpointManifestCommitmentSlot(), MiscCryptoUtils.keccak256DigestOf(preimage));
             // valid prefix is 0x03; swap it for 0x04 while keeping service + slot
             final byte[] wrongKey = concat(new byte[] {0x04}, SERVICE, endpointManifestCommitmentSlot());
             final var tampered =
@@ -1236,7 +1238,7 @@ class SeiCometBftProofVerifierTest {
         void rejectsWrongCommitmentSlot() {
             final byte[] preimage = preimageOf(manifest(1L, SERVICE));
             // slot 19 targets the service contract but is not the endpoint-manifest commitment slot (18)
-            final var chain = chainWithManifestSlot(slot(19), keccak256(preimage));
+            final var chain = chainWithManifestSlot(slot(19), MiscCryptoUtils.keccak256DigestOf(preimage));
             final byte[] payload = manifestBundle(bundleStateProof(chain), manifestEntry(chain), preimage);
             final byte[] anchor = anchorBytes();
 
@@ -1248,7 +1250,8 @@ class SeiCometBftProofVerifierTest {
         @Test
         void rejectsNon32ByteValue() {
             final byte[] preimage = preimageOf(manifest(1L, SERVICE));
-            final var chain = chainWithManifestSlot(endpointManifestCommitmentSlot(), keccak256(preimage));
+            final var chain = chainWithManifestSlot(
+                    endpointManifestCommitmentSlot(), MiscCryptoUtils.keccak256DigestOf(preimage));
             final var tampered = manifestEntry(chain)
                     .copyBuilder()
                     .value(Bytes.wrap(new byte[31]))
@@ -1264,7 +1267,8 @@ class SeiCometBftProofVerifierTest {
         @Test
         void rejectsIavlProofNotMatchingStoreRoot() {
             final byte[] preimage = preimageOf(manifest(1L, SERVICE));
-            final var chain = chainWithManifestSlot(endpointManifestCommitmentSlot(), keccak256(preimage));
+            final var chain = chainWithManifestSlot(
+                    endpointManifestCommitmentSlot(), MiscCryptoUtils.keccak256DigestOf(preimage));
             // a 32-byte value the ICS-23 proof does not commit to
             final byte[] otherValue = new byte[32];
             Arrays.fill(otherValue, (byte) 0x11);
@@ -1300,7 +1304,8 @@ class SeiCometBftProofVerifierTest {
             // Spec §1: reject a manifest carrying unrecognized fields. Commit to the tampered preimage
             // so the binding holds and the strict parse is what fails.
             final byte[] preimage = appendUnknownField(preimageOf(manifest(1L, SERVICE)));
-            final var chain = chainWithManifestSlot(endpointManifestCommitmentSlot(), keccak256(preimage));
+            final var chain = chainWithManifestSlot(
+                    endpointManifestCommitmentSlot(), MiscCryptoUtils.keccak256DigestOf(preimage));
             final byte[] payload = manifestBundle(bundleStateProof(chain), manifestEntry(chain), preimage);
             final byte[] anchor = anchorBytes();
 
@@ -1333,7 +1338,7 @@ class SeiCometBftProofVerifierTest {
         void manifestOnlyBundleReturnsPreimageWithNoContentOrQueueMetadata() throws Exception {
             final var manifest = manifest(5L, SERVICE);
             final byte[] preimage = preimageOf(manifest);
-            final byte[] payload = manifestOnlyBundle(keccak256(preimage), preimage);
+            final byte[] payload = manifestOnlyBundle(MiscCryptoUtils.keccak256DigestOf(preimage), preimage);
 
             final var verified = SeiCometBftProofVerifier.verifyBundle(payload, anchorBytes());
 

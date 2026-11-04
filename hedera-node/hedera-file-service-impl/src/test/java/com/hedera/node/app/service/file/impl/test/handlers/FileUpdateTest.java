@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.file.impl.test.handlers;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.BAD_ENCODING;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FILE_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_FILE_ID;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILES_STATE_ID;
+import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
+import static com.hedera.node.app.spi.fixtures.NestedKeys.nestedKeyList;
+import static com.hedera.node.app.spi.validation.AttributeValidator.MAX_NESTED_KEY_LEVELS;
 import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -18,6 +22,7 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.FileID;
+import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
@@ -39,6 +44,7 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
@@ -76,6 +82,9 @@ class FileUpdateTest extends FileTestBase {
     @Mock(strictness = LENIENT)
     private PreHandleContext preHandleContext;
 
+    @Mock(strictness = LENIENT)
+    private PureChecksContext pureChecksContext;
+
     @Mock(strictness = Mock.Strictness.LENIENT)
     protected TransactionDispatcher mockDispatcher;
 
@@ -105,6 +114,20 @@ class FileUpdateTest extends FileTestBase {
         lenient().when(preHandleContext.configuration()).thenReturn(testConfig);
         lenient().when(handleContext.configuration()).thenReturn(testConfig);
         given(handleContext.consensusNow()).willReturn(Instant.ofEpochSecond(-1_234_567L));
+    }
+
+    @Test
+    @DisplayName("A WACL key nested beyond the depth cap is rejected at pureChecks with BAD_ENCODING")
+    void pureChecksRejectsOverlyDeepKey() {
+        final var op = FileUpdateTransactionBody.newBuilder()
+                .fileID(WELL_KNOWN_FILE_ID)
+                .keys(KeyList.newBuilder()
+                        .keys(nestedKeyList(MAX_NESTED_KEY_LEVELS))
+                        .build())
+                .build();
+        final var txn = TransactionBody.newBuilder().fileUpdate(op).build();
+        given(pureChecksContext.body()).willReturn(txn);
+        assertThrowsPreCheck(() -> subject.pureChecks(pureChecksContext), BAD_ENCODING);
     }
 
     @Test

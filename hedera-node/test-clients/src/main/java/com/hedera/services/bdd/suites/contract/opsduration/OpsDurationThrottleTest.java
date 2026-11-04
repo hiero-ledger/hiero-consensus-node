@@ -59,7 +59,7 @@ public class OpsDurationThrottleTest {
                 restoreDefault(OPS_DURATION_THROTTLE_UNITS_FREED_PER_SECOND));
     }
 
-    private Stream<DynamicTest> overfillOpsDuration(long gas, final ResponseCodeEnum expectedStatus) {
+    private Stream<DynamicTest> saturateOpsDuration(long gas, final ResponseCodeEnum expectedStatus) {
         return hapiTest(
                 disableOpsDurationThrottle(),
                 uploadInitCode(OPS_DURATION_THROTTLE),
@@ -77,27 +77,27 @@ public class OpsDurationThrottleTest {
                     // Let the metrics update
                     allRunFor(spec, sleepForSeconds(3));
                     final double throttlePercentUsed = getOpsDurationThrottlePercentUsed(spec);
-                    // We expect the throttle to overfill, but not exceed 1.5x the capacity
-                    allRunFor(spec, valueIsInRange(throttlePercentUsed, 100.0, 150.0));
+                    // Usage is capped at the capacity, so we expect the throttle to saturate at exactly 100%
+                    allRunFor(spec, valueIsInRange(throttlePercentUsed, 100.0, 101.0));
                     restoreDefaults(spec);
                 }));
     }
 
     @HapiTest
     @Order(1)
-    @DisplayName("ops duration throttle can overfill but does not exceed a reasonable threshold")
-    public Stream<DynamicTest> overfillOpsDuration() {
-        return overfillOpsDuration(200_000, ResponseCodeEnum.SUCCESS);
+    @DisplayName("ops duration throttle saturates at its capacity")
+    public Stream<DynamicTest> saturateOpsDuration() {
+        return saturateOpsDuration(200_000, ResponseCodeEnum.SUCCESS);
     }
 
     @HapiTest
     @Order(2)
-    @DisplayName("ops duration throttle can overfill with InsufficientGas but does not exceed a reasonable threshold")
-    public Stream<DynamicTest> overfillOpsDurationWithInsufficientGasTransactions() {
+    @DisplayName("ops duration throttle saturates at its capacity with InsufficientGas")
+    public Stream<DynamicTest> saturateOpsDurationWithInsufficientGasTransactions() {
         // providing gas a bit more than intrinsic gus, but less than needed for execution (113_000)
         // we are getting CONTRACT_REVERT_EXECUTED because contract is reverting when child call receives
         // INSUFFICIENT_GAS
-        return overfillOpsDuration(30_000, ResponseCodeEnum.CONTRACT_REVERT_EXECUTED);
+        return saturateOpsDuration(30_000, ResponseCodeEnum.CONTRACT_REVERT_EXECUTED);
     }
 
     @HapiTest
@@ -164,8 +164,8 @@ public class OpsDurationThrottleTest {
                     // Let the metrics update
                     allRunFor(spec, sleepForSeconds(3));
                     final double throttlePercentUsed = getOpsDurationThrottlePercentUsed(spec);
-                    // We expect the throttle to overfill, but not exceed 1.5x the capacity
-                    allRunFor(spec, valueIsInRange(throttlePercentUsed, 100.0, 150.0));
+                    // Usage is capped at the capacity, so we expect the throttle to saturate at exactly 100%
+                    allRunFor(spec, valueIsInRange(throttlePercentUsed, 100.0, 101.0));
                     restoreDefaults(spec);
                 }));
     }
@@ -239,8 +239,8 @@ public class OpsDurationThrottleTest {
                     // Let the metrics update
                     allRunFor(spec, sleepForSeconds(3));
                     final double throttlePercentUsed = getOpsDurationThrottlePercentUsed(spec);
-                    // We expect the throttle to overfill, but not exceed 1.5x the capacity
-                    allRunFor(spec, valueIsInRange(throttlePercentUsed, 100.0, 150.0));
+                    // Usage is capped at the capacity, so we expect the throttle to saturate at exactly 100%
+                    allRunFor(spec, valueIsInRange(throttlePercentUsed, 100.0, 101.0));
                     restoreDefaults(spec);
                 }));
     }
@@ -292,8 +292,8 @@ public class OpsDurationThrottleTest {
                     // Let the metrics update
                     allRunFor(spec, sleepForSeconds(3));
                     final double throttlePercentUsed = getOpsDurationThrottlePercentUsed(spec);
-                    // We expect the throttle to overfill, but not exceed 1.5x the capacity
-                    allRunFor(spec, valueIsInRange(throttlePercentUsed, 100.0, 150.0));
+                    // Usage is capped at the capacity, so we expect the throttle to saturate at exactly 100%
+                    allRunFor(spec, valueIsInRange(throttlePercentUsed, 100.0, 101.0));
                     restoreDefaults(spec);
                 }));
     }
@@ -346,8 +346,8 @@ public class OpsDurationThrottleTest {
                     // Let the metrics update
                     allRunFor(spec, sleepForSeconds(3));
                     final double throttlePercentUsed = getOpsDurationThrottlePercentUsed(spec);
-                    // We expect the throttle to overfill, but not exceed 1.5x the capacity
-                    allRunFor(spec, valueIsInRange(throttlePercentUsed, 100.0, 150.0));
+                    // Usage is capped at the capacity, so we expect the throttle to saturate at exactly 100%
+                    allRunFor(spec, valueIsInRange(throttlePercentUsed, 100.0, 101.0));
                     restoreDefaults(spec);
                 }));
     }
@@ -395,7 +395,7 @@ public class OpsDurationThrottleTest {
                             contractCall(OPS_DURATION_THROTTLE, "runMulti", BigInteger.valueOf(5L))
                                     .gas(10_000_000L)
                                     .hasKnownStatus(ResponseCodeEnum.SUCCESS),
-                            // This is expected to leave the bucket overfilled when complete
+                            // This is expected to leave the bucket exactly full when complete
                             contractCall(OPS_DURATION_THROTTLE, "runMulti", BigInteger.valueOf(50))
                                     .gas(10_000_000L)
                                     .hasKnownStatus(ResponseCodeEnum.SUCCESS),
@@ -436,8 +436,15 @@ public class OpsDurationThrottleTest {
                     // Let's wait for the metrics to update
                     allRunFor(spec, sleepForSeconds(3));
                     final double throttlePercentUsed = getOpsDurationThrottlePercentUsed(spec);
-                    // We expect the throttle to be significantly overfilled with our test limits
-                    allRunFor(spec, valueIsInRange(throttlePercentUsed, 1000.0, 6000.0));
+                    // With our test limits the call consumes far more than the capacity, but usage
+                    // is capped at the capacity, so we expect the throttle to saturate at exactly 100%
+                    allRunFor(spec, valueIsInRange(throttlePercentUsed, 100.0, 101.0));
+                    // And with no refill, even a minimal follow-up call must be throttled
+                    allRunFor(
+                            spec,
+                            contractCall(OPS_DURATION_THROTTLE, "runMulti", BigInteger.valueOf(1))
+                                    .gas(10_000_000L)
+                                    .hasKnownStatus(ResponseCodeEnum.CONSENSUS_GAS_EXHAUSTED));
                     restoreDefaults(spec);
                 }));
     }

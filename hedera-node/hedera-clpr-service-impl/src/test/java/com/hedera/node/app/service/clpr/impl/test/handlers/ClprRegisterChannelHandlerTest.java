@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.test.handlers;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_CHANNEL_ALREADY_EXISTS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NOT_ENABLED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.PENDING_COMMITMENTS_STATE_ID;
@@ -107,14 +108,16 @@ class ClprRegisterChannelHandlerTest {
     }
 
     @Test
-    @DisplayName("should accept duplicate commitment idempotently")
-    void acceptsDuplicateCommitmentIdempotently() {
+    @DisplayName("should reject a commitment that is already registered")
+    void rejectsAlreadyRegisteredCommitment() {
+        // Covers both a commitment pending reveal and one bound to an existing Channel:
+        // completeChannel leaves the commitment in the store, so the two look the same here.
         commitmentStore.put(COMMITMENT);
         setupHandleContext(validTxn());
 
-        // Should not throw — re-submitting is a no-op
-        subject.handle(handleContext);
-
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(CLPR_CHANNEL_ALREADY_EXISTS));
         assertThat(commitmentStore.contains(COMMITMENT)).isTrue();
     }
 

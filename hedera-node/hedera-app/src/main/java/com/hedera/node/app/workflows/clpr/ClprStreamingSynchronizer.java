@@ -19,6 +19,7 @@ import com.hedera.node.config.data.ClprConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import io.grpc.Status;
 import java.time.Duration;
 import java.util.List;
 import javax.inject.Inject;
@@ -43,10 +44,11 @@ import org.apache.logging.log4j.Logger;
  * <p><b>The stream ends as soon as this side (the client) has no more bundles to send.</b> The peer's session (server)
  * closes the stream as soon as we half-close, even if it still had bundles queued; they wait for the next cycle.
  *
- * <p><b>No pure-ACK bundles from this side.</b> The producer is built with {@code allowPureAck=false}.
- * Our acknowledgement of the peer's messages still reaches it whenever it opens its own cycle against us,
- * where our session replies with a pure-ACK; sending one here as well would add a fee-bearing submission on the peer
- * each cycle that is usually rejected as no-progress.
+ * <p><b>Channel-only bundles are sent during shutdown.</b> CLOSING and DRAINED channels allow a proof even
+ * when the outbound queue is empty and the peer's manifest is current, so the peer learns the proven closing status.
+ * Other eligible channels suppress pure-ACK bundles from this side: our acknowledgement of the peer's messages
+ * reaches it whenever it opens its own cycle against us, where our session replies with a pure-ACK. Sending one here
+ * as well would add a fee-bearing submission on the peer each cycle that is usually rejected as no-progress.
  *
  * <p>Holds no mutable state of its own; the per-peer circuit breakers and reputations live in the thread-safe
  * {@link ClprPeerSelector}.
@@ -59,7 +61,6 @@ public final class ClprStreamingSynchronizer implements ClprSynchronizer {
     private final ConfigProvider configProvider;
     private final ClprBundleSubmitter bundleSubmitter;
     private final ClprStateProofManager stateProofManager;
-    private final ClprLeafCertManager leafCertManager;
     private final ClprEndpointClientCache clientCache;
     private final ClprPeerSelector peerSelector;
     private final int maxBundlesPerCycle;
@@ -70,7 +71,6 @@ public final class ClprStreamingSynchronizer implements ClprSynchronizer {
      * @param configProvider    source of the live {@link ClprConfig}
      * @param bundleSubmitter   submits the peer's bundles for consensus
      * @param stateProofManager builds this side's bundles
-     * @param leafCertManager   supplies this node's mTLS leaf credentials
      * @param clientCache       vends the per-peer endpoint clients
      * @param peerSelector      picks the peer to dial and tracks its failures
      */
@@ -79,14 +79,12 @@ public final class ClprStreamingSynchronizer implements ClprSynchronizer {
             @NonNull final ConfigProvider configProvider,
             @NonNull final ClprBundleSubmitter bundleSubmitter,
             @NonNull final ClprStateProofManager stateProofManager,
-            @NonNull final ClprLeafCertManager leafCertManager,
             @NonNull final ClprEndpointClientCache clientCache,
             @NonNull final ClprPeerSelector peerSelector) {
         this(
                 configProvider,
                 bundleSubmitter,
                 stateProofManager,
-                leafCertManager,
                 clientCache,
                 peerSelector,
                 ClprBundleProducer.MAX_BUNDLE_EXCHANGES);
@@ -100,14 +98,12 @@ public final class ClprStreamingSynchronizer implements ClprSynchronizer {
             @NonNull final ConfigProvider configProvider,
             @NonNull final ClprBundleSubmitter bundleSubmitter,
             @NonNull final ClprStateProofManager stateProofManager,
-            @NonNull final ClprLeafCertManager leafCertManager,
             @NonNull final ClprEndpointClientCache clientCache,
             @NonNull final ClprPeerSelector peerSelector,
             final int maxBundlesPerCycle) {
         this.configProvider = requireNonNull(configProvider);
         this.bundleSubmitter = requireNonNull(bundleSubmitter);
         this.stateProofManager = requireNonNull(stateProofManager);
-        this.leafCertManager = requireNonNull(leafCertManager);
         this.clientCache = requireNonNull(clientCache);
         this.peerSelector = requireNonNull(peerSelector);
         this.maxBundlesPerCycle = maxBundlesPerCycle;
@@ -135,10 +131,6 @@ public final class ClprStreamingSynchronizer implements ClprSynchronizer {
         }
         final var peerId = selected.peerId();
         final var endpoint = selected.endpoint();
-        if (leafCertManager.isMtlsEnabled() && endpoint.tlsCertificate().length() == 0) {
-            logger.warn("Skipping sync peer {} — mTLS is enabled but no tls_certificate in ClprEndpoint", peerId);
-            return;
-        }
         logger.debug(
                 "[CLPR-SYNC-OUTBOUND] streaming sync start conn={} peer={} status={} "
                         + "nextMsgId={} ackedMsgId={} receivedMsgId={}",
@@ -152,11 +144,12 @@ public final class ClprStreamingSynchronizer implements ClprSynchronizer {
         // The deadline covers the whole exchange, not one round trip.
         final var timeout = Duration.ofSeconds(clprConfig.syncTimeoutSeconds());
         try {
+            // A peer advertises its TLS certificate only when its TLS listener is serving, in which
+            // case the advertised port is that listener's; otherwise it advertises its plaintext port.
             final var client = clientCache.clientFor(
                     endpoint.serviceEndpoint().ipAddress(),
                     endpoint.serviceEndpoint().port(),
-                    endpoint.tlsCertificate(),
-                    leafCertManager.leafCredentials());
+                    endpoint.tlsCertificate().length() > 0);
             final boolean completed;
             try (var call = client.sync(timeout)) {
                 completed = new Exchange(call, channel, peerId)
@@ -168,10 +161,18 @@ public final class ClprStreamingSynchronizer implements ClprSynchronizer {
                 peerSelector.recordFailure(peerId);
             }
         } catch (final ClprSyncException | ClientException e) {
-            // ClprSyncException: stream failure. ClientException: mTLS channel could not be built (e.g. malformed
-            // peer certificate). Both are peer-level failures for the breaker.
+            final var code = Status.fromThrowable(e).getCode();
+            if (code == Status.Code.NOT_FOUND) {
+                // The peer is reachable but has not registered or completed this channel yet, which is expected
+                // while the two ledgers set the channel up; retry next cycle without counting a peer failure
+                logger.debug("Peer {} does not have channel {} yet: {}", peerId, channelId, e.getMessage());
+                return;
+            }
+            // ClprSyncException: stream failure. ClientException: TLS channel could not be built. Both are
+            // peer-level failures for the breaker.
             peerSelector.recordFailure(peerId);
-            logger.error("Streaming sync failed for channel {} via peer {}", channelId, peerId, e);
+            // The status is in the message (not only in the stack trace) so failures can be told apart per line
+            logger.error("Streaming sync failed for channel {} via peer {} with status {}", channelId, peerId, code, e);
         }
     }
 
@@ -216,8 +217,8 @@ public final class ClprStreamingSynchronizer implements ClprSynchronizer {
          * Drives the whole cycle.
          *
          * @return {@code true} when the exchange ran to a clean close and every inbound bundle was accepted for
-         * submission; {@code false} when the peer closed early, exceeded the inbound message limit, or a submission was
-         * refused
+         * submission; {@code false} when the peer closed early, sent another channel's payload, exceeded the inbound
+         * message limit, or a submission was refused
          * @throws ClprSyncException if a write or read on the stream fails
          */
         private boolean run(final long localEndpointManifestVersion, final long peerObservedManifestVersion)
@@ -238,7 +239,7 @@ public final class ClprStreamingSynchronizer implements ClprSynchronizer {
          * Messages 1 and 2: writes our one-shot request — no bundle yet, ours can only be shaped once the peer's
          * request is known — then reads the peer's request plus its bundle for us, and submits that bundle.
          *
-         * @return the peer's opening message, or {@code null} when it closed the stream instead of replying
+         * @return the peer's opening message, or {@code null} when it closed the stream or sent an invalid reply
          */
         @Nullable
         private ClprStreamingSyncPayload open() throws ClprSyncException {
@@ -255,9 +256,7 @@ public final class ClprStreamingSynchronizer implements ClprSynchronizer {
                         peerId);
                 return null;
             }
-            inboundMessages++;
-            submitInbound(opening);
-            return opening;
+            return receive(opening) ? opening : null;
         }
 
         /**
@@ -265,8 +264,10 @@ public final class ClprStreamingSynchronizer implements ClprSynchronizer {
          */
         @NonNull
         private ClprBundleProducer openProducer(@Nullable final ClprBundleRequest peerRequest) {
+            final boolean closing =
+                    channel.status() == ClprChannelStatus.CLOSING || channel.status() == ClprChannelStatus.DRAINED;
             final var producer =
-                    new ClprBundleProducer(stateProofManager, channel, peerRequest, false, maxBundlesPerCycle);
+                    new ClprBundleProducer(stateProofManager, channel, peerRequest, closing, maxBundlesPerCycle);
             if (producer.peerClosed()) {
                 logger.debug(
                         "[CLPR-SYNC-OUTBOUND] peer reports CLOSED; skipping bundle conn={} peer={}", channelId, peerId);
@@ -345,11 +346,21 @@ public final class ClprStreamingSynchronizer implements ClprSynchronizer {
         }
 
         /**
-         * Counts one message from the peer and submits the bundle it carries.
+         * Checks and counts one message from the peer, then submits the bundle it carries.
          *
-         * @return {@code false} when the message exceeds the inbound limit; the stream should then be abandoned
+         * @return {@code false} when the message belongs to another channel or exceeds the inbound limit; the stream
+         * should then be abandoned
          */
         private boolean receive(@NonNull final ClprStreamingSyncPayload message) {
+            if (!channelIdBytes.equals(message.channelId())) {
+                logger.warn(
+                        "[CLPR-SYNC-OUTBOUND] peer sent payload for another channel conn={} peer={} "
+                                + "receivedChannel={}; abandoning the stream",
+                        channelId,
+                        peerId,
+                        message.channelId());
+                return false;
+            }
             inboundMessages++;
             if (inboundMessages > ClprStreamingSyncSession.MAX_INBOUND_MESSAGES) {
                 logger.warn(

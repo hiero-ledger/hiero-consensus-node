@@ -247,7 +247,7 @@ public interface FacilityInitModule {
                         schema.genesisExchangeRatesBytes(bootstrapConfig),
                         schema.genesisMidnightRates(bootstrapConfig));
                 final var simpleFeesUpdateStatus =
-                        feeManager.updateSimpleFees(schema.genesisSimpleFeesSchedules(bootstrapConfig));
+                        feeManager.updateSimpleFees(schema.genesisSimpleFeesSchedules(bootstrapConfig), true);
                 if (simpleFeesUpdateStatus != SUCCESS) {
                     throw new IllegalStateException(
                             "Genesis simple fee schedules were rejected: " + simpleFeesUpdateStatus);
@@ -295,8 +295,7 @@ public interface FacilityInitModule {
             simpleFeesContents = simpleFeesFile.contents();
         }
 
-        // The schedule in state may predate calculators added by this version; it is refreshed after the upgrade
-        final var simpleStatus = feeManager.updateSimpleFees(simpleFeesContents, false);
+        final var simpleStatus = feeManager.updateSimpleFees(simpleFeesContents);
         if (simpleStatus != SUCCESS) {
             throw new IllegalStateException("State file " + simpleFeesFileNum
                     + " did not contain parseable simple fee schedules: " + simpleStatus);

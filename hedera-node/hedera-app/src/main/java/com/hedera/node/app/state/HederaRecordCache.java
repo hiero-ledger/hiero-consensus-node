@@ -81,7 +81,8 @@ public interface HederaRecordCache extends RecordCache {
      * Purging receipts works as follows:
      * <ol>
      *     <li>Find the latest {@link TransactionID#transactionValidStart()} of the all the receipts in the
-     *     {@link TransactionReceiptEntries} object at the head of the round receipt queue.</li>
+     *     {@link TransactionReceiptEntries} object at the head of the round receipt queue; or the consensus
+     *     time of that round, if earlier (no transaction with a later valid start executed in the round).</li>
      *     <li>If even the latest valid start is more than {@link HederaConfig#transactionMaxValidDuration()}
      *     seconds before consensus time now, purge the history of all receipts from that round, and remove it
      *     from the queue.</li>

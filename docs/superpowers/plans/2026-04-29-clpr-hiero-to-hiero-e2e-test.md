@@ -1004,6 +1004,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.services.bdd.junit.ConfigOverride;
 import com.hedera.services.bdd.junit.MultiNetworkHapiTest;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
@@ -1022,7 +1023,6 @@ import net.i2p.crypto.eddsa.EdDSAPrivateKey;
 import net.i2p.crypto.eddsa.EdDSAPublicKey;
 import net.i2p.crypto.eddsa.spec.EdDSANamedCurveTable;
 import net.i2p.crypto.eddsa.spec.EdDSAPrivateKeySpec;
-import org.bouncycastle.jcajce.provider.digest.Keccak;
 import org.hiero.base.crypto.Ed25519;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -1466,30 +1466,26 @@ public class ClprHieroToHieroSuite {
             org.hiero.base.crypto.Ed25519.generatePublicKey(TEST_PRIVATE_KEY, 0, publicKey, 0);
 
             // Deterministic connectionId from a seed string
-            connectionId = keccak256("hiero-e2e-test-connection-v1".getBytes(StandardCharsets.UTF_8));
+            connectionId = MiscCryptoUtils.keccak256DigestOf("hiero-e2e-test-connection-v1".getBytes(StandardCharsets.UTF_8));
 
             // Connection commitment: keccak256(connectionId || pubKey)
-            connectionCommitment = keccak256(concat(connectionId, publicKey));
+            connectionCommitment = MiscCryptoUtils.keccak256DigestOf(concat(connectionId, publicKey));
 
             // Connection signature: Ed25519 over keccak256(connectionId)
-            final var connSigMsg = keccak256(connectionId);
+            final var connSigMsg = MiscCryptoUtils.keccak256DigestOf(connectionId);
             org.hiero.base.crypto.Ed25519.sign(
                     TEST_PRIVATE_KEY, 0, connSigMsg, 0, connSigMsg.length, connectionSignature, 0);
 
             // Connector ID: keccak256(connectionId || pubKey || connectorSalt)
-            connectorId = keccak256(concat(connectionId, concat(publicKey, connectorSalt)));
+            connectorId = MiscCryptoUtils.keccak256DigestOf(concat(connectionId, concat(publicKey, connectorSalt)));
 
             // Connector commitment: keccak256(connectorId || pubKey)
-            connectorCommitment = keccak256(concat(connectorId, publicKey));
+            connectorCommitment = MiscCryptoUtils.keccak256DigestOf(concat(connectorId, publicKey));
 
             // Connector signature: Ed25519 over keccak256(connectorId || CLPR_SERVICE_ADDRESS)
-            final var connectorSigMsg = keccak256(concat(connectorId, CLPR_SERVICE_ADDRESS));
+            final var connectorSigMsg = MiscCryptoUtils.keccak256DigestOf(concat(connectorId, CLPR_SERVICE_ADDRESS));
             org.hiero.base.crypto.Ed25519.sign(
                     TEST_PRIVATE_KEY, 0, connectorSigMsg, 0, connectorSigMsg.length, connectorSignature, 0);
-        }
-
-        private static byte[] keccak256(final byte[] input) {
-            return new Keccak.Digest256().digest(input);
         }
 
         private static byte[] concat(final byte[] a, final byte[] b) {

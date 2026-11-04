@@ -296,6 +296,16 @@ public interface HandleContext {
     }
 
     /**
+     * Returns the genesis-rooted TSS ledger id from this transaction's consensus state, or empty bytes
+     * if it has not been established. Unlike {@link #ledgerId()}, this never falls back to the configured
+     * network id, which cannot serve as a cryptographic trust anchor.
+     *
+     * @return the history ledger id in consensus state, or empty bytes
+     */
+    @NonNull
+    Bytes historyLedgerId();
+
+    /**
      * Returns information on current block and record file
      *
      * @return current BlockRecordInfo
@@ -523,6 +533,35 @@ public interface HandleContext {
          * @param <T>          the type to cast the builders to
          */
         <T> void forEachNonBaseBuilder(@NonNull Class<T> builderClass, @NonNull Consumer<T> consumer);
+
+        /**
+         * Attaches a value to this stack under the given type. Until it is detached, {@link #findInLineage(Class)}
+         * returns it from this stack and from the stacks of all dispatches made from it, directly or indirectly.
+         *
+         * @param type the type to attach the value under
+         * @param value the value
+         * @param <T> the type of the value
+         * @throws IllegalStateException if a value of this type is already attached to this stack
+         */
+        <T> void attach(@NonNull Class<T> type, @NonNull T value);
+
+        /**
+         * Detaches the value of the given type from this stack, if one is attached.
+         *
+         * @param type the type of the value
+         */
+        void detach(@NonNull Class<?> type);
+
+        /**
+         * Returns the value of the given type attached to this stack or, failing that, to the nearest stack of a
+         * dispatch enclosing this one.
+         *
+         * @param type the type of the value
+         * @param <T> the type of the value
+         * @return the value, or {@code null} if no stack in this lineage has one attached
+         */
+        @Nullable
+        <T> T findInLineage(@NonNull Class<T> type);
     }
 
     /**

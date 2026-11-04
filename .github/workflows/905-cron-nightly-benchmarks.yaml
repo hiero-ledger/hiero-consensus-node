@@ -2,7 +2,7 @@
 name: "905: [CRON] Nightly Benchmarks"
 on:
   schedule:
-    - cron: "17 2 * * *"
+    - cron: "0 17 * * *"
   workflow_dispatch:
     inputs:
       ref:
@@ -35,26 +35,32 @@ jobs:
   extract-jdk-version:
     name: Extract Java Version
     uses: ./.github/workflows/854-call-extract-jdk-version.yaml
+    if: ${{ github.event.repository.visibility == 'public' }}
     with:
       ref: ${{ inputs.ref || github.ref }}
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
-  # Runs on the benchmark runner, a node shared with other workloads. A parameter set measured while other workloads
-  # loaded the node is repeated; if no attempt is quiet, only its allocation and the load are published, no latency.
-  # The timeout covers the worst case: every parameter set needs 3 attempts, each after waiting 10 min for quiet.
+  # Runs the tracked benchmarks of every module that applies org.hiero.gradle.feature.benchmark-tracking, one after
+  # another on the benchmark runner, a node shared with other workloads. The driver waits for a quiet minute before
+  # every measurement and repeats a parameter set that was measured under load, until its deadline 3 hours after its
+  # start; then every open parameter set runs once without waiting. If no attempt of a set is quiet, only its
+  # allocation and the load are published, no latency. The timeout covers the deadline, a measuring budget of about
+  # 2 hours, and the build.
   jmh:
     name: JMH Benchmarks
-    runs-on: hl-cn-benchmark-lin
-    timeout-minutes: 95
+    strategy:
+      # a single entry: the runner label is then defined once, for runs-on and for the results' runner label
+      matrix:
+        runner: ["hl-cn-benchmark-lin"]
+    runs-on: ${{ matrix.runner }}
+    if: ${{ github.event.repository.visibility == 'public' }}
+    timeout-minutes: 360
     needs:
       - extract-jdk-version
     env:
       RESULTS_DIR: build/benchmark-results
-      # the benchmarks of consensus-hashgraph-impl that are tracked; the run configuration comes from their annotations
-      MODULE: consensus-hashgraph-impl
-      BENCHMARK: ConsensusImplBenchmark
-      PROFILERS: org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler
+      RUNNER_LABEL: ${{ matrix.runner }}
     steps:
       - name: Prepare Runner
         id: prepare-runner
@@ -76,10 +82,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends python3
 
-      # Stops the daemon afterwards, so that no Gradle process is alive while the benchmarks measure
-      - name: Build Benchmark Jar
+      # jmhTracked builds the benchmark jar of every module that tracks benchmarks and writes its manifest. Stops the
+      # daemon afterwards, so that no Gradle process is alive while the benchmarks measure.
+      - name: Build Benchmark Jars
         run: |
-          ./gradlew ":${MODULE}:jmhJarWithMergedServiceFiles"
+          ./gradlew jmhTracked
           ./gradlew --stop
 
       - name: Record Environment Before
@@ -94,26 +101,28 @@ jobs:
             echo "run_attempt=${GITHUB_RUN_ATTEMPT}"
             echo "run_url=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
             echo "runner_name=${RUNNER_NAME}"
-            echo "runner_label=hl-cn-benchmark-lin"
+            echo "runner_label=${RUNNER_LABEL}"
             echo "started=$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
           } > "${RESULTS_DIR}/run-info.properties"
           .github/workflows/support/scripts/record-benchmark-environment.sh > "${RESULTS_DIR}/environment-before.txt"
           cat "${RESULTS_DIR}/run-info.properties"
           sed -n '/^== summary/,/^== end summary/p' "${RESULTS_DIR}/environment-before.txt"
 
-      # The jar rather than Gradle's jmh task: the task's -foe does not work (melix/jmh-gradle-plugin#255), and a
-      # loaded parameter set is repeated alone. Without "nice", which other workflows use and which would lower the
+      # The jars rather than Gradle's jmh tasks: the task's -foe does not work (melix/jmh-gradle-plugin#255), and a
+      # loaded parameter set is repeated alone. The run configuration comes from the benchmarks' annotations; the
+      # driver pins the processor count. Without "nice", which other workflows use and which would lower the
       # benchmarks' priority on a shared node.
       - name: Run Benchmarks
         id: jmh
         run: |
-          jar=$(ls "platform-sdk/${MODULE}/build/libs/${MODULE}"-*-jmh-merged.jar)
-          profiler_args=()
-          for profiler in ${PROFILERS}; do
-            profiler_args+=(--profiler "${profiler}")
-          done
+          shopt -s nullglob
+          manifests=(platform-sdk/*/build/jmh/tracked.properties)
+          if [[ ${#manifests[@]} -eq 0 ]]; then
+            echo "::error::no module tracks benchmarks (no build/jmh/tracked.properties written by jmhTracked)"
+            exit 1
+          fi
           python3 .github/workflows/support/scripts/benchmarks/run_benchmarks.py \
-            --jar "${jar}" --benchmark "${BENCHMARK}" --out "${RESULTS_DIR}" "${profiler_args[@]}"
+            --manifest "${manifests[@]}" --out "${RESULTS_DIR}"
 
       - name: Record Environment After
         if: ${{ always() && steps.jmh.outcome != 'skipped' }}

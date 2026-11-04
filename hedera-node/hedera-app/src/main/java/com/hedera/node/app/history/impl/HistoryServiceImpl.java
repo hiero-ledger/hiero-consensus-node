@@ -5,21 +5,23 @@ import static com.hedera.node.app.history.HistoryService.isCompleted;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.LEDGER_ID_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
-import static com.hedera.node.app.history.schemas.V0730HistorySchema.WRAPS_PROVING_KEY_HASH_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
+import com.hedera.hapi.node.state.history.HintsKeyProvenance;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
+import com.hedera.node.app.hints.KeyProvenanceSigner;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.WritableHistoryStore;
 import com.hedera.node.app.history.handlers.HistoryHandlers;
 import com.hedera.node.app.history.schemas.V071HistorySchema;
 import com.hedera.node.app.history.schemas.V0730HistorySchema;
+import com.hedera.node.app.history.schemas.V0790HistorySchema;
 import com.hedera.node.app.info.TssStartupNetworks;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
@@ -95,8 +97,32 @@ public class HistoryServiceImpl implements HistoryService {
     }
 
     @Override
-    public Bytes historyProofVerificationKey() {
-        return Bytes.wrap(component.library().wrapsVerificationKey());
+    public @NonNull Bytes ledgerIdOf(@NonNull final HistoryProof proof) {
+        requireNonNull(proof);
+        return component.library().ledgerIdOf(proof.targetHistoryOrThrow());
+    }
+
+    @VisibleForTesting
+    void reconcile(
+            @NonNull final ActiveRosters activeRosters,
+            @Nullable final Bytes metadata,
+            @NonNull final WritableHistoryStore historyStore,
+            @NonNull final Instant now,
+            @NonNull final TssConfig tssConfig,
+            final boolean isActive,
+            @Nullable final HintsConstruction activeHintsConstruction,
+            final boolean freshGenesisRequested) {
+        reconcile(
+                activeRosters,
+                metadata,
+                historyStore,
+                now,
+                tssConfig,
+                isActive,
+                activeHintsConstruction,
+                freshGenesisRequested,
+                null,
+                0);
     }
 
     @Override
@@ -108,16 +134,64 @@ public class HistoryServiceImpl implements HistoryService {
             @NonNull final TssConfig tssConfig,
             final boolean isActive,
             @Nullable final HintsConstruction activeHintsConstruction,
-            final boolean freshGenesisRequested) {
+            final boolean freshGenesisRequested,
+            @Nullable final KeyProvenanceSigner sourceSigner,
+            final long targetHintsConstructionId) {
         requireNonNull(activeRosters);
         requireNonNull(historyStore);
         requireNonNull(now);
         requireNonNull(tssConfig);
         switch (activeRosters.phase()) {
             case BOOTSTRAP, TRANSITION -> {
-                final var construction =
-                        historyStore.getOrCreateConstruction(activeRosters, now, tssConfig, freshGenesisRequested);
-                if (!isCompleted(construction, tssConfig)) {
+                if (targetHintsConstructionId > 0) {
+                    if (activeHintsConstruction == null
+                            || (!activeHintsConstruction.hasHintsScheme()
+                                    && (targetHintsConstructionId != activeHintsConstruction.constructionId()
+                                            || sourceSigner != null))) {
+                        throw new IllegalArgumentException(
+                                "Cannot certify a successor without its persisted source scheme");
+                    }
+                    if (activeHintsConstruction.hasHintsScheme()
+                            && (sourceSigner == null
+                                    || sourceSigner.constructionId() != activeHintsConstruction.constructionId()
+                                    || !sourceSigner
+                                            .verificationKey()
+                                            .equals(activeHintsConstruction
+                                                    .hintsSchemeOrThrow()
+                                                    .preprocessedKeysOrThrow()
+                                                    .verificationKey()))) {
+                        throw new IllegalArgumentException(
+                                "Key provenance signer must match the persisted source scheme");
+                    }
+                }
+                final HintsKeyProvenance expectedBinding;
+                if (sourceSigner != null
+                        && targetHintsConstructionId > 0
+                        && targetHintsConstructionId != sourceSigner.constructionId()
+                        && metadata != null) {
+                    expectedBinding = HintsKeyProvenance.newBuilder()
+                            .sourceHintsConstructionId(sourceSigner.constructionId())
+                            .targetHintsConstructionId(targetHintsConstructionId)
+                            .sourceVerificationKey(sourceSigner.verificationKey())
+                            .targetVerificationKey(metadata)
+                            .build();
+                } else {
+                    expectedBinding = null;
+                }
+                var construction = expectedBinding == null
+                        ? historyStore.getOrCreateConstruction(
+                                activeRosters, now, tssConfig, freshGenesisRequested, metadata)
+                        : historyStore.getOrCreateConstruction(
+                                activeRosters, now, tssConfig, freshGenesisRequested, metadata, expectedBinding);
+                if (expectedBinding != null && !construction.hasKeyProvenance()) {
+                    construction = historyStore.bindKeyProvenance(
+                            construction.constructionId(),
+                            expectedBinding
+                                    .copyBuilder()
+                                    .historyConstructionId(construction.constructionId())
+                                    .build());
+                }
+                if (!isCompleted(construction)) {
                     final var controller = component
                             .controllers()
                             .getOrCreateFor(
@@ -126,7 +200,8 @@ public class HistoryServiceImpl implements HistoryService {
                                     historyStore,
                                     activeHintsConstruction,
                                     historyStore.getActiveConstruction(),
-                                    tssConfig);
+                                    tssConfig,
+                                    sourceSigner);
                     controller.advanceConstruction(now, metadata, historyStore, isActive, tssConfig);
                 }
             }
@@ -166,8 +241,11 @@ public class HistoryServiceImpl implements HistoryService {
 
     @Override
     public boolean isReady() {
-        // Not ready until there is a chain-of-trust proof for the genesis hinTS verification key
-        return historyProof != null && historyProof.hasChainOfTrustProof();
+        // Not ready until there is a WRAPS proof of chain of trust for the current hinTS verification key
+        return historyProof != null
+                && historyProof
+                        .chainOfTrustProofOrElse(ChainOfTrustProof.DEFAULT)
+                        .hasWrapsProof();
     }
 
     @Override
@@ -187,6 +265,7 @@ public class HistoryServiceImpl implements HistoryService {
         requireNonNull(registry);
         registry.register(new V071HistorySchema(this));
         registry.register(new V0730HistorySchema(this));
+        registry.register(new V0790HistorySchema(this));
     }
 
     @Override
@@ -211,17 +290,6 @@ public class HistoryServiceImpl implements HistoryService {
         writableStates
                 .<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID)
                 .put(HistoryProofConstruction.DEFAULT);
-        // Persist the configured WRAPS proving key hash if present; otherwise initialize to empty.
-        // We must match what V0730HistorySchema.restart() would put on a restart of a never-yet-
-        // joined node, so that a node that joins via restart sees the same WRAPS hash state as
-        // nodes that were present at genesis. If genesis only wrote DEFAULT and restart wrote the
-        // configured hash, the restarted node's round-1 state would diverge from the network's
-        // -> SELF_ISS for round 1.
-        final var configuredHash = configuration.getConfigData(TssConfig.class).wrapsProvingKeyHash();
-        final var wrapsHash = configuredHash.isBlank()
-                ? ProtoBytes.DEFAULT
-                : ProtoBytes.newBuilder().value(Bytes.fromHex(configuredHash)).build();
-        writableStates.<ProtoBytes>getSingleton(WRAPS_PROVING_KEY_HASH_STATE_ID).put(wrapsHash);
         return true;
     }
 

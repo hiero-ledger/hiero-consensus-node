@@ -1005,13 +1005,15 @@ the Besu, Sei, and Ethereum verifiers accept an empty manifest proof.
 
 `generate-connector-identity` produces the matching JSON bundle for `complete-connector`.
 
+`register-connector` requires `--channel-id <hex>` and `--commitment <hex>`, both 32 bytes.
+The channel must already exist. The connector identity remains hidden until `complete-connector`.
+
 ### Bundles and messages
 
-|        Command        |                                                        Description                                                         |
-|-----------------------|----------------------------------------------------------------------------------------------------------------------------|
-| `clpr submit-bundle`  | Submits a `ClprSubmitBundle` with a hex/file bundle payload.                                                               |
-| `clpr redact-message` | Submits a `ClprRedactMessage` for a given `(channel-id, message-id)`.                                                      |
-| `clpr send-message`   | Invokes `sendMessage()` on a deployed connector wrapper contract, which forwards to the CLPR system precompile at `0x16e`. |
+|       Command        |                                                        Description                                                         |
+|----------------------|----------------------------------------------------------------------------------------------------------------------------|
+| `clpr submit-bundle` | Submits a `ClprSubmitBundle` with a hex/file bundle payload.                                                               |
+| `clpr send-message`  | Invokes `sendMessage()` on a deployed connector wrapper contract, which forwards to the CLPR system precompile at `0x16e`. |
 
 ### Ledger configuration and endpoint manifest
 
@@ -1036,7 +1038,7 @@ local networks:
 ```bash
 # Spin both networks up with the configured ledger ids, then drive
 # register → complete → message-send → bundle-sync.
-LEDGER_ID_A=<32-byte-hex> LEDGER_ID_B=<32-byte-hex> ./run-clpr-end-to-end.sh
+LEDGER_ID_A=<64-byte-hex> LEDGER_ID_B=<64-byte-hex> ./run-clpr-end-to-end.sh
 ```
 
 `run-clpr-demo.sh` is the short variant that exercises a single happy-path bundle.

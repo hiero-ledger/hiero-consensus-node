@@ -2,7 +2,6 @@
 package com.hedera.node.app.history.impl;
 
 import static com.hedera.hapi.node.state.history.WrapsPhase.AGGREGATE;
-import static com.hedera.hapi.node.state.history.WrapsPhase.POST_AGGREGATION;
 import static com.hedera.hapi.node.state.history.WrapsPhase.R1;
 import static com.hedera.hapi.node.state.history.WrapsPhase.R2;
 import static com.hedera.hapi.node.state.history.WrapsPhase.R3;
@@ -28,7 +27,7 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class WrapsMpcStateMachine {
-    public static final Set<WrapsPhase> POST_MPC_PHASES = Set.of(AGGREGATE, POST_AGGREGATION);
+    public static final Set<WrapsPhase> POST_MPC_PHASES = Set.of(AGGREGATE);
 
     @Inject
     public WrapsMpcStateMachine() {

@@ -49,6 +49,7 @@ import java.util.EnumSet;
 import java.util.List;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.Mnemonics;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -1181,6 +1182,10 @@ public class VirtualMapStateImplTest extends MerkleTestBase {
         // hash the state
         virtualMapState.getHash();
 
+        // The singleton mnemonic is derived from its leaf hash, which depends on the default digest type
+        final String countryMnemonic =
+                Mnemonics.generateMnemonic(virtualMap.getRecords().findHash(3));
+
         // Then we can check the content of getInfoJson
         final String infoJson = virtualMapState.getInfoJson();
         assertThat(infoJson)
@@ -1189,7 +1194,7 @@ public class VirtualMapStateImplTest extends MerkleTestBase {
                         + "\"VirtualMapMetadata\":{\"firstLeafPath\":2,\"lastLeafPath\":4},"
                         + "\"Singletons\":"
                         + "{\"First-Service." + COUNTRY_STATE_KEY
-                        + "\":{\"path\":3,\"mnemonic\":\"jelly-blast-anxiety-outside\"}}}");
+                        + "\":{\"path\":3,\"mnemonic\":\"" + countryMnemonic + "\"}}}");
     }
 
     @Test

@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr;
 
-import com.hedera.hapi.node.state.clpr.ClprDiscoverEndpointsRequest;
-import com.hedera.hapi.node.state.clpr.ClprDiscoverEndpointsResponse;
 import com.hedera.hapi.node.state.clpr.ClprStreamingSyncPayload;
 import com.hedera.pbj.runtime.RpcMethodDefinition;
 import com.hedera.pbj.runtime.RpcServiceDefinition;
@@ -36,10 +34,8 @@ public final class ClprEndpointServiceDefinition implements RpcServiceDefinition
      */
     public static final String SYNC_FULL_METHOD_NAME = SERVICE_NAME + "/sync";
 
-    private static final Set<RpcMethodDefinition<?, ?>> methods = Set.of(
-            new RpcMethodDefinition<>("sync", ClprStreamingSyncPayload.class, ClprStreamingSyncPayload.class),
-            new RpcMethodDefinition<>(
-                    "discoverEndpoints", ClprDiscoverEndpointsRequest.class, ClprDiscoverEndpointsResponse.class));
+    private static final Set<RpcMethodDefinition<?, ?>> methods =
+            Set.of(new RpcMethodDefinition<>("sync", ClprStreamingSyncPayload.class, ClprStreamingSyncPayload.class));
 
     private ClprEndpointServiceDefinition() {
         // Forbid instantiation

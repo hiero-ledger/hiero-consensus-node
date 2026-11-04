@@ -85,6 +85,19 @@ public final class CommonUtils {
     }
 
     /**
+     * Returns a {@link MessageDigest} instance for the SHA-256 algorithm, throwing an unchecked exception if the
+     * algorithm is not found.
+     * @return a {@link MessageDigest} instance for the SHA-256 algorithm
+     */
+    public static MessageDigest sha256DigestOrThrow() {
+        try {
+            return MessageDigest.getInstance("SHA-256");
+        } catch (final NoSuchAlgorithmException fatal) {
+            throw new IllegalStateException(fatal);
+        }
+    }
+
+    /**
      * Returns a {@link MessageDigest} instance for the SHA-384 algorithm, throwing an unchecked exception if the
      * algorithm is not found.
      * @return a {@link MessageDigest} instance for the SHA-384 algorithm
@@ -95,6 +108,27 @@ public final class CommonUtils {
         } catch (final NoSuchAlgorithmException fatal) {
             throw new IllegalStateException(fatal);
         }
+    }
+
+    /**
+     * Returns a {@link MessageDigest} for the algorithm specified by {@code digestType}. Centralizes
+     * the choice driven by {@code BlockStreamConfig.digestType} so callers don't each re-derive the same lookup.
+     * @param digestType the digest algorithm to use
+     * @return the selected {@link MessageDigest}
+     */
+    public static MessageDigest digestOrThrow(final DigestType digestType) {
+        return digestType.buildDigest();
+    }
+
+    /**
+     * Hashes the given bytes with the digest selected by {@code digestType} (see {@link #digestOrThrow(DigestType)}).
+     * @param byteArray the bytes to hash
+     * @param digestType the digest algorithm to use
+     * @return the resulting hash
+     */
+    public static byte[] noThrowHashOf(@NonNull final byte[] byteArray, final DigestType digestType) {
+        requireNonNull(byteArray);
+        return digestOrThrow(digestType).digest(byteArray);
     }
 
     // SHA-384 hash functions with the default-provided message digest

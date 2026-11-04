@@ -348,7 +348,7 @@ jobs:
       - name: Build Validator
         run: |
           cd "${{ github.workspace }}"/target_consensus_node
-          ./gradlew --no-daemon :hedera-state-validator:fatModuleJar
+          ./gradlew --no-daemon :hedera-state-validator:shadowJar
           cd "${{ github.workspace }}"
 
       - name: Setup Node
@@ -1318,16 +1318,18 @@ jobs:
           grep -E 'Finished .*Test' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g'
 
       - name: Authenticate to Google Cloud
+        if: ${{ !cancelled() && always() }}
         uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
         with:
           workload_identity_provider: "projects/716789254648/locations/global/workloadIdentityPools/perf-eng-reports-pool/providers/gh-provider"
           service_account: "gh-perf-report-writer@perf-engineering-reports.iam.gserviceaccount.com"
 
       - name: Setup Google Cloud SDK
+        if: ${{ !cancelled() && always() }}
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
 
       - name: Publish logs
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && always() }}
         run: |
           cd "${{ github.workspace }}"/
 
@@ -1371,16 +1373,18 @@ jobs:
           echo "value=${result}"
 
       - name: Authenticate to Google Cloud
+        if: ${{ !cancelled() && always() }}
         uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
         with:
           workload_identity_provider: "projects/716789254648/locations/global/workloadIdentityPools/perf-eng-reports-pool/providers/gh-provider"
           service_account: "gh-perf-report-writer@perf-engineering-reports.iam.gserviceaccount.com"
 
       - name: Setup Google Cloud SDK
+        if: ${{ !cancelled() && always() }}
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
 
       - name: Publish logs
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && always() }}
         run: |
           cd "${{ github.workspace }}"/
 
@@ -1571,16 +1575,18 @@ jobs:
           echo "value=${?}" >> "${GITHUB_OUTPUT}"
 
       - name: Authenticate to Google Cloud
+        if: ${{ !cancelled() && always() }}
         uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
         with:
           workload_identity_provider: "projects/716789254648/locations/global/workloadIdentityPools/perf-eng-reports-pool/providers/gh-provider"
           service_account: "gh-perf-report-writer@perf-engineering-reports.iam.gserviceaccount.com"
 
       - name: Setup Google Cloud SDK
+        if: ${{ !cancelled() && always() }}
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
 
       - name: Publish logs
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && always() }}
         run: |
           cd "${{ github.workspace }}"/
 

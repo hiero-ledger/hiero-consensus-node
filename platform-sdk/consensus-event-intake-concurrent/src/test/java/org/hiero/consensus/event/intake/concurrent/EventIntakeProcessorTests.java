@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import org.hiero.base.crypto.BytesSignatureVerifier;
+import org.hiero.base.crypto.test.fixtures.TestCertificates;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.event.IntakeEventCounter;
@@ -280,6 +281,42 @@ class EventIntakeProcessorTests {
                 .build();
 
         assertNull(processorWithTrueVerifier.processHashedEvent(event));
+        assertEquals(1, exitedIntakePipelineCount.get());
+    }
+
+    @Test
+    @DisplayName("Node without a usable certificate in the applicable roster")
+    void missingPublicKey() {
+        final RosterWrapperHistory rh = buildRosterHistory(
+                PREVIOUS_ROSTER_ROUND, ACTIVE_ROSTER_ROUND, id -> new RosterEntry(id.id(), 10, null, List.of()));
+        final EventIntakeProcessor processor = new ConcurrentEventIntakeProcessor(
+                metrics, time, eventHasher, passingValidator, trueVerifierFactory, rh, intakeEventCounter, null);
+
+        final PlatformEvent event = new TestingEventBuilder(random)
+                .setCreatorId(ACTIVE_ROSTER_NODE_ID)
+                .setBirthRound(ACTIVE_ROSTER_ROUND)
+                .build();
+
+        assertNull(processor.processHashedEvent(event));
+        assertEquals(1, exitedIntakePipelineCount.get());
+    }
+
+    @Test
+    @DisplayName("Node with a certificate whose key type is unsupported")
+    void unsupportedKeyType() throws CertificateEncodingException {
+        final Bytes certificate =
+                Bytes.wrap(TestCertificates.createCertificate("EC").getEncoded());
+        final RosterWrapperHistory rh = buildRosterHistory(
+                PREVIOUS_ROSTER_ROUND, ACTIVE_ROSTER_ROUND, id -> new RosterEntry(id.id(), 10, certificate, List.of()));
+        final EventIntakeProcessor processor = new ConcurrentEventIntakeProcessor(
+                metrics, time, eventHasher, passingValidator, trueVerifierFactory, rh, intakeEventCounter, null);
+
+        final PlatformEvent event = new TestingEventBuilder(random)
+                .setCreatorId(ACTIVE_ROSTER_NODE_ID)
+                .setBirthRound(ACTIVE_ROSTER_ROUND)
+                .build();
+
+        assertNull(processor.processHashedEvent(event));
         assertEquals(1, exitedIntakePipelineCount.get());
     }
 

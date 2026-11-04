@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.test.handlers;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_CHANNEL_NOT_FOUND;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_CONNECTOR_ALREADY_EXISTS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NOT_ENABLED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.PENDING_CONNECTOR_COMMITMENTS_STATE_ID;
@@ -13,8 +15,10 @@ import static org.mockito.BDDMockito.lenient;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.clpr.ClprRegisterConnectorTransactionBody;
+import com.hedera.hapi.node.state.clpr.ClprChannel;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.clpr.ReadableChannelStore;
 import com.hedera.node.app.service.clpr.impl.WritablePendingConnectorCommitmentStore;
 import com.hedera.node.app.service.clpr.impl.handlers.ClprRegisterConnectorHandler;
 import com.hedera.node.app.spi.store.StoreFactory;
@@ -39,6 +43,7 @@ class ClprRegisterConnectorHandlerTest {
     private static final AccountID PAYER_ID =
             AccountID.newBuilder().shardNum(0).realmNum(0).accountNum(1001).build();
     private static final Bytes VALID_COMMITMENT = Bytes.wrap(new byte[32]);
+    private static final Bytes CHANNEL_ID = Bytes.fromHex("ab".repeat(32));
 
     @Mock
     private PureChecksContext pureChecksContext;
@@ -51,6 +56,9 @@ class ClprRegisterConnectorHandlerTest {
 
     @Mock
     private WritableStates writableStates;
+
+    @Mock
+    private ReadableChannelStore channelStore;
 
     private ClprRegisterConnectorHandler subject;
     private WritablePendingConnectorCommitmentStore commitmentStore;
@@ -73,6 +81,7 @@ class ClprRegisterConnectorHandlerTest {
     void rejectsWrongCommitmentLength() {
         final var op = ClprRegisterConnectorTransactionBody.newBuilder()
                 .commitment(Bytes.wrap(new byte[16]))
+                .channelId(CHANNEL_ID)
                 .build();
         given(pureChecksContext.body()).willReturn(txnWith(op));
 
@@ -86,6 +95,7 @@ class ClprRegisterConnectorHandlerTest {
     void rejectsEmptyCommitment() {
         final var op = ClprRegisterConnectorTransactionBody.newBuilder()
                 .commitment(Bytes.EMPTY)
+                .channelId(CHANNEL_ID)
                 .build();
         given(pureChecksContext.body()).willReturn(txnWith(op));
 
@@ -95,7 +105,34 @@ class ClprRegisterConnectorHandlerTest {
     }
 
     @Test
-    @DisplayName("should pass pureChecks with 32-byte commitment")
+    @DisplayName("should reject when channel_id is not 32 bytes")
+    void rejectsWrongChannelIdLength() {
+        final var op = ClprRegisterConnectorTransactionBody.newBuilder()
+                .commitment(VALID_COMMITMENT)
+                .channelId(Bytes.wrap(new byte[16]))
+                .build();
+        given(pureChecksContext.body()).willReturn(txnWith(op));
+
+        assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
+                .isInstanceOf(PreCheckException.class)
+                .has(responseCode(INVALID_TRANSACTION_BODY));
+    }
+
+    @Test
+    @DisplayName("should reject when channel_id is missing")
+    void rejectsMissingChannelId() {
+        final var op = ClprRegisterConnectorTransactionBody.newBuilder()
+                .commitment(VALID_COMMITMENT)
+                .build();
+        given(pureChecksContext.body()).willReturn(txnWith(op));
+
+        assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
+                .isInstanceOf(PreCheckException.class)
+                .has(responseCode(INVALID_TRANSACTION_BODY));
+    }
+
+    @Test
+    @DisplayName("should pass pureChecks with a 32-byte commitment and channel_id")
     void passesWithValidCommitment() throws PreCheckException {
         given(pureChecksContext.body()).willReturn(validTxn());
         subject.pureChecks(pureChecksContext);
@@ -111,6 +148,18 @@ class ClprRegisterConnectorHandlerTest {
     }
 
     @Test
+    @DisplayName("should reject an unknown channel without storing the commitment")
+    void rejectsUnknownChannel() {
+        setupHandleContext(validTxn(), true);
+        given(channelStore.getChannel(CHANNEL_ID)).willReturn(null);
+
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(CLPR_CHANNEL_NOT_FOUND));
+        assertThat(commitmentStore.contains(VALID_COMMITMENT)).isFalse();
+    }
+
+    @Test
     @DisplayName("should store commitment in PENDING_CONNECTOR_COMMITMENTS")
     void storesCommitment() {
         setupHandleContext(validTxn(), true);
@@ -119,11 +168,13 @@ class ClprRegisterConnectorHandlerTest {
     }
 
     @Test
-    @DisplayName("should be idempotent — re-registering same commitment does not throw")
-    void isIdempotent() {
+    @DisplayName("should reject re-registering a commitment that is already registered")
+    void rejectsAlreadyRegisteredCommitment() {
         setupHandleContext(validTxn(), true);
         subject.handle(handleContext);
-        subject.handle(handleContext);
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(CLPR_CONNECTOR_ALREADY_EXISTS));
         assertThat(commitmentStore.contains(VALID_COMMITMENT)).isTrue();
     }
 
@@ -134,6 +185,10 @@ class ClprRegisterConnectorHandlerTest {
         lenient().when(handleContext.body()).thenReturn(txn);
         lenient().when(handleContext.configuration()).thenReturn(config);
         lenient().when(handleContext.storeFactory()).thenReturn(storeFactory);
+        lenient().when(storeFactory.readableStore(ReadableChannelStore.class)).thenReturn(channelStore);
+        lenient()
+                .when(channelStore.getChannel(CHANNEL_ID))
+                .thenReturn(ClprChannel.newBuilder().channelId(CHANNEL_ID).build());
         lenient()
                 .when(storeFactory.writableStore(WritablePendingConnectorCommitmentStore.class))
                 .thenReturn(commitmentStore);
@@ -142,6 +197,7 @@ class ClprRegisterConnectorHandlerTest {
     private TransactionBody validTxn() {
         return txnWith(ClprRegisterConnectorTransactionBody.newBuilder()
                 .commitment(VALID_COMMITMENT)
+                .channelId(CHANNEL_ID)
                 .build());
     }
 

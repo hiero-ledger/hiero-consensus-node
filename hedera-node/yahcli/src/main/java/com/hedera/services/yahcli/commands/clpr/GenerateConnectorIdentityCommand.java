@@ -39,9 +39,9 @@ public class GenerateConnectorIdentityCommand implements Callable<Integer> {
     private static final int SALT_LEN = 32;
 
     /**
-     * Default 20-byte CLPR service address baked into the Phase 1 handler:
+     * Default 20-byte CLPR service address used by the connector completion handler:
      * {@code 0x000000000000000000000000000000000000016e}. Matches
-     * {@code ClprCompleteConnectorHandler.CLPR_SERVICE_ADDRESS}.
+     * {@code ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES}.
      */
     private static final byte[] DEFAULT_SERVICE_ADDRESS = {
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, (byte) 0x6e

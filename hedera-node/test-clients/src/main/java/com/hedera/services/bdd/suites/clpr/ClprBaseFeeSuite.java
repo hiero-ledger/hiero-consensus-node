@@ -8,7 +8,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterCha
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprSubmitBundle;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdFromRecordWithTxnSize;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NETWORK_MULTIPLIER;
@@ -40,8 +40,9 @@ import org.junit.jupiter.api.Tag;
  *       TODO: add a success-path test in {@code ClprSubmitBundleSuite} to confirm the
  *       base fee is also charged (not zero, not the endpoint-penalty amount) after a
  *       valid proof verification and message dispatch.</li>
- *   <li>{@code registerChannel}, {@code registerConnector} — success path. Both
- *       commit-phase ops are permissionless and need only {@code clpr.enabled=true}.</li>
+ *   <li>{@code registerChannel} — success path; the permissionless commit only needs CLPR enabled.</li>
+ *   <li>{@code registerConnector} — failure path against an unknown channel, exercising the full
+ *       fee charged for a handler-stage failure without channel setup.</li>
  *   <li>Reveal-phase ops ({@code completeChannel}, {@code completeConnector}) are not
  *       covered here because they require a deployed verifier/connector smart contract and
  *       a full two-phase lifecycle setup. Fee coverage for those ops should be added to
@@ -52,9 +53,8 @@ import org.junit.jupiter.api.Tag;
  * fee-exempt at the record level, so a GENESIS-paid record always shows zero fees and
  * cannot validate the base charge.
  *
- * <p>Both {@code clpr.enabled} and {@code fees.simpleFeesEnabled} are pinned {@code true}
- * per test. {@code ClprFeeCalculator} only emits a service base under the simple-fees path
- * (it throws {@code UnsupportedOperationException} otherwise), so if the network default
+ * <p>{@code fees.simpleFeesEnabled} is pinned {@code true} per test. {@code ClprFeeCalculator} only
+ * emits a service base under the simple-fees path (it throws {@code UnsupportedOperationException} otherwise), so if the network default
  * for {@code fees.simpleFeesEnabled} ever flips, an unguarded suite would degrade silently
  * — either failing with the calculator's throw, or asserting {@link #expectedClprTotalUsd}
  * against the wrong fee model.
@@ -89,7 +89,7 @@ public class ClprBaseFeeSuite {
     final Stream<DynamicTest> submitBundleChargesConfiguredBaseFee() {
         final var txn = "clprSubmitBundleBaseFeeTxn";
         return hapiTest(
-                overridingTwo("clpr.enabled", "true", "fees.simpleFeesEnabled", "true"),
+                overriding("fees.simpleFeesEnabled", "true"),
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 clprSubmitBundle()
                         .channelId(new byte[32])
@@ -106,7 +106,7 @@ public class ClprBaseFeeSuite {
     final Stream<DynamicTest> registerChannelChargesConfiguredBaseFee() {
         final var txn = "clprRegisterChannelBaseFeeTxn";
         return hapiTest(
-                overridingTwo("clpr.enabled", "true", "fees.simpleFeesEnabled", "true"),
+                overriding("fees.simpleFeesEnabled", "true"),
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 clprRegisterChannel()
                         .ownershipCommitment(commitment((byte) 0x01))
@@ -120,12 +120,14 @@ public class ClprBaseFeeSuite {
     final Stream<DynamicTest> registerConnectorChargesConfiguredBaseFee() {
         final var txn = "clprRegisterConnectorBaseFeeTxn";
         return hapiTest(
-                overridingTwo("clpr.enabled", "true", "fees.simpleFeesEnabled", "true"),
+                overriding("fees.simpleFeesEnabled", "true"),
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 clprRegisterConnector()
+                        .channelId(new byte[32])
                         .commitment(commitment((byte) 0x02))
                         .payingWith(PAYER)
-                        .via(txn),
+                        .via(txn)
+                        .hasKnownStatus(CLPR_CHANNEL_NOT_FOUND),
                 validateChargedUsdFromRecordWithTxnSize(
                         txn, txnSize -> expectedClprTotalUsd(PAYER_SIGNATURES, txnSize), ALLOWED_PERCENT_DIFF));
     }

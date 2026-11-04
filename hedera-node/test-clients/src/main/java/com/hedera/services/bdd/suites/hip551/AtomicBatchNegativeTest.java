@@ -20,6 +20,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCustomCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractDelete;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -779,8 +780,8 @@ public class AtomicBatchNegativeTest {
     }
 
     @Nested
-    @DisplayName("Blacklisted inner transactions - NEGATIVE")
-    class BlacklistedTransactions {
+    @DisplayName("Non-whitelisted inner transactions - NEGATIVE")
+    class NonWhitelistedTransactions {
 
         @HapiTest
         @DisplayName("Batch containing nested batch")
@@ -811,9 +812,9 @@ public class AtomicBatchNegativeTest {
         }
 
         @HapiTest
-        @DisplayName("Batch containing blacklisted and non-blacklisted transactions")
+        @DisplayName("Batch containing whitelisted and non-whitelisted transactions")
         // BATCH_61
-        public Stream<DynamicTest> nonBlacklistedAndBlacklistedTransactions() {
+        public Stream<DynamicTest> whitelistedAndNonWhitelistedTransactions() {
             return hapiTest(
                     cryptoCreate("batchOperator").balance(FIVE_HBARS),
                     // Source this transaction so the start time doesn't expire before the batch is submitted
@@ -829,8 +830,8 @@ public class AtomicBatchNegativeTest {
         }
 
         @HapiTest
-        @DisplayName("schedule transactions are blacklisted in atomic batch")
-        public Stream<DynamicTest> scheduleBlackList() {
+        @DisplayName("schedule transactions are not whitelisted in atomic batch")
+        public Stream<DynamicTest> scheduleTransactionsAreNotWhitelisted() {
             return hapiTest(
                     cryptoCreate("batchOperator"),
                     atomicBatch(scheduleCreate("schedule", cryptoCreate("foo")).batchKey("batchOperator"))
@@ -840,6 +841,19 @@ public class AtomicBatchNegativeTest {
                     atomicBatch(scheduleSign("schedule").batchKey("batchOperator"))
                             .payingWith("batchOperator")
                             .hasKnownStatus(BATCH_TRANSACTION_IN_BLACKLIST));
+        }
+
+        @LeakyHapiTest(overrides = {"atomicBatch.whitelist"})
+        @DisplayName("Only transaction types in the configured whitelist are allowed in atomic batch")
+        public Stream<DynamicTest> onlyConfiguredWhitelistIsAllowed() {
+            return hapiTest(
+                    cryptoCreate("batchOperator").balance(FIVE_HBARS),
+                    atomicBatch(cryptoCreate("foo").batchKey("batchOperator")).signedByPayerAnd("batchOperator"),
+                    overriding("atomicBatch.whitelist", "ConsensusCreateTopic"),
+                    atomicBatch(cryptoCreate("bar").batchKey("batchOperator"))
+                            .signedByPayerAnd("batchOperator")
+                            .hasKnownStatus(BATCH_TRANSACTION_IN_BLACKLIST),
+                    atomicBatch(createTopic("topic").batchKey("batchOperator")).signedByPayerAnd("batchOperator"));
         }
     }
 

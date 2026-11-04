@@ -2,8 +2,11 @@
 package com.hedera.node.app.workflows.handle.record;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.GENESIS_WORK;
+import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.NONE;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.LEDGER_CONFIGURATION_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILES_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
@@ -32,10 +35,13 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.FileID;
+import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.NodeMigrationRootHashVote;
+import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
+import com.hedera.hapi.node.state.clpr.ClprThrottles;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.state.token.Account;
@@ -48,6 +54,7 @@ import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.impl.WrappedRecordBlockHashMigration;
+import com.hedera.node.app.service.clpr.ClprService;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.file.FileService;
@@ -80,13 +87,17 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableKVState;
+import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
 import java.util.function.Consumer;
@@ -94,6 +105,7 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
@@ -108,11 +120,19 @@ class SystemTransactionsTest {
     private static final AccountID PAYER_ID =
             AccountID.newBuilder().accountNum(800L).build();
     private static final long CLPR_STAKING_ACCOUNT_NUM = 803L;
+    private static final ClprThrottles CLPR_THROTTLES = ClprThrottles.newBuilder()
+            .maxMessagesPerBundle(1_000)
+            .maxMessagePayloadBytes(65_536)
+            .maxGasPerMessage(15_000_000L)
+            .maxQueueDepth(10_000)
+            .maxSyncBytes(4_194_304L)
+            .build();
+    private static final ClprLedgerConfiguration CLPR_LEDGER_CONFIGURATION = ClprLedgerConfiguration.newBuilder()
+            .chainId("eip155:298")
+            .throttles(CLPR_THROTTLES)
+            .build();
     private static final AccountID CLPR_STAKING_ACCOUNT_ID =
             AccountID.newBuilder().accountNum(CLPR_STAKING_ACCOUNT_NUM).build();
-
-    @Mock(strictness = Mock.Strictness.LENIENT)
-    private InitTrigger initTrigger;
 
     @Mock
     private ParentTxnFactory parentTxnFactory;
@@ -178,6 +198,12 @@ class SystemTransactionsTest {
 
     @BeforeEach
     void setUp() {
+        org.mockito.Mockito.lenient()
+                .when(blockStreamManager.lastUsedConsensusTime())
+                .thenReturn(Instant.EPOCH);
+        org.mockito.Mockito.lenient()
+                .when(blockRecordManager.lastUsedConsensusTime())
+                .thenReturn(Instant.EPOCH);
         final var config = HederaTestConfigBuilder.create()
                 .withValue("blockStream.streamMode", "BLOCKS")
                 .withValue("consensus.handleMaxPrecedingRecords", 3)
@@ -188,7 +214,6 @@ class SystemTransactionsTest {
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
         given(appContext.idFactory()).willReturn(entityIdFactory);
-        given(initTrigger.name()).willReturn("EVENT_STREAM_RECOVERY");
 
         // Set up creator node info for address book
         given(creatorNodeInfo.nodeId()).willReturn(0L);
@@ -196,7 +221,6 @@ class SystemTransactionsTest {
         given(creatorNodeInfo.sigCertBytes()).willReturn(Bytes.EMPTY);
         given(networkInfo.addressBook()).willReturn(List.of(creatorNodeInfo));
         subject = new SystemTransactions(
-                initTrigger,
                 parentTxnFactory,
                 fileService,
                 networkInfo,
@@ -222,6 +246,65 @@ class SystemTransactionsTest {
         // No exception means success - the nonce is private so we can't directly verify,
         // but we can verify the method doesn't throw
         assertDoesNotThrow(() -> subject.resetNextDispatchNonce());
+    }
+
+    @Test
+    void reservedTimeStartsAtFloorWhenNoEarlierWorkUsedIt() {
+        assertEquals(subject.firstReservedSystemTimeFor(NOW), subject.nextReservedSystemTimeFor(NOW));
+    }
+
+    @Test
+    void reservedTimeFollowsMaintenanceAndEarlierDispatches() {
+        final var used = subject.firstReservedSystemTimeFor(NOW).plusNanos(10);
+        given(blockStreamManager.lastUsedConsensusTime()).willReturn(used);
+        assertEquals(used.plusNanos(2), subject.nextReservedSystemTimeFor(NOW));
+        final var context = subject.newSystemContext(
+                NOW,
+                state,
+                ignored -> {},
+                SystemTransactions.UseReservedConsensusTimes.YES,
+                SystemTransactions.TriggerStakePeriodSideEffects.YES);
+        assertEquals(used.plusNanos(2), context.now());
+        assertTrue(context.hasDispatchesRemaining());
+    }
+
+    @Test
+    void systemTransactionIdsUseSuccessiveNonzeroNoncesUntilReset() {
+        final var adminId = AccountID.newBuilder().accountNum(50).build();
+        given(entityIdFactory.newAccountId(50)).willReturn(adminId);
+        final var at = NOW.minusNanos(10);
+        final var expected = TransactionID.newBuilder()
+                .accountID(adminId)
+                .transactionValidStart(Timestamp.newBuilder()
+                        .seconds(at.getEpochSecond())
+                        .nanos(at.getNano())
+                        .build())
+                .nonce(1)
+                .build();
+
+        assertEquals(expected, subject.nextSystemTransactionIdAt(at));
+        assertEquals(2, subject.nextSystemTransactionIdAt(at).nonce());
+        subject.resetNextDispatchNonce();
+        assertEquals(expected, subject.nextSystemTransactionIdAt(at));
+    }
+
+    @Test
+    void reservedTimeCannotOverlapUserPrecedingRecords() {
+        given(blockStreamManager.lastUsedConsensusTime()).willReturn(NOW.minusNanos(5));
+        assertThrows(IllegalStateException.class, () -> subject.nextReservedSystemTimeFor(NOW));
+    }
+
+    @Test
+    void lastReservedSlotIsUsable() {
+        given(blockStreamManager.lastUsedConsensusTime()).willReturn(NOW.minusNanos(6));
+        final var context = subject.newSystemContext(
+                NOW,
+                state,
+                ignored -> {},
+                SystemTransactions.UseReservedConsensusTimes.YES,
+                SystemTransactions.TriggerStakePeriodSideEffects.YES);
+        assertEquals(NOW.minusNanos(4), context.now());
+        assertTrue(context.hasDispatchesRemaining());
     }
 
     @ParameterizedTest
@@ -292,8 +375,8 @@ class SystemTransactionsTest {
 
     @Test
     void testFirstReservedSystemTimeForGenesis() {
-        // For genesis, we need to also subtract firstUserEntity
-        given(initTrigger.name()).willReturn("GENESIS");
+        // While genesis work is pending, we need to also subtract firstUserEntity
+        given(blockStreamManager.pendingWork()).willReturn(GENESIS_WORK);
 
         final var config = HederaTestConfigBuilder.create()
                 .withValue("blockStream.streamMode", "BLOCKS")
@@ -305,9 +388,7 @@ class SystemTransactionsTest {
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
 
-        // Recreate subject with GENESIS trigger
         subject = new SystemTransactions(
-                InitTrigger.GENESIS,
                 parentTxnFactory,
                 fileService,
                 networkInfo,
@@ -331,6 +412,47 @@ class SystemTransactionsTest {
         assertTrue(result.isBefore(NOW));
         // Should be NOW minus (1 + 3 + 1000 + 1001) = 2005 nanos
         assertEquals(NOW.minusNanos(2005), result);
+    }
+
+    @Test
+    void genesisReservationEndsWithGenesisWork() {
+        // Every node must reserve the same times after genesis, however its process started
+        given(blockStreamManager.pendingWork()).willReturn(GENESIS_WORK, NONE);
+
+        assertEquals(NOW.minusNanos(2005), subject.firstReservedSystemTimeFor(NOW));
+        assertEquals(NOW.minusNanos(1004), subject.firstReservedSystemTimeFor(NOW));
+    }
+
+    @Test
+    void recordStreamGenesisReservationLastsUntilFirstHandledTransaction() {
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("blockStream.streamMode", "RECORDS")
+                .withValue("consensus.handleMaxPrecedingRecords", 3)
+                .withValue("scheduling.reservedSystemTxnNanos", 1000)
+                .withValue("hedera.firstUserEntity", 1001)
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
+        subject = new SystemTransactions(
+                parentTxnFactory,
+                fileService,
+                networkInfo,
+                configProvider,
+                dispatchProcessor,
+                appContext,
+                servicesRegistry,
+                blockRecordManager,
+                blockStreamManager,
+                exchangeRateManager,
+                recordCache,
+                startupNetworks,
+                stakePeriodChanges,
+                selfNodeAccountIdManager,
+                wrappedRecordBlockHashMigration,
+                migrationRootHashSubmissions);
+        given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(Instant.EPOCH, NOW.minusSeconds(1));
+
+        assertEquals(NOW.minusNanos(2005), subject.firstReservedSystemTimeFor(NOW));
+        assertEquals(NOW.minusNanos(1004), subject.firstReservedSystemTimeFor(NOW));
     }
 
     @Test
@@ -468,6 +590,122 @@ class SystemTransactionsTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
+    void postUpgradeAppliesChangedClprLedgerConfigurationFile(@TempDir final Path upgradeDir) throws IOException {
+        given(givenAccountsState().get(CLPR_STAKING_ACCOUNT_ID)).willReturn(Account.DEFAULT);
+        writeClprLedgerConfigurationFile(upgradeDir, 500);
+
+        final var systemContext =
+                doPostUpgradeSetupWithMockContext(true, CLPR_LEDGER_CONFIGURATION, upgradeDir.toString());
+
+        final ArgumentCaptor<Consumer<TransactionBody.Builder>> spec = ArgumentCaptor.forClass(Consumer.class);
+        verify(systemContext).dispatchAdmin(spec.capture());
+        final var builder = TransactionBody.newBuilder();
+        spec.getValue().accept(builder);
+        final var update =
+                builder.build().clprUpdateLedgerConfigurationOrThrow().configurationOrThrow();
+        assertEquals(
+                ClprLedgerConfiguration.newBuilder()
+                        .throttles(CLPR_THROTTLES
+                                .copyBuilder()
+                                .maxMessagesPerBundle(500)
+                                .build())
+                        .build(),
+                update);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void postUpgradeSkipsUnchangedClprLedgerConfigurationFile(@TempDir final Path upgradeDir) throws IOException {
+        given(givenAccountsState().get(CLPR_STAKING_ACCOUNT_ID)).willReturn(Account.DEFAULT);
+        writeClprLedgerConfigurationFile(upgradeDir, CLPR_THROTTLES.maxMessagesPerBundle());
+
+        final var systemContext =
+                doPostUpgradeSetupWithMockContext(true, CLPR_LEDGER_CONFIGURATION, upgradeDir.toString());
+
+        verify(systemContext, never()).dispatchAdmin(any(Consumer.class));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void postUpgradeSkipsClprLedgerConfigurationFileWhileClprIsDisabled(@TempDir final Path upgradeDir)
+            throws IOException {
+        writeClprLedgerConfigurationFile(upgradeDir, 500);
+
+        final var systemContext =
+                doPostUpgradeSetupWithMockContext(false, CLPR_LEDGER_CONFIGURATION, upgradeDir.toString());
+
+        verify(systemContext, never()).dispatchAdmin(any(Consumer.class));
+        verify(state, never()).getReadableStates(ClprService.NAME);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void postUpgradeSkipsClprLedgerConfigurationFileBeforeLedgerConfigurationExists(@TempDir final Path upgradeDir)
+            throws IOException {
+        given(givenAccountsState().get(CLPR_STAKING_ACCOUNT_ID)).willReturn(Account.DEFAULT);
+        writeClprLedgerConfigurationFile(upgradeDir, 500);
+
+        final var systemContext = doPostUpgradeSetupWithMockContext(true, null, upgradeDir.toString());
+
+        verify(systemContext, never()).dispatchAdmin(any(Consumer.class));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void postUpgradeSkipsInvalidClprLedgerConfigurationFile(@TempDir final Path upgradeDir) throws IOException {
+        given(givenAccountsState().get(CLPR_STAKING_ACCOUNT_ID)).willReturn(Account.DEFAULT);
+        // A file may only set throttles
+        Files.writeString(
+                upgradeDir.resolve("clprLedgerConfiguration.json"),
+                ClprLedgerConfiguration.JSON.toJSON(CLPR_LEDGER_CONFIGURATION
+                        .copyBuilder()
+                        .throttles(CLPR_THROTTLES
+                                .copyBuilder()
+                                .maxMessagesPerBundle(500)
+                                .build())
+                        .build()));
+
+        final var systemContext =
+                doPostUpgradeSetupWithMockContext(true, CLPR_LEDGER_CONFIGURATION, upgradeDir.toString());
+
+        verify(systemContext, never()).dispatchAdmin(any(Consumer.class));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void postUpgradeCapsClprMaxGasPerMessageAtMaxGasPerTransaction(@TempDir final Path upgradeDir) throws IOException {
+        given(givenAccountsState().get(CLPR_STAKING_ACCOUNT_ID)).willReturn(Account.DEFAULT);
+        Files.writeString(
+                upgradeDir.resolve("clprLedgerConfiguration.json"),
+                ClprLedgerConfiguration.JSON.toJSON(ClprLedgerConfiguration.newBuilder()
+                        .throttles(CLPR_THROTTLES
+                                .copyBuilder()
+                                .maxGasPerMessage(30_000_000L)
+                                .build())
+                        .build()));
+
+        // The file's 30M gas is capped at the default contracts.maxGasPerTransaction of 15M, matching the
+        // existing throttles, so nothing is dispatched
+        final var systemContext =
+                doPostUpgradeSetupWithMockContext(true, CLPR_LEDGER_CONFIGURATION, upgradeDir.toString());
+
+        verify(systemContext, never()).dispatchAdmin(any(Consumer.class));
+    }
+
+    private static void writeClprLedgerConfigurationFile(@NonNull final Path dir, final int maxMessagesPerBundle)
+            throws IOException {
+        Files.writeString(
+                dir.resolve("clprLedgerConfiguration.json"),
+                ClprLedgerConfiguration.JSON.toJSON(ClprLedgerConfiguration.newBuilder()
+                        .throttles(CLPR_THROTTLES
+                                .copyBuilder()
+                                .maxMessagesPerBundle(maxMessagesPerBundle)
+                                .build())
+                        .build()));
+    }
+
+    @Test
     void testFirstReservedSystemTimeForWithZeroReservedNanos() {
         // Create config with 0 reserved nanos
         final var config = HederaTestConfigBuilder.create()
@@ -482,7 +720,6 @@ class SystemTransactionsTest {
 
         // Recreate subject
         subject = new SystemTransactions(
-                initTrigger,
                 parentTxnFactory,
                 fileService,
                 networkInfo,
@@ -525,7 +762,6 @@ class SystemTransactionsTest {
 
         // Recreate subject
         subject = new SystemTransactions(
-                initTrigger,
                 parentTxnFactory,
                 fileService,
                 networkInfo,
@@ -606,7 +842,6 @@ class SystemTransactionsTest {
 
         // Recreate subject with updated config
         subject = new SystemTransactions(
-                initTrigger,
                 parentTxnFactory,
                 fileService,
                 networkInfo,
@@ -659,7 +894,6 @@ class SystemTransactionsTest {
         given(filesState.get(any())).willReturn(File.DEFAULT);
         // Recreate subject with updated config
         subject = new SystemTransactions(
-                initTrigger,
                 parentTxnFactory,
                 fileService,
                 networkInfo,
@@ -761,7 +995,6 @@ class SystemTransactionsTest {
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
         subject = new SystemTransactions(
-                initTrigger,
                 parentTxnFactory,
                 fileService,
                 networkInfo,
@@ -809,13 +1042,30 @@ class SystemTransactionsTest {
         return accounts;
     }
 
-    @SuppressWarnings("unchecked")
     private SystemContext doPostUpgradeSetupWithMockContext(final boolean clprEnabled) {
+        return doPostUpgradeSetupWithMockContext(clprEnabled, CLPR_LEDGER_CONFIGURATION, "data/config");
+    }
+
+    @SuppressWarnings("unchecked")
+    private SystemContext doPostUpgradeSetupWithMockContext(
+            final boolean clprEnabled,
+            @Nullable final ClprLedgerConfiguration ledgerConfiguration,
+            @NonNull final String upgradeSysFilesLoc) {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("blockStream.streamMode", "BLOCKS")
                 .withValue("nodes.enableDAB", "false")
                 .withValue("clpr.enabled", clprEnabled)
+                .withValue("networkAdmin.upgradeSysFilesLoc", upgradeSysFilesLoc)
                 .getOrCreateConfig();
+        if (clprEnabled) {
+            final var clprStates = mock(ReadableStates.class);
+            final ReadableSingletonState<ClprLedgerConfiguration> ledgerConfigurationState =
+                    mock(ReadableSingletonState.class);
+            given(state.getReadableStates(ClprService.NAME)).willReturn(clprStates);
+            given(clprStates.<ClprLedgerConfiguration>getSingleton(LEDGER_CONFIGURATION_STATE_ID))
+                    .willReturn(ledgerConfigurationState);
+            given(ledgerConfigurationState.get()).willReturn(ledgerConfiguration);
+        }
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
         final var selfNodeInfo = mock(NodeInfo.class);
         given(selfNodeInfo.accountId()).willReturn(NODE_ACCOUNT_ID);

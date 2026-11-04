@@ -2,12 +2,13 @@
 package com.hedera.node.app.hints.impl;
 
 import static com.hedera.hapi.util.HapiUtils.asInstant;
+import static com.hedera.node.app.hints.HintsLibrary.isSupportedPartySize;
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.HINTS_KEY_SETS_STATE_ID;
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.NEXT_HINTS_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.PREPROCESSING_VOTES_STATE_ID;
-import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_PUBLICATIONS_STATE_ID;
 import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_STATE_STATE_ID;
+import static com.hedera.node.app.hints.schemas.V079HintsSchema.NEXT_CRS_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.hints.CRSState;
@@ -16,8 +17,6 @@ import com.hedera.hapi.node.state.hints.HintsKeySet;
 import com.hedera.hapi.node.state.hints.HintsPartyId;
 import com.hedera.hapi.node.state.hints.PreprocessingVote;
 import com.hedera.hapi.node.state.hints.PreprocessingVoteId;
-import com.hedera.hapi.platform.state.NodeId;
-import com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody;
 import com.hedera.node.app.hints.ReadableHintsStore;
 import com.hedera.node.app.service.entityid.ReadableEntityIdStore;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
@@ -32,8 +31,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.SortedMap;
-import java.util.TreeMap;
 
 /**
  * Provides read access to the {@link HintsConstruction} and {@link PreprocessingVote} instances in state.
@@ -45,8 +42,7 @@ public class ReadableHintsStoreImpl implements ReadableHintsStore {
     private final ReadableSingletonState<HintsConstruction> activeConstruction;
     private final ReadableKVState<PreprocessingVoteId, PreprocessingVote> votes;
     private final ReadableSingletonState<CRSState> crs;
-    private final ReadableKVState<NodeId, CrsPublicationTransactionBody> crsPublications;
-    private final ReadableEntityIdStore readableEntityIdStore;
+    private final ReadableSingletonState<CRSState> nextCrs;
 
     public ReadableHintsStoreImpl(
             @NonNull final ReadableStates states, final ReadableEntityIdStore readableEntityIdStore) {
@@ -56,8 +52,8 @@ public class ReadableHintsStoreImpl implements ReadableHintsStore {
         this.activeConstruction = states.getSingleton(ACTIVE_HINTS_CONSTRUCTION_STATE_ID);
         this.votes = states.get(PREPROCESSING_VOTES_STATE_ID);
         this.crs = states.getSingleton(CRS_STATE_STATE_ID);
-        this.crsPublications = states.get(CRS_PUBLICATIONS_STATE_ID);
-        this.readableEntityIdStore = requireNonNull(readableEntityIdStore);
+        this.nextCrs = states.getSingleton(NEXT_CRS_STATE_ID);
+        requireNonNull(readableEntityIdStore);
     }
 
     @Override
@@ -111,11 +107,14 @@ public class ReadableHintsStoreImpl implements ReadableHintsStore {
 
     @Override
     public @NonNull List<HintsKeyPublication> getHintsKeyPublications(
-            @NonNull final Set<Long> nodeIds, final int numParties) {
+            @NonNull final Set<Long> nodeIds, final int numParties, final long crsId) {
         requireNonNull(nodeIds);
+        if (!isSupportedPartySize(numParties)) {
+            return List.of();
+        }
         final List<HintsKeyPublication> publications = new ArrayList<>();
-        for (int partyId = 0; partyId < numParties; partyId++) {
-            final var keySet = hintsKeys.get(new HintsPartyId(partyId, numParties));
+        for (int partyId = 0; partyId < numParties - 1; partyId++) {
+            final var keySet = hintsKeys.get(new HintsPartyId(partyId, numParties, crsId));
             if (keySet != null) {
                 if (nodeIds.contains(keySet.nodeId())) {
                     publications.add(new HintsKeyPublication(
@@ -132,29 +131,8 @@ public class ReadableHintsStoreImpl implements ReadableHintsStore {
     }
 
     @Override
-    public List<CrsPublicationTransactionBody> getCrsPublications() {
-        final var nextNodeId = readableEntityIdStore.peekAtNextNodeId();
-        final var publications = new ArrayList<CrsPublicationTransactionBody>();
-        for (int i = 0; i < nextNodeId; i++) {
-            final var nodeId = new NodeId(i);
-            final var publication = crsPublications.get(nodeId);
-            if (publication != null) {
-                publications.add(publication);
-            }
-        }
-        return publications;
-    }
-
-    @Override
-    public SortedMap<Long, CrsPublicationTransactionBody> getOrderedCrsPublications(@NonNull final Set<Long> nodeIds) {
-        final SortedMap<Long, CrsPublicationTransactionBody> publications = new TreeMap<>();
-        for (final var nodeId : nodeIds) {
-            final var publication = crsPublications.get(new NodeId(nodeId));
-            if (publication != null) {
-                publications.put(nodeId, publication);
-            }
-        }
-        return publications;
+    public @NonNull CRSState getNextCrsState() {
+        return requireNonNull(nextCrs.get());
     }
 
     private boolean constructionIsFor(

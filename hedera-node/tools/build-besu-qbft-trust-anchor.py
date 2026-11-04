@@ -30,14 +30,15 @@ The proto definition lived at:
   hapi/hedera-protobuf-java-api/src/main/proto/services/state/clpr/
       clpr_ledger_configuration.proto
 
-By default the throttles + endpoints fields are omitted (valid proto3),
-which produces a config the receiving ledger will reject — ClprCompleteChannel
-requires both to be populated so the sync orchestrator has rate limits and at
-least one peer to dial. Supply them via:
+By default the throttles field is omitted (valid proto3), which produces a
+config the receiving ledger will reject — ClprCompleteChannel requires it so
+the sync orchestrator has rate limits. Supply it via:
   --throttles-json     '{"max_messages_per_bundle":100, ...}'
-  --seed-endpoints-json '[{"ip_address":"127.0.0.1","port":50211, ...}, ...]'
 or
-  --config-json        path/to/file.json   (single file with both top-level keys)
+  --config-json        path/to/file.json   (file with a top-level 'throttles' key)
+
+The endpoint list is not part of ClprLedgerConfiguration (field 6 is reserved);
+peers learn dial targets from the endpoint manifest.
 
 bridge-from-besu.sh generates the JSON automatically from Besu's on-chain
 getLedgerConfiguration() return value.
@@ -149,7 +150,7 @@ CLPR_FIELD_CHAIN_ID = 2
 CLPR_FIELD_SERVICE_ADDRESS = 3
 # field 4 = timestamp           (nested message — omitted)
 CLPR_FIELD_THROTTLES = 5
-CLPR_FIELD_SEED_ENDPOINTS = 6
+# field 6 = reserved (former seed endpoint list; now the endpoint manifest)
 CLPR_FIELD_INITIAL_TRUST_ANCHOR = 7
 CLPR_FIELD_INITIAL_TRUST_ANCHOR_ID = 8
 
@@ -161,16 +162,6 @@ THR_MAX_QUEUE_DEPTH = 4
 THR_MAX_SYNC_BYTES = 5
 THR_MAX_LOCAL_ENDPOINTS = 6
 THR_MAX_PEER_ENDPOINTS = 7
-
-# ClprEndpoint fields. ecdsa_signing_key (formerly field 3) was removed from the
-# proto; account_id was renumbered from 4 to 3 to match ClprProtobuf._decodeEndpoint.
-EP_SERVICE_ENDPOINT = 1
-EP_TLS_CERTIFICATE = 2
-EP_ACCOUNT_ID = 3
-
-# ClprServiceEndpoint fields.
-SE_IP_ADDRESS = 1
-SE_PORT = 2
 
 
 # -----------------------------------------------------------------------------
@@ -198,20 +189,6 @@ def build_trust_anchor(validator20: bytes, service20: bytes, code_hash32: bytes)
     ])
 
 
-def _parse_hex_blob(s, name):
-    """Allow either "" / None (→ empty bytes) or "0x..." / "..."."""
-    if s is None or s == "":
-        return b""
-    if isinstance(s, (bytes, bytearray)):
-        return bytes(s)
-    if s.startswith("0x") or s.startswith("0X"):
-        s = s[2:]
-    try:
-        return bytes.fromhex(s)
-    except ValueError as e:
-        raise ValueError(f"{name} is not valid hex: {e}") from e
-
-
 def encode_throttles(t: dict) -> bytes:
     """Serialize a ClprThrottles message. Missing keys default to 0 (proto3
     default-value semantics — the field is omitted from the wire format).
@@ -232,22 +209,6 @@ def encode_throttles(t: dict) -> bytes:
     return _tag(CLPR_FIELD_THROTTLES, _WIRE_LEN) + _varint(len(payload)) + payload
 
 
-def encode_service_endpoint(ip: str, port: int) -> bytes:
-    return b"".join([
-        pb_string(SE_IP_ADDRESS, ip or ""),
-        pb_uint32(SE_PORT, int(port or 0)),
-    ])
-
-
-def encode_endpoint(ep: dict) -> bytes:
-    service_ep = encode_service_endpoint(ep.get("ip_address", ""), ep.get("port", 0))
-    return b"".join([
-        pb_message(EP_SERVICE_ENDPOINT, service_ep),
-        pb_bytes(EP_TLS_CERTIFICATE, _parse_hex_blob(ep.get("tls_certificate", ""), "tls_certificate")),
-        pb_bytes(EP_ACCOUNT_ID,      _parse_hex_blob(ep.get("account_id", ""), "account_id")),
-    ])
-
-
 def build_clpr_ledger_configuration(
     *,
     protocol_version,
@@ -255,7 +216,6 @@ def build_clpr_ledger_configuration(
     service_address,
     initial_trust_anchor,
     throttles=None,
-    endpoints=None,
 ):
     parts = [
         pb_uint32(CLPR_FIELD_PROTOCOL_VERSION, protocol_version),
@@ -264,13 +224,6 @@ def build_clpr_ledger_configuration(
     ]
     if throttles is not None:
         parts.append(encode_throttles(throttles))
-    # NOTE: field 6 (seed_endpoints) is intentionally NOT emitted. The endpoint
-    # set moved out of ClprLedgerConfiguration into the versioned endpoint
-    # manifest, and the strict on-chain decoder (ClprProtobuf.decodeControlMessage)
-    # rejects any unrecognized field with ClprUnknownWireField — emitting the
-    # retired field 6 makes verifyConfig revert. `endpoints` is accepted but
-    # ignored for wire compatibility with existing callers.
-    _ = endpoints
     parts.append(pb_bytes(CLPR_FIELD_INITIAL_TRUST_ANCHOR, initial_trust_anchor))
     parts.append(pb_bytes(CLPR_FIELD_INITIAL_TRUST_ANCHOR_ID, initial_trust_anchor))
     return b"".join(parts)
@@ -299,14 +252,9 @@ def main(argv=None) -> int:
                              "Missing keys default to 0. The throttles wrapper is always emitted when this "
                              "flag is present, so a non-null sub-message reaches the receiver even with all-zero "
                              "fields. Mutually exclusive with --config-json's 'throttles' key.")
-    parser.add_argument("--seed-endpoints-json",
-                        help="Inline JSON list of ClprEndpoint entries. Each entry: {ip_address, port, "
-                             "tls_certificate, ecdsa_signing_key, account_id} (latter three as hex; empty "
-                             "strings are valid). Mutually exclusive with --config-json's 'endpoints' key.")
     parser.add_argument("--config-json",
-                        help="Path to a JSON file with top-level 'throttles' (object) and/or "
-                             "'endpoints' (list). Equivalent to passing --throttles-json + "
-                             "--seed-endpoints-json from a file. Useful when bridge-from-besu.sh dumps "
+                        help="Path to a JSON file with a top-level 'throttles' object. Equivalent to "
+                             "passing --throttles-json from a file. Useful when bridge-from-besu.sh dumps "
                              "Besu's on-chain getLedgerConfiguration() to disk before calling this tool.")
     parser.add_argument("--out-trust-anchor",
                         help="Write the raw RLP trust-anchor bytes to this file (binary). "
@@ -327,10 +275,10 @@ def main(argv=None) -> int:
         print(f"ERROR: {e}", file=sys.stderr)
         return 2
 
-    # Resolve throttles + endpoints. Precedence:
-    #   1. --throttles-json / --seed-endpoints-json (inline) — explicit wins
-    #   2. --config-json file values
-    #   3. neither — fields stay null/empty, and the receiver will reject the
+    # Resolve throttles. Precedence:
+    #   1. --throttles-json (inline) — explicit wins
+    #   2. --config-json file value
+    #   3. neither — the field stays null, and the receiver will reject the
     #      proof (CLPR_VERIFIER_CONFIG_FAILED). This is intentional: we emit a
     #      diagnostic warning so the operator notices instead of getting an
     #      opaque NPE later on the sync thread.
@@ -353,25 +301,10 @@ def main(argv=None) -> int:
     elif "throttles" in file_cfg:
         throttles = file_cfg["throttles"]
 
-    endpoints = None
-    if args.seed_endpoints_json:
-        try:
-            endpoints = json.loads(args.seed_endpoints_json)
-        except json.JSONDecodeError as e:
-            print(f"ERROR: --seed-endpoints-json is not valid JSON: {e}", file=sys.stderr)
-            return 2
-    elif "endpoints" in file_cfg:
-        endpoints = file_cfg["endpoints"]
-
-    if throttles is None or not endpoints:
+    if throttles is None:
         # Not fatal here (the tool's job is to encode whatever it's given), but the
         # receiving ledger will reject. Loudly warn so the operator notices.
-        print(
-            "WARNING: ClprCompleteChannel rejects configs without throttles or endpoints. "
-            f"throttles={'set' if throttles is not None else 'missing'}, "
-            f"endpoints={len(endpoints) if endpoints else 0}.",
-            file=sys.stderr,
-        )
+        print("WARNING: ClprCompleteChannel rejects configs without throttles.", file=sys.stderr)
 
     trust_anchor = build_trust_anchor(validator20, service20, code_hash32)
     config = build_clpr_ledger_configuration(
@@ -380,7 +313,6 @@ def main(argv=None) -> int:
         service_address=service20,
         initial_trust_anchor=trust_anchor,
         throttles=throttles,
-        endpoints=endpoints,
     )
 
     if args.out_trust_anchor:

@@ -11,8 +11,9 @@ import java.time.Duration;
  */
 public final class ClprConfigBuilder {
     private boolean enabled = true;
-    private String chainId = "hiero:localnet";
     private int protocolVersion = 1;
+    private String ledgerConfigurationFile = "data/config/clprLedgerConfiguration.json";
+    private String upgradeLedgerConfigurationFile = "clprLedgerConfiguration.json";
     private long minLockedStake = 100_000_000L;
     private long stakingAccount = 803L;
     private long slashBasePenalty = 10_000_000L;
@@ -30,15 +31,11 @@ public final class ClprConfigBuilder {
     private int retryMaxAttempts = 5;
     private int circuitBreakerCooldownSeconds = 120;
     private boolean syncPeerExclusionEnabled = false;
-    private int discoveryIntervalSeconds = 300;
     private int connectorQueueQuotaPct = 50;
     private long verifierGasLimit = 300_000L;
     private boolean verifyProofsAtSender = true;
     private String peerEndpointsFile = "data/clpr/peer-endpoints.json";
     private long nodeSubmitBundleMaxFee = 1_000_000_000L;
-    private String caCrtPath = "";
-    private String caKeyPath = "";
-    private int mtlsPort = 50214;
     private Duration manifestGracePeriod = Duration.ofSeconds(300);
     private Duration manifestGraceExtension = Duration.ofSeconds(300);
     private int manifestMaxGraceExtensions = 2;
@@ -57,13 +54,18 @@ public final class ClprConfigBuilder {
         return this;
     }
 
-    public ClprConfigBuilder chainId(final String chainId) {
-        this.chainId = chainId;
+    public ClprConfigBuilder protocolVersion(final int protocolVersion) {
+        this.protocolVersion = protocolVersion;
         return this;
     }
 
-    public ClprConfigBuilder protocolVersion(final int protocolVersion) {
-        this.protocolVersion = protocolVersion;
+    public ClprConfigBuilder ledgerConfigurationFile(final String ledgerConfigurationFile) {
+        this.ledgerConfigurationFile = ledgerConfigurationFile;
+        return this;
+    }
+
+    public ClprConfigBuilder upgradeLedgerConfigurationFile(final String upgradeLedgerConfigurationFile) {
+        this.upgradeLedgerConfigurationFile = upgradeLedgerConfigurationFile;
         return this;
     }
 
@@ -152,11 +154,6 @@ public final class ClprConfigBuilder {
         return this;
     }
 
-    public ClprConfigBuilder discoveryIntervalSeconds(final int discoveryIntervalSeconds) {
-        this.discoveryIntervalSeconds = discoveryIntervalSeconds;
-        return this;
-    }
-
     public ClprConfigBuilder connectorQueueQuotaPct(final int connectorQueueQuotaPct) {
         this.connectorQueueQuotaPct = connectorQueueQuotaPct;
         return this;
@@ -179,21 +176,6 @@ public final class ClprConfigBuilder {
 
     public ClprConfigBuilder peerEndpointsFile(final String peerEndpointsFile) {
         this.peerEndpointsFile = peerEndpointsFile;
-        return this;
-    }
-
-    public ClprConfigBuilder caCrtPath(final String caCrtPath) {
-        this.caCrtPath = caCrtPath;
-        return this;
-    }
-
-    public ClprConfigBuilder caKeyPath(final String caKeyPath) {
-        this.caKeyPath = caKeyPath;
-        return this;
-    }
-
-    public ClprConfigBuilder mtlsPort(final int mtlsPort) {
-        this.mtlsPort = mtlsPort;
         return this;
     }
 
@@ -230,8 +212,9 @@ public final class ClprConfigBuilder {
     public ClprConfig build() {
         return new ClprConfig(
                 enabled,
-                chainId,
                 protocolVersion,
+                ledgerConfigurationFile,
+                upgradeLedgerConfigurationFile,
                 minLockedStake,
                 stakingAccount,
                 slashBasePenalty,
@@ -249,15 +232,11 @@ public final class ClprConfigBuilder {
                 retryMaxAttempts,
                 circuitBreakerCooldownSeconds,
                 syncPeerExclusionEnabled,
-                discoveryIntervalSeconds,
                 connectorQueueQuotaPct,
                 verifierGasLimit,
                 nodeSubmitBundleMaxFee,
                 verifyProofsAtSender,
                 peerEndpointsFile,
-                caCrtPath,
-                caKeyPath,
-                mtlsPort,
                 manifestGracePeriod,
                 manifestGraceExtension,
                 manifestMaxGraceExtensions,

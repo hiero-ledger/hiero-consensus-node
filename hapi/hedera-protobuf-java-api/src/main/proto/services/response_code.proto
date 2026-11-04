@@ -1710,7 +1710,7 @@ enum ResponseCodeEnum {
 
     /**
      * The list of batch transactions contains a transaction type that is
-     * in the AtomicBatch blacklist as configured in the network.
+     * not in the AtomicBatch whitelist as configured in the network.
      */
     BATCH_TRANSACTION_IN_BLACKLIST = 390;
 
@@ -2016,7 +2016,10 @@ enum ResponseCodeEnum {
     CLPR_INVALID_SEED_ENDPOINT = 541;
 
     /**
-     * A CLPR Channel with the given channel_id already exists.
+     * A CLPR Channel with the given channel_id already exists, or (on
+     * registerChannel) the ownership commitment is already registered, either
+     * pending reveal or bound to an existing Channel in any status, including
+     * CLOSED.
      */
     CLPR_CHANNEL_ALREADY_EXISTS = 542;
 
@@ -2058,11 +2061,6 @@ enum ResponseCodeEnum {
     CLPR_MESSAGE_NOT_FOUND = 549;
 
     /**
-     * The message has already been acknowledged by the peer and cannot be redacted.
-     */
-    CLPR_MESSAGE_ALREADY_ACKNOWLEDGED = 550;
-
-    /**
      * The endpoint signature is invalid or the signer is not a registered endpoint.
      */
     CLPR_INVALID_ENDPOINT_SIGNATURE = 551;
@@ -2088,7 +2086,10 @@ enum ResponseCodeEnum {
     CLPR_CONNECTOR_NOT_FOUND = 555;
 
     /**
-     * A Connector with the same (channel_id, connector_id) already exists.
+     * A Connector with the same (channel_id, connector_id) already exists, or
+     * (on registerConnector) the commitment is already registered, either
+     * pending reveal or already used to create a Connector, including one that
+     * has since been deregistered.
      */
     CLPR_CONNECTOR_ALREADY_EXISTS = 556;
 
@@ -2121,11 +2122,6 @@ enum ResponseCodeEnum {
      * The Connector's authorization contract rejected the message.
      */
     CLPR_AUTHORIZATION_FAILED = 562;
-
-    /**
-     * The message has already been redacted (payload already removed).
-     */
-    CLPR_MESSAGE_ALREADY_REDACTED = 563;
 
     /**
      * The Connector has exceeded its per-Channel queue quota. Other
@@ -2182,11 +2178,4 @@ enum ResponseCodeEnum {
      * The submitting endpoint is charged a penalty fee.
      */
     CLPR_NO_PROGRESS = 571;
-
-    /**
-     * Attempted to redact a message slot whose payload is not a Data Message.
-     * Per spec §4.4, only Data Messages may be redacted — Response Messages
-     * and Control Messages may not.
-     */
-    CLPR_MESSAGE_NOT_REDACTABLE = 572;
 }

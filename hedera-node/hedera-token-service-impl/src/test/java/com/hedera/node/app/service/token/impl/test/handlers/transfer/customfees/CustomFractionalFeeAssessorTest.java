@@ -39,6 +39,8 @@ import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -78,6 +80,8 @@ public class CustomFractionalFeeAssessorTest {
     private final AccountID firstFractionalFeeCollector = asAccount(0L, 0L, 6666L);
     private final AccountID secondFractionalFeeCollector = asAccount(0L, 0L, 7777L);
     private final AccountID netOfTransfersFeeCollector = asAccount(0L, 0L, 8888L);
+    // Collects a fixed fee on the token, so it is exempt from any of its all-collectors-exempt fractional fees
+    private final AccountID exemptCoCollector = asAccount(0L, 0L, 5555L);
     private final AccountID[] effPayersIncludingFirstCollector =
             new AccountID[] {firstReclaimedAcount, secondReclaimedAcount, firstFractionalFeeCollector};
 
@@ -587,6 +591,183 @@ public class CustomFractionalFeeAssessorTest {
         verify(fixedFeeAssessor, never()).assessFixedFee(any(), any(), any(), any());
         assertThat(result.getItemizedAssessedFees()).isEmpty();
         assertThat(result.getRoyaltiesPaid()).isEmpty();
+    }
+
+    @Test
+    void netOfTransfersFeeOutsideNumericRangeFailsForCoCollectorSender() {
+        result = new AssessmentResult(
+                List.of(asTokenTransferList(
+                        tokenWithFractionalFee,
+                        List.of(asAccountAmount(exemptCoCollector, -10L), asAccountAmount(firstReclaimedAcount, 10L)))),
+                List.of());
+        final var netFee = FractionalFee.newBuilder()
+                .netOfTransfers(true)
+                .fractionalAmount(Fraction.newBuilder()
+                        .numerator(Long.MAX_VALUE)
+                        .denominator(1L)
+                        .build())
+                .build();
+        final var token = withCustomToken(
+                List.of(
+                        withFixedFee(FixedFee.newBuilder().amount(1L).build(), exemptCoCollector, false),
+                        withFractionalFee(netFee, firstFractionalFeeCollector, true)),
+                FUNGIBLE_COMMON);
+
+        assertThatThrownBy(() -> subject.assessFractionalFees(token, exemptCoCollector, result))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(CUSTOM_FEE_OUTSIDE_NUMERIC_RANGE));
+    }
+
+    @Test
+    void chargesMinimumFeeWithExemptReceiverAndCoCollectorSender() {
+        result = new AssessmentResult(
+                List.of(asTokenTransferList(
+                        tokenWithFractionalFee,
+                        List.of(
+                                asAccountAmount(exemptCoCollector, -10_000L),
+                                asAccountAmount(payer, -100L),
+                                asAccountAmount(firstReclaimedAcount, 150L),
+                                asAccountAmount(minter, 9_950L)))),
+                List.of());
+        final var minimumFee =
+                nonNetFee(1L, 1_000L, 0L).copyBuilder().minimumAmount(100L).build();
+        final var token = withCustomToken(
+                List.of(
+                        withFixedFee(FixedFee.newBuilder().amount(1L).build(), exemptCoCollector, false),
+                        withFractionalFee(minimumFee, firstFractionalFeeCollector, true)),
+                FUNGIBLE_COMMON);
+
+        final long collected = assessAllAndSumFees(token, exemptCoCollector, payer);
+
+        assertThat(collected).isEqualTo(100L);
+        assertThat(receiverCredit()).isEqualTo(50L);
+    }
+
+    @Test
+    void exemptCoCollectorSenderIsNotAssessed() {
+        result = new AssessmentResult(List.of(exemptCoSenderTransferList(5_000L, 5_000L)), List.of());
+
+        subject.assessFractionalFees(tokenWithExemptCoCollector(0L), exemptCoCollector, result);
+
+        assertThat(result.getItemizedAssessedFees()).isEmpty();
+        assertThat(receiverCredit()).isEqualTo(10_000L);
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "5000, 5000, 0, 1000",
+        "9000, 1000, 0, 1000",
+        "9000, 1000, 100, 100",
+        "9900, 100, 100, 100",
+        "1000, 1, 1, 1"
+    })
+    void exemptAndOrdinaryCoSendersPayTheExpectedFee(
+            final long exemptDebit, final long ordinaryDebit, final long maxFee, final long expectedFee) {
+        result = new AssessmentResult(List.of(exemptCoSenderTransferList(exemptDebit, ordinaryDebit)), List.of());
+
+        final long collected = assessAllAndSumFees(tokenWithExemptCoCollector(maxFee), exemptCoCollector, payer);
+
+        assertThat(collected).isEqualTo(expectedFee);
+        assertThat(receiverCredit()).isEqualTo(exemptDebit + ordinaryDebit - expectedFee);
+    }
+
+    @Test
+    void failsIfOrdinaryCoSenderCannotCoverTheFee() {
+        // The treasury's exempt credit leaves the receiver with fewer units than the senders' total debits
+        result = new AssessmentResult(
+                List.of(asTokenTransferList(
+                        tokenWithFractionalFee,
+                        List.of(
+                                asAccountAmount(exemptCoCollector, -10L),
+                                asAccountAmount(payer, -1L),
+                                asAccountAmount(firstReclaimedAcount, 10L),
+                                asAccountAmount(minter, 1L)))),
+                List.of());
+        final var token = withCustomToken(
+                List.of(
+                        withFixedFee(FixedFee.newBuilder().amount(1L).build(), exemptCoCollector, false),
+                        withFractionalFee(nonNetFee(1L, 2L, 0L), firstFractionalFeeCollector, true)),
+                FUNGIBLE_COMMON);
+
+        subject.assessFractionalFees(token, exemptCoCollector, result);
+
+        assertThatThrownBy(() -> subject.assessFractionalFees(token, payer, result))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE));
+    }
+
+    @Test
+    void assessesMultipleAllCollectorsExemptFeesWithCollectorCoSender() {
+        result = new AssessmentResult(
+                List.of(asTokenTransferList(
+                        tokenWithFractionalFee,
+                        List.of(
+                                asAccountAmount(firstFractionalFeeCollector, -5_000L),
+                                asAccountAmount(payer, -5_000L),
+                                asAccountAmount(firstReclaimedAcount, 10_000L)))),
+                List.of());
+        final var token = withCustomToken(
+                List.of(
+                        withFractionalFee(nonNetFee(35L, 100L, 0L), firstFractionalFeeCollector, true),
+                        withFractionalFee(nonNetFee(15L, 100L, 0L), secondFractionalFeeCollector, true)),
+                FUNGIBLE_COMMON);
+
+        final long collected = assessAllAndSumFees(token, firstFractionalFeeCollector, payer);
+
+        assertThat(collected).isEqualTo(5_000L);
+        assertThat(receiverCredit()).isEqualTo(5_000L);
+    }
+
+    @Test
+    void rejectsDebitShareOutsideNumericRange() {
+        final var fee = firstFractionalCustomFee.fractionalFeeOrThrow();
+
+        assertThatThrownBy(() -> subject.assessNonNetOfTransferForDebit(Long.MAX_VALUE, 1L, Long.MAX_VALUE, fee))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(CUSTOM_FEE_OUTSIDE_NUMERIC_RANGE));
+    }
+
+    private TokenTransferList exemptCoSenderTransferList(final long exemptDebit, final long ordinaryDebit) {
+        return asTokenTransferList(
+                tokenWithFractionalFee,
+                List.of(
+                        asAccountAmount(exemptCoCollector, -exemptDebit),
+                        asAccountAmount(payer, -ordinaryDebit),
+                        asAccountAmount(firstReclaimedAcount, exemptDebit + ordinaryDebit)));
+    }
+
+    private Token tokenWithExemptCoCollector(final long maxFee) {
+        return withCustomToken(
+                List.of(
+                        withFixedFee(FixedFee.newBuilder().amount(1L).build(), exemptCoCollector, false),
+                        withFractionalFee(nonNetFee(1L, 10L, maxFee), firstFractionalFeeCollector, true)),
+                FUNGIBLE_COMMON);
+    }
+
+    private long assessAllAndSumFees(final Token token, final AccountID... senders) {
+        for (final var sender : senders) {
+            subject.assessFractionalFees(token, sender, result);
+        }
+        return result.getItemizedAssessedFees().stream()
+                .mapToLong(fee -> fee.assessedCustomFee().amount())
+                .sum();
+    }
+
+    private long receiverCredit() {
+        return result.getMutableInputBalanceAdjustments()
+                .get(tokenWithFractionalFee)
+                .get(firstReclaimedAcount);
+    }
+
+    private static FractionalFee nonNetFee(final long numerator, final long denominator, final long maxFee) {
+        return FractionalFee.newBuilder()
+                .maximumAmount(maxFee)
+                .netOfTransfers(false)
+                .fractionalAmount(Fraction.newBuilder()
+                        .numerator(numerator)
+                        .denominator(denominator)
+                        .build())
+                .build();
     }
 
     public Token withCustomToken(List<CustomFee> customFees, TokenType tokenType) {

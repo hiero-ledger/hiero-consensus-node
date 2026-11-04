@@ -46,7 +46,8 @@ below) with the pinned peer `ledgerId` it was deployed for.
 
 Gas budget split:
 - `clpr.verifierGasLimit` — gas allowed for the `verifyBundle` / `verifyConfig` call
-itself.
+itself; it must cover the EIP-7623 calldata floor of the call's input (~40 gas per byte
+of proof data).
 - `ClprThrottles.maxGasPerMessage` — the per-Channel throttle (from
 `LEDGER_CONFIGURATION`, spec §1.1 / §6.0) that `ClprSubmitBundleHandler` allocates for
 *each* application-message dispatch (downstream of verification). Don't confuse the

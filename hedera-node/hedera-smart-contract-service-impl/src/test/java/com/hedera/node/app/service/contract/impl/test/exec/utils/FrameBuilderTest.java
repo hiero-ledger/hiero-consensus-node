@@ -337,7 +337,9 @@ class FrameBuilderTest {
                 transaction,
                 worldUpdater,
                 wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator),
-                HederaTestConfigBuilder.create().getOrCreateConfig(),
+                HederaTestConfigBuilder.create()
+                        .withValue("ledger.fundingAccount", DEFAULT_COINBASE)
+                        .getOrCreateConfig(),
                 OpsDurationCounter.disabled(),
                 featureFlags,
                 EIP_1014_ADDRESS,
@@ -346,6 +348,8 @@ class FrameBuilderTest {
                 GAS_CALCULATOR,
                 authorities);
         // then:
+        // check the coinbase is warm alongside the accessLists and codeDelegation authorities
+        assertTrue(frame.isAddressWarm(asLongZeroAddress(DEFAULT_COINBASE)));
         final var warmUpStorage = frame.getWarmedUpStorage();
         assertEquals(keysCount.stream().mapToInt(e -> e).sum(), warmUpStorage.size());
         // check accessLIsts are warm
@@ -360,6 +364,35 @@ class FrameBuilderTest {
         for (final Address authority : authorities) {
             assertTrue(frame.isAddressWarm(authority));
         }
+    }
+
+    @Test
+    void coinbaseIsWarmAtStartOfExecution() {
+        final var transaction = wellKnownHapiCall();
+        givenContractExists();
+        given(worldUpdater.updater()).willReturn(stackedUpdater);
+        given(blocks.blockValuesOf(GAS_LIMIT)).willReturn(blockValues);
+        given(worldUpdater.getHederaAccount(CALLED_CONTRACT_ID)).willReturn(account);
+        given(account.getCode()).willReturn(CONTRACT_CODE.getBytes());
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("ledger.fundingAccount", DEFAULT_COINBASE)
+                .getOrCreateConfig();
+
+        final var frame = subject.buildInitialFrameWith(
+                transaction,
+                worldUpdater,
+                wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator),
+                config,
+                OpsDurationCounter.disabled(),
+                featureFlags,
+                EIP_1014_ADDRESS,
+                NON_SYSTEM_LONG_ZERO_ADDRESS,
+                INTRINSIC_GAS,
+                GAS_CALCULATOR,
+                List.of());
+
+        assertTrue(frame.isAddressWarm(asLongZeroAddress(DEFAULT_COINBASE)));
+        assertTrue(frame.getWarmedUpStorage().isEmpty());
     }
 
     @Test

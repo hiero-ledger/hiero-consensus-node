@@ -1,7 +1,7 @@
 # CLPR Endpoint-to-Endpoint Sync (Hiero)
 
 > Prereq: `clpr-service-spec.md` §1.5 (Sync Protocol), §4.2 (Bundle Verification),
-> §5.2 (Endpoint Discovery). This doc covers the Hiero-specific orchestration: which
+> §5.2 (Endpoint Manifests). This doc covers the Hiero-specific orchestration: which
 > classes do what, lifecycle management, and how inbound bundles transition from gRPC into
 > consensus.
 
@@ -54,7 +54,7 @@ All classes live under
 
 ## Inbound path (peer → me)
 
-### `ClprStreamingSyncMethod` and `ClprDiscoveryMethod`
+### `ClprStreamingSyncMethod`
 
 Server routes (in `hedera-app/.../grpc/impl/`) for `proto.ClprEndpointService`:
 
@@ -62,8 +62,9 @@ Server routes (in `hedera-app/.../grpc/impl/`) for `proto.ClprEndpointService`:
   (`MethodType.BIDI_STREAMING`), because `GrpcServiceBuilder` only builds unary methods. `ClprStreamingSyncMethod`
   asks `ClprSyncWorkflow.openStreamingSync` for a fresh `ClprStreamingSyncSession` per stream. There is no unary
   `sync`: a peer that only speaks the old unary RPC cannot sync with this node.
-- `discoverEndpoints` is unary. `ClprDiscoveryMethod` is a `MethodBase` adapter built by `GrpcServiceBuilder` and
-  dispatches to `ClprSyncWorkflow.handleDiscovery`.
+
+There is no endpoint-discovery RPC: peers learn each other's endpoints from the on-ledger
+`ClprEndpointManifest` (see `getEndpointManifest`), not by gossiping with each other.
 
 ### `ClprSyncWorkflow` / `ClprSyncWorkflowImpl`
 
@@ -74,11 +75,6 @@ Server routes (in `hedera-app/.../grpc/impl/`) for `proto.ClprEndpointService`:
 `ClprBundleRequest` with its own request and a bundle built from the latest **immutable** state, hands every bundle
 the peer sends to `ClprBundleSubmitter.submitBundle(...)`, and replies to each non-terminal message until either
 side has nothing left to send.
-
-`handleDiscovery`: replies with the local node's known peers from the seed-endpoint cache
-(maintained by `ClprChannelManager`) plus filtered roster contacts. When
-`clpr.syncPeerExclusionEnabled=true`, discovery requests pass through `InboundSyncThrottle`
-and may return `RESOURCE_EXHAUSTED`; when false, the throttle fails open.
 
 ### `InboundSyncThrottle`
 
@@ -135,7 +131,7 @@ outbound (i.e. our inbound) messages.
 ### `ClprEndpointClient`
 
 Outbound gRPC client. Netty + grpc-java `ClientCalls` for the bidirectional-streaming
-`proto.ClprEndpointService/sync` RPC and the unary `discoverEndpoints`. Marshallers are byte-array based — payloads
+`proto.ClprEndpointService/sync` RPC. Marshallers are byte-array based — payloads
 are pre-serialised `ClprStreamingSyncPayload` bytes — so the client does not need the protobuf service stub
 generated. `sync(timeout)` returns a `ClprStreamingSyncCall`; the deadline covers the whole multi-bundle exchange,
 not a single message.
@@ -164,6 +160,13 @@ not a single message.
   channel is completed.
 - gRPC service for sync is **separate** from the HAPI gRPC service — different proto
   service, different Netty service registrations.
+- **Transport.** `sync` is served on the same listeners as HAPI (`grpc.port` plaintext,
+  `grpc.tlsPort` TLS); there is no dedicated CLPR port and no mutual TLS. A node whose HAPI TLS
+  certificate and key (`netty.tlsCrt.path` / `netty.tlsKey.path`) exist advertises `grpc.tlsPort`
+  and that certificate (DER) in its `ClprEndpoint.tls_certificate` (`ClprHapiTlsEndpoint`);
+  otherwise it advertises its address-book HAPI port with an empty `tls_certificate`. Peers dial
+  over TLS iff `tls_certificate` is non-empty, and **do not verify** the certificate or hostname —
+  TLS gives confidentiality only; authenticity comes from the state proofs in the payload.
 
 ## Spec-step → code mapping cheat sheet
 
@@ -173,5 +176,5 @@ not a single message.
 | §1.5 endpoint signature   | platform event-level signature; `ClprBundleSubmitter` empty `SignatureMap` |
 | §1.6 misbehaviour (local) | `InboundSyncThrottle` shun list, gated by `clpr.syncPeerExclusionEnabled`  |
 | §4.2 bundle verification  | `ClprSubmitBundleHandler` (consensus path)                                 |
-| §5.2 endpoint discovery   | `ClprSyncWorkflowImpl.handleDiscovery` + `ClprChannelManager` seed cache   |
+| §5.2 endpoint manifests   | `ClprChannelManager` dial targets from `Channel.endpoint_manifest`         |
 | §6.2 lifecycle hooks      | `ClprChannelLifecycle` ↔ `ClprChannelManager`                              |

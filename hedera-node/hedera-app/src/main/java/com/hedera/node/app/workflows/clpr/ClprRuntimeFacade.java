@@ -7,7 +7,6 @@ import com.hedera.hapi.node.state.clpr.ClprEndpoint;
 import com.hedera.node.app.service.clpr.ClprChannelLifecycle;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.ClprConfig;
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -99,13 +98,6 @@ public final class ClprRuntimeFacade implements ClprRuntime, ClprChannelLifecycl
         }
     }
 
-    @Override
-    public void handleDiscovery(@NonNull final Bytes requestBytes, @NonNull final BufferedData responseBuffer) {
-        requireNonNull(requestBytes);
-        requireNonNull(responseBuffer);
-        syncWorkflow().handleDiscovery(requestBytes, responseBuffer);
-    }
-
     @NonNull
     @Override
     public ClprStreamingSyncSession openStreamingSync() {
@@ -126,9 +118,6 @@ public final class ClprRuntimeFacade implements ClprRuntime, ClprChannelLifecycl
         if (!isEnabled()) {
             throw new StatusRuntimeException(Status.UNAVAILABLE.withDescription("CLPR is not enabled"));
         }
-        // ClprSyncWorkflowImpl also depends on this manager. Resolve it here so stop() can avoid
-        // calling Provider#get() (and accidentally constructing the graph) on a disabled node.
-        channelManager();
         return syncWorkflowProvider.get();
     }
 

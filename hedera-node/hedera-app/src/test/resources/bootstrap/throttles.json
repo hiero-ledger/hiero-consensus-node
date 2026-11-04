@@ -92,6 +92,18 @@
           "opsPerSec": 6
         }
       ]
+    },
+    {
+      "name": "F",
+      "burstPeriod": 1,
+      "throttleGroups": [
+        {
+          "operations": [
+            "ContractCallLocal"
+          ],
+          "opsPerSec": 6
+        }
+      ]
     }
   ]
 }

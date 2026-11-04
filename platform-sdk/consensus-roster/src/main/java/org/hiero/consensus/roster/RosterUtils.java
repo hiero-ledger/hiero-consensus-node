@@ -22,7 +22,9 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.CryptographyException;
+import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.SigningSchema;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.ConsensusLayerRosterInputs;
 import org.hiero.consensus.roster.internal.PbjRecordHasher;
@@ -49,17 +51,22 @@ public final class RosterUtils {
     }
 
     /**
-     * Fetch the gossip certificate from a given RosterEntry.  If it cannot be parsed successfully, return null.
+     * Fetch the gossip certificate from a given RosterEntry.  If it cannot be parsed successfully, or its key does not
+     * belong to a supported {@link SigningSchema}, return null.
      *
      * @param entry a RosterEntry
-     * @return a gossip certificate
+     * @return a gossip certificate, or null if the entry has no usable one
      */
+    @Nullable
     public static X509Certificate fetchGossipCaCertificate(@NonNull final RosterEntry entry) {
+        final X509Certificate certificate;
         try {
-            return CryptoUtils.decodeCertificate(entry.gossipCaCertificate().toByteArray());
+            certificate =
+                    CryptoUtils.decodeCertificate(entry.gossipCaCertificate().toByteArray());
         } catch (final CryptographyException e) {
             return null;
         }
+        return SigningSchema.isSupported(certificate.getPublicKey()) ? certificate : null;
     }
 
     /**
@@ -113,7 +120,8 @@ public final class RosterUtils {
     }
 
     /**
-     * Create a Hash object for a given Roster instance. This method is thread-safe.
+     * Create a Hash object for a given Roster instance, using the platform's default digest type. This method is
+     * thread-safe.
      *
      * @param roster a roster
      * @return its Hash
@@ -122,6 +130,18 @@ public final class RosterUtils {
     public static Hash hash(@NonNull final Roster roster) {
         // PbjRecordHasher is not thread-safe, therefore a new instance is used for each call
         return new PbjRecordHasher().hash(roster, Roster.PROTOBUF);
+    }
+
+    /**
+     * Create a Hash object for a given Roster instance, using the given digest type. This method is thread-safe.
+     *
+     * @param roster a roster
+     * @param digestType the digest type to hash the roster with
+     * @return its Hash
+     */
+    @NonNull
+    public static Hash hash(@NonNull final Roster roster, @NonNull final DigestType digestType) {
+        return new PbjRecordHasher(digestType).hash(roster, Roster.PROTOBUF);
     }
 
     /**

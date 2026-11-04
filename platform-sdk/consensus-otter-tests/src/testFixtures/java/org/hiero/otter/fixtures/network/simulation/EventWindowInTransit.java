@@ -16,4 +16,4 @@ import org.hiero.consensus.model.node.NodeId;
 public record EventWindowInTransit(
         @NonNull EventWindow eventWindow,
         @NonNull NodeId sender,
-        @NonNull Instant arrivalTime) {}
+        @NonNull Instant arrivalTime) implements InTransit {}

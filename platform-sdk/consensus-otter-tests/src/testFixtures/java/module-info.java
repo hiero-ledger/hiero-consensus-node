@@ -6,6 +6,7 @@ module org.hiero.otter.fixtures {
     exports org.hiero.otter.fixtures.assertions;
     exports org.hiero.otter.fixtures.chaosbot;
     exports org.hiero.otter.fixtures.exceptions;
+    exports org.hiero.otter.fixtures.falcon.recording;
     exports org.hiero.otter.fixtures.junit;
     exports org.hiero.otter.fixtures.logging;
     exports org.hiero.otter.fixtures.network.transactions;
@@ -29,6 +30,8 @@ module org.hiero.otter.fixtures {
             org.hiero.consensus.otter.docker.app;
     exports org.hiero.otter.fixtures.container.utils to
             org.hiero.consensus.otter.docker.app;
+    exports org.hiero.otter.fixtures.falcon to
+            org.hiero.otter.fixtures.test;
     exports org.hiero.otter.fixtures.internal to
             com.swirlds.config.impl,
             org.hiero.consensus.otter.docker.app,
@@ -58,10 +61,13 @@ module org.hiero.otter.fixtures {
     requires transitive com.swirlds.platform.core;
     requires transitive com.swirlds.state.api;
     requires transitive com.swirlds.state.impl;
+    requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
+    requires transitive org.hiero.consensus.benchmark.tools;
     requires transitive org.hiero.consensus.gossip.impl;
     requires transitive org.hiero.consensus.gossip;
     requires transitive org.hiero.consensus.model;
+    requires transitive org.hiero.consensus.status.monitor;
     requires transitive org.hiero.consensus.utility.test.fixtures;
     requires transitive org.hiero.consensus.utility;
     requires transitive org.hiero.consensus.wiring.framework;
@@ -82,9 +88,9 @@ module org.hiero.otter.fixtures {
     requires com.swirlds.platform.core.test.fixtures;
     requires com.swirlds.virtualmap;
     requires org.hiero.base.concurrent;
-    requires org.hiero.base.crypto;
     requires org.hiero.consensus.event.creator.impl;
     requires org.hiero.consensus.event.creator;
+    requires org.hiero.consensus.event.intake.impl;
     requires org.hiero.consensus.event.intake;
     requires org.hiero.consensus.event.stream;
     requires org.hiero.consensus.fakes;
@@ -99,7 +105,6 @@ module org.hiero.otter.fixtures {
     requires org.hiero.consensus.reconnect;
     requires org.hiero.consensus.roster;
     requires org.hiero.consensus.state;
-    requires org.hiero.consensus.status.monitor;
     requires com.fasterxml.jackson.annotation;
     requires com.fasterxml.jackson.core;
     requires com.fasterxml.jackson.databind;

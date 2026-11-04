@@ -67,8 +67,7 @@ public class MixedOpsNodeDeathReconnectTest implements LifecycleTest {
      * {@code SystemExitUtils.exitSystem}.
      *
      * <p>The guard only fires on an upgrade — a same-version restart from a non-freeze state is normal crash recovery and
-     * must still succeed. Uses an isolated per-method subprocess network because the guarded node deliberately exits and
-     * never rejoins.
+     * must still succeed, which this test also uses to bring the node back into the shared network.
      */
     @Order(2)
     @HapiTest
@@ -87,6 +86,9 @@ public class MixedOpsNodeDeathReconnectTest implements LifecycleTest {
                 assertHgcaaLogContainsText(
                         byNodeId(UPGRADING_NODE_ID),
                         "while resuming from a non-freeze state at round",
-                        Duration.ofSeconds(60)));
+                        Duration.ofSeconds(60)),
+                // Bring the node back at its current version so later tests (e.g. stream validation) can freeze it;
+                // reconnecting (vs. resuming its stale state) keeps it from branching its own event chain
+                reconnectNode(byNodeId(UPGRADING_NODE_ID), CURRENT_CONFIG_VERSION.get()));
     }
 }

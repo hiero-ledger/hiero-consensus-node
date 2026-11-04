@@ -4,7 +4,6 @@ package com.hedera.node.app.hapi.utils.blocks;
 import static com.hedera.node.app.hapi.utils.blocks.HashUtils.computeSingleChildHash;
 import static com.hedera.node.app.hapi.utils.blocks.HashUtils.computeVirtualMapStateLeafHash;
 import static com.hedera.node.app.hapi.utils.blocks.HashUtils.joinHashes;
-import static com.hedera.node.app.hapi.utils.blocks.HashUtils.newMessageDigest;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.MerklePath;
@@ -41,7 +40,7 @@ import java.util.List;
  */
 public final class MerklePathBuilder {
 
-    private final MessageDigest digest = newMessageDigest();
+    private final MessageDigest digest;
 
     private Bytes stateItemLeaf;
     private Bytes hash;
@@ -52,21 +51,29 @@ public final class MerklePathBuilder {
     private int nextPathIndex = -1;
 
     /**
-     * Constructs an empty Merkle path builder. One of {@link #setStateItemLeaf(Bytes)}, {@link #setHash(Bytes)},
-     * or a merge operation that produces a start hash must be invoked before hash accessors are used.
+     * Constructs an empty Merkle path builder that hashes with the supplied {@link MessageDigest}. One of
+     * {@link #setStateItemLeaf(Bytes)}, {@link #setHash(Bytes)}, or a merge operation that produces a
+     * start hash must be invoked before hash accessors are used.
+     *
+     * @param digest the digest instance this builder (and any builders it derives) will hash with
      */
-    public MerklePathBuilder() {}
+    public MerklePathBuilder(@NonNull final MessageDigest digest) {
+        this.digest = requireNonNull(digest, "digest must not be null");
+    }
 
     /**
-     * Creates a new builder from a State API {@link MerkleProof}.
+     * Creates a new builder from a State API {@link MerkleProof}, hashing with the supplied
+     * {@link MessageDigest}.
      *
      * @param merkleProof the Merkle proof obtained from the state
+     * @param digest the digest instance to hash with
      * @return a new builder instance
      */
     @NonNull
-    public static MerklePathBuilder fromStateApi(@NonNull final MerkleProof merkleProof) {
+    public static MerklePathBuilder fromStateApi(
+            @NonNull final MerkleProof merkleProof, @NonNull final MessageDigest digest) {
         requireNonNull(merkleProof, "merkleProof must not be null");
-        final var builder = new MerklePathBuilder();
+        final var builder = new MerklePathBuilder(digest);
         builder.setStateItemLeaf(merkleProof.stateItem());
         builder.setSiblingNodes(convertSiblingHashes(merkleProof.siblingHashes()));
         // If the proof provides cached inner-parent hashes, use them only when the provided root hash
@@ -255,12 +262,12 @@ public final class MerklePathBuilder {
         }
         if (prefixLength == 0) {
             final var root = getRootHash();
-            return new MerklePathBuilder().setStartHash(root);
+            return new MerklePathBuilder(digest).setStartHash(root);
         }
         final int prefixStartIndex = siblingNodes.size() - prefixLength;
         final var subset = new ArrayList<>(siblingNodes.subList(prefixStartIndex, siblingNodes.size()));
         final var start = innerNodeHashes.get(prefixStartIndex);
-        return new MerklePathBuilder().setStartHash(start).setSiblingNodes(subset);
+        return new MerklePathBuilder(digest).setStartHash(start).setSiblingNodes(subset);
     }
 
     /**
@@ -278,7 +285,7 @@ public final class MerklePathBuilder {
         if (size > siblingNodes.size()) {
             throw new IllegalArgumentException("Pruning more sibling nodes than exist");
         }
-        final var newBuilder = new MerklePathBuilder();
+        final var newBuilder = new MerklePathBuilder(digest);
         if (stateItemLeaf != null) {
             newBuilder.setStateItemLeaf(stateItemLeaf);
         } else if (hash != null) {

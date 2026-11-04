@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_GAS_LIMIT_EXCEEDED;
 import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction.NOT_APPLICABLE;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asPriorityId;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToBesuAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ValidationUtils.getMaxGasLimit;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
@@ -50,14 +51,24 @@ public class HevmStaticTransactionFactory {
     /**
      * Given a {@link Query}, creates the implied {@link HederaEvmTransaction}.
      *
+     * <p>If the query context carries {@link QueryContext#clprDispatchMetadata()}, the transaction is a native CLPR
+     * dispatch, as for the CLPR verifier dispatch at consensus: the CLPR sender replaces the query's sender and payer,
+     * and the offered gas price and gas allowance do not apply because CLPR gas is prepaid.
+     *
      * @param query the {@link ContractCallLocalQuery} to convert
      * @return the implied {@link HederaEvmTransaction}
+     * @throws HandleException with {@code INSUFFICIENT_GAS} or {@code MAX_GAS_LIMIT_EXCEEDED} if the gas is out of
+     *     bounds
      */
     @NonNull
     public HederaEvmTransaction fromHapiQuery(@NonNull final Query query) {
         final var op = query.contractCallLocalOrThrow();
         assertValidCall(op);
-        final var senderId = op.hasSenderId() ? op.senderIdOrThrow() : payerId;
+        final var clprDispatchMetadata = context.clprDispatchMetadata();
+        final var isClprDispatch = clprDispatchMetadata != null;
+        final var senderId =
+                isClprDispatch ? clprDispatchMetadata.senderId() : op.hasSenderId() ? op.senderIdOrThrow() : payerId;
+        final var senderAddress = isClprDispatch ? pbjToBesuAddress(clprDispatchMetadata.senderAddress()) : null;
         // For mono-service fidelity, allow calls using 0.0.X id even to contracts with a priority EVM address
         final var targetId = asPriorityId(op.contractIDOrThrow(), context.createStore(ReadableAccountStore.class));
         return new HederaEvmTransaction(
@@ -69,20 +80,21 @@ public class HevmStaticTransactionFactory {
                 null,
                 0L,
                 op.gas(),
-                1L,
-                0L,
+                isClprDispatch ? NOT_APPLICABLE : 1L,
+                isClprDispatch ? NOT_APPLICABLE : 0L,
                 null,
                 null,
                 null,
                 null,
                 null,
-                null,
-                false);
+                senderAddress,
+                isClprDispatch);
     }
 
     /**
      * Given a {@link Query} and an {@link Exception},
-     * create and return a {@link HederaEvmTransaction} containing the exception and gas limit
+     * create and return a {@link HederaEvmTransaction} containing the exception and gas limit.
+     * The sender is chosen as in {@link #fromHapiQuery}, including the CLPR sender for a native CLPR dispatch.
      *
      * @param query     the {@link ContractCallLocalQuery} to convert
      * @param exception the {@link Exception} to wrap
@@ -92,7 +104,11 @@ public class HevmStaticTransactionFactory {
     public HederaEvmTransaction fromHapiQueryException(
             @NonNull final Query query, @NonNull final HandleException exception) {
         final var op = query.contractCallLocalOrThrow();
-        final var senderId = op.hasSenderId() ? op.senderIdOrThrow() : payerId;
+        final var clprDispatchMetadata = context.clprDispatchMetadata();
+        final var isClprDispatch = clprDispatchMetadata != null;
+        final var senderId =
+                isClprDispatch ? clprDispatchMetadata.senderId() : op.hasSenderId() ? op.senderIdOrThrow() : payerId;
+        final var senderAddress = isClprDispatch ? pbjToBesuAddress(clprDispatchMetadata.senderAddress()) : null;
         // For mono-service fidelity, allow calls using 0.0.X id even to contracts with a priority EVM address
         final var targetId = asPriorityId(op.contractIDOrThrow(), context.createStore(ReadableAccountStore.class));
         return new HederaEvmTransaction(
@@ -104,18 +120,41 @@ public class HevmStaticTransactionFactory {
                 null,
                 0L,
                 op.gas(),
-                1L,
-                0L,
+                isClprDispatch ? NOT_APPLICABLE : 1L,
+                isClprDispatch ? NOT_APPLICABLE : 0L,
                 null,
                 null,
                 null,
                 exception,
                 null,
-                null,
-                false);
+                senderAddress,
+                isClprDispatch);
     }
 
+    /**
+     * Checks the call's gas. A public query must cover the base intrinsic gas and stay within the contract service's
+     * maximum gas limit. A native CLPR call must instead cover the intrinsic gas of its call data, as the
+     * {@code ContractCall} pure checks require at consensus, and has no such maximum, because its budget is configured
+     * separately.
+     *
+     * @param body the query to check
+     * @throws HandleException with {@code INSUFFICIENT_GAS} or {@code MAX_GAS_LIMIT_EXCEEDED} if the gas is out of
+     *     bounds
+     */
     private void assertValidCall(@NonNull final ContractCallLocalQuery body) {
+        if (context.clprDispatchMetadata() != null) {
+            // Match native CLPR child-dispatch pure checks. Its gas is prepaid and its verifier gas budget is
+            // configured independently of the limit for public ContractCallLocal queries.
+            final var functionParameters = body.functionParameters();
+            final var gasRequirements = gasCalculator.transactionGasRequirements(
+                    (int) functionParameters.length(),
+                    HederaGasCalculator.payloadZeroBytes(functionParameters),
+                    false,
+                    null,
+                    null);
+            validateTrue(body.gas() >= gasRequirements.minimumGasUsed(), INSUFFICIENT_GAS);
+            return;
+        }
         // accessLists and codeDelegations are null because both are not supported for 'ContractCallLocal'
         final var gasRequirements = gasCalculator.transactionGasRequirements(0, 0, false, null, null);
         validateTrue(body.gas() >= gasRequirements.minimumGasUsed(), INSUFFICIENT_GAS);

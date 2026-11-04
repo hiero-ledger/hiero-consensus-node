@@ -4,6 +4,7 @@ package com.hedera.node.app.service.clpr.impl.verifier.evm;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.service.clpr.impl.verifier.ProofException;
 import com.hedera.node.app.service.clpr.impl.verifier.evm.MerklePatriciaTrie.BranchNode;
 import com.hedera.node.app.service.clpr.impl.verifier.evm.MerklePatriciaTrie.ExtensionNode;
@@ -27,7 +28,7 @@ class MerklePatriciaTrieTest {
     private static final byte[] VALUE = bytes(7, 0xA0);
 
     // keccak256(RLP("")) = keccak256(0x80) — the canonical empty MPT root.
-    private static final byte[] EMPTY_TRIE_ROOT = ProofBytes.keccak256(new byte[] {(byte) 0x80});
+    private static final byte[] EMPTY_TRIE_ROOT = MiscCryptoUtils.keccak256DigestOf(new byte[] {(byte) 0x80});
 
     @Test
     void emptyTrieRoot_provesEverythingAbsent() {

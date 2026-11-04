@@ -14,10 +14,16 @@ import java.util.Set;
 /**
  * Defines the schema of all states for a specific version of a specific {@link
  * Service} instance. It is necessary to create a new {@link Schema}
- * whenever a new {@link ReadableKVState} is to be created, or an existing one removed, or a
- * migration has to happen. If your service makes use of a forwards and backwards compatible
- * serialization system (such as protobuf), then it is not necessary to define a new {@link Schema}
- * for simple compatible changes to serialization.
+ * whenever a new {@link ReadableKVState} is to be created, or an existing one removed. If your
+ * service makes use of a forwards and backwards compatible serialization system (such as protobuf),
+ * then it is not necessary to define a new {@link Schema} for simple compatible changes to
+ * serialization.
+ *
+ * <p>A schema's version only orders it relative to the other schemas registered by the same
+ * service; it has no relationship to the software version. Every registered schema is applied,
+ * in version order, each time a state is initialized. State that must hold a value at genesis is
+ * written by {@link Service#doGenesisSetup}; any other startup-time work belongs in the
+ * {@link #restart(MigrationContext)} of the service's latest schema.
  * @param <V> - version type
  */
 public abstract class Schema<V> implements Comparable<Schema<V>> {
@@ -78,21 +84,9 @@ public abstract class Schema<V> implements Comparable<Schema<V>> {
     }
 
     /**
-     * Called after all new states have been created (as per {@link #statesToCreate()}), this method
-     * is used to perform all <b>synchronous</b> migrations of state. Only called at network genesis
-     * or when restarting from a state whose version is strictly earlier than this schema's. The
-     * {@link MigrationContext} will contain the {@link ReadableStates} from the saved state; or
-     * there was no previous version, a non-null empty {@link ReadableStates}.
-     *
-     * @param ctx {@link MigrationContext} for this schema migration
-     */
-    public void migrate(@NonNull final MigrationContext<V> ctx) {
-        Objects.requireNonNull(ctx);
-    }
-
-    /**
-     * The {@link Set} of state IDs of all states that should be removed <b>AFTER</b> {@link
-     * #migrate(MigrationContext)}.
+     * The {@link Set} of state IDs of all states that should be removed <b>AFTER</b> this schema's
+     * states are created and, if it is its service's latest schema, its
+     * {@link #restart(MigrationContext)} has run.
      *
      * @return the set of states to remove
      */
@@ -102,10 +96,16 @@ public abstract class Schema<V> implements Comparable<Schema<V>> {
     }
 
     /**
-     * Called on this schema if and only if it is the most recent schema that is not newer
-     * than the version of software in use when the node is restarted. A service might override
-     * this if it uses views of a state that need to be rebuilt on restart. This is not common
-     * but is provided for completeness.
+     * Called on this schema if and only if it is the latest schema registered by its service, each
+     * time a state is initialized (at genesis, and on every restart and reconnect). The
+     * {@link MigrationContext} will contain the {@link ReadableStates} as they were before this
+     * schema's states were created and removed.
+     *
+     * <p>Since this runs on every initialization, anything it writes must be a deterministic,
+     * idempotent function of the state and configuration (in particular, a no-op when it runs on a
+     * state that already reflects it, such as a state learned during reconnect). Genesis values
+     * belong in {@link Service#doGenesisSetup} instead, which is why most overrides skip the
+     * {@link MigrationContext#isGenesis()} case.
      *
      * @param ctx {@link MigrationContext} for this schema restart operation
      */

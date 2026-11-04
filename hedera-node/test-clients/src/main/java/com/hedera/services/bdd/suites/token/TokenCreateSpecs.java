@@ -39,6 +39,7 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doSeveralWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doSeveralWithStartupConfigNow;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sendModified;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.specOps;
@@ -1217,7 +1218,43 @@ public class TokenCreateSpecs {
                         .supplyKey(GENESIS)
                         .initialSupply(0L)
                         .treasury(TOKEN_TREASURY)
-                        .autoRenewPeriod(ONE_MONTH_IN_SECONDS));
+                        .autoRenewPeriod(ONE_MONTH_IN_SECONDS)
+                        .via(CREATE_TXN),
+                withOpContext((spec, opLog) -> {
+                    final var createTxn = getTxnRecord(CREATE_TXN);
+                    allRunFor(spec, createTxn);
+                    final var consensusSecond = createTxn
+                            .getResponseRecord()
+                            .getConsensusTimestamp()
+                            .getSeconds();
+                    spec.registry().saveExpiry(token, consensusSecond + ONE_MONTH_IN_SECONDS);
+                }),
+                getTokenInfo(token).hasValidExpiry());
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> tokenCreateWithNoExpiryAndNoAutoRenewSpec() {
+        return hapiTest(
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(token)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(GENESIS)
+                        .initialSupply(0L)
+                        .treasury(TOKEN_TREASURY)
+                        .omitExpiry()
+                        .via(CREATE_TXN),
+                doWithStartupConfig(
+                        "entities.maxLifetime",
+                        value -> withOpContext((spec, opLog) -> {
+                            final var createTxn = getTxnRecord(CREATE_TXN);
+                            allRunFor(spec, createTxn);
+                            final var consensusSecond = createTxn
+                                    .getResponseRecord()
+                                    .getConsensusTimestamp()
+                                    .getSeconds();
+                            spec.registry().saveExpiry(token, consensusSecond + Long.parseLong(value));
+                        })),
+                getTokenInfo(token).hasValidExpiry());
     }
 
     private final long hbarAmount = 1_234L;

@@ -61,7 +61,6 @@ public class ClprEndpointManifestConstructionEmbeddedTest {
     @DisplayName("cold start: the node self-publishes and the manifest is derived (version >= 2)")
     final Stream<DynamicTest> coldStartDerivesManifest() {
         return hapiTest(
-                overriding("clpr.enabled", "true"),
                 // Embedded runs only node 0 of a 4-node network, so the construction can never
                 // "fast-close" on all-published — it must time out. Shrink the grace window (default
                 // 300s + 2 extensions) so the single-node construction force-closes within the test.
@@ -114,9 +113,9 @@ public class ClprEndpointManifestConstructionEmbeddedTest {
                     assertThat(self.serviceEndpoint())
                             .as("self endpoint carries a service endpoint (IP + port)")
                             .isNotNull();
-                    // mTLS not configured in embedded ⇒ plaintext fallback: empty CA cert.
+                    // No HAPI TLS cert in embedded ⇒ plaintext fallback: empty certificate.
                     assertThat(self.tlsCertificate())
-                            .as("mTLS-off self endpoint advertises an empty certificate")
+                            .as("TLS-off self endpoint advertises an empty certificate")
                             .isEqualTo(Bytes.EMPTY);
                 }));
     }
@@ -129,14 +128,15 @@ public class ClprEndpointManifestConstructionEmbeddedTest {
     }
 
     private static void resetManifestConstructionState(final HapiSpec spec) {
-        final var states = spec.embeddedStateOrThrow().getWritableStates(ClprService.NAME);
-        states.<ClprEndpointManifest>getSingleton(ENDPOINT_MANIFEST_STATE_ID)
-                .put(ClprEndpointManifest.newBuilder()
-                        .version(1L)
-                        .serviceAddress(CLPR_SERVICE_ADDRESS)
-                        .build());
-        states.<ClprEndpointManifestConstruction>getSingleton(ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID)
-                .put(ClprEndpointManifestConstruction.DEFAULT);
-        spec.commitEmbeddedState();
+        spec.mutateEmbeddedState(state -> {
+            final var states = state.getWritableStates(ClprService.NAME);
+            states.<ClprEndpointManifest>getSingleton(ENDPOINT_MANIFEST_STATE_ID)
+                    .put(ClprEndpointManifest.newBuilder()
+                            .version(1L)
+                            .serviceAddress(CLPR_SERVICE_ADDRESS)
+                            .build());
+            states.<ClprEndpointManifestConstruction>getSingleton(ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID)
+                    .put(ClprEndpointManifestConstruction.DEFAULT);
+        });
     }
 }

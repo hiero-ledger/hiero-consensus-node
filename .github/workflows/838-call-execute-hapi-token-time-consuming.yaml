@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "838: [CALL] Exec HAPI Token Time"
+name: "838: [CALL] Exec HAPI Time Stake"
 on:
   workflow_call:
     inputs:
@@ -27,6 +27,16 @@ on:
         required: false
         type: string
         default: "false"
+      hapi-test-config-profile:
+        description: "Node config profile for the HAPI tasks (e.g. testnet); blank keeps the production defaults"
+        required: false
+        type: string
+        default: ""
+      name-suffix:
+        description: "Suffix for the job, check and artifact names (keeps reruns apart from MATS)"
+        required: false
+        type: string
+        default: ""
     secrets:
       access-token:
         description: "The GitHub access token used to checkout the repository, submodules, and make GitHub API calls."
@@ -40,7 +50,7 @@ on:
     outputs:
       failure-mode:
         description: "Indicates the failure mode of the job, if any."
-        value: ${{ jobs.hapi-tests-token-and-time-consuming.outputs.failure-mode }}
+        value: ${{ jobs.hapi-tests-time-consuming-and-node-staking.outputs.failure-mode }}
 
 defaults:
   run:
@@ -59,10 +69,11 @@ env:
   GRADLE_CACHE_PASSWORD: ${{ secrets.gradle-cache-password }}
   GRADLE_EXEC: ionice -c 2 -n 2 nice -n 19 ./gradlew
   CG_EXEC: ionice -c 2 -n 2 nice -n 19
+  HAPI_TEST_CONFIG_PROFILE: ${{ inputs.hapi-test-config-profile }}
 
 jobs:
-  hapi-tests-token-and-time-consuming:
-    name: "HAPI Tests (Token & Time Consuming)"
+  hapi-tests-time-consuming-and-node-staking:
+    name: "HAPI Tests (Time Consuming & Node Staking)${{ inputs.name-suffix }}"
     runs-on: hl-cn-hapi-lin-lg
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
@@ -83,8 +94,8 @@ jobs:
           setup-node: "true"
           node-version: "${{ inputs.node-version }}"
 
-      - name: HAPI Testing (Token & Time Consuming)
-        id: gradle-hapi-token-and-time-consuming
+      - name: HAPI Testing (Time Consuming & Node Staking)
+        id: gradle-hapi-time-consuming-and-node-staking
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
@@ -102,43 +113,43 @@ jobs:
             echo "::error::$t failed"
             echo "❌ $t FAILED — expand group above for details"
           }
-          run_subtask hapiTestToken
-          run_subtask hapiTestTokenSerial
           run_subtask hapiTestTimeConsuming
           run_subtask hapiTestTimeConsumingSerial
+          run_subtask hapiTestNodeStaking
+          run_subtask hapiTestNodeStakingSerial
           exit $status
 
-      - name: Publish HAPI Test (Token & Time Consuming) Reports
+      - name: Publish HAPI Test (Time Consuming & Node Staking) Reports
         uses: step-security/publish-unit-test-result-action@681100d67b09305624c089873f12c545ee7cbc24 # v2.23.0
         with:
-          check_name: "Node: HAPI Test (Token & Time Consuming) Results"
+          check_name: "Node: HAPI Test (Time Consuming & Node Staking)${{ inputs.name-suffix }} Results"
           json_thousands_separator: ","
           junit_files: "**/test-clients/build/test-results/**/TEST-*.xml"
           comment_mode: errors # only comment if we could not find or parse the JUnit XML files
 
-      - name: Upload HAPI Test (Token & Time Consuming) Report Artifacts
+      - name: Upload HAPI Test (Time Consuming & Node Staking) Report Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: HAPI Test (Token & Time Consuming) Reports
+          name: "HAPI Test (Time Consuming & Node Staking)${{ inputs.name-suffix }} Reports"
           path: "**/test-clients/build/test-results/**/TEST-*.xml"
           retention-days: 7
 
-      - name: Upload HAPI Test (Token & Time Consuming) Network Logs
+      - name: Upload HAPI Test (Time Consuming & Node Staking) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && inputs.enable-network-log-capture && steps.gradle-hapi-token-and-time-consuming.conclusion == 'failure' }}
+        if: ${{ !cancelled() && inputs.enable-network-log-capture && steps.gradle-hapi-time-consuming-and-node-staking.conclusion == 'failure' }}
         with:
-          name: HAPI Test (Token & Time Consuming) Network Logs
+          name: "HAPI Test (Time Consuming & Node Staking)${{ inputs.name-suffix }} Network Logs"
           path: |
             hedera-node/test-clients/build/*-test/**/output/**
             hedera-node/test-clients/build/*-test/*.log
             hedera-node/test-clients/output/**
           retention-days: 7
 
-      - name: Upload HAPI Test (Token & Time Consuming) Failure Artifacts
+      - name: Upload HAPI Test (Time Consuming & Node Staking) Failure Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && steps.gradle-hapi-token-and-time-consuming.conclusion == 'failure' }}
+        if: ${{ !cancelled() && steps.gradle-hapi-time-consuming-and-node-staking.conclusion == 'failure' }}
         with:
-          name: HAPI Test (Token & Time Consuming) Failure Artifacts
+          name: "HAPI Test (Time Consuming & Node Staking)${{ inputs.name-suffix }} Failure Artifacts"
           path: |
             hedera-node/test-clients/build/**/*.blk.gz
             hedera-node/test-clients/build/**/*.rcd.gz
@@ -153,10 +164,10 @@ jobs:
         id: set-failure-mode
         if: ${{ always() }}
         run: |
-          if [[ "${{ steps.gradle-hapi-token-and-time-consuming.outcome || 'skipped' }}" == "success" \
-             || "${{ steps.gradle-hapi-token-and-time-consuming.outcome || 'skipped' }}" == "skipped" ]]; then
+          if [[ "${{ steps.gradle-hapi-time-consuming-and-node-staking.outcome || 'skipped' }}" == "success" \
+             || "${{ steps.gradle-hapi-time-consuming-and-node-staking.outcome || 'skipped' }}" == "skipped" ]]; then
             echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
-          elif [[ "${{ steps.gradle-hapi-token-and-time-consuming.outcome || 'skipped' }}" == "failure" ]]; then
+          elif [[ "${{ steps.gradle-hapi-time-consuming-and-node-staking.outcome || 'skipped' }}" == "failure" ]]; then
             echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
           else
             echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"

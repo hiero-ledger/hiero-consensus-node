@@ -75,8 +75,6 @@ public class ReadableMessageQueueStoreImpl implements ReadableMessageQueueStore 
             return "MESSAGE_REPLY";
         } else if (payload.hasControl()) {
             return "CONTROL";
-        } else if (payload.hasRedactedMessage()) {
-            return "REDACTED";
         } else {
             return "EMPTY";
         }

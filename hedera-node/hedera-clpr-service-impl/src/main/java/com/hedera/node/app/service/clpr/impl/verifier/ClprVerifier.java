@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.verifier;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED;
+
 import com.hedera.hapi.node.state.clpr.ClprBundleContent;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
@@ -8,6 +10,7 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.function.Function;
 
 /**
  * Verifies cross-ledger proofs and extracts the attested data.
@@ -31,8 +34,12 @@ public interface ClprVerifier {
      *       verifier has no rotating-authority concept).</li>
      *   <li>A manifest whose {@code service_address} does not match the config's
      *       {@code service_address}.</li>
-     *   <li>A manifest with {@code version == 0}.</li>
+     *   <li>A proven manifest with {@code version == 0}.</li>
      * </ul>
+     * When {@code endpointManifestProofBytes} is empty, an implementation MAY return the uninitialized
+     * manifest instead ({@code version == 0}, the config's {@code service_address}, no endpoints), as
+     * the Solidity verifiers do. The first proven manifest ({@code version >= 1}) then applies via
+     * §4.2 Step 1b.
      * Implementations MUST NOT reject a manifest solely because its {@code endpoints} list is
      * empty (spec §2.4.1 - empty manifest at version >= 1 is valid).
      *
@@ -75,4 +82,30 @@ public interface ClprVerifier {
             @NonNull Bytes channelContext,
             @NonNull HandleContext context)
             throws HandleException;
+
+    /**
+     * Verifies a received bundle before consensus submission, using a local contract call.
+     * Implementations that do not support local verification reject the bundle.
+     *
+     * <p>Unlike {@link #verifyBundle}, this runs outside transaction handling, so
+     * {@code contractCall} must execute without committing state changes or charging fees. The
+     * result must be the same content that {@link #verifyBundle} attests at consensus for the same
+     * inputs and state.
+     *
+     * @param bundlePayload opaque proof bytes from the peer
+     * @param trustAnchor the Channel's current signing-authority material
+     * @param channelContext opaque channel identity
+     * @param contractCall executes ABI call data against the verifier and returns raw EVM result bytes
+     * @return the verified bundle content
+     * @throws HandleException if verification fails or local verification is unsupported
+     */
+    @NonNull
+    default ClprBundleContent verifyBundleLocally(
+            @NonNull Bytes bundlePayload,
+            @NonNull Bytes trustAnchor,
+            @NonNull Bytes channelContext,
+            @NonNull Function<Bytes, Bytes> contractCall)
+            throws HandleException {
+        throw new HandleException(CLPR_BUNDLE_VERIFICATION_FAILED);
+    }
 }

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks;
 
+import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowHashOf;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 
 import com.hedera.hapi.block.stream.BlockItem;
@@ -17,6 +18,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
+import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.hashgraph.Round;
 
@@ -32,8 +34,25 @@ import org.hiero.consensus.model.hashgraph.Round;
  * Merkle trees will be in the order they are written.
  */
 public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener {
+    // SHA-384-default: the block-root Merkle tree's hash algorithm is chosen per-call by BlockStreamConfig.digestType
+    // (see BlockStreamManagerImpl.digestOrThrow()); this constant is only the fallback for callers with no
+    // access to that config (e.g. Hedera.java's genesis sentinel, which is only ever compared for equality).
     byte[] HASH_OF_ZERO_BYTES = noThrowSha384HashOf(new byte[] {0x0});
-    Bytes HASH_OF_ZERO = Bytes.wrap(HASH_OF_ZERO_BYTES);
+    Bytes HASH_OF_ZERO_384 = Bytes.wrap(HASH_OF_ZERO_BYTES);
+
+    /**
+     * The genesis/empty-subtree sentinel {@code hash(0x00)} under the hash algorithm selected by
+     * {@code BlockStreamConfig.digestType}: {@code sha256(0x00)} (32 bytes) when {@code digestType} is
+     * {@link DigestType#SHA_256}, otherwise the {@link #HASH_OF_ZERO_384} default ({@code sha384(0x00)}, 48 bytes).
+     *
+     * @param digestType the digest algorithm selected by {@code BlockStreamConfig.digestType}
+     * @return the config-appropriate hash-of-zero sentinel
+     */
+    static Bytes hashOfZero(final DigestType digestType) {
+        return digestType == DigestType.SHA_256
+                ? Bytes.wrap(noThrowHashOf(new byte[] {0x0}, DigestType.SHA_256))
+                : HASH_OF_ZERO_384;
+    }
 
     /**
      * The number of sibling hashes on the path from a block's first branch up to its root: one per level
@@ -91,7 +110,7 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
     /**
      * Initializes the block stream manager after a restart or during reconnect with the hashes necessary to
      * infer the starting block tree states and the last block hash used in the restart or reconnect. At
-     * genesis, the last block hash should be the {@link #HASH_OF_ZERO}. In all other cases, this value should
+     * genesis, the last block hash should be the {@link #HASH_OF_ZERO_384}. In all other cases, this value should
      * be null, and the method should calculate it from the intermediate subtree states.
      *
      * @param state the state to use
@@ -213,11 +232,33 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
     void writeSavepointItems(@NonNull List<BlockItem> items, @NonNull Instant lastUsedConsensusTime);
 
     /**
-     * Returns whether savepoint-stack block output is suppressed for the current block.
+     * Returns whether savepoint-stack block output is suppressed for the current block. This only ever engages in
+     * {@code StreamMode.BOTH} (preview block stream); see {@link #hasReachedMaxBlockSize()} for the analogous,
+     * independent signal used in {@code StreamMode.BLOCKS} (canonical block stream), which never suppresses output.
      *
      * @return whether savepoint-stack block output is suppressed
      */
     boolean isSavepointOutputSuppressed();
+
+    /**
+     * Returns whether the current block has already reached its configured maximum serialized size, in {@code
+     * StreamMode.BLOCKS} (canonical block stream). Unlike {@link #isSavepointOutputSuppressed()}, reaching this
+     * limit never suppresses any block-stream output — every dispatch that already completed is recorded normally.
+     * Callers (namely {@code HandleWorkflow}) are expected to reject further non-exempt submitted transactions with
+     * {@code THROTTLED_AT_CONSENSUS} using normal consensus throttle fee charging once this returns {@code true},
+     * rather than let them run. Scheduled executions, migration root hash votes, hints/CRS, history proof and CLPR
+     * endpoint publication transactions, and payers in {@code 1..accounts.lastThrottleExempt} are exempt. Always
+     * {@code false} in any other stream mode.
+     *
+     * @return whether the current block has reached its configured maximum size, in {@code StreamMode.BLOCKS}
+     */
+    boolean hasReachedMaxBlockSize();
+
+    /**
+     * Records diagnostic counts for a submitted parent's output before it is written. Scheduled executions
+     * and child transactions are not submitted parents. Rejection bytes include the complete output batch.
+     */
+    default void recordSubmittedTransaction(@NonNull List<BlockItem> items, boolean rejectedForBlockSize) {}
 
     /**
      * Signals that the platform has reached a catastrophic failure (e.g. following an ISS). Sets a flag that

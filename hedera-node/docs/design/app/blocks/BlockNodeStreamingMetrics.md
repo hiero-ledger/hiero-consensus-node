@@ -8,24 +8,27 @@ configuration is required to access them.
 
 These metrics relate to the block buffer and are identified by the prefix "buffer".
 
-|               Metric Name                |      Type       |                                     Description                                      |
-|------------------------------------------|-----------------|--------------------------------------------------------------------------------------|
-| `blockStream_buffer_saturation`          | Gauge (double)  | Latest saturation of the block buffer as a percent (0.0 to 100.0)                    |
-| `blockStream_buffer_latestBlockOpened`   | Gauge (long)    | The block number that was most recently opened                                       |
-| `blockStream_buffer_latestBlockAcked`    | Gauge (long)    | The block number that was most recently acknowledged                                 |
-| `blockStream_buffer_numBlocksPruned`     | Counter         | Number of blocks pruned in the latest buffer pruning cycle                           |
-| `blockStream_buffer_numBlocksOpened`     | Counter         | Number of blocks opened/created in the block buffer                                  |
-| `blockStream_buffer_numBlocksClosed`     | Counter         | Number of blocks closed in the block buffer                                          |
-| `blockStream_buffer_numBlocksMissing`    | Counter         | Number of attempts to retrieve a block from the block buffer but it was missing      |
-| `blockStream_buffer_backPressureState`   | Gauge (long)    | Current state of back pressure (0=disabled, 1=action-stage, 2=recovering, 3=active)  |
-| `blockStream_buffer_oldestBlock`         | Gauge (long)    | After pruning, the oldest block in the buffer                                        |
-| `blockStream_buffer_newestBlock`         | Gauge (long)    | After pruning, the newest block in the buffer                                        |
-| `blockStream_buffer_blockItemsPerBlock`  | Running average | Average number of BlockItems per block                                               |
-| `blockStream_buffer_blockItemBytes`      | Running average | Average size in bytes of a BlockItem                                                 |
-| `blockStream_buffer_blockBytes`          | Running average | Average size in bytes of a Block                                                     |
-| `blockStream_buffer_totalBytes`          | Gauge (long)    | The total size of the serialized data held by the block buffer in memory.            |
-| `blockStream_buffer_numBlocks`           | Gauge (long)    | The number of blocks held by the block buffer in memory.                             |
-| `blockStream_buffer_numBlocksPendingAck` | Gauge (long)    | The number of buffered blocks that are awaiting an acknowledgement from a block node |
+|                   Metric Name                   |      Type       |                                         Description                                          |
+|-------------------------------------------------|-----------------|----------------------------------------------------------------------------------------------|
+| `blockStream_buffer_saturation`                 | Gauge (double)  | Latest maximum saturation of the block buffer as a percent (0.0 to 100.0)                    |
+| `blockStream_buffer_latestBlockOpened`          | Gauge (long)    | The block number that was most recently opened                                               |
+| `blockStream_buffer_latestBlockAcked`           | Gauge (long)    | The block number that was most recently acknowledged                                         |
+| `blockStream_buffer_numBlocksPruned`            | Counter         | Number of blocks pruned in the latest buffer pruning cycle                                   |
+| `blockStream_buffer_numBlocksOpened`            | Counter         | Number of blocks opened/created in the block buffer                                          |
+| `blockStream_buffer_numBlocksClosed`            | Counter         | Number of blocks closed in the block buffer                                                  |
+| `blockStream_buffer_numBlocksMissing`           | Counter         | Number of attempts to retrieve a block from the block buffer but it was missing              |
+| `blockStream_buffer_backPressureState`          | Gauge (long)    | Current state of back pressure (0=disabled, 1=action-stage, 2=recovering, 3=active)          |
+| `blockStream_buffer_oldestBlock`                | Gauge (long)    | After pruning, the oldest block in the buffer                                                |
+| `blockStream_buffer_newestBlock`                | Gauge (long)    | After pruning, the newest block in the buffer                                                |
+| `blockStream_buffer_blockItemsPerBlock`         | Running average | Average number of BlockItems per block                                                       |
+| `blockStream_buffer_blockItemBytes`             | Running average | Average size in bytes of a BlockItem                                                         |
+| `blockStream_buffer_blockBytes`                 | Running average | Average size in bytes of a Block                                                             |
+| `blockStream_buffer_totalBytes`                 | Gauge (long)    | The total size of the serialized data held by the block buffer in memory.                    |
+| `blockStream_buffer_numBlocks`                  | Gauge (long)    | The number of blocks held by the block buffer in memory.                                     |
+| `blockStream_buffer_numBlocksPendingAck`        | Gauge (long)    | The number of buffered blocks that are awaiting an acknowledgement from a block node         |
+| `blockStream_buffer_unackedBlocksSaturation`    | Gauge (double)  | Buffer saturation as a measure of unacknowledged blocks (0.0 to 100.0)                       |
+| `blockStream_buffer_unackedBytesSaturation`     | Gauge (double)  | Buffer saturation as a measure of unacknowledged bytes consumed by the blocks (0.0 to 100.0) |
+| `blockStream_buffer_inProgressBlocksSaturation` | Gauge (double)  | Buffer saturation as a measure of in-progress blocks buffered (0.0 to 100.0)                 |
 
 ## Connectivity Metrics
 

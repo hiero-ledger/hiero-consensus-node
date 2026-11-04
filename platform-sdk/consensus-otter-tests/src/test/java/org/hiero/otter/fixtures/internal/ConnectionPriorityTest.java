@@ -16,6 +16,7 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.otter.fixtures.InstrumentedNode;
+import org.hiero.otter.fixtures.MiniNode;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionGenerator;
@@ -306,6 +307,12 @@ class ConnectionPriorityTest {
 
         @Override
         @NonNull
+        protected MiniNode doCreateMiniNode(@NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
+            throw new UnsupportedOperationException("Not needed for this test");
+        }
+
+        @Override
+        @NonNull
         protected TimeManager timeManager() {
             throw new UnsupportedOperationException("Not needed for this test");
         }
@@ -362,6 +369,12 @@ class ConnectionPriorityTest {
 
         @Override
         @NonNull
+        public List<MiniNode> allNodes() {
+            return delegate.allNodes();
+        }
+
+        @Override
+        @NonNull
         public Node addNode() {
             return delegate.addNode();
         }
@@ -380,7 +393,13 @@ class ConnectionPriorityTest {
 
         @Override
         @NonNull
-        public ConnectionState getConnectionData(@NonNull final Node sender, @NonNull final Node receiver) {
+        public List<MiniNode> addMiniNodes(final int count) {
+            return delegate.addMiniNodes(count);
+        }
+
+        @Override
+        @NonNull
+        public ConnectionState getConnectionData(@NonNull final MiniNode sender, @NonNull final MiniNode receiver) {
             // Return configurable connection state
             return new ConnectionState(
                     topologyConnected,

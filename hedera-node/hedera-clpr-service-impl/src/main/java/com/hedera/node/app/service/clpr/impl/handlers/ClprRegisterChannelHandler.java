@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.handlers;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_CHANNEL_ALREADY_EXISTS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
+import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 
 import com.hedera.node.app.service.clpr.impl.WritablePendingCommitmentStore;
@@ -20,6 +22,10 @@ import javax.inject.Singleton;
  * <p>This is the commit phase of the commit-reveal channel registration scheme.
  * It stores an opaque ownership commitment hash. The reveal phase
  * ({@link ClprCompleteChannelHandler}) validates the preimage and creates the Channel.
+ *
+ * <p>A commitment stays registered while it is pending reveal and for as long as the Channel it
+ * was revealed into exists, which includes CLOSED Channels, so re-registering it is rejected with
+ * {@code CLPR_CHANNEL_ALREADY_EXISTS}.
  */
 @Singleton
 public class ClprRegisterChannelHandler extends AbstractClprHandler {
@@ -45,7 +51,7 @@ public class ClprRegisterChannelHandler extends AbstractClprHandler {
         final var op = context.body().clprRegisterChannelOrThrow();
         final var commitmentStore = context.storeFactory().writableStore(WritablePendingCommitmentStore.class);
 
-        // Idempotent: re-submitting the same commitment is a no-op.
+        validateTrue(!commitmentStore.contains(op.ownershipCommitment()), CLPR_CHANNEL_ALREADY_EXISTS);
         commitmentStore.put(op.ownershipCommitment());
     }
 }

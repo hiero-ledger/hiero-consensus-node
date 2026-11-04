@@ -16,13 +16,16 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileUpdate;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ADDRESS_BOOK_CONTROL;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.NODE_DETAILS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FILE_WACL;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.UNAUTHORIZED;
 
 import com.google.protobuf.ByteString;
@@ -30,6 +33,8 @@ import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.keys.ControlForKey;
 import com.hedera.services.bdd.spec.keys.KeyFactory;
 import com.hedera.services.bdd.spec.keys.KeyShape;
+import com.hederahashgraph.api.proto.java.Key;
+import com.hederahashgraph.api.proto.java.KeyList;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
@@ -40,6 +45,18 @@ public class PermissionSemanticsSpec {
     public static final String CIVILIAN = "civilian";
     public static final String ETERNAL = "eternal";
     public static final String WACL = "wacl";
+    private static final String OWNER = "owner";
+    private static final String TEST_FILE = "testFile";
+    private static final String DEGENERATE_WACL = "degenerateWacl";
+    private static final String EMPTY_WACL = "emptyWacl";
+
+    private static final Key EMPTY_KEYLIST_ENTRY =
+            Key.newBuilder().setKeyList(KeyList.getDefaultInstance()).build();
+    private static final Key DEGENERATE_WACL_KEY = Key.newBuilder()
+            .setKeyList(KeyList.newBuilder().addKeys(EMPTY_KEYLIST_ENTRY))
+            .build();
+    private static final Key EMPTY_WACL_KEY =
+            Key.newBuilder().setKeyList(KeyList.getDefaultInstance()).build();
 
     @HapiTest
     final Stream<DynamicTest> addressBookAdminExemptFromFeesGivenAuthorizedOps() {
@@ -122,5 +139,52 @@ public class PermissionSemanticsSpec {
                         .sigControl(ControlForKey.forKey(WACL, failedDeleteSig))
                         .hasKnownStatus(INVALID_SIGNATURE),
                 fileDelete("tbd").signedBy(GENESIS, WACL).sigControl(ControlForKey.forKey(WACL, deleteSig)));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> fileCreateRejectsUnsatisfiableWacl() {
+        return hapiTest(
+                doingContextual(spec -> spec.registry().saveKey(DEGENERATE_WACL, DEGENERATE_WACL_KEY)),
+                cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
+                fileCreate(TEST_FILE)
+                        .key(DEGENERATE_WACL)
+                        .contents("original")
+                        .payingWith(OWNER)
+                        .signedBy(OWNER)
+                        .hasKnownStatus(INVALID_FILE_WACL));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> fileUpdateRejectsSettingUnsatisfiableWacl() {
+        return hapiTest(
+                doingContextual(spec -> spec.registry().saveKey(DEGENERATE_WACL, DEGENERATE_WACL_KEY)),
+                cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
+                fileCreate(TEST_FILE).contents("original").payingWith(OWNER),
+                fileUpdate(TEST_FILE)
+                        .wacl(DEGENERATE_WACL)
+                        .payingWith(OWNER)
+                        .signedBy(OWNER, TEST_FILE)
+                        .hasKnownStatus(INVALID_FILE_WACL));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> fileWithEmptyWaclIsImmutable() {
+        return hapiTest(
+                doingContextual(spec -> spec.registry().saveKey(EMPTY_WACL, EMPTY_WACL_KEY)),
+                cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate("user").balance(ONE_HUNDRED_HBARS),
+                fileCreate(TEST_FILE)
+                        .key(EMPTY_WACL)
+                        .contents("original")
+                        .payingWith(OWNER)
+                        .signedBy(OWNER)
+                        .hasKnownStatus(SUCCESS),
+                fileUpdate(TEST_FILE)
+                        .contents("new contents")
+                        .payingWith("user")
+                        .signedBy("user")
+                        .hasKnownStatus(UNAUTHORIZED),
+                fileDelete(TEST_FILE).payingWith("user").signedBy("user").hasKnownStatus(UNAUTHORIZED),
+                getFileInfo(TEST_FILE).hasDeleted(false));
     }
 }
