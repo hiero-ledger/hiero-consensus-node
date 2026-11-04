@@ -57,8 +57,8 @@ class FalconSharedTipsetsTest {
     @DisplayName("Keeps a tipset until its event is ancient for every tracker")
     void keepsTipsetsUntilAncientForEveryTracker() {
         final NodeId firstId = roster.nodeIdAtIndex(0);
-        final FalconSharedTipsetTracker first = sharedTipsets.newTracker(firstId, roster);
-        final FalconSharedTipsetTracker second = sharedTipsets.newTracker(roster.nodeIdAtIndex(1), roster);
+        final FalconSharedTipsetTracker first = registerTracker(firstId);
+        final FalconSharedTipsetTracker second = registerTracker(roster.nodeIdAtIndex(1));
         events.forEach(event -> addAsMiniNode(first, firstId, event));
         assertThat(sharedTipsets.size()).as("tipsets after adding all events").isEqualTo(events.size());
 
@@ -89,7 +89,7 @@ class FalconSharedTipsetsTest {
     @DisplayName("A tracker created late keeps the tipsets the shared tipsets no longer hold")
     void lateTrackerKeepsTipsetsTheSharedTipsetsNoLongerHold() {
         final NodeId earlyId = roster.nodeIdAtIndex(0);
-        final FalconSharedTipsetTracker early = sharedTipsets.newTracker(earlyId, roster);
+        final FalconSharedTipsetTracker early = registerTracker(earlyId);
         events.forEach(event -> addAsMiniNode(early, earlyId, event));
         final long threshold = highestBirthRound / 2;
         early.setEventWindow(window(threshold));
@@ -97,7 +97,7 @@ class FalconSharedTipsetsTest {
 
         // The late tracker starts from the genesis window, so it adds the events that the shared tipsets no longer hold
         final NodeId selfId = roster.nodeIdAtIndex(1);
-        final FalconSharedTipsetTracker late = sharedTipsets.newTracker(selfId, roster);
+        final FalconSharedTipsetTracker late = registerTracker(selfId);
         final DefaultTipsetTracker expectedTracker = new DefaultTipsetTracker(Time.getCurrent(), selfId, roster);
         final Map<Long, Long> sequenceNumbers = new HashMap<>();
         for (int i = 0; i < events.size(); i++) {
@@ -120,6 +120,19 @@ class FalconSharedTipsetsTest {
         assertThat(late.getDivergedTipsetCount())
                 .as("events whose shared tipset lacked parents the shared tipsets no longer hold")
                 .isPositive();
+    }
+
+    /**
+     * Creates a tracker and registers it with the shared tipsets, as a mini node does when it starts.
+     *
+     * @param selfId the id of the tracker's node
+     * @return the tracker
+     */
+    @NonNull
+    private FalconSharedTipsetTracker registerTracker(@NonNull final NodeId selfId) {
+        final FalconSharedTipsetTracker tracker = new FalconSharedTipsetTracker(sharedTipsets, selfId, roster);
+        sharedTipsets.register(tracker);
+        return tracker;
     }
 
     /**

@@ -189,7 +189,8 @@ public class FalconMiniNode extends AbstractMiniNode implements MiniNode, TimeTi
         final EventTransactionSupplier transactionSupplier = transactionShape == null
                 ? List::of
                 : new ShapedTransactionSupplier(transactionShape, random.nextLong(), time);
-        tipsetTracker = sharedTipsets.newTracker(selfId, roster);
+        tipsetTracker = new FalconSharedTipsetTracker(sharedTipsets, selfId, roster);
+        sharedTipsets.register(tipsetTracker);
 
         final EventCreator eventCreator = new TipsetEventCreator(
                 configuration, metrics, time, secureRandom, signer, roster, selfId, transactionSupplier, tipsetTracker);

@@ -34,8 +34,12 @@ import org.hiero.consensus.model.sequence.map.StandardSequenceMap;
  * </ul>
  * In both cases, this tracker computes the tipset itself, and keeps it if it differs from the shared one.
  *
- * <p>The tracker also keeps the tipsets of the node's own events, because the node does not advance its own entry for
- * them, and the tipsets of peer events that the shared tipsets cannot store.
+ * <p>The tracker also keeps two other kinds of tipsets itself:
+ * <ul>
+ *     <li>those of the node's own events, because the node does not advance its own entry for them;</li>
+ *     <li>those of peer events with a birth round below the ancient threshold the shared tipsets were last pruned at,
+ *     which the shared tipsets cannot store, see {@link FalconSharedTipsets#canStore(EventDescriptorWrapper)}.</li>
+ * </ul>
  *
  * <p>{@link #getTipset(EventDescriptorWrapper)} may return the tipset of a peer event this tracker has not added yet,
  * but it is only asked for events the tracker has added. This class is not thread-safe.
@@ -66,8 +70,12 @@ final class FalconSharedTipsetTracker implements TipsetTracker {
     /** The parents' tipsets of the event being added. Reused across calls. */
     private final List<Tipset> parentTipsets = new ArrayList<>();
 
-    /** A tipset holding the ordering key of the latest event this tracker has added from each node. */
-    private Tipset latestTips;
+    /**
+     * This tipset is equivalent to a tipset that would be created by merging all tipsets of all events that this object
+     * has ever observed. If you ask this tipset for the ordering key for a particular node, it will return the latest
+     * ordering key of all events we have ever received from that node.
+     */
+    private Tipset latestOrderingKeys;
 
     /** The current event window. */
     private EventWindow eventWindow = EventWindow.getGenesisEventWindow();
@@ -76,7 +84,8 @@ final class FalconSharedTipsetTracker implements TipsetTracker {
     private long divergedTipsetCount;
 
     /**
-     * Creates a tracker. Use {@link FalconSharedTipsets#newTracker(NodeId, RosterWrapper)}, which registers it.
+     * Creates a tracker. It has to be registered with {@link FalconSharedTipsets#register(FalconSharedTipsetTracker)}
+     * before it adds events, so that the shared tipsets keep the tipsets it needs.
      *
      * @param sharedTipsets the tipsets shared with the trackers of the other mini nodes
      * @param selfId the id of this node
@@ -89,7 +98,7 @@ final class FalconSharedTipsetTracker implements TipsetTracker {
         this.sharedTipsets = requireNonNull(sharedTipsets);
         this.selfId = requireNonNull(selfId);
         this.roster = requireNonNull(roster);
-        this.latestTips = new Tipset(roster);
+        this.latestOrderingKeys = new Tipset(roster);
     }
 
     /**
@@ -152,11 +161,11 @@ final class FalconSharedTipsetTracker implements TipsetTracker {
                 tipset = ownTipset;
             }
         }
-        if (tipset != shared.tipset() || !sharedTipsets.holds(descriptor)) {
+        if (tipset != shared.tipset() || !sharedTipsets.canStore(descriptor)) {
             peerTipsets.put(descriptor, tipset);
         }
 
-        latestTips.advance(event.getCreatorId(), orderingKey);
+        latestOrderingKeys.advance(event.getCreatorId(), orderingKey);
         return tipset;
     }
 
@@ -253,7 +262,7 @@ final class FalconSharedTipsetTracker implements TipsetTracker {
      */
     @Override
     public long getLatestTipOrderingKeyForNode(@NonNull final NodeId nodeId) {
-        return latestTips.getTipOrderingKeyForNode(nodeId);
+        return latestOrderingKeys.getTipOrderingKeyForNode(nodeId);
     }
 
     /**
@@ -264,9 +273,19 @@ final class FalconSharedTipsetTracker implements TipsetTracker {
     @Override
     public void clear() {
         eventWindow = EventWindow.getGenesisEventWindow();
-        latestTips = new Tipset(roster);
+        latestOrderingKeys = new Tipset(roster);
         ownTipsets.clear();
         peerTipsets.clear();
+    }
+
+    /**
+     * Gets the roster.
+     *
+     * @return the roster
+     */
+    @NonNull
+    RosterWrapper getRoster() {
+        return roster;
     }
 
     /**

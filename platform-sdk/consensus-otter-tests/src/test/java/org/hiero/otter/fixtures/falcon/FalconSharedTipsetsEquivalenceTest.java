@@ -106,7 +106,8 @@ class FalconSharedTipsetsEquivalenceTest {
             this.deliveries = deliveries;
             final Time time = Time.getCurrent();
             defaultTracker = new DefaultTipsetTracker(time, selfId, roster);
-            sharedTracker = sharedTipsets.newTracker(selfId, roster);
+            sharedTracker = new FalconSharedTipsetTracker(sharedTipsets, selfId, roster);
+            sharedTipsets.register(sharedTracker);
             defaultCalculator =
                     new TipsetWeightCalculator(configuration, time, roster, selfId, defaultTracker, childlessEvents);
             sharedCalculator =

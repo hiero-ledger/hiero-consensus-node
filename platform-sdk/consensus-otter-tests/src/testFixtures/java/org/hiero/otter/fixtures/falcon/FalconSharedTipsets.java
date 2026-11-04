@@ -11,7 +11,6 @@ import java.util.List;
 import org.hiero.consensus.event.creator.impl.tipset.Tipset;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.sequence.map.SequenceMap;
 import org.hiero.consensus.model.sequence.map.StandardSequenceMap;
@@ -56,28 +55,24 @@ final class FalconSharedTipsets {
     /** The trackers that use these tipsets. */
     private final List<FalconSharedTipsetTracker> trackers = new ArrayList<>();
 
-    /** The roster of all trackers, set when the first tracker is created. */
+    /** The roster of all trackers, set when the first tracker is registered. */
     @Nullable
     private RosterWrapper roster;
 
     /**
-     * Creates a tracker for a node that uses these tipsets.
+     * Registers a tracker that uses these tipsets, so that they keep the tipsets the tracker needs.
      *
-     * @param selfId the id of the node
-     * @param roster the roster, which must be the same for all trackers
-     * @return the tracker
-     * @throws IllegalArgumentException if the roster differs from the roster of the trackers created before
+     * @param tracker the tracker
+     * @throws IllegalArgumentException if the tracker's roster differs from the roster of the trackers registered
+     *     before
      */
-    @NonNull
-    FalconSharedTipsetTracker newTracker(@NonNull final NodeId selfId, @NonNull final RosterWrapper roster) {
-        if (this.roster == null) {
-            this.roster = requireNonNull(roster);
-        } else if (!this.roster.equals(roster)) {
+    void register(@NonNull final FalconSharedTipsetTracker tracker) {
+        if (roster == null) {
+            roster = tracker.getRoster();
+        } else if (!roster.equals(tracker.getRoster())) {
             throw new IllegalArgumentException("All trackers that share tipsets must use the same roster");
         }
-        final FalconSharedTipsetTracker tracker = new FalconSharedTipsetTracker(this, selfId, roster);
         trackers.add(tracker);
-        return tracker;
     }
 
     /**
@@ -111,13 +106,17 @@ final class FalconSharedTipsets {
     }
 
     /**
-     * Checks whether the tipset of an event can be stored, which is not the case if the event is ancient for every
-     * tracker that was registered when the tipsets were last pruned.
+     * Checks whether the tipset of an event can be stored. It cannot if the event's birth round is below the ancient
+     * threshold the tipsets were last pruned at, because they cannot be pruned at a lower threshold afterwards.
+     *
+     * <p>A tracker never adds such an event if it was registered before that pruning, because its own ancient threshold
+     * was at least as high and only increases. A tracker registered after it, such as the tracker of a mini node started
+     * late, begins with the genesis window and can add such events. It has to keep its tipsets itself.
      *
      * @param descriptor the descriptor of the event
      * @return {@code true} if the tipset of the event can be stored
      */
-    boolean holds(@NonNull final EventDescriptorWrapper descriptor) {
+    boolean canStore(@NonNull final EventDescriptorWrapper descriptor) {
         return descriptor.birthRound() >= entries.getFirstSequenceNumberInWindow();
     }
 
@@ -134,7 +133,7 @@ final class FalconSharedTipsets {
 
     /**
      * Gets the stored tipset of an event, computing it from the stored tipsets of its parents if the event has not
-     * been added before. The tipset is not stored if {@link #holds(EventDescriptorWrapper)} is {@code false} for the
+     * been added before. The tipset is not stored if {@link #canStore(EventDescriptorWrapper)} is {@code false} for the
      * event.
      *
      * @param event the event
@@ -160,7 +159,7 @@ final class FalconSharedTipsets {
                 includedParents |= 1L << i;
             }
         }
-        final Tipset tipset = new Tipset(requireNonNull(roster, "No tracker has been created"))
+        final Tipset tipset = new Tipset(requireNonNull(roster, "No tracker has been registered"))
                 .merge(parentTipsets)
                 .advance(event.getCreatorId(), orderingKey(event));
         final Entry entry = new Entry(tipset, includedParents);
