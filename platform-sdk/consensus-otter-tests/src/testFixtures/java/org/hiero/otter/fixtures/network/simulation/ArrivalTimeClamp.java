@@ -2,13 +2,12 @@
 package org.hiero.otter.fixtures.network.simulation;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Arrays;
 
 /**
  * Keeps arrival times in strictly increasing order for each kind of copy on each connection. Copies of different kinds
  * do not constrain each other, so a later copy of one kind may arrive before an earlier copy of another.
  *
- * <p>A connection is identified by the ranks of its sender and receiver, which are their positions in node id order.
+ * <p>A connection is identified by the ranks of its sender and receiver, which are their indices in the roster.
  * Arrival times are nanoseconds since the start of the simulation.
  *
  * <p>This class is not safe to use from more than one thread.
@@ -17,7 +16,9 @@ final class ArrivalTimeClamp {
 
     /**
      * The last arrival time handed out for each kind of copy on each connection, indexed by the ordinal of the kind,
-     * then by the rank of the sender and then by the rank of the receiver. {@link Long#MIN_VALUE} if there was none.
+     * then by the rank of the sender and then by the rank of the receiver. Zero, the start of the simulation, if there
+     * was none. Arrival times are never earlier than that, unless jitter outweighs the latency of a copy sent right at
+     * the start, and such a copy is moved to just after the start.
      */
     private final long[][][] lastArrivalTimes;
 
@@ -28,11 +29,6 @@ final class ArrivalTimeClamp {
      */
     ArrivalTimeClamp(final int nodeCount) {
         lastArrivalTimes = new long[MessageRoute.values().length][nodeCount][nodeCount];
-        for (final long[][] byKind : lastArrivalTimes) {
-            for (final long[] bySender : byKind) {
-                Arrays.fill(bySender, Long.MIN_VALUE);
-            }
-        }
     }
 
     /**

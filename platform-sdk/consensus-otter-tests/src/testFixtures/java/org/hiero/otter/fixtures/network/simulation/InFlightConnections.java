@@ -11,7 +11,7 @@ import java.time.Instant;
  * connection. This is the storage that {@link InFlightEvents} and {@link InFlightEventWindows} share; how the queues are
  * drained into a receiver is up to each of them.
  *
- * <p>Nodes are identified by their rank, which is their position in node id order. Delivery walks
+ * <p>Nodes are identified by their rank, which is their index in the roster. Delivery walks
  * the senders in rank order, so that what arrives at the same instant is always handled in the same order and the
  * simulation stays reproducible.
  *

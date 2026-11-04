@@ -7,7 +7,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Random;
+import java.util.function.ToIntFunction;
 import org.hiero.consensus.gossip.config.BroadcastConfig;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
 import org.hiero.otter.fixtures.network.Topology.ConnectionState;
 
@@ -17,8 +19,8 @@ import org.hiero.otter.fixtures.network.Topology.ConnectionState;
  * broadcast mode.
  *
  * <p>A connection goes one way, from a sender to a receiver. A link is a pair of nodes and covers the connections in
- * both directions; it is up only if both of them are connected. Nodes are identified by their rank, see
- * {@link NodeRanks}. Everything is kept in arrays indexed by the ranks of the two nodes involved, because it is read
+ * both directions; it is up only if both of them are connected. Nodes are identified by their rank, which is their
+ * index in the roster. Everything is kept in arrays indexed by the ranks of the two nodes involved, because it is read
  * for every copy of every event. The state of a link is kept the same both ways round, so that it can be read without
  * first ordering the two ranks.
  *
@@ -41,9 +43,10 @@ final class LinkStates {
     private static final double RECONNECT_JITTER = 0.2;
 
     /**
-     * Stands for a time that lies before any other, such as the end of a reconnect delay that a link is not waiting out.
+     * The start of the simulation. No time lies before it, so it stands for a time that has always passed, such as the
+     * end of a reconnect delay that a link is not waiting out. It is zero, which is what new arrays are filled with.
      */
-    private static final long NO_TIME = Long.MIN_VALUE;
+    private static final long START = 0L;
 
     /**
      * Stands for a time that never comes, such as the time a link that is too slow returns to broadcast mode.
@@ -59,7 +62,7 @@ final class LinkStates {
         /**
          * Called for a link that has come up.
          *
-         * @param first  the rank of the node of the link that comes first in node id order
+         * @param first  the rank of the node of the link that comes first in roster order
          * @param second the rank of the other node of the link
          */
         void linkCameUp(int first, int second);
@@ -81,65 +84,59 @@ final class LinkStates {
     private final int nodeCount;
 
     /**
-     * Whether the most recent connection data contained any connection. The first connection data that does is taken
-     * to describe links that are already established.
+     * Whether any connection data has been given yet. The first connection data is taken to describe links that are
+     * already established.
      */
-    private boolean hasConnections = false;
+    private boolean connectionsInitialized = false;
 
     /**
-     * Whether the connection data contains the connection from one node to another, indexed by the rank of the sender
-     * and then by the rank of the receiver. Something sent over a connection that is not in the data is dropped.
-     */
-    private final boolean[][] connectionKnown;
-
-    /**
-     * Whether the connection from one node to another is connected, indexed like {@link #connectionKnown}.
-     */
-    private final boolean[][] connectionUp;
-
-    /**
-     * The latency of the connection from one node to another, indexed like {@link #connectionKnown}.
+     * The latency of the connection from one node to another, indexed by the rank of the sender and then by the rank of
+     * the receiver.
      */
     private final long[][] latencies;
 
     /**
      * The standard deviation of the jitter of the connection from one node to another, indexed like
-     * {@link #connectionKnown}.
+     * {@link #latencies}.
      */
     private final double[][] jitterSigmas;
 
     /**
      * Whether the link between two nodes is up, indexed by the ranks of the two nodes in either order.
+     *
+     * <p>A link is up only if the connection data has the connections in both directions connected. In production the
+     * two nodes share one TCP connection, and the side that stops receiving closes it, so a cut in one direction stops
+     * both. This is what decides whether something can be delivered in either direction, and its changes are what count
+     * as a link coming up or going down.
      */
     private final boolean[][] linkUp;
 
     /**
      * Whether each link was up before the connection data was last replaced, indexed like {@link #linkUp}. Only used
-     * during {@link #update(Map, NodeRanks, long, LinkUpListener)}, and kept between calls only so that it does not have
-     * to be allocated on every call.
+     * during {@link #update(Map, ToIntFunction, long, LinkUpListener)}, and kept between calls only so that it does not
+     * have to be allocated on every call.
      */
     private final boolean[][] wasLinkUp;
 
     /**
-     * The sum of the latencies of both directions of a link, indexed like {@link #linkUp}. A missing direction counts as
-     * the other one. Only meaningful if at least one direction is in the connection data.
+     * The sum of the latencies of both directions of a link, indexed like {@link #linkUp}.
      */
     private final long[][] roundTrips;
 
     /**
      * The time before which nothing is delivered over a link in either direction, indexed like {@link #linkUp}.
-     * {@link #NO_TIME} if the link has no reconnect delay pending.
+     * {@link #START} if the link has no reconnect delay pending.
      */
     private final long[][] reconnectReadyAt;
 
     /**
      * The time from which a link is in broadcast mode, indexed like {@link #linkUp}. {@link #NEVER} while the round trip
-     * of the link is above the threshold, and {@link #NO_TIME} if the link has always been in broadcast mode.
+     * of the link is above the threshold, and {@link #START} if the link has always been in broadcast mode.
      */
     private final long[][] broadcastEnabledAt;
 
     /**
-     * Constructor. Until the first call to {@link #update(Map, NodeRanks, long, LinkUpListener)} no connection is
+     * Constructor. Until the first call to {@link #update(Map, ToIntFunction, long, LinkUpListener)} no connection is
      * known.
      *
      * @param nodeCount       the number of nodes in the network
@@ -150,15 +147,13 @@ final class LinkStates {
         this.nodeCount = nodeCount;
         this.random = requireNonNull(random);
         this.broadcastConfig = requireNonNull(broadcastConfig);
-        connectionKnown = new boolean[nodeCount][nodeCount];
-        connectionUp = new boolean[nodeCount][nodeCount];
         latencies = new long[nodeCount][nodeCount];
         jitterSigmas = new double[nodeCount][nodeCount];
         linkUp = new boolean[nodeCount][nodeCount];
         wasLinkUp = new boolean[nodeCount][nodeCount];
         roundTrips = new long[nodeCount][nodeCount];
-        reconnectReadyAt = filled(nodeCount, NO_TIME);
-        broadcastEnabledAt = filled(nodeCount, NO_TIME);
+        reconnectReadyAt = new long[nodeCount][nodeCount];
+        broadcastEnabledAt = new long[nodeCount][nodeCount];
     }
 
     /**
@@ -169,60 +164,67 @@ final class LinkStates {
      * listener is told about every link that has come up, in rank order, so that it can start the reconnect delay of
      * the link with {@link #startReconnectDelay(int, int, long)} and do whatever else a new link calls for.
      *
-     * <p>The first connection data that contains any connection is taken to describe links that are already
-     * established, so the listener is not told about any link for it.
+     * <p>The first connection data is taken to describe links that are already established, so the listener is not told
+     * about any link for it.
+     *
+     * <p>The connection data is complete: it contains the connection from every node to every other node, so it is
+     * empty only for a network of a single node. A connection that is cut is in the data as one that is not connected.
      *
      * @param connections the new connection data
-     * @param ranks       the ranks of the nodes of the network
+     * @param rankOf      gets the rank of a node, and throws if the node is not part of the network
      * @param now         the current time
      * @param listener    is told about every link that has come up
-     * @throws IllegalArgumentException if the data contains a connection of a node that is not part of the network
+     * @throws IllegalArgumentException if the data is not complete, or contains a connection of a node that is not part
+     *                                  of the network
      */
     void update(
             @NonNull final Map<ConnectionKey, ConnectionState> connections,
-            @NonNull final NodeRanks ranks,
+            @NonNull final ToIntFunction<NodeId> rankOf,
             final long now,
             @NonNull final LinkUpListener listener) {
-        final boolean initial = !hasConnections;
+        if (connections.size() != nodeCount * (nodeCount - 1)) {
+            throw new IllegalArgumentException("The connection data has " + connections.size()
+                    + " connections, but must have one between every two of the " + nodeCount + " nodes");
+        }
+        final boolean initial = !connectionsInitialized;
+        connectionsInitialized = true;
         for (int node = 0; node < nodeCount; node++) {
             System.arraycopy(linkUp[node], 0, wasLinkUp[node], 0, nodeCount);
         }
 
         for (int sender = 0; sender < nodeCount; sender++) {
-            Arrays.fill(connectionKnown[sender], false);
-            Arrays.fill(connectionUp[sender], false);
+            Arrays.fill(linkUp[sender], false);
             Arrays.fill(latencies[sender], 0L);
             Arrays.fill(jitterSigmas[sender], 0.0);
         }
         for (final Map.Entry<ConnectionKey, ConnectionState> entry : connections.entrySet()) {
-            final int sender = ranks.rankOf(entry.getKey().sender());
-            final int receiver = ranks.rankOf(entry.getKey().receiver());
+            final int sender = rankOf.applyAsInt(entry.getKey().sender());
+            final int receiver = rankOf.applyAsInt(entry.getKey().receiver());
+            if (sender == receiver) {
+                throw new IllegalArgumentException("The connection data has a connection of a node to itself");
+            }
             final ConnectionState state = entry.getValue();
-            connectionKnown[sender][receiver] = true;
-            connectionUp[sender][receiver] = state.connected();
+            // only one direction for now; both directions of a link are made to agree below
+            linkUp[sender][receiver] = state.connected();
             latencies[sender][receiver] = state.latency().toNanos();
             jitterSigmas[sender][receiver] = state.latency().toNanos() * state.jitter().value / 100.0;
         }
         for (int first = 0; first < nodeCount; first++) {
             for (int second = first + 1; second < nodeCount; second++) {
-                setForLink(linkUp, first, second, connectionUp[first][second] && connectionUp[second][first]);
-                setForLink(roundTrips, first, second, computeRoundTrip(first, second));
+                setForLink(linkUp, first, second, linkUp[first][second] && linkUp[second][first]);
+                setForLink(roundTrips, first, second, latencies[first][second] + latencies[second][first]);
             }
         }
-        hasConnections = !connections.isEmpty();
-
         updateBroadcastModes(now);
         if (initial) {
-            for (final long[] row : reconnectReadyAt) {
-                Arrays.fill(row, NO_TIME);
-            }
+            // No link has a reconnect delay yet, and none is taken to have come up.
             return;
         }
 
         for (int first = 0; first < nodeCount; first++) {
             for (int second = first + 1; second < nodeCount; second++) {
                 if (!linkUp[first][second]) {
-                    setForLink(reconnectReadyAt, first, second, NO_TIME);
+                    setForLink(reconnectReadyAt, first, second, START);
                 } else if (!wasLinkUp[first][second]) {
                     listener.linkCameUp(first, second);
                 }
@@ -261,22 +263,10 @@ final class LinkStates {
     }
 
     /**
-     * @return {@code true} if the most recent connection data contained any connection
+     * @return {@code true} if any connection data has been given yet
      */
-    boolean hasConnections() {
-        return hasConnections;
-    }
-
-    /**
-     * Reports whether the connection data contains a connection. Nothing can be sent over a connection that is not in
-     * the data.
-     *
-     * @param sender   the rank of the node at the sending end of the connection
-     * @param receiver the rank of the node at the receiving end of the connection
-     * @return {@code true} if the connection is in the data
-     */
-    boolean isKnown(final int sender, final int receiver) {
-        return connectionKnown[sender][receiver];
+    boolean connectionsInitialized() {
+        return connectionsInitialized;
     }
 
     /**
@@ -338,9 +328,6 @@ final class LinkStates {
     private void updateBroadcastModes(final long now) {
         for (int first = 0; first < nodeCount; first++) {
             for (int second = first + 1; second < nodeCount; second++) {
-                if (!connectionKnown[first][second] && !connectionKnown[second][first]) {
-                    continue;
-                }
                 if (roundTrips[first][second]
                         > broadcastConfig.disablePingThreshold().toNanos()) {
                     setForLink(broadcastEnabledAt, first, second, NEVER);
@@ -355,20 +342,6 @@ final class LinkStates {
         }
     }
 
-    /**
-     * Works out the sum of the latencies of both directions of a link from the connection data. A missing direction
-     * counts as the other one.
-     *
-     * @param a the rank of one node of the link
-     * @param b the rank of the other node of the link
-     * @return the round trip, or {@code 0} if neither direction is in the connection data
-     */
-    private long computeRoundTrip(final int a, final int b) {
-        final long forward = connectionKnown[a][b] ? latencies[a][b] : latencies[b][a];
-        final long backward = connectionKnown[b][a] ? latencies[b][a] : forward;
-        return forward + backward;
-    }
-
     private static void setForLink(@NonNull final boolean[][] array, final int a, final int b, final boolean value) {
         array[a][b] = value;
         array[b][a] = value;
@@ -377,14 +350,5 @@ final class LinkStates {
     private static void setForLink(@NonNull final long[][] array, final int a, final int b, final long value) {
         array[a][b] = value;
         array[b][a] = value;
-    }
-
-    @NonNull
-    private static long[][] filled(final int size, final long value) {
-        final long[][] array = new long[size][size];
-        for (final long[] row : array) {
-            Arrays.fill(row, value);
-        }
-        return array;
     }
 }

@@ -20,6 +20,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
 import org.hiero.otter.fixtures.network.Topology.ConnectionState;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedGossip;
@@ -33,9 +34,9 @@ import org.hiero.otter.fixtures.util.CursoredLog.Cursor;
  * meaningful way and makes no attempt to reduce the rate of duplicate events.
  *
  * <p>The state of the connections is kept in {@link LinkStates}, and the arrival time of everything put onto a
- * connection is picked by {@link ArrivalTimes}. Both identify nodes by their rank, see {@link NodeRanks}, and this class
- * looks up the rank of a node only when the network is set up and when an event enters the network. Times are kept
- * internally as nanoseconds since the start of the simulation.
+ * connection is picked by {@link ArrivalTimes}. Both identify nodes by their rank, which is the index of the node in
+ * the roster, and this class looks up the rank of a node only when the network is set up and when an event enters the
+ * network. Times are kept internally as nanoseconds since the start of the simulation.
  *
  * <p>The nodes of the network are fixed when an instance is created and never change. An instance only runs the
  * network: it is created when the network starts and discarded when the network is shut down. A network with other
@@ -105,14 +106,14 @@ public class SimulatedNetworkConnectivity implements GossipNetwork {
     private final Map<NodeId, List<PlatformEvent>> newlySubmittedEvents;
 
     /**
-     * The nodes of the network and their ranks. Fixed by the constructor; the node id order they define serves as the
-     * canonical starting point for the shuffle in {@link #addSubmittedEventsToEventLog()}.
+     * The roster of the network. A node's rank is its index in the roster. Fixed by the constructor; the roster order
+     * serves as the canonical starting point for the shuffle in {@link #addSubmittedEventsToEventLog()}.
      */
-    private final NodeRanks ranks;
+    private final RosterWrapper roster;
 
     /**
-     * The order {@link #newlySubmittedEvents} is drained in on the current tick. A shuffled copy of the node ids in node
-     * id order, reused across ticks so that producing it does not allocate.
+     * The order {@link #newlySubmittedEvents} is drained in on the current tick. A shuffled copy of the node ids in
+     * roster order, reused across ticks so that producing it does not allocate.
      */
     private final List<NodeId> submissionOrder = new ArrayList<>();
 
@@ -189,16 +190,19 @@ public class SimulatedNetworkConnectivity implements GossipNetwork {
      *
      * @param random         the random number generator to use for simulating network delays
      * @param start          the instant the simulation starts at
-     * @param eventReceivers the event receiver of every node in the network, in any order
-     * @throws IllegalArgumentException if two event receivers belong to the same node
+     * @param roster         the roster of the network
+     * @param eventReceivers the event receiver of every node in the roster, in any order
+     * @throws IllegalArgumentException if the event receivers do not belong to exactly the nodes of the roster
      */
     public SimulatedNetworkConnectivity(
             @NonNull final Random random,
             @NonNull final Instant start,
+            @NonNull final RosterWrapper roster,
             @NonNull final Collection<? extends EventReceiver> eventReceivers) {
         this(
                 random,
                 start,
+                roster,
                 eventReceivers,
                 new TestConfigBuilder()
                         .withConfigDataType(BroadcastConfig.class)
@@ -211,24 +215,26 @@ public class SimulatedNetworkConnectivity implements GossipNetwork {
     }
 
     /**
-     * Constructor. Sets up the whole network at once, with one node for every event receiver. The nodes cannot be
+     * Constructor. Sets up the whole network at once, with one node for every entry of the roster. The nodes cannot be
      * changed afterwards.
      *
-     * <p>The nodes are visited in node id order throughout the simulation, whatever order the event receivers are given
+     * <p>The nodes are visited in roster order throughout the simulation, whatever order the event receivers are given
      * in. Visiting them in a fixed order is what keeps the simulation deterministic.
      *
      * <p>The network has no connections until {@link #setConnections(Map)} is called for the first time.
      *
      * @param random          the random number generator to use for simulating network delays
      * @param start           the instant the simulation starts at
-     * @param eventReceivers  the event receiver of every node in the network, in any order
+     * @param roster          the roster of the network
+     * @param eventReceivers  the event receiver of every node in the roster, in any order
      * @param broadcastConfig the production broadcast settings the delivery delays are derived from
      * @param syncConfig      the production sync settings the delivery delays are derived from
-     * @throws IllegalArgumentException if two event receivers belong to the same node
+     * @throws IllegalArgumentException if the event receivers do not belong to exactly the nodes of the roster
      */
     public SimulatedNetworkConnectivity(
             @NonNull final Random random,
             @NonNull final Instant start,
+            @NonNull final RosterWrapper roster,
             @NonNull final Collection<? extends EventReceiver> eventReceivers,
             @NonNull final BroadcastConfig broadcastConfig,
             @NonNull final SyncConfig syncConfig) {
@@ -236,6 +242,7 @@ public class SimulatedNetworkConnectivity implements GossipNetwork {
         this.start = requireNonNull(start);
         this.broadcastConfig = requireNonNull(broadcastConfig);
         this.syncConfig = requireNonNull(syncConfig);
+        this.roster = requireNonNull(roster);
 
         final Map<NodeId, EventReceiver> receiversById = new HashMap<>();
         for (final EventReceiver eventReceiver : eventReceivers) {
@@ -244,8 +251,13 @@ public class SimulatedNetworkConnectivity implements GossipNetwork {
                         "There is more than one event receiver for " + eventReceiver.getNodeId());
             }
         }
-        ranks = new NodeRanks(receiversById.keySet());
-        final int nodeCount = ranks.size();
+        for (final NodeId nodeId : receiversById.keySet()) {
+            if (!roster.contains(nodeId)) {
+                throw new IllegalArgumentException(
+                        "Node " + nodeId + " has an event receiver but is not in the roster");
+            }
+        }
+        final int nodeCount = roster.size();
 
         eventLog = new CursoredLog<>(
                 ConsensusConstants.ROUND_FIRST,
@@ -256,8 +268,12 @@ public class SimulatedNetworkConnectivity implements GossipNetwork {
         final List<Cursor<PlatformEvent>> cursors = new ArrayList<>(nodeCount);
         final Map<NodeId, EventWindow> eventWindows = new ConcurrentHashMap<>();
         final Map<NodeId, List<PlatformEvent>> submittedEvents = new HashMap<>();
-        for (final NodeId nodeId : ranks.nodeIds()) {
-            receiversByRank.add(receiversById.get(nodeId));
+        for (final NodeId nodeId : roster.nodeIds()) {
+            final EventReceiver eventReceiver = receiversById.get(nodeId);
+            if (eventReceiver == null) {
+                throw new IllegalArgumentException("Node " + nodeId + " is in the roster but has no event receiver");
+            }
+            receiversByRank.add(eventReceiver);
             cursors.add(eventLog.newCursor());
             eventWindows.put(nodeId, EventWindow.getGenesisEventWindow());
             submittedEvents.put(nodeId, new ArrayList<>());
@@ -280,22 +296,23 @@ public class SimulatedNetworkConnectivity implements GossipNetwork {
      * <p>A link is a pair of nodes, and is up only if both directions are connected. A link that has come up is not
      * usable until a reconnect delay has passed, and its two ends are each sent the other's latest event window again,
      * as they would be when a real connection is established. See
-     * {@link LinkStates#update(Map, NodeRanks, long, LinkStates.LinkUpListener)} for how links that have gone down are
-     * treated, and why the first connection data has no delay.
+     * {@link LinkStates#update(Map, java.util.function.ToIntFunction, long, LinkStates.LinkUpListener)} for how links
+     * that have gone down are treated, and why the first connection data has no delay.
      *
      * @param newConnections the connection data
-     * @throws IllegalArgumentException if the data contains a connection of a node that is not part of the network
+     * @throws IllegalArgumentException if the data does not contain the connection from every node to every other node,
+     *                                  or contains a connection of a node that is not part of the network
      */
     public void setConnections(@NonNull final Map<ConnectionKey, ConnectionState> newConnections) {
         // links come up in rank order, so that the random numbers drawn for them are drawn in a reproducible order
-        links.update(newConnections, ranks, currentTime, linkUpListener);
+        links.update(newConnections, this::rankOf, currentTime, linkUpListener);
     }
 
     /**
      * Starts the reconnect delay of a link that has just come up and sends each of its ends the other's latest event
      * window.
      *
-     * @param first  the rank of the node of the link that comes first in node id order
+     * @param first  the rank of the node of the link that comes first in roster order
      * @param second the rank of the other node of the link
      */
     private void linkCameUp(final int first, final int second) {
@@ -312,12 +329,11 @@ public class SimulatedNetworkConnectivity implements GossipNetwork {
      * @param receiver the rank of the node it is sent to
      */
     private void resendEventWindow(final int sender, final int receiver) {
-        final NodeId senderId = ranks.idOf(sender);
+        final NodeId senderId = roster.nodeIdAtIndex(sender);
         final EventWindow eventWindow = nodeEventWindows.get(senderId);
-        final Instant arrivalTime = arrivalTimes.next(sender, receiver, MessageRoute.BROADCAST, currentTime);
-        if (arrivalTime != null) {
-            inFlightEventWindows.add(sender, receiver, new EventWindowInTransit(eventWindow, senderId, arrivalTime));
-        }
+        final Instant arrivalTime =
+                arrivalTimes.decideNextArrivalTime(sender, receiver, MessageRoute.BROADCAST, currentTime);
+        inFlightEventWindows.add(sender, receiver, new EventWindowInTransit(eventWindow, senderId, arrivalTime));
     }
 
     /**
@@ -348,12 +364,12 @@ public class SimulatedNetworkConnectivity implements GossipNetwork {
      * targets the same node - isolating it, or narrowing its bandwidth - is not always paired with the same position
      * in the event log. A fixed order would let one node's events systematically precede another's for a whole run.
      *
-     * <p>Shuffling still leaves the result reproducible, because it depends only on {@link #random} and on the sorted
-     * node ids it starts from, neither of which is affected by how the nodes interleaved their submissions.
+     * <p>Shuffling still leaves the result reproducible, because it depends only on {@link #random} and on the roster
+     * order it starts from, neither of which is affected by how the nodes interleaved their submissions.
      */
     private void addSubmittedEventsToEventLog() {
         submissionOrder.clear();
-        submissionOrder.addAll(ranks.nodeIds());
+        submissionOrder.addAll(roster.nodeIds());
         Collections.shuffle(submissionOrder, random);
 
         for (final NodeId submitter : submissionOrder) {
@@ -477,13 +493,13 @@ public class SimulatedNetworkConnectivity implements GossipNetwork {
      * @param now the current time, in nanoseconds since the start
      */
     private void scheduleForDelivery(final long now) {
-        if (!links.hasConnections()) {
+        if (!links.connectionsInitialized()) {
             // No connections have been set, so there is nowhere to send anything.
             return;
         }
 
         scheduleEventWindows(now);
-        for (int receiver = 0; receiver < ranks.size(); receiver++) {
+        for (int receiver = 0; receiver < roster.size(); receiver++) {
             scheduleEventsTo(receiver, now);
         }
     }
@@ -498,9 +514,9 @@ public class SimulatedNetworkConnectivity implements GossipNetwork {
      * @param now the current time, in nanoseconds since the start
      */
     private void scheduleEventWindows(final long now) {
-        final int nodeCount = ranks.size();
+        final int nodeCount = roster.size();
         for (int sender = 0; sender < nodeCount; sender++) {
-            final NodeId senderId = ranks.idOf(sender);
+            final NodeId senderId = roster.nodeIdAtIndex(sender);
             final EventWindow eventWindow = newlyReportedEventWindows.remove(senderId);
             if (eventWindow == null) {
                 continue;
@@ -514,11 +530,10 @@ public class SimulatedNetworkConnectivity implements GossipNetwork {
                 // As with events, whether the connection is up is decided at delivery time. A window held through a
                 // partition is superseded by the ones scheduled behind it, so when the connection returns the
                 // receiver is given the sender's current window rather than a stale one.
-                final Instant arrivalTime = arrivalTimes.next(sender, receiver, MessageRoute.BROADCAST, now);
-                if (arrivalTime != null) {
-                    inFlightEventWindows.add(
-                            sender, receiver, new EventWindowInTransit(eventWindow, senderId, arrivalTime));
-                }
+                final Instant arrivalTime =
+                        arrivalTimes.decideNextArrivalTime(sender, receiver, MessageRoute.BROADCAST, now);
+                inFlightEventWindows.add(
+                        sender, receiver, new EventWindowInTransit(eventWindow, senderId, arrivalTime));
             }
         }
     }
@@ -527,20 +542,20 @@ public class SimulatedNetworkConnectivity implements GossipNetwork {
      * Walk a node's cursor over {@link #eventLog} and schedule every event it has not been sent yet for delivery. A
      * node is not sent its own events, nor events that are already ancient for it.
      *
-     * <p>When each event arrives is decided by {@link ArrivalTimes#next(int, int, MessageRoute, long)}.
+     * <p>When each event arrives is decided by {@link ArrivalTimes#decideNextArrivalTime(int, int, MessageRoute, long)}.
      *
      * @param receiver the rank of the node the events are traveling to
      * @param now      the current time, in nanoseconds since the start
      */
     private void scheduleEventsTo(final int receiver, final long now) {
         final Cursor<PlatformEvent> cursor = nodeCursors.get(receiver);
-        final EventWindow receiverEventWindow = nodeEventWindows.get(ranks.idOf(receiver));
+        final EventWindow receiverEventWindow = nodeEventWindows.get(roster.nodeIdAtIndex(receiver));
 
         while (cursor.hasNext()) {
             final PlatformEvent event = cursor.next();
             final NodeId senderId = event.getSenderId();
             assert senderId != null;
-            final int sender = ranks.rankOf(senderId);
+            final int sender = rankOf(senderId);
 
             // Don't send a node's own events back to it
             if (receiver == sender) {
@@ -559,14 +574,12 @@ public class SimulatedNetworkConnectivity implements GossipNetwork {
             final boolean broadcast =
                     senderId.equals(event.getCreatorId()) && links.isBroadcastMode(sender, receiver, now);
             final MessageRoute route = broadcast ? MessageRoute.BROADCAST : MessageRoute.SYNC;
-            final Instant arrivalTime = arrivalTimes.next(sender, receiver, route, now);
-            if (arrivalTime != null) {
-                // create a copy so that nodes don't modify each other's events
-                final PlatformEvent eventToDeliver = event.copyGossipedData();
-                eventToDeliver.setSenderId(senderId);
-                eventToDeliver.setTimeReceived(arrivalTime);
-                inFlightEvents.add(sender, receiver, new EventInTransit(eventToDeliver, senderId, arrivalTime));
-            }
+            final Instant arrivalTime = arrivalTimes.decideNextArrivalTime(sender, receiver, route, now);
+            // create a copy so that nodes don't modify each other's events
+            final PlatformEvent eventToDeliver = event.copyGossipedData();
+            eventToDeliver.setSenderId(senderId);
+            eventToDeliver.setTimeReceived(arrivalTime);
+            inFlightEvents.add(sender, receiver, new EventInTransit(eventToDeliver, senderId, arrivalTime));
         }
     }
 
@@ -582,11 +595,26 @@ public class SimulatedNetworkConnectivity implements GossipNetwork {
      */
     @Override
     public void resetCursor(@NonNull final NodeId nodeId) {
-        final int node = ranks.rankOf(nodeId);
+        final int node = rankOf(nodeId);
         nodeCursors.get(node).seekToFirst();
         for (final InFlightConnections<?> inFlight : inFlightInDeliveryOrder) {
             inFlight.clearIncoming(node);
         }
         links.restartLinksOf(node, linkUpListener);
+    }
+
+    /**
+     * Gets the rank of a node, which is its index in the roster.
+     *
+     * @param nodeId the id of the node
+     * @return the rank of the node
+     * @throws IllegalArgumentException if the node is not part of the network
+     */
+    private int rankOf(@NonNull final NodeId nodeId) {
+        final int rank = roster.index(nodeId);
+        if (rank < 0) {
+            throw new IllegalArgumentException("Node " + nodeId + " is not part of the network");
+        }
+        return rank;
     }
 }

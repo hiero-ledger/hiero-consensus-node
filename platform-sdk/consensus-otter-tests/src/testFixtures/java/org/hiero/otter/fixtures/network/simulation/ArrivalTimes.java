@@ -4,7 +4,6 @@ package org.hiero.otter.fixtures.network.simulation;
 import static java.util.Objects.requireNonNull;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Random;
@@ -22,8 +21,8 @@ import org.hiero.consensus.gossip.config.SyncConfig;
  * <p>Picking draws from the random number generator, so the order arrival times are picked in is part of what a seed
  * reproduces.
  *
- * <p>Nodes are identified by their rank, see {@link NodeRanks}. Times are nanoseconds since the start of the
- * simulation, except for the arrival times handed out, which are instants.
+ * <p>Nodes are identified by their rank, which is their index in the roster. Times are nanoseconds since the start of
+ * the simulation, except for the arrival times handed out, which are instants.
  *
  * <p>This class is not safe to use from more than one thread.
  */
@@ -85,21 +84,18 @@ final class ArrivalTimes {
     }
 
     /**
-     * Picks the time something put onto a connection now arrives at the other end. No draw is made when the connection
-     * is not in the connection data.
+     * Picks the time something put onto a connection now arrives at the other end. Only called while there is
+     * connection data, which then contains every connection.
      *
      * @param sender   the rank of the node at the sending end of the connection
      * @param receiver the rank of the node at the receiving end of the connection
      * @param kind     the route over which the message is sent
      * @param now      the current time
-     * @return the time of arrival at the receiving end, or {@code null} if the connection is not in the connection data
+     * @return the time of arrival at the receiving end
      */
-    @Nullable
-    Instant next(final int sender, final int receiver, @NonNull final MessageRoute kind, final long now) {
-        if (!links.isKnown(sender, receiver)) {
-            return null;
-        }
-
+    @NonNull
+    Instant decideNextArrivalTime(
+            final int sender, final int receiver, @NonNull final MessageRoute kind, final long now) {
         // Simulate network latency and jitter using truncated Gaussian distribution
         final double sigma = links.jitterSigma(sender, receiver);
         final double jitter = Math.clamp(random.nextGaussian() * sigma, -3 * sigma, 3 * sigma);
