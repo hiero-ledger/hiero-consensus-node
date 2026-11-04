@@ -334,38 +334,6 @@ called on the result. Both assertions also fail if not all results have arrived 
     assertThat(network.newConsensusResults()).haveNoUnannouncedEvents();
 ```
 
-### Consensus and Stale Ratios
-
-The consensus ratio (`consensusRatio()`) is the number of events that reached consensus divided by the number of
-pre-consensus events. The stale ratio (`staleRatio()`) is the number of stale events divided by the number of
-pre-consensus events. Both are counted from the last `clear()`, and both return `NaN` if there are no pre-consensus
-events.
-
-- `hasConsensusRatioBetween(min, max)` and `haveConsensusRatioBetween(min, max)` verify the consensus ratio.
-- `hasStaleRatioBetween(min, max)` and `haveStaleRatioBetween(min, max)` verify the stale ratio.
-
-The bounds are inclusive, and the assertions fail if a node has no pre-consensus events. The multi-node assertions check
-the ratios of each node on its own. A node's ratios reflect only the events it received, so nodes in different
-situations, such as both sides of a partition, need their own bounds: check them separately with `suppressingNode(...)`
-or `suppressingNodes(...)`.
-
-Events emitted before `clear()` can reach consensus or become stale after it. The ratios therefore compare rates, not
-shares of the pre-consensus events. While the network reaches consensus normally, the consensus ratio stays close to
-`1.0`. While the network cannot reach consensus, it drops toward `0.0`, and while the network catches up afterward, it
-can exceed `1.0`. After a `clear()`, give the consensus ratio an upper bound above `1.0`. After a change in the network,
-such as a restored partition, wait for the network to recover before the `clear()` if the next check should not include
-the recovery.
-
-```java
-    final MultipleNodeConsensusResults results = network.newConsensusResults();
-    results.clear();
-    timeManager.waitFor(Duration.ofSeconds(10));
-
-    // The events of the slow node become stale, while the other nodes keep reaching consensus
-    assertThat(results.suppressingNodes(otherNodes)).haveStaleRatioBetween(0.02, 0.5);
-    assertThat(results.suppressingNode(slowNode)).haveConsensusRatioBetween(0.3, 1.5);
-```
-
 ### Continuous Assertions
 
 Continuous assertions monitor conditions throughout test execution, failing fast when violations occur:
