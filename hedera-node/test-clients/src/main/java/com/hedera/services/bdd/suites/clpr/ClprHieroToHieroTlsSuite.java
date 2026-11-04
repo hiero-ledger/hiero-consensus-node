@@ -31,8 +31,9 @@ import org.junit.jupiter.api.Tag;
 @Tag(MULTINETWORK)
 public class ClprHieroToHieroTlsSuite extends HieroToHieroBase {
 
-    private static final int HAPI_TLS_PORT_A = 41450;
-    private static final int HAPI_TLS_PORT_B = 42450;
+    // Below the ephemeral range (32768+) and the test networks' ports (25000+), so nothing else holds them
+    private static final int HAPI_TLS_PORT_A = 21450;
+    private static final int HAPI_TLS_PORT_B = 22450;
 
     /** {@code ClprHapiTlsEndpoint} logs this when a node has no HAPI TLS certificate to advertise. */
     private static final Pattern PLAINTEXT_FALLBACK_PATTERN =

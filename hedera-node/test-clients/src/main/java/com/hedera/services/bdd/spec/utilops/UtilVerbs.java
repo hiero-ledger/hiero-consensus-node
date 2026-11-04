@@ -103,6 +103,7 @@ import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
+import com.hedera.node.app.hapi.utils.keys.Secp256k1Utils;
 import com.hedera.node.config.data.BlockStreamJumpstartConfig;
 import com.hedera.services.bdd.junit.hedera.ExternalPath;
 import com.hedera.services.bdd.junit.hedera.MarkerFile;
@@ -254,7 +255,6 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import net.i2p.crypto.eddsa.EdDSAPrivateKey;
 import org.apache.logging.log4j.Logger;
-import org.bouncycastle.jcajce.provider.asymmetric.ec.BCECPrivateKey;
 import org.hiero.base.utility.CommonUtils;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
@@ -3213,20 +3213,7 @@ public class UtilVerbs {
         var key = spec.registry().getKey(privateKeyRef);
         final var privateKey = spec.keys()
                 .getEcdsaPrivateKey(CommonUtils.hex(key.getECDSASecp256K1().toByteArray()));
-
-        byte[] privateKeyByteArray;
-        byte[] dByteArray = ((BCECPrivateKey) privateKey).getD().toByteArray();
-        if (dByteArray.length < 32) {
-            privateKeyByteArray = new byte[32];
-            System.arraycopy(dByteArray, 0, privateKeyByteArray, 32 - dByteArray.length, dByteArray.length);
-        } else if (dByteArray.length == 32) {
-            privateKeyByteArray = dByteArray;
-        } else {
-            privateKeyByteArray = new byte[32];
-            System.arraycopy(dByteArray, dByteArray.length - 32, privateKeyByteArray, 0, 32);
-        }
-
-        return privateKeyByteArray;
+        return Secp256k1Utils.asPrivateKeyByteArray32(privateKey);
     }
 
     public static PrivateKey getEd25519PrivateKeyFromSpec(final HapiSpec spec, final String privateKeyRef) {
