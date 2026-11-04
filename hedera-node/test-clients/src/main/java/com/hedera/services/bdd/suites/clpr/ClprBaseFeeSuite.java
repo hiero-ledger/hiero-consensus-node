@@ -40,8 +40,9 @@ import org.junit.jupiter.api.Tag;
  *       TODO: add a success-path test in {@code ClprSubmitBundleSuite} to confirm the
  *       base fee is also charged (not zero, not the endpoint-penalty amount) after a
  *       valid proof verification and message dispatch.</li>
- *   <li>{@code registerChannel}, {@code registerConnector} — success path. Both
- *       commit-phase ops are permissionless and need only CLPR enabled (the default on HAPI test networks).</li>
+ *   <li>{@code registerChannel} — success path; the permissionless commit only needs CLPR enabled.</li>
+ *   <li>{@code registerConnector} — failure path against an unknown channel, exercising the full
+ *       fee charged for a handler-stage failure without channel setup.</li>
  *   <li>Reveal-phase ops ({@code completeChannel}, {@code completeConnector}) are not
  *       covered here because they require a deployed verifier/connector smart contract and
  *       a full two-phase lifecycle setup. Fee coverage for those ops should be added to
@@ -122,9 +123,11 @@ public class ClprBaseFeeSuite {
                 overriding("fees.simpleFeesEnabled", "true"),
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 clprRegisterConnector()
+                        .channelId(new byte[32])
                         .commitment(commitment((byte) 0x02))
                         .payingWith(PAYER)
-                        .via(txn),
+                        .via(txn)
+                        .hasKnownStatus(CLPR_CHANNEL_NOT_FOUND),
                 validateChargedUsdFromRecordWithTxnSize(
                         txn, txnSize -> expectedClprTotalUsd(PAYER_SIGNATURES, txnSize), ALLOWED_PERCENT_DIFF));
     }

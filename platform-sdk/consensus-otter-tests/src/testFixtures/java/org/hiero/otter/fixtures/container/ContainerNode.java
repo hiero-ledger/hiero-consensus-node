@@ -12,10 +12,10 @@ import static org.hiero.otter.fixtures.container.utils.ContainerConstants.METRIC
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.NODE_COMMUNICATION_PORT;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.OTTER_LOG_PATH;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.SWIRLDS_LOG_PATH;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
-import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
+import static org.hiero.otter.fixtures.internal.AbstractMiniNode.LifeCycle.DESTROYED;
+import static org.hiero.otter.fixtures.internal.AbstractMiniNode.LifeCycle.INIT;
+import static org.hiero.otter.fixtures.internal.AbstractMiniNode.LifeCycle.RUNNING;
+import static org.hiero.otter.fixtures.internal.AbstractMiniNode.LifeCycle.SHUTDOWN;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.google.protobuf.Empty;
@@ -44,6 +44,7 @@ import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.PathsConfig;
 import org.hiero.consensus.event.stream.config.EventConfig;
 import org.hiero.consensus.model.event.EventHashFactory;
+import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
@@ -122,7 +123,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     private final ContainerControlServiceGrpc.ContainerControlServiceBlockingStub containerControlBlockingStub;
 
     /** The gRPC service used to communicate with the consensus node */
-    private NodeCommunicationServiceGrpc.NodeCommunicationServiceBlockingStub nodeCommBlockingStub;
+    protected NodeCommunicationServiceGrpc.NodeCommunicationServiceBlockingStub nodeCommBlockingStub;
 
     /** The configuration of this node */
     private final ContainerNodeConfiguration nodeConfiguration;
@@ -230,8 +231,8 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
      */
     @Override
     protected void doStart(@NonNull final Duration timeout) {
-        throwIfInLifecycle(LifeCycle.RUNNING, "Node has already been started.");
-        throwIfInLifecycle(LifeCycle.DESTROYED, "Node has already been destroyed.");
+        throwIfInLifecycle(RUNNING, "Node has already been started.");
+        throwIfInLifecycle(DESTROYED, "Node has already been destroyed.");
 
         log.info("Starting node {}...", selfId);
 
@@ -413,6 +414,15 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
             }
         }
         return response.getAlive();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public EventWindow latestEventWindow() {
+        return newConsensusResult().getLatestEventWindow();
     }
 
     /**

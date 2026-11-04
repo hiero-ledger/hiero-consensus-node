@@ -400,26 +400,52 @@ class DispatchUsageManagerTest {
     }
 
     @Test
-    void reclaimsOnlyImplicitCreationCapacityAndSkipsAutoAssociationWhenImplicitCreationsPresent() {
+    void reclaimsBothImplicitCreationAndAutoAssociationCapacityWhenTransferDoesBoth() {
         given(dispatch.txnCategory()).willReturn(HandleContext.TransactionCategory.USER);
         given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
         given(dispatch.streamBuilder()).willReturn(recordBuilder);
         given(recordBuilder.status()).willReturn(INVALID_ACCOUNT_AMOUNTS);
         given(dispatch.stack()).willReturn(stack);
+        given(dispatch.config()).willReturn(DEFAULT_CONFIG);
         given(dispatch.readableStoreFactory()).willReturn(readableStoreFactory);
         given(readableStoreFactory.readableStore(ReadableAccountStore.class)).willReturn(readableAccountStore);
         given(throttleServiceManager.numImplicitCreations(NONDESCRIPT_TXN_BODY, readableAccountStore))
                 .willReturn(1);
+        given(throttleServiceManager.numAutoAssociations(eq(NONDESCRIPT_TXN_BODY), any()))
+                .willReturn(3);
         given(networkInfo.selfNodeInfo()).willReturn(selfNodeInfo);
         given(selfNodeInfo.accountId()).willReturn(CREATOR_ACCOUNT_ID);
 
         subject.finalizeAndSaveUsage(dispatch);
 
         verify(throttleServiceManager).reclaimFrontendThrottleCapacity(1, CRYPTO_CREATE, false);
-        // Implicit creations take precedence at claim time, so the auto-association leg must not even be evaluated
-        verify(throttleServiceManager, never()).numAutoAssociations(any(), any());
-        verify(throttleServiceManager, never())
-                .reclaimFrontendThrottleCapacity(anyInt(), eq(TOKEN_ASSOCIATE_TO_ACCOUNT), anyBoolean());
+        verify(throttleServiceManager).reclaimFrontendThrottleCapacity(3, TOKEN_ASSOCIATE_TO_ACCOUNT, false);
+    }
+
+    @Test
+    void reclaimsBothLegsFromTheHighVolumeBucketWhenTheClaimUsedIt() {
+        given(dispatch.txnCategory()).willReturn(HandleContext.TransactionCategory.USER);
+        given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
+        given(dispatch.streamBuilder()).willReturn(recordBuilder);
+        given(recordBuilder.status()).willReturn(INVALID_ACCOUNT_AMOUNTS);
+        given(dispatch.stack()).willReturn(stack);
+        given(dispatch.config()).willReturn(DEFAULT_CONFIG);
+        given(dispatch.readableStoreFactory()).willReturn(readableStoreFactory);
+        given(readableStoreFactory.readableStore(ReadableAccountStore.class)).willReturn(readableAccountStore);
+        given(throttleServiceManager.numImplicitCreations(NONDESCRIPT_TXN_BODY, readableAccountStore))
+                .willReturn(1);
+        given(throttleServiceManager.numAutoAssociations(eq(NONDESCRIPT_TXN_BODY), any()))
+                .willReturn(3);
+        given(networkInfo.selfNodeInfo()).willReturn(selfNodeInfo);
+        given(selfNodeInfo.accountId()).willReturn(CREATOR_ACCOUNT_ID);
+        given(throttleServiceManager.usesHighVolumeBucketForImplicitCreations(NONDESCRIPT_TXN_BODY, CRYPTO_TRANSFER, 1))
+                .willReturn(true);
+
+        subject.finalizeAndSaveUsage(dispatch);
+
+        // The claim leased both legs from the high-volume bucket, so both must be leaked back into it
+        verify(throttleServiceManager).reclaimFrontendThrottleCapacity(1, CRYPTO_CREATE, true);
+        verify(throttleServiceManager).reclaimFrontendThrottleCapacity(3, TOKEN_ASSOCIATE_TO_ACCOUNT, true);
     }
 
     @Test
@@ -441,7 +467,7 @@ class DispatchUsageManagerTest {
 
         subject.finalizeAndSaveUsage(dispatch);
 
-        // Auto associations are always claimed against the normal bucket, so the reclaim passes false
+        // Without implicit creations the claim used the normal bucket, so the reclaim passes false
         verify(throttleServiceManager).reclaimFrontendThrottleCapacity(3, TOKEN_ASSOCIATE_TO_ACCOUNT, false);
         verify(throttleServiceManager, never())
                 .reclaimFrontendThrottleCapacity(anyInt(), eq(CRYPTO_CREATE), anyBoolean());

@@ -125,6 +125,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongFunction;
 import java.util.function.Supplier;
@@ -680,7 +681,27 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
      * an embedded network.
      */
     public void commitEmbeddedState() {
-        embeddedStateOrThrow().commit();
+        final var state = embeddedStateOrThrow();
+        synchronized (state) {
+            state.commit();
+        }
+    }
+
+    /**
+     * Applies the given mutation to the embedded {@link FakeState} and commits it, holding the state's lock so
+     * the change cannot interleave with a round handled on a concurrent embedded network's platform thread
+     * (both share the same writable states, so a round could otherwise reset or commit the change half-way).
+     *
+     * @param mutation the mutation to apply
+     * @throws IllegalStateException if this spec is not targeting an embedded network
+     */
+    public void mutateEmbeddedState(@NonNull final Consumer<FakeState> mutation) {
+        requireNonNull(mutation);
+        final var state = embeddedStateOrThrow();
+        synchronized (state) {
+            mutation.accept(state);
+            state.commit();
+        }
     }
 
     public List<HederaNode> getNetworkNodes() {
@@ -1086,7 +1107,8 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
                     }
                 })
                 : null;
-        for (final var assertion : streamAssertions) {
+        for (int i = 0, n = streamAssertions.size(); i < n; i++) {
+            final var assertion = streamAssertions.get(i);
             if (!quietMode) {
                 log.info("Checking record stream for {}", assertion);
             }
@@ -1096,6 +1118,8 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
             } catch (final Throwable t) {
                 log.warn("{}{} failed", logPrefix(), assertion, t);
                 answer = Optional.of(new Failure(t, assertion.toString()));
+                // Only assertHasPassed() unsubscribes, so release the ones not reached
+                streamAssertions.subList(i + 1, n).forEach(AbstractEventualStreamAssertion::unsubscribe);
                 break;
             }
         }

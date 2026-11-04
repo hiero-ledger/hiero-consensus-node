@@ -12,7 +12,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeOnly;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.noOp;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingThree;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForFrozenNetwork;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -162,8 +162,16 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
         // cannot be run after submitting a freeze
         allRunFor(
                 spec,
-                // Ensure only top-level txs could change balances before validations
-                overridingTwo("nodes.nodeRewardsEnabled", "false", "nodes.feeCollectionAccountEnabled", "false"),
+                // Ensure only top-level txs could change balances before validations. CLPR nodes submit bundles on
+                // their own and pay fees for them, so a bundle landing after the CryptoTransfer below would change
+                // a balance that the record files read here do not yet show
+                overridingThree(
+                        "nodes.nodeRewardsEnabled",
+                        "false",
+                        "nodes.feeCollectionAccountEnabled",
+                        "false",
+                        "clpr.enabled",
+                        "false"),
                 // Ensure the CryptoTransfer below will be in a new block period
                 sleepFor(MAX_BLOCK_TIME_MS + BUFFER_MS),
                 cryptoTransfer((ignore, b) -> {}).payingWith(GENESIS),

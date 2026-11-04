@@ -4,6 +4,7 @@ package com.hedera.node.app.records.impl;
 import static com.hedera.hapi.streams.schema.SidecarFileSchema.SIDECAR_RECORDS;
 import static com.hedera.node.app.blocks.BlockHashSigner.Request.LIST_OF_PARTIAL_SIGNATURES;
 import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO_384;
+import static com.hedera.node.app.blocks.BlockStreamManager.hashOfZero;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.records.impl.BlockRecordManagerTestFixtures.NO_OP_BLOCK_HASH_SIGNER;
@@ -64,6 +65,7 @@ import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.handlers.MigrationRootHashVoteHandler;
 import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.app.state.SingleTransactionRecord;
+import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.QuiescenceConfig;
 import com.hedera.node.config.data.VersionConfig;
@@ -1950,7 +1952,11 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         assertNotNull(items.get(1).recordFile(), "second item must be a RecordFile");
         final var footer = items.get(2).blockFooterOrThrow();
         assertEquals(Bytes.EMPTY, footer.previousBlockRootHash());
-        assertEquals(HASH_OF_ZERO_384, footer.startOfBlockStateRootHash());
+        final var expectedDigestType = app.configProvider()
+                .getConfiguration()
+                .getConfigData(BlockStreamConfig.class)
+                .digestType();
+        assertEquals(hashOfZero(expectedDigestType), footer.startOfBlockStateRootHash());
         final var proof = items.get(3).blockProofOrThrow();
         assertEquals(0L, proof.block());
         assertTrue(proof.hasSignedRecordFileProof());

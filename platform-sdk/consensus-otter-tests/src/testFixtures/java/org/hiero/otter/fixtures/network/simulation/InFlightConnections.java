@@ -5,8 +5,7 @@ import static java.util.Objects.requireNonNull;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,39 +40,40 @@ abstract class InFlightConnections<T extends InTransit> {
 
     /**
      * Every node, in node id order. Delivery walks the senders in this order so that what arrives at the same instant
-     * is always handled in the same order and the simulation stays reproducible.
+     * is always handled in the same order and the simulation stays reproducible. Fixed when this instance is created.
      */
-    private final List<NodeId> sortedNodeIds = new ArrayList<>();
+    private final List<NodeId> sortedNodeIds;
 
     /**
-     * A read-only view of {@link #sortedNodeIds}, handed to subclasses without being copied on every call.
+     * The instant every queue measures arrival times from. All the queues share it, so that the heads of different
+     * queues can be compared with each other.
      */
-    private final List<NodeId> sortedNodeIdsView = Collections.unmodifiableList(sortedNodeIds);
+    private final Instant start;
 
     /**
-     * Constructor.
+     * Constructor. Gives every node a queue for each of the other nodes. The nodes cannot be changed afterwards.
      *
+     * @param nodeIds   the ids of all nodes in the network, in any order
      * @param connected reports whether the connection from a sender to a receiver is currently up
+     * @param start     the instant arrival times are measured from, which should be close to the start of the
+     *                  simulation
      */
-    InFlightConnections(@NonNull final BiPredicate<NodeId, NodeId> connected) {
+    InFlightConnections(
+            @NonNull final Collection<NodeId> nodeIds,
+            @NonNull final BiPredicate<NodeId, NodeId> connected,
+            @NonNull final Instant start) {
+        this.sortedNodeIds = nodeIds.stream().sorted().toList();
         this.connected = requireNonNull(connected);
-    }
-
-    /**
-     * Adds a node to the network, giving it a queue for every node already present and each of them a queue for it.
-     *
-     * @param newNodeId the id of the node to add
-     */
-    public void addNode(@NonNull final NodeId newNodeId) {
-        final Map<NodeId, InFlightQueue<T>> incomingConnections = new HashMap<>();
-        for (final NodeId existingNodeId : sortedNodeIds) {
-            incomingConnections.put(existingNodeId, new InFlightQueue<>());
-            connectionsByReceiver.get(existingNodeId).put(newNodeId, new InFlightQueue<>());
+        this.start = requireNonNull(start);
+        for (final NodeId receiver : sortedNodeIds) {
+            final Map<NodeId, InFlightQueue<T>> incomingConnections = new HashMap<>();
+            for (final NodeId sender : sortedNodeIds) {
+                if (!sender.equals(receiver)) {
+                    incomingConnections.put(sender, new InFlightQueue<>(start));
+                }
+            }
+            connectionsByReceiver.put(receiver, incomingConnections);
         }
-        connectionsByReceiver.put(newNodeId, incomingConnections);
-
-        sortedNodeIds.add(newNodeId);
-        Collections.sort(sortedNodeIds);
     }
 
     /**
@@ -118,11 +118,21 @@ abstract class InFlightConnections<T extends InTransit> {
     /**
      * Gets every node in node id order, which is the order delivery walks the senders in.
      *
-     * @return a read-only view of the node ids
+     * @return the node ids, which cannot be modified
      */
     @NonNull
     final List<NodeId> sortedNodeIds() {
-        return sortedNodeIdsView;
+        return sortedNodeIds;
+    }
+
+    /**
+     * Converts an instant to the form the queues compare arrival times in.
+     *
+     * @param time the instant to convert
+     * @return the nanoseconds since the instant the queues measure arrival times from
+     */
+    final long nanosSinceStart(@NonNull final Instant time) {
+        return InFlightQueue.nanosSince(start, time);
     }
 
     /**

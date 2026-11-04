@@ -99,6 +99,9 @@ public class BlockStreamMetrics {
     private LongGauge buffer_totBytesGauge;
     private LongGauge buffer_numBlocksGauge;
     private LongGauge buffer_numBlocksPendingAckGauge;
+    private DoubleGauge buffer_unackedBlocksSaturationGauge;
+    private DoubleGauge buffer_unackedBytesSaturationGauge;
+    private DoubleGauge buffer_inProgressBlocksSaturationGauge;
 
     // wrapped record hashes (record stream) metrics
     // (FUTURE) Remove after cutover
@@ -126,7 +129,7 @@ public class BlockStreamMetrics {
 
     private void registerBufferMetrics() {
         final DoubleGauge.Config saturationCfg = newDoubleGauge(GROUP_BUFFER, "saturation")
-                .withDescription("The percent (0.0 to 100.0) of buffered blocks that haven't been acknowledged");
+                .withDescription("The overall maximum buffer saturation as a percent (0.0 to 100.0)");
         buffer_saturationGauge = metrics.getOrCreate(saturationCfg);
 
         final LongGauge.Config latestBlockOpenedCfg = newLongGauge(GROUP_BUFFER, "latestBlockOpened")
@@ -194,6 +197,18 @@ public class BlockStreamMetrics {
         final LongGauge.Config numBlocksPendingAck = newLongGauge(GROUP_BUFFER, "numBlocksPendingAck")
                 .withDescription("The number of blocks buffered that are pending acknowledgement");
         buffer_numBlocksPendingAckGauge = metrics.getOrCreate(numBlocksPendingAck);
+
+        final DoubleGauge.Config unackedBlocksSaturation = newDoubleGauge(GROUP_BUFFER, "unackedBlocksSaturation")
+                .withDescription("The percent (0.0 to 100.0) of buffered blocks that haven't been acknowledged");
+        buffer_unackedBlocksSaturationGauge = metrics.getOrCreate(unackedBlocksSaturation);
+
+        final DoubleGauge.Config unackedBytesSaturation = newDoubleGauge(GROUP_BUFFER, "unackedBytesSaturation")
+                .withDescription("The percent (0.0 to 100.0) of buffered bytes that haven't been acknowledged");
+        buffer_unackedBytesSaturationGauge = metrics.getOrCreate(unackedBytesSaturation);
+
+        final DoubleGauge.Config inProgressBlocksSaturation = newDoubleGauge(GROUP_BUFFER, "inProgressBlocksSaturation")
+                .withDescription("The percent (0.0 to 100.0) of blocks that have been opened but not yet closed");
+        buffer_inProgressBlocksSaturationGauge = metrics.getOrCreate(inProgressBlocksSaturation);
     }
 
     private void registerWrappedRecordHashesMetrics() {
@@ -220,6 +235,33 @@ public class BlockStreamMetrics {
 
     public void recordWrappedRecordHashesHasGaps(final boolean hasGaps) {
         recordHashes_hasGapsGauge.set(hasGaps ? 1 : 0);
+    }
+
+    /**
+     * Record the saturation percentage for in-progress blocks in the buffer.
+     *
+     * @param saturationPercent the saturation as a percentage
+     */
+    public void recordInProgressBlocksSaturation(final double saturationPercent) {
+        buffer_inProgressBlocksSaturationGauge.set(saturationPercent);
+    }
+
+    /**
+     * Record the saturation percentage for unacknowledged blocks buffered.
+     *
+     * @param saturationPercent the saturation as a percentage
+     */
+    public void recordUnackedBlocksSaturation(final double saturationPercent) {
+        buffer_unackedBlocksSaturationGauge.set(saturationPercent);
+    }
+
+    /**
+     * Record the saturation percentage for unacknowledged block bytes buffered.
+     *
+     * @param saturationPercent the saturation as a percentage
+     */
+    public void recordUnackedBytesSaturation(final double saturationPercent) {
+        buffer_unackedBytesSaturationGauge.set(saturationPercent);
     }
 
     /**

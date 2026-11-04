@@ -8,9 +8,12 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
+import org.hiero.base.crypto.test.fixtures.TestCertificates;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.test.fixtures.crypto.PreGeneratedX509Certs;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /**
  * Unit tests for the {@link RosterEntryWrapper} class.
@@ -50,5 +53,22 @@ class RosterEntryWrapperTest {
 
         assertThat(wrapper1.gossipCaCertificate()).isNull();
         assertThat(wrapper2.gossipCaCertificate()).isNull();
+    }
+
+    /**
+     * A well-formed certificate whose key cannot verify signatures is reported as {@code null}, just like a missing
+     * one, so that signature validators reject the node's events instead of failing on the key.
+     *
+     * @param keyAlgorithm the algorithm of the certified key
+     * @throws CertificateEncodingException if there is an error encoding the certificate
+     */
+    @ParameterizedTest
+    @ValueSource(strings = {"EC", "Ed448"})
+    void certificateWithUnsupportedKeyIsReportedAsNull(final String keyAlgorithm) throws CertificateEncodingException {
+        final X509Certificate certificate = TestCertificates.createCertificate(keyAlgorithm);
+
+        final RosterEntryWrapper wrapper = wrap(Bytes.wrap(certificate.getEncoded()));
+
+        assertThat(wrapper.gossipCaCertificate()).isNull();
     }
 }

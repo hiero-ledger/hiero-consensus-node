@@ -43,10 +43,10 @@ Defined alongside state types; the Java SPI is `ClprEndpointServiceDefinition` (
 service, no `Transaction` envelopes — payloads are raw `ClprSyncPayload` bytes). RPCs:
 `sync(ClprSyncPayload → ClprSyncPayload)`.
 
-## State schema (genesis): `V0650ClprSchema`
+## State schema: `V0780ClprSchema`
 
-Path: `hedera-clpr-service-impl/.../impl/schemas/V0650ClprSchema.java`. Version `0.65.0`, no
-later schemas exist (no migrations yet).
+Path: `hedera-clpr-service-impl/.../impl/schemas/V0780ClprSchema.java`. Schema version `0.78.0`
+orders the schema independently of the software version.
 
 ### States created
 
@@ -63,11 +63,16 @@ State IDs are `StateKey.KeyOneOfType.CLPRSERVICE_I_*.protoOrdinal()` (or
 `SingletonType.CLPRSERVICE_I_LEDGER_CONFIGURATION.protoOrdinal()` for the singleton). Treat
 those constants as the canonical identity — the string keys are labels.
 
-### Genesis migration (in `migrate(...)`)
+### Genesis and post-upgrade setup
+
+`ClprServiceImpl.doGenesisSetup()` initializes missing singletons in the first round. The handle
+workflow also initializes them during post-upgrade setup. Both delegate to
+`V0780ClprSchema.initializeSingletons()` using the active network configuration and preserve existing
+values; schema startup only registers the state definitions.
 
 Seeds `LEDGER_CONFIGURATION` with:
 
-- `chainId` and `protocolVersion` from `ClprConfig` (node config).
+- `chainId` and `protocolVersion` from `ClprConfig` (active network config).
 - Default `ClprThrottles`:
   - `maxSyncBytes = 4 MiB`
   - `maxMessagesPerBundle = 1 000`

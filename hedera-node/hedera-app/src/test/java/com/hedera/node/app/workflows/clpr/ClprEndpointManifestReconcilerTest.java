@@ -4,6 +4,7 @@ package com.hedera.node.app.workflows.clpr;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -65,15 +66,16 @@ class ClprEndpointManifestReconcilerTest {
     private ReadableNodeStore nodeStore;
 
     @Mock
-    private ClprCaCertManager caCertManager;
+    private ClprHapiTlsEndpoint hapiTlsEndpoint;
 
     private ClprEndpointManifestReconciler subject;
     private ClprConfig config;
 
     @BeforeEach
     void setUp() {
-        // mTLS off by default (isMtlsEnabled() == false): self endpoints use the HAPI port + empty cert.
-        subject = new ClprEndpointManifestReconciler(() -> submissions, () -> caCertManager);
+        // No HAPI TLS certificate by default: self endpoints use the address-book HAPI port + empty cert.
+        lenient().when(hapiTlsEndpoint.certificateDer()).thenReturn(Bytes.EMPTY);
+        subject = new ClprEndpointManifestReconciler(() -> submissions, () -> hapiTlsEndpoint);
         config = ClprConfigBuilder.newBuilder().build();
     }
 
@@ -523,14 +525,14 @@ class ClprEndpointManifestReconcilerTest {
                         .build());
     }
 
-    /** The endpoint {@code buildFor} produces for a node stubbed via {@link #stubNode} with mTLS off. */
+    /** The endpoint {@code buildFor} produces for a node stubbed via {@link #stubNode} with no HAPI TLS certificate. */
     private static ClprEndpoint selfEndpoint(final long nodeId, final String host, final int port) {
         return ClprEndpoint.newBuilder()
                 .serviceEndpoint(ClprServiceEndpoint.newBuilder()
                         .ipAddress(host)
                         .port(port)
                         .build())
-                .tlsCertificate(Bytes.EMPTY) // mTLS off → empty cert
+                .tlsCertificate(Bytes.EMPTY) // no HAPI TLS certificate → empty cert
                 .accountId(accountBytes(3000L + nodeId))
                 .build();
     }

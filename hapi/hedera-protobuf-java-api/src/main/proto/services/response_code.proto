@@ -1710,7 +1710,7 @@ enum ResponseCodeEnum {
 
     /**
      * The list of batch transactions contains a transaction type that is
-     * in the AtomicBatch blacklist as configured in the network.
+     * not in the AtomicBatch whitelist as configured in the network.
      */
     BATCH_TRANSACTION_IN_BLACKLIST = 390;
 

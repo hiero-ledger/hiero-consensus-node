@@ -38,7 +38,7 @@ endpoint-to-endpoint sync.
 | Verifier contract           | EVM contract on this ledger; called via `ContractCallTransactionBody` step-dispatch in `EvmClprVerifier`.                                               |
 | Sync RPC (gRPC)             | `proto.ClprEndpointService` exposed by Netty server, routed via `ClprStreamingSyncMethod` to `ClprSyncWorkflowImpl`.                                    |
 | Outbound sync orchestration | `ClprChannelManager` (background scanner, `start()`/`stop()` from `Hedera.java`).                                                                       |
-| Storage                     | Merkle state via Schema; one schema `V0650ClprSchema` (genesis at v0.65.0).                                                                             |
+| Storage                     | Merkle state via Schema; one schema `V0780ClprSchema` (schema version 0.78.0).                                                                          |
 | Admin                       | CLPR admin key (per-handler check); update of `ClprLedgerConfiguration` is a HAPI tx.                                                                   |
 | Lazy config propagation     | Performed in `ClprServiceApiImpl.sendMessage` (prepends a `ClprControlMessage.configUpdate` when channel's `lastConfigTimestamp` is stale).             |
 | Throttles                   | `ClprThrottles` (in singleton `ClprLedgerConfiguration`) enforced by handler/api code; `InboundSyncThrottle` enforces peer sync rate at the gRPC layer. |
@@ -75,9 +75,10 @@ Each file is self-contained; load only what you need.
 
 - **Feature flag:** every handler and the system contract gate on `clpr.enabled`
   (default `false`). Enable it explicitly for a CLPR deployment with `clpr.enabled=true`.
-- **Genesis:** `V0650ClprSchema` (v0.65.0) is the only schema; it seeds
-  `LEDGER_CONFIGURATION` from `ClprConfig` (`chainId`, `protocolVersion`) plus default
-  `ClprThrottles`. No migration path yet.
+- **Initialization:** `V0780ClprSchema` defines the states. `ClprServiceImpl.doGenesisSetup()`
+  initializes missing singleton values in the first round; the handle workflow does the same during
+  post-upgrade setup. Both use `V0780ClprSchema.initializeSingletons()` and the active network
+  configuration, preserving existing values. Schema versions only order schemas; they do not gate initialization.
 - **`HederaFunctionality` values:** `CLPR_REGISTER_CHANNEL`, `CLPR_COMPLETE_CHANNEL`,
   `CLPR_CLOSE_CHANNEL`, `CLPR_REGISTER_CONNECTOR`, `CLPR_COMPLETE_CONNECTOR`,
   `CLPR_DEREGISTER_CONNECTOR`, `CLPR_SUBMIT_BUNDLE`, `CLPR_REDACT_MESSAGE`,

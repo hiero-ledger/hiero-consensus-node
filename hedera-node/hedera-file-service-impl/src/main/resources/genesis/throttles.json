@@ -66,6 +66,7 @@
             "ClprCompleteChannel",
             "ClprCloseChannel",
             "ClprRegisterConnector",
+            "ClprCompleteConnector",
             "ClprDeregisterConnector",
             "ClprGetLedgerConfiguration",
             "ClprGetEndpointManifest"
@@ -216,20 +217,6 @@
           "milliOpsPerSec": 1000000000,
           "operations": [
             "TransactionGetReceipt"
-          ]
-        }
-      ]
-    },
-    {
-      "burstPeriod": 0,
-      "burstPeriodMs": 1000,
-      "name": "BalanceQueryLimits",
-      "throttleGroups": [
-        {
-          "opsPerSec": 0,
-          "milliOpsPerSec": 1000000,
-          "operations": [
-            "CryptoGetAccountBalance"
           ]
         }
       ]

@@ -149,6 +149,8 @@ class BEVM {
         _top.isWarm(frame.getContractAddress());
         // As in Besu, the originator is warm even when this starts from a child frame (e.g. a CLPR authorization)
         _top.isWarm(frame.getOriginatorAddress());
+        // EIP-3651: the coinbase is warm from the start of the transaction
+        _top.isWarm(frame.getMiningBeneficiary());
 
         assert _lastSKey == null && _lastSVal == null;
         return this;
@@ -1023,8 +1025,9 @@ class BEVM {
         var address = popAddress();
         AddressChecks adrChk = _top._bonneville._adrChk;
         boolean isSystem = adrChk!=null && adrChk.isSystemAccount(address);
+        // Every address, system accounts included, is priced warm or cold as per EIP-2929
         long gas = _gasCalc.getBalanceOperationGasCost() +
-            ((!isSystem && _top.isWarm(address))
+            (_top.isWarm(address)
              ? _gasCalc.getWarmStorageReadCost()
              : _gasCalc.getColdAccountAccessCost());
         var halt = useGas(gas);

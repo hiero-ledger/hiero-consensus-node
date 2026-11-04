@@ -123,7 +123,7 @@ class HintsPartialSignatureHandlerTest {
         lenient().when(preHandleContext.createStore(ReadableHintsStore.class)).thenReturn(hintsStore);
         lenient().when(handleContext.storeFactory()).thenReturn(storeFactory);
         lenient().when(storeFactory.readableStore(ReadableHintsStore.class)).thenReturn(hintsStore);
-        lenient().when(hintsStore.crsIfKnown()).thenReturn(CRS);
+        lenient().when(hintsContext.crsForConstruction(CONSTRUCTION_ID)).thenReturn(CRS);
         lenient().when(signing.constructionId()).thenReturn(CONSTRUCTION_ID);
         lenient().when(hintsContext.acceptsConstruction(CONSTRUCTION_ID)).thenReturn(true);
     }
@@ -173,7 +173,7 @@ class HintsPartialSignatureHandlerTest {
 
     @Test
     void preHandleIgnoresUnknownCrs() {
-        given(hintsStore.crsIfKnown()).willReturn(null);
+        given(hintsContext.crsForConstruction(CONSTRUCTION_ID)).willReturn(null);
 
         assertDoesNotThrow(() -> subject.preHandle(preHandleContext));
     }
@@ -324,10 +324,11 @@ class HintsPartialSignatureHandlerTest {
     }
 
     @Test
-    void handleRejectsUnknownCrs() {
-        given(hintsStore.crsIfKnown()).willReturn(null);
+    void handleIgnoresUnknownConstructionCrs() {
+        given(hintsContext.crsForConstruction(CONSTRUCTION_ID)).willReturn(null);
 
-        assertThrows(NullPointerException.class, () -> subject.handle(handleContext));
+        assertDoesNotThrow(() -> subject.handle(handleContext));
+        verify(hintsContext, never()).validate(anyLong(), any(), any());
     }
 
     @Test

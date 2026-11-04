@@ -22,17 +22,14 @@ import io.grpc.netty.NettyServerBuilder;
 import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.ServerCalls;
 import io.grpc.stub.StreamObserver;
-import io.netty.handler.ssl.ClientAuth;
 import io.netty.handler.ssl.SslContextBuilder;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
-import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import javax.net.ssl.SSLException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -40,12 +37,11 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 /**
- * Verifies that {@link ClprEndpointClient} establishes a mutually-authenticated TLS channel against a
- * peer using the two-tier cert model from spec §4.4: the peer's ECDSA P-384 CA cert is pinned from
- * on-chain bytes, and the peer's leaf cert is validated by verifying it was signed by that CA.
+ * Verifies that {@link ClprEndpointClient} establishes a TLS channel against a peer's HAPI TLS listener without
+ * verifying the peer's certificate: the test server presents a self-signed certificate whose subject does not match
+ * the host it is dialed on, as an operator-provisioned HAPI TLS certificate may.
  *
- * <p>Tests spin up a real Netty gRPC server so a successful round-trip proves both directions
- * of the mTLS handshake actually work.
+ * <p>Tests spin up a real Netty gRPC server so a successful round-trip proves the TLS handshake actually works.
  */
 class ClprEndpointClientTest {
 
@@ -58,17 +54,8 @@ class ClprEndpointClientTest {
     private static final Bytes CHANNEL_ID =
             Bytes.fromHex("01000000000000000000000000000000000000000000000000000000000000ab");
 
-    /** Shared CA that signs both the server leaf and the client leaf; its cert is pinned by peers. */
-    private static ClprTestCa testCa;
-
-    /** Server leaf, signed by {@link #testCa}. */
-    private static ClprTestCa.Leaf serverLeaf;
-
-    /** Client leaf, signed by {@link #testCa}. */
-    private static ClprTestCa.Leaf clientLeaf;
-
-    /** A second, unrelated CA — used to test that the wrong CA is rejected. */
-    private static X509Certificate wrongCaCert;
+    /** The server's self-signed HAPI TLS certificate; its subject deliberately does not match {@code localhost}. */
+    private static ClprTestTlsCert serverCert;
 
     /** A simple byte-array marshaller mirroring the one used by {@link ClprEndpointClient}. */
     private static final MethodDescriptor.Marshaller<byte[]> BYTE_MARSHALLER = new MethodDescriptor.Marshaller<>() {
@@ -91,13 +78,7 @@ class ClprEndpointClientTest {
 
     @BeforeAll
     static void generateTestCerts() throws Exception {
-        // The CA carries basicConstraints:CA:TRUE so the server's default PKIX trust manager accepts it
-        // as the anchor for the client leaf; leaves carry none so they validate as leaves.
-        testCa = new ClprTestCa("test-clpr-ca");
-        serverLeaf = testCa.signLeaf("test-server-leaf");
-        clientLeaf = testCa.signLeaf("test-client-leaf");
-        // A second, unrelated CA — pinning this should cause chain validation to fail.
-        wrongCaCert = new ClprTestCa("wrong-clpr-ca").caCert();
+        serverCert = new ClprTestTlsCert("unrelated-host.example");
     }
 
     @AfterEach
@@ -131,7 +112,7 @@ class ClprEndpointClientTest {
                 public void onCompleted() {}
             });
 
-            final var client = newClient(port, testCa.caCert());
+            final var client = newTlsClient(port);
             try (final var call = client.sync(TIMEOUT)) {
                 call.write(buildStreamingSyncPayload(0, null));
                 call.halfClose();
@@ -144,8 +125,8 @@ class ClprEndpointClientTest {
         }
 
         @Test
-        @DisplayName("sync drives a multi-message exchange")
-        void syncSucceedsOverMutualTls() throws Exception {
+        @DisplayName("sync drives a multi-message exchange over TLS")
+        void syncSucceedsOverTls() throws Exception {
             final var mockedResponseMessages = new ClprStreamingSyncPayload[] {
                 buildStreamingSyncPayload(9, Bytes.wrap("1st response bundle")), buildStreamingSyncPayload(null, null),
             };
@@ -153,7 +134,7 @@ class ClprEndpointClientTest {
 
             final int port = startStreamingServer(mockedResponseMessages, received);
 
-            final var client = newClient(port, testCa.caCert());
+            final var client = newTlsClient(port);
             try (final var call = client.sync(TIMEOUT)) {
                 // Msg 1: this ledger sends a bundle request to the peer ledger.
                 call.write(buildStreamingSyncPayload(8, null));
@@ -204,7 +185,7 @@ class ClprEndpointClientTest {
             final var mockedResponseMessages = new ClprStreamingSyncPayload[] {buildStreamingSyncPayload(null, null)};
             final int port = startStreamingServer(mockedResponseMessages, new CopyOnWriteArrayList<>());
 
-            final var client = newClient(port, testCa.caCert());
+            final var client = newTlsClient(port);
             try (final var call = client.sync(TIMEOUT)) {
                 call.write(buildStreamingSyncPayload(8, null));
 
@@ -223,15 +204,14 @@ class ClprEndpointClientTest {
         }
 
         @Test
-        @DisplayName("given the pinned CA did not sign the peer's leaf, then sync fails")
-        void givenPinnedCaDidNotSignPeerLeaf_thenSyncFails() throws Exception {
+        @DisplayName("given a plaintext client, when the peer only serves TLS, then sync fails")
+        void givenPlaintextClient_whenPeerOnlyServesTls_thenSyncFails() throws Exception {
             final var mockedResponseMessages = new ClprStreamingSyncPayload[] {buildStreamingSyncPayload(null, null)};
             final int port = startStreamingServer(mockedResponseMessages, new CopyOnWriteArrayList<>());
 
-            // Pin a CA cert unrelated to the CA that signed the server's leaf — chain validation fails.
-            final var client = newClient(port, wrongCaCert);
+            final var client = new ClprEndpointClientImpl("localhost", port, false);
             try (final var call = client.sync(TIMEOUT)) {
-                // The handshake failure may surface on the write or on the read, depending on timing.
+                // The failure may surface on the write or on the read, depending on timing.
                 assertThatThrownBy(() -> {
                             call.write(buildStreamingSyncPayload(8, null));
                             call.read();
@@ -264,7 +244,7 @@ class ClprEndpointClientTest {
                 }
             });
 
-            final var client = newClient(port, testCa.caCert());
+            final var client = newTlsClient(port);
             try (final var call = client.sync(TIMEOUT)) {
                 call.write(buildStreamingSyncPayload(8, null));
 
@@ -282,7 +262,7 @@ class ClprEndpointClientTest {
             final var mockedResponseMessages = new ClprStreamingSyncPayload[] {buildStreamingSyncPayload(null, null)};
             final int port = startStreamingServer(mockedResponseMessages, new CopyOnWriteArrayList<>());
 
-            final var client = newClient(port, testCa.caCert());
+            final var client = newTlsClient(port);
             try {
                 final var call = client.sync(TIMEOUT);
                 call.write(buildStreamingSyncPayload(8, null));
@@ -326,7 +306,7 @@ class ClprEndpointClientTest {
                 };
             });
 
-            final var client = newClient(port, testCa.caCert());
+            final var client = newTlsClient(port);
             try {
                 final ClprStreamingSyncCall abandonedCall;
                 try (final var call = client.sync(TIMEOUT)) {
@@ -351,19 +331,8 @@ class ClprEndpointClientTest {
     }
 
     @Test
-    @DisplayName("building the SSL context rejects malformed peer CA certificate bytes")
-    void buildSslContextRejectsMalformedCertificate() {
-        assertThatThrownBy(() -> ClprEndpointClientImpl.buildClientSslContext(
-                        Bytes.wrap(new byte[] {1, 2, 3, 4}),
-                        new ClprLeafCredentials(clientLeaf.cert(), clientLeaf.privateKey())))
-                .isInstanceOf(SSLException.class)
-                .hasMessageContaining("peer TLS certificate");
-    }
-
-    @Test
-    @DisplayName("plaintext client constructs with a null peer certificate (no mTLS)")
-    void plaintextClientAcceptsNullCertificate() {
-        // clientCredentials == null → plaintext path; the peer cert is unused and may be null.
+    @DisplayName("given no TLS, then the client is constructed for plaintext")
+    void givenNoTls_thenClientIsConstructedForPlaintext() {
         assertThatNoException().isThrownBy(() -> new ClprEndpointClientImpl("localhost", 50211).shutdownChannel());
     }
 
@@ -402,15 +371,12 @@ class ClprEndpointClientTest {
     }
 
     /**
-     * Starts a Netty gRPC server exposing only the bidi-streaming sync RPC, backed by the given handler. The server
-     * terminates TLS with the test server leaf certificate, requires client authentication, and trusts the test CA
-     * cert (which signed the client leaf).
+     * Starts a Netty gRPC server exposing only the bidi-streaming sync RPC, backed by the given handler. Like the HAPI
+     * TLS listener, the server terminates TLS with its own certificate and does not authenticate clients.
      */
     private int startStreamingServer(final ServerCalls.BidiStreamingMethod<byte[], byte[]> handler) throws Exception {
         final var sslContext = GrpcSslContexts.configure(
-                        SslContextBuilder.forServer(serverLeaf.privateKey(), serverLeaf.cert())
-                                .clientAuth(ClientAuth.REQUIRE)
-                                .trustManager(testCa.caCert()))
+                        SslContextBuilder.forServer(serverCert.privateKey(), serverCert.cert()))
                 .protocols("TLSv1.2", "TLSv1.3")
                 .build();
 
@@ -480,10 +446,7 @@ class ClprEndpointClientTest {
         };
     }
 
-    private ClprEndpointClientImpl newClient(final int port, final X509Certificate pinnedCaCert) throws Exception {
-        // Encode the CA cert as DER bytes (what's stored on-chain in ClprEndpoint.tls_certificate)
-        final var caDerBytes = Bytes.wrap(pinnedCaCert.getEncoded());
-        return new ClprEndpointClientImpl(
-                "localhost", port, caDerBytes, new ClprLeafCredentials(clientLeaf.cert(), clientLeaf.privateKey()));
+    private static ClprEndpointClientImpl newTlsClient(final int port) {
+        return new ClprEndpointClientImpl("localhost", port, true);
     }
 }

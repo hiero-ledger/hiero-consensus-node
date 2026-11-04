@@ -9,7 +9,7 @@ public interface Cryptography {
     /** The default value for the setHash argument */
     boolean DEFAULT_SET_HASH = true;
     /** The default digest type */
-    DigestType DEFAULT_DIGEST_TYPE = DigestType.SHA_384;
+    DigestType DEFAULT_DIGEST_TYPE = DigestType.SHA_256;
     /** The hash for a null value */
     Hash NULL_HASH = new HashBuilder(DEFAULT_DIGEST_TYPE).build();
 

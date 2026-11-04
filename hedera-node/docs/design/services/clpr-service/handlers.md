@@ -76,6 +76,9 @@ side-effects.
 
 - Functionalities: `CLPR_REGISTER_CONNECTOR`, `CLPR_COMPLETE_CONNECTOR`. Spec §6.3.
 - Same commit-reveal shape as channel registration.
+- Register requires a 32-byte `channel_id` identifying an existing channel and a 32-byte
+  `commitment`. A missing channel fails with `CLPR_CHANNEL_NOT_FOUND` before storing the commitment.
+  The channel ID is public metadata; the commitment preimage is verified during reveal.
 - Reveal verifies signature `ECDSA(keccak256(connector_id ‖ 0x…16e))` (Hiero-specific
   binding from spec §6.3 callout).
 - Stake: `complete` requires the connector's `min_locked_stake` (`ClprConfig.minLockedStake`)

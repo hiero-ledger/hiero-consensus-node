@@ -55,10 +55,10 @@ public class PeerCommunication implements ConnectionTracker {
     private final Configuration configuration;
     private final Time time;
     private List<PeerInfo> peers;
-    private final PeerInfo selfPeer;
     private DynamicConnectionManagers connectionManagers;
     private ThreadManager threadManager;
     private final NodeId selfId;
+    private final int selfPort;
     private final StackTraceDeduplicator socketExceptionDeduplicator;
     private List<ProtocolRunnable> handshakeProtocols;
     private List<Protocol> protocolList;
@@ -76,7 +76,8 @@ public class PeerCommunication implements ConnectionTracker {
      * @param metrics         the metrics system
      * @param time            source of time
      * @param peers           the current list of peers
-     * @param selfPeer        this node's data
+     * @param selfId          this node's ID
+     * @param selfPort        the port this node listens on for incoming connections
      * @param ownKeysAndCerts private keys and public certificates for this node
      * @param socketExceptionDeduplicator remembers which socket exception stack traces were already logged in full
      */
@@ -85,7 +86,8 @@ public class PeerCommunication implements ConnectionTracker {
             @NonNull final Metrics metrics,
             @NonNull final Time time,
             @NonNull final List<PeerInfo> peers,
-            @NonNull final PeerInfo selfPeer,
+            @NonNull final NodeId selfId,
+            final int selfPort,
             @NonNull final KeysAndCerts ownKeysAndCerts,
             @NonNull final StackTraceDeduplicator socketExceptionDeduplicator) {
 
@@ -93,14 +95,14 @@ public class PeerCommunication implements ConnectionTracker {
         this.time = requireNonNull(time);
         this.ownKeysAndCerts = requireNonNull(ownKeysAndCerts);
         this.peers = Collections.unmodifiableList(requireNonNull(peers));
-        this.selfPeer = requireNonNull(selfPeer);
-        this.selfId = selfPeer.nodeId();
+        this.selfId = requireNonNull(selfId);
+        this.selfPort = selfPort;
         this.socketExceptionDeduplicator = requireNonNull(socketExceptionDeduplicator);
 
-        this.networkMetrics = new NetworkMetrics(metrics, selfPeer.nodeId(), peers);
+        this.networkMetrics = new NetworkMetrics(metrics, selfId, peers);
         metrics.addUpdater(networkMetrics::update);
 
-        this.topology = new StaticTopology(peers, selfPeer.nodeId());
+        this.topology = new StaticTopology(peers, selfId);
     }
 
     /**
@@ -196,7 +198,7 @@ public class PeerCommunication implements ConnectionTracker {
 
             // maybe sort peers before converting to list to preserve similar order for various interations/prinouts?
             this.peers = List.copyOf(newPeers.values());
-            this.topology = new StaticTopology(peers, selfPeer.nodeId());
+            this.topology = new StaticTopology(peers, selfId);
 
             connectionManagers.addRemovePeers(added, removed, topology);
             connectionServer.replacePeers(peers);
@@ -305,7 +307,7 @@ public class PeerCommunication implements ConnectionTracker {
         var socketFactory = NetworkUtils.createSocketFactory(selfId, peers, ownKeysAndCerts, configuration);
         return new PeerConnectionServer(
                 threadManager,
-                selfPeer.port(),
+                selfPort,
                 inboundConnectionHandler,
                 socketFactory,
                 configuration.getConfigData(SocketConfig.class).maxSocketAcceptThreads());

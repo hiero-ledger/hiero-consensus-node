@@ -5,6 +5,7 @@ import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.RECORD_HASH_
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.services.bdd.junit.TestTags.RESTART;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_DIR;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.WRAPPED_RECORD_HASHES_FILE;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
@@ -20,18 +21,24 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
+import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashes;
+import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashesLog;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
+import com.hedera.hapi.node.base.BlockHashAlgorithm;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
+import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.node.app.blocks.impl.BlockImplUtils;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.node.config.data.BlockStreamJumpstartConfig;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
@@ -47,12 +54,17 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.DigestType;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
@@ -89,6 +101,7 @@ class JumpstartFileSuite implements LifecycleTest {
         final AtomicReference<BlockStreamJumpstartConfig> jumpstartConfig2 = new AtomicReference<>();
         final AtomicReference<String> nodeComputedHash2 = new AtomicReference<>();
         final AtomicReference<String> freezeBlockNum2 = new AtomicReference<>();
+        final AtomicReference<List<Long>> preUpgradeHashedBlocks = new AtomicReference<>();
 
         // Mutable map so buildDynamicJumpstartConfig can add jumpstart config properties
         // before the restart reads them
@@ -229,15 +242,34 @@ class JumpstartFileSuite implements LifecycleTest {
                                         Duration.ofSeconds(1))
                                 .matchingLast()
                                 .exposingMatchGroupTo(1, liveBlockNum)
-                                .exposingMatchGroupTo(2, liveWrappedHash)),
+                                .exposingMatchGroupTo(2, liveWrappedHash),
+                        doingContextual(spec -> preUpgradeHashedBlocks.set(wrappedHashesBlockNumbers(spec)))),
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
                 assertHgcaaLogContainsPattern(
                         NodeSelector.exceptNodeIds(LATER_NODE_IDS),
                         "Jumpstart migration already applied \\(votingComplete=true\\) and no jumpstart config, skipping",
                         Duration.ofSeconds(30)),
+                // No jumpstart is configured, so the upgrade must have truncated the pre-upgrade entries
+                doingContextual(spec -> {
+                    final var preUpgradeBlocks = preUpgradeHashedBlocks.get();
+                    assertFalse(preUpgradeBlocks.isEmpty(), "Expected wrapped record hashes on node0 before upgrade");
+                    final long preUpgradeLastBlock = Collections.max(preUpgradeBlocks);
+                    assertTrue(
+                            wrappedHashesBlockNumbers(spec).stream().allMatch(b -> b > preUpgradeLastBlock),
+                            "Expected the upgrade to truncate node0's pre-upgrade wrapped record hashes");
+                }),
                 sourcing(() -> verifyLiveWrappedHash(liveWrappedHash.get(), liveBlockNum.get())),
-                logIt("Phase 9: Ops burst prior to cutover"),
+                logIt("Phase 9: Transition to SHA-256"),
                 MixedOperations.burstOfTps(5, Duration.ofSeconds(30)),
+                logIt("Phase 9b: Enable SHA-256 block hashing"),
+                prepareFakeUpgrade(),
+                upgradeToNextConfigVersion(Map.of("blockStream.digestType", "SHA_256")),
+                waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
+                // Produce several SHA-256 blocks. The node logs a decoded BEFORE/AFTER dump of both trailing
+                // windows at the SHA-384 -> SHA-256 transition block; verifyTrailingHashTransitionLogs() asserts
+                // the exact values below, including that trailingBlockHashes stays 48-byte padded (no compaction).
+                MixedOperations.burstOfTps(5, Duration.ofSeconds(30)),
+                doingContextual(JumpstartFileSuite::verifyTrailingBlockHashesMatchChain),
                 logIt("Phase 10: Execute cutover"),
                 prepareFakeUpgrade(),
                 upgradeToNextConfigVersion(
@@ -253,9 +285,15 @@ class JumpstartFileSuite implements LifecycleTest {
                                 "blockStream.streamMode",
                                 // The real cutover value will be BLOCKS, but to keep record stream balance validation
                                 // working, keep BOTH enabled
-                                "BOTH"),
+                                "BOTH",
+                                // Overrides apply only to this restart, so keep the SHA-256 switch from Phase 9b
+                                "blockStream.digestType",
+                                "SHA_256"),
                         // Pre-restart: capture the final BlockInfo before cutover, and save preview block stream files
                         // for later replay
+                        // Capture the genuine pre-cutover windows here, at the quiesced pre-restart point (the
+                        // restarted node cannot reconstruct them once V0740 overwrites the singleton). The exact
+                        // values are asserted by verifyCutoverLogFields below.
                         withOpContext((spec, opLog) ->
                                 capturePreCutoverLogged(spec, opLog, capturedBlockInfo, capturedRunningHashes))),
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
@@ -270,6 +308,10 @@ class JumpstartFileSuite implements LifecycleTest {
                 logIt("Phase 10: First post-cutover burst"),
                 MixedOperations.burstOfTps(5, Duration.ofSeconds(30)),
                 logIt("Phase 11: Verify clean cutover with additional blocks"),
+                // Assert the node-logged, decoded trailing-window dumps at both transition blocks (SHA-384 ->
+                // SHA-256 and the cutover): exact strides, per-entry sizes, and the key invariant that
+                // trailingBlockHashes stays 48-byte padded after SHA-256 (compaction deferred past cutover).
+                doingContextual(JumpstartFileSuite::verifyTrailingHashTransitionLogs),
                 doingContextual(spec -> verifyPostCutoverBlocks(spec, liveBlockNum)),
                 // restart with cutover enabled one more time, to verify it doesn't do anything
                 logIt("Phase 12: Restart with cutover enabled to verify idempotent operation"),
@@ -284,7 +326,9 @@ class JumpstartFileSuite implements LifecycleTest {
                         "blockStream.enableCutover",
                         "true",
                         "blockStream.streamMode",
-                        "BOTH")),
+                        "BOTH",
+                        "blockStream.digestType",
+                        "SHA_256")),
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
                 assertHgcaaLogContainsPattern(
                         NodeSelector.exceptNodeIds(LATER_NODE_IDS),
@@ -292,6 +336,89 @@ class JumpstartFileSuite implements LifecycleTest {
                         Duration.ofSeconds(1)),
                 // Verify blocks are still produced after idempotent restart
                 cryptoCreate("postIdempotentRestart").payingWith(GENESIS));
+    }
+
+    /**
+     * Asserts the node-logged, decoded trailing-window dumps emitted at the two transition blocks (the SHA-384 -&gt;
+     * SHA-256 digest transition and the block-stream cutover). Each transition is logged twice — a BEFORE/AT
+     * snapshot and an AFTER snapshot — by {@code BlockStreamManagerImpl.logTrailingWindows}. This reads node 0's
+     * application log instead of the live block stream, so it is immune to the mid-write partial-gzip race.
+     *
+     * <p>The key correctness assertion is that {@code trailingBlockHashes} is still at a 48-byte
+     * {@code (pre-compaction)} stride in the AFTER-SHA-256 dump: proof that the switch to 32-byte block hashing did
+     * NOT compact the window (compaction is deferred until well past cutover). Exact pre-/post-cutover values are
+     * additionally pinned by {@link #verifyCutoverLogFields}.
+     *
+     * <p>A network that starts on SHA-256 has no digest switch (Phase 9b's upgrade changes nothing), so it must log
+     * no transition, and its pre-cutover window is native rather than 48-byte padded.
+     */
+    private static void verifyTrailingHashTransitionLogs(final HapiSpec spec) {
+        final var node0 = spec.targetNetworkOrThrow().getRequiredNode(NodeSelector.byNodeId(0));
+        final String log;
+        try {
+            log = Files.readString(node0.getExternalPath(ExternalPath.APPLICATION_LOG));
+        } catch (IOException e) {
+            fail(e);
+            return;
+        }
+
+        if (DigestType.valueOf(spec.startupProperties().get("blockStream.digestType")) == DigestType.SHA_256) {
+            assertFalse(
+                    log.contains("Trailing hashes BEFORE SHA-384 -> SHA-256 transition"),
+                    "A network that starts on SHA-256 must not log a SHA-384 -> SHA-256 transition");
+            trailingDumpSegment(log, "Trailing hashes BEFORE block-stream cutover (final pre-cutover window)");
+            return;
+        }
+
+        // The strict correctness check is on trailingBlockHashes: it must stay at a 48-byte stride through all four
+        // snapshots — never compacting when SHA-256 turns on, nor right up to cutover. (trailingOutputHashes is
+        // logged verbatim in each dump for inspection, and its exact value at cutover is pinned by
+        // verifyCutoverLogFields; its per-entry layout is a non-goal that self-heals after cutover.)
+
+        // SHA-384 -> SHA-256 transition. BEFORE is decoded in the prior era, so it reads as a native 48-byte
+        // SHA-384 window; AFTER keeps the 48-byte stride but now as (pre-compaction) under the shorter digest.
+        // The real invariant is the stride: a 48-byte stride means the window has NOT compacted. (The dump labels
+        // a 48-byte stride "(pre-compaction)"; a compacted window would show the shorter active-digest stride.)
+        final var beforeSha256 = trailingDumpSegment(log, "Trailing hashes BEFORE SHA-384 -> SHA-256 transition");
+        assertTrue(
+                beforeSha256.contains("stride=48B"),
+                "BEFORE SHA-256 dump should show a 48-byte trailingBlockHashes stride:\n" + beforeSha256);
+        // The digest switches once (Phase 9b); the SHA-256 cutover must not log a second transition
+        assertEquals(
+                1L,
+                Pattern.compile(Pattern.quote("Trailing hashes BEFORE SHA-384 -> SHA-256 transition"))
+                        .matcher(log)
+                        .results()
+                        .count(),
+                "Expected exactly one SHA-384 -> SHA-256 transition dump");
+
+        final var afterSha256 = trailingDumpSegment(log, "Trailing hashes AFTER SHA-384 -> SHA-256 transition");
+        assertTrue(
+                afterSha256.contains("stride=48B"),
+                "AFTER SHA-256 dump MUST still show a 48-byte trailingBlockHashes stride — the switch to SHA-256 "
+                        + "must not compact the window:\n" + afterSha256);
+
+        // Cutover: the genuine final pre-cutover window (logged by V0740BlockStreamSchema, which can still see it
+        // before overwriting it) must still be at the 48-byte stride — proof that compaction is deferred right up
+        // to cutover.
+        final var beforeCutover =
+                trailingDumpSegment(log, "Trailing hashes BEFORE block-stream cutover (final pre-cutover window)");
+        assertTrue(
+                beforeCutover.contains("stride=48B"),
+                "BEFORE cutover dump should show a 48-byte trailingBlockHashes stride — compaction must still be "
+                        + "deferred right up to cutover:\n" + beforeCutover);
+    }
+
+    /**
+     * Extracts the text of a single trailing-window dump — from the given header line up to the next dump header
+     * (or end of log) — so assertions on strides and sizes are scoped to that one snapshot. Fails if the header is
+     * absent, which means the node never logged that transition.
+     */
+    private static String trailingDumpSegment(final String log, final String header) {
+        final int start = log.indexOf(header);
+        assertTrue(start >= 0, "Expected node to log a trailing-window dump with header: " + header);
+        final int next = log.indexOf("Trailing hashes ", start + header.length());
+        return next < 0 ? log.substring(start) : log.substring(start, next);
     }
 
     private static void capturePreCutoverLogged(
@@ -368,14 +495,15 @@ class JumpstartFileSuite implements LifecycleTest {
         assertLogContains(log, "trailingBlockHashes", expectedTrailingBlockHashes.toHex());
         // trailingOutputHashes must be exactly the final four record stream running hashes (SHA-384)
         final var rh = capturedRunningHashes.get();
-        Bytes expectedOutputHashes =
-                BlockImplUtils.appendHash(Bytes.wrap(rh.nMinus3RunningHash().toByteArray()), Bytes.EMPTY, 4);
-        expectedOutputHashes =
-                BlockImplUtils.appendHash(Bytes.wrap(rh.nMinus2RunningHash().toByteArray()), expectedOutputHashes, 4);
-        expectedOutputHashes =
-                BlockImplUtils.appendHash(Bytes.wrap(rh.nMinus1RunningHash().toByteArray()), expectedOutputHashes, 4);
-        expectedOutputHashes =
-                BlockImplUtils.appendHash(Bytes.wrap(rh.runningHash().toByteArray()), expectedOutputHashes, 4);
+        // Mirror V0740's zero-fill of empty predecessor running hashes so the expected window matches (four entries).
+        Bytes expectedOutputHashes = BlockImplUtils.appendHash(
+                BlockImplUtils.fullRecordRunningHash(rh.nMinus3RunningHash()), Bytes.EMPTY, 4);
+        expectedOutputHashes = BlockImplUtils.appendHash(
+                BlockImplUtils.fullRecordRunningHash(rh.nMinus2RunningHash()), expectedOutputHashes, 4);
+        expectedOutputHashes = BlockImplUtils.appendHash(
+                BlockImplUtils.fullRecordRunningHash(rh.nMinus1RunningHash()), expectedOutputHashes, 4);
+        expectedOutputHashes = BlockImplUtils.appendHash(
+                BlockImplUtils.fullRecordRunningHash(rh.runningHash()), expectedOutputHashes, 4);
         assertLogContains(log, "trailingOutputHashes", expectedOutputHashes.toHex());
 
         // Verify the logged RunningHashes hex values match what we captured
@@ -385,6 +513,67 @@ class JumpstartFileSuite implements LifecycleTest {
         assertLogContains(log, "nMinus3", rh.nMinus3RunningHash().toHex());
         assertLogContains(log, "intermediatePreviousBlockRootHashes", bi.wrappedIntermediatePreviousBlockRootHashes());
         assertLogContains(log, "intermediateBlockRootsLeafCount", bi.wrappedIntermediateBlockRootsLeafCount());
+    }
+
+    /**
+     * Decodes every persisted {@code trailingBlockHashes} window in node 0's block stream the way the node reads it
+     * (stride from {@code trailing_block_hashes_compacted}, digest from the block header) and checks each entry
+     * against the real hash of that block, i.e. the next block's footer {@code previousBlockRootHash}. Runs before
+     * cutover, so it covers windows written before, at and after the SHA-384 -&gt; SHA-256 switch.
+     */
+    private static void verifyTrailingBlockHashesMatchChain(final HapiSpec spec) {
+        final var node0 = spec.targetNetworkOrThrow().getRequiredNode(NodeSelector.byNodeId(0));
+        final var blocks = BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocksIgnoringMarkersAndReadErrors(
+                node0.getExternalPath(BLOCK_STREAMS_DIR));
+        final Map<Long, Bytes> realHashes = new HashMap<>();
+        final Map<Long, Integer> digestLengths = new HashMap<>();
+        final Map<Long, BlockStreamInfo> windows = new TreeMap<>();
+        for (final var block : blocks) {
+            long number = -1;
+            for (final var item : block.items()) {
+                if (item.hasBlockHeader()) {
+                    final var header = item.blockHeaderOrThrow();
+                    number = header.number();
+                    digestLengths.put(number, header.hashAlgorithm() == BlockHashAlgorithm.SHA2_256 ? 32 : 48);
+                } else if (item.hasBlockFooter()) {
+                    realHashes.put(number - 1, item.blockFooterOrThrow().previousBlockRootHash());
+                } else if (item.hasStateChanges()) {
+                    for (final var change : item.stateChangesOrThrow().stateChanges()) {
+                        if (change.hasSingletonUpdate()
+                                && change.singletonUpdateOrThrow().hasBlockStreamInfoValue()) {
+                            windows.put(number, change.singletonUpdateOrThrow().blockStreamInfoValueOrThrow());
+                        }
+                    }
+                }
+            }
+        }
+
+        int checked = 0;
+        final List<String> mismatches = new ArrayList<>();
+        for (final var entry : windows.entrySet()) {
+            final var info = entry.getValue();
+            final long lastInWindow = info.blockNumber() - 1;
+            final int digestLength = digestLengths.get(entry.getKey());
+            for (long n = Math.max(0, lastInWindow - 255); n <= lastInWindow; n++) {
+                final var real = realHashes.get(n);
+                if (real == null) {
+                    continue;
+                }
+                checked++;
+                final var decoded = BlockImplUtils.realBlockHashByBlockNumber(
+                        info.trailingBlockHashes(), lastInWindow, n, digestLength, info.trailingBlockHashesCompacted());
+                if (!real.equals(decoded)) {
+                    mismatches.add("window of block " + entry.getKey() + " (compacted="
+                            + info.trailingBlockHashesCompacted() + "): block " + n + " expected " + real.toHex()
+                            + " but decoded " + (decoded == null ? "null" : decoded.toHex()));
+                }
+            }
+        }
+        assertTrue(checked > 0, "No trailing block hash entries could be checked against the chain");
+        assertTrue(
+                mismatches.isEmpty(),
+                mismatches.size() + " of " + checked + " trailing block hash entries don't match the chain, e.g.:\n"
+                        + String.join("\n", mismatches.subList(0, Math.min(5, mismatches.size()))));
     }
 
     private static void verifyPostCutoverBlocks(final HapiSpec spec, final AtomicReference<String> liveBlockNum) {
@@ -417,6 +606,20 @@ class JumpstartFileSuite implements LifecycleTest {
                 assertEquals(prevBlockNum + 1, blockNum, "Block numbers should be sequential");
             }
             prevBlockNum = blockNum;
+        }
+    }
+
+    private static List<Long> wrappedHashesBlockNumbers(final HapiSpec spec) {
+        final var node0 = spec.targetNetworkOrThrow().getRequiredNode(NodeSelector.byNodeId(0));
+        try {
+            final var bytes = Files.readAllBytes(node0.getExternalPath(WRAPPED_RECORD_HASHES_FILE));
+            return WrappedRecordFileBlockHashesLog.PROTOBUF.parse(Bytes.wrap(bytes)).entries().stream()
+                    .map(WrappedRecordFileBlockHashes::blockNumber)
+                    .toList();
+        } catch (final IOException e) {
+            throw new UncheckedIOException(e);
+        } catch (final ParseException e) {
+            throw new IllegalStateException("Unable to parse node0's wrapped record hashes file", e);
         }
     }
 

@@ -89,7 +89,12 @@ class SerializationTest extends MerkleTestBase {
             }
 
             @Override
-            public void migrate(@NonNull final MigrationContext ctx) {
+            public void restart(@NonNull final MigrationContext ctx) {
+                // Populate the states only when they are first created; this is also
+                // called when the loaded snapshot is initialized, which must not change it
+                if (!ctx.isGenesis()) {
+                    return;
+                }
                 final var newStates = ctx.newStates();
                 final VirtualMapWritableKVState<ProtoBytes, ProtoBytes> fruit =
                         (VirtualMapWritableKVState<ProtoBytes, ProtoBytes>)

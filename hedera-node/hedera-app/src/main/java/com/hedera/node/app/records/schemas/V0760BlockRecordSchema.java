@@ -27,9 +27,10 @@ import org.apache.logging.log4j.Logger;
 /**
  * Migration schema for release 0.76.
  *
- * <p>{@link #migrate(MigrationContext)} performs the one-shot cleanup of the stale on-disk
+ * <p>On non-genesis initialization, {@link #restart(MigrationContext)} removes the stale on-disk
  * {@value com.hedera.node.app.records.impl.WrappedRecordFileBlockHashesDiskWriter#DEFAULT_FILE_NAME}
- * file when {@code writeWrappedRecordFileBlockHashesToDisk} is disabled.
+ * file when {@code writeWrappedRecordFileBlockHashesToDisk} is disabled. This cleanup is idempotent
+ * and independent of software versions.
  *
  * <p>{@link #restart(MigrationContext)} carries over the cutover/jumpstart logic from
  * {@link V0750BlockRecordSchema}: the platform invokes {@code restart()} only on the latest schema
@@ -53,26 +54,10 @@ public class V0760BlockRecordSchema extends Schema<SemanticVersion> {
     }
 
     @Override
-    public void migrate(@NonNull final MigrationContext<SemanticVersion> ctx) {
-        if (ctx.isGenesis()) {
-            return;
-        }
-        final var cfg = ctx.appConfig().getConfigData(BlockRecordStreamConfig.class);
-        if (cfg.writeWrappedRecordFileBlockHashesToDisk()) {
-            return;
-        }
-        final Path file = Paths.get(cfg.wrappedRecordHashesDir()).resolve(DEFAULT_FILE_NAME);
-        try {
-            if (Files.deleteIfExists(file)) {
-                log.info("Deleted stale wrapped record hashes file {}", file);
-            }
-        } catch (final IOException e) {
-            log.warn("Failed to delete stale wrapped record hashes file {}", file, e);
-        }
-    }
-
-    @Override
     public void restart(@NonNull final MigrationContext<SemanticVersion> ctx) {
+        if (!ctx.isGenesis()) {
+            cleanupStaleWrappedRecordHashes(ctx.appConfig().getConfigData(BlockRecordStreamConfig.class));
+        }
         if (!ctx.isGenesis()
                 && ctx.isUpgrade(ctx.appConfig()
                         .getConfigData(VersionConfig.class)
@@ -116,6 +101,20 @@ public class V0760BlockRecordSchema extends Schema<SemanticVersion> {
                                         .getSingleton(RUNNING_HASHES_STATE_ID)
                                         .get());
             }
+        }
+    }
+
+    private static void cleanupStaleWrappedRecordHashes(@NonNull final BlockRecordStreamConfig cfg) {
+        if (cfg.writeWrappedRecordFileBlockHashesToDisk()) {
+            return;
+        }
+        final Path file = Paths.get(cfg.wrappedRecordHashesDir()).resolve(DEFAULT_FILE_NAME);
+        try {
+            if (Files.deleteIfExists(file)) {
+                log.info("Deleted stale wrapped record hashes file {}", file);
+            }
+        } catch (final IOException e) {
+            log.warn("Failed to delete stale wrapped record hashes file {}", file, e);
         }
     }
 

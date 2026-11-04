@@ -30,7 +30,7 @@ import org.testcontainers.utility.DockerImageName;
  * A test container for running a block node server instance.
  */
 public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
-    private static final String BLOCK_NODE_VERSION = "0.44.2";
+    private static final String BLOCK_NODE_VERSION = "0.45.0-tssupdate";
     private static final DockerImageName DEFAULT_IMAGE_NAME =
             DockerImageName.parse("ghcr.io/hiero-ledger/hiero-block-node:" + BLOCK_NODE_VERSION);
     private static final int GRPC_PORT = 40840;
@@ -60,23 +60,23 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
             "roster-bootstrap-tss");
     private static final Map<String, String> REQUIRED_EXTRA_JARS = Map.ofEntries(
             Map.entry(
-                    "spotbugs-annotations-4.9.8.jar",
+                    "spotbugs-annotations-4.10.4.jar",
                     MAVEN_CENTRAL_BASE_URL
-                            + "/com/github/spotbugs/spotbugs-annotations/4.9.8/spotbugs-annotations-4.9.8.jar"),
+                            + "/com/github/spotbugs/spotbugs-annotations/4.10.4/spotbugs-annotations-4.10.4.jar"),
             Map.entry("disruptor-4.0.0.jar", MAVEN_CENTRAL_BASE_URL + "/com/lmax/disruptor/4.0.0/disruptor-4.0.0.jar"),
             // Transitive deps of the block-verification plugin
             Map.entry(
-                    "hedera-cryptography-wraps-3.13.0.jar",
+                    "hedera-cryptography-wraps-3.21.0-verifier.jar",
                     MAVEN_CENTRAL_BASE_URL
-                            + "/com/hedera/cryptography/hedera-cryptography-wraps/3.13.0/hedera-cryptography-wraps-3.13.0.jar"),
+                            + "/com/hedera/cryptography/hedera-cryptography-wraps/3.21.0/hedera-cryptography-wraps-3.21.0-verifier.jar"),
             Map.entry(
-                    "hedera-cryptography-hints-3.13.0.jar",
+                    "hedera-cryptography-hints-3.21.0.jar",
                     MAVEN_CENTRAL_BASE_URL
-                            + "/com/hedera/cryptography/hedera-cryptography-hints/3.13.0/hedera-cryptography-hints-3.13.0.jar"),
+                            + "/com/hedera/cryptography/hedera-cryptography-hints/3.21.0/hedera-cryptography-hints-3.21.0.jar"),
             Map.entry(
-                    "hedera-common-nativesupport-3.13.0.jar",
+                    "hedera-common-nativesupport-3.21.0.jar",
                     MAVEN_CENTRAL_BASE_URL
-                            + "/com/hedera/common/hedera-common-nativesupport/3.13.0/hedera-common-nativesupport-3.13.0.jar"),
+                            + "/com/hedera/common/hedera-common-nativesupport/3.21.0/hedera-common-nativesupport-3.21.0.jar"),
             Map.entry(
                     "antlr4-runtime-4.13.2.jar",
                     MAVEN_CENTRAL_BASE_URL + "/org/antlr/antlr4-runtime/4.13.2/antlr4-runtime-4.13.2.jar"));
@@ -160,7 +160,7 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
     }
 
     /**
-     * The 0.28.0 block node image is "barebone" and requires plugins to be mounted at runtime.
+     * The block node image is "barebone" and requires plugins to be mounted at runtime.
      * This method downloads the required plugin jars (and a small set of extra runtime jars)
      * from Maven Central into a shared temp directory and returns that directory.
      */
