@@ -565,8 +565,9 @@ public class TransactionExecutorsTest {
 
     @Test
     void propertiesBuilderRequiresNonNullState() {
-        assertThrows(IllegalStateException.class, () -> TransactionExecutors.Properties.newBuilder()
-                .build());
+        assertThrows(
+                IllegalStateException.class,
+                () -> TransactionExecutors.Properties.newBuilder().build());
     }
 
     @Test

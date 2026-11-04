@@ -297,20 +297,19 @@ public class SystemFileUpdates {
         // For a configuration facility, capture the pre-update committed file IDs of both configuration files (so
         // recovery reads them even if this update remaps files.networkProperties/files.hapiPermissions), and, for a
         // network-properties update, the throttle usage this update's throttle rebuild is about to discard.
-        final ConfigRecoveryContext configContext =
-                switch (facility) {
-                    case NETWORK_PROPERTIES ->
-                        new ConfigRecoveryContext(
-                                FileUtilities.createFileID(filesConfig.networkProperties(), configuration),
-                                FileUtilities.createFileID(filesConfig.hapiPermissions(), configuration),
-                                throttleServiceManager.captureThrottleUsage());
-                    case HAPI_PERMISSIONS ->
-                        new ConfigRecoveryContext(
-                                FileUtilities.createFileID(filesConfig.networkProperties(), configuration),
-                                FileUtilities.createFileID(filesConfig.hapiPermissions(), configuration),
-                                null);
-                    default -> null;
-                };
+        final ConfigRecoveryContext configContext = switch (facility) {
+            case NETWORK_PROPERTIES ->
+                new ConfigRecoveryContext(
+                        FileUtilities.createFileID(filesConfig.networkProperties(), configuration),
+                        FileUtilities.createFileID(filesConfig.hapiPermissions(), configuration),
+                        throttleServiceManager.captureThrottleUsage());
+            case HAPI_PERMISSIONS ->
+                new ConfigRecoveryContext(
+                        FileUtilities.createFileID(filesConfig.networkProperties(), configuration),
+                        FileUtilities.createFileID(filesConfig.hapiPermissions(), configuration),
+                        null);
+            default -> null;
+        };
         // For a simple-fees update, capture the schedule active before it, so recovery can restore it if the committed
         // file turns out to be only a partial upload chunk that cannot be re-derived into a schedule.
         final FeeSchedule priorSimpleFees =

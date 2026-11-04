@@ -631,11 +631,10 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         for (int i = 0; i < n; i++) {
             final var builder = builders.get(i);
             grouped |= builder.functionality() == HOOK_DISPATCH;
-            final var nonceOffset =
-                    switch (builder.category()) {
-                        case USER, SCHEDULED, NODE, BATCH_INNER -> 0;
-                        case PRECEDING, CHILD -> nextNonceOffset++;
-                    };
+            final var nonceOffset = switch (builder.category()) {
+                case USER, SCHEDULED, NODE, BATCH_INNER -> 0;
+                case PRECEDING, CHILD -> nextNonceOffset++;
+            };
             final var txnId = builder.transactionID();
             // If the builder does not already have a transaction id, then complete with the next nonce offset;
             // attributing it to the batch inner transaction that dispatched it, if there was one, and otherwise
@@ -777,15 +776,12 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
             @NonNull final StreamBuilder.ReversingBehavior reversingBehavior,
             @NonNull final TransactionCategory category,
             @NonNull final StreamBuilder.SignedTxCustomizer customizer) {
-        final var builder =
-                switch (streamMode) {
-                    case RECORDS ->
-                        new RecordStreamBuilder(reversingBehavior, customizer, category, maxSerializedTraceDataBytes);
-                    case BLOCKS ->
-                        new BlockStreamBuilder(reversingBehavior, customizer, category, maxSerializedTraceDataBytes);
-                    case BOTH ->
-                        new PairedStreamBuilder(reversingBehavior, customizer, category, maxSerializedTraceDataBytes);
-                };
+        final var builder = switch (streamMode) {
+            case RECORDS ->
+                new RecordStreamBuilder(reversingBehavior, customizer, category, maxSerializedTraceDataBytes);
+            case BLOCKS -> new BlockStreamBuilder(reversingBehavior, customizer, category, maxSerializedTraceDataBytes);
+            case BOTH -> new PairedStreamBuilder(reversingBehavior, customizer, category, maxSerializedTraceDataBytes);
+        };
         if (!customizer.isSuppressed()) {
             // Other code is a bit simpler when we always put the base builder for a stack in its
             // "following" list, even if the stack is child stack for a preceding child dispatch;

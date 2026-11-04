@@ -318,12 +318,15 @@ public enum TransactionExecutors {
                 entityIdFactory);
         final var contractService = new ContractServiceImpl(
                 appContext, NO_OP_METRICS, NOOP_VERIFICATION_STRATEGIES, tracerBinding, customOps);
-        final var utilService = new UtilServiceImpl(appContext, (signedTxn, config) -> componentRef
-                .get()
-                .transactionChecker()
-                .parseSignedAndCheck(
-                        signedTxn, config.getConfigData(HederaConfig.class).nodeTransactionMaxBytes())
-                .txBody());
+        final var utilService = new UtilServiceImpl(
+                appContext,
+                (signedTxn, config) -> componentRef
+                        .get()
+                        .transactionChecker()
+                        .parseSignedAndCheck(
+                                signedTxn,
+                                config.getConfigData(HederaConfig.class).nodeTransactionMaxBytes())
+                        .txBody());
         final var fileService = new FileServiceImpl();
         final var scheduleService = new ScheduleServiceImpl(appContext);
         final var hintsService = new HintsServiceImpl(
