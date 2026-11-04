@@ -8,6 +8,7 @@ import java.time.Duration;
 import java.util.List;
 import org.assertj.core.data.Percentage;
 import org.hiero.otter.fixtures.InstrumentedNode;
+import org.hiero.otter.fixtures.MiniNode;
 import org.hiero.otter.fixtures.Node;
 
 /**
@@ -58,7 +59,30 @@ public interface Topology {
     InstrumentedNode addInstrumentedNode();
 
     /**
-     * Get the list of nodes in the topology.
+     * Adds a single mini-node to the topology.
+     *
+     * <p>How the node is connected to existing nodes and its latency, jitter, and bandwidth depend on the specific topology implementation.
+     *
+     * @return the created mini-node
+     */
+    @NonNull
+    default MiniNode addMiniNode() {
+        return addMiniNodes(1).getFirst();
+    }
+
+    /**
+     * Adds multiple mini-nodes to the topology.
+     *
+     * <p>How the node is connected to existing nodes and its latency, jitter, and bandwidth depend on the specific topology implementation.
+     *
+     * @param count the number of mini-nodes to add
+     * @return list of created mini-nodes
+     */
+    @NonNull
+    List<MiniNode> addMiniNodes(int count);
+
+    /**
+     * Get the list of regular nodes in the topology excluding mini-nodes.
      *
      * <p>The {@link List} cannot be modified directly. However, if a node is added or removed from the topology, the
      * list is automatically updated. That means, if it is necessary to have a constant list, it is recommended to
@@ -70,6 +94,18 @@ public interface Topology {
     List<Node> nodes();
 
     /**
+     * Get the list of all nodes in the topology. This includes both regular nodes and mini-nodes.
+     *
+     * <p>The {@link List} cannot be modified directly. However, if a mini-node is added or removed from the topology, the
+     * list is automatically updated. That means, if it is necessary to have a constant list, it is recommended to
+     * create a copy.
+     *
+     * @return a list of all nodes in the topology
+     */
+    @NonNull
+    List<MiniNode> allNodes();
+
+    /**
      * Get the default connection data for a connection between two nodes in the topology.
      *
      * @param sender the source node
@@ -77,7 +113,7 @@ public interface Topology {
      * @return the {@link ConnectionState}
      */
     @NonNull
-    ConnectionState getConnectionData(@NonNull Node sender, @NonNull Node receiver);
+    ConnectionState getConnectionData(@NonNull MiniNode sender, @NonNull MiniNode receiver);
 
     /**
      * Represents the data associated with a connection between two nodes in the topology.

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks;
 
-import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
+import static com.hedera.node.app.hapi.utils.CommonUtils.sha256DigestOrThrow;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
@@ -48,12 +48,12 @@ import org.openjdk.jmh.infra.Blackhole;
  *
  * COMPONENTS TESTED:
  * 1. BlockItem serialization - How fast can we serialize BlockItems?
- * 2. BlockItem hashing (SHA-384) - How fast can we hash serialized BlockItems?
+ * 2. BlockItem hashing (SHA-256) - How fast can we hash serialized BlockItems?
  * 3. ConcurrentStreamingTreeHasher - How fast are merkle tree operations?
  * 4. IncrementalStreamingHasher - How fast is the previousBlockHashes tree?
  * 5. BlockStreamBuilder - How fast can we translate execution results to
  * BlockItems?
- * 6. Block hash combining - How fast is the 10x SHA-384 combine operation?
+ * 6. Block hash combining - How fast is the 10x SHA-256 combine operation?
  * 7. Block serialization - How fast can we serialize final blocks?
  * 8. Running hash (n-3) - How fast is the running hash computation?
  *
@@ -142,13 +142,13 @@ public class BlockProductionMicrobenchmarks {
 
     /**
      * 2. BlockItem Hashing Benchmark
-     * Tests: SHA-384 hashing of serialized BlockItems
+     * Tests: SHA-256 hashing of serialized BlockItems
      * Measures: How many BlockItem hashes can we compute per second?
      */
     @Benchmark
     public void blockItemHashing(HashingState state, Blackhole bh) {
         try {
-            MessageDigest digest = sha384DigestOrThrow();
+            MessageDigest digest = sha256DigestOrThrow();
             state.serializedItem.writeTo(digest);
             byte[] hash = digest.digest();
             bh.consume(hash.length);
@@ -193,7 +193,7 @@ public class BlockProductionMicrobenchmarks {
     @Benchmark
     public void merkleTreeHashing_Incremental(MerkleTreeState state, Blackhole bh) {
         final IncrementalStreamingHasher hasher =
-                new IncrementalStreamingHasher(sha384DigestOrThrow(), new ArrayList<>(), 0L);
+                new IncrementalStreamingHasher(sha256DigestOrThrow(), new ArrayList<>(), 0L);
 
         // Add all leaves
         for (ByteBuffer hash : state.precomputedHashes) {
@@ -223,7 +223,7 @@ public class BlockProductionMicrobenchmarks {
             precomputedHashes = new ArrayList<>();
 
             try {
-                MessageDigest digest = sha384DigestOrThrow();
+                MessageDigest digest = sha256DigestOrThrow();
                 for (int i = 0; i < numLeaves; i++) {
                     byte[] data = ("item" + i).getBytes();
                     digest.reset();
@@ -259,7 +259,7 @@ public class BlockProductionMicrobenchmarks {
     @Benchmark
     public void incrementalStreamingHasher_AddLeaf(IncrementalHasherState state, Blackhole bh) {
         IncrementalStreamingHasher hasher =
-                new IncrementalStreamingHasher(CommonUtils.sha384DigestOrThrow(), List.of(), 0L);
+                new IncrementalStreamingHasher(CommonUtils.sha256DigestOrThrow(), List.of(), 0L);
 
         // Add leaves and compute root (simulating block-by-block hashing)
         for (byte[] blockHash : state.blockHashes) {
@@ -285,7 +285,7 @@ public class BlockProductionMicrobenchmarks {
 
             blockHashes = new ArrayList<>();
             try {
-                MessageDigest digest = sha384DigestOrThrow();
+                MessageDigest digest = sha256DigestOrThrow();
                 for (int i = 0; i < numBlocks; i++) {
                     byte[] data = ("block" + i).getBytes();
                     digest.reset();
@@ -397,12 +397,12 @@ public class BlockProductionMicrobenchmarks {
 
     /**
      * 6. Block Hash Combining Benchmark
-     * Tests: Real 10x SHA-384 combine operations from combineTreeRoots()
+     * Tests: Real 10x SHA-256 combine operations from combineTreeRoots()
      * Measures: How many complete block hash computations per second?
      */
     @Benchmark
     public void blockHashCombining(CombineState state, Blackhole bh) {
-        // Production logic: 10x SHA-384 combines
+        // Production logic: 10x SHA-256 combines
 
         // Depth 4 combines (4 operations)
         Bytes depth4Node1 = combineSha384(state.hash1, state.hash2);
@@ -426,9 +426,9 @@ public class BlockProductionMicrobenchmarks {
         Bytes depth1Node1 = combineSha384(depth2Node1, depth2Node2Combined);
 
         // Timestamp hash (1 operation)
-        Bytes depth1Node0 = sha384HashOf(state.timestampBytes);
+        Bytes depth1Node0 = sha256HashOf(state.timestampBytes);
 
-        // Final root hash (1 operation) - TOTAL: 10 SHA-384 operations
+        // Final root hash (1 operation) - TOTAL: 10 SHA-256 operations
         Bytes rootHash = combineSha384(depth1Node0, depth1Node1);
 
         bh.consume(rootHash);
@@ -447,7 +447,7 @@ public class BlockProductionMicrobenchmarks {
             jfrRecording = startJfr("micro-combine.jfr");
 
             try {
-                MessageDigest digest = sha384DigestOrThrow();
+                MessageDigest digest = sha256DigestOrThrow();
 
                 // Generate 8 random hashes (representing the 8 merkle branches)
                 hash1 = Bytes.wrap(digest.digest("branch1".getBytes()));
@@ -466,7 +466,7 @@ public class BlockProductionMicrobenchmarks {
                 digest.reset();
                 hash8 = Bytes.wrap(digest.digest("branch8".getBytes()));
 
-                nullHash = Bytes.wrap(new byte[48]); // SHA-384 null hash
+                nullHash = Bytes.wrap(new byte[32]); // SHA-256 null hash
 
                 Timestamp timestamp = Timestamp.newBuilder()
                         .seconds(Instant.now().getEpochSecond())
@@ -550,7 +550,7 @@ public class BlockProductionMicrobenchmarks {
         byte[] currentHash = state.initialHash.clone();
 
         try {
-            MessageDigest digest = sha384DigestOrThrow();
+            MessageDigest digest = sha256DigestOrThrow();
 
             for (ByteBuffer resultHash : state.resultHashes) {
                 // Running hash update logic
@@ -584,7 +584,7 @@ public class BlockProductionMicrobenchmarks {
             jfrRecording = startJfr(String.format("micro-running-hash-%d.jfr", numResults));
 
             try {
-                MessageDigest digest = sha384DigestOrThrow();
+                MessageDigest digest = sha256DigestOrThrow();
                 initialHash = new byte[48]; // Start with zeros
 
                 resultHashes = new ArrayList<>();
@@ -638,14 +638,14 @@ public class BlockProductionMicrobenchmarks {
     }
 
     private static Bytes combineSha384(Bytes leftHash, Bytes rightHash) {
-        MessageDigest digest = sha384DigestOrThrow();
+        MessageDigest digest = sha256DigestOrThrow();
         digest.update(leftHash.toByteArray());
         digest.update(rightHash.toByteArray());
         return Bytes.wrap(digest.digest());
     }
 
-    private static Bytes sha384HashOf(Bytes data) {
-        MessageDigest digest = sha384DigestOrThrow();
+    private static Bytes sha256HashOf(Bytes data) {
+        MessageDigest digest = sha256DigestOrThrow();
         digest.update(data.toByteArray());
         return Bytes.wrap(digest.digest());
     }

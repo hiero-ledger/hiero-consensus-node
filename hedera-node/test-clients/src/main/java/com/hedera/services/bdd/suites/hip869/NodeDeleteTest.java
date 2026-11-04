@@ -231,7 +231,7 @@ public class NodeDeleteTest {
                 nodeCreate("testNode", nodeAccount)
                         .adminKey("adminKey")
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
-                nodeDelete("testNode").payingWith("payer").signedBy("payerKey").hasPrecheck(INVALID_SIGNATURE));
+                nodeDelete("testNode").payingWith("payer").signedBy("payerKey").hasKnownStatus(INVALID_SIGNATURE));
     }
 
     @EmbeddedHapiTest(NEEDS_STATE_ACCESS)

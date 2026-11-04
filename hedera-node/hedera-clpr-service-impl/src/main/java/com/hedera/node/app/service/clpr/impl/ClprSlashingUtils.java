@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl;
 
+import static com.hedera.node.app.hapi.utils.CommonUtils.clampedMultiply;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -46,7 +47,7 @@ public final class ClprSlashingUtils {
         }
         long penalty = basePenalty;
         for (int i = 0; i < slashCount; i++) {
-            penalty *= multiplier;
+            penalty = clampedMultiply(penalty, multiplier);
             if (penalty >= lockedStake) {
                 return lockedStake;
             }
@@ -79,7 +80,8 @@ public final class ClprSlashingUtils {
         final var newSlashCount = connector.slashCount() + 1;
 
         if (newSlashCount >= config.slashBanThreshold()) {
-            // Ban: forfeit all remaining stake and remove connector
+            // Ban: forfeit all remaining stake and remove connector. As with deregistration, its
+            // ownership commitment stays registered so the connector ID cannot be registered again.
             final var forfeited = connector.lockedStake();
             connectorStore.remove(new ClprConnectorKey(connector.channelId(), connector.connectorId()));
             return new SlashResult(null, forfeited, true);

@@ -124,12 +124,6 @@
 			"burstPeriod": 1,
 			"throttleGroups": [
 				{
-					"opsPerSec": 100,
-					"operations": [
-						"CryptoGetAccountBalance"
-					]
-				},
-				{
 					"opsPerSec": 1000,
 					"operations": [
 						"TransactionGetReceipt"

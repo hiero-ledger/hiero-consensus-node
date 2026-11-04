@@ -30,7 +30,6 @@ import com.hedera.node.app.service.token.ReadableNftStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.store.StoreFactory;
-import com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -322,39 +321,6 @@ public interface HederaNativeOperations {
      */
     @NonNull
     StoreFactory storeFactory();
-
-    /**
-     * Dispatches a read-only (static) contract call and returns the EVM output bytes.
-     *
-     * <p>Returns {@code null} if the call reverts or otherwise fails.
-     *
-     * @param contractId the contract to call
-     * @param callData the ABI-encoded call data (selector + params)
-     * @param gasLimit the gas limit for the sub-call
-     * @return the raw EVM return data, or {@code null} on revert/failure
-     */
-    @Nullable
-    Bytes dispatchReadonlyContractCall(@NonNull ContractID contractId, @NonNull byte[] callData, long gasLimit);
-
-    /**
-     * Dispatches a read-only (static) contract call with explicit dispatch metadata and returns the EVM output bytes.
-     *
-     * <p>Returns {@code null} if the call reverts or otherwise fails.
-     *
-     * @param payerId the payer to use for the child dispatch
-     * @param contractId the contract to call
-     * @param callData the ABI-encoded call data (selector + params)
-     * @param gasLimit the gas limit for the sub-call
-     * @param dispatchMetadata metadata to attach to the child dispatch
-     * @return the raw EVM return data, or {@code null} on revert/failure
-     */
-    @Nullable
-    Bytes dispatchReadonlyContractCall(
-            @NonNull AccountID payerId,
-            @NonNull ContractID contractId,
-            @NonNull byte[] callData,
-            long gasLimit,
-            @NonNull DispatchMetadata dispatchMetadata);
 
     /**
      * Returns the ledger id to use when encoding system contract responses. By default this is the configured ledger

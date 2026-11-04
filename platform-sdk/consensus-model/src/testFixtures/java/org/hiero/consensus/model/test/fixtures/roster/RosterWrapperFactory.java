@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.model.test.fixtures.roster;
 
+import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toCollection;
 
+import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.cert.CertificateEncodingException;
+import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -15,14 +18,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import org.hiero.base.crypto.SigningSchema;
+import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.fakes.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.RosterEntryWrapper;
 import org.hiero.consensus.model.roster.RosterWrapper;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterEntryBuilder;
-import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.test.fixtures.WeightGenerator;
+import org.hiero.consensus.test.fixtures.WeightGenerators;
+import org.hiero.consensus.test.fixtures.crypto.PreGeneratedX509Certs;
 
 /**
  * Factory for creating RosterWrapper instances.
@@ -42,8 +46,14 @@ public class RosterWrapperFactory {
     @NonNull
     public static RosterWrapper randomRoster(
             @NonNull final Random random, final int size, @NonNull final WeightGenerator weightGenerator) {
-        final Roster pbjRoster = RosterFactory.randomRoster(random, size, weightGenerator);
-        return RosterWrapper.of(pbjRoster);
+        final List<NodeId> nodeIds = createRandomNodeIds(random, size);
+        final List<Long> weights = weightGenerator.getWeights(random.nextLong(), size);
+        final List<RosterEntry> rosterEntries = new ArrayList<>(size);
+        for (int index = 0; index < size; index++) {
+            final RosterEntry rosterEntry = createRandomRosterEntry(random, nodeIds.get(index), weights.get(index));
+            rosterEntries.add(rosterEntry);
+        }
+        return createRosterWrapper(rosterEntries);
     }
 
     /**
@@ -55,8 +65,7 @@ public class RosterWrapperFactory {
      */
     @NonNull
     public static RosterWrapper randomRoster(@NonNull final Random random, final int size) {
-        final Roster pbjRoster = RosterFactory.randomRoster(random, size);
-        return RosterWrapper.of(pbjRoster);
+        return randomRoster(random, size, WeightGenerators.GAUSSIAN);
     }
 
     /**
@@ -88,30 +97,19 @@ public class RosterWrapperFactory {
             final int size,
             @NonNull final WeightGenerator weightGenerator,
             @NonNull final SigningSchema schema) {
-        try {
-            // first we create a random roster with random keys
-            final Roster pbjRoster = RosterFactory.randomRoster(random, size, weightGenerator);
-            final int n = pbjRoster.rosterEntries().size();
-
-            // then we generate real keys for each node and new roster entries with the generated keys
-            final List<RosterEntry> rosterEntries = new ArrayList<>(n);
-            final Map<NodeId, KeysAndCerts> keysAndCertsMap = new HashMap<>(n);
-            for (final RosterEntry entry : pbjRoster.rosterEntries()) {
-                final NodeId nodeId = NodeId.of(entry.nodeId());
-                final KeysAndCerts keysAndCerts = generateKeys(random, nodeId, schema);
-                keysAndCertsMap.put(nodeId, keysAndCerts);
-                final Bytes gossipCaCertificate =
-                        Bytes.wrap(keysAndCerts.sigCert().getEncoded());
-                final RosterEntry newEntry = entry.copyBuilder()
-                        .gossipCaCertificate(gossipCaCertificate)
-                        .build();
-                rosterEntries.add(newEntry);
-            }
-
-            return new RosterWithKeys(createRosterWrapper(rosterEntries), Collections.unmodifiableMap(keysAndCertsMap));
-        } catch (final CertificateEncodingException e) {
-            throw new IllegalStateException("Failed to generate keys for roster", e);
+        final List<NodeId> nodeIds = createRandomNodeIds(random, size);
+        final List<Long> weights = weightGenerator.getWeights(random.nextLong(), size);
+        final List<RosterEntry> rosterEntries = new ArrayList<>(size);
+        final Map<NodeId, KeysAndCerts> keysAndCertsMap = new HashMap<>(size);
+        for (int index = 0; index < size; index++) {
+            final NodeId nodeId = nodeIds.get(index);
+            final KeysAndCerts keysAndCerts = generateKeys(random, nodeId, schema);
+            keysAndCertsMap.put(nodeId, keysAndCerts);
+            final RosterEntry rosterEntry =
+                    createRandomRosterEntry(random, nodeId, weights.get(index), keysAndCerts.sigCert());
+            rosterEntries.add(rosterEntry);
         }
+        return new RosterWithKeys(createRosterWrapper(rosterEntries), Collections.unmodifiableMap(keysAndCertsMap));
     }
 
     @NonNull
@@ -177,11 +175,100 @@ public class RosterWrapperFactory {
             @NonNull final RosterWrapper roster, @NonNull final NodeId nodeId, @NonNull final Random random) {
         final List<RosterEntry> entries =
                 roster.rosterEntries().stream().map(RosterEntryWrapper::toPbj).collect(toCollection(ArrayList::new));
-
-        final RosterEntry entry =
-                RandomRosterEntryBuilder.create(random).withNodeId(nodeId.id()).build();
+        final long weight =
+                WeightGenerators.GAUSSIAN.getWeights(random.nextLong(), 1).getFirst();
+        final RosterEntry entry = createRandomRosterEntry(random, nodeId, weight);
         entries.add(entry);
 
         return createRosterWrapper(entries);
+    }
+
+    /**
+     * returns a new roster with the same RosterEntries, but with the weight of the RosterEntry matching the given NodeId set to 0.
+     *
+     * @param roster the roster to modify
+     * @param nodeId the nodeId of the entry to modify
+     * @return a new roster with the same RosterEntries, but with the weight of the RosterEntry matching the given NodeId set to 0
+     */
+    public static RosterWrapper zeroOutWeightOfRosterEntry(
+            @NonNull final RosterWrapper roster, @NonNull final NodeId nodeId) {
+        final List<RosterEntry> entries = roster.rosterEntries().stream()
+                .map(entry -> {
+                    if (entry.nodeId().equals(nodeId)) {
+                        return entry.toPbj().copyBuilder().weight(0L).build();
+                    } else {
+                        return entry.toPbj();
+                    }
+                })
+                .toList();
+        return createRosterWrapper(entries);
+    }
+
+    /**
+     * Create a random RosterEntry with the given NodeId, weight, and certificate.
+     *
+     * @param random the source of randomness
+     * @param nodeId the NodeId of the RosterEntry
+     * @param weight the weight of the RosterEntry
+     * @return a {@link RosterEntry} instance
+     */
+    @NonNull
+    public static RosterEntry createRandomRosterEntry(
+            @NonNull final Random random, @NonNull final NodeId nodeId, final long weight) {
+        final X509Certificate certificate = requireNonNull(PreGeneratedX509Certs.getSigCert(nodeId.id()));
+        return createRandomRosterEntry(random, nodeId, weight, certificate);
+    }
+
+    /**
+     * Create a random RosterEntry with the given NodeId, weight, and certificate.
+     *
+     * @param random the source of randomness
+     * @param nodeId the NodeId of the RosterEntry
+     * @param weight the weight of the RosterEntry
+     * @param certificate the certificate of the RosterEntry
+     * @return a {@link RosterEntry} instance
+     */
+    @NonNull
+    private static RosterEntry createRandomRosterEntry(
+            @NonNull final Random random,
+            @NonNull final NodeId nodeId,
+            final long weight,
+            @NonNull final X509Certificate certificate) {
+        try {
+            final Bytes sigCertBytes = Bytes.wrap(certificate.getEncoded());
+            final String ip = RandomUtils.randomIp(random);
+            final ServiceEndpoint serviceEndpoint = ServiceEndpoint.newBuilder()
+                    .domainName(ip)
+                    .port(random.nextInt(1, 65535))
+                    .build();
+            return RosterEntry.newBuilder()
+                    .nodeId(nodeId.id())
+                    .weight(weight)
+                    .gossipCaCertificate(sigCertBytes)
+                    .gossipEndpoint(serviceEndpoint)
+                    .build();
+        } catch (CertificateEncodingException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /**
+     * Create a list of random NodeIds, starting with NodeId.FIRST_NODE_ID and incrementing by 1 to 3 for each subsequent NodeId.
+     *
+     * @param random the source of randomness
+     * @param size the number of NodeIds to create
+     * @return a list of random NodeIds
+     */
+    @NonNull
+    private static List<NodeId> createRandomNodeIds(@NonNull final Random random, final int size) {
+        final List<NodeId> nodeIds = new ArrayList<>(size);
+        nodeIds.add(NodeId.FIRST_NODE_ID);
+        for (int i = 1; i < size; i++) {
+            final NodeId lastNodeId = nodeIds.get(i - 1);
+            // randomly advance between 1 and 3 steps
+            final NodeId nextNodeId = NodeId.of(lastNodeId.id() + random.nextInt(3) + 1);
+            nodeIds.add(nextNodeId);
+        }
+        return nodeIds;
     }
 }

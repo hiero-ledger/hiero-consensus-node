@@ -10,28 +10,12 @@ import com.swirlds.state.lifecycle.Schema;
  */
 public enum SchemaApplicationType {
     /**
-     * A schema may contribute state definitions to the {@link State}
-     * no matter if it was first registered before or after the version of the
-     * deserialized state. The only two conditions under which a schema {@code X}
-     * need not be used for state definitions are:
-     * <ol>
-     *     <li>It is for a service that did not create or remove any state at
-     *     all in the version at which {@code X} was registered; or,</li>
-     *     <li>All its state definitions were removed by schemas
-     *     registered in subsequent versions, <b>and</b> the deserialized
-     *     state is missing or is no earlier than the subsequent version
-     *     that removed the last of {@code X}'s states.</li>
-     * </ol>
-     * <b>Important:</b> In the current system there is no practical benefit to
-     * doing the work to detect the second condition; so we don't.
+     * A schema contributes its state definitions (and removals) to the {@link State} every time
+     * the state is initialized, independent of the version of the deserialized state and of the
+     * software version; the only schemas that skip this are those that neither create nor remove
+     * any state.
      */
     STATE_DEFINITIONS,
-    /**
-     * A schema may perform migration logic from the state of an earlier
-     * version; this applies at genesis or whenever the deserialized state version
-     * is strictly before the version of the schema.
-     */
-    MIGRATION,
     /**
      * A schema may provide restart logic when it is the latest schema
      * available for a service, and hence able to target any final steps the

@@ -85,7 +85,7 @@ The endpoint module depends on — but does not modify — the following existin
 | **Dagger DI**                        | `HederaInjectionComponent`, component lifecycle                 | Manages endpoint module startup, shutdown, and threading                                                                                     |
 | **Configuration**                    | `ConfigProvider`, `ClprConfig` record                           | Runtime configuration for all endpoint parameters                                                                                            |
 | **Metrics**                          | `Metrics` infrastructure                                        | Exposes endpoint-specific counters, gauges, and histograms                                                                                   |
-| **Node Identity**                    | Node's TLS certificate, ECDSA secp256k1 signing key, account ID | Used for endpoint identity (TLS authentication via RSA certificate, payload signing via ECDSA secp256k1 key)                                 |
+| **Node Identity**                    | Node's TLS certificate, ECDSA secp256k1 signing key, account ID | Used for the endpoint's TLS listener (confidentiality only, not authentication) and payload signing via ECDSA secp256k1 key                  |
 
 ## 1.4 Dagger Integration
 
@@ -139,10 +139,10 @@ gRPC server instance within the same node process.
 
 All CLPR endpoint-to-endpoint communication MUST use TLS. The node's existing TLS configuration is reused:
 
-- **Server TLS.** The node's TLS certificate (RSA, DER-encoded) is used as the server certificate. This is the
-  same certificate advertised in the node's `ClprEndpoint.tls_certificate` field in the endpoint roster.
-- **Client TLS.** Outbound gRPC connections to peer endpoints use TLS with the node's RSA certificate for client
-  authentication.
+- **Server TLS.** The node's HAPI TLS certificate (DER-encoded) is used as the server certificate. This is the
+  same certificate advertised in the node's `ClprEndpoint.tls_certificate` field, which the network does not use.
+- **Client TLS.** Outbound gRPC connections to peer endpoints use ordinary TLS without a client certificate. The
+  client does not validate the server certificate or hostname.
 - **Peer verification.** TLS provides transport encryption. Peer identity verification is NOT based on TLS
   certificate matching against an on-chain roster — peer endpoint data is not stored in state. Instead,
   authentication is proof-based: any peer that provides a valid bundle proof (verified by the Channel's
@@ -155,15 +155,15 @@ authentication does not rely on certificate matching against a roster.
 **Triple-key architecture.** Per cross-platform spec §1.2, endpoints have separate TLS and ECDSA signing keys. On
 Hiero, nodes use three distinct keys:
 
-1. **RSA key** (from the node's TLS certificate) — mTLS transport authentication only. Reuses the node's existing
-   signing certificate already published in the address book; no additional TLS key provisioning is required.
+1. **TLS key** (from the node's HAPI TLS certificate) — TLS transport encryption only. Reuses the node's existing
+   HAPI TLS certificate; no additional TLS key provisioning is required.
 2. **ECDSA secp256k1 key** — `endpoint_signature` and local misbehavior detection (see spec §1.5). MAY be the node's
    existing ECDSA secp256k1 key if available, or a dedicated key generated for CLPR operations.
 3. **Ed25519/ECDSA key** (on the node's account) — signs HAPI transactions (`submitBundle`, etc.) submitted to the
    local ingest pipeline. Never exposed in the CLPR protocol wire format.
 
 Account key changes (e.g., rotating the node account's Ed25519 key) do NOT affect the CLPR protocol — only the
-`tls_certificate` and `ecdsa_signing_key` matter for endpoint identity.
+`ecdsa_signing_key` matters for endpoint identity. `tls_certificate` and `account_id` are not used by the network.
 
 ## 2.4 gRPC Message Size
 
@@ -263,7 +263,7 @@ spec §1.5. On Hiero, the initiator-side flow is:
 
 3. Sign the payload with the node's ECDSA secp256k1 key (per spec §1.5)
 
-4. Open mTLS gRPC connection to peer endpoint
+4. Open TLS gRPC connection to peer endpoint
 
 5. Send ClprSyncPayload, receive peer's ClprSyncPayload
 
@@ -275,8 +275,8 @@ spec §1.5. On Hiero, the initiator-side flow is:
 ## 3.5 Sync Call Flow (Responder Side)
 
 ```
-1. Authenticate the caller:
-   - Verify TLS certificate matches a known peer endpoint
+1. Accept the caller. No transport-level authentication: TLS is confidentiality only, and the
+   payload is authenticated by its proof in step 2.
 
 2. Verify the received payload locally (pre-consensus check)
    - If verification fails, return an error response
@@ -358,8 +358,8 @@ The verifier bootstraps from a known TSS public key and accepts transitions when
 the currently trusted key but includes a new roster entry, establishing a chain of trust. This allows the
 verifier to track key rotations without any out-of-band communication.
 
-Peer endpoint discovery is handled off-chain via the gossip-based `discoverEndpoints` RPC (see Section 7.2),
-entirely separate from the TSS trust anchor used for proof verification.
+Peer endpoints are learned from the peer ledger's endpoint manifest (see Section 7.2), entirely separate from the
+TSS trust anchor used for proof verification.
 
 ## 4.4 State Freshness
 
@@ -533,31 +533,25 @@ roster change events. Each node's CLPR endpoint identity is derived from:
 | CLPR Endpoint Field |                                      Source                                       |
 |---------------------|-----------------------------------------------------------------------------------|
 | `service_endpoint`  | Node's gRPC service endpoint (IP + CLPR port)                                     |
-| `tls_certificate`   | Node's RSA TLS certificate (DER-encoded)                                          |
+| `tls_certificate`   | Node's HAPI TLS certificate (DER-encoded); not used by the network                |
 | `ecdsa_signing_key` | Node's ECDSA secp256k1 public key (33 bytes compressed, or 64 bytes uncompressed) |
 | `account_id`        | Node's account ID (serialized as bytes, 20 bytes for Hiero)                       |
 
 The endpoint count from the active roster is used for per-endpoint throttle calculation
 (`max_bundles_per_sec / num_endpoints`).
 
-## 7.2 Peer Endpoint Discovery
+## 7.2 Peer Endpoints
 
-Peer endpoint discovery is handled **off-chain via gossip**. Peer endpoint data is NOT stored in on-ledger state.
+Peer endpoints come from the peer ledger's **endpoint manifest**. There is no endpoint-to-endpoint discovery RPC.
 
-**Seed endpoints.** The peer ledger's `ClprLedgerConfiguration` includes up to 10 seed endpoints. These are obtained
-during channel registration (via `verifyConfig`) and updated when ConfigUpdate control messages arrive. Seed
-endpoints provide initial bootstrap connectivity.
+**Endpoint manifest.** Each ledger publishes a `ClprEndpointManifest` (readable via `getEndpointManifest`) listing
+its endpoints, each with a service endpoint and TLS CA certificate. The peer's manifest is proven and cached on the
+Channel record (`Channel.endpoint_manifest` / `endpoint_manifest_version`):
 
-**Discovery protocol.** When an endpoint needs to discover additional peers, it calls the `discoverEndpoints` RPC
-on any known peer endpoint. The peer responds with its known endpoint list for that Channel. Through iterative
-discovery, endpoints converge on a full view of the peer network.
-
-**Discovery throttling.** Endpoints SHOULD throttle responses to `discoverEndpoints` to protect against abuse.
-A simple rate limit per caller (e.g., 1 request per minute per IP) is sufficient.
-
-**No authentication required for discovery.** The identity of the peer providing discovery information doesn't
-matter — endpoints will validate all actual sync data via proofs. If a malicious peer provides false endpoint
-information, the worst outcome is wasted channel attempts.
+- at `completeChannel`, from the proven manifest returned by `verifyConfig`, truncated to this ledger's
+  `max_peer_endpoints`;
+- mid-life, when a `submitBundle` verifier response carries a `new_endpoint_manifest` whose version strictly
+  advances the stored one.
 
 ## 7.3 Reciprocity-Based Peer Selection
 
@@ -632,11 +626,10 @@ the standard Hiero configuration system. Parameters prefixed with `clpr.` in pro
 
 ## 9.1 Core Parameters
 
-|         Parameter         |   Type    | Default |                              Description                              |
-|---------------------------|-----------|---------|-----------------------------------------------------------------------|
-| `clpr.enabled`            | `boolean` | `false` | Master enable switch. When false, the endpoint module is dormant.     |
-| `clpr.maxBundlesPerSec`   | `int`     | `100`   | Total bundle submission capacity per second. Divided among endpoints. |
-| `clpr.discoveryRateLimit` | `int`     | `1`     | Max `discoverEndpoints` responses per minute per caller.              |
+|        Parameter        |   Type    | Default |                              Description                              |
+|-------------------------|-----------|---------|-----------------------------------------------------------------------|
+| `clpr.enabled`          | `boolean` | `false` | Master enable switch. When false, the endpoint module is dormant.     |
+| `clpr.maxBundlesPerSec` | `int`     | `100`   | Total bundle submission capacity per second. Divided among endpoints. |
 
 ## 9.2 Sync Parameters
 
@@ -760,8 +753,6 @@ No manual intervention is required for partition recovery.
 | `clpr.messages.received`             | Counter | Total messages received via bundles (all Channels).                                 |
 | `clpr.messages.acked`                | Counter | Total messages acknowledged by peers.                                               |
 | `clpr.controlMessages.sent`          | Counter | Total Control Messages enqueued (ConfigUpdate).                                     |
-| `clpr.discovery.requests`            | Counter | Total `discoverEndpoints` requests received.                                        |
-| `clpr.discovery.responses`           | Counter | Total `discoverEndpoints` responses sent.                                           |
 | `clpr.misbehavior.detected`          | Counter | Total locally detected misbehavior events (excess frequency, duplicate submission). |
 
 ## 11.2 Gauges
@@ -844,8 +835,8 @@ Additionally:
   emits the `allCircuitBreakersOpen` health indicator.
 - The sync orchestrator continues periodic probes (circuit breaker half-open state) to detect recovery.
 - No human intervention is required for transient unresponsiveness.
-- For **permanent** unresponsiveness (all peers gone), the recovery path is gossip-based discovery via
-  seed endpoints in the peer's configuration (cross-platform spec §5.4).
+- For **permanent** unresponsiveness (all peers gone), recovery requires the peer ledger to publish an updated
+  endpoint manifest (Section 7.2).
 
 ## 12.5 DUPLICATE_BROADCAST (Dropped)
 
@@ -1089,13 +1080,13 @@ but the impact on the node's transaction throughput budget must be evaluated.
 
 ## 14.3 Assumptions to Validate
 
-|  #  |                                                                             Assumption                                                                              |                           Validation Path                           |
-|-----|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------|
-| V-1 | TSS signatures are available for every (or nearly every) signed state.                                                                                              | Consult Platform team.                                              |
-| V-2 | The Merkle tree uses SHA-384 for internal node hashing.                                                                                                             | Verify against `MerkleTree` implementation.                         |
-| V-3 | `LatestCompleteStateNexus` provides reference-counted reservations that prevent GC of held state.                                                                   | Verify against Platform SDK source.                                 |
-| V-4 | The gRPC server supports registering additional services after initial configuration (for conditional CLPR enablement).                                             | Verify against `GrpcServerManager`.                                 |
-| V-5 | Node TLS certificates are RSA, DER-encoded, and suitable for TLS server/client authentication. Node ECDSA secp256k1 signing keys are available or can be generated. | Verify against node certificate generation code and key management. |
-| V-6 | `LedgerIdentityChangeListener` SPI fires on all roster change types (join, leave, key rotation).                                                                    | Verify SPI contract and existing listeners.                         |
-| V-7 | The ingest pipeline can handle `submitBundle` as a new transaction type without special handling.                                                                   | Verify transaction dispatch and throttle configuration.             |
-| V-8 | Proof construction from `VirtualMap`-backed state can complete within 2 seconds for typical queue depths.                                                           | Benchmark required.                                                 |
+|  #  |                                                                   Assumption                                                                   |                           Validation Path                           |
+|-----|------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------|
+| V-1 | TSS signatures are available for every (or nearly every) signed state.                                                                         | Consult Platform team.                                              |
+| V-2 | The Merkle tree uses SHA-384 for internal node hashing.                                                                                        | Verify against `MerkleTree` implementation.                         |
+| V-3 | `LatestCompleteStateNexus` provides reference-counted reservations that prevent GC of held state.                                              | Verify against Platform SDK source.                                 |
+| V-4 | The gRPC server supports registering additional services after initial configuration (for conditional CLPR enablement).                        | Verify against `GrpcServerManager`.                                 |
+| V-5 | Node HAPI TLS certificates are DER-encoded and suitable for a TLS server. Node ECDSA secp256k1 signing keys are available or can be generated. | Verify against node certificate generation code and key management. |
+| V-6 | `LedgerIdentityChangeListener` SPI fires on all roster change types (join, leave, key rotation).                                               | Verify SPI contract and existing listeners.                         |
+| V-7 | The ingest pipeline can handle `submitBundle` as a new transaction type without special handling.                                              | Verify transaction dispatch and throttle configuration.             |
+| V-8 | Proof construction from `VirtualMap`-backed state can complete within 2 seconds for typical queue depths.                                      | Benchmark required.                                                 |

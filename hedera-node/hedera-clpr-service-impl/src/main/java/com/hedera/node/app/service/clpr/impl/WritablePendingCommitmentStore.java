@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl;
 
-import static com.hedera.node.app.service.clpr.impl.schemas.V0770ClprSchema.PENDING_COMMITMENTS_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.PENDING_COMMITMENTS_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
@@ -11,8 +11,12 @@ import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
- * Store for CLPR pending ownership commitments.
+ * Store for CLPR channel ownership commitments.
  * Acts as a set — the key and value are both the commitment hash.
+ *
+ * <p>Holds commitments pending reveal as well as commitments bound to an existing Channel (in any
+ * status, including CLOSED). A commitment is only deleted by an admin sweep of an abandoned,
+ * never-revealed claim.
  */
 public class WritablePendingCommitmentStore {
 

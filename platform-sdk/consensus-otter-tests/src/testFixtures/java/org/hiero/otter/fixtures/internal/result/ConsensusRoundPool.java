@@ -93,18 +93,18 @@ public class ConsensusRoundPool {
     }
 
     /**
-     * Returns all the consensus rounds created at the moment of invocation, starting with and including the provided
-     * index.
+     * Returns all the consensus rounds created at the moment of invocation whose round number is greater than the
+     * provided round number.
      *
-     * @param startIndex the index to start from
+     * @param roundNum the round number after which rounds are returned
      * @param nodeId the nodeId querying for the result
      * @return the list of consensus rounds
      */
     @NonNull
-    public List<ConsensusRound> currentConsensusRounds(final int startIndex, @NonNull final NodeId nodeId) {
+    public List<ConsensusRound> currentConsensusRoundsAfter(final long roundNum, @NonNull final NodeId nodeId) {
         return roundCache.keySet().stream()
+                .filter(i -> i > roundNum)
                 .sorted()
-                .skip(startIndex)
                 .map(i -> getRound(i, nodeId))
                 .filter(Objects::nonNull)
                 .toList();
@@ -116,15 +116,6 @@ public class ConsensusRoundPool {
     public void destroy() {
         destroyed = true;
         roundCache.clear();
-    }
-
-    /**
-     * Returns the size of the pool.
-     *
-     * @return pool size
-     */
-    public int size(final @NonNull NodeId nodeId) {
-        return currentConsensusRounds(0, nodeId).size();
     }
 
     /**

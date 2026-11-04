@@ -59,8 +59,8 @@ call it directly from EVM execution context. See [section 6](#6-connector-author
 **Note:** `registerEndpoint` and `deregisterEndpoint` from spec section 6.5 are **not implemented** on Hiero.
 Endpoints are derived automatically from the active roster (see [section 4](#4-endpoint-implementation)).
 
-**Note:** `updateEndpointRoster` from spec section 6.2 is **not implemented**. Peer endpoint discovery is
-handled off-chain via gossip (see cross-platform spec §5.4). Peer endpoint data is not stored in on-ledger state.
+**Note:** `updateEndpointRoster` from spec section 6.2 is **not implemented**. Peer endpoints are learned from the
+peer ledger's endpoint manifest, cached on the Channel (`Channel.endpoint_manifest`).
 
 ## 1.2 Protobuf Message Definitions
 
@@ -324,10 +324,10 @@ Initial schema: `V0650ClprSchema` (version `0.65.0`, matching the anticipated re
 
 ### 2.3.1 Singletons
 
-|        State Key        |           Type            |                                                                                                                        Description                                                                                                                         |
-|-------------------------|---------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `LEDGER_CONFIGURATION`  | `ClprLedgerConfiguration` | This ledger's local CLPR configuration (chain_id, protocol_version, throttles, timestamp). Created at genesis from `clpr.chainId` and `clpr.protocolVersion` configuration properties. The `chain_id` and `protocol_version` are immutable after creation. |
-| `LOCAL_LEDGER_METADATA` | `ClprLocalLedgerMetadata` | Local metadata: generated ledger ID, roster hash used for current config, next short ledger ID. Exists in prototype.                                                                                                                                       |
+|        State Key        |           Type            |                                                                                                                                     Description                                                                                                                                      |
+|-------------------------|---------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `LEDGER_CONFIGURATION`  | `ClprLedgerConfiguration` | This ledger's local CLPR configuration (chain_id, protocol_version, throttles, timestamp). Created at genesis with `chain_id` = `eip155:<contracts.chainId>` and `protocol_version` from `clpr.protocolVersion`. The `chain_id` and `protocol_version` are immutable after creation. |
+| `LOCAL_LEDGER_METADATA` | `ClprLocalLedgerMetadata` | Local metadata: generated ledger ID, roster hash used for current config, next short ledger ID. Exists in prototype.                                                                                                                                                                 |
 
 ### 2.3.2 Key-Value Stores
 
@@ -355,7 +355,7 @@ message ClprChannel {
 
   // --- Verifier (immutable after registration) ---
   AccountID verifier_contract = 5;  // Hiero account of the verifier system contract
-  bytes verifier_fingerprint = 6;   // Code hash at registration time (informational)
+  bytes verifier_fingerprint = 6;   // Code hash or built-in identity hash (informational)
 
   // --- Status ---
   ClprChannelStatus status = 7;
@@ -383,6 +383,25 @@ enum ClprChannelStatus {
   CLOSED = 5;
 }
 ```
+
+At channel registration, `verifier_fingerprint` is the Keccak-256 hash of the deployed
+verifier's bytecode, or 32 zero bytes if a custom verifier has no available bytecode.
+Built-in verifiers instead use fixed identity hashes computed as
+`keccak256(UTF8("hiero.clpr.builtin-verifier/" + name))`:
+
+| Verifier address |      Permanent name       |                         Fingerprint (hex)                          |
+|------------------|---------------------------|--------------------------------------------------------------------|
+| `0x16e`          | `hiero-tss`               | `9a0239cbc7be7e16347b8bfe6ab37f7a55d4eb688a0c8b6b141cc5035acac51e` |
+| `0x16f`          | `besu-qbft`               | `9bb5a67f672529e6928db26e11d0a93f56f2f3581fda619f737e3e1615c3e909` |
+| `0x170`          | `sei-cometbft`            | `ee0783a29d06bd654e54a8fd53a8553af7a43b0e601b1a0a1b59034b10e2ff45` |
+| `0x171`          | `ethereum-sync-committee` | `962abc985d9e3cd97cc8598b2399f85e948187d8e56cbb988b4dad04e60c398c` |
+
+Numeric contract IDs and their corresponding 20-byte EVM addresses resolve to the same
+fingerprint. These permanent names identify verifier types and remain unchanged across native
+implementation updates. Registration debug logs additionally include readable names and addresses,
+such as `Besu QBFT (0x16f)`; display labels do not affect the hash. Custom verifiers are logged as
+`Deployed contract` alongside their contract ID and bytecode fingerprint. Existing channel
+fingerprints are not rewritten.
 
 **Channel Status Transitions** (see also cross-platform spec section 2.1.1):
 
@@ -433,8 +452,8 @@ migration path:
 1. Schema `V0650ClprSchema` reads all existing prototype state.
 2. Existing `ClprLedgerId`-keyed entries are re-indexed under their corresponding `channel_id`.
 3. New state stores (`CHANNELS`, `CONNECTORS`, `CONNECTOR_INDEX`) are created empty.
-4. The `LEDGER_CONFIGURATION` singleton is created from `clpr.chainId` and `clpr.protocolVersion`
-   configuration properties. The `chain_id` and `protocol_version` are immutable after creation —
+4. The `LEDGER_CONFIGURATION` singleton is created with `chain_id` = `eip155:<contracts.chainId>` and
+   `protocol_version` from `clpr.protocolVersion`. The `chain_id` and `protocol_version` are immutable after creation —
    they can never be changed via `ClprUpdateLedgerConfiguration`.
    **Decision:** The prototype state structure was intentionally simplified for early development. The migration
    drops prototype-specific fields that do not map to the cross-platform spec (e.g., `next_ledger_short_id`
@@ -489,7 +508,7 @@ Each HAPI transaction type maps to a `TransactionHandler` implementation. Handle
 
 |             Handler Class              |        Transaction Type         |                                                                                                                                                 Complexity                                                                                                                                                 |
 |----------------------------------------|---------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ClprUpdateLedgerConfigurationHandler` | `ClprUpdateLedgerConfiguration` | Medium (admin key check, store config). The handler preserves immutable fields (`chain_id`, `protocol_version`) from the genesis configuration and updates only mutable fields (throttles, service_address, endpoints). Timestamp is set to the consensus time of the transaction.                         |
+| `ClprUpdateLedgerConfigurationHandler` | `ClprUpdateLedgerConfiguration` | Medium (admin key check, store config). The handler preserves immutable fields (`chain_id`, `protocol_version`) from the genesis configuration and updates only mutable fields (throttles, endpoints); `service_address` is fixed. Timestamp is set to the consensus time of the transaction.              |
 | `ClprRegisterChannelHandler`           | `ClprRegisterChannel`           | Medium (commit phase: verifyConfig call, store verifier contract and code fingerprint, Channel creation in PENDING state). No ECDSA verification at this stage. The `chain_id` and `service_address` are derived from the verified peer configuration proof. The verifier is immutable after registration. |
 | `ClprCompleteChannelHandler`           | `ClprCompleteChannel`           | Medium (reveal phase: ECDSA verify, keccak256(channel_id ‖ public_key) == stored commitment check, create Channel in ACTIVE state).                                                                                                                                                                        |
 | `ClprCloseChannelHandler`              | `ClprCloseChannel`              | Low (PENDING → immediate deletion; ACTIVE/PAUSED → transition to CLOSING; `ClprQueueMetadata.state` reflects Channel status; automatic transition to DRAINED when peer acks all outbound, then to CLOSED when both sides DRAINED)                                                                          |
@@ -702,9 +721,14 @@ Per cross-platform spec §3.2 for the `IClprConnectorAuth` interface definition 
 ## 6.1 Authorization Contracts on Hiero
 
 On Hiero, Connector authorization contracts are **smart contracts** (EVM contracts with Hiero `AccountID`s)
-implementing the `IClprConnectorAuth` interface (spec §3.2). The CLPR service invokes `authorizeMessage()`
-during `ClprSendMessage` handling via `HandleContext.dispatchChildTransaction()` with a
-`ContractCallTransactionBody`. The call is read-only (view function) and MUST NOT modify state.
+implementing the `IClprConnectorAuth` interface (spec §3.2). The CLPR `sendMessage` system contract invokes
+`authorizeOutboundMessage(bytes32,bytes,bytes,bytes)` as a child EVM `CALL` frame on the sending transaction's own
+frame stack, with the CLPR system contract as `msg.sender` and a fixed 50,000 gas budget that is not charged to the
+caller. The connector thus shares the sending transaction's context: its `tx.origin`, transient storage, and warm
+addresses; and, when the sender is an EVM hook, the hook's restrictions (no `DELEGATECALL` or `CALLCODE`). A revert,
+halt, or `false` result fails the send with `CLPR_AUTHORIZATION_FAILED`, without failing the rest of the transaction.
+The connector may update its own contract state and emit logs during authorization. These changes revert if
+authorization, the send, or an enclosing call fails.
 
 ## 6.2 Simple Connector Implementations
 
@@ -836,32 +860,38 @@ system (property files / dynamic config).
 
 **Hiero-specific properties** (no cross-platform equivalent):
 
-|               Property                |       Type        | Default |                                                    Description                                                     |
-|---------------------------------------|-------------------|---------|--------------------------------------------------------------------------------------------------------------------|
-| `clpr.enabled`                        | `boolean`         | `false` | Master enable switch. When false, all CLPR transactions and system-contract calls return `CLPR_NOT_ENABLED`.       |
-| `clpr.chainId`                        | `String`          | `""`    | CAIP-2 chain identifier. Set at genesis; immutable thereafter. Populates `ClprLedgerConfiguration.chain_id`.       |
-| `clpr.protocolVersion`                | `int`             | `1`     | CLPR protocol version. Set at genesis; immutable thereafter. Populates `ClprLedgerConfiguration.protocol_version`. |
-| `clpr.defaultSyncsPerSec`             | `int`             | `1`     | Conservative default sync rate per endpoint when peer's `max_syncs_per_sec` is not yet known.                      |
-| `clpr.endpointPort`                   | `int`             | `50212` | Port for the `ClprEndpointService` gRPC server.                                                                    |
-| `clpr.maxBundlesPerSec`               | `int`             | `100`   | Total bundle submission capacity per second. Divided among registered endpoints.                                   |
-| `clpr.minConnectorStake`              | `long` (tinybars) | TBD     | Minimum Connector stake requirement.                                                                               |
-| `clpr.minConnectorBalance`            | `long` (tinybars) | TBD     | Minimum Connector initial balance.                                                                                 |
-| `clpr.connectorQueueQuotaPct`         | `int`             | `50`    | Maximum percentage of queue depth a single Connector can occupy.                                                   |
-| `clpr.queueFeeEscalationThresholdPct` | `int`             | `75`    | Queue fill percentage at which fee escalation begins.                                                              |
-| `clpr.slashBaseAmount`                | `long` (tinybars) | TBD     | Base slash amount for first offense.                                                                               |
-| `clpr.slashEscalationMultiplier`      | `double`          | `2.0`   | Multiplier applied to slash amount for each subsequent offense.                                                    |
-| `clpr.slashBanThreshold`              | `int`             | `3`     | Number of slashes before a Connector is banned.                                                                    |
+|               Property                |       Type        |                  Default                   |                                                    Description                                                     |
+|---------------------------------------|-------------------|--------------------------------------------|--------------------------------------------------------------------------------------------------------------------|
+| `clpr.enabled`                        | `boolean`         | `false`                                    | Master enable switch. When false, CLPR transactions return `CLPR_NOT_ENABLED`; CLPR system contracts are inert.    |
+| `clpr.protocolVersion`                | `int`             | `1`                                        | CLPR protocol version. Set at genesis; immutable thereafter. Populates `ClprLedgerConfiguration.protocol_version`. |
+| `clpr.ledgerConfigurationFile`        | `String`          | `data/config/clprLedgerConfiguration.json` | Node-local file whose throttles seed `ClprLedgerConfiguration.throttles` at genesis.                               |
+| `clpr.upgradeLedgerConfigurationFile` | `String`          | `clprLedgerConfiguration.json`             | File in `networkAdmin.upgradeSysFilesLoc` whose throttles are applied at each upgrade.                             |
+| `clpr.defaultSyncsPerSec`             | `int`             | `1`                                        | Conservative default sync rate per endpoint when peer's `max_syncs_per_sec` is not yet known.                      |
+| `clpr.endpointPort`                   | `int`             | `50212`                                    | Port for the `ClprEndpointService` gRPC server.                                                                    |
+| `clpr.maxBundlesPerSec`               | `int`             | `100`                                      | Total bundle submission capacity per second. Divided among registered endpoints.                                   |
+| `clpr.minConnectorStake`              | `long` (tinybars) | TBD                                        | Minimum Connector stake requirement.                                                                               |
+| `clpr.minConnectorBalance`            | `long` (tinybars) | TBD                                        | Minimum Connector initial balance.                                                                                 |
+| `clpr.connectorQueueQuotaPct`         | `int`             | `50`                                       | Maximum percentage of queue depth a single Connector can occupy.                                                   |
+| `clpr.queueFeeEscalationThresholdPct` | `int`             | `75`                                       | Queue fill percentage at which fee escalation begins.                                                              |
+| `clpr.slashBaseAmount`                | `long` (tinybars) | TBD                                        | Base slash amount for first offense.                                                                               |
+| `clpr.slashEscalationMultiplier`      | `double`          | `2.0`                                      | Multiplier applied to slash amount for each subsequent offense.                                                    |
+| `clpr.slashBanThreshold`              | `int`             | `3`                                        | Number of slashes before a Connector is banned.                                                                    |
 
 **Hiero defaults for cross-platform parameters** (spec §7):
 
-|           Property            |  Type  | Hiero Default |       Spec Parameter        |
-|-------------------------------|--------|---------------|-----------------------------|
-| `clpr.maxQueueDepth`          | `int`  | `10000`       | `max_queue_depth`           |
-| `clpr.maxMessagePayloadBytes` | `int`  | `16384`       | `max_message_payload_bytes` |
-| `clpr.maxMessagesPerBundle`   | `int`  | `100`         | `max_messages_per_bundle`   |
-| `clpr.maxGasPerMessage`       | `long` | `1000000`     | `max_gas_per_message`       |
-| `clpr.maxSyncsPerSec`         | `int`  | `2`           | `max_syncs_per_sec`         |
-| `clpr.maxSyncBytes`           | `long` | `4194304`     | `max_sync_bytes`            |
+The throttles are not configuration properties. They are seeded at genesis from a `ClprLedgerConfiguration`
+file in protobuf JSON that may set only `throttles` (`clpr.ledgerConfigurationFile`, falling back to the bundled
+classpath resource `clpr/clprLedgerConfiguration.json`), and a changed copy of the file in
+`networkAdmin.upgradeSysFilesLoc` is applied at upgrade with a synthetic `ClprUpdateLedgerConfiguration`, the same
+way `throttles.json` is applied. The bundled defaults are:
+
+|       Spec Parameter        |                      Hiero Default                      |
+|-----------------------------|---------------------------------------------------------|
+| `max_queue_depth`           | `10000`                                                 |
+| `max_message_payload_bytes` | `65536`                                                 |
+| `max_messages_per_bundle`   | `1000`                                                  |
+| `max_gas_per_message`       | `15000000` (capped at `contracts.maxGasPerTransaction`) |
+| `max_sync_bytes`            | `4194304`                                               |
 
 ## 9.2 Relationship Between Config and State
 
@@ -871,9 +901,12 @@ system (property files / dynamic config).
   chain identity. These are the parameters that peers see and enforce.
 
 Some parameters appear in both (e.g., `maxQueueDepth`, `maxMessagePayloadBytes`). The on-ledger values are
-authoritative for cross-ledger purposes. The `chain_id` and `protocol_version` are set at genesis from
-`clpr.chainId` and `clpr.protocolVersion` configuration properties and are immutable thereafter. The mutable
-fields (throttles, service_address, endpoints) can be updated via `ClprUpdateLedgerConfiguration`.
+authoritative for cross-ledger purposes. The `chain_id` and `protocol_version` are set at genesis — `chain_id` is
+the CAIP-2 ID `eip155:<contracts.chainId>` (the HIP-26 EVM chain ID), `protocol_version` is `clpr.protocolVersion` —
+and are immutable thereafter. The mutable
+fields (throttles, endpoints) can be updated via `ClprUpdateLedgerConfiguration`. `service_address` is fixed to
+the CLPR system contract address (the value this ledger's endpoint manifest carries, which peers verify it
+against); an update may restate it or omit it, and any other value is rejected.
 
 ---
 
@@ -931,8 +964,8 @@ Hiero-specific choices made.
 Hiero where "consensus nodes are the endpoints."
 
 **Hiero decision:** No `registerEndpoint` or `deregisterEndpoint` transactions. Endpoints are derived
-automatically from the active roster. Peer endpoint discovery is handled off-chain via the gossip-based
-`discoverEndpoints` RPC (see cross-platform spec §5.4). Peer endpoint data is NOT stored in on-ledger state.
+automatically from the active roster. Peer endpoints are learned from the peer ledger's endpoint manifest, cached
+on the Channel (`Channel.endpoint_manifest`).
 
 ## 11.2 Endpoint Bond
 

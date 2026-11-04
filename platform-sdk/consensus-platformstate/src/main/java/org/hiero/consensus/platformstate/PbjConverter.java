@@ -30,6 +30,7 @@ public final class PbjConverter {
                 toPbjTimestamp(accessor.getFreezeTime()),
                 toPbjTimestamp(accessor.getLastFrozenTime()),
                 accessor.getLatestFreezeRound(),
+                accessor.getEventCutoverMinBirthRound(),
                 Optional.ofNullable(accessor.getLegacyRunningEventHash())
                         .map(Hash::getBytes)
                         .orElse(null));
@@ -84,6 +85,10 @@ public final class PbjConverter {
 
         if (accumulator.isLatestFreezeRoundUpdated()) {
             builder.latestFreezeRound(accumulator.getLatestFreezeRound());
+        }
+
+        if (accumulator.isEventCutoverMinBirthRoundUpdated()) {
+            builder.eventCutoverMinBirthRound(accumulator.getEventCutoverMinBirthRound());
         }
 
         if (accumulator.isLegacyRunningEventHashUpdated()) {

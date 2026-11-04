@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hints;
 
+import static com.hedera.hapi.node.state.hints.CRSStage.COMPLETED;
+import static com.hedera.node.app.hints.HintsLibrary.isSupportedPartySize;
+import static com.hedera.node.app.hints.HintsLibrary.isValidPartyId;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.PreprocessingVote;
-import com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -15,7 +17,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.SortedMap;
 
 /**
  * Gives read access to the primary and secondary hinTS service states.
@@ -62,7 +63,16 @@ public interface ReadableHintsStore {
      */
     default boolean isReadyToAdopt(@NonNull final Bytes rosterHash) {
         final var construction = getNextConstruction();
-        return construction.hasHintsScheme() && construction.targetRosterHash().equals(rosterHash);
+        final var crs = getCrsStateFor(construction);
+        return construction.hasHintsScheme()
+                && construction.targetRosterHash().equals(rosterHash)
+                && construction.crsId() > 0
+                && isSupportedPartySize(construction.numParties())
+                && construction.hintsSchemeOrThrow().nodePartyIds().stream()
+                        .allMatch(p -> isValidPartyId(p.partyId(), construction.numParties()))
+                && crs.stage() == COMPLETED
+                && crs.crs().length() > 0
+                && crs.numParties() == construction.numParties();
     }
 
     /**
@@ -91,15 +101,9 @@ public interface ReadableHintsStore {
     @NonNull
     Map<Long, PreprocessingVote> getVotes(long constructionId, @NonNull Set<Long> nodeIds);
 
-    /**
-     * Returns the hinTS keys published by the given set of nodes for the given party size.
-     *
-     * @param nodeIds    the node ids
-     * @param numParties the number of parties in the scheme
-     * @return the {@link HintsKeyPublication}s
-     */
+    /** Returns publications bound to exactly the requested CRS generation and party capacity. */
     @NonNull
-    List<HintsKeyPublication> getHintsKeyPublications(@NonNull Set<Long> nodeIds, int numParties);
+    List<HintsKeyPublication> getHintsKeyPublications(@NonNull Set<Long> nodeIds, int numParties, long crsId);
 
     /**
      * Returns the current CRS state.
@@ -108,23 +112,27 @@ public interface ReadableHintsStore {
      */
     CRSState getCrsState();
 
-    /**
-     * Returns the current CRS, if known; or null otherwise;
-     */
-    default @Nullable Bytes crsIfKnown() {
-        final var candidate = getCrsState().crs();
-        return candidate.length() > 0 ? candidate : null;
+    /** Returns the isolated next CRS ceremony, or the default state when there is none. */
+    @NonNull
+    CRSState getNextCrsState();
+
+    /** Returns the CRS bound to a construction; unbound or stale references return the default state. */
+    default @NonNull CRSState getCrsStateFor(@NonNull final HintsConstruction construction) {
+        if (construction.crsId() <= 0 || !isSupportedPartySize(construction.numParties())) {
+            return CRSState.DEFAULT;
+        }
+        final var active = getCrsState();
+        if (active.ceremonyId() == construction.crsId() && active.numParties() == construction.numParties()) {
+            return active;
+        }
+        final var next = getNextCrsState();
+        if (next.ceremonyId() == construction.crsId()
+                && next.numParties() == construction.numParties()
+                && next.constructionId() == construction.constructionId()
+                && next.sourceRosterHash().equals(construction.sourceRosterHash())
+                && next.targetRosterHash().equals(construction.targetRosterHash())) {
+            return next;
+        }
+        return CRSState.DEFAULT;
     }
-
-    /**
-     * Returns the current CRS publications submitted by the nodes.
-     *
-     * @return the current CRS publications
-     */
-    List<CrsPublicationTransactionBody> getCrsPublications();
-
-    /**
-     * Returns the current CRS publication for all nodes.
-     */
-    SortedMap<Long, CrsPublicationTransactionBody> getOrderedCrsPublications(@NonNull Set<Long> nodeIds);
 }

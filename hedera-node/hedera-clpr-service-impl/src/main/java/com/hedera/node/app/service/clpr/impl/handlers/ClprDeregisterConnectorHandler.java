@@ -30,6 +30,8 @@ import javax.inject.Singleton;
  *
  * <p>Removes a Connector from the CLPR Service and returns any locked stake
  * to the explicitly specified stake_recipient. Requires the connector's admin_key to sign.
+ * The connector's ownership commitment is deliberately left registered, so the same connector
+ * cannot be registered again.
  */
 @Singleton
 public class ClprDeregisterConnectorHandler extends AbstractClprHandler {

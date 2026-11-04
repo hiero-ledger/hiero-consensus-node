@@ -3,13 +3,16 @@ package org.hiero.consensus.model.event;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import com.hedera.hapi.platform.event.GossipEvent;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.util.Arrays;
+import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.SelfSerializable;
 import org.hiero.base.io.streams.SerializableDataInputStream;
@@ -18,17 +21,24 @@ import org.hiero.base.utility.test.fixtures.io.InputOutputStream;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class GossipEventTest {
 
     /**
-     * Tests the serialization of a {@link GossipEvent} object alonside legacy
+     * Tests the serialization of a {@link GossipEvent} object alongside legacy
      * {@link SelfSerializable} objects.
      */
-    @Test
-    void pbjSerializationTest() throws IOException {
+    @ParameterizedTest
+    @ValueSource(strings = {"SHA-256", "SHA-384"})
+    void pbjSerializationTest(@NonNull final String digestTypeString) throws IOException {
+        final DigestType eventDigestType = DigestType.algorithmNameToDigestType(digestTypeString);
+        if (eventDigestType == null) {
+            fail("Unknown digest type " + digestTypeString);
+        }
         final Randotron r = Randotron.create();
-        final Hash serializable = r.nextHash();
+        final Hash serializable = r.nextHash(eventDigestType);
         final GossipEvent original = new TestingEventBuilder(r)
                 .setAppTransactionCount(2)
                 .setSystemTransactionCount(1)
@@ -45,9 +55,9 @@ public class GossipEventTest {
 
             io.startReading();
 
-            final Hash readSer1 = io.getInput().readSerializable(true, Hash::new);
+            final Hash readSer1 = io.getInput().readSerializable(true, () -> new Hash(eventDigestType));
             final GossipEvent deserialized1 = io.getInput().readPbjRecord(GossipEvent.PROTOBUF);
-            final Hash readSer2 = io.getInput().readSerializable(false, Hash::new);
+            final Hash readSer2 = io.getInput().readSerializable(false, () -> new Hash(eventDigestType));
             final GossipEvent deserialized2 = io.getInput().readPbjRecord(GossipEvent.PROTOBUF);
 
             assertEquals(serializable, readSer1, "the serializable object should be the same as the one written");

@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.service.roster.impl.schemas.V0540RosterSchema;
+import com.hedera.node.app.service.roster.impl.schemas.V0790RosterSchema;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.internal.network.Network;
 import com.swirlds.config.api.Configuration;
@@ -78,7 +79,9 @@ public class RosterServiceImpl implements Service {
     @Override
     public void registerSchemas(@NonNull final SchemaRegistry registry) {
         requireNonNull(registry);
-        registry.register(new V0540RosterSchema(onAdopt, canAdopt, WritableRosterStore::new, onOverrideNetwork));
+        final var v0540Schema = new V0540RosterSchema(onAdopt, canAdopt, WritableRosterStore::new, onOverrideNetwork);
+        registry.register(v0540Schema);
+        registry.register(new V0790RosterSchema(WritableRosterStore::new, v0540Schema::restart));
     }
 
     @Override

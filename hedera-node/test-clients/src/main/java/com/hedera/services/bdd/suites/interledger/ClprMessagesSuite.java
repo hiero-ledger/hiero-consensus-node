@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.interledger;
 
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.protoToPbj;
 import static com.hedera.services.bdd.spec.HapiSpec.networkHapiTest;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.clprGetLedgerConfiguration;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterChannel;
@@ -19,9 +17,9 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
-import static com.hedera.services.bdd.suites.clpr.HieroToHieroBase.POST_SYNC_POINT_SETTLE;
-import static com.hedera.services.bdd.suites.clpr.HieroToHieroBase.awaitWrapsExtensible;
-import static com.hedera.services.bdd.suites.clpr.HieroToHieroBase.awaitWrapsSyncPoint;
+import static com.hedera.services.bdd.suites.clpr.HieroToHieroBase.captureConfigProof;
+import static com.hedera.services.bdd.suites.clpr.HieroToHieroBase.captureManifestProof;
+import static com.hedera.services.bdd.suites.clpr.HieroToHieroBase.multiNetworkHapiTest;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
@@ -30,7 +28,6 @@ import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.CHANNEL
 import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.CLPR_SERVICE_ADDRESS_20;
 import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.CONNECTOR_SALT;
 import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.CONNECTOR_SECRET_KEY;
-import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.buildSyntheticConfigProof;
 import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.computeCommitment;
 import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.deriveConnectorId;
 import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.deriveEcdsaPublicKey;
@@ -43,12 +40,11 @@ import com.google.protobuf.ByteString;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.MultiNetworkHapiTest;
 import com.hedera.services.bdd.junit.MultiNetworkHapiTest.Network;
+import com.hedera.services.bdd.junit.MultiNetworkLeakyHapiTest;
 import com.hedera.services.bdd.junit.TestTags;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.spec.queries.QueryVerbs;
-import com.hederahashgraph.api.proto.java.ClprEndpoint;
 import com.hederahashgraph.api.proto.java.ClprLedgerConfiguration;
-import com.hederahashgraph.api.proto.java.ClprServiceEndpoint;
 import com.hederahashgraph.api.proto.java.ClprSignatureScheme;
 import com.hederahashgraph.api.proto.java.ClprThrottles;
 import com.hederahashgraph.api.proto.java.ContractID;
@@ -71,32 +67,31 @@ import org.junit.jupiter.api.Tag;
  * via {@code ClprChannelManager} auto-sync — no manual {@code clprSubmitBundle}.
  *
  * <p>Partial-bundle support: {@code ClprQueueMetadata.next_message_id} is batch-specific
- * (last message in this bundle + 1, not the channel total). Both {@code HieroTssVerifier}
- * and {@code ClprPassThroughVerifier} compute it as
- * {@code acked_message_id + 1 + msgCount}, enabling partial batching within
+ * (last message in this bundle + 1, not the channel total), enabling partial batching within
  * the {@code maxMessagesPerBundle} limit.
  *
  * <p>Network assignments:
  * <ul>
- *   <li><b>NET_A</b> (port 39400): native Java verifier ({@code 0x16f}). Hosts
- *       {@code SourceApplication} (sender; also serves as the connector contract on this network).
- *   <li><b>NET_B</b> (port 40400): {@code ClprPassThroughVerifier} (Solidity). Hosts
- *       {@code EchoApplication} (echo target + connector contract).
+ *   <li><b>NET_A</b>: hosts {@code SourceApplication} (sender; also serves as the connector contract on
+ *       this network).
+ *   <li><b>NET_B</b>: hosts {@code EchoApplication} (echo target + connector contract).
  * </ul>
  *
- * <p>Seed endpoints in each network's {@code ClprLedgerConfiguration} point to the peer's
- * gRPC port. When a channel is activated, {@code ClprChannelManager.syncTick()} seeds
- * its peer endpoint cache from the local ledger configuration and initiates syncs every ~1s.
+ * <p>Both channels use the CLPR system contract's native verifier ({@code 0x16e}), which runs real TSS +
+ * Merkle verification. Each channel is completed with the peer's TSS-signed config and endpoint-manifest
+ * StateProofs, so both proofs are captured from each network before either channel is completed. Each
+ * channel then dials the peer endpoints in its cached, proven {@code ClprEndpointManifest}.
  */
 @Tag(TestTags.MULTINETWORK)
+@MultiNetworkLeakyHapiTest
 public class ClprMessagesSuite {
 
     private static final String NET_A_CHAIN_ID = "hiero:msgs-a";
     private static final String NET_B_CHAIN_ID = "hiero:msgs-b";
 
     /**
-     * CLPR system contract (precompile) ID. Used as NET_A's verifier so the channel exercises
-     * the precompile's native {@code verifyConfig(bytes)} method, which runs real TSS + Merkle
+     * CLPR system contract (precompile) ID. Used as both networks' verifier so each channel exercises
+     * the precompile's native {@code verifyConfig(bytes,bytes32,bytes)} method, which runs real TSS + Merkle
      * verification (see {@code VerifyConfigCall}).
      */
     private static final long CLPR_SYSTEM_CONTRACT_NUM = 0x16eL;
@@ -106,9 +101,6 @@ public class ClprMessagesSuite {
 
     /** Solidity source application deployed on NET_A; sends messages and tracks responses. */
     public static final String SOURCE_APP = "SourceApplication";
-
-    /** Solidity pass-through verifier deployed on NET_B. */
-    private static final String PASS_THROUGH_VERIFIER = "ClprPassThroughVerifier";
 
     /**
      * Solidity connector-auth contract deployed on NET_A. Implements
@@ -136,6 +128,12 @@ public class ClprMessagesSuite {
     /** Polling interval between responseCount queries. */
     private static final Duration POLL_INTERVAL = Duration.ofSeconds(5);
 
+    /** Bundle size limit installed on both networks; also checked by the config-proof freshness gate. */
+    private static final int MAX_MESSAGES_PER_BUNDLE = 3;
+
+    /** Queue depth limit installed on both networks; also checked by the config-proof freshness gate. */
+    private static final int MAX_QUEUE_DEPTH = 1000;
+
     @MultiNetworkHapiTest({@Network("ledgerA"), @Network("ledgerB")})
     @DisplayName("Multi-message CLPR: 3×7 messages with EchoApplication auto-sync round-trip")
     Stream<DynamicTest> multiMessageRoundTrip(final SubProcessNetwork netA, final SubProcessNetwork netB) {
@@ -152,7 +150,7 @@ public class ClprMessagesSuite {
         final var connectorCommitment = computeCommitment(connectorId, connectorPubKeyBytes);
         final var connectorSig = signConnectorMessage(CONNECTOR_SECRET_KEY, connectorId);
 
-        // ── CLPR system contract (precompile) ContractID — used as NET_A's verifier
+        // ── CLPR system contract (precompile) ContractID — used as both networks' verifier
         final var clprSystemContract =
                 ContractID.newBuilder().setContractNum(CLPR_SYSTEM_CONTRACT_NUM).build();
 
@@ -160,9 +158,13 @@ public class ClprMessagesSuite {
         final int portA = netA.nodes().getFirst().getGrpcPort();
         final int portB = netB.nodes().getFirst().getGrpcPort();
 
-        // ── Captured at runtime after netBSetup: NET_B's real signed StateProof from
-        //    clprGetLedgerConfiguration. Required by the native CLPR precompile verifier on NET_A
+        // ── Each network's real signed config and endpoint-manifest StateProofs, captured via
+        //    clprGetLedgerConfiguration / clprGetEndpointManifest. The native verifier on the peer requires
+        //    both to complete its channel (spec §4.8).
         final AtomicReference<ByteString> configProofForNetA = new AtomicReference<>(ByteString.EMPTY);
+        final AtomicReference<ByteString> manifestProofForNetA = new AtomicReference<>(ByteString.EMPTY);
+        final AtomicReference<ByteString> configProofForNetB = new AtomicReference<>(ByteString.EMPTY);
+        final AtomicReference<ByteString> manifestProofForNetB = new AtomicReference<>(ByteString.EMPTY);
 
         // EchoApplication's ContractID on NET_B, captured during NET_B setup and used when
         // deploying SourceApplication on NET_A.
@@ -172,21 +174,37 @@ public class ClprMessagesSuite {
         // each invocation spec (which has a fresh registry and cannot resolve SOURCE_APP by name).
         final AtomicReference<ContractID> sourceAppIdRef = new AtomicReference<>();
 
+        // ── Step 0: Install NET_A's ledger config so its config StateProof can be captured for NET_B ──
+        final var netAConfigInstall = networkHapiTest(
+                        netA,
+                        // Fund the node account so it can pay for verifier gas dispatches when
+                        // ClprSubmitBundleHandler submits bundles internally.
+                        cryptoTransfer(tinyBarsFromTo(GENESIS, "3", 100_000_000_000L)),
+                        // Install NET_A's local ledger config (chain id, service address, throttles).
+                        // Peers reach A via its endpoint manifest, not via the config's endpoints.
+                        clprUpdateLedgerConfiguration()
+                                .configuration(buildLedgerConfig(NET_A_CHAIN_ID, portA))
+                                .payingWith(GENESIS))
+                .findFirst()
+                .orElseThrow();
+        // NET_A's config and finalized endpoint-manifest StateProofs, threaded into NET_B's completeChannel.
+        final var netAConfigCapture =
+                captureConfigProof(netA, configProofForNetB, MAX_MESSAGES_PER_BUNDLE, MAX_QUEUE_DEPTH);
+        final var netAManifestCapture = captureManifestProof(netA, manifestProofForNetB);
+
         // ── Step 1: Setup NET_B ───────────────────────────────────────────────────────────────────
-        // Deploy PassThroughVerifier + EchoApplication, complete channel/connector, capture
-        // EchoApplication address for use in SourceApplication's constructor.
+        // Deploy EchoApplication, complete channel/connector, capture EchoApplication address for
+        // use in SourceApplication's constructor.
         final var netBSetup = networkHapiTest(
                         netB,
                         // Fund the node account so it can pay for verifier gas dispatches when
                         // ClprSubmitBundleHandler submits bundles internally.
                         cryptoTransfer(tinyBarsFromTo(GENESIS, "3", 100_000_000_000L)),
-                        // Update NET_B's local ledger config with NET_B's OWN gRPC port — peers
-                        // read this from the StateProof-attested config to know where to reach B.
+                        // Install NET_B's local ledger config (chain id, service address, throttles).
+                        // Peers reach B via its endpoint manifest, not via the config's endpoints.
                         clprUpdateLedgerConfiguration()
                                 .configuration(buildLedgerConfig(NET_B_CHAIN_ID, portB))
                                 .payingWith(GENESIS),
-                        uploadInitCode(PASS_THROUGH_VERIFIER),
-                        contractCreate(PASS_THROUGH_VERIFIER),
                         uploadInitCode(ECHO_APP),
                         contractCreate(ECHO_APP),
                         // Fund EchoApplication as the connector contract: must cover
@@ -196,26 +214,23 @@ public class ClprMessagesSuite {
                                 .ownershipCommitment(channelCommitment.toByteArray())
                                 .payingWith(GENESIS)
                                 .via("registerChannelB"),
-                        // NET_B uses ClprPassThroughVerifier. The Solidity verifier walks the
-                        // payload as a StateProof (paths → state_item_leaf → StateValue) and
-                        // unwraps the LedgerConfiguration from the first StateValue field —
-                        // raw protobuf bytes would revert. {@link #buildSyntheticConfigProof}
-                        // produces the required wire shape.
-                        clprCompleteChannel()
+                        // NET_B uses the CLPR precompile's native verifyConfig — requires real
+                        // TSS-signed config and endpoint-manifest StateProofs captured from NET_A above.
+                        // sourcing(...) defers both .get() calls until runtime so the captured values are
+                        // visible.
+                        sourcing(() -> clprCompleteChannel()
                                 .channelId(CHANNEL_ID.toByteArray())
                                 .publicKey(connPubKey64)
                                 .signature(channelSig)
                                 .signatureScheme(ClprSignatureScheme.ECDSA_SECP256K1)
-                                .verifierContract(PASS_THROUGH_VERIFIER)
-                                // Verifier-returned config must carry throttles + non-empty endpoints
-                                // (ClprCompleteChannelHandler step 5 / spec §5.1.3).
-                                .configProofBytes(buildSyntheticConfigProof(protoToPbj(
-                                                buildLedgerConfig(NET_A_CHAIN_ID, portA),
-                                                com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration.class))
-                                        .toByteArray())
+                                .verifierContractId(clprSystemContract)
+                                .configProofBytes(configProofForNetB.get().toByteArray())
+                                .endpointManifestProofBytes(
+                                        manifestProofForNetB.get().toByteArray())
                                 .payingWith(GENESIS)
-                                .via("completeChannelB"),
+                                .via("completeChannelB")),
                         clprRegisterConnector()
+                                .channelId(CHANNEL_ID.toByteArray())
                                 .commitment(connectorCommitment.toByteArray())
                                 .payingWith(GENESIS)
                                 .via("registerConnectorB"),
@@ -232,16 +247,13 @@ public class ClprMessagesSuite {
                                 .payingWith(GENESIS)
                                 .via("completeConnectorB"),
                         withOpContext((spec, opLog) ->
-                                echoContractIdRef.set(spec.registry().getContractId(ECHO_APP))),
-                        withOpContext((spec, opLog) -> {
-                            awaitWrapsExtensible(netB);
-                            awaitWrapsSyncPoint(netB);
-                            Thread.sleep(POST_SYNC_POINT_SETTLE.toMillis());
-                        }),
-                        // capture net B state proof
-                        clprGetLedgerConfiguration().payingWith(GENESIS).exposingProofTo(configProofForNetA::set))
+                                echoContractIdRef.set(spec.registry().getContractId(ECHO_APP))))
                 .findFirst()
                 .orElseThrow();
+        // NET_B's config and finalized endpoint-manifest StateProofs, threaded into NET_A's completeChannel.
+        final var netBConfigCapture =
+                captureConfigProof(netB, configProofForNetA, MAX_MESSAGES_PER_BUNDLE, MAX_QUEUE_DEPTH);
+        final var netBManifestCapture = captureManifestProof(netB, manifestProofForNetA);
 
         // ── Step 2: Setup NET_A ───────────────────────────────────────────────────────────────────
         // Deploy SourceApplication and complete channel/connector. SourceApplication is
@@ -249,14 +261,9 @@ public class ClprMessagesSuite {
         // address from NET_B. SourceApplication itself serves as the connector contract on
         // NET_A — it holds HBAR for slashing and is the correct entity to vouch for outbound
         // messages. No EchoApplication is deployed on NET_A; echoing is done only on NET_B.
+        // NET_A's ledger config was installed in Step 0.
         final var netASetup = networkHapiTest(
                         netA,
-                        cryptoTransfer(tinyBarsFromTo(GENESIS, "3", 100_000_000_000L)),
-                        // Update NET_A's local ledger config with NET_A's OWN gRPC port — peers
-                        // read this from the StateProof-attested config to know where to reach A.
-                        clprUpdateLedgerConfiguration()
-                                .configuration(buildLedgerConfig(NET_A_CHAIN_ID, portA))
-                                .payingWith(GENESIS),
                         // Deploy the connector-auth contract — implements authorizeOutboundMessage
                         uploadInitCode(CONNECTOR_AUTH),
                         contractCreate(CONNECTOR_AUTH),
@@ -277,9 +284,10 @@ public class ClprMessagesSuite {
                                 .ownershipCommitment(channelCommitment.toByteArray())
                                 .payingWith(GENESIS)
                                 .via("registerChannelA"),
-                        // NET_A uses the CLPR precompile's native verifyConfig — requires a real
-                        // TSS-signed StateProof captured from NET_B above. sourcing(...) defers
-                        // configProofForNetA.get() until runtime so the captured value is visible.
+                        // NET_A uses the CLPR precompile's native verifyConfig — requires real
+                        // TSS-signed config and endpoint-manifest StateProofs captured from NET_B above.
+                        // sourcing(...) defers both .get() calls until runtime so the captured values are
+                        // visible.
                         sourcing(() -> clprCompleteChannel()
                                 .channelId(CHANNEL_ID.toByteArray())
                                 .publicKey(connPubKey64)
@@ -287,9 +295,12 @@ public class ClprMessagesSuite {
                                 .signatureScheme(ClprSignatureScheme.ECDSA_SECP256K1)
                                 .verifierContractId(clprSystemContract)
                                 .configProofBytes(configProofForNetA.get().toByteArray())
+                                .endpointManifestProofBytes(
+                                        manifestProofForNetA.get().toByteArray())
                                 .payingWith(GENESIS)
                                 .via("completeChannelA")),
                         clprRegisterConnector()
+                                .channelId(CHANNEL_ID.toByteArray())
                                 .commitment(connectorCommitment.toByteArray())
                                 .payingWith(GENESIS)
                                 .via("registerConnectorA"),
@@ -359,43 +370,42 @@ public class ClprMessagesSuite {
                     .findFirst()
                     .orElseThrow();
         }
-        return Stream.concat(Stream.of(netBSetup, netASetup), Stream.of(invocationTests));
+        return multiNetworkHapiTest(
+                "multiMessageRoundTrip",
+                Stream.concat(
+                        Stream.of(
+                                netAConfigInstall,
+                                netAConfigCapture,
+                                netAManifestCapture,
+                                netBSetup,
+                                netBConfigCapture,
+                                netBManifestCapture,
+                                netASetup),
+                        Stream.of(invocationTests)));
     }
 
     /**
      * Builds a {@link ClprLedgerConfiguration} (proto-java) suitable for
-     * {@link com.hedera.services.bdd.spec.transactions.clpr.HapiClprUpdateLedgerConfiguration}
-     * or as raw {@code configProofBytes} for {@code ClprPassThroughVerifier}.
+     * {@link com.hedera.services.bdd.spec.transactions.clpr.HapiClprUpdateLedgerConfiguration}.
      *
-     * <p>Sets {@code chainId}, a single seed endpoint at {@code 127.0.0.1:peerPort}, and
-     * non-zero throttles (all fields required by {@code ClprUpdateLedgerConfigurationHandler}
-     * validation). The seed endpoint's {@code tlsCertificate} and {@code ecdsaSigningKey} are
-     * single-byte dummies — sufficient to pass field-presence checks, but not used for actual
-     * mTLS or endpoint authentication in test contexts.
+     * <p>Sets {@code chainId}, the 20-byte CLPR service address, a single endpoint at
+     * {@code 127.0.0.1:peerPort}, and non-zero throttles (all fields required by
+     * {@code ClprUpdateLedgerConfigurationHandler} validation). The service address must equal the
+     * one in this ledger's endpoint manifest, which the native verifier enforces (spec §4.8). The
+     * endpoint is not a dial target — peers dial from the manifest — and its {@code tlsCertificate}
+     * is a single-byte dummy, not used for actual TLS in test contexts.
      */
     private static ClprLedgerConfiguration buildLedgerConfig(final String chainId, final int peerPort) {
         return ClprLedgerConfiguration.newBuilder()
                 .setChainId(chainId)
-                .setServiceAddress(ByteString.copyFrom(new byte[] {0, 0, 0x01, 0x6e}))
-                .addEndpoints(ClprEndpoint.newBuilder()
-                        .setServiceEndpoint(ClprServiceEndpoint.newBuilder()
-                                .setIpAddress("127.0.0.1")
-                                .setPort(peerPort)
-                                .build())
-                        .setTlsCertificate(ByteString.copyFrom(new byte[] {0x01}))
-                        .build())
+                .setServiceAddress(ByteString.copyFrom(CLPR_SERVICE_ADDRESS_20))
                 .setThrottles(ClprThrottles.newBuilder()
-                        .setMaxMessagesPerBundle(3)
+                        .setMaxMessagesPerBundle(MAX_MESSAGES_PER_BUNDLE)
                         .setMaxMessagePayloadBytes(65536)
                         .setMaxGasPerMessage(1_000_000L)
-                        .setMaxQueueDepth(1000)
+                        .setMaxQueueDepth(MAX_QUEUE_DEPTH)
                         .setMaxSyncBytes(1_048_576L)
                         .build())
                 .build();
-    }
-
-    static {
-        // Eager symbol reference so any missing imports surface at class-init rather than mid-test.
-        final var ignored = CLPR_SERVICE_ADDRESS_20.length;
     }
 }

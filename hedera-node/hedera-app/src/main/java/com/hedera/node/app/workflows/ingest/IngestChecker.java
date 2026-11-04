@@ -7,7 +7,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CHANNE
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CONNECTOR;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_DEREGISTER_CONNECTOR;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_ENDPOINT_PUBLICATION;
-import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_REDACT_MESSAGE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_MAINTENANCE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_REGISTER_CHANNEL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_REGISTER_CONNECTOR;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SUBMIT_BUNDLE;
@@ -128,8 +128,8 @@ public final class IngestChecker {
             CLPR_COMPLETE_CONNECTOR,
             CLPR_DEREGISTER_CONNECTOR,
             CLPR_SUBMIT_BUNDLE,
-            CLPR_REDACT_MESSAGE,
-            CLPR_ENDPOINT_PUBLICATION);
+            CLPR_ENDPOINT_PUBLICATION,
+            CLPR_MAINTENANCE);
     private static final Set<HederaFunctionality> UNSUPPORTED_TRANSACTIONS =
             EnumSet.of(CRYPTO_ADD_LIVE_HASH, CRYPTO_DELETE_LIVE_HASH, UNCHECKED_SUBMIT);
     private static final Set<HederaFunctionality> PRIVILEGED_TRANSACTIONS =
@@ -529,7 +529,7 @@ public final class IngestChecker {
             }
         }
         if (!clprConfig.enabled() && CLPR_TRANSACTIONS.contains(function)) {
-            logger.error("Cannot submit CLPR transaction {} because clpr.enabled is false", function);
+            logger.debug("Cannot submit CLPR transaction {} because clpr.enabled is false", function);
             throw new PreCheckException(CLPR_NOT_ENABLED);
         }
     }

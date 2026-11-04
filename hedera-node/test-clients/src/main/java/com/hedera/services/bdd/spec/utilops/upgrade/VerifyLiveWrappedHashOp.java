@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops.upgrade;
 
-import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO;
-import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
+import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.utilops.UtilOp;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import org.hiero.base.crypto.DigestType;
 import org.junit.jupiter.api.Assertions;
 
 /**
@@ -36,8 +37,11 @@ public class VerifyLiveWrappedHashOp extends UtilOp {
         final long endBlock = Long.parseLong(liveBlockNum);
 
         // Replay .rcd files from genesis through the live-hash block
-        final var hasher = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0L);
-        final var result = RcdFileBlockHashReplay.replay(spec, -1, endBlock, HASH_OF_ZERO, hasher);
+        final var digestTypeName = spec.startupProperties().get("blockStream.digestType");
+        final var digestType = digestTypeName != null ? DigestType.valueOf(digestTypeName) : DigestType.SHA_384;
+        final var hasher = new IncrementalStreamingHasher(CommonUtils.digestOrThrow(digestType), List.of(), 0L);
+        final var result = RcdFileBlockHashReplay.replay(
+                spec, -1, endBlock, BlockStreamManager.hashOfZero(digestType), hasher, digestType);
 
         // Final hash assertion: .rcd chain vs node logged hash
         Assertions.assertEquals(

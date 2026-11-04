@@ -222,6 +222,12 @@ message QuiescenceRequest {
   QuiescenceCommand command = 1;
 }
 
+// Request to send a ping message to the instrumented modules of the node.
+message InstrumentationPingRequest {
+  // The ping message
+  string message = 1;
+}
+
 
 // Service definition for communicating with the consensus node.
 service NodeCommunicationService {
@@ -241,4 +247,7 @@ service NodeCommunicationService {
 
   // RPC to control quiescence of the node.
   rpc QuiescenceCommandUpdate(QuiescenceRequest) returns (google.protobuf.Empty);
+
+  // RPC to send a ping message to the instrumented modules of the node.
+  rpc InstrumentationPing(InstrumentationPingRequest) returns (google.protobuf.Empty);
 }

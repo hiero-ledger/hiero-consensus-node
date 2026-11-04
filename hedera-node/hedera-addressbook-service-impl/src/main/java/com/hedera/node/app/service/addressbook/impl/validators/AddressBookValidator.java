@@ -26,8 +26,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.REGISTERED_ENDPOINTS_EX
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SERVICE_ENDPOINTS_EXCEEDED_LIMIT;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isEmpty;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isValid;
-import static com.hedera.node.app.service.addressbook.AddressBookHelper.readCertificatePemFile;
 import static com.hedera.node.app.service.addressbook.AddressBookHelper.writeCertificatePemFile;
+import static com.hedera.node.app.spi.validation.AttributeValidator.isWithinNestedKeyLimit;
 import static com.hedera.node.app.spi.validation.Validations.validateAccountID;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
@@ -41,6 +41,7 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.hapi.utils.EntityType;
+import com.hedera.node.app.service.addressbook.AddressBookHelper;
 import com.hedera.node.app.service.addressbook.ReadableAccountNodeRelStore;
 import com.hedera.node.app.service.addressbook.ReadableRegisteredNodeStore;
 import com.hedera.node.app.service.token.ReadableAccountStore;
@@ -150,7 +151,7 @@ public class AddressBookValidator {
     public void validateAdminKey(@Nullable Key key) throws PreCheckException {
         final var keyEmpty = isEmpty(key);
         validateFalsePreCheck(keyEmpty, KEY_REQUIRED);
-        validateTruePreCheck(isValid(key), INVALID_ADMIN_KEY);
+        validateTruePreCheck(isValid(key) && isWithinNestedKeyLimit(key), INVALID_ADMIN_KEY);
     }
 
     /**
@@ -276,8 +277,9 @@ public class AddressBookValidator {
         final var baos = new ByteArrayOutputStream();
         writeCertificatePemFile(x509CertBytes.toByteArray(), baos);
         // Deserialize an X509 certificate from the resulting PEM file
-        final var bais = new ByteArrayInputStream(baos.toByteArray());
-        return readCertificatePemFile(bais);
+        try (final var bais = new ByteArrayInputStream(baos.toByteArray())) {
+            return AddressBookHelper.readCertificatePemStream(bais);
+        }
     }
 
     /**

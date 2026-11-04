@@ -80,22 +80,22 @@ class AtomicUpdateFailuresSpec {
                 cryptoCreate(CIVILIAN),
                 atomicBatch(fileUpdate(ADDRESS_BOOK).payingWith(CIVILIAN).batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
-                        .hasPrecheckFrom(AUTHORIZATION_FAILED),
+                        .hasPrecheck(AUTHORIZATION_FAILED),
                 atomicBatch(fileUpdate(NODE_DETAILS).payingWith(CIVILIAN).batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
-                        .hasPrecheckFrom(AUTHORIZATION_FAILED),
+                        .hasPrecheck(AUTHORIZATION_FAILED),
                 atomicBatch(fileUpdate(API_PERMISSIONS).payingWith(CIVILIAN).batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
-                        .hasPrecheckFrom(AUTHORIZATION_FAILED),
+                        .hasPrecheck(AUTHORIZATION_FAILED),
                 atomicBatch(fileUpdate(APP_PROPERTIES).payingWith(CIVILIAN).batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
-                        .hasPrecheckFrom(AUTHORIZATION_FAILED),
+                        .hasPrecheck(AUTHORIZATION_FAILED),
                 atomicBatch(fileUpdate(SIMPLE_FEE_SCHEDULE).payingWith(CIVILIAN).batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
-                        .hasPrecheckFrom(AUTHORIZATION_FAILED),
+                        .hasPrecheck(AUTHORIZATION_FAILED),
                 atomicBatch(fileUpdate(EXCHANGE_RATES).payingWith(CIVILIAN).batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
-                        .hasPrecheckFrom(AUTHORIZATION_FAILED));
+                        .hasPrecheck(AUTHORIZATION_FAILED));
     }
 
     @HapiTest

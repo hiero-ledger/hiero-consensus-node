@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.creator.impl.tipset;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.assignNGenAndDistributeEvent;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.buildEventCreator;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.buildSimulatedNodes;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -23,8 +21,9 @@ import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterWrapper;
+import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
 import org.hiero.consensus.model.transaction.TimestampedTransaction;
-import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -43,7 +42,7 @@ public class EventCreationTimeTests {
         // Common test set up. We initialize a network to make it easier to create events.
         final int networkSize = 1;
         final Random random = Randotron.create();
-        final Roster roster = RosterFactory.randomRoster(random, networkSize);
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(random, networkSize);
         transactionPool = new ArrayList<>();
         eventCreator = buildEventCreator(
                 random,
@@ -72,11 +71,10 @@ public class EventCreationTimeTests {
     @Test
     void genesisWallClock() {
         final var firstEvent = eventCreator.maybeCreateEvent();
-        assertNotNull(firstEvent);
-        assertEquals(
-                time.now(),
-                firstEvent.getTimeCreated(),
-                "The genesis event should use the wall-clock time if it has no other inputs");
+        assertThat(firstEvent).isNotNull();
+        assertThat(firstEvent.getTimeCreated())
+                .describedAs("The genesis event should use the wall-clock time if it has no other inputs")
+                .isEqualTo(time.now());
     }
 
     /**
@@ -87,11 +85,10 @@ public class EventCreationTimeTests {
         addTransaction(time.now().minusSeconds(1));
         addTransaction(time.now().plusSeconds(1));
         final var firstEvent = eventCreator.maybeCreateEvent();
-        assertNotNull(firstEvent);
-        assertEquals(
-                time.now().plusSeconds(1),
-                firstEvent.getTimeCreated(),
-                "A genesis event with transactions should use the max transaction time");
+        assertThat(firstEvent).isNotNull();
+        assertThat(firstEvent.getTimeCreated())
+                .describedAs("A genesis event with transactions should use the max transaction time")
+                .isEqualTo(time.now().plusSeconds(1));
     }
 
     /**
@@ -103,11 +100,10 @@ public class EventCreationTimeTests {
         final Instant genesisWindowTime = time.now();
         time.tick(Duration.ofSeconds(1));
         final var firstEvent = eventCreator.maybeCreateEvent();
-        assertNotNull(firstEvent);
-        assertEquals(
-                genesisWindowTime,
-                firstEvent.getTimeCreated(),
-                "The genesis event should use the event window time if it has no other inputs");
+        assertThat(firstEvent).isNotNull();
+        assertThat(firstEvent.getTimeCreated())
+                .describedAs("The genesis event should use the event window time if it has no other inputs")
+                .isEqualTo(genesisWindowTime);
     }
 
     /**
@@ -117,16 +113,15 @@ public class EventCreationTimeTests {
     void selfParentTimeCreatedDrivesChildCreationTime() {
         // genesis event
         final var firstEvent = eventCreator.maybeCreateEvent();
-        assertNotNull(firstEvent);
+        assertThat(firstEvent).isNotNull();
 
         // no other inputs that would advance the time beyond the self-parent's timeCreated,
         // so the child should be exactly 1 nanosecond after.
         final var secondEvent = eventCreator.maybeCreateEvent();
-        assertNotNull(secondEvent);
-        assertEquals(
-                firstEvent.getTimeCreated().plusNanos(1),
-                secondEvent.getTimeCreated(),
-                "The child's creation time should advance from the self-parent's timeCreated");
+        assertThat(secondEvent).isNotNull();
+        assertThat(secondEvent.getTimeCreated())
+                .describedAs("The child's creation time should advance from the self-parent's timeCreated")
+                .isEqualTo(firstEvent.getTimeCreated().plusNanos(1));
     }
 
     /**
@@ -138,16 +133,15 @@ public class EventCreationTimeTests {
     void selfParentTimeReceivedDoesNotAffectChild() {
         // genesis event
         final var firstEvent = eventCreator.maybeCreateEvent();
-        assertNotNull(firstEvent);
+        assertThat(firstEvent).isNotNull();
 
         // set timeReceived to something far in the future — should have no effect
         firstEvent.setTimeReceived(firstEvent.getTimeCreated().plusSeconds(10));
         final var secondEvent = eventCreator.maybeCreateEvent();
-        assertNotNull(secondEvent);
-        assertEquals(
-                firstEvent.getTimeCreated().plusNanos(1),
-                secondEvent.getTimeCreated(),
-                "The self-parent's timeReceived should not influence the child's creation time");
+        assertThat(secondEvent).isNotNull();
+        assertThat(secondEvent.getTimeCreated())
+                .describedAs("The self-parent's timeReceived should not influence the child's creation time")
+                .isEqualTo(firstEvent.getTimeCreated().plusNanos(1));
     }
 
     /**
@@ -157,22 +151,22 @@ public class EventCreationTimeTests {
     @Test
     void otherParentTimeReceivedDrivesChildCreationTime() {
         final Random random = Randotron.create();
-        final Roster roster = RosterFactory.randomRoster(random, 2);
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(random, 2);
         final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(random, time, roster, List::of);
         final Map<EventDescriptorWrapper, PlatformEvent> events = new HashMap<>();
 
-        final NodeId nodeA = NodeId.of(roster.rosterEntries().getFirst().nodeId());
-        final NodeId nodeB = NodeId.of(roster.rosterEntries().getLast().nodeId());
+        final NodeId nodeA = roster.rosterEntries().getFirst().nodeId();
+        final NodeId nodeB = roster.rosterEntries().getLast().nodeId();
 
         // Both nodes create their genesis events
         final PlatformEvent genesis0 = nodes.get(nodeA).eventCreator().maybeCreateEvent();
-        assertNotNull(genesis0);
+        assertThat(genesis0).isNotNull();
         assignNGenAndDistributeEvent(nodes, events, genesis0);
 
         time.tick(Duration.ofSeconds(1));
 
         final PlatformEvent genesis1 = nodes.get(nodeB).eventCreator().maybeCreateEvent();
-        assertNotNull(genesis1);
+        assertThat(genesis1).isNotNull();
         assignNGenAndDistributeEvent(nodes, events, genesis1);
 
         // Override the other parent's timeReceived to be far in the future,
@@ -183,28 +177,28 @@ public class EventCreationTimeTests {
         // Node 0 creates a second event — should pick genesis1 as other parent
         // and use its timeReceived (not timeCreated) for the creation time calculation.
         final PlatformEvent childEvent = nodes.get(nodeA).eventCreator().maybeCreateEvent();
-        assertNotNull(childEvent);
-        assertEquals(
-                otherTimeReceived,
-                childEvent.getTimeCreated(),
-                "The child's creation time should be based on the other parent's timeReceived, not timeCreated");
+        assertThat(childEvent).isNotNull();
+        assertThat(childEvent.getTimeCreated())
+                .describedAs(
+                        "The child's creation time should be based on the other parent's timeReceived, not timeCreated")
+                .isEqualTo(otherTimeReceived);
     }
 
     @Test
     void maxTransaction() {
         // genesis event
         final var firstEvent = eventCreator.maybeCreateEvent();
-        assertNotNull(firstEvent);
+        assertThat(firstEvent).isNotNull();
 
         addTransaction(firstEvent.getTimeReceived().minusSeconds(1));
         addTransaction(firstEvent.getTimeReceived().plusSeconds(1));
 
         final var secondEvent = eventCreator.maybeCreateEvent();
-        assertNotNull(secondEvent);
-        assertEquals(
-                firstEvent.getTimeReceived().plusSeconds(1),
-                secondEvent.getTimeCreated(),
-                "An event's creation time should equal the highest input, which in this case is a transaction");
+        assertThat(secondEvent).isNotNull();
+        assertThat(secondEvent.getTimeCreated())
+                .describedAs(
+                        "An event's creation time should equal the highest input, which in this case is a transaction")
+                .isEqualTo(firstEvent.getTimeReceived().plusSeconds(1));
     }
 
     /**
@@ -218,17 +212,45 @@ public class EventCreationTimeTests {
 
         // genesis event
         final var firstEvent = eventCreator.maybeCreateEvent();
-        assertNotNull(firstEvent);
+        assertThat(firstEvent).isNotNull();
 
         // add inputs with an earlier time than the self-parent
         addTransaction(firstEvent.getTimeCreated().minusSeconds(2));
 
         final var secondEvent = eventCreator.maybeCreateEvent();
-        assertNotNull(secondEvent);
-        assertEquals(
-                firstEvent.getTimeCreated().plusNanos(1),
-                secondEvent.getTimeCreated(),
-                "If the maximum time received of all parents is not higher than the time created of the self "
-                        + "parent, the event creator should add a nanosecond to make it higher");
+        assertThat(secondEvent).isNotNull();
+        assertThat(secondEvent.getTimeCreated())
+                .describedAs(
+                        "If the maximum time received of all parents is not higher than the time created of the self parent, the event creator should add a nanosecond to make it higher")
+                .isEqualTo(firstEvent.getTimeCreated().plusNanos(1));
+    }
+
+    /**
+     * Verifies that the last stage time of a new event is the time its transactions are taken from the pool.
+     */
+    @Test
+    void lastStageTimeIsWhenTheTransactionsAreTaken() {
+        final Random random = Randotron.create();
+        final Instant takenTime = time.now();
+        final EventCreator creator = buildEventCreator(
+                random,
+                time,
+                RosterWrapperFactory.randomRoster(random, 1),
+                NodeId.of(0),
+                () -> {
+                    // taking the transactions and everything after it take 5 ms
+                    time.tick(Duration.ofMillis(5));
+                    return List.of();
+                },
+                1);
+
+        final var event = creator.maybeCreateEvent();
+        assertThat(event).isNotNull();
+        assertThat(event.getLastStageTime())
+                .describedAs("The last stage time of a new event should be the time its transactions were taken")
+                .isEqualTo(takenTime);
+        assertThat(event.getTimeReceived())
+                .describedAs("The time received of a new event should be the time it was signed")
+                .isEqualTo(takenTime.plusMillis(5));
     }
 }

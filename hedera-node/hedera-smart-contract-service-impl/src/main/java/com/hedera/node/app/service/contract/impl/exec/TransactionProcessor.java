@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_EXECUTION_EXCEPTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
@@ -38,6 +39,8 @@ import com.hedera.node.config.data.ContractsConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.Comparator;
+import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hyperledger.besu.datatypes.Address;
@@ -83,7 +86,10 @@ public class TransactionProcessor {
     /**
      * Records the two or three parties involved in a transaction.
      *
-     * @param sender the externally-operated account that signed the transaction (AKA the "origin")
+     * @param sender the externally-operated account that signed the transaction (AKA the "origin"); null
+     *     only for a native CLPR dispatch, which has no sender account
+     * @param senderId the id of the sender, taken from the transaction for a native CLPR dispatch
+     * @param senderAddress the EVM address of the sender, taken from the transaction for a native CLPR dispatch
      * @param relayer if non-null, the account relayed an Ethereum transaction on behalf of the sender
      * @param receiverAddress the address of the account receiving the top-level call
      */
@@ -204,7 +210,10 @@ public class TransactionProcessor {
         // Add code delegation result
         result = result.withCodeDelegationResult(codeDelegationResult);
 
-        // Maybe refund some of the charged fees before committing if gas was charged in this processor.
+        // Finalize before refunding: a handled commit failure consumes the full gas limit. Recording a
+        // refund first would survive in the rollback handler's gas events even after its state is reverted.
+        result = safeCommit(
+                result, transaction, updater, context, accessTrackerFor(initialFrame), initialFrame.getSelfDestructs());
         if (!gasIsPrepaid) {
             gasCharging.maybeRefundGiven(
                     transaction.unusedGas(result.gasUsed()),
@@ -214,10 +223,7 @@ public class TransactionProcessor {
                     context,
                     updater);
         }
-        initialFrame.getSelfDestructs().forEach(updater::deleteAccount);
-
-        // Tries to commit and return the original result; returns a fees-only result on resource exhaustion
-        return safeCommit(result, transaction, updater, context, accessTrackerFor(initialFrame));
+        return result;
     }
 
     private InvolvedParties computeInvolvedPartiesOrAbort(
@@ -253,8 +259,15 @@ public class TransactionProcessor {
             @NonNull final HederaEvmTransaction transaction,
             @NonNull final HederaWorldUpdater updater,
             @NonNull final HederaEvmContext context,
-            @Nullable final StorageAccessTracker accessTracker) {
+            @Nullable final StorageAccessTracker accessTracker,
+            @NonNull final Set<Address> selfDestructs) {
         try {
+            if (result.isSuccess()) {
+                // Child records must have a deterministic order and share the commit's rollback boundary.
+                selfDestructs.stream()
+                        .sorted(Comparator.comparing(Address::getBytes))
+                        .forEach(updater::deleteAccount);
+            }
             updater.commit();
             if (result.isSuccess()) {
                 final var txStorageUsage = txStorageUsageFrom((ProxyWorldUpdater) updater, accessTracker, true);
@@ -263,14 +276,18 @@ public class TransactionProcessor {
                 }
             }
             return result;
-        } catch (final ResourceExhaustedException e) {
-            updater.revert();
-            final var sender = updater.getHederaAccount(transaction.senderId());
-            return resourceExhaustionFrom(
-                    sender == null ? transaction.senderId() : sender.hederaId(),
-                    transaction.gasLimit(),
-                    context.gasPrice(),
-                    e.getStatus());
+        } catch (final HandleException e) {
+            if (e instanceof ResourceExhaustedException || e.getStatus() == CONTRACT_EXECUTION_EXCEPTION) {
+                updater.revert();
+                final var sender = updater.getHederaAccount(transaction.senderId());
+                return resourceExhaustionFrom(
+                        sender == null ? transaction.senderId() : sender.hederaId(),
+                        transaction.gasLimit(),
+                        context.gasPrice(),
+                        e.getStatus());
+            } else {
+                throw e;
+            }
         }
     }
 
@@ -298,6 +315,9 @@ public class TransactionProcessor {
             @NonNull final Configuration config) {
         final var sender = updater.getHederaAccount(transaction.senderId());
         final var isNativeClprDispatch = transaction.isClprDispatch();
+        // Only a native CLPR dispatch may run without a sender account. It carries its own sender id and
+        // address and its gas is prepaid, so this processor never dereferences the missing account;
+        // Ethereum transactions still require it (checked below).
         validateTrue(sender != null || isNativeClprDispatch, INVALID_ACCOUNT_ID);
         final var senderId = isNativeClprDispatch
                 ? transaction.senderId()

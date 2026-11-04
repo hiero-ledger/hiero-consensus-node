@@ -375,7 +375,7 @@ class EventIntakeProcessorStressTests {
         final RosterWrapper roster = createRosterWrapper(entry);
         final List<RosterWrapperHistory> histories = new ArrayList<>();
         for (int i = 0; i < 5; i++) {
-            // All valid — same roster, just different RosterHistory instances to trigger cache invalidation
+            // All valid — same roster, just different RosterWrapperHistory instances to trigger cache invalidation
             histories.add(createRosterWrapperHistory(ROSTER_ROUND, roster));
         }
 

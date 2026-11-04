@@ -232,7 +232,7 @@ public class ContractUpdateSuite {
                         .adminKey(ADMIN_KEY)
                         .entityMemo(firstMemo),
                 contractUpdate(CONTRACT).newMemo(secondMemo),
-                contractUpdate(CONTRACT).newMemo(ZERO_BYTE_MEMO).hasPrecheck(INVALID_ZERO_BYTE_IN_STRING),
+                contractUpdate(CONTRACT).newMemo(ZERO_BYTE_MEMO).hasKnownStatus(INVALID_ZERO_BYTE_IN_STRING),
                 getContractInfo(CONTRACT).has(contractWith().memo(secondMemo)),
                 contractUpdate(CONTRACT).useDeprecatedMemoField().newMemo(thirdMemo),
                 getContractInfo(CONTRACT).has(contractWith().memo(thirdMemo)));

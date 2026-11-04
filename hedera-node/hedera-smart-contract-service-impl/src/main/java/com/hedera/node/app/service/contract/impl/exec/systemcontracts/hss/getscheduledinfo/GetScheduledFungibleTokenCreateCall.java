@@ -3,6 +3,8 @@ package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.getsc
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SCHEDULE_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.RECORD_NOT_FOUND;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SCHEDULE_ALREADY_DELETED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SCHEDULE_ALREADY_EXECUTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.revertResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.successResult;
@@ -11,8 +13,10 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.TokenTupleUtils.fungibleTokenInfoTupleFor;
 
 import com.esaulpaugh.headlong.abi.Tuple;
+import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.TokenType;
+import com.hedera.hapi.node.state.token.Token;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCall;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater.Enhancement;
@@ -45,6 +49,14 @@ public class GetScheduledFungibleTokenCreateCall extends AbstractCall {
             return gasOnly(
                     revertResult(RECORD_NOT_FOUND, gasCalculator.viewGasRequirement()), RECORD_NOT_FOUND, isViewCall);
         }
+        // HIP-756 removes a schedule upon execution, and a deleted schedule is likewise no longer pending,
+        // so report its status with an empty info
+        if (schedule.executed()) {
+            return emptyInfoResult(SCHEDULE_ALREADY_EXECUTED);
+        }
+        if (schedule.deleted()) {
+            return emptyInfoResult(SCHEDULE_ALREADY_DELETED);
+        }
         // Validate that give schedule is a token creation schedule
         if (schedule.scheduledTransaction() == null
                 || schedule.scheduledTransaction().tokenCreation() == null) {
@@ -63,17 +75,36 @@ public class GetScheduledFungibleTokenCreateCall extends AbstractCall {
         }
 
         // Return the token create transaction body parsed to fungible token info tuple
-        final var ledgerId = Bytes.wrap(
-                        enhancement.nativeOperations().ledgerId().toByteArray())
-                .toString();
         return gasOnly(
                 successResult(
                         GET_SCHEDULED_CREATE_FUNGIBLE_TOKEN_INFO
                                 .getOutputs()
                                 .encode(Tuple.of(
-                                        SUCCESS.protoOrdinal(), fungibleTokenInfoTupleFor(tokenCreation, ledgerId, 1))),
+                                        SUCCESS.protoOrdinal(),
+                                        fungibleTokenInfoTupleFor(tokenCreation, ledgerIdString(), 1))),
                         gasCalculator.viewGasRequirement()),
                 SUCCESS,
                 isViewCall);
+    }
+
+    /**
+     * Returns a non-reverting result with the given status and an empty fungible token info, using the same output
+     * encoding as the HTS token info calls for a missing token (status plus {@link Token#DEFAULT} info).
+     */
+    private PricedResult emptyInfoResult(@NonNull final ResponseCodeEnum status) {
+        return gasOnly(
+                successResult(
+                        GET_SCHEDULED_CREATE_FUNGIBLE_TOKEN_INFO
+                                .getOutputs()
+                                .encode(Tuple.of(
+                                        status.protoOrdinal(),
+                                        fungibleTokenInfoTupleFor(Token.DEFAULT, ledgerIdString(), 1))),
+                        gasCalculator.viewGasRequirement()),
+                status,
+                isViewCall);
+    }
+
+    private String ledgerIdString() {
+        return Bytes.wrap(nativeOperations().ledgerId().toByteArray()).toString();
     }
 }

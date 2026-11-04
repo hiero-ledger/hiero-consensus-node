@@ -14,6 +14,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.HssCal
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.EntityType;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.function.Consumer;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.tuweni.bytes.Bytes;
@@ -47,16 +48,20 @@ public class HssSystemContract extends AbstractNativeSystemContract implements H
     }
 
     @Override
-    public FullResult computeFully(
-            @NonNull ContractID contractID, @NonNull final Bytes input, @NonNull final MessageFrame frame) {
+    public void computeFully(
+            @NonNull ContractID contractID,
+            @NonNull final Bytes input,
+            @NonNull final MessageFrame frame,
+            @NonNull final Consumer<FullResult> completion) {
         requireNonNull(input);
         requireNonNull(frame);
 
         // Check if calls to hedera schedule service is enabled
         if (!contractsConfigOf(frame).systemContractScheduleServiceEnabled()) {
-            return haltResult(NOT_SUPPORTED, frame.getRemainingGas());
+            completion.accept(haltResult(NOT_SUPPORTED, frame.getRemainingGas()));
+            return;
         }
 
-        return super.computeFully(contractID, input, frame);
+        super.computeFully(contractID, input, frame, completion);
     }
 }

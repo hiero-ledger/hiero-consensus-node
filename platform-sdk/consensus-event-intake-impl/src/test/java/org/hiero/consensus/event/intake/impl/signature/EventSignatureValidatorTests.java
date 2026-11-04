@@ -21,6 +21,7 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import org.hiero.base.crypto.SignatureVerifier;
+import org.hiero.base.crypto.test.fixtures.TestCertificates;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.EventOrigin;
@@ -38,9 +39,9 @@ import org.junit.jupiter.api.Test;
 
 class EventSignatureValidatorTests {
     public static final int PREVIOUS_ROSTER_ROUND = 2;
-    public static final int CURRENT_ROSTER_ROUND = 3;
+    public static final int ACTIVE_ROSTER_ROUND = 3;
     public static final NodeId PREVIOUS_ROSTER_NODE_ID = NodeId.of(66);
-    public static final NodeId CURRENT_ROSTER_NODE_ID = NodeId.of(77);
+    public static final NodeId ACTIVE_ROSTER_NODE_ID = NodeId.of(77);
     private Randotron random;
     private Metrics metrics;
     private FakeTime time;
@@ -95,9 +96,9 @@ class EventSignatureValidatorTests {
                 .when(intakeEventCounter)
                 .eventExitedIntakePipeline(any());
 
-        // create a rosterHistory with a previous roster and a current roster
+        // create a rosterHistory with a previous roster and a active roster
         rosterHistory = buildRosterHistory(
-                PREVIOUS_ROSTER_ROUND, CURRENT_ROSTER_ROUND, EventSignatureValidatorTests::generateMockRosterEntry);
+                PREVIOUS_ROSTER_ROUND, ACTIVE_ROSTER_ROUND, EventSignatureValidatorTests::generateMockRosterEntry);
 
         validatorWithTrueVerifier =
                 new DefaultEventSignatureValidator(metrics, time, trueVerifier, rosterHistory, intakeEventCounter);
@@ -109,12 +110,12 @@ class EventSignatureValidatorTests {
     public RosterWrapperHistory buildRosterHistory(
             final long previousRound, final long round, final Function<NodeId, RosterEntry> rosterEntryGenerator) {
         final RosterEntry previousNodeRosterEntry = rosterEntryGenerator.apply(PREVIOUS_ROSTER_NODE_ID);
-        final RosterEntry currentNodeRosterEntry = rosterEntryGenerator.apply(CURRENT_ROSTER_NODE_ID);
+        final RosterEntry activeNodeRosterEntry = rosterEntryGenerator.apply(ACTIVE_ROSTER_NODE_ID);
 
         final RosterWrapper previousRoster = createRosterWrapper(previousNodeRosterEntry);
-        final RosterWrapper currentRoster = createRosterWrapper(currentNodeRosterEntry);
+        final RosterWrapper activeRoster = createRosterWrapper(activeNodeRosterEntry);
 
-        return createRosterWrapperHistory(round, currentRoster, previousRound, previousRoster);
+        return createRosterWrapperHistory(round, activeRoster, previousRound, previousRoster);
     }
 
     @Test
@@ -135,7 +136,7 @@ class EventSignatureValidatorTests {
     @Test
     @DisplayName("Node is missing from the applicable roster")
     void applicableRosterMissingNode() {
-        // this creator isn't in the current roster, so verification will fail
+        // this creator isn't in the active roster, so verification will fail
         final PlatformEvent event = new TestingEventBuilder(random)
                 .setCreatorId(NodeId.of(99))
                 .setBirthRound(PREVIOUS_ROSTER_ROUND)
@@ -152,15 +153,37 @@ class EventSignatureValidatorTests {
         final Function<NodeId, RosterEntry> generateMockRosterEntry =
                 id -> new RosterEntry(id.id(), 10, null, List.of());
         final RosterWrapperHistory rh =
-                buildRosterHistory(PREVIOUS_ROSTER_ROUND, CURRENT_ROSTER_ROUND, generateMockRosterEntry);
+                buildRosterHistory(PREVIOUS_ROSTER_ROUND, ACTIVE_ROSTER_ROUND, generateMockRosterEntry);
 
         final EventSignatureValidator validator =
                 new DefaultEventSignatureValidator(metrics, time, trueVerifier, rh, intakeEventCounter);
 
-        final NodeId nodeId = NodeId.of(88);
+        final PlatformEvent event = new TestingEventBuilder(random)
+                .setCreatorId(ACTIVE_ROSTER_NODE_ID)
+                .setBirthRound(ACTIVE_ROSTER_ROUND)
+                .build();
 
-        final PlatformEvent event =
-                new TestingEventBuilder(random).setCreatorId(nodeId).build();
+        assertNull(validator.validateSignature(event));
+        assertEquals(1, exitedIntakePipelineCount.get());
+    }
+
+    @Test
+    @DisplayName("Node has a certificate with an unsupported key type")
+    void unsupportedKeyType() throws CertificateEncodingException {
+        final Bytes certificate =
+                Bytes.wrap(TestCertificates.createCertificate("EC").getEncoded());
+        final Function<NodeId, RosterEntry> generateMockRosterEntry =
+                id -> new RosterEntry(id.id(), 10, certificate, List.of());
+        final RosterWrapperHistory rh =
+                buildRosterHistory(PREVIOUS_ROSTER_ROUND, ACTIVE_ROSTER_ROUND, generateMockRosterEntry);
+
+        final EventSignatureValidator validator =
+                new DefaultEventSignatureValidator(metrics, time, trueVerifier, rh, intakeEventCounter);
+
+        final PlatformEvent event = new TestingEventBuilder(random)
+                .setCreatorId(ACTIVE_ROSTER_NODE_ID)
+                .setBirthRound(ACTIVE_ROSTER_ROUND)
+                .build();
 
         assertNull(validator.validateSignature(event));
         assertEquals(1, exitedIntakePipelineCount.get());
@@ -169,10 +192,10 @@ class EventSignatureValidatorTests {
     @Test
     @DisplayName("Event passes validation if the signature verifies")
     void validSignature() {
-        // create an event that should be validated with the currentRoster
+        // create an event that should be validated with the activeRoster
         final PlatformEvent event1Valid = new TestingEventBuilder(random)
-                .setCreatorId(CURRENT_ROSTER_NODE_ID)
-                .setBirthRound(CURRENT_ROSTER_ROUND)
+                .setCreatorId(ACTIVE_ROSTER_NODE_ID)
+                .setBirthRound(ACTIVE_ROSTER_ROUND)
                 .build();
 
         assertNotNull(validatorWithTrueVerifier.validateSignature(event1Valid));
@@ -189,8 +212,8 @@ class EventSignatureValidatorTests {
 
         // similarly we test invalid events for each of the rosters and make sure they exited the pipeline
         final PlatformEvent event1Invalid = new TestingEventBuilder(random)
-                .setCreatorId(NodeId.of(CURRENT_ROSTER_NODE_ID.id() + 1))
-                .setBirthRound(CURRENT_ROSTER_ROUND)
+                .setCreatorId(NodeId.of(ACTIVE_ROSTER_NODE_ID.id() + 1))
+                .setBirthRound(ACTIVE_ROSTER_ROUND)
                 .build();
         final PlatformEvent event2Invalid = new TestingEventBuilder(random)
                 .setCreatorId(NodeId.of(PREVIOUS_ROSTER_NODE_ID.id() + 1))
@@ -201,22 +224,22 @@ class EventSignatureValidatorTests {
         assertNull(validatorWithTrueVerifier.validateSignature(event2Invalid));
         assertEquals(2, exitedIntakePipelineCount.get());
 
-        // make sure that events from any round number higher than CURRENT_ROSTER_ROUND get validated by the
-        // currentRoster
+        // make sure that events from any round number higher than ACTIVE_ROSTER_ROUND get validated by the
+        // activeRoster
         final Random random = getRandomPrintSeed();
-        random.ints(CURRENT_ROSTER_ROUND, Integer.MAX_VALUE)
+        random.ints(ACTIVE_ROSTER_ROUND, Integer.MAX_VALUE)
                 .limit(10)
                 .boxed()
                 .map(r -> new TestingEventBuilder(this.random)
-                        .setCreatorId(CURRENT_ROSTER_NODE_ID)
+                        .setCreatorId(ACTIVE_ROSTER_NODE_ID)
                         .setBirthRound(r)
                         .build())
                 .forEach(e -> assertNotNull(validatorWithTrueVerifier.validateSignature(e)));
 
         // make sure that events from any round number higher than PREVIOUS_ROSTER_ROUND and lower than
-        // CURRENT_ROSTER_ROUND
+        // ACTIVE_ROSTER_ROUND
         // get validated by the previous roster
-        random.ints(PREVIOUS_ROSTER_ROUND, CURRENT_ROSTER_ROUND)
+        random.ints(PREVIOUS_ROSTER_ROUND, ACTIVE_ROSTER_ROUND)
                 .limit(10)
                 .boxed()
                 .map(r -> new TestingEventBuilder(this.random)
@@ -230,8 +253,8 @@ class EventSignatureValidatorTests {
     @DisplayName("Event fails validation if the signature does not verify")
     void verificationFails() {
         final PlatformEvent event = new TestingEventBuilder(random)
-                .setCreatorId(CURRENT_ROSTER_NODE_ID)
-                .setBirthRound(CURRENT_ROSTER_ROUND)
+                .setCreatorId(ACTIVE_ROSTER_NODE_ID)
+                .setBirthRound(ACTIVE_ROSTER_ROUND)
                 .build();
 
         assertNotNull(validatorWithTrueVerifier.validateSignature(event));
@@ -248,8 +271,8 @@ class EventSignatureValidatorTests {
                 new DefaultEventSignatureValidator(metrics, time, trueVerifier, rosterHistory, intakeEventCounter);
 
         final PlatformEvent event = new TestingEventBuilder(random)
-                .setCreatorId(CURRENT_ROSTER_NODE_ID)
-                .setBirthRound(CURRENT_ROSTER_ROUND)
+                .setCreatorId(ACTIVE_ROSTER_NODE_ID)
+                .setBirthRound(ACTIVE_ROSTER_ROUND)
                 .build();
 
         assertNotNull(validator.validateSignature(event));
@@ -266,8 +289,8 @@ class EventSignatureValidatorTests {
     @DisplayName("Events created by this runtime should not be validated")
     void runtimeCreatedEvent() {
         final PlatformEvent gossip = new TestingEventBuilder(random)
-                .setCreatorId(CURRENT_ROSTER_NODE_ID)
-                .setBirthRound(CURRENT_ROSTER_ROUND)
+                .setCreatorId(ACTIVE_ROSTER_NODE_ID)
+                .setBirthRound(ACTIVE_ROSTER_ROUND)
                 .setOrigin(EventOrigin.GOSSIP)
                 .build();
         assertNull(
@@ -276,8 +299,8 @@ class EventSignatureValidatorTests {
         assertEquals(1, exitedIntakePipelineCount.get());
 
         final PlatformEvent runtime = new TestingEventBuilder(random)
-                .setCreatorId(CURRENT_ROSTER_NODE_ID)
-                .setBirthRound(CURRENT_ROSTER_ROUND)
+                .setCreatorId(ACTIVE_ROSTER_NODE_ID)
+                .setBirthRound(ACTIVE_ROSTER_ROUND)
                 .setOrigin(EventOrigin.RUNTIME)
                 .build();
         assertNotNull(validatorWithFalseVerifier.validateSignature(runtime), "Runtime events should be trusted");

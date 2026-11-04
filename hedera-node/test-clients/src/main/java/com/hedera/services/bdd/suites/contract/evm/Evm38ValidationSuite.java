@@ -517,7 +517,7 @@ public class Evm38ValidationSuite {
                         .gas(1_000_000L)),
                 contractCall(SIMPLE_UPDATE_CONTRACT, "set", BigInteger.valueOf(15), BigInteger.valueOf(434))
                         .gas(350_000L)
-                        .hasPrecheck(CONTRACT_DELETED));
+                        .hasKnownStatus(CONTRACT_DELETED));
     }
 
     @HapiTest
@@ -529,10 +529,7 @@ public class Evm38ValidationSuite {
                 uploadInitCode(contract),
                 cryptoCreate(sender).balance(ONE_HUNDRED_HBARS),
                 contractCreate(contract).balance(10).payingWith(sender),
-                contractCall(contract)
-                        .hasPrecheck(CONTRACT_DELETED)
-                        .payingWith(sender)
-                        .hasKnownStatus(SUCCESS),
+                contractCall(contract).hasKnownStatus(CONTRACT_DELETED).payingWith(sender),
                 getContractBytecode(contract).hasCostAnswerPrecheck(CONTRACT_DELETED));
     }
 }

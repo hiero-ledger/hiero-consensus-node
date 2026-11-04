@@ -4,8 +4,8 @@ package com.hedera.node.app.service.contract.impl.exec.systemcontracts.clpr.veri
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.lenient;
 
+import com.esaulpaugh.headlong.abi.Function;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.node.app.hapi.utils.blocks.TssVerifier;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
@@ -22,25 +22,31 @@ class VerifyConfigTranslatorTest extends CallTestBase {
     private ContractMetrics contractMetrics;
 
     @Mock
-    private TssVerifier tssVerifier;
+    private ClprCallAttempt attempt;
 
     @Mock
-    private ClprCallAttempt attempt;
+    private TssVerifier tssVerifier;
 
     private VerifyConfigTranslator subject;
 
     @BeforeEach
     void setUp() {
         subject = new VerifyConfigTranslator(new SystemContractMethodRegistry(), contractMetrics, tssVerifier);
-        // identifyMethod/callFrom now probe the V3 selector first; not every test stubs it.
-        lenient()
-                .when(attempt.isMethod(VerifyConfigTranslator.VERIFY_CONFIG_V3))
-                .thenReturn(Optional.empty());
     }
 
     @Test
-    void identifiesVerifyConfigV1Selector() {
-        given(attempt.isMethod(VerifyConfigTranslator.VERIFY_CONFIG_V2)).willReturn(Optional.empty());
+    void rejectsLegacyConfigAbiInput() {
+        final var legacyMethod = new Function("verifyConfig(bytes)", "(bytes)");
+        given(attempt.inputBytes())
+                .willReturn(legacyMethod
+                        .encodeCall(Tuple.singleton(new byte[] {1, 2, 3}))
+                        .array());
+
+        assertThatThrownBy(() -> subject.callFrom(attempt)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void identifiesVerifyConfigWithManifestSelector() {
         given(attempt.isMethod(VerifyConfigTranslator.VERIFY_CONFIG))
                 .willReturn(Optional.of(VerifyConfigTranslator.VERIFY_CONFIG));
 
@@ -48,36 +54,10 @@ class VerifyConfigTranslatorTest extends CallTestBase {
     }
 
     @Test
-    void identifiesVerifyConfigV2Selector() {
-        given(attempt.isMethod(VerifyConfigTranslator.VERIFY_CONFIG_V2))
-                .willReturn(Optional.of(VerifyConfigTranslator.VERIFY_CONFIG_V2));
-
-        assertThat(subject.identifyMethod(attempt)).contains(VerifyConfigTranslator.VERIFY_CONFIG_V2);
-    }
-
-    @Test
-    void buildsVerifyConfigCallFromV1AbiInput() {
-        final byte[] stateProof = {1, 2, 3};
-        given(attempt.isMethod(VerifyConfigTranslator.VERIFY_CONFIG_V2)).willReturn(Optional.empty());
+    void buildsVerifyConfigWithManifestCallFromAbiInput() {
         given(attempt.inputBytes())
                 .willReturn(VerifyConfigTranslator.VERIFY_CONFIG
-                        .encodeCall(Tuple.singleton(stateProof))
-                        .array());
-        given(attempt.enhancement()).willReturn(mockEnhancement());
-        given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
-
-        assertThat(subject.callFrom(attempt)).isInstanceOf(VerifyConfigCall.class);
-    }
-
-    @Test
-    void buildsVerifyConfigCallFromV2AbiInput() {
-        final byte[] stateProof = {1, 2, 3};
-        final byte[] channelId32 = new byte[32];
-        given(attempt.isMethod(VerifyConfigTranslator.VERIFY_CONFIG_V2))
-                .willReturn(Optional.of(VerifyConfigTranslator.VERIFY_CONFIG_V2));
-        given(attempt.inputBytes())
-                .willReturn(VerifyConfigTranslator.VERIFY_CONFIG_V2
-                        .encodeCall(Tuple.of(stateProof, channelId32))
+                        .encodeCall(Tuple.of(new byte[] {1, 2, 3}, new byte[32], new byte[] {4, 5, 6}))
                         .array());
         given(attempt.enhancement()).willReturn(mockEnhancement());
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
@@ -87,7 +67,6 @@ class VerifyConfigTranslatorTest extends CallTestBase {
 
     @Test
     void rethrowsMalformedAbiInput() {
-        given(attempt.isMethod(VerifyConfigTranslator.VERIFY_CONFIG_V2)).willReturn(Optional.empty());
         given(attempt.inputBytes()).willReturn(new byte[] {1, 2, 3});
 
         assertThatThrownBy(() -> subject.callFrom(attempt)).isInstanceOf(RuntimeException.class);

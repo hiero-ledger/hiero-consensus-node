@@ -317,7 +317,6 @@ public abstract class CallManager {
         frame.addLogs(child.getLogs());
         frame.addCreates(child.getCreates());
         frame.addSelfDestructs(child.getSelfDestructs());
-        frame.incrementGasRefund(child.getGasRefund());
         frame.setState(MessageFrame.State.CODE_EXECUTING);
 
         bevm._gas += child.getRemainingGas(); // Recover leftover gas from the child

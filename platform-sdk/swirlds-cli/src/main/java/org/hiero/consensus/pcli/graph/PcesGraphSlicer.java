@@ -14,6 +14,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -239,13 +240,16 @@ public class PcesGraphSlicer {
                 .toList();
 
         final NodeId creatorId = NodeId.of(newEventCore.creatorNodeId());
+        final Instant timeCreated = HapiUtils.asInstant(newEventCore.timeCreated());
         final UnsignedEvent unsignedEvent = new UnsignedEvent(
                 creatorId,
                 parents,
                 newEventCore.birthRound(),
-                HapiUtils.asInstant(newEventCore.timeCreated()),
+                timeCreated,
                 transactions,
-                newEventCore.coin());
+                newEventCore.coin(),
+                timeCreated,
+                List.of());
         // Calculate new hash
         eventHasher.hashUnsignedEvent(unsignedEvent);
         final Hash newHash = unsignedEvent.getHash();

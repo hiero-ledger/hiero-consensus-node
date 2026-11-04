@@ -12,7 +12,7 @@ import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpStatus
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpTransactionHandlingModule;
 import static com.swirlds.platform.state.NoOpConsensusStateEventHandler.NO_OP_CONSENSUS_STATE_EVENT_HANDLER;
 import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
-import static org.hiero.consensus.fakes.noop.FakeRosterFactory.fakeRosterHistory;
+import static org.hiero.consensus.fakes.noop.FakeRosterFactory.fakeRosterInputs;
 import static org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerConfiguration.DIRECT_THREADSAFE_CONFIGURATION;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -57,6 +57,8 @@ import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.iss.detection.IssDetectionModule;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.ConsensusLayerRosterInputs;
+import org.hiero.consensus.model.roster.RosterWrapperHistory;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.pcli.utility.NoOpExecutionLayer;
 import org.hiero.consensus.pcli.utility.VirtualTerminal;
@@ -153,6 +155,8 @@ public final class DiagramCommand extends AbstractCommand {
         final FileSystemManager fileSystemManager =
                 new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
 
+        final ConsensusLayerRosterInputs rosterInputs = fakeRosterInputs();
+
         final WiringModel model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
@@ -160,7 +164,7 @@ public final class DiagramCommand extends AbstractCommand {
                 configuration,
                 new NoOpMetrics(),
                 Time.getCurrent(),
-                fakeRosterHistory(),
+                rosterInputs,
                 KeysAndCertsGenerator.generate(NodeId.FIRST_NODE_ID),
                 NodeId.FIRST_NODE_ID,
                 new NoOpRecycleBin(),
@@ -213,6 +217,7 @@ public final class DiagramCommand extends AbstractCommand {
         final ConsensusLayerBuildingBlocks buildingBlocks = new ConsensusLayerBuildingBlocks(
                 model,
                 configuration,
+                RosterWrapperHistory.of(rosterInputs),
                 eventCreatorModule,
                 eventIntakeModule,
                 pcesModule,

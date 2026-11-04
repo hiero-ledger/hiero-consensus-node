@@ -106,7 +106,7 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
         final RosterEntryWrapper rosterEntry;
         try {
             final RosterWrapper applicableRoster = rosterHistory.rosterForRound(event.getBirthRound());
-            rosterEntry = applicableRoster.getRosterEntry(eventCreatorId);
+            rosterEntry = applicableRoster.rosterEntry(eventCreatorId);
         } catch (final IllegalArgumentException e) {
             rateLimitedLogger.error(
                     EXCEPTION.getMarker(),

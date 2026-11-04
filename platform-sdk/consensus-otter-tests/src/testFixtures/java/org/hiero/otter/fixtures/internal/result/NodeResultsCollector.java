@@ -113,24 +113,15 @@ public class NodeResultsCollector {
     }
 
     /**
-     * Returns all the consensus rounds created at the moment of invocation, starting with and including the provided
-     * index.
+     * Returns all the consensus rounds created by this node at the moment of invocation whose round number is greater
+     * than the provided round number.
      *
-     * @param startIndex the index to start from
+     * @param roundNum the round number after which rounds are returned
      * @return the list of consensus rounds
      */
     @NonNull
-    public List<ConsensusRound> currentConsensusRounds(final int startIndex) {
-        return roundPool.currentConsensusRounds(startIndex, nodeId);
-    }
-
-    /**
-     * Returns the number of consensus rounds created by this node.
-     *
-     * @return the count of consensus rounds
-     */
-    public int currentConsensusRoundsCount() {
-        return roundPool.size(nodeId);
+    public List<ConsensusRound> currentConsensusRoundsAfter(final long roundNum) {
+        return roundPool.currentConsensusRoundsAfter(roundNum, nodeId);
     }
 
     /**

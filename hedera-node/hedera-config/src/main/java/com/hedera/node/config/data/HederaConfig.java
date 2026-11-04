@@ -14,6 +14,9 @@ import java.time.Duration;
  * @param maxTransactionBytesPerEvent  the maximum number of bytes that a single event may contain, not including the
  *                                     event headers. if a single transaction exceeds this limit, then the event will
  *                                     contain the single transaction only
+ * @param pendingTransactionsPersistenceEnabled whether user transactions still in the pool at a freeze are saved and
+ *                                              resubmitted after the restart
+ * @param pendingTransactionsDirectory          where those transactions are saved
  */
 @ConfigData("hedera")
 public record HederaConfig(
@@ -34,6 +37,12 @@ public record HederaConfig(
         // 6KB limit for user txs
         @ConfigProperty(value = "transaction.maxBytes", defaultValue = "6144") @NetworkProperty
         int transactionMaxBytes,
+
+        // Max protobuf message-nesting depth accepted when strictly parsing a transaction at ingest (guards against
+        // deeply nested keys that stricter downstream parsers reject); over-depth is rejected as
+        // TRANSACTION_TOO_MANY_LAYERS
+        @ConfigProperty(value = "transaction.maxProtoMessageDepth", defaultValue = "50") @NetworkProperty
+        int transactionMaxProtoMessageDepth,
 
         @ConfigProperty(value = "transaction.maxMemoUtf8Bytes", defaultValue = "100") @NetworkProperty
         int transactionMaxMemoUtf8Bytes,
@@ -81,4 +90,12 @@ public record HederaConfig(
         Duration nowFrozenWriteTimeout,
 
         @ConfigProperty(value = "transaction.maximumPermissibleUnhealthySeconds", defaultValue = "1") @NodeProperty
-        long maximumPermissibleUnhealthySeconds) {}
+        long maximumPermissibleUnhealthySeconds,
+
+        @ConfigProperty(value = "transaction.pendingTransactionsPersistenceEnabled", defaultValue = "false")
+        @NodeProperty
+        boolean pendingTransactionsPersistenceEnabled,
+
+        @ConfigProperty(value = "transaction.pendingTransactionsDirectory", defaultValue = "data/pendingTransactions")
+        @NodeProperty
+        String pendingTransactionsDirectory) {}

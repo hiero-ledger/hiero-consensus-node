@@ -113,7 +113,7 @@ public class TokenAssociationSpecs {
                         tokenAssociate(unknownID, VANILLA_TOKEN)
                                 .fee(DEFAULT_FEE)
                                 .signedBy(DEFAULT_PAYER)
-                                .hasPrecheck(INVALID_ACCOUNT_ID),
+                                .hasKnownStatus(INVALID_ACCOUNT_ID),
                         tokenAssociate(bob, VANILLA_TOKEN).fee(DEFAULT_FEE).hasKnownStatus(ACCOUNT_DELETED),
                         tokenAssociate(alice, List.of()).hasKnownStatus(SUCCESS),
                         tokenAssociate(alice, VANILLA_TOKEN, VANILLA_TOKEN)

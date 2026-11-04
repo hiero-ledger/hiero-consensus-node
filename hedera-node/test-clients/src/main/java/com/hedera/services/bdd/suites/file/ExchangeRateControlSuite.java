@@ -108,7 +108,7 @@ public class ExchangeRateControlSuite {
                 fileUpdate(EXCHANGE_RATES)
                         .contents("Should be impossible!")
                         .payingWith("randomAccount")
-                        .hasPrecheckFrom(AUTHORIZATION_FAILED));
+                        .hasPrecheck(AUTHORIZATION_FAILED));
     }
 
     @HapiTest

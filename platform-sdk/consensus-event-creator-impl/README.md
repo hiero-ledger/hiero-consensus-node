@@ -10,6 +10,11 @@ Implements the [`consensus-event-creator`](../consensus-event-creator) API. Prod
 should depend on the API, not this module directly. For how the event creator works, see the
 [event-creator topic](../docs/consensus-layer/architecture/topics/event-creator.md).
 
+## Benchmarks
+
+The JMH benchmarks in `src/jmh` follow the
+[benchmark conventions](../docs/consensus-layer/benchmarks/README.md).
+
 ## Dependency Rules
 
 May depend on:

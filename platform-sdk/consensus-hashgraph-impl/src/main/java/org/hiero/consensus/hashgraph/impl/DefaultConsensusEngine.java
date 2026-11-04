@@ -54,6 +54,8 @@ public class DefaultConsensusEngine implements ConsensusEngine {
 
     private final ConsensusEngineMetrics consensusEngineMetrics;
 
+    private final ConsensusMetrics consensusMetrics;
+
     private final FreezeRoundController freezeRoundController;
 
     /**
@@ -62,7 +64,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
      * @param configuration          the configuration
      * @param metrics                the metrics registry
      * @param time                   the time source
-     * @param roster                 the current roster
+     * @param roster                 the active roster
      * @param selfId                 the ID of the node
      * @param freezeChecker          checks if the consensus time has reached the freeze period
      * @param transactionOffsetNanos nanoseconds to add to the first transaction's timestamp in an event
@@ -76,7 +78,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
             @NonNull final FreezePeriodChecker freezeChecker,
             final long transactionOffsetNanos) {
 
-        final ConsensusMetrics consensusMetrics = new ConsensusMetricsImpl(selfId, metrics);
+        consensusMetrics = new ConsensusMetricsImpl(selfId, metrics, configuration, time);
         consensus = new ConsensusImpl(configuration, time, consensusMetrics, roster, transactionOffsetNanos);
 
         linker = new ConsensusLinker(new DefaultLinkerLogsAndMetrics(metrics, time));
@@ -197,6 +199,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
         // we need to freeze on the first one. this means discarding the rest of the rounds.
         final List<ConsensusRound> modifiedRounds = freezeRoundController.filterAndModify(allConsensusRounds);
         staleEvents.forEach(consensusEngineMetrics::reportStaleEvent);
+        modifiedRounds.forEach(consensusMetrics::consensusRoundEmitted);
         return new ConsensusEngineOutput(modifiedRounds, preConsensusEvents, staleEvents);
     }
 

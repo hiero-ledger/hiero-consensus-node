@@ -11,6 +11,7 @@ import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADD
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_SERVICE_ACCOUNT_NUM;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.ContractID;
@@ -35,11 +36,11 @@ import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
-import com.hedera.node.config.data.ClprConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.hiero.base.crypto.CryptographyProvider;
@@ -93,17 +94,30 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
     private static final Bytes ETHEREUM_VERIFIER_SYSTEM_CONTRACT_EVM_ADDRESS =
             Bytes.wrap(new byte[] {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01, (byte) 0x71});
 
-    private static final Set<Long> BUILT_IN_VERIFIER_NUMS = Set.of(
-            CLPR_SERVICE_ACCOUNT_NUM,
-            BESU_QBFT_VERIFIER_SYSTEM_CONTRACT_NUM,
-            SEI_VERIFIER_SYSTEM_CONTRACT_NUM,
-            ETHEREUM_VERIFIER_SYSTEM_CONTRACT_NUM);
+    private record BuiltInVerifier(String displayName, Bytes fingerprint) {}
 
-    private static final Set<Bytes> BUILT_IN_VERIFIER_EVM_ADDRESSES = Set.of(
-            CLPR_EVM_ADDRESS_BYTES,
-            BESU_QBFT_VERIFIER_SYSTEM_CONTRACT_EVM_ADDRESS,
-            SEI_VERIFIER_SYSTEM_CONTRACT_EVM_ADDRESS,
-            ETHEREUM_VERIFIER_SYSTEM_CONTRACT_EVM_ADDRESS);
+    // Identity names are permanent protocol labels, separate from the readable display names.
+    // Their hashes identify verifier types and do not change with native implementation updates.
+    private static final BuiltInVerifier HIERO_TSS_VERIFIER =
+            new BuiltInVerifier("Hiero TSS (0x16e)", builtInFingerprint("hiero-tss"));
+    private static final BuiltInVerifier BESU_QBFT_VERIFIER =
+            new BuiltInVerifier("Besu QBFT (0x16f)", builtInFingerprint("besu-qbft"));
+    private static final BuiltInVerifier SEI_VERIFIER =
+            new BuiltInVerifier("Sei CometBFT (0x170)", builtInFingerprint("sei-cometbft"));
+    private static final BuiltInVerifier ETHEREUM_VERIFIER =
+            new BuiltInVerifier("Ethereum sync committee (0x171)", builtInFingerprint("ethereum-sync-committee"));
+
+    private static final Map<Long, BuiltInVerifier> BUILT_IN_VERIFIERS_BY_NUM = Map.of(
+            CLPR_SERVICE_ACCOUNT_NUM, HIERO_TSS_VERIFIER,
+            BESU_QBFT_VERIFIER_SYSTEM_CONTRACT_NUM, BESU_QBFT_VERIFIER,
+            SEI_VERIFIER_SYSTEM_CONTRACT_NUM, SEI_VERIFIER,
+            ETHEREUM_VERIFIER_SYSTEM_CONTRACT_NUM, ETHEREUM_VERIFIER);
+
+    private static final Map<Bytes, BuiltInVerifier> BUILT_IN_VERIFIERS_BY_ADDRESS = Map.of(
+            CLPR_EVM_ADDRESS_BYTES, HIERO_TSS_VERIFIER,
+            BESU_QBFT_VERIFIER_SYSTEM_CONTRACT_EVM_ADDRESS, BESU_QBFT_VERIFIER,
+            SEI_VERIFIER_SYSTEM_CONTRACT_EVM_ADDRESS, SEI_VERIFIER,
+            ETHEREUM_VERIFIER_SYSTEM_CONTRACT_EVM_ADDRESS, ETHEREUM_VERIFIER);
 
     private final ClprVerifierFactory verifierFactory;
     private final ClprChannelLifecycle channelLifecycle;
@@ -159,7 +173,7 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
         // 1. Compute the expected commitment and verify it exists
         final var expectedCommitment = computeCommitment(op.channelId(), op.publicKey());
         if (!commitmentStore.contains(expectedCommitment)) {
-            log.warn(
+            log.debug(
                     "[ClprCompleteChannel] commitment lookup FAILED channelId={} expectedCommitment={}",
                     shortHex(op.channelId()),
                     shortHex(expectedCommitment));
@@ -172,7 +186,7 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
 
         // 2. Verify channel_id isn't already active
         if (channelStore.getChannel(op.channelId()) != null) {
-            log.warn("[ClprCompleteChannel] channel already active channelId={}", shortHex(op.channelId()));
+            log.debug("[ClprCompleteChannel] channel already active channelId={}", shortHex(op.channelId()));
             throw new HandleException(CLPR_CHANNEL_ALREADY_EXISTS);
         }
 
@@ -215,13 +229,13 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
                 shortHex(Bytes.wrap(messageHash)));
 
         // 4. Verify verifier contract exists and is a smart contract.
-        //    Built-in system contracts (0x16e, 0x16f) are valid verifiers but have no on-ledger
+        //    Built-in system contracts (0x16e..0x171) are valid verifiers but have no on-ledger
         //    account record, so skip the account-store lookup for those. See ClprVerifierFactory
         //    (TODO CLPR-5.3) for the planned built-in verifier registry that will subsume this.
         if (!isBuiltInVerifier(op.verifierContractOrThrow())) {
             final var verifierAccount = accountStore.getContractById(op.verifierContractOrThrow());
             if (verifierAccount == null || !verifierAccount.smartContract()) {
-                log.warn(
+                log.debug(
                         "[ClprCompleteChannel] verifier contract validation FAILED channelId={} "
                                 + "verifierContract={} accountFound={} smartContract={}",
                         shortHex(op.channelId()),
@@ -250,9 +264,7 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
                 op.configProofBytes().length(),
                 shortHex(MiscCryptoUtils.keccak256DigestOf(op.configProofBytes())));
         // Thread endpoint_manifest_proof_bytes into the manifest-aware verifyConfig ABI
-        // (spec §4.8). EvmClprVerifier flag-gates on clpr.endpointManifestEnabled: when the
-        // flag is off, it dispatches the legacy 1-arg ABI and ignores this field (returning
-        // an empty manifest). No freshness check is applied at completeChannel time.
+        // (spec §4.8). No freshness check is applied at completeChannel time.
         final var verifiedConfig = verifyPeerConfig(
                 verifier,
                 op.verifierContractOrThrow(),
@@ -262,14 +274,11 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
                 context);
         final var peerConfig = verifiedConfig.config();
         final var peerManifest = verifiedConfig.manifest();
-        // Select the authoritative peer-endpoint source per the manifest feature flag, mirroring
+        // The authoritative peer-endpoint source is the ClprEndpointManifest, mirroring
         // ClprChannelManager.resolveDialTargets (the runtime consumer) so producer and consumer
-        // stay symmetric. When clpr.endpointManifestEnabled=true the endpoints live solely in the
-        // ClprEndpointManifest (config.endpoints is deprecated and left empty per spec §4.8); when
-        // off, they come from ClprLedgerConfiguration.endpoints and no manifest is attached below.
-        final boolean manifestEnabled =
-                context.configuration().getConfigData(ClprConfig.class).endpointManifestEnabled();
-        final List<ClprEndpoint> peerEndpoints = manifestEnabled ? peerManifest.endpoints() : peerConfig.endpoints();
+        // stay symmetric. The endpoints live solely in the ClprEndpointManifest (config.endpoints is
+        // deprecated and left empty per spec §4.8).
+        final List<ClprEndpoint> peerEndpoints = peerManifest.endpoints();
         log.debug(
                 "[ClprCompleteChannel] verifyConfig PASS channelId={} verifierContract={} chainId={} "
                         + "serviceAddress={} endpoints={} throttlesPresent={} initialTrustAnchorBytes={} "
@@ -299,34 +308,22 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
                     shortHex(MiscCryptoUtils.keccak256DigestOf(peerConfig.initialTrustAnchor())));
         }
         validateTrue(peerConfig.throttles() != null, CLPR_VERIFIER_CONFIG_FAILED);
-        // Only the legacy config-seeded path requires a non-empty endpoint list (an empty
-        // config leaves the orchestrator with no peer to call, making the channel inert).
-        // A manifest-enabled channel may legitimately start empty: ClprEndpointManifest
-        // permits an empty endpoint list at version >= 1, and genesis creates exactly that —
-        // later manifest-update bundles populate it. So only reject an empty list flag-off.
-        if (!manifestEnabled && peerEndpoints.isEmpty()) {
-            log.warn(
-                    "[ClprCompleteChannel] verified config rejected: no peer endpoints channelId={} "
-                            + "chainId={} serviceAddress={} configProofHash={} initialTrustAnchorHash={}",
-                    shortHex(op.channelId()),
-                    peerConfig.chainId(),
-                    shortHex(peerConfig.serviceAddress()),
-                    shortHex(MiscCryptoUtils.keccak256DigestOf(op.configProofBytes())),
-                    shortHex(MiscCryptoUtils.keccak256DigestOf(peerConfig.initialTrustAnchor())));
-        }
-        validateTrue(manifestEnabled || !peerEndpoints.isEmpty(), CLPR_VERIFIER_CONFIG_FAILED);
+        // A manifest-backed channel may legitimately start empty: ClprEndpointManifest permits an
+        // empty endpoint list at version >= 1, and genesis creates exactly that — later
+        // manifest-update bundles populate it. So an empty peer-endpoint list is not rejected here.
 
         // channel_context = abi.encodePacked(bytes32 channelId, bytes serviceAddress)
         final var channelContextBytes = buildChannelContext(peerConfig, op);
         final Bytes channelContext = Bytes.wrap(channelContextBytes);
 
-        // 6. Compute verifier_fingerprint: keccak256 of verifier contract bytecode at registration time.
-        // Informational — lets observers detect if the verifier contract was swapped after registration.
-        // Built-in verifiers have no on-ledger bytecode, so they get ZERO_HASH.
+        // 6. Record an informational verifier fingerprint: a fixed identity hash for built-ins,
+        // or keccak256 of deployed verifier bytecode. Keep readable names in diagnostics as well.
         final var verifierFingerprint = computeVerifierFingerprint(context, op.verifierContractOrThrow());
+        final var builtInVerifier = resolveBuiltInVerifier(op.verifierContractOrThrow());
         log.debug(
-                "[ClprCompleteChannel] verifier fingerprint channelId={} verifierContract={} fingerprint={}",
+                "[ClprCompleteChannel] verifier fingerprint channelId={} verifierName={} verifierContract={} fingerprint={}",
                 shortHex(op.channelId()),
+                builtInVerifier != null ? builtInVerifier.displayName() : "Deployed contract",
                 op.verifierContractOrThrow(),
                 shortHex(verifierFingerprint));
 
@@ -352,9 +349,9 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
         // 8. Reject peer configs with a semantically invalid timestamp
         validateTimestamp(peerConfig.timestamp(), CLPR_VERIFIER_CONFIG_FAILED);
 
-        // 9. Create Channel in ACTIVE state. The ownership_commitment is stored on the
-        // channel record so that CloseChannel can remove it from the pending-commitments
-        // store when the channel is closed, freeing the commitment for potential reuse.
+        // 9. Create Channel in ACTIVE state. The commitment is not consumed: it stays in the
+        // pending-commitments store while the channel record exists, including after CLOSED
+        // (so it cannot be re-registered). The channel links back to it via ownership_commitment.
         // Seed Channel.trust_anchor / trust_anchor_id from the verified config's
         // initial_trust_anchor / initial_trust_anchor_id. For Hiero TSS this is the peer
         // ledger_id (populated by the source ledger on its config). completeChannel is the
@@ -378,43 +375,37 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
                 .trustAnchor(peerConfig.initialTrustAnchor())
                 .trustAnchorId(peerConfig.initialTrustAnchorId())
                 .channelContext(channelContext);
-        // Attach the peer endpoint manifest only when the feature flag is on: it is the runtime
-        // dial-target source (spec §4.7, ClprChannelManager.resolveDialTargets). Flag-off
-        // channels dial from the config-seeded peer-endpoint cache, so persisting the
-        // verifier's synthesized bring-up manifest would store state nothing ever reads; leave
-        // endpoint_manifest unset (hasEndpointManifest()==false) instead.
+        // Attach the peer endpoint manifest: it is the runtime dial-target source (spec §4.7,
+        // ClprChannelManager.resolveDialTargets).
         //
         // Store the manifest carrying the LOCALLY TRUNCATED endpoint list (this ledger's
         // max_peer_endpoints policy), not the peer's full list — the stored manifest IS what the
         // orchestrator dials, so it must honor the same bound applied to the seeded cache below.
-        if (manifestEnabled) {
-            final var storedManifest =
-                    peerManifest.copyBuilder().endpoints(truncatedPeerEndpoints).build();
-            channelBuilder.endpointManifest(storedManifest).endpointManifestVersion(storedManifest.version());
-        }
+        final var storedManifest =
+                peerManifest.copyBuilder().endpoints(truncatedPeerEndpoints).build();
+        channelBuilder.endpointManifest(storedManifest).endpointManifestVersion(storedManifest.version());
         final var channel = channelBuilder.build();
         channelStore.put(channel);
         log.debug(
                 "[ClprCompleteChannel] channel ACTIVE channelId={} peerChainId={} endpointsStored={} "
-                        + " trustAnchorBytes={} trustAnchorId={} manifestEnabled={} endpointManifestVersion={} "
+                        + " trustAnchorBytes={} trustAnchorId={} endpointManifestVersion={} "
                         + "endpointManifestEntries={}",
                 shortHex(op.channelId()),
                 peerConfig.chainId(),
                 truncatedPeerEndpoints.size(),
                 peerConfig.initialTrustAnchor().length(),
                 shortHex(peerConfig.initialTrustAnchorId()),
-                manifestEnabled,
-                manifestEnabled ? peerManifest.version() : 0L,
-                manifestEnabled ? truncatedPeerEndpoints.size() : 0);
+                peerManifest.version(),
+                truncatedPeerEndpoints.size());
         // Notify the runtime sync orchestrator. If the surrounding transaction
         // rolls back, the orchestrator will self-correct on its next tick by
         // detecting the missing state record.
         channelLifecycle.onChannelActivated(op.channelId());
         // Seed the orchestrator's peer endpoint cache from the (truncated) peer
-        // ledger configuration so the first sync tick has endpoints to contact
-        // without waiting for discovery. Use the same truncated list as the on-chain
-        // peer_signing_keys roster so the orchestrator can't try to call out to a
-        // peer endpoint whose signing key we don't recognize.
+        // ledger configuration so the first sync tick has endpoints to contact.
+        // Use the same truncated list as the on-chain peer_signing_keys roster
+        // so the orchestrator can't try to call out to a peer endpoint whose
+        // signing key we don't recognize.
         channelLifecycle.seedPeerEndpoints(op.channelId(), truncatedPeerEndpoints);
     }
 
@@ -436,13 +427,24 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
      * representation.
      */
     private static boolean isBuiltInVerifier(@NonNull final ContractID verifierContract) {
+        return resolveBuiltInVerifier(verifierContract) != null;
+    }
+
+    @Nullable
+    private static BuiltInVerifier resolveBuiltInVerifier(@NonNull final ContractID verifierContract) {
         if (verifierContract.hasContractNum()) {
-            return BUILT_IN_VERIFIER_NUMS.contains(verifierContract.contractNumOrElse(0L));
+            return BUILT_IN_VERIFIERS_BY_NUM.get(verifierContract.contractNumOrElse(0L));
         }
         if (verifierContract.hasEvmAddress()) {
-            return BUILT_IN_VERIFIER_EVM_ADDRESSES.contains(verifierContract.evmAddressOrElse(Bytes.EMPTY));
+            return BUILT_IN_VERIFIERS_BY_ADDRESS.get(verifierContract.evmAddressOrElse(Bytes.EMPTY));
         }
-        return false;
+        return null;
+    }
+
+    /** Fixed keccak256 identity derived from an explicit UTF-8 namespace and permanent verifier name. */
+    @NonNull
+    private static Bytes builtInFingerprint(@NonNull final String name) {
+        return MiscCryptoUtils.keccak256DigestOf(Bytes.wrap(("hiero.clpr.builtin-verifier/" + name).getBytes(UTF_8)));
     }
 
     @NonNull
@@ -456,7 +458,7 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
         try {
             return verifier.verifyConfig(configProofBytes, channelId, endpointManifestProofBytes, context);
         } catch (final HandleException e) {
-            log.warn(
+            log.debug(
                     "[ClprCompleteChannel] verifyConfig FAILED channelId={} verifierContract={} status={} "
                             + "configProofBytes={} configProofHash={} configProofPrefix={}",
                     shortHex(channelId),
@@ -470,12 +472,16 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
     }
 
     /**
-     * Returns keccak256 of the verifier contract's deployed bytecode, or {@link #ZERO_HASH}
-     * if the bytecode is unavailable (e.g. for built-in verifiers).
+     * Returns a fixed identity hash for built-in verifiers, or keccak256 of a deployed verifier's bytecode.
+     * Returns {@link #ZERO_HASH} when a custom verifier's bytecode is unavailable.
      */
     @NonNull
     private Bytes computeVerifierFingerprint(
             @NonNull final HandleContext context, @NonNull final ContractID verifierContractId) {
+        final var builtInVerifier = resolveBuiltInVerifier(verifierContractId);
+        if (builtInVerifier != null) {
+            return builtInVerifier.fingerprint();
+        }
         final var contractApi = context.storeFactory().serviceApi(SmartContractServiceApi.class);
         final var bytecode = contractApi.getContractBytecode(verifierContractId);
         if (bytecode == null || bytecode.length() == 0) {

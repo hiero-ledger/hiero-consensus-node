@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 
+import com.esaulpaugh.headlong.abi.Function;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.ethereum.EthereumVerifierCallAttempt;
@@ -30,9 +31,18 @@ class EthereumVerifyConfigTranslatorTest extends CallTestBase {
     }
 
     @Test
-    void identifiesLegacyVerifyConfigSelector() {
-        given(attempt.isMethod(EthereumVerifyConfigTranslator.VERIFY_CONFIG_V3)).willReturn(Optional.empty());
-        given(attempt.isMethod(EthereumVerifyConfigTranslator.VERIFY_CONFIG_V2)).willReturn(Optional.empty());
+    void rejectsLegacyConfigAbiInput() {
+        final var legacyMethod = new Function("verifyConfig(bytes)", "(bytes)");
+        given(attempt.inputBytes())
+                .willReturn(legacyMethod
+                        .encodeCall(Tuple.singleton(new byte[] {1, 2, 3}))
+                        .array());
+
+        assertThatThrownBy(() -> subject.callFrom(attempt)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void identifiesVerifyConfigWithManifestSelector() {
         given(attempt.isMethod(EthereumVerifyConfigTranslator.VERIFY_CONFIG))
                 .willReturn(Optional.of(EthereumVerifyConfigTranslator.VERIFY_CONFIG));
 
@@ -40,62 +50,10 @@ class EthereumVerifyConfigTranslatorTest extends CallTestBase {
     }
 
     @Test
-    void buildsV1CallFromAbiInput() {
-        final byte[] configPayload = {1, 2, 3};
+    void buildsVerifyConfigWithManifestCallFromAbiInput() {
         given(attempt.inputBytes())
                 .willReturn(EthereumVerifyConfigTranslator.VERIFY_CONFIG
-                        .encodeCall(Tuple.singleton(configPayload))
-                        .array());
-        given(attempt.enhancement()).willReturn(mockEnhancement());
-        given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
-
-        assertThat(subject.callFrom(attempt)).isInstanceOf(EthereumVerifyConfigCall.class);
-    }
-
-    @Test
-    void identifiesVerifyConfigV2Selector() {
-        given(attempt.isMethod(EthereumVerifyConfigTranslator.VERIFY_CONFIG_V3)).willReturn(Optional.empty());
-        given(attempt.isMethod(EthereumVerifyConfigTranslator.VERIFY_CONFIG_V2))
-                .willReturn(Optional.of(EthereumVerifyConfigTranslator.VERIFY_CONFIG_V2));
-
-        assertThat(subject.identifyMethod(attempt)).contains(EthereumVerifyConfigTranslator.VERIFY_CONFIG_V2);
-    }
-
-    @Test
-    void buildsVerifyConfigV2CallFromAbiInput() {
-        final byte[] configPayload = {1, 2, 3};
-        final byte[] channelId32 = new byte[32];
-        given(attempt.isMethod(EthereumVerifyConfigTranslator.VERIFY_CONFIG_V3)).willReturn(Optional.empty());
-        given(attempt.isMethod(EthereumVerifyConfigTranslator.VERIFY_CONFIG_V2))
-                .willReturn(Optional.of(EthereumVerifyConfigTranslator.VERIFY_CONFIG_V2));
-        given(attempt.inputBytes())
-                .willReturn(EthereumVerifyConfigTranslator.VERIFY_CONFIG_V2
-                        .encodeCall(Tuple.of(configPayload, channelId32))
-                        .array());
-        given(attempt.enhancement()).willReturn(mockEnhancement());
-        given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
-
-        assertThat(subject.callFrom(attempt)).isInstanceOf(EthereumVerifyConfigCall.class);
-    }
-
-    @Test
-    void identifiesVerifyConfigV3Selector() {
-        given(attempt.isMethod(EthereumVerifyConfigTranslator.VERIFY_CONFIG_V3))
-                .willReturn(Optional.of(EthereumVerifyConfigTranslator.VERIFY_CONFIG_V3));
-
-        assertThat(subject.identifyMethod(attempt)).contains(EthereumVerifyConfigTranslator.VERIFY_CONFIG_V3);
-    }
-
-    @Test
-    void buildsVerifyConfigV3CallFromAbiInput() {
-        final byte[] configPayload = {1, 2, 3};
-        final byte[] channelId32 = new byte[32];
-        final byte[] manifestBytes = {4, 5, 6};
-        given(attempt.isMethod(EthereumVerifyConfigTranslator.VERIFY_CONFIG_V3))
-                .willReturn(Optional.of(EthereumVerifyConfigTranslator.VERIFY_CONFIG_V3));
-        given(attempt.inputBytes())
-                .willReturn(EthereumVerifyConfigTranslator.VERIFY_CONFIG_V3
-                        .encodeCall(Tuple.of(configPayload, channelId32, manifestBytes))
+                        .encodeCall(Tuple.of(new byte[] {1, 2, 3}, new byte[32], new byte[] {4, 5, 6}))
                         .array());
         given(attempt.enhancement()).willReturn(mockEnhancement());
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);

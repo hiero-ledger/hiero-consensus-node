@@ -119,6 +119,15 @@ public class WritablePlatformStateStore extends ReadablePlatformStateStore imple
      * {@inheritDoc}
      */
     @Override
+    public void setEventCutoverMinBirthRound(final long eventCutoverMinBirthRound) {
+        final var previousState = stateOrThrow();
+        update(previousState.copyBuilder().eventCutoverMinBirthRound(eventCutoverMinBirthRound));
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public void setLastFrozenTime(@Nullable final Instant lastFrozenTime) {
         final var previousState = stateOrThrow();
         update(previousState.copyBuilder().lastFrozenTime(toPbjTimestamp(lastFrozenTime)));

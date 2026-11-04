@@ -6,6 +6,7 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.bulkUpdateOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.isGenesisStateOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.isInFreezePeriod;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.setLegacyRunningEventHashTo;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.updateLastFrozenTime;
@@ -37,12 +38,15 @@ import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.CryptoUtils;
-import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.HashBuilder;
+import org.hiero.consensus.event.stream.config.EventConfig;
 import org.hiero.consensus.event.stream.config.EventStreamWiringConfig;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
@@ -64,6 +68,8 @@ import org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerTyp
 public class DefaultTransactionHandler implements TransactionHandler {
 
     private static final Logger logger = LogManager.getLogger(DefaultTransactionHandler.class);
+
+    private static final Hash NULL_384_HASH = new HashBuilder(DigestType.SHA_384).build();
 
     /**
      * The class responsible for all interactions with the swirld state
@@ -104,6 +110,11 @@ public class DefaultTransactionHandler implements TransactionHandler {
     private final int roundsNonAncient;
 
     private final Configuration configuration;
+
+    /**
+     * If true then the event hash cutover is enabled.
+     */
+    private final boolean eventCutoverEnabled;
 
     /**
      * If true then write the legacy running event hash each round.
@@ -164,10 +175,12 @@ public class DefaultTransactionHandler implements TransactionHandler {
 
         this.roundsNonAncient =
                 configuration.getConfigData(ConsensusConfig.class).roundsNonAncient();
+        this.eventCutoverEnabled =
+                configuration.getConfigData(EventConfig.class).enableEventCutover();
         this.handlerMetrics = new RoundHandlingMetrics(time, metrics);
         this.transactionMetrics = new TransactionMetrics(metrics);
 
-        previousRoundLegacyRunningEventHash = Cryptography.NULL_HASH;
+        previousRoundLegacyRunningEventHash = NULL_384_HASH;
 
         final EventStreamWiringConfig eventStreamWiringConfig =
                 configuration.getConfigData(EventStreamWiringConfig.class);
@@ -308,12 +321,21 @@ public class DefaultTransactionHandler implements TransactionHandler {
      * @param round the consensus round
      */
     private void updatePlatformState(@NonNull final ConsensusRound round) {
-        bulkUpdateOf(stateLifecycleManager.getMutableState(), v -> {
+        final VirtualMapState state = stateLifecycleManager.getMutableState();
+        // A genesis state has no platform state to modify until the first round is handled; reads of it return
+        // UNINITIALIZED_PLATFORM_STATE. A network that starts with the event cutover enabled therefore records the
+        // cutover with the first round it handles instead of at startup.
+        final boolean recordGenesisEventCutover = eventCutoverEnabled && isGenesisStateOf(state);
+        bulkUpdateOf(state, v -> {
             v.setRound(round.getRoundNum());
             v.setConsensusTimestamp(round.getConsensusTimestamp());
             v.setCreationSoftwareVersion(softwareVersion);
             v.setRoundsNonAncient(roundsNonAncient);
             v.setSnapshot(round.getSnapshot());
+            if (recordGenesisEventCutover) {
+                // the same value the EventHashFactory is initialized with at genesis: every event is post cutover
+                v.setEventCutoverMinBirthRound(ConsensusConstants.ROUND_FIRST);
+            }
         });
     }
 
@@ -345,7 +367,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
 
             setLegacyRunningEventHashTo(consensusState, previousRoundLegacyRunningEventHash);
         } else {
-            setLegacyRunningEventHashTo(consensusState, Cryptography.NULL_HASH);
+            setLegacyRunningEventHashTo(consensusState, NULL_384_HASH);
         }
     }
 

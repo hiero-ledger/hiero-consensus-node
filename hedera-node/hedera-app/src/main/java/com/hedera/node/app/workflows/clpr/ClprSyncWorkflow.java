@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.clpr;
 
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 
@@ -18,27 +16,9 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 public interface ClprSyncWorkflow {
 
     /**
-     * Called to handle a single CLPR sync request from a peer endpoint.
-     *
-     * @param requestBytes The raw protobuf bytes of the incoming {@code ClprSyncPayload}.
-     * @param responseBuffer A {@link BufferedData} into which the outbound {@code ClprSyncPayload}
-     *                       response bytes are written.
-     */
-    void handleSync(@NonNull Bytes requestBytes, @NonNull BufferedData responseBuffer);
-
-    /**
-     * Called to handle a CLPR endpoint discovery request from a peer endpoint.
-     *
-     * @param requestBytes The raw protobuf bytes of the incoming {@code ClprDiscoverEndpointsRequest}.
-     * @param responseBuffer A {@link BufferedData} into which the outbound
-     *                       {@code ClprDiscoverEndpointsResponse} bytes are written.
-     */
-    void handleDiscovery(@NonNull Bytes requestBytes, @NonNull BufferedData responseBuffer);
-
-    /**
-     * Opens a server-side session for one inbound {@code streamingSync} stream. Unlike {@link #handleSync} — a
-     * one-shot request/response — a stream is a multi-message exchange with state that lives across messages, so the
-     * transport gets a fresh session object per stream to drive rather than a method to call.
+     * Opens a server-side session for one inbound streaming {@code sync} call. A stream is a multi-message exchange
+     * with state that lives across messages, so the transport gets a fresh session object per stream to drive rather
+     * than a method to call.
      *
      * @return a new session, scoped to a single stream
      */

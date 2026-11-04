@@ -43,6 +43,27 @@ final class ClprArgs {
     }
 
     /**
+     * Resolves bytes supplied either as a path to a binary file ({@code --<fileFlag>}) or as a
+     * hex string ({@code --<hexFlag>}). The two flags are mutually exclusive. Returns
+     * {@code null} when neither is given, so the caller decides whether the value is required.
+     */
+    @Nullable
+    static byte[] optionalBytesFromFileOrHex(
+            final String fileFlag, @Nullable final String file, final String hexFlag, @Nullable final String hex)
+            throws IOException {
+        final var fileProvided = file != null && !file.isBlank();
+        final var hexProvided = hex != null && !hex.isBlank();
+        if (fileProvided && hexProvided) {
+            throw new IllegalArgumentException(
+                    "Cannot specify both --" + fileFlag + " and --" + hexFlag + "; pick one.");
+        }
+        if (fileProvided) {
+            return readBytesFile(Path.of(file));
+        }
+        return hexProvided ? parseHex(hex) : null;
+    }
+
+    /**
      * Reads a flat JSON file (one level deep, only string-valued fields) and returns a
      * {@code Map<fieldName, stringValue>}. Intended for parsing the identity bundles
      * produced by {@code generate-channel-identity} / {@code generate-connector-identity},

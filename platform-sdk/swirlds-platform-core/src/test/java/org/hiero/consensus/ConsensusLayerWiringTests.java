@@ -12,7 +12,7 @@ import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpStatus
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpTransactionHandlingModule;
 import static com.swirlds.platform.state.NoOpConsensusStateEventHandler.NO_OP_CONSENSUS_STATE_EVENT_HANDLER;
 import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
-import static org.hiero.consensus.fakes.noop.FakeRosterFactory.fakeRosterHistory;
+import static org.hiero.consensus.fakes.noop.FakeRosterFactory.fakeRosterInputs;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.FREEZING;
 import static org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerConfiguration.DIRECT_THREADSAFE_CONFIGURATION;
@@ -57,6 +57,8 @@ import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.iss.detection.IssDetectionModule;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.ConsensusLayerRosterInputs;
+import org.hiero.consensus.model.roster.RosterWrapperHistory;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.state.StateModule;
@@ -104,11 +106,13 @@ class ConsensusLayerWiringTests {
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
                 spy(new NoOpStateLifecycleManager<>());
 
+        final ConsensusLayerRosterInputs rosterInputs = fakeRosterInputs();
+
         final ConsensusLayerInputs inputs = new ConsensusLayerInputs(
                 configuration,
                 new NoOpMetrics(),
                 Time.getCurrent(),
-                fakeRosterHistory(),
+                rosterInputs,
                 KeysAndCertsGenerator.generate(NodeId.FIRST_NODE_ID),
                 NodeId.FIRST_NODE_ID,
                 new NoOpRecycleBin(),
@@ -157,6 +161,7 @@ class ConsensusLayerWiringTests {
         final ConsensusLayerBuildingBlocks buildingBlocks = new ConsensusLayerBuildingBlocks(
                 model,
                 configuration,
+                RosterWrapperHistory.of(rosterInputs),
                 eventCreatorModule,
                 eventIntakeModule,
                 pcesModule,

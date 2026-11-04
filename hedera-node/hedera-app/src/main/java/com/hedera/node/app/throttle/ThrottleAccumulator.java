@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.throttle;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SUBMIT_BUNDLE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL_LOCAL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
@@ -55,6 +56,7 @@ import com.hedera.node.app.hapi.utils.throttles.LeakyBucketDeterministicThrottle
 import com.hedera.node.app.hapi.utils.throttles.OpsDurationDeterministicThrottle;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.impl.ReadableEntityIdStoreImpl;
+import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.schedule.impl.ReadableScheduleStoreImpl;
 import com.hedera.node.app.service.token.ReadableAccountStore;
@@ -63,6 +65,7 @@ import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.config.data.AccountsConfig;
+import com.hedera.node.config.data.ClprConfig;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.HederaConfig;
@@ -234,7 +237,8 @@ public class ThrottleAccumulator {
     /**
      * Consumes a given amount of ops duration units from the throttle's capacity.
      * Takes into account the amount leaked from the bucket up to the provided time.
-     * If the amount to consume is greater than the available amount then overfills the bucket without an error.
+     * If the amount to consume is greater than the available amount then consumption is capped at the
+     * remaining capacity without an error.
      */
     public void consumeOpsDurationThrottleCapacity(final long opsDurationUnitsToConsume, @NonNull final Instant now) {
         if (throttleType == NOOP_THROTTLE) {
@@ -270,11 +274,13 @@ public class ThrottleAccumulator {
             final var enforceGasThrottle =
                     configuration.getConfigData(ContractsConfig.class).throttleThrottleByGas();
 
-            return enforceGasThrottle
+            if (enforceGasThrottle
                     && !gasThrottle.allow(
                             now,
                             query.contractCallLocalOrElse(ContractCallLocalQuery.DEFAULT)
-                                    .gas());
+                                    .gas())) {
+                return true;
+            }
         }
         resetLastAllowedUse();
         final var manager = functionReqs.get(queryFunction);
@@ -581,7 +587,12 @@ public class ThrottleAccumulator {
         // exemption
         // but this is only possible for the case of triggered transactions which is not yet implemented (see
         // MonoMultiplierSources.java)
-        final boolean isPayerThrottleExempt = throttleExempt(txnInfo.payerID(), configuration);
+        // While CLPR is enabled, node-generated bundles must consume the dedicated CLPR capacity
+        // even though their node-account payers are otherwise exempt from throttling.
+        final boolean consumesClprBundleCapacity = function == CLPR_SUBMIT_BUNDLE
+                && configuration.getConfigData(ClprConfig.class).enabled();
+        final boolean isPayerThrottleExempt =
+                !consumesClprBundleCapacity && throttleExempt(txnInfo.payerID(), configuration);
         if (isPayerThrottleExempt) {
             return false;
         }
@@ -595,10 +606,17 @@ public class ThrottleAccumulator {
         }
 
         if (isJumboTransactionsEnabled) {
-            final var allowedHederaFunctionalities =
-                    configuration.getConfigData(JumboTransactionsConfig.class).allowedHederaFunctionalities();
-            if (allowedHederaFunctionalities.contains(fromPbj(txnInfo.functionality()))) {
-                final var bytesUsage = txnInfo.signedTx().protobufSize();
+            final var jumboConfig = configuration.getConfigData(JumboTransactionsConfig.class);
+            if (jumboConfig.allowedHederaFunctionalities().contains(fromPbj(txnInfo.functionality()))) {
+                long bytesUsage = txnInfo.wireSize();
+                // Count the decoded size of file-referenced callData so a file-delivered payload is metered
+                // by size like an inline one, rather than only by its (small) on-wire size.
+                if (jumboConfig.chargeHydratedCallDataSize()) {
+                    final var fileStore = new ReadableStoreFactoryImpl(state).readableStore(ReadableFileStore.class);
+                    final var firstUserEntity =
+                            configuration.getConfigData(HederaConfig.class).firstUserEntity();
+                    bytesUsage += HydratedCallDataSize.fileReferencedCallDataBytes(txBody, fileStore, firstUserEntity);
+                }
                 final var maxRegularTxnSize =
                         configuration.getConfigData(HederaConfig.class).transactionMaxBytes();
 
@@ -771,7 +789,15 @@ public class ThrottleAccumulator {
         }
     }
 
-    private static boolean throttleExempt(
+    /**
+     * Returns whether the given payer is exempt from throttling, i.e. its account number is in
+     * {@code 1..accounts.lastThrottleExempt}.
+     *
+     * @param accountID the payer account, if any
+     * @param configuration the configuration to read {@code accounts.lastThrottleExempt} from
+     * @return whether the payer is throttle exempt
+     */
+    public static boolean throttleExempt(
             @Nullable final AccountID accountID, @NonNull final Configuration configuration) {
         final long maxThrottleExemptNum =
                 configuration.getConfigData(AccountsConfig.class).lastThrottleExempt();
@@ -870,15 +896,20 @@ public class ThrottleAccumulator {
             final boolean useHighVolumeBucket) {
         final boolean unlimitedAutoAssociations =
                 configuration.getConfigData(EntitiesConfig.class).unlimitedAutoAssociationsEnabled();
-        if (implicitCreationsCount > 0) {
-            return shouldThrottleBasedOnImplicitCreations(
-                    manager, implicitCreationsCount, now, throttleUsages, useHighVolumeBucket);
-        } else if (unlimitedAutoAssociations && autoAssociationsCount > 0) {
-            return shouldThrottleBasedOnAutoAssociations(
-                    manager, autoAssociationsCount, now, throttleUsages, useHighVolumeBucket);
-        } else {
+        final boolean hasImplicitCreations = implicitCreationsCount > 0;
+        final boolean hasAutoAssociations = unlimitedAutoAssociations && autoAssociationsCount > 0;
+        if (!hasImplicitCreations && !hasAutoAssociations) {
             return !manager.allReqsMetAt(now, throttleUsages);
         }
+        // The two dimensions are additive, so a transfer doing both must lease from both buckets
+        if (hasImplicitCreations
+                && shouldThrottleBasedOnImplicitCreations(
+                        manager, implicitCreationsCount, now, throttleUsages, useHighVolumeBucket)) {
+            return true;
+        }
+        return hasAutoAssociations
+                && shouldThrottleBasedOnAutoAssociations(
+                        manager, autoAssociationsCount, now, throttleUsages, useHighVolumeBucket);
     }
 
     private boolean shouldThrottleEthTxn(

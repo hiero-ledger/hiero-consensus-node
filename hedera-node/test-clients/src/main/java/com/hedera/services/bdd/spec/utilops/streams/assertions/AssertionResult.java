@@ -79,6 +79,17 @@ public class AssertionResult {
     }
 
     /**
+     * Returns true if the assertion neither passed nor explicitly failed, but ran out of time. Callers that
+     * want to give a not-yet-satisfied assertion a second chance must check this rather than {@code !passed()},
+     * which is also true for an explicitly recorded failure.
+     *
+     * @return true if the assertion timed out
+     */
+    public boolean timedOut() {
+        return outcome == Outcome.TIMEOUT;
+    }
+
+    /**
      * Returns the details of the error that caused the assertion to fail, or null if the assertion passed.
      * @return the details of the error that caused the assertion to fail
      */

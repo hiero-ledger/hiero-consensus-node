@@ -16,12 +16,8 @@ import javax.inject.Singleton;
  * <p>Every Channel specifies a {@code verifier_contract} at registration time and that
  * contract is always a deployed EVM smart contract. The factory returns an
  * {@link EvmClprVerifier} that dispatches verification calls to that specific contract.
- * The contract must implement:
- * <pre>
- *   function verifyConfig(bytes calldata proofBytes) external returns (bytes memory);
- *   function verifyBundle(bytes calldata bundlePayload, bytes calldata trustAnchor)
- *       external returns (bytes memory);
- * </pre>
+ * The contract must implement the config ABI with seed endpoints, or the manifest-aware config ABI
+ * when endpoint manifests are enabled, and the three-argument bundle ABI described by {@link EvmClprVerifier}.
  *
  * <p>Heavy lifting (TSS signature verification, Merkle path walking) is available to the
  * verifier contract through the CLPR system contract precompiles

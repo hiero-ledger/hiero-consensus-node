@@ -211,7 +211,7 @@ public class ConsensusNoOpModules {
             throw new RuntimeException(e);
         }
         final RosterEntry rosterEntry = new RosterEntry(selfId.id(), 0L, certificate, List.of(ServiceEndpoint.DEFAULT));
-        final Roster roster = new Roster(List.of(rosterEntry));
+        final RosterWrapper roster = RosterWrapper.of(new Roster(List.of(rosterEntry)));
         final SemanticVersion appVersion = SemanticVersion.DEFAULT;
         final IntakeEventCounter intakeEventCounter = new NoOpIntakeEventCounter();
         final Supplier<ReservedSignedState> latestCompleteStateSupplier = ReservedSignedState::createNullReservation;

@@ -820,7 +820,7 @@ public class Create2OperationSuite {
                 sourcing(() -> contractDelete(saltingCreatorMirrorAddr.get())
                         .signedBy(DEFAULT_PAYER, adminKey)
                         .transferAccount(FUNDING)
-                        .hasPrecheck(CONTRACT_DELETED)),
+                        .hasKnownStatus(CONTRACT_DELETED)),
                 sourcing(() -> getContractInfo(saltingCreatorMirrorAddr.get())
                         .has(contractWith().addressOrAlias(saltingCreatorMirrorAddr.get()))));
     }

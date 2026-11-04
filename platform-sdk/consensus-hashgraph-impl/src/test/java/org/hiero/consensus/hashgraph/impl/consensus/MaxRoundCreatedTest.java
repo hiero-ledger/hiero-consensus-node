@@ -18,10 +18,12 @@ import org.hiero.base.utility.test.fixtures.io.ResourceExtractor;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.ConsensusOutput;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.TestIntake;
 import org.hiero.consensus.io.IOIterator;
+import org.hiero.consensus.model.event.EventHashFactory;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.pces.impl.test.fixtures.PcesFileIteratorFactory;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -43,6 +45,11 @@ public class MaxRoundCreatedTest {
         final ResourceExtractor<MaxRoundCreatedTest> loader = new ResourceExtractor<>(MaxRoundCreatedTest.class);
         final Path tempDir = loader.loadDirectory(RESOURCE_DIR);
         Files.move(tempDir, testDataDirectory, REPLACE_EXISTING);
+    }
+
+    @AfterEach
+    void tearDown() {
+        EventHashFactory.initialize(Long.MAX_VALUE);
     }
 
     /**
@@ -68,6 +75,8 @@ public class MaxRoundCreatedTest {
         final Path rosterPath = testDataDirectory.resolve(ROSTER_FILE);
         final RosterWrapper roster = RosterWrapper.of(
                 Roster.JSON.parse(new ReadableStreamingData(new FileInputStream(rosterPath.toFile()))));
+
+        EventHashFactory.initialize(1);
 
         final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
 

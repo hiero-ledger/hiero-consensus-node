@@ -35,18 +35,6 @@ public class Message implements Comparable<Message> {
      *
      * @param payload
      * 		the data to be hashed
-     * @throws NullPointerException
-     * 		if the {@code payload} parameter is null
-     */
-    public Message(final byte[] payload) {
-        this(payload, 0, (payload != null) ? payload.length : 0, DigestType.SHA_384);
-    }
-
-    /**
-     * Creates a message instance where the entire array will be hashed.
-     *
-     * @param payload
-     * 		the data to be hashed
      * @param digestType
      * 		the digest algorithm to be used
      * @throws NullPointerException
@@ -54,22 +42,6 @@ public class Message implements Comparable<Message> {
      */
     public Message(final byte[] payload, final DigestType digestType) {
         this(payload, 0, (payload != null) ? payload.length : 0, digestType);
-    }
-
-    /**
-     * Creates a message instance where the array starting from offset will be hashed.
-     *
-     * @param payload
-     * 		the data to be hashed
-     * @param offset
-     * 		the offset in the array from which to begin hashing
-     * @throws NullPointerException
-     * 		if the {@code payload} parameter is null
-     * @throws ArrayIndexOutOfBoundsException
-     * 		if the {@code offset} parameter is outside the bounds of the array
-     */
-    public Message(final byte[] payload, final int offset) {
-        this(payload, offset, (payload != null) ? payload.length - offset : 0, DigestType.SHA_384);
     }
 
     /**
@@ -88,27 +60,6 @@ public class Message implements Comparable<Message> {
      */
     public Message(final byte[] payload, final int offset, final DigestType digestType) {
         this(payload, offset, (payload != null) ? payload.length - offset : 0, digestType);
-    }
-
-    /**
-     * Creates a message instance where the array starting at offset to length will be hashed.
-     *
-     * @param payload
-     * 		the data to be hashed
-     * @param offset
-     * 		the offset in the array from which to begin hashing
-     * @param length
-     * 		the length in bytes starting from offset
-     * @throws NullPointerException
-     * 		if the {@code payload} parameter is null
-     * @throws ArrayIndexOutOfBoundsException
-     * 		if the {@code offset} parameter is outside the bounds of the array
-     * @throws IllegalArgumentException
-     * 		if the {@code length} parameter is less than zero or greater than
-     *        {@code payload.length}
-     */
-    public Message(final byte[] payload, final int offset, final int length) {
-        this(payload, offset, length, DigestType.SHA_384);
     }
 
     /**

@@ -19,6 +19,7 @@ import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.virtualmap.VirtualMap;
+import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.platformstate.V0540PlatformStateSchema;
@@ -31,8 +32,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class BlockProvenStateAccessorTest {
     private static final long ROUND_NO = 123L;
-    private static final Hash STATE_HASH = new Hash(new byte[48]);
-    private static final Hash OTHER_STATE_HASH = new Hash(bytesOf((byte) 1));
+    private static final Hash STATE_HASH = new Hash(Cryptography.DEFAULT_DIGEST_TYPE);
+    private static final Hash OTHER_STATE_HASH = new Hash(bytesOf((byte) 1), Cryptography.DEFAULT_DIGEST_TYPE);
     private static final Bytes BLOCK_HASH = Bytes.fromHex("ab".repeat(48));
     private static final Bytes TSS_SIGNATURE = Bytes.fromHex("cd".repeat(48));
     private static final Timestamp BLOCK_TIMESTAMP = new Timestamp(1_234_567L, 890);
@@ -213,7 +214,7 @@ class BlockProvenStateAccessorTest {
     }
 
     private static byte[] bytesOf(final byte value) {
-        final var bytes = new byte[48];
+        final var bytes = new byte[Cryptography.DEFAULT_DIGEST_TYPE.digestLength()];
         java.util.Arrays.fill(bytes, value);
         return bytes;
     }

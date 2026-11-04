@@ -33,6 +33,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.CryptographyProvider;
+import org.hiero.base.crypto.DigestType;
 
 /**
  * This class contains all workflow-related functionality regarding {@link HederaFunctionality#FILE_GET_INFO}.
@@ -131,7 +132,7 @@ public class FileGetInfoHandler extends FileQueryBase {
                 // The "memo" of a special upgrade file is its hexed SHA-384 hash for DevOps convenience
                 final var contents = upgradeFileStore.getFull(fileID).toByteArray();
                 contentSize = contents.length;
-                final var upgradeHash = hex(cryptography.digestBytesSync(contents));
+                final var upgradeHash = hex(cryptography.digestBytesSync(contents, DigestType.SHA_384));
                 meta = new FileMetadata(
                         file.fileId(),
                         Timestamp.newBuilder().seconds(file.expirationSecond()).build(),

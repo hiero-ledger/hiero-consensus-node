@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.clpr;
 
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import java.security.SecureRandom;
-import org.bouncycastle.jcajce.provider.digest.Keccak;
-import org.bouncycastle.math.ec.rfc8032.Ed25519;
+import org.hiero.base.crypto.Ed25519;
 
 /**
  * Generates Ed25519 key material for the register → complete flow, both for the
@@ -37,32 +37,33 @@ final class ClprChannelCrypto {
         rng.nextBytes(channelId);
 
         // Generate Ed25519 key pair
-        final var privateKey = new byte[32];
-        rng.nextBytes(privateKey);
-        publicKey = new byte[32];
-        Ed25519.generatePublicKey(privateKey, 0, publicKey, 0);
+        final var seed = new byte[Ed25519.SEED_BYTES];
+        rng.nextBytes(seed);
+        final byte[] secretKey = new byte[Ed25519.SECRET_KEY_BYTES];
+        publicKey = new byte[Ed25519.PUBLIC_KEY_BYTES];
+        Ed25519.newKeypair(publicKey, secretKey, seed);
 
         // commitment = keccak256(channelId || publicKey)  — spec §5.1.2
-        commitment = keccak256(concat(channelId, publicKey));
+        commitment = MiscCryptoUtils.keccak256DigestOf(concat(channelId, publicKey));
 
         // signature = Ed25519.sign(keccak256(channelId))  — spec §5.1.3
-        signature = new byte[Ed25519.SIGNATURE_SIZE];
-        final var messageHash = keccak256(channelId);
-        Ed25519.sign(privateKey, 0, messageHash, 0, messageHash.length, signature, 0);
+        signature = new byte[Ed25519.SIGNATURE_BYTES];
+        final var messageHash = MiscCryptoUtils.keccak256DigestOf(channelId);
+        Ed25519.sign(signature, messageHash, secretKey);
 
         // connectorId = keccak256(channelId || pubKey || salt)  — spec §6.3 deriveConnectorId
         connectorSalt = new byte[32];
         rng.nextBytes(connectorSalt);
-        connectorId = keccak256(concat(channelId, concat(publicKey, connectorSalt)));
+        connectorId = MiscCryptoUtils.keccak256DigestOf(concat(channelId, concat(publicKey, connectorSalt)));
 
         // connectorCommitment = keccak256(connectorId || pubKey)  — spec §6.3 Phase 1
-        connectorCommitment = keccak256(concat(connectorId, publicKey));
+        connectorCommitment = MiscCryptoUtils.keccak256DigestOf(concat(connectorId, publicKey));
 
         // connectorSignature = Ed25519.sign(keccak256(connectorId || CLPR_SERVICE_ADDRESS))
         //   — spec §6.3 Phase 2 step 3
-        connectorSignature = new byte[Ed25519.SIGNATURE_SIZE];
-        final var connectorSigMsg = keccak256(concat(connectorId, CLPR_SERVICE_ADDRESS));
-        Ed25519.sign(privateKey, 0, connectorSigMsg, 0, connectorSigMsg.length, connectorSignature, 0);
+        connectorSignature = new byte[Ed25519.SIGNATURE_BYTES];
+        final var connectorSigMsg = MiscCryptoUtils.keccak256DigestOf(concat(connectorId, CLPR_SERVICE_ADDRESS));
+        Ed25519.sign(connectorSignature, connectorSigMsg, secretKey);
     }
 
     byte[] channelId() {
@@ -95,10 +96,6 @@ final class ClprChannelCrypto {
 
     byte[] connectorSignature() {
         return connectorSignature;
-    }
-
-    private static byte[] keccak256(final byte[] input) {
-        return new Keccak.Digest256().digest(input);
     }
 
     private static byte[] concat(final byte[] a, final byte[] b) {

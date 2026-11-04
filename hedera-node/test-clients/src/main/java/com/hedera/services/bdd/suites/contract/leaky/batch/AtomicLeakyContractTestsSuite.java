@@ -427,7 +427,7 @@ public class AtomicLeakyContractTestsSuite {
     @LeakyEmbeddedHapiTest(
             reason = NEEDS_STATE_ACCESS,
             overrides = {"contracts.maxGasPerTransaction"})
-    final Stream<DynamicTest> gasLimitOverMaxGasLimitFailsPrecheck() {
+    final Stream<DynamicTest> gasLimitOverMaxGasLimitFails() {
         return hapiTest(
                 uploadInitCode(SIMPLE_UPDATE_CONTRACT),
                 uploadInitCode(EMPTY_CONSTRUCTOR_CONTRACT),
@@ -439,7 +439,7 @@ public class AtomicLeakyContractTestsSuite {
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                contractCreate(EMPTY_CONSTRUCTOR_CONTRACT).gas(1_000_000L).hasPrecheck(MAX_GAS_LIMIT_EXCEEDED));
+                contractCreate(EMPTY_CONSTRUCTOR_CONTRACT).gas(1_000_000L).hasKnownStatus(MAX_GAS_LIMIT_EXCEEDED));
     }
 
     @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS)

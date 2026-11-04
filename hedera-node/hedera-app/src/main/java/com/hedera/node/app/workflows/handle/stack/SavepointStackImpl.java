@@ -4,6 +4,8 @@ package com.hedera.node.app.workflows.handle.stack;
 import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SUBMIT_BUNDLE;
 import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_DISPATCH;
+import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_SIGN;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NO_SCHEDULING_ALLOWED_AFTER_SCHEDULED_RECURSION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.RECURSIVE_SCHEDULING_LIMIT_REACHED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REVERTED_SUCCESS;
@@ -57,11 +59,13 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import org.hiero.base.crypto.Hash;
 
 /**
@@ -81,6 +85,19 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
     // because child stacks flush their builders into the savepoint at the top of their parent stack
     @Nullable
     private final BuilderSink builderSink;
+
+    /**
+     * For the root stack of a user dispatch, the transaction id of the batch inner transaction that dispatched each
+     * builder still needing an id when {@link #buildHandleOutput(Instant, ExchangeRateSet, Long)} runs; null until
+     * some builder is dispatched within a batch inner transaction, and always null for a child stack, which records
+     * its builders' owners in the root stack.
+     * <p>
+     * These owners have to be recorded when the dispatch happens: a {@link TransactionCategory#PRECEDING} builder
+     * reaches the root sink either before or after its own inner transaction, depending on whether its dispatch
+     * escapes an enclosing savepoint, so position does not identify it.
+     */
+    @Nullable
+    private Map<StreamBuilder, TransactionID> batchInnerIdsByBuilder;
 
     @Nullable
     private final ImmediateStateChangeListener immediateStateChangeListener;
@@ -243,6 +260,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         this.boundaryStateChangeListener = null;
         setupFirstSavepoint(category);
         baseBuilder = createBaseBuilder(reversingBehavior, category, customizer);
+        trackAnyEnclosingBatchInner(baseBuilder);
         presetIdsAllowed = false;
     }
 
@@ -291,7 +309,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
     public void commitTransaction(@NonNull final StreamBuilder builder) {
         requireNonNull(builder);
         if (streamMode != RECORDS && immediateStateChangeListener != null) {
-            immediateStateChangeListener.reset(builder.logicallyIdenticalValueTest());
+            immediateStateChangeListener.reset(logicallyIdenticalValueTestFor(builder));
         }
         while (!stack.isEmpty()) {
             final var savepoint = stack.pop();
@@ -305,6 +323,38 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
             builder.stateChanges(immediateStateChangeListener.getStateChanges());
         }
         setupFirstSavepoint(baseBuilder.category());
+    }
+
+    /**
+     * Includes the tests of immediately scheduled dispatches when their writes reach the scheduling parent's root
+     * listener. Other transaction types retain their own predicate and tracing policy. A key is identical only if
+     * none of the successful implicit traces changed its logical value; if explicit writes are also present, their
+     * tests are unavailable, so conservatively leave all updates non-identical.
+     */
+    private @Nullable Predicate<Object> logicallyIdenticalValueTestFor(@NonNull final StreamBuilder builder) {
+        var test = builder.logicallyIdenticalValueTest();
+        if (builder.functionality() != SCHEDULE_CREATE && builder.functionality() != SCHEDULE_SIGN) {
+            return test;
+        }
+        // Only inspect pending savepoints: builders in the root sink have already had their state changes committed.
+        final List<StreamBuilder> pendingBuilders = new ArrayList<>();
+        for (final var savepoint : stack) {
+            savepoint.forEachOtherBuilder(pendingBuilders::add, StreamBuilder.class, builder);
+        }
+        for (final var other : pendingBuilders) {
+            if (!SUCCESSES.contains(other.status())) {
+                continue;
+            }
+            final var otherTest = other.logicallyIdenticalValueTest();
+            if (otherTest != null) {
+                test = test == null ? otherTest : test.and(otherTest);
+            } else if (other instanceof BlockStreamBuilder blockBuilder && blockBuilder.hasExplicitContractSlotWrites()
+                    || other instanceof PairedStreamBuilder pairedBuilder
+                            && pairedBuilder.blockStreamBuilder().hasExplicitContractSlotWrites()) {
+                return null;
+            }
+        }
+        return test;
     }
 
     /**
@@ -324,25 +374,15 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
     }
 
     /**
-     * Returns true when this stack's base builder should be finalized with staking rewards. There are
-     * two qualifying cases:
-     * <ol>
-     *     <li>The stack is for top-level transaction (either a user transaction or a triggered execution
-     *     like a expiring scheduled transaction with {@code wait_for_expiry=true}); or,</li>
-     *     <li>The stack is for executing a scheduled transaction with {@code wait_for_expiry=false}, and
-     *     whose triggering parent was a user transaction.</li>
-     * </ol>
-     * The second category is solely for backward compatibility with mono-service, and should be considered
-     * for deprecation and removal.
+     * Returns true when this stack's base builder should be finalized with staking rewards; that is, when
+     * the stack is for a top-level transaction (either a user transaction or a triggered execution like an
+     * expiring scheduled transaction with {@code wait_for_expiry=true}).
+     *
+     * <p>A scheduled transaction executed immediately as a child of its {@code ScheduleCreate} or
+     * {@code ScheduleSign} does not qualify; its parent settles the rewards for every account it touched.
      */
     public boolean permitsStakingRewards() {
-        return builderSink != null
-                ||
-                // For backward compatibility with mono-service, we permit paying staking rewards to
-                // scheduled transactions that are exactly children of user transactions
-                (baseBuilder.category() == SCHEDULED
-                        && state instanceof SavepointStackImpl parent
-                        && parent.txnCategory() == USER);
+        return builderSink != null;
     }
 
     /**
@@ -479,9 +519,28 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
      * @throws NullPointerException if this is called before the base builder was given an id
      */
     public TransactionID nextPresetTxnId(final boolean isLastAllowed) {
+        // The owner has to be resolved here, on the frame the request was made from; the recursion below reaches the
+        // root stack, from which the enclosing batch inner transaction is no longer visible
+        return nextPresetTxnId(isLastAllowed, enclosingBatchInnerTxnId());
+    }
+
+    /**
+     * Returns the next preset transaction id, taking its payer and valid start from the given owner when the request
+     * was made inside an atomic batch inner transaction, and its nonce from this stack's top-level transaction.
+     *
+     * <p>The nonce stays anchored on the top-level transaction even when the identity does not, which is what keeps
+     * preset nonces clear of the sequential ones: {@link #buildHandleOutput(Instant, ExchangeRateSet, Long)} assigns
+     * {@code topLevelNonce + offset} for an offset strictly less than {@code noncesPerPresetId}, so a preset nonce of
+     * {@code topLevelNonce + k * noncesPerPresetId} always falls beyond every one of them. Keep both anchored here.
+     *
+     * @param isLastAllowed whether the stack should refuse to create more preset ids after this one
+     * @param ownerId the batch inner transaction the request was made within, or null if there was none
+     * @return the next expected transaction ID
+     */
+    private TransactionID nextPresetTxnId(final boolean isLastAllowed, @Nullable final TransactionID ownerId) {
         // Child stacks always delegate such requests to their parent
         if (state instanceof SavepointStackImpl parent) {
-            return parent.nextPresetTxnId(isLastAllowed);
+            return parent.nextPresetTxnId(isLastAllowed, ownerId);
         }
         if (!presetIdsAllowed) {
             throw new HandleException(NO_SCHEDULING_ALLOWED_AFTER_SCHEDULED_RECURSION);
@@ -490,9 +549,10 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         if (isLastAllowed) {
             presetIdsAllowed = false;
         }
-        final var baseId = requireNonNull(baseBuilder.transactionID());
-        final var presetNonce = baseId.nonce() + numPresetIds * noncesPerPresetId;
-        if (baseId.nonce() < 0 && presetNonce >= 0) {
+        final var topLevelId = requireNonNull(baseBuilder.transactionID());
+        final var baseId = ownerId != null ? ownerId : topLevelId;
+        final var presetNonce = topLevelId.nonce() + numPresetIds * noncesPerPresetId;
+        if (topLevelId.nonce() < 0 && presetNonce >= 0) {
             throw new HandleException(RECURSIVE_SCHEDULING_LIMIT_REACHED);
         }
         return baseId.copyBuilder().nonce(presetNonce).build();
@@ -513,7 +573,8 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
      * @return the new stream builder
      */
     public StreamBuilder createRemovableChildBuilder() {
-        return peek().createNonBaseBuilder(REMOVABLE, CHILD, NOOP_SIGNED_TX_CUSTOMIZER, streamMode);
+        return trackAnyEnclosingBatchInner(
+                peek().createNonBaseBuilder(REMOVABLE, CHILD, NOOP_SIGNED_TX_CUSTOMIZER, streamMode));
     }
 
     /**
@@ -522,7 +583,8 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
      * @return the new stream builder
      */
     public StreamBuilder createReversibleChildBuilder() {
-        return peek().createNonBaseBuilder(REVERSIBLE, CHILD, NOOP_SIGNED_TX_CUSTOMIZER, streamMode);
+        return trackAnyEnclosingBatchInner(
+                peek().createNonBaseBuilder(REVERSIBLE, CHILD, NOOP_SIGNED_TX_CUSTOMIZER, streamMode));
     }
 
     /**
@@ -531,7 +593,8 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
      * @return the new stream builder
      */
     public StreamBuilder createIrreversiblePrecedingBuilder() {
-        return peek().createNonBaseBuilder(IRREVERSIBLE, PRECEDING, NOOP_SIGNED_TX_CUSTOMIZER, streamMode);
+        return trackAnyEnclosingBatchInner(
+                peek().createNonBaseBuilder(IRREVERSIBLE, PRECEDING, NOOP_SIGNED_TX_CUSTOMIZER, streamMode));
     }
 
     /**
@@ -545,6 +608,42 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
             throw new IllegalStateException("The stack has already been committed");
         }
         return stack.peek();
+    }
+
+    private static boolean isEvmExecution(final StreamBuilder builder) {
+        return switch (builder.functionality()) {
+            case CONTRACT_CALL, CONTRACT_CREATE, ETHEREUM_TRANSACTION, HOOK_DISPATCH -> true;
+            case null, default -> false;
+        };
+    }
+
+    /**
+     * Selects explicit written values for this EVM dispatch and its enclosing EVM executions. Called after the
+     * child builder is initialized, before executing it, so trace limits include these values before any commit.
+     * Intermediate native dispatches (such as ScheduleSign or CryptoTransfer) do not break EVM ancestry.
+     */
+    public void configureEvmTraceForNestedDispatch() {
+        if (streamMode == RECORDS || !isEvmExecution(baseBuilder)) {
+            return;
+        }
+        boolean nested = false;
+        State ancestor = state;
+        while (ancestor instanceof SavepointStackImpl enclosing) {
+            if (isEvmExecution(enclosing.baseBuilder)) {
+                blockBuilderOf(enclosing.baseBuilder).retainEvmScopeDetails();
+                nested = true;
+            }
+            ancestor = enclosing.state;
+        }
+        if (nested) {
+            blockBuilderOf(baseBuilder).retainEvmScopeDetails();
+        }
+    }
+
+    private static BlockStreamBuilder blockBuilderOf(final StreamBuilder builder) {
+        return builder instanceof PairedStreamBuilder paired
+                ? paired.blockStreamBuilder()
+                : (BlockStreamBuilder) builder;
     }
 
     /**
@@ -609,28 +708,14 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
                         case PRECEDING, CHILD -> nextNonceOffset++;
                     };
             final var txnId = builder.transactionID();
-            // If the builder does not already have a transaction id, then complete with the next nonce offset
+            // If the builder does not already have a transaction id, then complete with the next nonce offset;
+            // attributing it to the batch inner transaction that dispatched it, if there was one, and otherwise
+            // to this stack's top-level transaction
             if (txnId == null || TransactionID.DEFAULT.equals(txnId)) {
-                if (i > indexOfParentBuilder && isBatch) {
-                    if (builder.category() == PRECEDING) {
-                        for (int j = i + 1; j < n; j++) {
-                            if (builders.get(j).category() == BATCH_INNER) {
-                                idBuilder = builders.get(j).transactionID().copyBuilder();
-                                break;
-                            }
-                        }
-                    } else if (builder.category() == CHILD) {
-                        for (int j = i - 1; j > indexOfParentBuilder; j--) {
-                            if (builders.get(j).category() == BATCH_INNER) {
-                                idBuilder = builders.get(j).transactionID().copyBuilder();
-                                break;
-                            }
-                        }
-                    }
-                }
-                builder.transactionID(requireNonNull(idBuilder)
-                                .nonce(topLevelNonce + nonceOffset)
-                                .build())
+                final var batchInnerId = batchInnerIdsByBuilder == null ? null : batchInnerIdsByBuilder.get(builder);
+                final var baseIdBuilder = batchInnerId != null ? batchInnerId.copyBuilder() : requireNonNull(idBuilder);
+                builder.transactionID(
+                                baseIdBuilder.nonce(topLevelNonce + nonceOffset).build())
                         .syncBodyIdFromRecordId();
             }
             final var consensusNow = consensusTime.plusNanos((long) i - indexOfParentBuilder);
@@ -663,9 +748,13 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
                             nextRecord.transactionRecord().receiptOrThrow()));
                 }
                 case BLOCKS -> {
-                    final var groupStateChanges = grouped ? baseBuilder.getStateChanges() : null;
+                    // Scheduled EVM executions share the parent's committed writes, but scheduling alone must not
+                    // enable intermediate trace fields that are only needed for grouped execution.
+                    final var sharedStateChanges =
+                            grouped || builder.category() == SCHEDULED ? baseBuilder.getStateChanges() : null;
                     requireNonNull(outputs)
-                            .add(((BlockStreamBuilder) builder).build(builder == baseBuilder, groupStateChanges));
+                            .add(((BlockStreamBuilder) builder)
+                                    .build(builder == baseBuilder, sharedStateChanges, grouped));
                 }
                 case BOTH -> {
                     final var pairedBuilder = (PairedStreamBuilder) builder;
@@ -675,11 +764,12 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
                             nextRecord.transactionRecord().transactionIDOrThrow(),
                             nextRecord.transactionRecord().receiptOrThrow()));
                     if (!suppressBlockOutput) {
-                        final var groupStateChanges = grouped ? baseBuilder.getStateChanges() : null;
+                        final var sharedStateChanges =
+                                grouped || builder.category() == SCHEDULED ? baseBuilder.getStateChanges() : null;
                         requireNonNull(outputs)
                                 .add(pairedBuilder
                                         .blockStreamBuilder()
-                                        .build(builder == baseBuilder, groupStateChanges));
+                                        .build(builder == baseBuilder, sharedStateChanges, grouped));
                     }
                 }
             }
@@ -690,6 +780,56 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         }
         final var recordSource = streamMode != BLOCKS ? new LegacyListRecordSource(records, receipts) : null;
         return new HandleOutput(blockRecordSource, recordSource, lastAssignedConsenusTime);
+    }
+
+    /**
+     * If the given builder was dispatched within the scope of an atomic batch inner transaction, records that inner
+     * transaction's id as the builder's owner in the root stack; so that
+     * {@link #buildHandleOutput(Instant, ExchangeRateSet, Long)} can stamp the builder with the identity of the inner
+     * transaction that actually produced it.
+     *
+     * @param builder the builder just created in this stack
+     * @return the given builder
+     */
+    private StreamBuilder trackAnyEnclosingBatchInner(@NonNull final StreamBuilder builder) {
+        final var batchInnerId = enclosingBatchInnerTxnId();
+        if (batchInnerId != null) {
+            trackBatchInnerId(builder, batchInnerId);
+        }
+        return builder;
+    }
+
+    /**
+     * Returns the transaction id of the nearest atomic batch inner transaction enclosing this stack, or null if this
+     * stack is not being used within a batch inner transaction.
+     */
+    @Nullable
+    TransactionID enclosingBatchInnerTxnId() {
+        if (baseBuilder.category() == BATCH_INNER) {
+            // Null only in the moment before a batch inner dispatch's base builder is initialized from its body,
+            // which is not a case where an owner needs recording, since that builder has an id of its own
+            return baseBuilder.transactionID();
+        }
+        return state instanceof SavepointStackImpl parent ? parent.enclosingBatchInnerTxnId() : null;
+    }
+
+    /**
+     * Records the given builder's owning batch inner transaction id in the root stack, which is the stack that will
+     * assign the builder an id of its own.
+     *
+     * @param builder the builder to record an owner for
+     * @param batchInnerId the id of the batch inner transaction that dispatched the builder
+     */
+    public void trackBatchInnerId(@NonNull final StreamBuilder builder, @NonNull final TransactionID batchInnerId) {
+        // Child stacks always delegate such requests to their parent
+        if (state instanceof SavepointStackImpl parent) {
+            parent.trackBatchInnerId(builder, batchInnerId);
+            return;
+        }
+        if (batchInnerIdsByBuilder == null) {
+            batchInnerIdsByBuilder = new IdentityHashMap<>();
+        }
+        batchInnerIdsByBuilder.put(builder, batchInnerId);
     }
 
     private void setupFirstSavepoint(@NonNull final TransactionCategory category) {

@@ -3,13 +3,13 @@ package com.hedera.node.app.service.contract.impl.exec.systemcontracts.ethereum.
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
-import static com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierAbi.VERIFY_BUNDLE_V3_RETURN;
+import static com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierAbi.VERIFY_BUNDLE_RETURN;
 import static com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierAbi.absentMetadataTuple;
 import static com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierAbi.manifestStructTuple;
+import static com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierAbi.metadataTuple;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.ordinalRevertResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.successResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasOnly;
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.configOf;
 import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Tuple;
@@ -24,24 +24,22 @@ import com.hedera.node.app.service.clpr.impl.verifier.ethereum.VerifiedBundle;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCall;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
-import com.hedera.node.config.data.ClprConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.math.BigInteger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 
 /**
- * Implements {@code verifyBundle(bytes bundlePayload, bytes trustAnchor) returns (bytes)} for the Ethereum verifier
+ * Implements {@code verifyBundle(bytes bundlePayload, bytes trustAnchor, bytes channelContext)} for the Ethereum verifier
  * system contract (EVM address {@code 0x171}).
  *
  * <p>The {@code bundlePayload} is the RLP-encoded sync-committee bundle payload; the
  * {@code trustAnchor} is the verifier's self-contained anchor
  * ({@code [syncCommittee, genesisValidatorsRoot, forkVersion, serviceAddress]}), passed  to
  * {@link EthereumSyncCommitteeProofVerifier#verifyBundle(byte[], byte[])}. The verifier reads the service contract
- * address from the anchor itself, so this call needs no external configuration.
+ * address from the anchor itself, so proof verification needs no external configuration.
  * <p>
  * The Ethereum verifier proves the queue metadata via execution-layer storage proofs and computes any trust-anchor
  * rotation itself, so this call enforces two service-level invariants before returning:
@@ -59,9 +57,6 @@ public class EthereumVerifyBundleCall extends AbstractCall {
     private final byte[] bundlePayload;
     private final byte[] trustAnchor;
 
-    @Nullable
-    private final byte[] channelContext;
-
     public EthereumVerifyBundleCall(
             @NonNull final HederaWorldUpdater.Enhancement enhancement,
             @NonNull final SystemContractGasCalculator gasCalculator,
@@ -70,19 +65,6 @@ public class EthereumVerifyBundleCall extends AbstractCall {
         super(gasCalculator, enhancement, true);
         this.bundlePayload = requireNonNull(bundlePayload);
         this.trustAnchor = requireNonNull(trustAnchor);
-        this.channelContext = null;
-    }
-
-    public EthereumVerifyBundleCall(
-            @NonNull final HederaWorldUpdater.Enhancement enhancement,
-            @NonNull final SystemContractGasCalculator gasCalculator,
-            @NonNull final byte[] bundlePayload,
-            @NonNull final byte[] trustAnchor,
-            @NonNull final byte[] channelContext) {
-        super(gasCalculator, enhancement, true);
-        this.bundlePayload = requireNonNull(bundlePayload);
-        this.trustAnchor = requireNonNull(trustAnchor);
-        this.channelContext = requireNonNull(channelContext);
     }
 
     @Override
@@ -103,15 +85,12 @@ public class EthereumVerifyBundleCall extends AbstractCall {
         }
 
         // Manifest-only recovery bundle (spec §8.1.4): the verifier proved an endpoint manifest with empty
-        // bundle content and no queue state. Accepted only on the V3 (endpoint-manifest-enabled) path so the
-        // CLPR Service can apply the manifest update out-of-band — no gRPC to any (stale) endpoint. With the
-        // feature off this stays a hard rejection. Purely additive: normal bundles carry non-empty content, and
-        // an empty-content bundle without a proven manifest falls through to the existing missing-metadata
-        // failure path below (so the config flag is only consulted when a manifest is actually present).
+        // bundle content and no queue state. Accepted so the CLPR Service can apply the manifest update
+        // out-of-band — no gRPC to any (stale) endpoint. Purely additive: normal bundles carry non-empty
+        // content, and an empty-content bundle without a proven manifest falls through to the existing
+        // missing-metadata failure path below.
         if (verified.bundleContentBytes().length == 0 && verified.newEndpointManifest() != null) {
-            final boolean manifestEnabled =
-                    configOf(frame).getConfigData(ClprConfig.class).endpointManifestEnabled();
-            return manifestEnabled ? manifestOnlySuccess(verified.newEndpointManifest()) : fail();
+            return manifestOnlySuccess(verified.newEndpointManifest());
         }
 
         final ClprBundleContent content = parseBundleContent(verified);
@@ -128,30 +107,31 @@ public class EthereumVerifyBundleCall extends AbstractCall {
             return fail();
         }
 
-        // Thread the proof-verified endpoint manifest onto the content, then bind to the channel
-        // context (V2) or return the config-only V1 shape. On the V2 path the manifest is surfaced as a
-        // trailing return member when the endpoint-manifest feature is on (mirrors the Hiero/Besu
-        // verifiers' VERIFY_BUNDLE_V3 return); V1 already carries it inside the serialized content.
+        // Surface the proof-verified endpoint manifest as a trailing return member.
         final ClprBundleContent finalContent = reconcileEndpointManifest(outContent, verified);
-        if (channelContext == null) {
-            return v1Success(verified, finalContent);
-        }
-        final boolean manifestEnabled =
-                configOf(frame).getConfigData(ClprConfig.class).endpointManifestEnabled();
-        return v2Success(verified, finalContent, manifestEnabled);
+        return bundleSuccess(verified, finalContent);
     }
 
     /**
      * Threads the proof-verified endpoint manifest onto the returned content (spec §4.9). The verifier-proven manifest
      * always wins — any relay claim is discarded, since the manifest is re-derived from the storage proof against the
      * authenticated state root. Absent when the bundle carried no manifest advance; the Step-1b version guard
-     * downstream (itself gated on {@code clpr.endpointManifestEnabled}) simply skips it.
+     * downstream simply skips it.
+     *
+     * <p>When the proof carries no manifest, a {@code new_endpoint_manifest} in the relayed content is unproven and is
+     * stripped: returning it would let a relay install arbitrary peer endpoints and CA certificates via Step 1b.
      */
     @NonNull
     private ClprBundleContent reconcileEndpointManifest(
             @NonNull final ClprBundleContent content, @NonNull final VerifiedBundle verified) {
         if (verified.newEndpointManifest() == null) {
-            return content;
+            if (!content.hasNewEndpointManifest()) {
+                return content;
+            }
+            log.warn("[EthereumVerifier] verifyBundle: discarding unproven relay-supplied new_endpoint_manifest");
+            return content.copyBuilder()
+                    .newEndpointManifest((ClprEndpointManifest) null)
+                    .build();
         }
         return content.copyBuilder()
                 .newEndpointManifest(verified.newEndpointManifest())
@@ -169,7 +149,7 @@ public class EthereumVerifyBundleCall extends AbstractCall {
         try {
             verified = verifier.verifyBundle(bundlePayload, trustAnchor);
         } catch (final ProofException e) {
-            log.warn("[EthereumVerifier] verifyBundle: proof rejected", e);
+            log.debug("[EthereumVerifier] verifyBundle: proof rejected", e);
             return null;
         } catch (final Exception e) {
             log.warn("[EthereumVerifier] verifyBundle: unexpected error", e);
@@ -192,7 +172,7 @@ public class EthereumVerifyBundleCall extends AbstractCall {
     @Nullable
     private ClprBundleContent parseBundleContent(@NonNull final VerifiedBundle verified) {
         try {
-            return ClprBundleContent.PROTOBUF.parse(
+            return ClprBundleContent.PROTOBUF.parseStrict(
                     Bytes.wrap(verified.bundleContentBytes()).toReadableSequentialData());
         } catch (final Exception e) {
             log.warn("[EthereumVerifier] verifyBundle: inner bytes are not a valid ClprBundleContent", e);
@@ -277,69 +257,40 @@ public class EthereumVerifyBundleCall extends AbstractCall {
     }
 
     @NonNull
-    private PricedResult v1Success(
+    private PricedResult bundleSuccess(
             @NonNull final VerifiedBundle verified, @NonNull final ClprBundleContent outContent) {
-        final var contentBytesOut = ClprBundleContent.PROTOBUF.toBytes(outContent);
-        log.info(
-                "[EthereumVerifier] verifyBundle EXIT: SUCCESS beaconBlockRoot={} content={} bytes",
-                Bytes.wrap(verified.beaconBlockRoot32()),
-                contentBytesOut.length());
-        return gasOnly(
-                successResult(
-                        EthereumVerifyBundleTranslator.VERIFY_BUNDLE
-                                .getOutputs()
-                                .encode(Tuple.singleton(contentBytesOut.toByteArray())),
-                        GAS_REQUIREMENT),
-                SUCCESS,
-                false);
-    }
-
-    @NonNull
-    private PricedResult v2Success(
-            @NonNull final VerifiedBundle verified,
-            @NonNull final ClprBundleContent outContent,
-            final boolean manifestEnabled) {
         final ClprQueueMetadata meta = outContent.metadataOrElse(ClprQueueMetadata.DEFAULT);
-        final Tuple metaTuple = Tuple.of(
-                BigInteger.valueOf(meta.nextMessageId()),
-                meta.sentRunningHash().toByteArray(),
-                BigInteger.valueOf(meta.receivedMessageId()),
-                meta.receivedRunningHash().toByteArray(),
-                meta.status().protoOrdinal());
+        // Source endpointManifestVersion from the PROVEN Channel slot (offset 16), never the relayed content:
+        // a relay could otherwise inflate it to make the peer look up-to-date and suppress our manifest
+        // re-pushes (spec §4.5, liveness).
+        final Tuple metaTuple = metadataTuple(meta, verified.queueMetadata().endpointManifestVersion());
+        if (metaTuple == null) {
+            log.warn("[EthereumVerifier] verifyBundle: queue metadata is not ABI-encodable");
+            return fail();
+        }
         final byte[][] messageBytes = outContent.messages().stream()
                 .map(msg -> ClprMessagePayload.PROTOBUF.toBytes(msg).toByteArray())
                 .toArray(byte[][]::new);
         final byte[] newTrustAnchor = outContent.newTrustAnchor().toByteArray();
         final byte[] newTrustAnchorId = outContent.newTrustAnchorId().toByteArray();
         log.info(
-                "[EthereumVerifier] verifyBundle V2 EXIT: SUCCESS beaconBlockRoot={} messages={} manifestEnabled={}",
+                "[EthereumVerifier] verifyBundle EXIT: SUCCESS beaconBlockRoot={} messages={}",
                 Bytes.wrap(verified.beaconBlockRoot32()),
-                messageBytes.length,
-                manifestEnabled);
-        if (manifestEnabled) {
-            // §4.2 Step 1b: append the extracted manifest as the 5th member (DEFAULT → version 0 = absent).
-            final Tuple manifestTuple =
-                    manifestStructTuple(outContent.newEndpointManifestOrElse(ClprEndpointManifest.DEFAULT));
-            return gasOnly(
-                    successResult(
-                            VERIFY_BUNDLE_V3_RETURN.encode(
-                                    Tuple.of(metaTuple, messageBytes, newTrustAnchor, newTrustAnchorId, manifestTuple)),
-                            GAS_REQUIREMENT),
-                    SUCCESS,
-                    false);
-        }
+                messageBytes.length);
+        // §4.2 Step 1b: append the extracted manifest as the 5th member (DEFAULT → version 0 = absent).
+        final Tuple manifestTuple =
+                manifestStructTuple(outContent.newEndpointManifestOrElse(ClprEndpointManifest.DEFAULT));
         return gasOnly(
                 successResult(
-                        EthereumVerifyBundleTranslator.VERIFY_BUNDLE_V2
-                                .getOutputs()
-                                .encode(Tuple.of(metaTuple, messageBytes, newTrustAnchor, newTrustAnchorId)),
+                        VERIFY_BUNDLE_RETURN.encode(
+                                Tuple.of(metaTuple, messageBytes, newTrustAnchor, newTrustAnchorId, manifestTuple)),
                         GAS_REQUIREMENT),
                 SUCCESS,
                 false);
     }
 
     /**
-     * V3 success return for a manifest-only recovery bundle (spec §8.1.4): the endpoint manifest with an empty
+     * Manifest-aware success return for a manifest-only recovery bundle (spec §8.1.4): the endpoint manifest with an empty
      * message set and no trust-anchor rotation. Metadata is signalled absent via a zero {@code nextMessageId}
      * sentinel (a normal bundle's is always {@code >= 1}), which
      * {@link com.hedera.node.app.service.clpr.impl.verifier.EvmClprVerifier} decodes to a null metadata so
@@ -350,7 +301,7 @@ public class EthereumVerifyBundleCall extends AbstractCall {
         final Tuple absentMetadata = absentMetadataTuple();
         return gasOnly(
                 successResult(
-                        VERIFY_BUNDLE_V3_RETURN.encode(Tuple.of(
+                        VERIFY_BUNDLE_RETURN.encode(Tuple.of(
                                 absentMetadata,
                                 new byte[0][],
                                 new byte[0],

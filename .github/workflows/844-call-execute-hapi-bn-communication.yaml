@@ -95,14 +95,14 @@ jobs:
         with:
           check_name: "Node: HAPI Test (Block Node Communication) Results"
           json_thousands_separator: ","
-          junit_files: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
+          junit_files: "**/test-clients/build/test-results/**/TEST-*.xml"
           comment_mode: errors # only comment if we could not find or parse the JUnit XML files
 
       - name: Upload HAPI Test (Block Node Communication) Report Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: HAPI Test (Block Node Communication) Reports
-          path: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
+          path: "**/test-clients/build/test-results/**/TEST-*.xml"
           retention-days: 7
 
       - name: Upload HAPI Test (Block Node Communication) Network Logs

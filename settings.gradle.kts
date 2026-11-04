@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
-pluginManagement { includeBuild("gradle/besu-native-patch") }
+pluginManagement {
+    includeBuild("gradle/benchmark-tracking")
+}
 
 plugins {
-    id("org.hiero.gradle.build") version "0.7.11"
-    id("com.hedera.pbj.pbj-compiler") version "0.15.10" apply false
-    id("org.hiero.gradle.feature.besu-native-patch")
+    id("org.hiero.gradle.build") version "0.7.13"
+    id("com.hedera.pbj.pbj-compiler") version "0.16.2" apply false
+    id("org.gradlex.java-module-packaging") version "1.3.1" apply false
 }
 
 javaModules {
@@ -58,29 +60,15 @@ gradle.lifecycle.afterProject {
     // remove below once https://github.com/hiero-ledger/hiero-gradle-conventions/issues/536 is done
     plugins.withId("org.hiero.gradle.base.jpms-modules") {
         configure<org.gradlex.javamodule.moduleinfo.ExtraJavaModuleInfoPluginExtension> {
-            module("org.hyperledger.besu:besu-evm", "org.hyperledger.besu.evm") {
+            module("org.openjdk.jmh:jmh-core", "jmh.core") {
                 exportAllPackages()
                 requireAllDefinedDependencies()
-                requiresStatic("com.fasterxml.jackson.annotation")
+                requires("java.logging")
+                requires("java.management")
+                requires("jdk.unsupported")
             }
-            module("org.hyperledger.besu:besu-datatypes", "org.hyperledger.besu.datatypes") {
-                exportAllPackages()
-                requireAllDefinedDependencies()
-                requiresStatic("com.fasterxml.jackson.annotation")
-            }
-            module(
-                "org.hyperledger.besu.internal:besu-crypto-algorithms",
-                "org.hyperledger.besu.internal.crypto",
-            )
-            module(
-                "org.hyperledger.besu.internal:besu-ethereum-rlp",
-                "org.hyperledger.besu.internal.rlp",
-            )
-            module("org.hyperledger.besu.internal:besu-util", "org.hyperledger.besu.internal.util")
-            module("org.hyperledger.besu:boringssl", "org.hyperledger.besu.nativelib.boringssl")
-            module("io.vertx:vertx-core", "io.vertx.core")
-            module("io.consensys.tuweni:tuweni-bytes", "tuweni.bytes")
-            module("io.consensys.tuweni:tuweni-units", "tuweni.units")
+            module("net.sf.jopt-simple:jopt-simple", "jopt.simple")
+            module("org.apache.commons:commons-math3", "commons.math3")
         }
     }
 

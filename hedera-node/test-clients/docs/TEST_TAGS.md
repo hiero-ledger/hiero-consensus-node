@@ -24,15 +24,17 @@ balanced; for example, `hapiTestCrypto` includes only `CRYPTO`-tagged tests.
 | `ND_RECONNECT`     | `hapiTestNDReconnect`                                                             | Node-death reconnect tests                     |
 | `BLOCK_NODE`       | `hapiTestBlockNodeCommunication`                                                  | Block-node integration tests                   |
 | `WRAPS`            | `hapiTestWraps`, `hapiTestCutover`                                                | TSS `wraps` / weighted re-signing tests        |
-| `WRAPS_DOWNLOAD`   | `hapiTestWrapsDownload`                                                           | Variant of WRAPS that downloads a proving key  |
 | `CUTOVER`          | `hapiTestCutover`                                                                 | TSS cutover scenarios                          |
 | `LONG_RUNNING`     | `hapiTestTimeConsuming`, `hapiTestTimeConsumingSerial`                            | Tests that take a long time                    |
+| `NODE_STAKING`     | `hapiTestNodeStaking`, `hapiTestNodeStakingSerial`                                | Node stake-weight-changing tests               |
 | `STATE_THROTTLING` | `hapiTestStateThrottling`                                                         | State-rate-limit tests                         |
 | `ISS`              | `hapiTestIss`                                                                     | Intentional Inconsistent State scenarios       |
 | `ISS_GRPC`         | `hapiTestIssGrpc`                                                                 | ISS scenarios in `blockStream.writerMode=GRPC` |
 
 `hapiTestMisc` and `hapiTestMiscSerial` catch everything not covered by the area tags above (the
 expression in `build.gradle.kts` is `!(INTEGRATION|CRYPTO|TOKEN|RESTART|…)`).
+The misc tasks, including their records-mode variants, exclude `WRAPS` and `CUTOVER`:
+these tests require the TSS startup configuration supplied by their dedicated tasks.
 
 ## Execution-target tags
 

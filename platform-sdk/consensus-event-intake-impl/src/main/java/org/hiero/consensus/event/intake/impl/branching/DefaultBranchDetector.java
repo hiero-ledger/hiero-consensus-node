@@ -34,10 +34,10 @@ public class DefaultBranchDetector implements BranchDetector {
     /**
      * Create a new branch detector.
      *
-     * @param currentRoster the current roster
+     * @param activeRoster the active roster
      */
-    public DefaultBranchDetector(@NonNull final RosterWrapper currentRoster) {
-        nodes = currentRoster.nodeIds();
+    public DefaultBranchDetector(@NonNull final RosterWrapper activeRoster) {
+        nodes = activeRoster.nodeIds();
     }
 
     /**

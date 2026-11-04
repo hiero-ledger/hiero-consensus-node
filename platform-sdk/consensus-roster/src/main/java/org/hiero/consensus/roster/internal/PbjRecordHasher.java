@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.roster.internal;
 
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.security.MessageDigest;
+import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.HashingOutputStream;
@@ -19,13 +22,27 @@ import org.hiero.base.crypto.HashingOutputStream;
  * The implementation is not thread-safe. The caller code is responsible for synchronization.
  */
 public class PbjRecordHasher {
-    // The choice of the digest type may be reevaluated in the future based on hashing capabilities of various runtimes
-    // (e.g. the EVM.) If necessary, the digest type may become a parameter to this class at that time.
-    // However, currently we use the same digest type that is used throughout the majority of this code base.
-    private static final DigestType DIGEST_TYPE = DigestType.SHA_384;
+    private final DigestType digestType;
+    private final MessageDigest digest;
+    private final WritableSequentialData stream;
 
-    private final MessageDigest digest = DIGEST_TYPE.buildDigest();
-    private final WritableSequentialData stream = new WritableStreamingData(new HashingOutputStream(digest));
+    /**
+     * Creates a hasher that uses the platform's default digest type.
+     */
+    public PbjRecordHasher() {
+        this(Cryptography.DEFAULT_DIGEST_TYPE);
+    }
+
+    /**
+     * Creates a hasher that uses the given digest type.
+     *
+     * @param digestType the digest type to hash records with
+     */
+    public PbjRecordHasher(@NonNull final DigestType digestType) {
+        this.digestType = requireNonNull(digestType);
+        this.digest = digestType.buildDigest();
+        this.stream = new WritableStreamingData(new HashingOutputStream(digest));
+    }
 
     /**
      * Computes a Hash object for a given PBJ record and its codec.
@@ -50,6 +67,6 @@ public class PbjRecordHasher {
         }
         // Reminder, MessageDigest.digest resets the digest, so subsequent writes
         // will calculate an independent hash value.
-        return new Hash(digest.digest(), DIGEST_TYPE);
+        return new Hash(digest.digest(), digestType);
     }
 }

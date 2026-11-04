@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.clpr.sendmessage;
 
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.clpr.ClprCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCallTranslator;
@@ -8,6 +10,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Cal
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.Category;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
+import com.hedera.node.app.service.contract.impl.infra.ContractCodeCache;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Optional;
 import javax.inject.Inject;
@@ -39,11 +42,15 @@ public class SendMessageTranslator extends AbstractCallTranslator<ClprCallAttemp
                     "sendMessage(bytes32,bytes32,bytes,bytes)", "(uint64)")
             .withCategories(Category.CLPR);
 
+    private final ContractCodeCache codeCache;
+
     @Inject
     public SendMessageTranslator(
             @NonNull final SystemContractMethodRegistry systemContractMethodRegistry,
-            @NonNull final ContractMetrics contractMetrics) {
+            @NonNull final ContractMetrics contractMetrics,
+            @NonNull final ContractCodeCache codeCache) {
         super(SystemContractMethod.SystemContract.CLPR, systemContractMethodRegistry, contractMetrics);
+        this.codeCache = requireNonNull(codeCache);
         registerMethods(SEND_MESSAGE);
     }
 
@@ -63,6 +70,7 @@ public class SendMessageTranslator extends AbstractCallTranslator<ClprCallAttemp
         return new SendMessageCall(
                 attempt.enhancement(),
                 attempt.systemContractGasCalculator(),
+                codeCache,
                 attempt.senderId(),
                 attempt.senderAddress(),
                 channelId,

@@ -4,8 +4,8 @@ package com.hedera.node.app.service.contract.impl.exec.systemcontracts.besuqbft.
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.lenient;
 
+import com.esaulpaugh.headlong.abi.Function;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.besuqbft.BesuQBFTVerifierCallAttempt;
@@ -28,15 +28,21 @@ class BesuQBFTVerifyConfigTranslatorTest extends CallTestBase {
     @BeforeEach
     void setUp() {
         subject = new BesuQBFTVerifyConfigTranslator(new SystemContractMethodRegistry(), contractMetrics);
-        // identifyMethod/callFrom now probe the V3 selector first; not every test stubs it.
-        lenient()
-                .when(attempt.isMethod(BesuQBFTVerifyConfigTranslator.VERIFY_CONFIG_V3))
-                .thenReturn(Optional.empty());
     }
 
     @Test
-    void identifiesVerifyConfigSelector() {
-        given(attempt.isMethod(BesuQBFTVerifyConfigTranslator.VERIFY_CONFIG_V2)).willReturn(Optional.empty());
+    void rejectsLegacyConfigAbiInput() {
+        final var legacyMethod = new Function("verifyConfig(bytes)", "(bytes)");
+        given(attempt.inputBytes())
+                .willReturn(legacyMethod
+                        .encodeCall(Tuple.singleton(new byte[] {1, 2, 3}))
+                        .array());
+
+        assertThatThrownBy(() -> subject.callFrom(attempt)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void identifiesVerifyConfigWithManifestSelector() {
         given(attempt.isMethod(BesuQBFTVerifyConfigTranslator.VERIFY_CONFIG))
                 .willReturn(Optional.of(BesuQBFTVerifyConfigTranslator.VERIFY_CONFIG));
 
@@ -44,35 +50,10 @@ class BesuQBFTVerifyConfigTranslatorTest extends CallTestBase {
     }
 
     @Test
-    void identifiesVerifyConfigV2Selector() {
-        given(attempt.isMethod(BesuQBFTVerifyConfigTranslator.VERIFY_CONFIG_V2))
-                .willReturn(Optional.of(BesuQBFTVerifyConfigTranslator.VERIFY_CONFIG_V2));
-
-        assertThat(subject.identifyMethod(attempt)).contains(BesuQBFTVerifyConfigTranslator.VERIFY_CONFIG_V2);
-    }
-
-    @Test
-    void buildsVerifyConfigCallFromAbiInput() {
-        final byte[] stateProof = {1, 2, 3};
+    void buildsVerifyConfigWithManifestCallFromAbiInput() {
         given(attempt.inputBytes())
                 .willReturn(BesuQBFTVerifyConfigTranslator.VERIFY_CONFIG
-                        .encodeCall(Tuple.singleton(stateProof))
-                        .array());
-        given(attempt.enhancement()).willReturn(mockEnhancement());
-        given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
-
-        assertThat(subject.callFrom(attempt)).isInstanceOf(BesuQBFTVerifyConfigCall.class);
-    }
-
-    @Test
-    void buildsVerifyConfigV2CallFromAbiInput() {
-        final byte[] stateProof = {1, 2, 3};
-        final byte[] channelId32 = new byte[32];
-        given(attempt.isMethod(BesuQBFTVerifyConfigTranslator.VERIFY_CONFIG_V2))
-                .willReturn(Optional.of(BesuQBFTVerifyConfigTranslator.VERIFY_CONFIG_V2));
-        given(attempt.inputBytes())
-                .willReturn(BesuQBFTVerifyConfigTranslator.VERIFY_CONFIG_V2
-                        .encodeCall(Tuple.of(stateProof, channelId32))
+                        .encodeCall(Tuple.of(new byte[] {1, 2, 3}, new byte[32], new byte[] {4, 5, 6}))
                         .array());
         given(attempt.enhancement()).willReturn(mockEnhancement());
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);

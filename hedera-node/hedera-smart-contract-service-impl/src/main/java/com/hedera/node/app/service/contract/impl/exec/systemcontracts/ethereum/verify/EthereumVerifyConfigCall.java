@@ -12,7 +12,6 @@ import static java.util.Objects.requireNonNull;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
-import com.hedera.hapi.node.state.clpr.ClprServiceEndpoint;
 import com.hedera.hapi.node.state.clpr.ClprThrottles;
 import com.hedera.node.app.service.clpr.impl.verifier.ProofException;
 import com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumSyncCommitteeProofVerifier;
@@ -30,12 +29,10 @@ import org.apache.logging.log4j.Logger;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 
 /**
- * Implements the Ethereum verifier system contract's {@code verifyConfig} selectors (EVM address
+ * Implements the Ethereum verifier system contract's {@code verifyConfig} selector (EVM address
  * {@code 0x171}), mirroring the Hiero TSS verifier (spec §4.8):
  * <ul>
- *   <li><b>V1</b> {@code verifyConfig(bytes) -> (bytes)} — legacy, returns the proven config bytes only.</li>
- *   <li><b>V2</b> {@code verifyConfig(bytes,bytes32)} — config fields bound to a channel context.</li>
- *   <li><b>V3</b> {@code verifyConfig(bytes,bytes32,bytes)} — V2 plus a {@link ClprEndpointManifest}. For
+ *   <li><b>Endpoint manifest</b> {@code verifyConfig(bytes,bytes32,bytes)} — config fields plus a {@link ClprEndpointManifest}. For
  *       Ethereum the third argument is the manifest <b>raw bytes</b> (self-described at bootstrap), not a
  *       state proof, so it is strict-parsed and checked against the §4.8 invariants directly rather than
  *       re-derived from a proven state root.</li>
@@ -53,34 +50,11 @@ public class EthereumVerifyConfigCall extends AbstractCall {
 
     private final byte[] configPayload;
 
-    /** Non-null on the V2 and V3 (context-bound) paths. */
-    @Nullable
+    @NonNull
     private final byte[] channelId32;
 
-    /** Non-null only on the V3 (manifest-aware) path; selects v3Success over v2Success. */
-    @Nullable
+    @NonNull
     private final byte[] manifestBytes;
-
-    public EthereumVerifyConfigCall(
-            @NonNull final HederaWorldUpdater.Enhancement enhancement,
-            @NonNull final SystemContractGasCalculator gasCalculator,
-            @NonNull final byte[] configPayload) {
-        super(gasCalculator, enhancement, true);
-        this.configPayload = requireNonNull(configPayload);
-        this.channelId32 = null;
-        this.manifestBytes = null;
-    }
-
-    public EthereumVerifyConfigCall(
-            @NonNull final HederaWorldUpdater.Enhancement enhancement,
-            @NonNull final SystemContractGasCalculator gasCalculator,
-            @NonNull final byte[] configPayload,
-            @NonNull final byte[] channelId32) {
-        super(gasCalculator, enhancement, true);
-        this.configPayload = requireNonNull(configPayload);
-        this.channelId32 = requireNonNull(channelId32);
-        this.manifestBytes = null;
-    }
 
     public EthereumVerifyConfigCall(
             @NonNull final HederaWorldUpdater.Enhancement enhancement,
@@ -110,23 +84,17 @@ public class EthereumVerifyConfigCall extends AbstractCall {
 
         final ClprLedgerConfiguration parsed = verified.ledgerConfiguration();
         if (parsed.initialTrustAnchor().length() == 0) {
-            log.warn(
+            log.debug(
                     "[EthereumVerifier] verifyConfig: proven config has empty initial_trust_anchor; rejecting chainId={}",
                     parsed.chainId());
             return fail();
         }
 
-        if (channelId32 == null) {
-            return v1Success(parsed);
-        }
-        if (manifestBytes == null) {
-            return v2Success(parsed);
-        }
         final ClprEndpointManifest manifest = manifestFor(parsed);
         if (manifest == null) {
             return fail();
         }
-        return v3Success(parsed, manifest);
+        return manifestSuccess(parsed, manifest);
     }
 
     /**
@@ -140,7 +108,7 @@ public class EthereumVerifyConfigCall extends AbstractCall {
         try {
             verified = verifier.verifyConfigPayload(configPayload);
         } catch (final ProofException e) {
-            log.warn("[EthereumVerifier] verifyConfig: payload rejected: {}", e.getMessage());
+            log.debug("[EthereumVerifier] verifyConfig: payload rejected: {}", e.getMessage());
             return null;
         } catch (final Exception e) {
             log.warn("[EthereumVerifier] verifyConfig: unexpected error", e);
@@ -149,72 +117,16 @@ public class EthereumVerifyConfigCall extends AbstractCall {
         final ClprLedgerConfiguration parsed = verified.ledgerConfiguration();
         log.info(
                 "[EthereumVerifier] verifyConfig: verifier returned chainId={}, serviceAddress={}, "
-                        + "initialTrustAnchor={} bytes, endpoints={}, slot={}",
+                        + "initialTrustAnchor={} bytes, slot={}",
                 parsed.chainId(),
                 parsed.serviceAddress(),
                 parsed.initialTrustAnchor().length(),
-                parsed.endpoints().size(),
                 verified.slot());
         return verified;
     }
 
     @NonNull
-    private PricedResult v1Success(@NonNull final ClprLedgerConfiguration parsed) {
-        log.debug("[EthereumVerifier] verifyConfig EXIT: SUCCESS");
-        return configSuccess(parsed);
-    }
-
-    @NonNull
-    private PricedResult v2Success(@NonNull final ClprLedgerConfiguration parsed) {
-        final byte[] id32 = requireNonNull(channelId32);
-        final byte[] serviceAddressBytes = parsed.serviceAddress().toByteArray();
-        final byte[] channelContextBytes = new byte[32 + serviceAddressBytes.length];
-        System.arraycopy(id32, 0, channelContextBytes, 0, 32);
-        System.arraycopy(serviceAddressBytes, 0, channelContextBytes, 32, serviceAddressBytes.length);
-
-        final ClprThrottles t = parsed.throttlesOrElse(ClprThrottles.DEFAULT);
-        final Tuple throttlesTuple = Tuple.of(
-                BigInteger.valueOf(t.maxMessagesPerBundle()),
-                BigInteger.valueOf(t.maxMessagePayloadBytes()),
-                BigInteger.valueOf(t.maxGasPerMessage()),
-                BigInteger.valueOf(t.maxQueueDepth()),
-                BigInteger.valueOf(t.maxSyncBytes()));
-
-        final Tuple[] endpointTuples = parsed.endpoints().stream()
-                .map(ep -> {
-                    final ClprServiceEndpoint se = ep.serviceEndpointOrElse(ClprServiceEndpoint.DEFAULT);
-                    return Tuple.of(
-                            se.ipAddress(),
-                            (long) se.port(),
-                            ep.tlsCertificate().toByteArray(),
-                            ep.accountId().toByteArray());
-                })
-                .toArray(Tuple[]::new);
-
-        final var ts = parsed.timestamp();
-        final long peerConfigNanos = ts != null ? ts.seconds() * 1_000_000_000L + ts.nanos() : 0L;
-
-        log.debug("[EthereumVerifier] verifyConfig V2 EXIT: SUCCESS chainId={}", parsed.chainId());
-        return gasOnly(
-                successResult(
-                        EthereumVerifyConfigTranslator.VERIFY_CONFIG_V2
-                                .getOutputs()
-                                .encode(Tuple.from(
-                                        channelContextBytes,
-                                        parsed.chainId(),
-                                        serviceAddressBytes,
-                                        BigInteger.valueOf(peerConfigNanos),
-                                        throttlesTuple,
-                                        parsed.initialTrustAnchor().toByteArray(),
-                                        parsed.initialTrustAnchorId().toByteArray(),
-                                        endpointTuples)),
-                        GAS_REQUIREMENT),
-                SUCCESS,
-                false);
-    }
-
-    @NonNull
-    private PricedResult v3Success(
+    private PricedResult manifestSuccess(
             @NonNull final ClprLedgerConfiguration parsed, @NonNull final ClprEndpointManifest manifest) {
         final byte[] id32 = requireNonNull(channelId32);
         final byte[] serviceAddressBytes = parsed.serviceAddress().toByteArray();
@@ -237,13 +149,13 @@ public class EthereumVerifyConfigCall extends AbstractCall {
         final long peerConfigNanos = ts != null ? ts.seconds() * 1_000_000_000L + ts.nanos() : 0L;
 
         log.debug(
-                "[EthereumVerifier] verifyConfig V3 EXIT: SUCCESS chainId={} manifestVersion={} manifestEndpoints={}",
+                "[EthereumVerifier] verifyConfigWithManifest EXIT: SUCCESS chainId={} manifestVersion={} manifestEndpoints={}",
                 parsed.chainId(),
                 manifest.version(),
                 manifest.endpoints().size());
         return gasOnly(
                 successResult(
-                        EthereumVerifyConfigTranslator.VERIFY_CONFIG_V3
+                        EthereumVerifyConfigTranslator.VERIFY_CONFIG
                                 .getOutputs()
                                 .encode(Tuple.from(
                                         channelContextBytes,
@@ -260,20 +172,19 @@ public class EthereumVerifyConfigCall extends AbstractCall {
     }
 
     /**
-     * Resolves the endpoint manifest for the V3 return. For Ethereum the manifest travels as <b>raw bytes</b> — trusted
+     * Resolves the endpoint manifest for the manifest-aware return. For Ethereum the manifest travels as <b>raw bytes</b> — trusted
      * like the self-described config at bootstrap (there is no state root to verify it against at config time). When
-     * present the bytes are strict-parsed and checked for the spec §4.8 invariants; when empty (bring-up) an empty
-     * manifest is synthesized, bound to the config's service address and seeded from its endpoints so the channel
-     * opens with dial targets. Returns {@code null} on an invalid or §4.8-violating manifest (caller reverts).
+     * present the bytes are strict-parsed and checked for the spec §4.8 invariants; when empty (bring-up) the
+     * UNINITIALIZED manifest (version 0, bound to the config's service address, no endpoints) is returned, matching
+     * the Solidity verifiers, so the first proven manifest (version >= 1) applies via Step 1b. Returns {@code null}
+     * on an invalid or §4.8-violating manifest (caller reverts).
      */
     @Nullable
     private ClprEndpointManifest manifestFor(@NonNull final ClprLedgerConfiguration parsed) {
         final byte[] bytes = requireNonNull(manifestBytes);
         if (bytes.length == 0) {
             return ClprEndpointManifest.newBuilder()
-                    .version(1L)
                     .serviceAddress(parsed.serviceAddress())
-                    .endpoints(parsed.endpoints())
                     .build();
         }
         final ClprEndpointManifest manifest;
@@ -286,28 +197,15 @@ public class EthereumVerifyConfigCall extends AbstractCall {
             return null;
         }
         if (manifest.version() == 0L) {
-            log.warn("[EthereumVerifier] verifyConfig: manifest version is 0 (must be >= 1)");
+            log.debug("[EthereumVerifier] verifyConfig: manifest version is 0 (must be >= 1)");
             return null;
         }
         if (!manifest.serviceAddress().equals(parsed.serviceAddress())) {
-            log.warn("[EthereumVerifier] verifyConfig: manifest service_address does not match config service_address");
+            log.debug(
+                    "[EthereumVerifier] verifyConfig: manifest service_address does not match config service_address");
             return null;
         }
         return manifest;
-    }
-
-    @NonNull
-    private PricedResult configSuccess(@NonNull final ClprLedgerConfiguration config) {
-        return gasOnly(
-                successResult(
-                        EthereumVerifyConfigTranslator.VERIFY_CONFIG
-                                .getOutputs()
-                                .encode(Tuple.singleton(ClprLedgerConfiguration.PROTOBUF
-                                        .toBytes(config)
-                                        .toByteArray())),
-                        GAS_REQUIREMENT),
-                SUCCESS,
-                false);
     }
 
     @NonNull

@@ -87,9 +87,7 @@ class ClprServiceApiImplTest {
 
     private static final ClprConfig DEFAULT_CLPR_CONFIG = ClprConfigBuilder.newBuilder()
             .enabled(true)
-            .chainId("hiero:localnetb")
             .slashBasePenalty(1_000_000L)
-            .discoveryIntervalSeconds(60)
             .build();
 
     @BeforeEach

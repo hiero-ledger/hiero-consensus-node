@@ -1,22 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 relay:
   nodeSelector:
-    solo.hashgraph.io/role: "auxiliary-services"
-    solo.hashgraph.io/owner: "%NETWORK_OWNER%"
-    solo.hashgraph.io/network-id: "%NETWORK_ID%"
-  tolerations:
-    - key: "solo.hashgraph.io/role"
-      operator: "Equal"
-      value: "auxiliary-services"
-      effect: "NoSchedule"
-    - key: "solo.hashgraph.io/owner"
-      operator: "Equal"
-      value: "%NETWORK_OWNER%"
-      effect: "NoSchedule"
-    - key: "solo.hashgraph.io/network-id"
-      operator: "Equal"
-      value: "%NETWORK_ID%"
-      effect: "NoSchedule"
+    chewie-group: aux
   config:
     WORKERS_POOL_ENABLED: false
     NODE_OPTIONS: --max-old-space-size=192
@@ -52,22 +37,7 @@ relay:
       memory: 250Mi
 ws:
   nodeSelector:
-    solo.hashgraph.io/role: "auxiliary-services"
-    solo.hashgraph.io/owner: "%NETWORK_OWNER%"
-    solo.hashgraph.io/network-id: "%NETWORK_ID%"
-  tolerations:
-    - key: "solo.hashgraph.io/role"
-      operator: "Equal"
-      value: "auxiliary-services"
-      effect: "NoSchedule"
-    - key: "solo.hashgraph.io/owner"
-      operator: "Equal"
-      value: "%NETWORK_OWNER%"
-      effect: "NoSchedule"
-    - key: "solo.hashgraph.io/network-id"
-      operator: "Equal"
-      value: "%NETWORK_ID%"
-      effect: "NoSchedule"
+    chewie-group: aux
   enabled: true
   config:
     WORKERS_POOL_ENABLED: false

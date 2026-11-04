@@ -3,7 +3,6 @@ package com.hedera.node.app.service.clpr.impl.verifier.sei;
 
 import static com.hedera.node.app.service.clpr.impl.verifier.PbjTestUtils.appendUnknownField;
 import static com.hedera.node.app.service.clpr.impl.verifier.evm.ProofBytes.endpointManifestCommitmentSlot;
-import static com.hedera.node.app.service.clpr.impl.verifier.evm.ProofBytes.keccak256;
 import static com.hedera.node.app.service.clpr.impl.verifier.sei.SeiProto.bytesField;
 import static com.hedera.node.app.service.clpr.impl.verifier.sei.SeiProto.concat;
 import static com.hedera.node.app.service.clpr.impl.verifier.sei.SeiProto.messageField;
@@ -24,6 +23,7 @@ import com.hedera.hapi.node.state.clpr.SeiStorageProofEntry;
 import com.hedera.hapi.node.state.clpr.SeiTrustAnchor;
 import com.hedera.hapi.node.state.clpr.SeiValidatorSet;
 import com.hedera.hapi.node.state.clpr.SeiValidatorSetUpdate;
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.service.clpr.impl.verifier.ProofException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.math.BigInteger;
@@ -76,7 +76,8 @@ class SeiCometBftProofVerifierTest {
             slot(CHANNEL_BASE_SLOT.add(BigInteger.ONE)),
             slot(CHANNEL_BASE_SLOT.add(BigInteger.TWO)),
             slot(CHANNEL_BASE_SLOT.add(BigInteger.valueOf(4))),
-            slot(CHANNEL_BASE_SLOT.add(BigInteger.valueOf(5)))
+            slot(CHANNEL_BASE_SLOT.add(BigInteger.valueOf(5))),
+            slot(CHANNEL_BASE_SLOT.add(BigInteger.valueOf(16)))
         };
     }
 
@@ -89,12 +90,15 @@ class SeiCometBftProofVerifierTest {
         final byte[] receivedSlot = new byte[32];
         ByteBuffer.wrap(receivedSlot, 16, 8).putLong(17L); // receivedMessageId
         ByteBuffer.wrap(receivedSlot, 24, 8).putLong(16L); // ackedMessageId
+        final byte[] manifestVersionSlot = new byte[32];
+        ByteBuffer.wrap(manifestVersionSlot, 24, 8).putLong(5L); // endpointManifestVersion (offset 16, LSB)
         return new byte[][] {
             lastMsgHash,
             statusSlot,
             receivedSlot,
             SyntheticSeiChain.hash32("sent-running").toByteArray(),
-            SyntheticSeiChain.hash32("received-running").toByteArray()
+            SyntheticSeiChain.hash32("received-running").toByteArray(),
+            manifestVersionSlot
         };
     }
 
@@ -375,14 +379,16 @@ class SeiCometBftProofVerifierTest {
                     .isEqualTo(SyntheticSeiChain.hash32("sent-running").toByteArray());
             assertThat(metadata.receivedRunningHash())
                     .isEqualTo(SyntheticSeiChain.hash32("received-running").toByteArray());
+            // endpointManifestVersion comes from the PROVEN offset-16 slot, not relayed content
+            assertThat(metadata.endpointManifestVersion()).isEqualTo(5L);
         }
 
         @Test
         void storageProofsCanArriveInChannelFirstRelayOrder() {
             final var chain = bundleChain(VALIDATORS, VALIDATORS);
             final var entries = new ArrayList<>(chain.stateProof().storageProofs());
-            final var oldRelayOrder =
-                    List.of(entries.get(1), entries.get(2), entries.get(3), entries.get(4), entries.get(0));
+            final var oldRelayOrder = List.of(
+                    entries.get(1), entries.get(2), entries.get(3), entries.get(4), entries.get(5), entries.get(0));
             final var stateProof = chain.stateProof()
                     .copyBuilder()
                     .storageProofs(oldRelayOrder)
@@ -422,11 +428,13 @@ class SeiCometBftProofVerifierTest {
         void nonExistenceStorageProofMapsToZeroWord() {
             final var slots = queueStorageSlotsInVerifierOrder();
             final var values = queueSlotValues();
+            // Prove the last-message hash + the four queue fields {1,2,4,5}; the endpointManifestVersion
+            // slot (offset 16) is proven non-existent, so it maps to the zero word (canonical index 4).
             final var chain = SyntheticSeiChain.stateProof(
-                    VALIDATORS, VALIDATORS, VALIDATORS, Arrays.copyOf(slots, 4), Arrays.copyOf(values, 4));
+                    VALIDATORS, VALIDATORS, VALIDATORS, Arrays.copyOf(slots, 5), Arrays.copyOf(values, 5));
             final var entries = new ArrayList<>(chain.stateProof().storageProofs());
             final var leftNeighbor = entries.get(entries.size() - 1);
-            final byte[] missingKey = concat(new byte[] {0x03}, SERVICE, slots[4]);
+            final byte[] missingKey = concat(new byte[] {0x03}, SERVICE, slots[5]);
             entries.add(SeiStorageProofEntry.newBuilder()
                     .key(Bytes.wrap(missingKey))
                     .value(Bytes.EMPTY)
@@ -468,7 +476,7 @@ class SeiCometBftProofVerifierTest {
                     strangers,
                     strangers,
                     strangers,
-                    new byte[][] {slot(1), slot(2), slot(3), slot(4), slot(5)},
+                    new byte[][] {slot(1), slot(2), slot(3), slot(4), slot(5), slot(6)},
                     queueSlotValues());
             final byte[] payload = bundlePayload(chain, null);
             final byte[] anchor = anchorBytes();
@@ -539,7 +547,7 @@ class SeiCometBftProofVerifierTest {
             final byte[] anchor = anchorBytes();
             assertThatThrownBy(() -> SeiCometBftProofVerifier.verifyBundle(payload, anchor))
                     .isInstanceOf(ProofException.class)
-                    .hasMessageContaining("expected 4 or 5 proven slot values");
+                    .hasMessageContaining("expected 5 or 6 proven slot values");
         }
 
         @Test
@@ -550,6 +558,17 @@ class SeiCometBftProofVerifierTest {
             assertThatThrownBy(() -> SeiCometBftProofVerifier.verifyBundle(payload, new byte[] {0x08}))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("trustAnchor is not a valid");
+        }
+
+        @Test
+        void unknownFieldInTrustAnchorRejected() {
+            final var chain = bundleChain(VALIDATORS, VALIDATORS);
+            final byte[] payload = bundlePayload(chain, null);
+            final byte[] anchorWithUnknown = appendUnknownField(anchorBytes());
+
+            assertThatThrownBy(() -> SeiCometBftProofVerifier.verifyBundle(payload, anchorWithUnknown))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("trustAnchor is not a valid SeiTrustAnchor");
         }
 
         @Test
@@ -887,8 +906,8 @@ class SeiCometBftProofVerifierTest {
 
         @Test
         void stateProofRecordsRequireNonNullComponents() {
-            assertThatThrownBy(
-                            () -> new SeiCometBftProofVerifier.QueueMetadata(1, null, 2, new byte[32], 1, new byte[32]))
+            assertThatThrownBy(() ->
+                            new SeiCometBftProofVerifier.QueueMetadata(1, null, 2, new byte[32], 1, new byte[32], 0L))
                     .isInstanceOf(NullPointerException.class);
             assertThatThrownBy(() -> new SeiCometBftProofVerifier.VerifiedConfig(null, new byte[0]))
                     .isInstanceOf(NullPointerException.class);
@@ -1177,7 +1196,8 @@ class SeiCometBftProofVerifierTest {
         /** A fully valid manifest bundle: slot-18 commitment == keccak256(preimage), preimage strict-parses. */
         private static byte[] validBundle(final ClprEndpointManifest manifest) {
             final byte[] preimage = preimageOf(manifest);
-            final var chain = chainWithManifestSlot(endpointManifestCommitmentSlot(), keccak256(preimage));
+            final var chain = chainWithManifestSlot(
+                    endpointManifestCommitmentSlot(), MiscCryptoUtils.keccak256DigestOf(preimage));
             return manifestBundle(bundleStateProof(chain), manifestEntry(chain), preimage);
         }
 
@@ -1200,7 +1220,8 @@ class SeiCometBftProofVerifierTest {
         @Test
         void rejectsKeyNotTargetingServiceContract() {
             final byte[] preimage = preimageOf(manifest(1L, SERVICE));
-            final var chain = chainWithManifestSlot(endpointManifestCommitmentSlot(), keccak256(preimage));
+            final var chain = chainWithManifestSlot(
+                    endpointManifestCommitmentSlot(), MiscCryptoUtils.keccak256DigestOf(preimage));
             // valid prefix is 0x03; swap it for 0x04 while keeping service + slot
             final byte[] wrongKey = concat(new byte[] {0x04}, SERVICE, endpointManifestCommitmentSlot());
             final var tampered =
@@ -1217,7 +1238,7 @@ class SeiCometBftProofVerifierTest {
         void rejectsWrongCommitmentSlot() {
             final byte[] preimage = preimageOf(manifest(1L, SERVICE));
             // slot 19 targets the service contract but is not the endpoint-manifest commitment slot (18)
-            final var chain = chainWithManifestSlot(slot(19), keccak256(preimage));
+            final var chain = chainWithManifestSlot(slot(19), MiscCryptoUtils.keccak256DigestOf(preimage));
             final byte[] payload = manifestBundle(bundleStateProof(chain), manifestEntry(chain), preimage);
             final byte[] anchor = anchorBytes();
 
@@ -1229,7 +1250,8 @@ class SeiCometBftProofVerifierTest {
         @Test
         void rejectsNon32ByteValue() {
             final byte[] preimage = preimageOf(manifest(1L, SERVICE));
-            final var chain = chainWithManifestSlot(endpointManifestCommitmentSlot(), keccak256(preimage));
+            final var chain = chainWithManifestSlot(
+                    endpointManifestCommitmentSlot(), MiscCryptoUtils.keccak256DigestOf(preimage));
             final var tampered = manifestEntry(chain)
                     .copyBuilder()
                     .value(Bytes.wrap(new byte[31]))
@@ -1245,7 +1267,8 @@ class SeiCometBftProofVerifierTest {
         @Test
         void rejectsIavlProofNotMatchingStoreRoot() {
             final byte[] preimage = preimageOf(manifest(1L, SERVICE));
-            final var chain = chainWithManifestSlot(endpointManifestCommitmentSlot(), keccak256(preimage));
+            final var chain = chainWithManifestSlot(
+                    endpointManifestCommitmentSlot(), MiscCryptoUtils.keccak256DigestOf(preimage));
             // a 32-byte value the ICS-23 proof does not commit to
             final byte[] otherValue = new byte[32];
             Arrays.fill(otherValue, (byte) 0x11);
@@ -1281,7 +1304,8 @@ class SeiCometBftProofVerifierTest {
             // Spec §1: reject a manifest carrying unrecognized fields. Commit to the tampered preimage
             // so the binding holds and the strict parse is what fails.
             final byte[] preimage = appendUnknownField(preimageOf(manifest(1L, SERVICE)));
-            final var chain = chainWithManifestSlot(endpointManifestCommitmentSlot(), keccak256(preimage));
+            final var chain = chainWithManifestSlot(
+                    endpointManifestCommitmentSlot(), MiscCryptoUtils.keccak256DigestOf(preimage));
             final byte[] payload = manifestBundle(bundleStateProof(chain), manifestEntry(chain), preimage);
             final byte[] anchor = anchorBytes();
 
@@ -1314,7 +1338,7 @@ class SeiCometBftProofVerifierTest {
         void manifestOnlyBundleReturnsPreimageWithNoContentOrQueueMetadata() throws Exception {
             final var manifest = manifest(5L, SERVICE);
             final byte[] preimage = preimageOf(manifest);
-            final byte[] payload = manifestOnlyBundle(keccak256(preimage), preimage);
+            final byte[] payload = manifestOnlyBundle(MiscCryptoUtils.keccak256DigestOf(preimage), preimage);
 
             final var verified = SeiCometBftProofVerifier.verifyBundle(payload, anchorBytes());
 

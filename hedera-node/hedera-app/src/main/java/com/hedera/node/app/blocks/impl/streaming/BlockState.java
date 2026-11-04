@@ -328,7 +328,7 @@ public class BlockState {
             return null;
         }
         try {
-            return BlockItem.PROTOBUF.parse(item.serializedItem());
+            return BlockItem.PROTOBUF.parseStrict(item.serializedItem());
         } catch (final ParseException e) {
             throw new RuntimeException("Failed to parse buffered block item at index " + index, e);
         }

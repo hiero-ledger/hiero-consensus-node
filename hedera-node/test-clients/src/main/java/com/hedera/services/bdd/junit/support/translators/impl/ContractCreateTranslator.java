@@ -64,7 +64,11 @@ public class ContractCreateTranslator implements BlockTransactionPartsTranslator
                                 final var derivedBuilder = resultBuilderFrom(evmResult);
                                 ContractID createdId = null;
                                 if (parts.status() == SUCCESS) {
-                                    if (parts.isTopLevel() || parts.isInnerBatchTxn()) {
+                                    // A create triggered by a top-level schedule op is also the first contract
+                                    // operation of its unit, and so has the same enriched legacy result
+                                    if (parts.isTopLevel()
+                                            || parts.hasEnrichedLegacyRecord()
+                                            || parts.isInnerBatchTxn()) {
                                         // If all sidecars are disabled and there were no logs for a top-level creation,
                                         // for parity we still need to fill in the result with empty logs and implied
                                         // bloom
@@ -98,11 +102,19 @@ public class ContractCreateTranslator implements BlockTransactionPartsTranslator
                                         final long fileNum =
                                                 op.fileIDOrElse(FileID.DEFAULT).fileNum();
                                         if (baseTranslator.knowsFileContents(fileNum)) {
-                                            initcode = baseTranslator.getFileContents(fileNum);
-                                            final var hexedInitcode = new String(removeIfAnyLeading0x(initcode));
-                                            initcode = Bytes.fromHex(hexedInitcode
-                                                    + op.constructorParameters().toHex());
-                                            needsExternalization = true;
+                                            final var fileContents = baseTranslator.getFileContents(fileNum);
+                                            final var hexedInitcode = new String(removeIfAnyLeading0x(fileContents));
+                                            // In a concurrent run the shared block can carry an unrelated spec's
+                                            // file (e.g. plain text) whose number this create references; only
+                                            // treat valid hex as initcode so non-hex contents don't abort the
+                                            // entire (shared) block's translation and time out every stream
+                                            // assertion waiting on a block in that range.
+                                            if (isHex(hexedInitcode)) {
+                                                initcode = Bytes.fromHex(hexedInitcode
+                                                        + op.constructorParameters()
+                                                                .toHex());
+                                                needsExternalization = true;
+                                            }
                                         }
                                     }
                                     if (initcode != null) {
@@ -165,5 +177,23 @@ public class ContractCreateTranslator implements BlockTransactionPartsTranslator
                 remainingStateChanges,
                 followingUnitTraces,
                 executingHookId);
+    }
+
+    /**
+     * Returns whether the given string is valid (even-length) hex and therefore safe to pass to
+     * {@link Bytes#fromHex(String)}. Guards against treating an unrelated spec's non-initcode file
+     * (whose number a concurrent contract create may reference) as hex initcode.
+     */
+    private static boolean isHex(@NonNull final String s) {
+        if ((s.length() & 1) == 1) {
+            return false;
+        }
+        for (int i = 0, n = s.length(); i < n; i++) {
+            final char c = s.charAt(i);
+            if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'))) {
+                return false;
+            }
+        }
+        return true;
     }
 }

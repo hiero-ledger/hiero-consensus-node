@@ -18,7 +18,6 @@ import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
 import org.apache.tuweni.bytes.MutableBytes;
 import org.apache.tuweni.units.bigints.UInt256;
-import org.hyperledger.besu.collections.undo.UndoScalar;
 import org.hyperledger.besu.collections.undo.UndoSet;
 import org.hyperledger.besu.collections.undo.UndoTable;
 import org.hyperledger.besu.datatypes.Address;
@@ -120,7 +119,6 @@ class CustomCreate2OperationTest extends CreateOperationTestBase {
         given(txValues.messageFrameStack()).willReturn(messageFrameStack);
         given(txValues.warmedUpAddresses()).willReturn(warmedUpAddresses);
         given(txValues.maxStackSize()).willReturn(1024);
-        given(txValues.gasRefunds()).willReturn(new UndoScalar<>(1L));
         given(undoTable.mark()).willReturn(1L);
 
         final Field worldUdaterField = MessageFrame.class.getDeclaredField("worldUpdater");
@@ -144,6 +142,8 @@ class CustomCreate2OperationTest extends CreateOperationTestBase {
         childFrame.setState(MessageFrame.State.COMPLETED_SUCCESS);
         childFrame.notifyCompletion();
         verify(frame).pushStackItem(Words.fromAddress(EIP_1014_ADDRESS));
+        // The child's refunds accrue to the counter shared via TxValues, so completion does not merge them
+        verify(frame, never()).incrementGasRefund(anyLong());
     }
 
     @Test

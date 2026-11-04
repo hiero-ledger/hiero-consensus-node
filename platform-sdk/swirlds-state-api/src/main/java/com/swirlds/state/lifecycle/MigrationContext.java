@@ -10,7 +10,8 @@ import java.util.Comparator;
 import java.util.Map;
 
 /**
- * Provides the context for a migration of state from one {@link Schema} version to another.
+ * Provides the context for a service's latest {@link Schema#restart(MigrationContext)} hook
+ * when its state is initialized.
  *
  * @param <V> - version type
  */
@@ -21,19 +22,18 @@ public interface MigrationContext<V> {
     long roundNumber();
 
     /**
-     * Provides a reference to the previous {@link ReadableStates}. For example, if the previous state was version
-     * 1.2.3, then this method will return a {@link ReadableStates} that can be used to read the state of version 1.2.3.
-     * This state is strictly read-only. This is useful as it allows the migration code to refer to the previous state.
+     * Provides a read-only view of the service states available before this schema's state definitions
+     * were applied. Earlier schemas' state definitions have already been applied, including at genesis.
      *
-     * @return A non-null reference to the previous states. For Genesis, this will be an empty {@link ReadableStates}.
+     * @return A non-null reference to the previous states.
      */
     @NonNull
     ReadableStates previousStates();
 
     /**
-     * Provides a references to the current working state. Initially, this state will be identical to that returned by
-     * {@link #previousStates()}, but as the migration progresses, this state will be updated to reflect the new values
-     * of the state. All new {@link Schema#statesToCreate()} will exist in this state.
+     * Provides a reference to the current working state after this schema's state definitions have been
+     * applied. This includes the new {@link Schema#statesToCreate()} and excludes the states listed in
+     * {@link Schema#statesToRemove()}.
      *
      * @return A non-null reference to the working state.
      */
@@ -59,8 +59,9 @@ public interface MigrationContext<V> {
     Configuration platformConfig();
 
     /**
-     * Provides the previous version of the schema. This is useful to know if this is genesis restart
-     * @return the previous version of the schema. Previous version will be null if this is genesis restart
+     * Provides the software version associated with the loaded state, independent of schema versions.
+     *
+     * @return the previous software version, or null at genesis
      */
     @Nullable
     V previousVersion();
@@ -88,11 +89,10 @@ public interface MigrationContext<V> {
     Comparator<V> getVersionComparator();
 
     /**
-     * Returns whether the current version is an upgrade from the previous version, relative to the ordering
-     * implied by the given functions used to compare the version in the current app configuration and the
-     * previous state version.
-     * @param currentVersion the function to compute the current version from the app configuration
-     * @return whether the current version is an upgrade from the previous version
+     * Returns whether the current software version is an upgrade from the previous software version,
+     * using {@link #getVersionComparator()}.
+     * @param currentVersion the current software version
+     * @return whether the current software version is an upgrade from the previous software version
      * @param <T> the type of the version
      */
     default <T extends Comparable<? super T>> boolean isUpgrade(@NonNull final V currentVersion) {

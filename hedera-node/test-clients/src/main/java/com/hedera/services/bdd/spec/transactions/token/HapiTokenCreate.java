@@ -86,6 +86,7 @@ public class HapiTokenCreate extends HapiTxnOp<HapiTokenCreate> {
     private final List<Function<HapiSpec, CustomFee>> feeScheduleSuppliers = new ArrayList<>();
     private Optional<String> metadataKey = Optional.empty();
     private boolean omitAutoRenewPeriod = false;
+    private boolean omitExpiry = false;
 
     @Override
     public HederaFunctionality type() {
@@ -256,6 +257,12 @@ public class HapiTokenCreate extends HapiTxnOp<HapiTokenCreate> {
         return this;
     }
 
+    /** Suppresses the expiry this op otherwise defaults in, so the body carries none at all. */
+    public HapiTokenCreate omitExpiry() {
+        this.omitExpiry = true;
+        return this;
+    }
+
     @Override
     protected HapiTokenCreate self() {
         return this;
@@ -319,7 +326,7 @@ public class HapiTokenCreate extends HapiTxnOp<HapiTokenCreate> {
                             }
                             autoRenewPeriod.ifPresent(p -> b.setAutoRenewPeriod(
                                     Duration.newBuilder().setSeconds(p).build()));
-                            if (autoRenewPeriod.isEmpty()) {
+                            if (autoRenewPeriod.isEmpty() && !omitExpiry) {
                                 expiry.ifPresentOrElse(
                                         t -> b.setExpiry(Timestamp.newBuilder()
                                                 .setSeconds(t)

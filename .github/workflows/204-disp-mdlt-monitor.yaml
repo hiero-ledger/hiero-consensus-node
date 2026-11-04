@@ -39,6 +39,7 @@ defaults:
 permissions:
   contents: read
   id-token: write
+  actions: read # 864 reads this run's start time
 
 jobs:
   get-chewie-jwt:
@@ -65,6 +66,10 @@ jobs:
     needs:
       - get-chewie-jwt
       - validate-chewie-jwt
+    outputs:
+      # A released/expired allocation fails verify-allocation before classification; that is the
+      # same "no longer running" outcome check-status calls cancelled.
+      state: ${{ steps.check-status.outputs.state || (steps.verify-allocation.outcome == 'failure' && 'cancelled') || '' }}
     env:
       HOST: "${{ secrets.CHEWIE_HOST }}"
       API_EP_COMPUTE_ALLOCATION: "api/v1/compute/allocation"
@@ -111,6 +116,7 @@ jobs:
             -f both
 
       - name: Verify Allocation Is Usable
+        id: verify-allocation
         env:
           NAMESPACE: ${{ steps.allocation.outputs.namespace }}
           FQDN: ${{ steps.allocation.outputs.kubernetes-fqdn }}
@@ -302,3 +308,22 @@ jobs:
         run: |
           echo "::error title=MDLT failed::Run ${{ steps.allocation.outputs.namespace }} on ${{ steps.allocation.outputs.kubernetes-fqdn }} is in a FAILED state."
           exit 1
+
+  # Every status check is reported: in progress as `running`, and the terminal result once the
+  # load generator has finished, failed, or the run is gone.
+  report-mdlt-status:
+    name: Report MDLT Status to Chewie
+    needs:
+      - monitor-mdlt
+    if: ${{ always() && needs.monitor-mdlt.outputs.state != '' }}
+    uses: ./.github/workflows/864-call-report-suite-result.yaml
+    with:
+      suite-type: mdlt
+      build-number: ${{ inputs.build-tag }}
+      disposition: ${{ needs.monitor-mdlt.outputs.state == 'success' && 'passed'
+        || needs.monitor-mdlt.outputs.state == 'running' && 'running'
+        || needs.monitor-mdlt.outputs.state == 'failed' && 'failed'
+        || 'cancelled' }}
+    secrets:
+      chewie-key: ${{ secrets.CHEWIE_REPO_IDENTITY_KEY }}
+      chewie-host: ${{ secrets.CHEWIE_HOST }}
