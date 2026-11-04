@@ -51,6 +51,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongFunction;
@@ -287,6 +288,8 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
 
     private final VirtualMapStatistics statistics;
 
+    private final AtomicLong warmupLeafPath = new AtomicLong();
+
     /**
      * This reference is used to assert that there is only one thread modifying the VM at a time.
      * NOTE: This field is used *only* if assertions are enabled, otherwise it always has null value.
@@ -333,6 +336,8 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         this.records = new RecordAccessor(this.metadata, hashChunkHeight, this.cache, this.dataSource);
         this.pipeline = new VirtualPipeline(virtualMapConfig, LABEL);
         this.pipeline.registerCopy(this);
+
+        warmupLeafPath.set(metadata.getFirstLeafPath());
     }
 
     /**
@@ -358,6 +363,8 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         this.records = new RecordAccessor(this.metadata, hashChunkHeight, this.cache, this.dataSource);
         this.pipeline = source.pipeline;
         this.pipeline.registerCopy(this);
+
+        warmupLeafPath.set(metadata.getFirstLeafPath());
     }
 
     /**
@@ -402,6 +409,8 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         this.records = new RecordAccessor(this.metadata, hashChunkHeight, this.cache, this.dataSource);
         this.pipeline = new VirtualPipeline(virtualMapConfig, LABEL);
         this.pipeline.registerCopy(this);
+
+        warmupLeafPath.set(metadata.getFirstLeafPath());
     }
 
     /**
@@ -1370,7 +1379,12 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      *  @param key The key of the leaf to warm, must not be null
      */
     public void warm(@NonNull final Bytes key) {
-        records.findLeafRecord(key);
+        if (records.findLeafRecord(key) == null) {
+            final long p = warmupLeafPath.getAndIncrement();
+//            if (metadata.isLeaf(p)) {
+                records.findLeafRecord(p);
+//            }
+        }
     }
 
     // ----------------------
