@@ -137,22 +137,21 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                 return;
             }
             embedding = embeddingMode();
-            final HederaNetwork network =
-                    switch (embedding) {
-                        // Embedding is not applicable for a subprocess network
-                        case NA -> {
-                            final boolean isRemote = Optional.ofNullable(System.getProperty("hapi.spec.remote"))
-                                    .map(Boolean::parseBoolean)
-                                    .orElse(false);
-                            yield isRemote ? sharedRemoteNetworkIfRequested() : sharedSubProcessNetwork(null, null);
-                        }
-                        // For the default Test task, we need to run some tests in concurrent embedded mode and
-                        // some in repeatable embedded mode, depending on the value of their @TargetEmbeddedMode
-                        // annotation; this PER_CLASS value supports that requirement
-                        // Embedded networks are created lazily on first demand, so that a
-                        // @GenesisHapiTest running before any other test is the only live instance
-                        case PER_CLASS, CONCURRENT, REPEATABLE -> null;
-                    };
+            final HederaNetwork network = switch (embedding) {
+                // Embedding is not applicable for a subprocess network
+                case NA -> {
+                    final boolean isRemote = Optional.ofNullable(System.getProperty("hapi.spec.remote"))
+                            .map(Boolean::parseBoolean)
+                            .orElse(false);
+                    yield isRemote ? sharedRemoteNetworkIfRequested() : sharedSubProcessNetwork(null, null);
+                }
+                // For the default Test task, we need to run some tests in concurrent embedded mode and
+                // some in repeatable embedded mode, depending on the value of their @TargetEmbeddedMode
+                // annotation; this PER_CLASS value supports that requirement
+                // Embedded networks are created lazily on first demand, so that a
+                // @GenesisHapiTest running before any other test is the only live instance
+                case PER_CLASS, CONCURRENT, REPEATABLE -> null;
+            };
             if (network != null) {
                 maybeStartBlockNodeStreaming(network);
                 network.start();
@@ -351,9 +350,9 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
 
     /**
      * Starts a {@link BlockNodeNetwork} for the shared subprocess network when a per-task override asks for a gRPC
-     * writer, or when the effective writer could not run without one: a {@code GRPC}-only writer, or {@code BLOCKS}
-     * mode, where an unacknowledged buffer back-pressures and stalls the handle thread. Never for a {@code FILE}
-     * writer, a {@code RECORDS}-only stream, or {@code -Dhapi.spec.blocknode.mode=NONE}.
+     * writer, when the effective writer is {@code GRPC}-only (in {@code BLOCKS} mode its unacknowledged buffer
+     * back-pressures and stalls the handle thread), or in {@code BLOCKS} mode, so the block stream reaches a block
+     * node. Never for a {@code FILE} writer, a {@code RECORDS}-only stream, or {@code -Dhapi.spec.blocknode.mode=NONE}.
      */
     private static void maybeStartBlockNodeStreaming(HederaNetwork network) {
         if (!(network instanceof SubProcessNetwork subProcessNetwork)) {
