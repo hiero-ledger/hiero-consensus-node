@@ -39,7 +39,7 @@ public class TipsetWeightCalculator {
     /**
      * Builds tipsets for each event. Is maintained outside this object.
      */
-    private final DefaultTipsetTracker tipsetTracker;
+    private final TipsetTracker tipsetTracker;
 
     /**
      * Tracks non-ancient events without children.
@@ -108,7 +108,7 @@ public class TipsetWeightCalculator {
             @NonNull final Time time,
             @NonNull final RosterWrapper roster,
             @NonNull final NodeId selfId,
-            @NonNull final DefaultTipsetTracker tipsetTracker,
+            @NonNull final TipsetTracker tipsetTracker,
             @NonNull final ChildlessEventTracker childlessEventTracker) {
 
         this.selfId = requireNonNull(selfId);
@@ -144,7 +144,8 @@ public class TipsetWeightCalculator {
      *
      * @return the current tipset snapshot
      */
-    public @NonNull Tipset getSnapshot() {
+    @NonNull
+    public Tipset getSnapshot() {
         return snapshot;
     }
 
@@ -163,6 +164,7 @@ public class TipsetWeightCalculator {
      * @return the change in this event's tipset advancement weight compared to the tipset advancement weight of the
      * previous event passed to this method
      */
+    @NonNull
     public TipsetAdvancementWeight addEventAndGetAdvancementWeight(@NonNull final EventDescriptorWrapper event) {
         requireNonNull(event);
         if (!event.creator().equals(selfId)) {
@@ -204,6 +206,7 @@ public class TipsetWeightCalculator {
      * @param parents the proposed parents of an event
      * @return the advancement weight we would get by creating an event with the given parents
      */
+    @NonNull
     public TipsetAdvancementWeight getTheoreticalAdvancementWeight(
             @NonNull final List<EventDescriptorWrapper> parents) {
         if (parents.isEmpty()) {
@@ -279,14 +282,14 @@ public class TipsetWeightCalculator {
             return 0;
         }
 
-        if (latestSelfEventTipset.getTipSequenceNumberForNode(nodeId)
-                > snapshotHistory.getLast().getTipSequenceNumberForNode(nodeId)) {
+        if (latestSelfEventTipset.getTipOrderingKeyForNode(nodeId)
+                > snapshotHistory.getLast().getTipOrderingKeyForNode(nodeId)) {
             // Special case: we have advanced this generation since the snapshot was taken.
             return 0;
         }
 
         int selfishness = 0;
-        final long latestSeq = tipsetTracker.getLatestSequenceNumberForNode(nodeId);
+        final long latestOrderingKey = tipsetTracker.getLatestTipOrderingKeyForNode(nodeId);
 
         // Iterate backwards in time until we find an event from the node being added to our ancestry, or if
         // we find that there are no eligible nodes to be added to our ancestry.
@@ -296,10 +299,10 @@ public class TipsetWeightCalculator {
             final Tipset currentTipset = previousTipset;
             previousTipset = iterator.next();
 
-            final long previousSeq = previousTipset.getTipSequenceNumberForNode(nodeId);
-            final long currentSeq = currentTipset.getTipSequenceNumberForNode(nodeId);
+            final long previousOrderingKey = previousTipset.getTipOrderingKeyForNode(nodeId);
+            final long currentOrderingKey = currentTipset.getTipOrderingKeyForNode(nodeId);
 
-            if (currentSeq == latestSeq || previousSeq < currentSeq) {
+            if (currentOrderingKey == latestOrderingKey || previousOrderingKey < currentOrderingKey) {
                 // We stop increasing the selfishness score if we observe one of the two following events:
                 //
                 // 1) we find that the latest generation provided by a node matches a snapshot's generation
@@ -326,6 +329,10 @@ public class TipsetWeightCalculator {
         previousAdvancementWeight = ZERO_ADVANCEMENT_WEIGHT;
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     @NonNull
     public String toString() {
         final StringBuilder sb = new StringBuilder();

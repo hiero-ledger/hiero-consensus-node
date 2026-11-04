@@ -40,6 +40,16 @@ public class ContractDeleteTranslator implements BlockTransactionPartsTranslator
                 parts,
                 (receiptBuilder, recordBuilder) -> {
                     if (parts.status() == SUCCESS) {
+                        final var contractID =
+                                parts.body().contractDeleteInstanceOrThrow().contractIDOrThrow();
+                        if (contractID.hasContractNum()) {
+                            // A synthetic self-destruct follows the creation record, whose translation may
+                            // already have consumed the account's final (deleted) state change. The body
+                            // supplies the canonical ID even then; do not consume another deletion instead.
+                            receiptBuilder.contractID(contractID);
+                            remainingStateChanges.removeIf(change -> isDeletionOf(change, contractID));
+                            return;
+                        }
                         final var iter = remainingStateChanges.listIterator();
                         while (iter.hasNext()) {
                             final var stateChange = iter.next();
@@ -90,5 +100,21 @@ public class ContractDeleteTranslator implements BlockTransactionPartsTranslator
                 remainingStateChanges,
                 followingUnitTraces,
                 executingHookId);
+    }
+
+    private static boolean isDeletionOf(@NonNull final StateChange change, @NonNull final ContractID contractID) {
+        if (!change.hasMapUpdate()) {
+            return false;
+        }
+        final var update = change.mapUpdateOrThrow();
+        if (!update.keyOrThrow().hasAccountIdKey() || !update.valueOrThrow().hasAccountValue()) {
+            return false;
+        }
+        final var account = update.valueOrThrow().accountValueOrThrow();
+        final var accountId = account.accountIdOrThrow();
+        return account.deleted()
+                && accountId.shardNum() == contractID.shardNum()
+                && accountId.realmNum() == contractID.realmNum()
+                && accountId.accountNumOrThrow().equals(contractID.contractNumOrThrow());
     }
 }

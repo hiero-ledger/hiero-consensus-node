@@ -6,6 +6,8 @@ import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.T
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.contract.ContractNonceInfo;
@@ -136,21 +138,23 @@ class RootProxyWorldUpdaterTest {
 
         final var aExpiry = 1_234_567;
         final var aSlotsUsedBeforeCommit = 101;
-        final var sizeIncludingPendingRemovals = 123L;
+        final var accountedSizeBeforeCommit = 123L;
         final var mockChangedKeys = Set.of(new SlotKey(A_CONTRACT_ID, Bytes.wrap("123")));
-        // Three keys being removed in pending changes
-        final var sizeExcludingPendingRemovals = sizeIncludingPendingRemovals - 3;
+        // Four insertions and three removals have not yet been reflected in the counters.
+        final var finalSize = accountedSizeBeforeCommit + 1;
         given(context.dispatchMetadata())
                 .willReturn(new HandleContext.DispatchMetadata(EXPLICIT_WRITE_TRACING, Boolean.FALSE));
-        given(evmFrameState.getKvStateSize()).willReturn(sizeIncludingPendingRemovals);
+        given(evmFrameState.getKvStateSize()).willReturn(accountedSizeBeforeCommit);
         given(evmFrameState.getTxStorageUsage(true)).willReturn(new TxStorageUsage(pendingChanges(), mockChangedKeys));
+        given(storageManager.getPersistenceChanges(enhancement, pendingChanges(), store))
+                .willReturn(pendingChanges());
         given(evmFrameState.getRentFactorsFor(A_CONTRACT_ID))
                 .willReturn(new RentFactors(aSlotsUsedBeforeCommit, aExpiry));
 
         final var rentInTinycents = 666_666L;
         final var rentInTinybars = 111_111L;
         // A contract is allocating 2 slots net
-        given(rentCalculator.computeFor(sizeExcludingPendingRemovals, 2, aSlotsUsedBeforeCommit, aExpiry))
+        given(rentCalculator.computeFor(finalSize, 2, aSlotsUsedBeforeCommit, aExpiry))
                 .willReturn(rentInTinycents);
         given(hederaOperations.valueInTinybars(rentInTinycents)).willReturn(rentInTinybars);
         given(hederaOperations.getStore()).willReturn(store);
@@ -161,8 +165,7 @@ class RootProxyWorldUpdaterTest {
 
         subject.commit();
 
-        inOrder.verify(storageSizeValidator)
-                .assertValid(sizeExcludingPendingRemovals, hederaOperations, expectedSizeChanges());
+        inOrder.verify(storageSizeValidator).assertValid(finalSize, hederaNativeOperations, expectedSizeChanges());
         inOrder.verify(hederaOperations).chargeStorageRent(A_CONTRACT_ID, rentInTinybars, true);
         inOrder.verify(storageManager)
                 .persistChanges(
@@ -176,6 +179,38 @@ class RootProxyWorldUpdaterTest {
         assertSame(createdIds, subject.getCreatedContractIds());
         assertSame(updatedNonces, subject.getUpdatedContractNonces());
         assertSame(mockChangedKeys, subject.getTxStorageUsage().changedKeys());
+    }
+
+    @Test
+    void nestedInsertionIsNotChargedOrCountedAgainAndTraceKeepsOriginalValues() {
+        final var scopeChanges = List.of(new StorageAccesses(
+                A_CONTRACT_ID, List.of(StorageAccess.newWrite(A_KEY_BEING_ADDED, UInt256.ZERO, UInt256.ONE))));
+        final var persistenceChanges = List.of(new StorageAccesses(
+                A_CONTRACT_ID, List.of(StorageAccess.newWrite(A_KEY_BEING_ADDED, UInt256.ONE, UInt256.ONE))));
+        final var traceUsage = new TxStorageUsage(scopeChanges, Set.of());
+        given(context.dispatchMetadata())
+                .willReturn(new HandleContext.DispatchMetadata(EXPLICIT_WRITE_TRACING, Boolean.FALSE));
+        given(evmFrameState.getTxStorageUsage(true)).willReturn(traceUsage);
+        given(evmFrameState.getKvStateSize()).willReturn(1L);
+        given(hederaOperations.getStore()).willReturn(store);
+        given(storageManager.getPersistenceChanges(enhancement, scopeChanges, store))
+                .willReturn(persistenceChanges);
+        given(hederaOperations.summarizeContractChanges())
+                .willReturn(new ContractChangeSummary(new ArrayList<>(), new ArrayList<>()));
+
+        subject.commit();
+
+        final var noAdditionalSlots = List.of(new StorageSizeChange(A_CONTRACT_ID, 0, 0));
+        verify(storageSizeValidator).assertValid(1L, hederaNativeOperations, noAdditionalSlots);
+        verify(storageManager)
+                .persistChanges(
+                        enhancement,
+                        persistenceChanges,
+                        noAdditionalSlots,
+                        store,
+                        enhancement.nativeOperations().writableEvmHookStore());
+        verifyNoInteractions(rentCalculator);
+        assertSame(traceUsage, subject.getTxStorageUsage());
     }
 
     private void givenSubjectWith(@NonNull final Configuration configuration, @NonNull final Enhancement enhancement) {
