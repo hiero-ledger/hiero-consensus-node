@@ -75,9 +75,11 @@ public class ConcurrentBlockingIterator<T> implements Iterator<T> {
     /**
      * {@inheritDoc}
      *
-     * <p>There is no timeout here, the iterator will wait forever (or till closed) for the next elements to be
-     * supplied. During reconnects, if no element (dirty leaf from the teacher) is provided in certain period, the
-     * whole reconnect thread group will be interrupted, there is no need to have explicit timeouts here.
+     * <p>There is no timeout: this waits until an element is supplied or the iterator is closed. In reconnects,
+     * the consumer is the hashing task on the hasher's own thread pool. Nothing interrupts it there: not the
+     * shutdown of the reconnect work group, which interrupts only the work group's threads, and not cancelling
+     * the hashing future, since a {@code CompletableFuture} isn't interrupted on cancel. A failed reconnect ends
+     * the wait by closing the iterator, in {@code VirtualMapLearner.abortOnException()}.
      *
      * @throws RuntimeException if the current thread is interrupted, even if an element is available. The
      * 		interrupted flag is cleared
@@ -100,11 +102,12 @@ public class ConcurrentBlockingIterator<T> implements Iterator<T> {
             if (next != null) {
                 return true;
             }
-            if (closed) {
-                // poll(), not relaxedPoll(): returns null only when the buffer is truly empty, so an element
-                // supplied before close() is never missed
-                next = buffer.poll();
-                return next != null;
+            // Done once closed and empty. closed is read first: a supply() that returned before close() has
+            // already advanced the producer index, so its element counts here. If its slot is claimed but the
+            // element isn't published yet, the buffer isn't empty, and the loop retries, still checking for
+            // interrupts, rather than spinning in the strict poll() till the element shows up
+            if (closed && buffer.isEmpty()) {
+                return false;
             }
             backoffStep = backOff(backoffStep, CONSUMER_MAX_PARK_SHIFT);
         }
@@ -150,12 +153,14 @@ public class ConcurrentBlockingIterator<T> implements Iterator<T> {
             if (buffer.offer(element)) {
                 return;
             }
-            // The iterator is closed when reconnect is finished or aborted, e.g. when hashing fails and the
-            // consumer stops. No slot may ever be freed then, so fail instead of waiting forever
+            backoffStep = backOff(backoffStep, SUPPLIER_MAX_PARK_SHIFT);
+            // Another thread closes the iterator while a supplier waits only when reconnect is aborted, e.g. when
+            // hashing fails and the consumer stops. No slot may ever be freed then, so fail instead of waiting
+            // forever. Checked before the next offer(), so the element isn't accepted after close() even if a slot
+            // was freed in the meantime
             if (closed) {
                 throw new IllegalStateException("ConcurrentBlockingIterator was closed while waiting for space");
             }
-            backoffStep = backOff(backoffStep, SUPPLIER_MAX_PARK_SHIFT);
         }
     }
 
@@ -167,9 +172,16 @@ public class ConcurrentBlockingIterator<T> implements Iterator<T> {
     }
 
     /**
-     * Closes the iterator. After closing, no elements may be added, but existing elements in the iterator
-     * can still be retrieved. A thread blocked in {@link #supply(Object)} on a full buffer fails with
-     * {@link IllegalStateException}.
+     * Closes the iterator: no more elements may be supplied, and {@link #hasNext()} returns {@code false} once
+     * the elements already supplied are consumed. Every element whose {@link #supply(Object)} returned before
+     * this call is returned by the iterator.
+     *
+     * <p>A supplier normally closes the iterator itself, after its last {@link #supply(Object)} returned. While
+     * the buffer is full, {@link #supply(Object)} waits for space, so every element is accepted whatever the
+     * consumer's pace. When another thread closes the iterator, e.g. when a reconnect is aborted because
+     * hashing failed, a {@link #supply(Object)} waiting for space fails with {@link IllegalStateException}
+     * rather than waiting for a consumer that may have stopped. A {@link #supply(Object)} that runs
+     * concurrently with this call may fail, or succeed with an element that is never returned.
      */
     public void close() {
         closed = true;

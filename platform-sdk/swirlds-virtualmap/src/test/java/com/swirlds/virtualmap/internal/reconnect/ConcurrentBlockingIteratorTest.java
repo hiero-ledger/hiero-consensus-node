@@ -6,6 +6,7 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -275,18 +276,14 @@ public class ConcurrentBlockingIteratorTest {
     @Test
     @DisplayName("supply blocks while the buffer is full, and resumes once an element is taken")
     void supplyBlocksWhileFull() throws Exception {
-        final ConcurrentBlockingIterator<Integer> iterator = new ConcurrentBlockingIterator<>(4);
-        for (int i = 1; i <= 4; i++) {
-            iterator.supply(i);
-        }
-        final Future<?> blocked = threadPool.submit(() -> {
-            iterator.supply(5);
-            return null;
-        });
-        MILLISECONDS.sleep(50);
-        assertFalse(blocked.isDone(), "supply() should wait while the buffer is full");
+        final ConcurrentBlockingIterator<Integer> iterator = fullIterator();
+        final AtomicReference<Throwable> thrown = new AtomicReference<>();
+        final Thread supplier = startSupplier(iterator, 5, thrown);
+        awaitParked(supplier);
         assertEquals(1, iterator.next());
-        blocked.get(5, SECONDS);
+        supplier.join(5_000);
+        assertFalse(supplier.isAlive(), "supply() should return once an element is taken");
+        assertNull(thrown.get(), "supply() should succeed once an element is taken");
         iterator.close();
         for (int i = 2; i <= 5; i++) {
             assertEquals(i, iterator.next(), "Elements should be returned in the order they were supplied");
@@ -296,39 +293,27 @@ public class ConcurrentBlockingIteratorTest {
 
     @Test
     @DisplayName("close releases a supplier blocked on a full buffer")
-    void closeReleasesBlockedSupplier() throws Exception {
-        final ConcurrentBlockingIterator<Integer> iterator = new ConcurrentBlockingIterator<>(4);
-        for (int i = 1; i <= 4; i++) {
-            iterator.supply(i);
-        }
-        final Future<?> blocked = threadPool.submit(() -> {
-            iterator.supply(5);
-            return null;
-        });
-        MILLISECONDS.sleep(50);
-        assertFalse(blocked.isDone(), "supply() should wait while the buffer is full");
+    void closeReleasesBlockedSupplier() throws InterruptedException {
+        final ConcurrentBlockingIterator<Integer> iterator = fullIterator();
+        final AtomicReference<Throwable> thrown = new AtomicReference<>();
+        final Thread supplier = startSupplier(iterator, 5, thrown);
+        awaitParked(supplier);
         iterator.close();
-        final ExecutionException e = assertThrows(ExecutionException.class, () -> blocked.get(5, SECONDS));
-        assertInstanceOf(IllegalStateException.class, e.getCause(), "A blocked supply() should fail on close()");
+        supplier.join(5_000);
+        assertFalse(supplier.isAlive(), "A blocked supply() should return on close()");
+        // The message tells it from the check on entry, which throws the same type
+        final IllegalStateException e = assertInstanceOf(
+                IllegalStateException.class, thrown.get(), "A blocked supply() should fail on close()");
+        assertEquals("ConcurrentBlockingIterator was closed while waiting for space", e.getMessage());
     }
 
     @Test
     @DisplayName("supply blocked on a full buffer can be interrupted")
     void blockedSupplyCanBeInterrupted() throws InterruptedException {
-        final ConcurrentBlockingIterator<Integer> iterator = new ConcurrentBlockingIterator<>(4);
-        for (int i = 1; i <= 4; i++) {
-            iterator.supply(i);
-        }
+        final ConcurrentBlockingIterator<Integer> iterator = fullIterator();
         final AtomicReference<Throwable> thrown = new AtomicReference<>();
-        final Thread supplier = new Thread(() -> {
-            try {
-                iterator.supply(5);
-            } catch (final Throwable t) {
-                thrown.set(t);
-            }
-        });
-        supplier.start();
-        MILLISECONDS.sleep(50);
+        final Thread supplier = startSupplier(iterator, 5, thrown);
+        awaitParked(supplier);
         supplier.interrupt();
         supplier.join(5_000);
         assertFalse(supplier.isAlive(), "An interrupted supply() should return");
@@ -361,6 +346,42 @@ public class ConcurrentBlockingIteratorTest {
         assertEquals(2, iterator.size());
         iterator.next();
         assertEquals(1, iterator.size());
+    }
+
+    /// @return an iterator with a buffer of 4, full with the elements 1 to 4
+    private static ConcurrentBlockingIterator<Integer> fullIterator() throws InterruptedException {
+        final ConcurrentBlockingIterator<Integer> iterator = new ConcurrentBlockingIterator<>(4);
+        for (int i = 1; i <= 4; i++) {
+            iterator.supply(i);
+        }
+        return iterator;
+    }
+
+    /// Starts a thread that supplies the element, and records what the supply throws, if anything
+    private static Thread startSupplier(
+            final ConcurrentBlockingIterator<Integer> iterator,
+            final int element,
+            final AtomicReference<Throwable> thrown) {
+        final Thread supplier = new Thread(() -> {
+            try {
+                iterator.supply(element);
+            } catch (final Throwable t) {
+                thrown.set(t);
+            }
+        });
+        supplier.start();
+        return supplier;
+    }
+
+    /// Waits until the thread parks. A supplier parks only in its backoff, after a failed offer(), so this proves
+    /// that it's waiting for space, rather than not started yet
+    private static void awaitParked(final Thread thread) {
+        final long deadline = System.nanoTime() + SECONDS.toNanos(5);
+        while (thread.getState() != Thread.State.TIMED_WAITING) {
+            assertTrue(thread.isAlive(), "The thread finished without waiting");
+            assertTrue(System.nanoTime() < deadline, "The thread never parked");
+            Thread.onSpinWait();
+        }
     }
 
     private <T> Future<Class<T>> thrownByCall(Runnable lambda) {
