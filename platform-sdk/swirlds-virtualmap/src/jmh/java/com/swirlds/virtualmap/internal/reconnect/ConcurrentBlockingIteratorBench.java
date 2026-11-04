@@ -3,6 +3,7 @@ package com.swirlds.virtualmap.internal.reconnect; // NOSONAR: Needed to benchma
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
+import java.util.Iterator;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -27,7 +28,8 @@ import org.openjdk.jmh.infra.Blackhole;
 /// Compares the hand-off of dirty leaves from the reconnect learner's applier thread to its hashing thread:
 /// [ConcurrentBlockingIterator], a lock-free MPSC ring buffer with spin-then-park waiting, against
 /// [LinkedBlockingQueueIterator], the `LinkedBlockingQueue`-based version it replaced in #28079. Both run from the same
-/// jar, one per fork (`impl`), so the baseline needs no separate build.
+/// jar, so the baseline needs no separate build: `mpsc` and `linkedBlocking` run the same code, [#handOff], each with
+/// its own implementation of [SuppliedIterator].
 ///
 /// One pass is one reconnect's worth of hand-offs: a new iterator, [#LEAVES] leaves supplied in path order by a
 /// producer thread (the applier), consumed by the benchmark thread (the hasher), then `close()`. The score is the
@@ -63,6 +65,7 @@ import org.openjdk.jmh.infra.Blackhole;
 /// java -jar platform-sdk/swirlds-virtualmap/build/libs/swirlds-virtualmap-*-jmh-merged.jar \
 ///     ConcurrentBlockingIteratorBench -prof gc
 /// ```
+/// To run one implementation, select its method, e.g. `'ConcurrentBlockingIteratorBench\.mpsc$'`.
 /// On Linux, add `-prof perfnorm:events=cycles,instructions,context-switches` for cycles and context switches per
 /// leaf. The events must be listed: the default ones don't include context switches.
 @State(Scope.Benchmark)
@@ -79,11 +82,6 @@ public class ConcurrentBlockingIteratorBench {
 
     /// The buffer size of the learner's hashing iterator, `VirtualMapLearner.MAX_RECONNECT_HASHING_BUFFER_SIZE`.
     private static final int PRODUCTION_BUFFER_SIZE = 1 << 20;
-
-    public enum Impl {
-        LINKED_BLOCKING,
-        MPSC
-    }
 
     public enum Scenario {
         KEEPS_UP(200, 100, 0, 0, PRODUCTION_BUFFER_SIZE),
@@ -116,75 +114,29 @@ public class ConcurrentBlockingIteratorBench {
     }
 
     @Param
-    public Impl impl;
-
-    @Param
     public Scenario scenario;
 
-    /// The iterator operations both implementations have.
-    private interface Handoff {
-        void supply(VirtualLeafBytes<?> leaf) throws InterruptedException;
-
-        boolean hasNext();
-
-        VirtualLeafBytes<?> next();
+    /// An iterator whose elements are supplied by another thread: what both implementations have in common.
+    interface SuppliedIterator<T> extends Iterator<T> {
+        void supply(T element) throws InterruptedException;
 
         void close();
     }
 
-    private static final class Mpsc implements Handoff {
-        private final ConcurrentBlockingIterator<VirtualLeafBytes<?>> iterator;
+    // The implementations under test, as they are: the inherited methods implement SuppliedIterator, so the
+    // benchmark calls them directly
 
+    private static final class Mpsc extends ConcurrentBlockingIterator<VirtualLeafBytes<?>>
+            implements SuppliedIterator<VirtualLeafBytes<?>> {
         Mpsc(final int bufferSize) {
-            iterator = new ConcurrentBlockingIterator<>(bufferSize);
-        }
-
-        @Override
-        public void supply(final VirtualLeafBytes<?> leaf) throws InterruptedException {
-            iterator.supply(leaf);
-        }
-
-        @Override
-        public boolean hasNext() {
-            return iterator.hasNext();
-        }
-
-        @Override
-        public VirtualLeafBytes<?> next() {
-            return iterator.next();
-        }
-
-        @Override
-        public void close() {
-            iterator.close();
+            super(bufferSize);
         }
     }
 
-    private static final class LinkedBlocking implements Handoff {
-        private final LinkedBlockingQueueIterator<VirtualLeafBytes<?>> iterator;
-
+    private static final class LinkedBlocking extends LinkedBlockingQueueIterator<VirtualLeafBytes<?>>
+            implements SuppliedIterator<VirtualLeafBytes<?>> {
         LinkedBlocking(final int bufferSize) {
-            iterator = new LinkedBlockingQueueIterator<>(bufferSize);
-        }
-
-        @Override
-        public void supply(final VirtualLeafBytes<?> leaf) throws InterruptedException {
-            iterator.supply(leaf);
-        }
-
-        @Override
-        public boolean hasNext() {
-            return iterator.hasNext();
-        }
-
-        @Override
-        public VirtualLeafBytes<?> next() {
-            return iterator.next();
-        }
-
-        @Override
-        public void close() {
-            iterator.close();
+            super(bufferSize);
         }
     }
 
@@ -222,19 +174,29 @@ public class ConcurrentBlockingIteratorBench {
 
     @Benchmark
     @OperationsPerInvocation(LEAVES)
-    public void handOff(final Blackhole bh) throws Exception {
-        final Handoff handoff =
-                (impl == Impl.MPSC) ? new Mpsc(scenario.bufferSize) : new LinkedBlocking(scenario.bufferSize);
+    public void mpsc(final Blackhole bh) throws Exception {
+        handOff(new Mpsc(scenario.bufferSize), bh);
+    }
+
+    @Benchmark
+    @OperationsPerInvocation(LEAVES)
+    public void linkedBlocking(final Blackhole bh) throws Exception {
+        handOff(new LinkedBlocking(scenario.bufferSize), bh);
+    }
+
+    /// One pass: supplies all leaves on the producer thread and consumes them on this one. Every fork runs only one
+    /// benchmark method, so the calls on `iterator` here only ever see one class.
+    private void handOff(final SuppliedIterator<VirtualLeafBytes<?>> iterator, final Blackhole bh) throws Exception {
         final Future<?> supplying = producer.submit(() -> {
-            supplyAll(handoff);
+            supplyAll(iterator);
             return null;
         });
 
         final long consumerTokens = scenario.consumerTokens;
         int count = 0;
         boolean ordered = true;
-        while (handoff.hasNext()) {
-            final VirtualLeafBytes<?> leaf = handoff.next();
+        while (iterator.hasNext()) {
+            final VirtualLeafBytes<?> leaf = iterator.next();
             ordered &= (leaf.path() == count);
             count++;
             Blackhole.consumeCPU(consumerTokens);
@@ -246,7 +208,7 @@ public class ConcurrentBlockingIteratorBench {
         inOrder = ordered;
     }
 
-    private void supplyAll(final Handoff handoff) throws InterruptedException {
+    private void supplyAll(final SuppliedIterator<VirtualLeafBytes<?>> iterator) throws InterruptedException {
         final long supplierTokens = scenario.supplierTokens;
         final int pauseEvery = scenario.pauseEvery;
         try {
@@ -255,11 +217,11 @@ public class ConcurrentBlockingIteratorBench {
                 if ((pauseEvery > 0) && (i > 0) && (i % pauseEvery == 0)) {
                     LockSupport.parkNanos(scenario.pauseNanos);
                 }
-                handoff.supply(leaves[i]);
+                iterator.supply(leaves[i]);
             }
         } finally {
             // Also on failure, so the consumer finishes, and the pass fails in the check below
-            handoff.close();
+            iterator.close();
         }
     }
 
