@@ -119,7 +119,7 @@ public class StateChangesValidator implements BlockStreamValidator {
     // (BlockStreamConfig.digestType): the SHA-384 -> SHA-256 cutover flips BOTH together in production (two coupled
     // changes: the DEFAULT_DIGEST_TYPE constant and the blockStream.digestType property), so keying off
     // DEFAULT_DIGEST_TYPE here tracks the state-hash length (48 -> 32) in lockstep with that rollout. The two can also
-    // be set independently for testing (e.g. hapiTestBlockHashingSha256 runs SHA-256 blocks over SHA-384 state); this
+    // be set independently for testing; this
     // field correctly follows the platform/state digest regardless, since it sizes the state-metadata hash, not a
     // block hash.
     private static final int HASH_SIZE = Cryptography.DEFAULT_DIGEST_TYPE.digestLength();

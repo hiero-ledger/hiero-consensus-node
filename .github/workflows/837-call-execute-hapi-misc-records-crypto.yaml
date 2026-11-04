@@ -118,7 +118,6 @@ jobs:
           run_subtask hapiTestCrypto
           run_subtask hapiTestCryptoEmbedded
           run_subtask hapiTestCryptoSerial
-          run_subtask hapiTestBlockHashingSha256
           run_subtask hapiTestMiscSerial
           exit $status
 

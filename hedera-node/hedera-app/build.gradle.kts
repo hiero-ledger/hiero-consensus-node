@@ -108,7 +108,7 @@ tasks.jar {
                     .filter { it.extension == "jar" }
                     .map { "../../data/lib/" + it.name }
                     .sorted()
-                    .joinToString(separator = " ")
+                    .joinToString(separator = " "),
         )
     }
 }
@@ -184,6 +184,8 @@ tasks.register<JavaExec>("run") {
 
     // Add arguments for the application to run a local node
     args = listOf("-local", "0")
+    // The local node has no block node to stream to, so it only writes block files
+    systemProperty("blockStream.writerMode", "FILE")
 }
 
 val cleanRun =

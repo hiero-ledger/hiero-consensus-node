@@ -244,7 +244,7 @@ jobs:
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
   xts-hapi-tests-testnet:
-    name: XTS HAPI Tests (Cutover configs)
+    name: XTS HAPI Tests (GRPC writer)
     needs:
       - commit-info
       - build
