@@ -173,7 +173,7 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
         // 1. Compute the expected commitment and verify it exists
         final var expectedCommitment = computeCommitment(op.channelId(), op.publicKey());
         if (!commitmentStore.contains(expectedCommitment)) {
-            log.warn(
+            log.debug(
                     "[ClprCompleteChannel] commitment lookup FAILED channelId={} expectedCommitment={}",
                     shortHex(op.channelId()),
                     shortHex(expectedCommitment));
@@ -186,7 +186,7 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
 
         // 2. Verify channel_id isn't already active
         if (channelStore.getChannel(op.channelId()) != null) {
-            log.warn("[ClprCompleteChannel] channel already active channelId={}", shortHex(op.channelId()));
+            log.debug("[ClprCompleteChannel] channel already active channelId={}", shortHex(op.channelId()));
             throw new HandleException(CLPR_CHANNEL_ALREADY_EXISTS);
         }
 
@@ -235,7 +235,7 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
         if (!isBuiltInVerifier(op.verifierContractOrThrow())) {
             final var verifierAccount = accountStore.getContractById(op.verifierContractOrThrow());
             if (verifierAccount == null || !verifierAccount.smartContract()) {
-                log.warn(
+                log.debug(
                         "[ClprCompleteChannel] verifier contract validation FAILED channelId={} "
                                 + "verifierContract={} accountFound={} smartContract={}",
                         shortHex(op.channelId()),
@@ -458,7 +458,7 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
         try {
             return verifier.verifyConfig(configProofBytes, channelId, endpointManifestProofBytes, context);
         } catch (final HandleException e) {
-            log.warn(
+            log.debug(
                     "[ClprCompleteChannel] verifyConfig FAILED channelId={} verifierContract={} status={} "
                             + "configProofBytes={} configProofHash={} configProofPrefix={}",
                     shortHex(channelId),

@@ -50,7 +50,7 @@ public class NetworkSimulationTest {
     @Test
     @Disabled("This test has no assertions, its only goal to speed up certain testing")
     void mainnet() {
-        final int numNodes = 32;
+        final int numNodes = RealisticPingSamples.MAINNET.length;
 
         final Duration tick = Duration.of(5, ChronoUnit.MILLIS);
         final Duration duration = Duration.ofSeconds(10);
@@ -66,7 +66,7 @@ public class NetworkSimulationTest {
     @Test
     @Disabled("This test has no assertions, its only goal to speed up certain testing")
     void mainnetMopComparison() {
-        final int numNodes = 32;
+        final int numNodes = RealisticPingSamples.MAINNET.length;
 
         final Duration tick = Duration.of(1, ChronoUnit.MILLIS);
         final Duration duration = Duration.ofSeconds(10);

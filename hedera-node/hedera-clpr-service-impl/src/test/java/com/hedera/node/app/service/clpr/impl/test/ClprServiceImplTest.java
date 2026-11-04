@@ -55,7 +55,7 @@ class ClprServiceImplTest {
                 .willReturn(constructionState);
         configuration = HederaTestConfigBuilder.create()
                 .withValue("clpr.enabled", false)
-                .withValue("clpr.chainId", "hiero:test")
+                .withValue("contracts.chainId", 299)
                 .withValue("clpr.protocolVersion", "1")
                 .getOrCreateConfig();
     }

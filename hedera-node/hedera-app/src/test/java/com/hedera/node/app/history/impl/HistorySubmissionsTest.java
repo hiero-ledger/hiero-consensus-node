@@ -7,11 +7,14 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.history.HistoryProof;
+import com.hedera.hapi.node.state.history.WrapsPhase;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.hapi.services.auxiliary.hints.HintsPartialSignatureTransactionBody;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -43,7 +46,7 @@ class HistorySubmissionsTest {
 
     @BeforeEach
     void setUp() {
-        given(gossip.isAvailable()).willReturn(true);
+        lenient().when(gossip.isAvailable()).thenReturn(true);
         subject = new HistorySubmissions(executor, appContext);
     }
 
@@ -113,6 +116,55 @@ class HistorySubmissionsTest {
         assertEquals(phase, op.phase());
         assertEquals(message, op.wrapsMessage());
         assertEquals(constructionId, op.constructionId());
+        assertFalse(op.hasHintsPartialSignature());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void companionIsGossipedAtomicallyWithRotationMessageAndKeepsItsSourceConstructionId() {
+        given(selfNodeInfo.accountId()).willReturn(AccountID.DEFAULT);
+        given(appContext.selfNodeInfoSupplier()).willReturn(() -> selfNodeInfo);
+        given(appContext.instantSource()).willReturn(() -> Instant.EPOCH);
+        given(appContext.configSupplier()).willReturn(() -> DEFAULT_CONFIG);
+        given(appContext.gossip()).willReturn(gossip);
+        final var companion = HintsPartialSignatureTransactionBody.newBuilder()
+                .constructionId(7)
+                .message(Bytes.wrap("successor verification key"))
+                .partialSignature(Bytes.wrap("source epoch share"))
+                .build();
+
+        subject.submitWrapsSigningMessage(WrapsPhase.R1, Bytes.wrap("rotation message"), 42, companion);
+
+        final ArgumentCaptor<Consumer<TransactionBody.Builder>> captor = ArgumentCaptor.forClass(Consumer.class);
+        verify(gossip)
+                .submitFuture(
+                        eq(AccountID.DEFAULT),
+                        eq(Instant.EPOCH),
+                        any(),
+                        captor.capture(),
+                        any(),
+                        anyInt(),
+                        anyInt(),
+                        any(),
+                        any());
+        final var builder = TransactionBody.newBuilder();
+        captor.getValue().accept(builder);
+        final var body = builder.build();
+        assertFalse(body.hasHintsPartialSignature());
+        final var publication = body.historyProofKeyPublicationOrThrow();
+        assertEquals(42, publication.constructionId());
+        assertEquals(WrapsPhase.R1, publication.phase());
+        assertEquals(Bytes.wrap("rotation message"), publication.wrapsMessage());
+        assertEquals(companion, publication.hintsPartialSignature());
+        assertEquals(7, publication.hintsPartialSignatureOrThrow().constructionId());
+    }
+
+    @Test
+    void refusesCompanionOnLaterSigningRounds() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> subject.submitWrapsSigningMessage(
+                        WrapsPhase.R2, Bytes.wrap("r2"), 42, HintsPartialSignatureTransactionBody.DEFAULT));
     }
 
     @Test
