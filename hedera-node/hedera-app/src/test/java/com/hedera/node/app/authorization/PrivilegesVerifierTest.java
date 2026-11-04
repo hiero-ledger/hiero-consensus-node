@@ -121,8 +121,8 @@ class PrivilegesVerifierTest {
     void privilegedAccountNumberOnForeignShardOrRealmIsNotPrivileged(final long shard, final long realm)
             throws InvalidProtocolBufferException {
         final var freeze = treasuryTxn().setFreeze(FreezeTransactionBody.getDefaultInstance());
-        final var fileUpdate =
-                treasuryTxn().setFileUpdate(FileUpdateTransactionBody.newBuilder().setFileID(file(112)));
+        final var fileUpdate = treasuryTxn()
+                .setFileUpdate(FileUpdateTransactionBody.newBuilder().setFileID(file(112)));
         for (final long num : new long[] {TREASURY, SYSTEM_ADMIN, FREEZE_ADMIN}) {
             assertEquals(
                     SystemOpAuthorization.AUTHORIZED, subject.authForTestCase(accessorWithPayer(freeze, account(num))));
@@ -192,20 +192,19 @@ class PrivilegesVerifierTest {
         assertEquals(SystemOpAuthorization.UNNECESSARY, subject.authForTestCase(accessor(foreignDelete)));
 
         final var foreignCryptoDelete = treasuryTxn()
-                .setCryptoDelete(CryptoDeleteTransactionBody.newBuilder()
-                        .setDeleteAccountID(account(shard, realm, 100)));
+                .setCryptoDelete(
+                        CryptoDeleteTransactionBody.newBuilder().setDeleteAccountID(account(shard, realm, 100)));
         assertEquals(SystemOpAuthorization.UNNECESSARY, subject.authForTestCase(accessor(foreignCryptoDelete)));
 
         final var foreignSystemDelete = treasuryTxn()
                 .setSystemDelete(SystemDeleteTransactionBody.newBuilder().setContractID(contract(shard, realm, 123)));
         assertEquals(SystemOpAuthorization.AUTHORIZED, subject.authForTestCase(accessor(foreignSystemDelete)));
-        final var localSystemDelete =
-                treasuryTxn().setSystemDelete(SystemDeleteTransactionBody.newBuilder().setContractID(contract(123)));
+        final var localSystemDelete = treasuryTxn()
+                .setSystemDelete(SystemDeleteTransactionBody.newBuilder().setContractID(contract(123)));
         assertEquals(SystemOpAuthorization.IMPERMISSIBLE, subject.authForTestCase(accessor(localSystemDelete)));
 
         final var foreignUndelete = treasuryTxn()
-                .setSystemUndelete(
-                        SystemUndeleteTransactionBody.newBuilder().setFileID(file(shard, realm, 123)));
+                .setSystemUndelete(SystemUndeleteTransactionBody.newBuilder().setFileID(file(shard, realm, 123)));
         assertEquals(SystemOpAuthorization.AUTHORIZED, subject.authForTestCase(accessor(foreignUndelete)));
     }
 

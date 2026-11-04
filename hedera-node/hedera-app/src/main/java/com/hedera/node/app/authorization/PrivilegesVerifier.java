@@ -83,9 +83,10 @@ public class PrivilegesVerifier {
             case CRYPTO_UPDATE -> checkCryptoUpdate(payerId, txBody.cryptoUpdateAccountOrThrow());
 
             // Authorization for deletes
-            case FILE_DELETE -> checkEntityDelete(localNumber(txBody.fileDeleteOrThrow().fileIDOrThrow()));
-            case CRYPTO_DELETE -> checkCryptoDelete(
-                    localNumber(txBody.cryptoDeleteOrThrow().deleteAccountIDOrElse(AccountID.DEFAULT)));
+            case FILE_DELETE ->
+                checkEntityDelete(localNumber(txBody.fileDeleteOrThrow().fileIDOrThrow()));
+            case CRYPTO_DELETE ->
+                checkCryptoDelete(localNumber(txBody.cryptoDeleteOrThrow().deleteAccountIDOrElse(AccountID.DEFAULT)));
             case NODE_CREATE -> checkNodeCreate(payerId);
             case CLPR_UPDATE_LEDGER_CONFIGURATION, CLPR_CLOSE_CHANNEL -> checkClprAdmin(payerId);
             default -> SystemPrivilege.UNNECESSARY;
