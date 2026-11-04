@@ -107,9 +107,8 @@ class ScheduledEvmTraceTest {
     }
 
     private static Stream<Arguments> overlappingWriteModes() {
-        return Stream.of(StreamMode.BLOCKS, StreamMode.BOTH)
-                .flatMap(mode -> Stream.of(0L, 2L)
-                        .flatMap(nested -> Stream.of(0L, 3L, 7L).map(value -> Arguments.of(mode, nested, value))));
+        return Stream.of(StreamMode.BLOCKS, StreamMode.BOTH).flatMap(mode -> Stream.of(0L, 2L)
+                .flatMap(nested -> Stream.of(0L, 3L, 7L).map(value -> Arguments.of(mode, nested, value))));
     }
 
     @Test
@@ -610,9 +609,8 @@ class ScheduledEvmTraceTest {
     }
 
     private static Stream<Arguments> schedulingModes() {
-        return Stream.of(StreamMode.BLOCKS, StreamMode.BOTH)
-                .flatMap(mode ->
-                        Stream.of(SCHEDULE_CREATE, SCHEDULE_SIGN).map(function -> Arguments.of(mode, function)));
+        return Stream.of(StreamMode.BLOCKS, StreamMode.BOTH).flatMap(mode -> Stream.of(SCHEDULE_CREATE, SCHEDULE_SIGN)
+                .map(function -> Arguments.of(mode, function)));
     }
 
     private static Stream<Arguments> explicitWriteModes() {

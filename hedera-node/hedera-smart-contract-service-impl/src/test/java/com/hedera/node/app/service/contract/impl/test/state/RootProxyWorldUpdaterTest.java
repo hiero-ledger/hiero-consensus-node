@@ -203,6 +203,7 @@ class RootProxyWorldUpdaterTest {
         final var persistenceChanges = List.of(new StorageAccesses(
                 A_CONTRACT_ID, List.of(StorageAccess.newWrite(A_KEY_BEING_ADDED, UInt256.ONE, UInt256.ONE))));
         final var traceUsage = new TxStorageUsage(scopeChanges, Set.of());
+        given(storageAccountingScope.isOwner()).willReturn(true);
         given(context.dispatchMetadata())
                 .willReturn(new HandleContext.DispatchMetadata(EXPLICIT_WRITE_TRACING, Boolean.FALSE));
         given(evmFrameState.getTxStorageUsage(true)).willReturn(traceUsage);
@@ -239,6 +240,9 @@ class RootProxyWorldUpdaterTest {
                 .willReturn(new HandleContext.DispatchMetadata(EXPLICIT_WRITE_TRACING, Boolean.FALSE));
         given(evmFrameState.getKvStateSize()).willReturn(slotsUsedBeforeCommit);
         given(evmFrameState.getTxStorageUsage(true)).willReturn(new TxStorageUsage(oneInsertion, Set.of()));
+        given(hederaOperations.getStore()).willReturn(store);
+        given(storageManager.getPersistenceChanges(enhancement, oneInsertion, store))
+                .willReturn(oneInsertion);
         given(hederaOperations.summarizeContractChanges())
                 .willReturn(new ContractChangeSummary(new ArrayList<>(), new ArrayList<>()));
 
@@ -259,6 +263,9 @@ class RootProxyWorldUpdaterTest {
                 .willReturn(new HandleContext.DispatchMetadata(EXPLICIT_WRITE_TRACING, Boolean.FALSE));
         given(evmFrameState.getKvStateSize()).willReturn(123L);
         given(evmFrameState.getTxStorageUsage(true)).willReturn(new TxStorageUsage(pendingChanges(), Set.of()));
+        given(hederaOperations.getStore()).willReturn(store);
+        given(storageManager.getPersistenceChanges(enhancement, pendingChanges(), store))
+                .willReturn(pendingChanges());
         // Lenient, since a nested commit must not ask for rent factors
         BDDMockito.lenient()
                 .when(evmFrameState.getRentFactorsFor(A_CONTRACT_ID))
@@ -271,7 +278,9 @@ class RootProxyWorldUpdaterTest {
         // Four pending insertions and three pending removals
         BDDMockito.then(storageSizeValidator).should().assertValid(124L, hederaNativeOperations, expectedSizeChanges());
         BDDMockito.then(rentCalculator).shouldHaveNoInteractions();
-        BDDMockito.then(storageManager).shouldHaveNoInteractions();
+        // The nested commit only reconciles its changes for validation, and never persists them
+        BDDMockito.then(storageManager).should().getPersistenceChanges(enhancement, pendingChanges(), store);
+        BDDMockito.then(storageManager).shouldHaveNoMoreInteractions();
         BDDMockito.then(hederaOperations).should().commit();
     }
 

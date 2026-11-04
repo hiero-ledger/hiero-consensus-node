@@ -863,10 +863,9 @@ public class BlockStreamBuilder
     public boolean hasExplicitContractSlotWrites() {
         return logicallyIdentical == null
                 && slotUsages != null
-                && slotUsages.stream()
-                        .anyMatch(usage -> !usage.writtenSlotKeysOrElse(WrittenSlotKeys.DEFAULT)
-                                .keys()
-                                .isEmpty());
+                && slotUsages.stream().anyMatch(usage -> !usage.writtenSlotKeysOrElse(WrittenSlotKeys.DEFAULT)
+                        .keys()
+                        .isEmpty());
     }
 
     /**
