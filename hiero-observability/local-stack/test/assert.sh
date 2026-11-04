@@ -231,6 +231,16 @@ assert 'dashboard-style metric name survives verbatim' \
 assert 'the fixture scrape target is up' \
 	vm 'up{job="selftest"} == 1' ''
 
+# scripts/import-metrics.sh's importer ran twice on the same 20-sample file
+# before this script started (see test.mk and selftest-metrics-import-writer).
+# The samples sit about an hour back, so counting them in [now-2h, now-30m]
+# checks three things at once: the file's own timestamps were kept (import
+# time would land outside the window), extra_label replaced the file's
+# environment and added node_id while keeping node, and the second import was
+# stored once (-dedup.minScrapeInterval) instead of doubling the count to 40.
+assert 'import-metrics.sh kept the file timestamps and labels, and a re-import did not double the samples' \
+	vm 'sum(count_over_time(selftest_import_check{environment="selftest",node_id="1",node="0"}[90m] offset 30m)) == 20' ''
+
 # --- logs ------------------------------------------------------------------
 
 # Selecting on a LOG_LABELS key proves those labels became real *stream*

@@ -40,15 +40,15 @@ The measured region is the part of the benchmark method that is timed: the calls
 
 - **The inputs are the same in every run.** Seed every random generator, and generate the data outside the measured
   region.
-- **Generate the data once per trial** (per fork and parameter set) in `@Setup(Level.Trial)`. The example generates its
-  event graph in
-  [`ConsensusImplBenchmark#generateEvents`](../../../consensus-hashgraph-impl/src/jmh/java/org/hiero/consensus/hashgraph/ConsensusImplBenchmark.java#generateEvents).
+- **Generate the data once per trial** (per fork and parameter set) in `@Setup(Level.Trial)`. The example records its
+  events in
+  [`ConsensusImplBenchmark#recordEvents`](../../../consensus-hashgraph-impl/src/jmh/java/org/hiero/consensus/hashgraph/ConsensusImplBenchmark.java#recordEvents).
 - **If the code under test changes its input, every call of the benchmark method gets fresh copies,** prepared in
   `@Setup(Level.Invocation)`. One call of the benchmark method, an invocation, then processes all the copies; this
   guide calls it a pass.
   - JMH's overhead per invocation does not matter when a pass takes a fraction of a second or more.
   - In the example, `ConsensusImpl` changes the events it processes, so `prepareInvocation` copies and relinks the
-    generated events for every pass.
+    recorded events for every pass.
 - **Check the output after every invocation** against an exact expected value, in `@TearDown(Level.Invocation)`. With
   the same inputs, every pass gives the same value.
   - In the example, `verifyInvocation` checks the number of decided rounds.
@@ -75,7 +75,8 @@ Its Javadoc shows the pattern: `startMeasurement()`, `lap()` after each call, `s
   two calls; keep that work small.
 - **Pause the recorder around work that must not count,** such as calls of the code under test that another benchmark
   method measures: `pause()` right after a `lap()`, `resume()` right before the next measured call. The paused work
-  counts neither in a latency nor in `alloc.norm`, but JMH's primary score includes it.
+  counts neither in a latency nor in `alloc.norm`, but JMH's primary score includes it. Calling either in the wrong
+  state throws; a loop that pauses only where timed and untimed calls meet asks `isPaused()`.
 - **Do not use JMH's `Mode.SampleTime`.** It gets the slow calls wrong, and they matter most:
   - it times at most about 20 calls per millisecond, a random selection, which adds noise to the slow end;
   - when its buffer is full, it halves every count but keeps counts of 1, so rare slow calls weigh too much, and p99.99

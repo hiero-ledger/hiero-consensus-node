@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "864: [CALL] CITR SDCT Follow"
+name: "834: [CALL] CITR SDCT Follow"
 
 # Follows a running SDCT Jenkins build handed off by the previous 223 job, for at most budget-minutes,
 # then either decides the verdict (state=done) or hands the build off again (state=running).

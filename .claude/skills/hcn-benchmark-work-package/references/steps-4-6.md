@@ -64,61 +64,83 @@ check of step 1 checks.
 
 ## Step 6: calibrate
 
-Apply [the calibration run](/platform-sdk/docs/consensus-layer/benchmarks/calibration.md#the-calibration-run). The
-workflow checks out `ref` and takes its scripts from there too. So the developer pushes the work package's branch
-first (created [before step 1](steps-1-3.md#before-step-1)); no pull request yet.
+Apply [the calibration runs](/platform-sdk/docs/consensus-layer/benchmarks/calibration.md#the-calibration-runs): first
+the probe, then the configuration run. The workflow checks out `ref` and takes its scripts from there too. So the
+developer pushes the work package's branch first (created [before step 1](steps-1-3.md#before-step-1)); no pull
+request yet.
 
 The benchmark machine is one shared machine, `hl-cn-benchmark-lin`. A run can wait in GitHub's queue for hours, and
-the nightly job runs there from 17:00 UTC. Ask the developer before starting a run.
+the nightly job runs there from 17:00 UTC. Ask the developer before starting each run.
+
+**The probe** runs with the workflow's default arguments, `-f 10 -wi 0 -i 6 -r 5s`:
 
 ```bash
 BRANCH=<the pushed branch>
 gh workflow run 007-user-benchmark-calibration.yaml --ref main \
-  -f module="$MODULE" -f benchmark="$BENCH" -f ref="$BRANCH" -f jmh-args="-f 10 -wi 0 -i 20 -r 5s"
-gh run list --workflow 007-user-benchmark-calibration.yaml --limit 4     # the runs' ids
+  -f module="$MODULE" -f benchmark="$BENCH" -f ref="$BRANCH"
+gh run list --workflow 007-user-benchmark-calibration.yaml --limit 4     # the run's id
 gh run download <run id> -n benchmark-calibration -D "$OUT/calibration/<run id>"   # once the run is done
+python3 .github/workflows/support/scripts/benchmarks/analyze_calibration.py "$OUT"/calibration/*
 ```
 
 - **`--ref main` selects the workflow's definition; the `ref` input selects the code** that the run builds and
   measures. GitHub therefore lists the run under `main`; the measured commit is in its `run-info.properties`.
-- **The default arguments** take about 40 minutes for the example's two parameter sets, after the queue. The other
-  inputs (`profilers`, `max-load`, `attempts`, `deadline-minutes`) rarely change.
-- **Repeat with a new workflow run,** never `gh run rerun`. Analyze several runs together; the pilot used three to four
-  quiet runs. Dispatch them at once: the workflow queues them and runs them one after another, behind any other
-  benchmark's calibration. The noise between runs comes from the nightly history later, not from calibration
+- **The probe takes** about 5 to 10 minutes per parameter set, after the queue. The other inputs (`profilers`,
+  `max-load`, `attempts`, `deadline-minutes`) rarely change.
+- **Its analysis ends with the configuration run:** the warmup and measurement for the annotations, the percentiles
+  that its iterations report, its runtime, and its `jmh-args`.
+- **Choose the iteration length with the developer** if the printed one does not fit the nightly time:
+  `--length` prints the configuration run for another length and the percentiles it reports. A percentile that needs a
+  much longer iteration is better left unreported
+  ([iterations and samples](/platform-sdk/docs/consensus-layer/benchmarks/calibration.md#iterations-and-samples)).
+- **A warning that the warmup covers more than half of the iterations:** run the probe again with `-i 12`.
+
+**The configuration run** uses the `jmh-args` that the probe's analysis printed, for example:
+
+```bash
+gh workflow run 007-user-benchmark-calibration.yaml --ref main \
+  -f module="$MODULE" -f benchmark="$BENCH" -f ref="$BRANCH" -f jmh-args="-f 10 -wi 1 -w 10s -i 2 -r 35s"
+gh run download <run id> -n benchmark-calibration -D "$OUT/calibration/<run id>"   # once the run is done
+```
+
+- **It takes** 10 / (nightly forks) times the nightly time, for example 50 minutes for a benchmark of 10 nightly
+  minutes with 2 forks; the probe's analysis estimates it.
+- **Repeat with a new workflow run,** never `gh run rerun`. A second configuration run is worth it only for a result
+  that sits at a decision, such as between one and two forks. The noise between runs comes from the nightly history
+  later, not from calibration
   ([the noise between runs](/platform-sdk/docs/consensus-layer/benchmarks/calibration.md#the-noise-between-runs)).
 - **Keep the downloaded runs:** the artifacts expire after 90 days, and the block links them.
 
-**Analyze** all runs together
+**Analyze** both parts together
 ([the analysis](/platform-sdk/docs/consensus-layer/benchmarks/calibration.md#the-analysis)):
 
 ```bash
 python3 .github/workflows/support/scripts/benchmarks/analyze_calibration.py "$OUT"/calibration/*
 ```
 
-The output has, per parameter set, the warmup, the noise of iterations, forks, and runs, the alloc.norm modes, and a
-recommendation; then one configuration for all parameter sets with its runtime and the calibration block.
+The output has, per parameter set, the probe (warmup, calls per second, alloc.norm modes) and the configuration run
+(warmup check, the noise of iterations, forks, and runs, the predicted noise for any number of forks, and a
+recommendation); then the configuration for all parameter sets with its runtime and the calibration block.
 
-- **Choose the configuration** with the developer
+- **Choose the number of forks** with the developer
   ([choosing the configuration](/platform-sdk/docs/consensus-layer/benchmarks/calibration.md#choosing-the-configuration)):
-  the cheapest one whose predicted noise is good enough. Justify every fork, iteration, or second beyond it with the
-  predicted noise. The nightly time agreed for the issue is an orientation, not a budget to fill. `--forks`,
-  `--iterations`, `--length`, `--warmup-iterations`, and `--warmup-length` print the noise and runtime of any
-  configuration.
+  the fewest whose predicted noise is good enough. Justify every fork beyond them with the predicted noise. The
+  nightly time agreed for the issue is an orientation, not a budget to fill. `--forks` prints the noise, runtime, and
+  block of any number of forks; another length, warmup, or number of iterations needs another configuration run.
+- **A warning that the warmup is too short:** lengthen it (`--warmup-length` on the probe's analysis) and run the
+  configuration again.
 - **Fork modes** (more than one alloc.norm mode): the table's "mode effect" is their difference in latency. Tell the
   developer. Find their cause ([fork modes](/platform-sdk/docs/consensus-layer/benchmarks/calibration.md#fork-modes);
   `fork-modes.sh` records the allocation profiles and compile logs) only if the effect is comparable to the expected
   detectable regression.
-- **Discarded passes:** raise the heap and calibrate again
+- **Discarded passes:** raise the heap and run the configuration again
   ([heap](/platform-sdk/docs/consensus-layer/benchmarks/calibration.md#heap)).
 
 **Record** the choice ([the calibration record](/platform-sdk/docs/consensus-layer/benchmarks/calibration.md#the-calibration-record)):
-print the block for it and paste it unchanged into the class Javadoc; set the annotations to the same values. A warmup
-iteration shorter than the measurement iterations takes `--warmup-length`.
+print the block for it and paste it unchanged into the class Javadoc; set the annotations to the same values.
 
 ```bash
-python3 .github/workflows/support/scripts/benchmarks/analyze_calibration.py \
-  --forks 5 --iterations 2 --length 15 --warmup-iterations 1 "$OUT"/calibration/*
+python3 .github/workflows/support/scripts/benchmarks/analyze_calibration.py --forks 5 "$OUT"/calibration/*
 ```
 
 ```java

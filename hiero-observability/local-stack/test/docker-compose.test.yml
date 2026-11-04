@@ -16,6 +16,9 @@ volumes:
   # tailer's fixture without actually colliding on disk, which is exactly
   # the scenario scripts/import-logs.sh's explicit labels exist to resolve.
   selftest-import-src:
+  # IMPORT_METRICS_DIR points at this for the metrics-importer selftest runs
+  # (see test.mk).
+  selftest-metrics-import-src:
 
 services:
   selftest-metrics:
@@ -105,6 +108,32 @@ services:
         set -e
         set -- $$(TZ=UTC date '+%Y-%m-%d %H:%M:%S %s')
         printf '%s INFO  selftest import-check\n' "$$1 $$2.000" > /logs/selftest.log
+    networks:
+      - observability
+
+  # Populates selftest-metrics-import-src for test.mk's metrics-importer runs,
+  # then exits - see assert.sh's import-metrics check. import-check.txt holds
+  # 20 samples, 15s apart, starting an hour ago: inside METRICS_RETENTION, and
+  # inside the [now-2h, now-30m] window assert.sh counts them in. Its
+  # environment label is the one extra_label must replace. too-old.txt holds
+  # one sample from 2000-01-01, older than any retention, which the importer
+  # must report as dropped.
+  selftest-metrics-import-writer:
+    image: busybox:1.38.0
+    volumes:
+      - selftest-metrics-import-src:/metrics
+    command:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        START=$$((($$(date +%s) - 3600) * 1000))
+        i=0
+        while [ $$i -lt 20 ]; do
+          printf 'selftest_import_check{node="0",environment="from-file"} %s %s\n' $$i $$((START + i * 15000))
+          i=$$((i + 1))
+        done > /metrics/import-check.txt
+        printf 'selftest_import_too_old 1 946684800000\n' > /metrics/too-old.txt
     networks:
       - observability
 

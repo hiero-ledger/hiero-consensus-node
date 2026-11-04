@@ -7,6 +7,6 @@ tck-version=v0.14.0
 js-sdk-version=v2.90.1
 block-node-version=v0.46.0-rc1
 bn-mirror-node-version=v0.165.2-rc1
-json-rpc-relay-version=v0.80.1
+json-rpc-relay-version=v0.81.0-rc1
 mirror-node-explorer-version=v26.2.0
 nlg-version=0.15.0
