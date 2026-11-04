@@ -818,7 +818,6 @@ public class ThrottleAccumulator {
      * @param configuration the configuration to read {@code accounts.lastThrottleExempt} from
      * @return whether the payer is throttle exempt
      */
-
     public static boolean throttleExempt(
             @Nullable final AccountID accountID, @NonNull final Configuration configuration) {
         final long maxThrottleExemptNum =
@@ -851,31 +850,27 @@ public class ThrottleAccumulator {
      */
     private long getGasLimitForContractTx(
             @NonNull final TransactionBody txnBody, @NonNull final HederaFunctionality function) {
-        final long nominalGas =
-                switch (function) {
-                    case CONTRACT_CREATE ->
-                        txnBody.contractCreateInstanceOrThrow().gas();
-                    case CONTRACT_CALL -> txnBody.contractCallOrThrow().gas();
-                    case ETHEREUM_TRANSACTION ->
-                        Optional.of(txnBody.ethereumTransactionOrThrow()
-                                        .ethereumData()
-                                        .toByteArray())
-                                .map(EthTxData::populateEthTxData)
-                                .map(EthTxData::gasLimit)
-                                .orElse(0L);
-                    case HOOK_DISPATCH ->
-                        txnBody.hookDispatchOrThrow()
-                                .executionOrElse(HookExecution.DEFAULT)
-                                .callOrElse(HookCall.DEFAULT)
-                                .evmHookCallOrElse(EvmHookCall.DEFAULT)
-                                .gasLimit();
-                    // Each dispatches once to the Channel's verifier contract, with the verifier gas limit
-                    case CLPR_COMPLETE_CHANNEL, CLPR_SUBMIT_BUNDLE -> {
-                        final var clprConfig = configSupplier.get().getConfigData(ClprConfig.class);
-                        yield clprConfig.enabled() ? clprConfig.verifierGasLimit() : 0L;
-                    }
-                    default -> 0L;
-                };
+        final long nominalGas = switch (function) {
+            case CONTRACT_CREATE -> txnBody.contractCreateInstanceOrThrow().gas();
+            case CONTRACT_CALL -> txnBody.contractCallOrThrow().gas();
+            case ETHEREUM_TRANSACTION ->
+                Optional.of(txnBody.ethereumTransactionOrThrow().ethereumData().toByteArray())
+                        .map(EthTxData::populateEthTxData)
+                        .map(EthTxData::gasLimit)
+                        .orElse(0L);
+            case HOOK_DISPATCH ->
+                txnBody.hookDispatchOrThrow()
+                        .executionOrElse(HookExecution.DEFAULT)
+                        .callOrElse(HookCall.DEFAULT)
+                        .evmHookCallOrElse(EvmHookCall.DEFAULT)
+                        .gasLimit();
+            // Each dispatches once to the Channel's verifier contract, with the verifier gas limit
+            case CLPR_COMPLETE_CHANNEL, CLPR_SUBMIT_BUNDLE -> {
+                final var clprConfig = configSupplier.get().getConfigData(ClprConfig.class);
+                yield clprConfig.enabled() ? clprConfig.verifierGasLimit() : 0L;
+            }
+            default -> 0L;
+        };
         // Interpret negative gas as overflow
         return nominalGas < 0 ? Long.MAX_VALUE : nominalGas;
     }

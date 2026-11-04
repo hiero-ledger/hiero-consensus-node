@@ -445,14 +445,17 @@ public class ThrottleAccumulatorTest {
         given(state.getReadableStates(TokenService.NAME)).willReturn(states);
         final var entityIdStates = MapReadableStates.builder()
                 .state(new FunctionReadableSingletonState<>(
-                        ENTITY_ID_STATE_ID, ENTITY_ID_STATE_LABEL, () -> EntityNumber.newBuilder()
-                                .build()))
+                        ENTITY_ID_STATE_ID,
+                        ENTITY_ID_STATE_LABEL,
+                        () -> EntityNumber.newBuilder().build()))
                 .state(new FunctionReadableSingletonState<Object>(
-                        ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityCounts.newBuilder()
-                                .build()))
+                        ENTITY_COUNTS_STATE_ID,
+                        ENTITY_COUNTS_STATE_LABEL,
+                        () -> EntityCounts.newBuilder().build()))
                 .state(new FunctionReadableSingletonState<Object>(
-                        HIGHEST_NODE_ID_STATE_ID, HIGHEST_NODE_ID_STATE_LABEL, () -> NodeId.newBuilder()
-                                .build()))
+                        HIGHEST_NODE_ID_STATE_ID,
+                        HIGHEST_NODE_ID_STATE_LABEL,
+                        () -> NodeId.newBuilder().build()))
                 .build();
         given(state.getReadableStates(EntityIdService.NAME)).willReturn(entityIdStates);
 
@@ -498,14 +501,17 @@ public class ThrottleAccumulatorTest {
         given(state.getReadableStates(TokenService.NAME)).willReturn(states);
         final var entityIdStates = MapReadableStates.builder()
                 .state(new FunctionReadableSingletonState<Object>(
-                        ENTITY_ID_STATE_ID, ENTITY_ID_STATE_LABEL, () -> EntityCounts.newBuilder()
-                                .build()))
+                        ENTITY_ID_STATE_ID,
+                        ENTITY_ID_STATE_LABEL,
+                        () -> EntityCounts.newBuilder().build()))
                 .state(new FunctionReadableSingletonState<Object>(
-                        ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityNumber.newBuilder()
-                                .build()))
+                        ENTITY_COUNTS_STATE_ID,
+                        ENTITY_COUNTS_STATE_LABEL,
+                        () -> EntityNumber.newBuilder().build()))
                 .state(new FunctionReadableSingletonState<Object>(
-                        HIGHEST_NODE_ID_STATE_ID, HIGHEST_NODE_ID_STATE_LABEL, () -> NodeId.newBuilder()
-                                .build()))
+                        HIGHEST_NODE_ID_STATE_ID,
+                        HIGHEST_NODE_ID_STATE_LABEL,
+                        () -> NodeId.newBuilder().build()))
                 .build();
         given(state.getReadableStates(EntityIdService.NAME)).willReturn(entityIdStates);
 
@@ -592,13 +598,15 @@ public class ThrottleAccumulatorTest {
         given(state.getReadableStates(TokenService.NAME)).willReturn(states);
         final var entityIdStates = MapReadableStates.builder()
                 .state(new FunctionReadableSingletonState<>(
-                        ENTITY_ID_STATE_ID, ENTITY_ID_STATE_LABEL, () -> EntityNumber.newBuilder()
-                                .build()))
+                        ENTITY_ID_STATE_ID,
+                        ENTITY_ID_STATE_LABEL,
+                        () -> EntityNumber.newBuilder().build()))
                 .state(new FunctionReadableSingletonState<>(
                         HIGHEST_NODE_ID_STATE_ID, HIGHEST_NODE_ID_STATE_LABEL, () -> NodeId.newBuilder()))
                 .state(new FunctionReadableSingletonState<>(
-                        ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityCounts.newBuilder()
-                                .build()))
+                        ENTITY_COUNTS_STATE_ID,
+                        ENTITY_COUNTS_STATE_LABEL,
+                        () -> EntityCounts.newBuilder().build()))
                 .build();
         given(state.getReadableStates(EntityIdService.NAME)).willReturn(entityIdStates);
 
@@ -669,14 +677,17 @@ public class ThrottleAccumulatorTest {
         given(state.getReadableStates(TokenService.NAME)).willReturn(states);
         final var entityIdStates = MapReadableStates.builder()
                 .state(new FunctionReadableSingletonState<>(
-                        ENTITY_ID_STATE_ID, ENTITY_ID_STATE_LABEL, () -> EntityNumber.newBuilder()
-                                .build()))
+                        ENTITY_ID_STATE_ID,
+                        ENTITY_ID_STATE_LABEL,
+                        () -> EntityNumber.newBuilder().build()))
                 .state(new FunctionReadableSingletonState<>(
-                        ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityCounts.newBuilder()
-                                .build()))
+                        ENTITY_COUNTS_STATE_ID,
+                        ENTITY_COUNTS_STATE_LABEL,
+                        () -> EntityCounts.newBuilder().build()))
                 .state(new FunctionReadableSingletonState<Object>(
-                        HIGHEST_NODE_ID_STATE_ID, HIGHEST_NODE_ID_STATE_LABEL, () -> NodeId.newBuilder()
-                                .build()))
+                        HIGHEST_NODE_ID_STATE_ID,
+                        HIGHEST_NODE_ID_STATE_LABEL,
+                        () -> NodeId.newBuilder().build()))
                 .build();
         given(state.getReadableStates(EntityIdService.NAME)).willReturn(entityIdStates);
 
