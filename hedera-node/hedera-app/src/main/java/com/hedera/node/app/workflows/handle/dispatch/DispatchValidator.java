@@ -3,6 +3,7 @@ package com.hedera.node.app.workflows.handle.dispatch;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PAYER_ACCOUNT_DELETED;
@@ -287,8 +288,13 @@ public class DispatchValidator {
                     // check that the offered fee covers the fees), so that a failure here is exactly one that the
                     // submitting node should have caught
                     USER);
-            if (validation.maybeErrorStatus() != null) {
-                return validation.maybeErrorStatus();
+            // Only a failure the submitting node should have caught is the node's error. A payer whose balance
+            // dropped after ingest below the node fee is charged by the inner's own dispatch, as a top-level
+            // transaction would be; but an offered fee below the fees stays the node's error, since the inner's
+            // own dispatch does not check it.
+            final var status = validation.maybeErrorStatus();
+            if (status != null && (!validation.creatorDidDueDiligence() || status == INSUFFICIENT_TX_FEE)) {
+                return status;
             }
         }
         return null;

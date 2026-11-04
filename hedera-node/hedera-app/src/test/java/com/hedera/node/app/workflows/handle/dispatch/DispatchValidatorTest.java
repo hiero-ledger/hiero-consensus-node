@@ -646,14 +646,12 @@ class DispatchValidatorTest {
     }
 
     @Test
-    void batchInnerWhosePayerCannotAffordItsFeesIsCreatorError() throws PreCheckException {
+    void batchInnerWhosePayerCannotAffordItsNetworkFeeIsCreatorError() throws PreCheckException {
         givenBatchDispatch(innerPreHandle(SO_FAR_SO_GOOD, OK, GOOD_INNER_SIG));
         final var innerPayer = givenInnerPayer(payer -> payer.tinybarBalance(1L));
         givenInnerNonDuplicate();
-        // The inner's fees are computed as a top-level transaction with the inner's own signature map, exactly as
-        // the inner's dispatch computes them; a payer error from the solvency check is still the node's fault here,
-        // since ingest would have rejected the batch for it
-        doThrow(new InsufficientServiceFeeException(INSUFFICIENT_ACCOUNT_BALANCE, INNER_FEES.totalFee()))
+        // A payer that cannot cover even the network fee is a node error, as for a top-level transaction
+        doThrow(new InsufficientNetworkFeeException(INSUFFICIENT_PAYER_BALANCE, INNER_FEES.totalFee()))
                 .when(solvencyPreCheck)
                 .checkSolvency(
                         INNER_TXN_BODY,
@@ -667,7 +665,58 @@ class DispatchValidatorTest {
 
         final var report = subject.validateFeeChargingScenario(dispatch);
 
-        assertEquals(newCreatorError(CREATOR_ACCOUNT_ID, INSUFFICIENT_ACCOUNT_BALANCE), report);
+        assertEquals(newCreatorError(CREATOR_ACCOUNT_ID, INSUFFICIENT_PAYER_BALANCE), report);
+    }
+
+    @Test
+    void batchInnerWhosePayerCannotAffordItsNodeFeeIsLeftToItsOwnDispatch() throws PreCheckException {
+        givenBatchDispatch(innerPreHandle(SO_FAR_SO_GOOD, OK, GOOD_INNER_SIG));
+        final var innerPayer = givenInnerPayer(payer -> payer.tinybarBalance(5L));
+        givenInnerNonDuplicate();
+        given(dispatch.fees()).willReturn(FEES);
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        final var batchPayer = givenPayer(payer -> payer.tinybarBalance(123L));
+        // A payer that covers the network fee but not the node fee is a payer error, charged by the inner's own
+        // dispatch as a top-level transaction would be; the batch is not the node's fault
+        doThrow(new InsufficientServiceFeeException(INSUFFICIENT_PAYER_BALANCE, INNER_FEES.totalFee()))
+                .when(solvencyPreCheck)
+                .checkSolvency(
+                        INNER_TXN_BODY,
+                        INNER_PAYER_ID,
+                        INNER_TXN_INFO.functionality(),
+                        innerPayer,
+                        // Ingest checks the offered fee and balance without the service component
+                        INNER_FEES.withoutServiceComponent(),
+                        NOT_INGEST,
+                        CHECK_OFFERED_FEE);
+
+        final var report = subject.validateFeeChargingScenario(dispatch);
+
+        assertEquals(newSuccess(CREATOR_ACCOUNT_ID, batchPayer), report);
+    }
+
+    @Test
+    void batchInnerOfferingLessThanItsTotalFeesIsCreatorError() throws PreCheckException {
+        givenBatchDispatch(innerPreHandle(SO_FAR_SO_GOOD, OK, GOOD_INNER_SIG));
+        final var innerPayer = givenInnerPayer(payer -> payer.tinybarBalance(123L));
+        givenInnerNonDuplicate();
+        // An offered fee that covers the network fee but not the total is reported as a payer error by the
+        // solvency check, but the inner's own dispatch never checks the offered fee, so it stays the node's error
+        doThrow(new InsufficientServiceFeeException(INSUFFICIENT_TX_FEE, INNER_FEES.totalFee()))
+                .when(solvencyPreCheck)
+                .checkSolvency(
+                        INNER_TXN_BODY,
+                        INNER_PAYER_ID,
+                        INNER_TXN_INFO.functionality(),
+                        innerPayer,
+                        // Ingest checks the offered fee and balance without the service component
+                        INNER_FEES.withoutServiceComponent(),
+                        NOT_INGEST,
+                        CHECK_OFFERED_FEE);
+
+        final var report = subject.validateFeeChargingScenario(dispatch);
+
+        assertEquals(newCreatorError(CREATOR_ACCOUNT_ID, INSUFFICIENT_TX_FEE), report);
     }
 
     @Test
