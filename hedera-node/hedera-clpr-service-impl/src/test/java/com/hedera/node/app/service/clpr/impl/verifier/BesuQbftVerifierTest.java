@@ -774,16 +774,29 @@ class BesuQbftVerifierTest {
         }
 
         @Test
-        void trustAnchorOfAnotherModeIsRejected() {
+        void trustAnchorOfAnUnknownModeIsRejected() {
+            final byte[] unknownMode = Rlp.encodeList(List.of(
+                    Rlp.encodeBytes(new byte[] {2}),
+                    Rlp.encodeBytes(BesuQbftVerifier.encodeValidatorSet(List.of(VALIDATOR_ADDR))),
+                    Rlp.encodeBytes(SERVICE_ADDR),
+                    Rlp.encodeBytes(new byte[32]),
+                    Rlp.encodeBytes(BesuQbftVerifier.trustAnchorId(1L))));
+            assertThatThrownBy(() -> BesuQbftVerifier.TrustAnchor.decode(unknownMode))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("neither header mode");
+        }
+
+        @Test
+        void contractModeTrustAnchorWithoutTheValidatorContractIsRejected() {
             final byte[] contractMode = Rlp.encodeList(List.of(
-                    Rlp.encodeBytes(new byte[] {1}),
+                    Rlp.encodeBytes(new byte[] {BesuQbftVerifier.TrustAnchor.CONTRACT_MODE}),
                     Rlp.encodeBytes(BesuQbftVerifier.encodeValidatorSet(List.of(VALIDATOR_ADDR))),
                     Rlp.encodeBytes(SERVICE_ADDR),
                     Rlp.encodeBytes(new byte[32]),
                     Rlp.encodeBytes(BesuQbftVerifier.trustAnchorId(1L))));
             assertThatThrownBy(() -> BesuQbftVerifier.TrustAnchor.decode(contractMode))
                     .isInstanceOf(ProofException.class)
-                    .hasMessageContaining("not header mode");
+                    .hasMessageContaining("must be an RLP list of 9 items");
         }
 
         @Test
@@ -794,7 +807,7 @@ class BesuQbftVerifierTest {
                     Rlp.encodeBytes(new byte[32])));
             assertThatThrownBy(() -> BesuQbftVerifier.TrustAnchor.decode(legacy))
                     .isInstanceOf(ProofException.class)
-                    .hasMessageContaining("must be an RLP list of 5 items");
+                    .hasMessageContaining("neither header mode");
         }
 
         @Test

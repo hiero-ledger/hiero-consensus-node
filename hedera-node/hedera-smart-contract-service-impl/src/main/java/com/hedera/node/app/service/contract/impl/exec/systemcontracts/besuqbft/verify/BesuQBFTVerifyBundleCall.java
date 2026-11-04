@@ -41,17 +41,18 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
  * (5-item top-level list {@code [blockHeader, validatorSource, accountProof[], storageProof[[key, proof[]]],
  * bundleContent]}, or 7 items with an endpoint-manifest update).
  *
- * <p>The {@code trustAnchor} is a {@link BesuQbftVerifier.TrustAnchor}:
- * {@code RLP([mode, validatorSet, serviceAddress, codeHash, anchorBlockNumber])}. The validator set
+ * <p>The {@code trustAnchor} is a {@link BesuQbftVerifier.TrustAnchor} of header or contract mode:
+ * {@code RLP([mode, validatorSet, serviceAddress, codeHash, anchorBlockNumber, ...])}. The validator set
  * authenticates the committed seals; the service address and code hash pin the account the state proof
- * must resolve to; the anchor block number is the replay floor for hops and the current block.
+ * must resolve to; the anchor block number is the replay floor for hops and the current block. A
+ * contract-mode anchor also names the validator contract the set is proven from.
  *
  * <p>The {@code channelContext} is {@code channelId(32) || serviceAddress(20)}, as returned by
  * {@code verifyConfig}. Its service address must equal the trust anchor's, and its channel id binds the
  * proven storage slots to the channel.
  *
  * <p>Decoding and Merkle-proof verification are delegated to
- * {@link BesuQbftVerifier#verifyBundle(byte[], byte[], long, byte[])}. Everything this call returns comes from
+ * {@link BesuQbftVerifier#verifyBundle(byte[], BesuQbftVerifier.TrustAnchor, byte[])}. Everything this call returns comes from
  * the proof: the relayed queue metadata must equal the proven Channel slots, a partial bundle's metadata is
  * scoped to its proven last message, and a new trust anchor is returned only when the verifier proved a
  * rotation. The proven manifest is appended as the fifth tuple member.
@@ -133,8 +134,7 @@ public class BesuQBFTVerifyBundleCall extends AbstractCall {
 
         final BesuQbftVerifier.VerifiedBundle verified;
         try {
-            verified = verifier.verifyBundle(
-                    bundlePayload, anchor.validatorSetEncoded(), anchor.anchorBlockNumber(), channelId32);
+            verified = verifier.verifyBundle(bundlePayload, anchor, channelId32);
         } catch (final ProofException e) {
             log.warn("verifyBundle (QBFT): proof rejected: {}", e.getMessage());
             return fail();
@@ -173,21 +173,26 @@ public class BesuQBFTVerifyBundleCall extends AbstractCall {
             return fail();
         }
 
-        // A trust anchor comes only from a rotation the verifier proved, anchored at the block its id names.
-        // The service contract address and code hash are stable across rotations and carry forward from the
-        // current trust anchor.
+        // A trust anchor comes only from an advance the verifier proved, anchored at the block its id names.
+        // The service contract address and code hash (and, in contract mode, the validator contract, array slot
+        // and code hash) are stable across advances and carry forward from the current trust anchor.
         if (verified.newTrustAnchor().length > 0 && verified.newTrustAnchorId().length != Long.BYTES) {
             log.warn("verifyBundle (QBFT): proven trust anchor id is not an 8-byte block number");
             return fail();
         }
-        final byte[] provenTrustAnchor = verified.newTrustAnchor().length > 0
-                ? new BesuQbftVerifier.TrustAnchor(
-                                verified.newTrustAnchor(),
-                                trustedClprServiceAddress20,
-                                trustedClprServiceCodeHash32,
-                                ByteBuffer.wrap(verified.newTrustAnchorId()).getLong())
-                        .encode()
-                : null;
+        final byte[] provenTrustAnchor;
+        try {
+            provenTrustAnchor = verified.newTrustAnchor().length > 0
+                    ? anchor.advance(
+                                    verified.newTrustAnchor(),
+                                    ByteBuffer.wrap(verified.newTrustAnchorId()).getLong(),
+                                    verified.newValidatorStorageRoot32())
+                            .encode()
+                    : null;
+        } catch (final IllegalArgumentException e) {
+            log.warn("verifyBundle (QBFT): proven trust anchor advance is malformed ({})", e.getMessage());
+            return fail();
+        }
         final ClprBundleContent reconciledContent =
                 reconcileTrustAnchor(scopedContent, provenTrustAnchor, verified.newTrustAnchorId());
         if (reconciledContent == null) {

@@ -104,4 +104,40 @@ message ClprQbftLedgerConfigurationPayload {
      * in the follow-up PR that wires eth_getProof.
      */
     repeated StorageProofEntry clpr_service_storage_proofs = 5;
+
+    /**
+     * Present only when the source ledger's QBFT validator set is managed by a validator smart
+     * contract (Besu's "contract" validator-selection mode) rather than listed in each block
+     * header's extra_data. Absent (the default) means header mode: the validator set is read
+     * from current_block_header.extra_data.
+     */
+    QbftContractModeValidatorSource contract_mode_validator_source = 7;
+}
+
+/**
+ * The QBFT contract-mode data a verifier needs to prove the source ledger's validator set: the
+ * validator contract's address and the storage slot of its `address[]` array, with a proof of the
+ * array (its length slot and every element slot) under current_block_header.state_root.
+ */
+message QbftContractModeValidatorSource {
+    /**
+     * The 20-byte address of the deployed validator contract.
+     */
+    bytes validator_contract_address = 1;
+
+    /**
+     * Storage slot of the validator contract's address[] array (32 bytes).
+     */
+    bytes array_slot = 2;
+
+    /**
+     * EIP-1186 account proof for the validator contract under current_block_header.state_root.
+     */
+    repeated bytes validator_contract_account_proof = 3;
+
+    /**
+     * EIP-1186 storage proofs for the array's length slot and every element slot. Only key and
+     * proof are read; the value comes from the proof's leaf.
+     */
+    repeated StorageProofEntry validator_contract_storage_proofs = 4;
 }
