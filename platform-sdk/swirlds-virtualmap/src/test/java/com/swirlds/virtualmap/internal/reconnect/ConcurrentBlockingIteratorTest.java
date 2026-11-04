@@ -2,8 +2,10 @@
 package com.swirlds.virtualmap.internal.reconnect;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -15,6 +17,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.RepeatedTest;
@@ -267,6 +270,97 @@ public class ConcurrentBlockingIteratorTest {
         consumer.interrupt();
         consumer.join(1000);
         assertFalse(consumer.isAlive());
+    }
+
+    @Test
+    @DisplayName("supply blocks while the buffer is full, and resumes once an element is taken")
+    void supplyBlocksWhileFull() throws Exception {
+        final ConcurrentBlockingIterator<Integer> iterator = new ConcurrentBlockingIterator<>(4);
+        for (int i = 1; i <= 4; i++) {
+            iterator.supply(i);
+        }
+        final Future<?> blocked = threadPool.submit(() -> {
+            iterator.supply(5);
+            return null;
+        });
+        MILLISECONDS.sleep(50);
+        assertFalse(blocked.isDone(), "supply() should wait while the buffer is full");
+        assertEquals(1, iterator.next());
+        blocked.get(5, SECONDS);
+        iterator.close();
+        for (int i = 2; i <= 5; i++) {
+            assertEquals(i, iterator.next(), "Elements should be returned in the order they were supplied");
+        }
+        assertFalse(iterator.hasNext(), "Iterator must not have more than five elements");
+    }
+
+    @Test
+    @DisplayName("close releases a supplier blocked on a full buffer")
+    void closeReleasesBlockedSupplier() throws Exception {
+        final ConcurrentBlockingIterator<Integer> iterator = new ConcurrentBlockingIterator<>(4);
+        for (int i = 1; i <= 4; i++) {
+            iterator.supply(i);
+        }
+        final Future<?> blocked = threadPool.submit(() -> {
+            iterator.supply(5);
+            return null;
+        });
+        MILLISECONDS.sleep(50);
+        assertFalse(blocked.isDone(), "supply() should wait while the buffer is full");
+        iterator.close();
+        final ExecutionException e = assertThrows(ExecutionException.class, () -> blocked.get(5, SECONDS));
+        assertInstanceOf(IllegalStateException.class, e.getCause(), "A blocked supply() should fail on close()");
+    }
+
+    @Test
+    @DisplayName("supply blocked on a full buffer can be interrupted")
+    void blockedSupplyCanBeInterrupted() throws InterruptedException {
+        final ConcurrentBlockingIterator<Integer> iterator = new ConcurrentBlockingIterator<>(4);
+        for (int i = 1; i <= 4; i++) {
+            iterator.supply(i);
+        }
+        final AtomicReference<Throwable> thrown = new AtomicReference<>();
+        final Thread supplier = new Thread(() -> {
+            try {
+                iterator.supply(5);
+            } catch (final Throwable t) {
+                thrown.set(t);
+            }
+        });
+        supplier.start();
+        MILLISECONDS.sleep(50);
+        supplier.interrupt();
+        supplier.join(5_000);
+        assertFalse(supplier.isAlive(), "An interrupted supply() should return");
+        assertInstanceOf(InterruptedException.class, thrown.get(), "An interrupted supply() should throw");
+    }
+
+    @Test
+    @DisplayName("buffer size is rounded up to a power of two")
+    void bufferSizeRoundsUpToPowerOfTwo() throws Exception {
+        final ConcurrentBlockingIterator<Integer> iterator = new ConcurrentBlockingIterator<>(3);
+        // A buffer of exactly 3 would block on the fourth element
+        threadPool
+                .submit(() -> {
+                    for (int i = 1; i <= 4; i++) {
+                        iterator.supply(i);
+                    }
+                    return null;
+                })
+                .get(5, SECONDS);
+        assertEquals(4, iterator.size(), "All four elements should be buffered");
+    }
+
+    @Test
+    @DisplayName("size counts the elements not consumed yet")
+    void sizeCountsUnconsumedElements() throws InterruptedException {
+        final ConcurrentBlockingIterator<Integer> iterator = new ConcurrentBlockingIterator<>(100);
+        assertEquals(0, iterator.size());
+        iterator.supply(1);
+        iterator.supply(2);
+        assertEquals(2, iterator.size());
+        iterator.next();
+        assertEquals(1, iterator.size());
     }
 
     private <T> Future<Class<T>> thrownByCall(Runnable lambda) {
