@@ -2,13 +2,14 @@
 package org.hiero.consensus.benchmark.tools.histogram;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
 import org.junit.jupiter.api.Test;
 
 /**
  * Checks that {@link LatencyRecorder#pause()} and {@link LatencyRecorder#resume()} leave the work between them out of
- * the latencies and the allocation.
+ * the latencies and the allocation, and that they and {@link LatencyRecorder#stopMeasurement()} refuse the wrong state.
  */
 class LatencyRecorderTest {
 
@@ -79,5 +80,42 @@ class LatencyRecorderTest {
 
         assertThat(recorder.discardedPasses()).isZero();
         assertThat(recorder.allocatedBytes()).isGreaterThanOrEqualTo(PAUSED_ALLOCATION);
+    }
+
+    @Test
+    void isPausedFollowsPauseAndResume() {
+        final LatencyRecorder recorder = new LatencyRecorder();
+        recorder.startMeasurement();
+        assertThat(recorder.isPaused()).isFalse();
+        recorder.pause();
+        assertThat(recorder.isPaused()).isTrue();
+        recorder.resume();
+        assertThat(recorder.isPaused()).isFalse();
+    }
+
+    @Test
+    void pauseOnPausedPassThrows() {
+        final LatencyRecorder recorder = new LatencyRecorder();
+        recorder.startMeasurement();
+        recorder.pause();
+
+        assertThatThrownBy(recorder::pause).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void resumeOnRunningPassThrows() {
+        final LatencyRecorder recorder = new LatencyRecorder();
+        recorder.startMeasurement();
+
+        assertThatThrownBy(recorder::resume).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void stopOnPausedPassThrows() {
+        final LatencyRecorder recorder = new LatencyRecorder();
+        recorder.startMeasurement();
+        recorder.pause();
+
+        assertThatThrownBy(recorder::stopMeasurement).isInstanceOf(IllegalStateException.class);
     }
 }
