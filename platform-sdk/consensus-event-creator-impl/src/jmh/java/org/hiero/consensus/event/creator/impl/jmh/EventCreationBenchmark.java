@@ -108,14 +108,12 @@ import org.openjdk.jmh.annotations.Warmup;
  * parameter sets. Each invocation's setup ends with {@code System.gc()}; a pass during which a garbage collection runs
  * is discarded and replaced by the next invocation.
  *
+ * <p>The two benchmark methods differ in how many calls they time per second and in how much their forks differ, so
+ * each has its own {@code @Fork}, {@code @Warmup}, and {@code @Measurement}, and its calibration block in its Javadoc.
+ *
  * <p>Run with {@code -prof org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler}.
  */
 @State(Scope.Thread)
-@Fork(
-        value = 5,
-        jvmArgsAppend = {"-Xms6g", "-Xmx6g", "-XX:+AlwaysPreTouch"})
-@Warmup(iterations = 1, time = 10)
-@Measurement(iterations = 2, time = 10)
 public class EventCreationBenchmark {
 
     /** The seed of the recording. The same seed gives the same recording. */
@@ -353,20 +351,56 @@ public class EventCreationBenchmark {
 
     /**
      * Replays the recording and records the latency of each call that creates an event.
+     *
+     * <h2>Calibration</h2>
+     * <ul>
+     *   <li>Date / commit: 2026-11-03, 541e76d535</li>
+     *   <li>Machine: hl-cn-benchmark-lin, AS-2115GT-HNTR, AMD EPYC 9254 24-Core Processor, JDK 25.0.2, -XX:ActiveProcessorCount=12 -Xms6g -Xmx6g -XX:+AlwaysPreTouch</li>
+     *   <li>Parameter sets: numNodes=10 / numNodes=28</li>
+     *   <li>Steady state after: 5 s / 5 s</li>
+     *   <li>Noise (latency.mean, CV): 0.32% / 0.20% per 10 s iteration, 1.45% / 1.22% between forks, - / - between runs (1 of 1 / 1 of 1 runs quiet)</li>
+     *   <li>Expected detectable regression: 1.66% / 1.39% (95 % CI half-width of one run)</li>
+     *   <li>Samples per iteration: 518 k / 188 k; expected stable: mean, p50, p90, p99, p99.9 / mean, p50, p90, p99, p99.9; unmeasured: p99.99 / p99.99</li>
+     *   <li>Runtime: 2.4 / 6.6 min per parameter set</li>
+     *   <li>Raw data: https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/41704363692, https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/41720353542</li>
+     * </ul>
      */
     @Benchmark
     @BenchmarkMode(Mode.AverageTime)
     @OutputTimeUnit(TimeUnit.MILLISECONDS)
+    @Fork(
+            value = 3,
+            jvmArgsAppend = {"-Xms6g", "-Xmx6g", "-XX:+AlwaysPreTouch"})
+    @Warmup(iterations = 1, time = 10)
+    @Measurement(iterations = 2, time = 10)
     public void createEvent() {
         replay(Kind.CREATE);
     }
 
     /**
      * Replays the recording and records the latency of each registration of an event of another node.
+     *
+     * <h2>Calibration</h2>
+     * <ul>
+     *   <li>Date / commit: 2026-11-03, 541e76d535</li>
+     *   <li>Machine: hl-cn-benchmark-lin, AS-2115GT-HNTR, AMD EPYC 9254 24-Core Processor, JDK 25.0.2, -XX:ActiveProcessorCount=12 -Xms6g -Xmx6g -XX:+AlwaysPreTouch</li>
+     *   <li>Parameter sets: numNodes=10 / numNodes=28</li>
+     *   <li>Steady state after: 5 s / 5 s</li>
+     *   <li>Noise (latency.mean, CV): 0.30% / 1.07% per 5 s iteration, 2.70% / 6.23% between forks, - / - between runs (1 of 1 / 1 of 1 runs quiet)</li>
+     *   <li>Expected detectable regression: 1.67% / 3.85% (95 % CI half-width of one run)</li>
+     *   <li>Samples per iteration: 2.3 M / 2.5 M; expected stable: mean, p50, p90, p99, p99.9, p99.99 / mean, p99, p99.99</li>
+     *   <li>Runtime: 6.2 / 20.2 min per parameter set</li>
+     *   <li>Raw data: https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/41704363692, https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/41720368042</li>
+     * </ul>
      */
     @Benchmark
     @BenchmarkMode(Mode.AverageTime)
     @OutputTimeUnit(TimeUnit.MILLISECONDS)
+    @Fork(
+            value = 10,
+            jvmArgsAppend = {"-Xms6g", "-Xmx6g", "-XX:+AlwaysPreTouch"})
+    @Warmup(iterations = 1, time = 10)
+    @Measurement(iterations = 2, time = 5)
     public void registerEvent() {
         replay(Kind.REGISTER_PEER);
     }
