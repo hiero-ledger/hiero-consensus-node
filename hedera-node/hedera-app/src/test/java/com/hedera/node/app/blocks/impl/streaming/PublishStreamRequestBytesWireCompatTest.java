@@ -19,6 +19,7 @@ import java.util.stream.Collectors;
 import org.hiero.block.api.BlockEnd;
 import org.hiero.block.api.BlockItemSet;
 import org.hiero.block.api.PublishStreamRequest;
+import org.hiero.block.api.PublishStreamRequest.AcknowledgeOnly;
 import org.hiero.block.api.PublishStreamRequest.EndStream;
 import org.junit.jupiter.api.Test;
 
@@ -100,6 +101,19 @@ class PublishStreamRequestBytesWireCompatTest {
         final PublishStreamRequestBytes bytesReq = PublishStreamRequestBytes.newBuilder()
                 .endOfBlock(BlockEnd.newBuilder().blockNumber(42L))
                 .build();
+
+        final Bytes bytesWire = PublishStreamRequestBytes.PROTOBUF.toBytes(bytesReq);
+        assertThat(bytesWire).isEqualTo(PublishStreamRequest.PROTOBUF.toBytes(normal));
+        assertThat(PublishStreamRequest.PROTOBUF.parse(bytesWire)).isEqualTo(normal);
+    }
+
+    @Test
+    void acknowledgeOnlyRequestSerializesIdenticallyAndRoundTrips() throws ParseException {
+        final var ack = AcknowledgeOnly.newBuilder().blockNumber(42L).build();
+        final PublishStreamRequest normal =
+                PublishStreamRequest.newBuilder().acknowledgeOnly(ack).build();
+        final PublishStreamRequestBytes bytesReq =
+                PublishStreamRequestBytes.newBuilder().acknowledgeOnly(ack).build();
 
         final Bytes bytesWire = PublishStreamRequestBytes.PROTOBUF.toBytes(bytesReq);
         assertThat(bytesWire).isEqualTo(PublishStreamRequest.PROTOBUF.toBytes(normal));
