@@ -5,6 +5,7 @@ import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.hashInternalNode;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.hashLeaf;
 import static com.hedera.node.app.hints.impl.HintsControllerImpl.decodeCrsUpdate;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -12,6 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.hedera.cryptography.hints.HintsLibraryBridge;
 import com.hedera.hapi.node.base.BlockHashAlgorithm;
 import com.hedera.hapi.node.base.Timestamp;
@@ -36,13 +38,14 @@ import org.hiero.base.crypto.DigestType;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-/** Native hinTS vectors with real preprocessing, weighted signing, aggregation, and verification across key rotations. */
+/** Native hinTS vectors over synthetic block branches, with real preprocessing, weighted signing and verification. */
 class HintsKeyWitnessNativeTest {
     private static final long JANUARY_2025 = 1_735_689_600L;
     private static final int NUM_PARTIES = 4;
     private static final HintsLibraryImpl LIBRARY = new HintsLibraryImpl();
     private static final HintsKeyWitnessVerifier WITNESS_VERIFIER = new HintsKeyWitnessVerifier(LIBRARY);
     private static final HintsKeyProvenanceVerifier BATCH_VERIFIER = new HintsKeyProvenanceVerifier(WITNESS_VERIFIER);
+    private static final ObjectMapper JSON = new ObjectMapper().enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS);
 
     private static Bytes crs;
     private static List<Generation> generations;
@@ -52,14 +55,35 @@ class HintsKeyWitnessNativeTest {
     private static HintsKeyWitness finalWitness;
     private static Checkpoint initialCheckpoint;
 
-    private record Generation(long id, Bytes verificationKey, Bytes aggregationKey, Map<Integer, Bytes> privateKeys) {}
+    private record Generation(
+            long id,
+            Bytes verificationKey,
+            Bytes aggregationKey,
+            Map<Integer, Bytes> privateKeys,
+            Map<Integer, Long> partyWeights) {}
+
+    /** Models the endpoint's durable commit boundary: rejected batches cannot change the stored anchor. */
+    private static final class Consumer {
+        private Checkpoint checkpoint;
+
+        Consumer(final Checkpoint initialCheckpoint) {
+            checkpoint = initialCheckpoint;
+        }
+
+        boolean submit(final List<HintsKeyProvenance> certificates, final HintsKeyWitness witness, final int maxLinks) {
+            final var verified = BATCH_VERIFIER.verifyBatch(checkpoint, certificates, witness, maxLinks);
+            verified.ifPresent(next -> checkpoint = next);
+            return verified.isPresent();
+        }
+    }
 
     @BeforeAll
     static void createNativeRotations() {
         final var initialCrs = LIBRARY.newCrs((short) NUM_PARTIES);
         crs = decodeCrsUpdate(initialCrs.length(), LIBRARY.updateCrs(initialCrs, seed(71)))
                 .crs();
-        generations = List.of(generation(1), generation(2), generation(3), generation(4), generation(5));
+        generations =
+                List.of(generation(1), generation(2), generation(3), generation(4, List.of(1L, 2L, 3L)), generation(5));
         chain = List.of(
                 certificate(generations.get(0), generations.get(1)),
                 certificate(generations.get(1), generations.get(2)),
@@ -72,40 +96,35 @@ class HintsKeyWitnessNativeTest {
 
     @Test
     void catchesUpAcrossCommittedBatchesAndSkipsAnIntermediateWithoutAWitness() {
-        final var firstCheckpoint = BATCH_VERIFIER
-                .verifyBatch(initialCheckpoint, chain.subList(0, 1), firstWitness, 1)
-                .orElseThrow();
+        final var consumer = new Consumer(initialCheckpoint);
+        assertFalse(consumer.submit(chain, finalWitness, 2));
+        assertEquals(initialCheckpoint, consumer.checkpoint);
+        assertTrue(consumer.submit(chain.subList(0, 1), firstWitness, 1));
+        final var firstCheckpoint = consumer.checkpoint;
         assertEquals(generations.get(1).verificationKey(), firstCheckpoint.verificationKey());
         // Generation 3 has no retained witness; it can still be an interior link of the second bounded batch.
-        final var finalCheckpoint = BATCH_VERIFIER
-                .verifyBatch(firstCheckpoint, chain.subList(1, 3), finalWitness, 2)
-                .orElseThrow();
-        assertEquals(generations.get(3).verificationKey(), finalCheckpoint.verificationKey());
-        assertEquals(finalWitness.timestamp(), finalCheckpoint.witnessedAt());
-        assertTrue(BATCH_VERIFIER
-                .verifyBatch(initialCheckpoint, chain, finalWitness, 2)
-                .isEmpty());
-        assertTrue(BATCH_VERIFIER
-                .verifyBatch(firstCheckpoint, chain.subList(1, 3), finalWitness, 1)
-                .isEmpty());
+        assertFalse(consumer.submit(chain.subList(1, 3), finalWitness, 1));
+        assertEquals(firstCheckpoint, consumer.checkpoint);
+        assertTrue(consumer.submit(chain.subList(1, 3), finalWitness, 2));
+        assertEquals(generations.get(3).verificationKey(), consumer.checkpoint.verificationKey());
+        assertEquals(finalWitness.timestamp(), consumer.checkpoint.witnessedAt());
     }
 
     @Test
     void abandonedCandidateCertificateCannotCommitAnAnchorWithoutItsSigningWitness() {
         assertTrue(WITNESS_VERIFIER.verifyCertificate(abandonedCertificate, initialCheckpoint.verificationKey()));
-        final var original = initialCheckpoint;
-        assertTrue(BATCH_VERIFIER
-                .verifyBatch(original, List.of(abandonedCertificate), null, 1)
-                .isEmpty());
+        final var consumer = new Consumer(initialCheckpoint);
+        assertFalse(consumer.submit(List.of(abandonedCertificate), null, 1));
+        assertEquals(initialCheckpoint, consumer.checkpoint);
         final var wrongKeyWitness = firstWitness
                 .copyBuilder()
                 .targetHintsConstructionId(generations.get(4).id())
                 .build();
-        assertTrue(BATCH_VERIFIER
-                .verifyBatch(original, List.of(abandonedCertificate), wrongKeyWitness, 1)
-                .isEmpty());
-        assertEquals(initialCheckpoint, original);
-        assertNotEquals(abandonedCertificate.targetVerificationKey(), original.verificationKey());
+        assertFalse(consumer.submit(List.of(abandonedCertificate), wrongKeyWitness, 1));
+        assertEquals(initialCheckpoint, consumer.checkpoint);
+        assertNotEquals(abandonedCertificate.targetVerificationKey(), consumer.checkpoint.verificationKey());
+        assertTrue(consumer.submit(chain.subList(0, 1), firstWitness, 1));
+        assertEquals(generations.get(1).verificationKey(), consumer.checkpoint.verificationKey());
     }
 
     @Test
@@ -131,15 +150,14 @@ class HintsKeyWitnessNativeTest {
             assertFalse(WITNESS_VERIFIER.verify(tampered, generation.verificationKey()));
         }
 
-        final var digest = DigestType.SHA_256.buildDigest();
-        final var timestampLeaf = hashLeaf(digest, Timestamp.PROTOBUF.toBytes(firstWitness.timestampOrThrow()));
-        final var backwardsRoot = hashInternalNode(digest, firstWitness.siblingHash(), timestampLeaf);
-        final var backwardsProof = firstWitness
-                .copyBuilder()
-                .signature(sign(generation, backwardsRoot, List.of(0, 1)))
-                .build();
-        assertFalse(WITNESS_VERIFIER.verify(backwardsProof, generation.verificationKey()));
+        assertFalse(WITNESS_VERIFIER.verify(witnessSignedWithSwappedChildren(), generation.verificationKey()));
         assertFalse(WITNESS_VERIFIER.verify(firstWitness, generations.get(0).verificationKey()));
+        final var tamperedSha384 = finalWitness
+                .copyBuilder()
+                .siblingHash(flip(finalWitness.siblingHash()))
+                .build();
+        assertTrue(HintsKeyWitnessVerifier.hasValidStructure(tamperedSha384));
+        assertFalse(WITNESS_VERIFIER.verify(tamperedSha384, generations.get(3).verificationKey()));
     }
 
     @Test
@@ -149,6 +167,36 @@ class HintsKeyWitnessNativeTest {
         assertFalse(WITNESS_VERIFIER.verify(
                 firstWitness.copyBuilder().signature(oneThirdSignature).build(), endpoint.verificationKey()));
         assertTrue(WITNESS_VERIFIER.verify(firstWitness, endpoint.verificationKey()));
+    }
+
+    @Test
+    void unevenWeightsCountWeightRatherThanTheNumberOfParties() {
+        final var endpoint = generations.get(3);
+        assertEquals(Map.of(0, 1L, 1, 2L, 2, 3L), endpoint.partyWeights());
+        for (final var party : List.of(0, 1)) {
+            final var insufficient = signedBy(finalWitness, endpoint, List.of(party));
+            assertFalse(WITNESS_VERIFIER.verify(insufficient, endpoint.verificationKey()));
+        }
+        // One party with 3/6 weight suffices, whereas one party with exactly 2/6 does not.
+        assertTrue(WITNESS_VERIFIER.verify(signedBy(finalWitness, endpoint, List.of(2)), endpoint.verificationKey()));
+    }
+
+    @Test
+    void registrationTodayCanStartFromATrustedHistoricalKeyAndCommitOldBatches() {
+        final var registrationTime =
+                new Timestamp(Instant.parse("2026-01-01T00:00:00Z").getEpochSecond(), 0);
+        final var trustedKey = initialCheckpoint.verificationKey();
+        // Supplying a wall clock as though it were a previously authenticated checkpoint is an invalid bootstrap
+        // policy.
+        assertTrue(BATCH_VERIFIER
+                .verifyBatch(new Checkpoint(trustedKey, registrationTime), chain, finalWitness, 3)
+                .isEmpty());
+        final var consumer = new Consumer(Checkpoint.fromTrustedKey(trustedKey));
+        assertEquals(Timestamp.DEFAULT, consumer.checkpoint.witnessedAt());
+        assertTrue(consumer.submit(chain.subList(0, 1), firstWitness, 1));
+        assertTrue(consumer.submit(chain.subList(1, 3), finalWitness, 2));
+        assertEquals(generations.get(3).verificationKey(), consumer.checkpoint.verificationKey());
+        assertEquals(finalWitness.timestamp(), consumer.checkpoint.witnessedAt());
     }
 
     @Test
@@ -182,16 +230,18 @@ class HintsKeyWitnessNativeTest {
                         .historyConstructionId(42)
                         .build())
                 .toList();
-        assertTrue(BATCH_VERIFIER
-                .verifyBatch(
-                        initialCheckpoint,
-                        renamed,
-                        finalWitness
-                                .copyBuilder()
-                                .targetHintsConstructionId(777)
-                                .build(),
-                        3)
-                .isPresent());
+        for (final var unsignedId : List.of(0L, 777L, -1L)) {
+            assertTrue(BATCH_VERIFIER
+                    .verifyBatch(
+                            initialCheckpoint,
+                            renamed,
+                            finalWitness
+                                    .copyBuilder()
+                                    .targetHintsConstructionId(unsignedId)
+                                    .build(),
+                            3)
+                    .isPresent());
+        }
         assertTrue(BATCH_VERIFIER
                 .verifyBatch(initialCheckpoint, List.of(chain.get(2)), finalWitness, 3)
                 .isEmpty());
@@ -211,7 +261,7 @@ class HintsKeyWitnessNativeTest {
         }
         final var output = Path.of("build", "generated", "provenance-witnesses", "native-v1.json");
         Files.createDirectories(output.getParent());
-        new ObjectMapper().writerWithDefaultPrettyPrinter().writeValue(output.toFile(), fixtureManifest());
+        Files.write(output, serializedFixture());
         assertTrue(Files.size(output) > 0);
         // Compact witnesses contain one sibling and one aggregate, never a verification key or a WRAPS proof.
         assertTrue(HintsKeyWitness.PROTOBUF.toBytes(firstWitness).length()
@@ -221,12 +271,39 @@ class HintsKeyWitnessNativeTest {
     }
 
     @Test
+    void wireDigestDefaultsToSha256AndEncodedSizeDependsOnTimestampNanos() {
+        assertEquals(
+                Bytes.EMPTY,
+                HintsKeyWitness.PROTOBUF.toBytes(HintsKeyWitness.newBuilder()
+                        .hashAlgorithm(BlockHashAlgorithm.SHA2_256)
+                        .build()));
+        assertEquals(
+                Bytes.fromHex("2801"),
+                HintsKeyWitness.PROTOBUF.toBytes(HintsKeyWitness.newBuilder()
+                        .hashAlgorithm(BlockHashAlgorithm.SHA2_384)
+                        .build()));
+        for (final var witness : List.of(firstWitness, finalWitness)) {
+            final var largerNanos = witness.copyBuilder()
+                    .timestamp(new Timestamp(witness.timestampOrThrow().seconds(), 987_654_321))
+                    .build();
+            assertEquals(
+                    HintsKeyWitness.PROTOBUF.toBytes(witness).length() + 4,
+                    HintsKeyWitness.PROTOBUF.toBytes(largerNanos).length());
+        }
+    }
+
+    @Test
     void checkedInVectorsVerifyIndependentlyAndRejectTheirNegativeCases() throws Exception {
         final com.fasterxml.jackson.databind.JsonNode fixture;
         try (final var input =
                 HintsKeyWitnessNativeTest.class.getResourceAsStream("/provenance-witnesses/native-v1.json")) {
             assertNotNull(input);
-            fixture = new ObjectMapper().readTree(input);
+            final var checkedInBytes = input.readAllBytes();
+            assertArrayEquals(
+                    serializedFixture(),
+                    checkedInBytes,
+                    "Regenerate native-v1.json and copy build/generated/provenance-witnesses/native-v1.json to test resources");
+            fixture = JSON.readTree(checkedInBytes);
         }
         var checkpoint = new Checkpoint(
                 Bytes.fromHex(fixture.get("initialVerificationKeyHex").asText()),
@@ -281,6 +358,20 @@ class HintsKeyWitnessNativeTest {
                                     rejected.get("expectedVerificationKeyHex").asText())),
                     rejected.get("reason").asText());
         }
+        for (final var accepted : fixture.get("acceptedWitnesses")) {
+            final var witness = HintsKeyWitness.PROTOBUF.parse(
+                    Bytes.fromHex(accepted.get("witnessProtobufHex").asText()));
+            assertTrue(
+                    WITNESS_VERIFIER.verify(
+                            witness,
+                            Bytes.fromHex(
+                                    accepted.get("expectedVerificationKeyHex").asText())),
+                    accepted.get("reason").asText());
+        }
+    }
+
+    private static byte[] serializedFixture() throws Exception {
+        return JSON.writerWithDefaultPrettyPrinter().writeValueAsBytes(fixtureManifest());
     }
 
     private static Map<String, Object> fixtureManifest() {
@@ -288,7 +379,19 @@ class HintsKeyWitnessNativeTest {
         manifest.put("formatVersion", 1);
         manifest.put(
                 "description",
-                "Native hinTS rotations with deterministic public test keys; not production key material");
+                "Native hinTS generations over synthetic block branches with deterministic public test keys; not a captured network rotation");
+        manifest.put(
+                "generations",
+                generations.stream()
+                        .map(generation -> Map.of(
+                                "constructionId", Long.toString(generation.id()),
+                                "verificationKeyHex",
+                                        generation.verificationKey().toHex(),
+                                "partyWeights",
+                                        generation.partyWeights().values().stream()
+                                                .map(Object::toString)
+                                                .toList()))
+                        .toList());
         manifest.put(
                 "initialVerificationKeyHex", initialCheckpoint.verificationKey().toHex());
         manifest.put(
@@ -334,7 +437,44 @@ class HintsKeyWitnessNativeTest {
                                         .copyBuilder()
                                         .hashAlgorithm(BlockHashAlgorithm.SHA2_384)
                                         .build(),
-                                generations.get(1).verificationKey())));
+                                generations.get(1).verificationKey()),
+                        rejectedWitness(
+                                "Exactly one third signing weight (1 of 3 equal-weight parties)",
+                                signedBy(firstWitness, generations.get(1), List.of(0)),
+                                generations.get(1).verificationKey()),
+                        rejectedWitness(
+                                "Valid signature over a root with swapped left and right children",
+                                witnessSignedWithSwappedChildren(),
+                                generations.get(1).verificationKey()),
+                        rejectedWitness(
+                                "SHA-384 modified sibling with correct 48-byte length",
+                                finalWitness
+                                        .copyBuilder()
+                                        .siblingHash(flip(finalWitness.siblingHash()))
+                                        .build(),
+                                generations.get(3).verificationKey()),
+                        rejectedWitness(
+                                "SHA-384 modified timestamp with valid proof shape",
+                                finalWitness
+                                        .copyBuilder()
+                                        .timestamp(new Timestamp(
+                                                finalWitness.timestampOrThrow().seconds() + 1, 123))
+                                        .build(),
+                                generations.get(3).verificationKey()),
+                        rejectedWitness(
+                                "Unequal weights: exactly one third (party 1 has weight 2 of total 6)",
+                                signedBy(finalWitness, generations.get(3), List.of(1)),
+                                generations.get(3).verificationKey()),
+                        rejectedWitness(
+                                "Unequal weights: less than one third (party 0 has weight 1 of total 6)",
+                                signedBy(finalWitness, generations.get(3), List.of(0)),
+                                generations.get(3).verificationKey())));
+        manifest.put(
+                "acceptedWitnesses",
+                List.of(witnessCase(
+                        "Unequal weights: one party above one third (party 2 has weight 3 of total 6)",
+                        signedBy(finalWitness, generations.get(3), List.of(2)),
+                        generations.get(3).verificationKey())));
         manifest.put(
                 "validBatches",
                 List.of(
@@ -349,11 +489,19 @@ class HintsKeyWitnessNativeTest {
                         "Witness 0 sibling byte 0 XOR 1",
                         "Witness 0 signature byte 0 XOR 1",
                         "Witness 0 hashAlgorithm changed to SHA2_384",
+                        "Exact one-third weight under equal and unequal party weights",
+                        "Valid signature over a root with its children swapped",
+                        "SHA-384 timestamp and correct-length sibling mutations",
                         "Repeated checkpoint timestamp"));
         return manifest;
     }
 
     private static Map<String, Object> rejectedWitness(
+            final String reason, final HintsKeyWitness witness, final Bytes expectedKey) {
+        return witnessCase(reason, witness, expectedKey);
+    }
+
+    private static Map<String, Object> witnessCase(
             final String reason, final HintsKeyWitness witness, final Bytes expectedKey) {
         return Map.of(
                 "reason",
@@ -386,6 +534,10 @@ class HintsKeyWitnessNativeTest {
     }
 
     private static Generation generation(final int id) {
+        return generation(id, List.of(1L, 1L, 1L));
+    }
+
+    private static Generation generation(final int id, final List<Long> partyWeights) {
         final var privateKeys = new TreeMap<Integer, Bytes>();
         final var hints = new TreeMap<Integer, Bytes>();
         final var weights = new TreeMap<Integer, Long>();
@@ -394,11 +546,12 @@ class HintsKeyWitnessNativeTest {
                     .generateSecretKey(seed(id * 10 + party).toByteArray()));
             privateKeys.put(party, privateKey);
             hints.put(party, LIBRARY.computeHints(crs, privateKey, party, NUM_PARTIES));
-            weights.put(party, 1L);
+            weights.put(party, partyWeights.get(party));
         }
         final var keys = LIBRARY.preprocess(crs, hints, weights, NUM_PARTIES);
         assertNotNull(keys);
-        return new Generation(id, Bytes.wrap(keys.verificationKey()), Bytes.wrap(keys.aggregationKey()), privateKeys);
+        return new Generation(
+                id, Bytes.wrap(keys.verificationKey()), Bytes.wrap(keys.aggregationKey()), privateKeys, weights);
     }
 
     private static HintsKeyProvenance certificate(final Generation source, final Generation target) {
@@ -448,6 +601,23 @@ class HintsKeyWitnessNativeTest {
                 LIBRARY.aggregateSignatures(crs, generation.aggregationKey(), generation.verificationKey(), shares);
         assertNotNull(aggregate);
         return aggregate;
+    }
+
+    private static HintsKeyWitness signedBy(
+            final HintsKeyWitness witness, final Generation generation, final List<Integer> parties) {
+        return witness.copyBuilder()
+                .signature(sign(generation, HintsKeyWitnessVerifier.rootHash(witness), parties))
+                .build();
+    }
+
+    private static HintsKeyWitness witnessSignedWithSwappedChildren() {
+        final var digest = DigestType.SHA_256.buildDigest();
+        final var timestampLeaf = hashLeaf(digest, Timestamp.PROTOBUF.toBytes(firstWitness.timestampOrThrow()));
+        final var backwardsRoot = hashInternalNode(digest, firstWitness.siblingHash(), timestampLeaf);
+        return firstWitness
+                .copyBuilder()
+                .signature(sign(generations.get(1), backwardsRoot, List.of(0, 1)))
+                .build();
     }
 
     private static boolean freshMessageProof(

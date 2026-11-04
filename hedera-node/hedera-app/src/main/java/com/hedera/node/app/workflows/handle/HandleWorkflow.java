@@ -1255,7 +1255,8 @@ public class HandleWorkflow {
                                 // A fresh genesis handoff keeps the active roster, so a pending candidate
                                 // roster must not remove the proof keys of the nodes it drops
                                 null,
-                                candidateRosterHash)) {
+                                candidateRosterHash,
+                                null)) {
                             // Make sure we include the latest chain-of-trust proof in following block proofs
                             historyService.setLatestHistoryProof(construction.targetProofOrThrow());
                             // The ledger id is that of the history a genesis proof grounds its chain of

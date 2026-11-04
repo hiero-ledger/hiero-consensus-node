@@ -55,7 +55,7 @@ public class HistoryServiceImpl implements HistoryService {
 
     private final Supplier<Network> genesisNetworkSupplier;
 
-    private final KeyWitnessPublisher witnessPublisher = new KeyWitnessPublisher(this::submitKeyWitness);
+    private final KeyWitnessPublisher witnessPublisher;
 
     private CompletableFuture<Void> submitKeyWitness(final HintsKeyWitness witness) {
         return component.submissions().submitKeyWitness(witness);
@@ -86,6 +86,7 @@ public class HistoryServiceImpl implements HistoryService {
             @NonNull final Supplier<Network> genesisNetworkSupplier) {
         this.genesisNetworkSupplier = requireNonNull(genesisNetworkSupplier);
         this.component = DaggerHistoryServiceComponent.factory().create(library, appContext, executor, metrics, this);
+        this.witnessPublisher = new KeyWitnessPublisher(this::submitKeyWitness, new KeyWitnessMetrics(metrics)::update);
     }
 
     @VisibleForTesting
@@ -98,6 +99,7 @@ public class HistoryServiceImpl implements HistoryService {
             @NonNull final HistoryServiceComponent component, @NonNull final Supplier<Network> genesisNetworkSupplier) {
         this.component = requireNonNull(component);
         this.genesisNetworkSupplier = requireNonNull(genesisNetworkSupplier);
+        this.witnessPublisher = new KeyWitnessPublisher(this::submitKeyWitness);
     }
 
     @Override
@@ -218,11 +220,20 @@ public class HistoryServiceImpl implements HistoryService {
                 // No-op
             }
         }
-        witnessPublisher.reconcile(
-                historyStore,
-                now,
-                isActive,
-                activeHintsConstruction == null ? 0 : activeHintsConstruction.constructionId());
+        // Publication is local best-effort work and must not roll back the controller's consensus changes.
+        try {
+            if (tssConfig.forceMockSignatures()) {
+                witnessPublisher.stop();
+            } else {
+                witnessPublisher.reconcile(
+                        historyStore,
+                        now,
+                        isActive,
+                        activeHintsConstruction == null ? 0 : activeHintsConstruction.constructionId());
+            }
+        } catch (RuntimeException e) {
+            logger.warn("Failed to reconcile local hinTS witness publication", e);
+        }
     }
 
     @Override

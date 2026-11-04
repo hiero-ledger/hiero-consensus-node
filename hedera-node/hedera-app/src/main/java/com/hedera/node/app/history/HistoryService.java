@@ -83,7 +83,7 @@ public interface HistoryService extends Service, OnProofFinished {
      * Offers a directly signed block witness for consensus publication. The verification key and generation
      * must come from the captured signing attempt, not the current mutable signing context.
      */
-    default void publishKeyWitness(@NonNull final Bytes verificationKey, @NonNull final HintsKeyWitness witness) {}
+    void publishKeyWitness(@NonNull Bytes verificationKey, @NonNull HintsKeyWitness witness);
 
     /**
      * Whether this service is ready to provide metadata-enriched proofs.

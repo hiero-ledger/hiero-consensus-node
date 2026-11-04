@@ -3,10 +3,12 @@ package com.hedera.node.app.history.impl;
 
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.hints.impl.HintsLibraryImpl.SIGNATURE_LENGTH;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
@@ -20,6 +22,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -105,15 +112,20 @@ class KeyWitnessPublisherTest {
     }
 
     @Test
-    void failedSubmissionRetriesAtTheNextOpportunityWithoutLosingCandidate() {
+    void failedSubmissionUsesBoundedExponentialBackoffWithoutLosingCandidate() {
         records(PENDING);
         subject.reconcile(store, NOW, true, GENERATION);
         result = CompletableFuture.failedFuture(new IllegalStateException("transient submission failure"));
         subject.offer(VK, WITNESS);
-        result = CompletableFuture.completedFuture(null);
-        subject.reconcile(store, NOW.plusSeconds(1), true, GENERATION);
-
-        assertEquals(List.of(WITNESS, WITNESS), submissions);
+        final long[] attemptTimes = {0, 30, 90, 210, 450, 750, 1050};
+        for (int i = 1; i < attemptTimes.length; i++) {
+            subject.reconcile(store, NOW.plusSeconds(attemptTimes[i] - 1), true, GENERATION);
+            subject.offer(VK, WITNESS);
+            assertEquals(i, submissions.size());
+            subject.reconcile(store, NOW.plusSeconds(attemptTimes[i]), true, GENERATION);
+            assertEquals(i + 1, submissions.size());
+        }
+        assertEquals(KeyWitnessPublisher.MAX_RETRY_INTERVAL.toSeconds(), attemptTimes[6] - attemptTimes[5]);
     }
 
     @Test
@@ -155,14 +167,16 @@ class KeyWitnessPublisherTest {
     }
 
     @Test
-    void scansHistoricalQueueOnlyAtStartupAndGenerationChanges() {
+    void scansHistoryOnlyAtStartupAndGenerationChangesAndBoundsPendingRereads() {
         records(PENDING);
         subject.reconcile(store, NOW, true, GENERATION);
         subject.reconcile(store, NOW.plusSeconds(1), true, GENERATION);
         subject.reconcile(store, NOW.plusSeconds(2), true, GENERATION);
         verify(store, times(1)).keyProvenanceWithWitnesses();
-        verify(store, times(2)).getKeyWitnessRecord(GENERATION);
-        subject.reconcile(store, NOW.plusSeconds(3), true, GENERATION + 1);
+        verify(store, never()).getKeyWitnessRecord(GENERATION);
+        subject.reconcile(store, NOW.plus(KeyWitnessPublisher.STATE_REFRESH_INTERVAL), true, GENERATION);
+        verify(store).getKeyWitnessRecord(GENERATION);
+        subject.reconcile(store, NOW.plusSeconds(31), true, GENERATION + 1);
         verify(store, times(2)).keyProvenanceWithWitnesses();
     }
 
@@ -172,13 +186,123 @@ class KeyWitnessPublisherTest {
         subject.reconcile(store, NOW, false, GENERATION);
         subject.offer(VK, WITNESS);
         records(pending(GENERATION, Bytes.wrap("replaced source state")));
-        subject.reconcile(store, NOW.plusSeconds(1), true, GENERATION);
+        subject.reconcile(store, NOW.plus(KeyWitnessPublisher.STATE_REFRESH_INTERVAL), true, GENERATION);
         assertTrue(submissions.isEmpty());
 
         records();
-        subject.reconcile(store, NOW.plusSeconds(31), true, GENERATION);
+        subject.reconcile(store, NOW.plusSeconds(60), true, GENERATION);
         subject.offer(VK, WITNESS);
         assertTrue(submissions.isEmpty());
+    }
+
+    @Test
+    void onlyOneSubmissionMayBeInFlightForAGeneration() {
+        records(PENDING);
+        result = new CompletableFuture<>();
+        subject.reconcile(store, NOW, true, GENERATION);
+        subject.offer(VK, WITNESS);
+        subject.reconcile(store, NOW.plusSeconds(300), true, GENERATION);
+        subject.offer(VK, witness(GENERATION, NOW.plusSeconds(200)));
+        assertEquals(List.of(WITNESS), submissions);
+
+        result.completeExceptionally(new IllegalStateException("eventual failure"));
+        result = CompletableFuture.completedFuture(null);
+        subject.reconcile(store, NOW.plusSeconds(301), true, GENERATION);
+        assertEquals(List.of(WITNESS, witness(GENERATION, NOW.plusSeconds(200))), submissions);
+    }
+
+    @Test
+    void throwingSubmitterIsIsolatedAndStillThrottled() {
+        final var attempts = new AtomicInteger();
+        subject = new KeyWitnessPublisher(witness -> {
+            attempts.incrementAndGet();
+            throw new IllegalStateException("executor rejected submission");
+        });
+        records(PENDING);
+        subject.reconcile(store, NOW, true, GENERATION);
+        assertDoesNotThrow(() -> subject.offer(VK, WITNESS));
+        subject.reconcile(store, NOW.plusSeconds(1), true, GENERATION);
+        assertEquals(1, attempts.get());
+        subject.reconcile(store, NOW.plus(KeyWitnessPublisher.RETRY_INTERVAL), true, GENERATION);
+        assertEquals(2, attempts.get());
+    }
+
+    @Test
+    void backwardsConsensusClockReloadsStateAndResetsRetrySchedule() {
+        records(PENDING);
+        subject.reconcile(store, NOW, true, GENERATION);
+        subject.offer(VK, WITNESS);
+        subject.reconcile(store, NOW.minusSeconds(1), true, GENERATION);
+
+        assertEquals(List.of(WITNESS, WITNESS), submissions);
+        verify(store, times(2)).keyProvenanceWithWitnesses();
+        subject.reconcile(store, NOW, true, GENERATION);
+        assertEquals(2, submissions.size());
+    }
+
+    @Test
+    void concurrentOffersAndReconcilesDoNotDuplicateAnInflightSubmission() throws Exception {
+        records(PENDING);
+        result = new CompletableFuture<>();
+        subject.reconcile(store, NOW, true, GENERATION);
+        final var ready = new CountDownLatch(2);
+        final var start = new CountDownLatch(1);
+        try (final var executor = Executors.newFixedThreadPool(2)) {
+            final var offers = executor.submit(() -> {
+                ready.countDown();
+                await(start);
+                for (int i = 0; i < 100; i++) {
+                    subject.offer(VK, WITNESS);
+                }
+            });
+            final var reconciles = executor.submit(() -> {
+                ready.countDown();
+                await(start);
+                for (int i = 0; i < 100; i++) {
+                    subject.reconcile(store, NOW.plusSeconds(i), true, GENERATION);
+                }
+            });
+            assertTrue(ready.await(5, TimeUnit.SECONDS));
+            start.countDown();
+            offers.get(5, TimeUnit.SECONDS);
+            reconciles.get(5, TimeUnit.SECONDS);
+        }
+        assertEquals(List.of(WITNESS), submissions);
+    }
+
+    @Test
+    void reportsPendingCountAndAgeWithoutInventingLegacyActivationTimes() {
+        final var pendingCount = new AtomicInteger();
+        final var oldestAge = new AtomicLong();
+        subject = new KeyWitnessPublisher(witness -> CompletableFuture.completedFuture(null), (count, age) -> {
+            pendingCount.set(count);
+            oldestAge.set(age);
+        });
+        records(
+                PENDING,
+                pending(8, VK)
+                        .copyBuilder()
+                        .activationTime((com.hedera.hapi.node.base.Timestamp) null)
+                        .build());
+        subject.reconcile(store, NOW, true, GENERATION);
+        assertEquals(2, pendingCount.get());
+        assertEquals(10, oldestAge.get());
+        subject.reconcile(store, NOW.plusSeconds(1), true, GENERATION);
+        assertEquals(11, oldestAge.get());
+        subject.stop();
+        assertEquals(0, pendingCount.get());
+        assertEquals(0, oldestAge.get());
+    }
+
+    private static void await(final CountDownLatch latch) {
+        try {
+            if (!latch.await(5, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("Timed out waiting for test start");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(e);
+        }
     }
 
     private void records(final HintsKeyWitnessRecord... records) {

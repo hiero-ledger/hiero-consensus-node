@@ -184,14 +184,11 @@ public interface WritableHistoryStore extends ReadableHistoryStore {
      * @param fromRoster the roster to hand off from
      * @param toRoster if applicable, the roster to hand off to
      * @param toRosterHash if applicable, the hash of the roster to hand off to
+     * @param activationTime the consensus activation boundary, required whenever the next construction carries
+     *                       key provenance; may be null only for a proof-only handoff without a signing-key transition
      * @return whether the handoff happened
-     */
-    boolean handoff(@NonNull Roster fromRoster, @Nullable Roster toRoster, @Nullable Bytes toRosterHash);
-
-    /**
-     * Performs handoff and atomically records the activation boundary for the
-     * incoming generation's witness. A null boundary is reserved for legacy
-     * callers whose historical activation time is unavailable.
+     * @throws NullPointerException if a provenance-bearing construction is adopted without an activation time
+     * @throws IllegalStateException if the signing generation already has an adoption record
      */
     boolean handoff(
             @NonNull Roster fromRoster,

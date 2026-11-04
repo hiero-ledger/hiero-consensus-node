@@ -58,7 +58,10 @@ public class HistorySubmissions extends TssSubmissions {
                 b -> b.historyProofKeyPublication(HistoryProofKeyPublicationTransactionBody.newBuilder()
                         .keyWitness(witness)
                         .build()),
-                onFailure);
+                (body, reason) -> logger.warn(
+                        "Failed to submit block-signing witness for hinTS construction #{} ({})",
+                        witness.targetHintsConstructionId(),
+                        reason));
     }
 
     /**

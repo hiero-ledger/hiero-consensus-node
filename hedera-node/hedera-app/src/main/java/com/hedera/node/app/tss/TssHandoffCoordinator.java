@@ -45,6 +45,7 @@ public final class TssHandoffCoordinator {
      * @param previousRoster the previous roster
      * @param adoptedRoster the adopted roster
      * @param adoptedRosterHash the adopted roster hash
+     * @param activationTime the consensus boundary after which a block can witness the new key
      * @return whether both handoffs happened
      */
     public static boolean tryJointHandoff(
@@ -54,31 +55,8 @@ public final class TssHandoffCoordinator {
             @NonNull final HintsService hintsService,
             @NonNull final Roster previousRoster,
             @NonNull final Roster adoptedRoster,
-            @NonNull final Bytes adoptedRosterHash) {
-        return tryJointHandoff(
-                historyStore,
-                hintsStore,
-                historyService,
-                hintsService,
-                previousRoster,
-                adoptedRoster,
-                adoptedRosterHash,
-                null);
-    }
-
-    /**
-     * Adopts both constructions and records the consensus boundary after which a block can witness the new key.
-     * A null boundary is reserved for callers restoring historical adoption metadata.
-     */
-    public static boolean tryJointHandoff(
-            @NonNull final WritableHistoryStore historyStore,
-            @NonNull final WritableHintsStore hintsStore,
-            @NonNull final HistoryService historyService,
-            @NonNull final HintsService hintsService,
-            @NonNull final Roster previousRoster,
-            @NonNull final Roster adoptedRoster,
             @NonNull final Bytes adoptedRosterHash,
-            @Nullable final Instant activationTime) {
+            @NonNull final Instant activationTime) {
         requireNonNull(historyStore);
         requireNonNull(hintsStore);
         requireNonNull(historyService);
@@ -86,6 +64,7 @@ public final class TssHandoffCoordinator {
         requireNonNull(previousRoster);
         requireNonNull(adoptedRoster);
         requireNonNull(adoptedRosterHash);
+        requireNonNull(activationTime);
         if (!isReadyForHandoff(hintsStore, historyStore, adoptedRosterHash, true)
                 || hintsStore.getNextConstruction().numParties() < HintsService.partySizeForRoster(adoptedRoster)) {
             return false;
@@ -276,10 +255,9 @@ public final class TssHandoffCoordinator {
             @NonNull final Roster adoptedRoster,
             @NonNull final Bytes adoptedRosterHash,
             @NonNull final HistoryProof proof,
-            @Nullable final Instant activationTime) {
-        final boolean historyPromoted = activationTime == null
-                ? historyStore.handoff(previousRoster, adoptedRoster, adoptedRosterHash)
-                : historyStore.handoff(previousRoster, adoptedRoster, adoptedRosterHash, activationTime);
+            @NonNull final Instant activationTime) {
+        final boolean historyPromoted =
+                historyStore.handoff(previousRoster, adoptedRoster, adoptedRosterHash, activationTime);
         if (!historyPromoted) {
             log.warn("Skipping TSS handoff because history construction did not promote");
             return false;

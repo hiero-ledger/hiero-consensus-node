@@ -52,6 +52,7 @@ import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.OnDiskPendi
 import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.hints.impl.HintsContext;
+import com.hedera.node.app.history.impl.HintsKeyWitnessVerifier;
 import com.hedera.node.app.info.DiskStartupNetworks;
 import com.hedera.node.app.info.DiskStartupNetworks.InfoType;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
@@ -1057,6 +1058,12 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                                     signedBlockNumber,
                                     finalBlockRootHash);
                         } else {
+                            // Complete the block before best-effort publication can contend with reconciliation.
+                            finishProofWithSignature(
+                                    finalBlockRootHash,
+                                    signature,
+                                    attempt.verificationKey(),
+                                    attempt.chainOfTrustProof());
                             if (attempt.constructionId() > 0 && attempt.verificationKey() != null) {
                                 try {
                                     final var witness = HintsKeyWitness.newBuilder()
@@ -1071,7 +1078,14 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                                             .build();
                                     // Publish even if this block has already been closed with an indirect proof.
                                     // The callback is tied to the original signing attempt and only submits work.
-                                    blockHashSigner.publishKeyWitness(attempt.verificationKey(), witness);
+                                    if (HintsKeyWitnessVerifier.rootHash(witness)
+                                            .equals(finalBlockRootHash)) {
+                                        blockHashSigner.publishKeyWitness(attempt.verificationKey(), witness);
+                                    } else {
+                                        log.error(
+                                                "Witness root differs from signed block root for block #{}; skipping publication",
+                                                signedBlockNumber);
+                                    }
                                 } catch (RuntimeException e) {
                                     log.warn(
                                             "Failed to offer key witness for directly signed block #{}",
@@ -1079,11 +1093,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                                             e);
                                 }
                             }
-                            finishProofWithSignature(
-                                    finalBlockRootHash,
-                                    signature,
-                                    attempt.verificationKey(),
-                                    attempt.chainOfTrustProof());
                         }
                         if (quiescenceEnabled) {
                             final var lastCommand = lastQuiescenceCommand.get();

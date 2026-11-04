@@ -122,9 +122,20 @@ hashInternalNode(hashLeaf(Timestamp.PROTOBUF.toBytes(timestamp)), siblingHash)
 The timestamp is always the left child at depth one. SHA-256 and SHA-384 use
 their existing block-tree domain separation, with exactly 32- and 48-byte sibling
 hashes respectively. The signature must verify under the certificate's exact
-target verification key at the strict greater-than-one-third threshold. No WRAPS
+target verification key at the strict greater-than-one-third threshold. This
+fixed witness threshold, like the certificate threshold, is independent of
+`tss.signingThresholdDivisor`. Producers must collect more than one third of the
+generation's weight even if their block-signing configuration permits a lower
+threshold. A divisor greater than three does not guarantee a usable witness:
+the block aggregate may complete before it contains sufficient weight. Exactly
+one third is insufficient, including with unequal party weights. No WRAPS
 proof is duplicated in this witness: consumers establish key authority by
 verifying the provenance chain from their own trusted key.
+
+The protobuf `hash_algorithm` value defaults to SHA-256 (enum value zero), so an
+absent field means SHA-256, regardless of the current network configuration.
+Historical proofs select their recorded algorithm, not the verifier's current
+block digest.
 
 ### Production and consensus admission
 
@@ -135,24 +146,57 @@ timestamp and sibling come from that same directly signed block; an indirect
 proof for a different block cannot substitute its timestamp or root.
 
 Consensus processing accepts a witness only for a generation already in the
-companion map. It validates the proof's shape and signature, rejects timestamps
+companion map. The native admission rule requires a positive construction ID
+matching that adopted record; the cryptographic verifier itself ignores this
+unsigned field. Admission validates the proof's shape and signature, rejects timestamps
 after the publication's consensus time, and, when the activation boundary is
 known, requires a timestamp strictly after that boundary. This excludes a block
 that started before a runtime handoff. Runtime adoption records the handoff's
 consensus time; restart adoption uses the last consensus timestamp in the
 startup state. Both paths then wait for an eligible block to be signed.
+Every new provenance handoff requires a non-null activation boundary; an unknown
+boundary is permitted only for legacy records imported by migration. A duplicate
+target companion record, whether identical or conflicting, aborts a new handoff
+before either the queue or the construction promotions are changed.
+
+Witness publication and admission are disabled while `tss.forceMockSignatures`
+is true. Such generations may therefore remain without witnesses after a later
+cutover to real signing. Signature verification is warmed in pre-handle through
+a bounded cache keyed by the full witness and expected verification key.
+Handling checks the adopted record and timestamp eligibility again, and uses a
+cached verification result when available. A cache miss verifies deterministically
+in handle; local cache availability cannot change acceptance.
 
 The first accepted witness is immutable. Consensus transaction order selects it,
 not local asynchronous completion order. Repeated publications do not replace
 the proof. Submitting a transaction or completing a local signature future is
-not evidence that the witness was persisted. Publication retries until consensus
-state contains it, and delayed signatures retain their original generation
-binding even after another handoff.
+not evidence that the witness was persisted. While real signing is enabled,
+publication retries until consensus state contains it, and delayed signatures
+retain their original generation binding even after another handoff. A generation
+has at most one in-flight submission. Retries back off from 30 to at most 300
+consensus seconds; retaining retries avoids stranding an already retired key
+during a temporary outage. A replacement block candidate preserves the throttle.
+Pending state is refreshed at most once per 30 consensus seconds between changes
+of the active construction, rather than scanned on every round.
+
+The ordinary block proof completes before the optional witness publication.
+The producer checks its reconstructed witness root against the captured signed
+root, and reports an error without publishing if they differ. A local publication
+failure does not discard the history controller's consensus state changes.
+The `app:hintsKeyWitnessPendingCount` and
+`app:hintsKeyWitnessOldestPendingAgeSeconds` gauges expose missing witnesses;
+the age covers known activation timestamps and excludes legacy records with
+unknown boundaries. Both gauges are zero while real signing is disabled.
 
 No rotation waits for witness publication. An active generation missing its
 witness can use a later signed block, including after restart or reconnect.
-Retired generations can be backfilled through the same publication variant
-using existing historical block data; retired nodes do not need to sign again.
+The consensus admission path can accept a witness reconstructed from an existing
+historical block signature, without asking retired nodes to sign again. However,
+this implementation produces witnesses only from live signing callbacks; it
+does not scan historical blocks or automatically publish backfill. The publication
+transaction is node-only, so historical backfill requires additional node-side
+tooling and cannot be submitted directly by an external endpoint. A generation
+without a retained eligible signature cannot be recovered through this path.
 Restart migration creates pending records for older queue entries that lack a
 companion record. Their activation boundary is explicitly unknown, so migration
 does not invent a recent boundary that would reject genuine historical proofs.
@@ -177,11 +221,24 @@ every generation lets callers choose arbitrary batch boundaries.
 For example, a January anchor can advance through several transactions ending
 at January 20, February 8, and later historical keys before accepting a December
 message. Old witness timestamps remain valid for this historical operation.
-Forward progress is checked against the stored checkpoint; message freshness is
-a separate policy and must not apply a wall-clock age limit to key catch-up.
-`HintsKeyProvenanceVerifier` provides a bounded reference implementation returning
-a new immutable checkpoint only after the complete batch succeeds. It does not
-write a caller's checkpoint or enforce application-message freshness.
+The reference consumer requires an endpoint timestamp strictly after its stored
+checkpoint as an ordering policy; key continuity, rather than the timestamp,
+authenticates the next key. Message freshness is a separate policy and must not
+apply a wall-clock age limit to key catch-up.
+
+Initialize a consumer that knows only an independently trusted key using
+`HintsKeyProvenanceVerifier.Checkpoint.fromTrustedKey(key)`. This uses epoch as a
+sentinel lower bound, so a consumer registered today can accept old historical
+witnesses. Do not initialize its timestamp to registration time or the local
+clock: doing so prevents catch-up through older endpoints. When resuming a
+previously committed checkpoint, restore both its key and its authenticated
+witness timestamp together.
+
+`HintsKeyProvenanceVerifier` is a bounded reference for endpoint and EVM consumer
+implementations, not a node-runtime component. It returns a new immutable
+checkpoint only after the complete batch succeeds. The consuming application
+must persist that pair atomically; the reference neither writes its checkpoint
+nor enforces application-message freshness.
 
 Construction IDs remain unsigned bookkeeping. The cryptographic chain follows
 the actual keys, and the witness proves use of the endpoint key, not an

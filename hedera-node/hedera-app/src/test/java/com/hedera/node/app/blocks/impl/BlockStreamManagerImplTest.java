@@ -43,6 +43,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -71,6 +72,7 @@ import com.hedera.node.app.blocks.InitialStateHash;
 import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.OnDiskPendingBlock;
 import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.hints.impl.HintsContext;
+import com.hedera.node.app.history.impl.HintsKeyWitnessVerifier;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.records.BlockRecordService;
@@ -131,6 +133,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.function.Executable;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -1539,8 +1543,9 @@ class BlockStreamManagerImplTest {
         assertEquals(header.blockTimestamp(), asTimestamp(CONSENSUS_NOW));
     }
 
-    @Test
-    void pendingBlockProofsFutureCompletesWhenPendingBlockIsSigned() {
+    @ParameterizedTest
+    @ValueSource(strings = {"normal", "publisher failure", "root mismatch"})
+    void pendingBlockProofsCompleteDespiteWitnessPublicationFailureOrRootMismatch(final String scenario) {
         givenSubjectWith(
                 1,
                 0,
@@ -1553,7 +1558,19 @@ class BlockStreamManagerImplTest {
         given(round.getRoundNum()).willReturn(ROUND_NO);
         given(blockHashSigner.isReady()).willReturn(true);
         given(blockHashSigner.sign(any(), eq(SUCCINCT_SIGNATURE)))
-                .willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
+                .willReturn(
+                        new BlockHashSigner.Attempt(Bytes.EMPTY, null, mockSigningFuture, completedFuture(null), 7));
+        if (!scenario.equals("root mismatch")) {
+            doAnswer(invocation -> {
+                        assertTrue(subject.pendingBlockProofsFuture().isDone());
+                        if (scenario.equals("publisher failure")) {
+                            throw new IllegalStateException("witness publisher unavailable");
+                        }
+                        return null;
+                    })
+                    .when(blockHashSigner)
+                    .publishKeyWitness(eq(Bytes.EMPTY), any());
+        }
         final AtomicReference<Consumer<Bytes>> signatureConsumer = new AtomicReference<>();
         doAnswer(invocationOnMock -> {
                     signatureConsumer.set(invocationOnMock.getArgument(0));
@@ -1573,7 +1590,18 @@ class BlockStreamManagerImplTest {
 
         assertFalse(pendingBlockProofsFuture.isDone());
 
-        signatureConsumer.get().accept(FIRST_FAKE_SIGNATURE);
+        if (scenario.equals("root mismatch")) {
+            try (final var witnessVerifier = mockStatic(HintsKeyWitnessVerifier.class)) {
+                witnessVerifier
+                        .when(() -> HintsKeyWitnessVerifier.rootHash(any()))
+                        .thenReturn(Bytes.EMPTY);
+                assertDoesNotThrow(() -> signatureConsumer.get().accept(FIRST_FAKE_SIGNATURE));
+            }
+            verify(blockHashSigner, never()).publishKeyWitness(any(), any());
+        } else {
+            assertDoesNotThrow(() -> signatureConsumer.get().accept(FIRST_FAKE_SIGNATURE));
+            verify(blockHashSigner).publishKeyWitness(eq(Bytes.EMPTY), any());
+        }
 
         assertTrue(pendingBlockProofsFuture.isDone());
         verify(aWriter).closeCompleteBlock();

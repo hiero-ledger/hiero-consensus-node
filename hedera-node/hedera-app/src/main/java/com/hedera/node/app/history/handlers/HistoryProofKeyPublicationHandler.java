@@ -4,6 +4,11 @@ package com.hedera.node.app.history.handlers;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static java.util.Objects.requireNonNull;
 
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.LoadingCache;
+import com.hedera.hapi.node.state.history.HintsKeyWitness;
+import com.hedera.hapi.node.state.history.HintsKeyWitnessRecord;
+import com.hedera.node.app.history.ReadableHistoryStore;
 import com.hedera.node.app.history.ReadableHistoryStore.ProofKeyPublication;
 import com.hedera.node.app.history.ReadableHistoryStore.WrapsMessagePublication;
 import com.hedera.node.app.history.WritableHistoryStore;
@@ -15,7 +20,11 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.config.data.TssConfig;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import java.time.Duration;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
@@ -25,13 +34,20 @@ import org.apache.logging.log4j.Logger;
 public class HistoryProofKeyPublicationHandler implements TransactionHandler {
     private static final Logger log = LogManager.getLogger(HistoryProofKeyPublicationHandler.class);
     private final ProofControllers controllers;
-    private final HintsKeyWitnessVerifier witnessVerifier;
+    private final LoadingCache<WitnessVerification, Boolean> witnessVerifications;
+
+    /** Only pure cryptography is cached; consensus admission is always checked again against current state. */
+    private record WitnessVerification(Bytes verificationKey, HintsKeyWitness witness) {}
 
     @Inject
     public HistoryProofKeyPublicationHandler(
             @NonNull final ProofControllers controllers, @NonNull final HintsKeyWitnessVerifier witnessVerifier) {
         this.controllers = requireNonNull(controllers);
-        this.witnessVerifier = requireNonNull(witnessVerifier);
+        requireNonNull(witnessVerifier);
+        witnessVerifications = Caffeine.newBuilder()
+                .maximumSize(2048)
+                .expireAfterAccess(Duration.ofMinutes(10))
+                .build(input -> witnessVerifier.verify(input.witness(), input.verificationKey()));
     }
 
     @Override
@@ -42,6 +58,20 @@ public class HistoryProofKeyPublicationHandler implements TransactionHandler {
     @Override
     public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
         requireNonNull(context);
+        final var op = context.body().historyProofKeyPublicationOrThrow();
+        if (!op.hasKeyWitness()
+                || context.configuration().getConfigData(TssConfig.class).forceMockSignatures()) {
+            return;
+        }
+        final var witness = op.keyWitnessOrThrow();
+        final var record = context.createStore(ReadableHistoryStore.class)
+                .getKeyWitnessRecord(witness.targetHintsConstructionId());
+        if (isEligiblePendingRecord(witness, record)) {
+            // Pairings normally run on the pre-handle workers. Both valid and invalid results are cached,
+            // with bounded memory; neither cache residency nor pre-handle's state snapshot decides admission.
+            witnessVerifications.get(
+                    new WitnessVerification(record.provenanceOrThrow().targetVerificationKey(), witness));
+        }
     }
 
     @Override
@@ -50,23 +80,24 @@ public class HistoryProofKeyPublicationHandler implements TransactionHandler {
         final var op = context.body().historyProofKeyPublicationOrThrow();
         final var historyStore = context.storeFactory().writableStore(WritableHistoryStore.class);
         if (op.hasKeyWitness()) {
+            if (context.configuration().getConfigData(TssConfig.class).forceMockSignatures()) {
+                return;
+            }
             final var witness = op.keyWitnessOrThrow();
             final var record = historyStore.getKeyWitnessRecord(witness.targetHintsConstructionId());
             // Publication is independent of an in-progress history proof, including historical backfill.
             // Never let local aggregation completion, or a certificate for an unadopted key, create this record.
-            if (record == null
-                    || record.hasWitness()
-                    || !record.hasProvenance()
-                    || !HintsKeyWitnessVerifier.hasValidStructure(witness)) {
+            if (!isEligiblePendingRecord(witness, record)) {
                 return;
             }
             final var provenance = record.provenanceOrThrow();
             final var timestamp = asInstant(witness.timestampOrThrow());
-            if (provenance.targetHintsConstructionId() != witness.targetHintsConstructionId()
-                    || timestamp.isAfter(context.consensusNow())
-                    || (record.hasActivationTime() && !timestamp.isAfter(asInstant(record.activationTimeOrThrow())))
-                    || !witnessVerifier.verify(witness, provenance.targetVerificationKey())) {
-                log.warn(
+            if (timestamp.isAfter(context.consensusNow())
+                    // Recompute on a cache miss (e.g. adoption since pre-handle) so cache eviction or worker
+                    // scheduling cannot change consensus results.
+                    || !Boolean.TRUE.equals(witnessVerifications.get(
+                            new WitnessVerification(provenance.targetVerificationKey(), witness)))) {
+                log.debug(
                         "Ignoring invalid block-signing witness for hinTS construction #{}",
                         witness.targetHintsConstructionId());
                 return;
@@ -102,5 +133,17 @@ public class HistoryProofKeyPublicationHandler implements TransactionHandler {
                 }
             });
         }
+    }
+
+    private static boolean isEligiblePendingRecord(
+            @NonNull final HintsKeyWitness witness, @Nullable final HintsKeyWitnessRecord record) {
+        return record != null
+                && !record.hasWitness()
+                && record.hasProvenance()
+                && witness.targetHintsConstructionId() > 0
+                && record.provenanceOrThrow().targetHintsConstructionId() == witness.targetHintsConstructionId()
+                && HintsKeyWitnessVerifier.hasValidStructure(witness)
+                && (!record.hasActivationTime()
+                        || asInstant(witness.timestampOrThrow()).isAfter(asInstant(record.activationTimeOrThrow())));
     }
 }

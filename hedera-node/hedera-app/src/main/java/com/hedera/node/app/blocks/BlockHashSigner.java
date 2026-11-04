@@ -80,7 +80,7 @@ public interface BlockHashSigner {
      * Offers a directly signed block as an adoption witness for its captured signing generation.
      * Implementations may submit a consensus transaction; this callback must not mutate consensus state.
      */
-    default void publishKeyWitness(@NonNull final Bytes verificationKey, @NonNull final HintsKeyWitness witness) {}
+    void publishKeyWitness(@NonNull Bytes verificationKey, @NonNull HintsKeyWitness witness);
 
     /**
      * Returns an attempt to sign the given block hash.

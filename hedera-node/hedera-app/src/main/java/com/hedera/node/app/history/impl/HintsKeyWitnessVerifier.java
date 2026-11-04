@@ -36,7 +36,10 @@ public final class HintsKeyWitnessVerifier {
 
     /**
      * Verifies the witness under the supplied, independently authorized verification key at the fixed aBFT threshold.
-     * This check deliberately has no wall-clock freshness policy: historical witnesses must remain usable for catch-up.
+     * The threshold is strictly greater than one third, independent of {@code tss.signingThresholdDivisor}. Producers
+     * must collect that much signing weight even if their configured block-signing threshold is lower.
+     * This check deliberately has no wall-clock freshness or construction-ID policy: historical witnesses must remain
+     * usable for catch-up, and construction IDs are not authenticated by the signature.
      */
     public boolean verify(@Nullable final HintsKeyWitness witness, @Nullable final Bytes expectedVerificationKey) {
         if (witness == null
@@ -66,10 +69,12 @@ public final class HintsKeyWitnessVerifier {
                 certificate.signature(), certificate.targetVerificationKey(), expectedSourceVerificationKey);
     }
 
-    /** Whether the witness has the bounded shape accepted by this verifier, before native cryptography is invoked. */
+    /**
+     * Whether the witness has the bounded cryptographic shape accepted before native verification. The unsigned
+     * construction ID is ignored; native admission must separately validate it against an adopted state record.
+     */
     public static boolean hasValidStructure(@Nullable final HintsKeyWitness witness) {
         return witness != null
-                && witness.targetHintsConstructionId() > 0
                 && validRootInputs(witness)
                 && witness.signature().length() == SIGNATURE_LENGTH;
     }

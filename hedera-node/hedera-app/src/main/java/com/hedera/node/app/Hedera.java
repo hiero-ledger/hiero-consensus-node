@@ -1935,11 +1935,13 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
                     previousRoster,
                     adoptedRoster,
                     preparedRosterHash,
-                    consensusTimestampOf(initState))) {
+                    requireNonNull(
+                            consensusTimestampOf(initState), "Roster adoption requires a consensus timestamp"))) {
                 throw new IllegalStateException("Prepared TSS constructions failed to promote with the adopted roster");
             }
         } else if (tssConfig.historyEnabled()) {
-            writableHistoryStore.handoff(previousRoster, adoptedRoster, adoptedRosterHash);
+            writableHistoryStore.handoff(
+                    previousRoster, adoptedRoster, adoptedRosterHash, consensusTimestampOf(initState));
         } else if (tssConfig.hintsEnabled()
                 && !hintsService.handoff(writableHintsStore, previousRoster, adoptedRoster, preparedRosterHash)) {
             throw new IllegalStateException("Prepared hinTS construction failed to promote with the adopted roster");

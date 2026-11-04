@@ -368,12 +368,6 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
 
     @Override
     public boolean handoff(
-            @NonNull final Roster fromRoster, @Nullable final Roster toRoster, @Nullable final Bytes toRosterHash) {
-        return handoff(fromRoster, toRoster, toRosterHash, null);
-    }
-
-    @Override
-    public boolean handoff(
             @NonNull final Roster fromRoster,
             @Nullable final Roster toRoster,
             @Nullable final Bytes toRosterHash,
@@ -397,21 +391,20 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
         // The queue and paired constructions use the same writable savepoint. A failed
         // transaction rolls them back together; retries cannot enqueue the cleared next slot.
         if (upcomingConstruction.hasKeyProvenance()) {
+            requireNonNull(activationTime, "A newly adopted signing generation requires its activation time");
             final var provenance = upcomingConstruction.keyProvenanceOrThrow();
             final var key = new ProtoLong(provenance.targetHintsConstructionId());
             final var existing = keyWitnesses.get(key);
-            if (existing != null && !provenance.equals(existing.provenance())) {
-                throw new IllegalStateException("An adopted generation already has different provenance");
+            if (existing != null) {
+                throw new IllegalStateException("A signing generation cannot be adopted more than once");
             }
             keyProvenance.add(provenance);
-            if (existing == null) {
-                keyWitnesses.put(
-                        key,
-                        HintsKeyWitnessRecord.newBuilder()
-                                .provenance(provenance)
-                                .activationTime(activationTime == null ? null : asTimestamp(activationTime))
-                                .build());
-            }
+            keyWitnesses.put(
+                    key,
+                    HintsKeyWitnessRecord.newBuilder()
+                            .provenance(provenance)
+                            .activationTime(asTimestamp(activationTime))
+                            .build());
         }
         // The next construction is becoming the active one; so purge obsolete votes now
         final var obsoleteConstruction = requireNonNull(activeConstruction.get());

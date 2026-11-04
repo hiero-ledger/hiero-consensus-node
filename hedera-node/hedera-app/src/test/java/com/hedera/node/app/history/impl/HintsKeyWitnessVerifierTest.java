@@ -29,6 +29,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -80,7 +81,6 @@ class HintsKeyWitnessVerifierTest {
     void malformedStructureIsRejectedBeforeNativeVerification() {
         final var valid = witness(BlockHashAlgorithm.SHA2_256);
         final var malformed = List.of(
-                valid.copyBuilder().targetHintsConstructionId(0L).build(),
                 valid.copyBuilder().timestamp((Timestamp) null).build(),
                 valid.copyBuilder().timestamp(new Timestamp(0, 0)).build(),
                 valid.copyBuilder().timestamp(new Timestamp(-1, 0)).build(),
@@ -101,6 +101,18 @@ class HintsKeyWitnessVerifierTest {
         assertFalse(subject.verify(valid, null));
         assertFalse(subject.verify(valid, Bytes.EMPTY));
         verifyNoInteractions(library);
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {0, 1, 999, -1, Long.MIN_VALUE})
+    void unsignedConstructionIdDoesNotAffectCryptographicVerification(final long constructionId) {
+        final var witness = witness(BlockHashAlgorithm.SHA2_256);
+        given(library.verifyAggregate(SIGNATURE, HintsKeyWitnessVerifier.rootHash(witness), VK, 1, 3))
+                .willReturn(true);
+        final var relabeled =
+                witness.copyBuilder().targetHintsConstructionId(constructionId).build();
+        assertTrue(HintsKeyWitnessVerifier.hasValidStructure(relabeled));
+        assertTrue(subject.verify(relabeled, VK));
     }
 
     @Test

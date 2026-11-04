@@ -28,6 +28,7 @@ import com.hedera.node.app.history.WritableHistoryStore;
 import com.hedera.node.app.history.handlers.HistoryProofKeyPublicationHandler;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.CommittableWritableStates;
 import java.util.List;
@@ -50,6 +51,10 @@ class DurableProvenanceFlowTest {
         final var state = stateWithPreparedCandidate(certificate);
         final var store = new WritableHistoryStoreImpl(state.getWritableStates(HistoryService.NAME));
         final var context = mock(HandleContext.class);
+        when(context.configuration())
+                .thenReturn(HederaTestConfigBuilder.create()
+                        .withValue("tss.forceMockSignatures", false)
+                        .getOrCreateConfig());
         final var storeFactory = mock(StoreFactory.class);
         when(context.storeFactory()).thenReturn(storeFactory);
         when(storeFactory.writableStore(WritableHistoryStore.class)).thenReturn(store);

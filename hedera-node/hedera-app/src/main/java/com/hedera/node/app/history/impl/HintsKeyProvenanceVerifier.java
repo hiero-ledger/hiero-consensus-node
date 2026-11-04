@@ -14,17 +14,30 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Reference acceptance rule for gas-bounded provenance catch-up. This class does not mutate an anchor; callers may
+ * Reference acceptance rule for endpoint and EVM implementations of gas-bounded provenance catch-up; the node runtime
+ * does not call this class. This class does not mutate an anchor; callers may
  * commit the returned checkpoint only after a whole batch succeeds. A consumer's CLPR message freshness policy is a
  * separate check and must not be applied to historical key witnesses.
  */
 public final class HintsKeyProvenanceVerifier {
-    /** An independently trusted key and the last authenticated timestamp committed for that key chain. */
+    /**
+     * An independently trusted key and the last authenticated witness timestamp committed for that key chain.
+     * Restore this pair from a previously committed checkpoint. For an initially trusted key without an authenticated
+     * timestamp, use {@link #fromTrustedKey(Bytes)}; registration time and the local clock are not witness timestamps.
+     */
     public record Checkpoint(
             @NonNull Bytes verificationKey, @NonNull Timestamp witnessedAt) {
         public Checkpoint {
             requireNonNull(verificationKey);
             requireNonNull(witnessedAt);
+        }
+
+        /**
+         * Starts catch-up from an independently trusted key without imposing a wall-clock lower bound on its history.
+         * Epoch is a sentinel, not an assertion that this key signed at that time; valid witnesses occur after epoch.
+         */
+        public static @NonNull Checkpoint fromTrustedKey(@NonNull final Bytes verificationKey) {
+            return new Checkpoint(verificationKey, Timestamp.DEFAULT);
         }
     }
 
@@ -38,7 +51,8 @@ public final class HintsKeyProvenanceVerifier {
      * Verifies at most {@code maxLinks} adjacent certificates and a witness for the final key. Intermediate keys need
      * not have witnesses. Every source key must match the preceding actual key; unsigned construction identifiers are
      * never used to establish order or trust. Historical witnesses are allowed, but the authenticated timestamp must
-     * advance beyond the committed checkpoint to prevent replay of a previously accepted batch.
+     * advance beyond the committed checkpoint as an ordering policy. Key continuity supplies authorization; timestamp
+     * monotonicity does not independently authenticate key rotation or replace certificate verification.
      */
     public @NonNull Optional<Checkpoint> verifyBatch(
             @NonNull final Checkpoint trusted,

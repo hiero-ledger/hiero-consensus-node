@@ -8,6 +8,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
@@ -31,7 +32,9 @@ import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -84,11 +87,20 @@ class HistoryProofKeyPublicationHandlerTest {
     @Mock
     private PureChecksContext pureChecksContext;
 
+    @Mock
+    private Configuration configuration;
+
+    @Mock
+    private TssConfig tssConfig;
+
     private HistoryProofKeyPublicationHandler subject;
 
     @BeforeEach
     void setUp() {
         subject = new HistoryProofKeyPublicationHandler(controllers, witnessVerifier);
+        lenient().when(context.configuration()).thenReturn(configuration);
+        lenient().when(preHandleContext.configuration()).thenReturn(configuration);
+        lenient().when(configuration.getConfigData(TssConfig.class)).thenReturn(tssConfig);
     }
 
     @Test
@@ -198,6 +210,131 @@ class HistoryProofKeyPublicationHandlerTest {
         verifyNoInteractions(witnessVerifier);
     }
 
+    @Test
+    void ignoresWitnessesInMockModeWithoutReadingRecordsOrVerifying() throws Exception {
+        final var witness = witnessAt(CONSENSUS_NOW.minusSeconds(1));
+        final var body = TransactionBody.newBuilder()
+                .historyProofKeyPublication(
+                        HistoryProofKeyPublicationTransactionBody.newBuilder().keyWitness(witness))
+                .build();
+        given(context.body()).willReturn(body);
+        given(preHandleContext.body()).willReturn(body);
+        given(context.storeFactory()).willReturn(factory);
+        given(factory.writableStore(WritableHistoryStore.class)).willReturn(store);
+        given(tssConfig.forceMockSignatures()).willReturn(true);
+
+        subject.preHandle(preHandleContext);
+        subject.handle(context);
+
+        verify(preHandleContext, never()).createStore(any());
+        verifyNoInteractions(store, witnessVerifier, controllers);
+    }
+
+    @Test
+    void preHandleCachesSuccessfulCryptoButHandleStillChecksCurrentState() throws Exception {
+        final var witness = witnessAt(CONSENSUS_NOW.minusSeconds(1));
+        final var record = witnessRecord(null);
+        givenWitnessPublication(witness, record);
+        givenPreHandleWitnessPublication();
+        given(witnessVerifier.verify(witness, record.provenanceOrThrow().targetVerificationKey()))
+                .willReturn(true);
+
+        subject.preHandle(preHandleContext);
+        subject.handle(context);
+        verify(witnessVerifier, times(1))
+                .verify(witness, record.provenanceOrThrow().targetVerificationKey());
+        verify(store).setKeyWitness(witness);
+
+        given(store.getKeyWitnessRecord(CONSTRUCTION_ID))
+                .willReturn(record.copyBuilder().witness(witness).build());
+        subject.handle(context);
+        verify(store, times(1)).setKeyWitness(witness);
+        verify(witnessVerifier, times(1)).verify(any(), any());
+    }
+
+    @Test
+    void negativeCryptoResultsAreCachedAcrossPreHandleAndHandle() throws Exception {
+        final var witness = witnessAt(CONSENSUS_NOW.minusSeconds(1));
+        final var record = witnessRecord(null);
+        givenWitnessPublication(witness, record);
+        givenPreHandleWitnessPublication();
+
+        subject.preHandle(preHandleContext);
+        subject.handle(context);
+        subject.preHandle(preHandleContext);
+        subject.handle(context);
+
+        verify(witnessVerifier, times(1))
+                .verify(witness, record.provenanceOrThrow().targetVerificationKey());
+        verify(store, never()).setKeyWitness(any());
+    }
+
+    @Test
+    void preHandleResultCannotAuthorizeADifferentVerificationKey() throws Exception {
+        final var witness = witnessAt(CONSENSUS_NOW.minusSeconds(1));
+        final var record = witnessRecord(null);
+        givenWitnessPublication(witness, record);
+        givenPreHandleWitnessPublication();
+        given(witnessVerifier.verify(witness, record.provenanceOrThrow().targetVerificationKey()))
+                .willReturn(true);
+        subject.preHandle(preHandleContext);
+
+        final var changedKey = Bytes.wrap("different adopted key");
+        given(store.getKeyWitnessRecord(CONSTRUCTION_ID))
+                .willReturn(record.copyBuilder()
+                        .provenance(record.provenanceOrThrow().copyBuilder().targetVerificationKey(changedKey))
+                        .build());
+        subject.handle(context);
+
+        verify(witnessVerifier).verify(witness, changedKey);
+        verify(store, never()).setKeyWitness(any());
+    }
+
+    @Test
+    void adoptionAfterPreHandleStillVerifiesDeterministicallyAtHandle() throws Exception {
+        final var witness = witnessAt(CONSENSUS_NOW.minusSeconds(1));
+        final var record = witnessRecord(null);
+        givenWitnessPublication(witness, null);
+        givenPreHandleWitnessPublication();
+        subject.preHandle(preHandleContext);
+        verifyNoInteractions(witnessVerifier);
+
+        given(store.getKeyWitnessRecord(CONSTRUCTION_ID)).willReturn(record);
+        given(witnessVerifier.verify(witness, record.provenanceOrThrow().targetVerificationKey()))
+                .willReturn(true);
+        subject.handle(context);
+
+        verify(witnessVerifier).verify(witness, record.provenanceOrThrow().targetVerificationKey());
+        verify(store).setKeyWitness(witness);
+    }
+
+    @Test
+    void cryptographicProofWithZeroBookkeepingIdCannotCreateNativeRecord() throws Exception {
+        final var witness = witnessAt(CONSENSUS_NOW.minusSeconds(1))
+                .copyBuilder()
+                .targetHintsConstructionId(0)
+                .build();
+        final var record = witnessRecord(null);
+        givenWitnessPublication(
+                witness,
+                record.copyBuilder()
+                        .provenance(record.provenanceOrThrow().copyBuilder().targetHintsConstructionId(0))
+                        .build());
+        givenPreHandleWitnessPublication();
+
+        subject.preHandle(preHandleContext);
+        subject.handle(context);
+
+        verifyNoInteractions(witnessVerifier);
+        verify(store, never()).setKeyWitness(any());
+    }
+
+    private void givenPreHandleWitnessPublication() {
+        final var body = context.body();
+        given(preHandleContext.body()).willReturn(body);
+        given(preHandleContext.createStore(ReadableHistoryStore.class)).willReturn(store);
+    }
+
     private static HintsKeyWitness witnessAt(final Instant time) {
         return HintsKeyWitness.newBuilder()
                 .targetHintsConstructionId(CONSTRUCTION_ID)
@@ -237,6 +374,11 @@ class HistoryProofKeyPublicationHandlerTest {
 
     @Test
     void pureChecksAndPreHandleDoNothing() {
+        given(preHandleContext.body())
+                .willReturn(TransactionBody.newBuilder()
+                        .historyProofKeyPublication(HistoryProofKeyPublicationTransactionBody.newBuilder()
+                                .proofKey(PROOF_KEY))
+                        .build());
         assertDoesNotThrow(() -> subject.pureChecks(pureChecksContext));
         assertDoesNotThrow(() -> subject.preHandle(preHandleContext));
     }
