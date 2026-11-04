@@ -126,12 +126,12 @@ public class FalconNetwork extends SimulatedNetwork implements TimeTickReceiver 
                 timeManager,
                 nodeId,
                 keysAndCerts,
-                simulatedNetworkConnectivity,
+                gossipNetwork,
                 networkConfiguration,
                 consensusRoundPool,
                 transactionShape,
                 signingSchema != null);
-        simulatedNetworkConnectivity.addNode(node.getNodeId(), node);
+        addEventReceiver(node);
         return node;
     }
 
@@ -156,11 +156,11 @@ public class FalconNetwork extends SimulatedNetwork implements TimeTickReceiver 
                 timeManager.time(),
                 nodeId,
                 keysAndCerts,
-                simulatedNetworkConnectivity,
+                gossipNetwork,
                 networkConfiguration,
                 transactionShape,
                 signingSchema != null);
-        simulatedNetworkConnectivity.addNode(node.getNodeId(), node);
+        addEventReceiver(node);
         return node;
     }
 
@@ -267,7 +267,7 @@ public class FalconNetwork extends SimulatedNetwork implements TimeTickReceiver 
             return;
         }
 
-        simulatedNetworkConnectivity.tick(now);
+        simulatedNetworkConnectivity().tick(now);
 
         for (final MiniNode node : allNodes()) {
             final TimeTickReceiver tickReceiver = (TimeTickReceiver) node;

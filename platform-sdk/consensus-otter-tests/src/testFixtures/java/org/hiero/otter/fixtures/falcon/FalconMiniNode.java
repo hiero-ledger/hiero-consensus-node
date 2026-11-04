@@ -40,7 +40,7 @@ import org.hiero.otter.fixtures.internal.AbstractMiniNode;
 import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
 import org.hiero.otter.fixtures.internal.NetworkConfiguration;
 import org.hiero.otter.fixtures.network.simulation.EventReceiver;
-import org.hiero.otter.fixtures.network.simulation.SimulatedNetworkConnectivity;
+import org.hiero.otter.fixtures.network.simulation.GossipNetwork;
 import org.hiero.otter.fixtures.util.SecureRandomBuilder;
 
 @SuppressWarnings("ForLoopReplaceableByForEach")
@@ -53,7 +53,7 @@ public class FalconMiniNode extends AbstractMiniNode implements MiniNode, TimeTi
     private final Time time;
 
     /** The network connectivity for this node. */
-    private final SimulatedNetworkConnectivity networkConnectivity;
+    private final GossipNetwork gossipNetwork;
 
     /** The configuration for this node. */
     private final NodeConfiguration nodeConfiguration;
@@ -91,7 +91,7 @@ public class FalconMiniNode extends AbstractMiniNode implements MiniNode, TimeTi
      * @param time the time source
      * @param selfId the ID of this node
      * @param keysAndCerts the keys and certificates of this node
-     * @param networkConnectivity the simulated network connectivity
+     * @param gossipNetwork the simulated network this node gossips on
      * @param networkConfiguration the network configuration
      * @param transactionShape the shape the transactions of created events are drawn from, or {@code null} for empty events
      * @param signEvents whether this node signs its events with its own key
@@ -101,7 +101,7 @@ public class FalconMiniNode extends AbstractMiniNode implements MiniNode, TimeTi
             @NonNull final Time time,
             @NonNull final NodeId selfId,
             @NonNull final KeysAndCerts keysAndCerts,
-            @NonNull final SimulatedNetworkConnectivity networkConnectivity,
+            @NonNull final GossipNetwork gossipNetwork,
             @NonNull final NetworkConfiguration networkConfiguration,
             @Nullable final EventShape transactionShape,
             final boolean signEvents) {
@@ -109,7 +109,7 @@ public class FalconMiniNode extends AbstractMiniNode implements MiniNode, TimeTi
 
         this.random = requireNonNull(random);
         this.time = requireNonNull(time);
-        this.networkConnectivity = requireNonNull(networkConnectivity);
+        this.gossipNetwork = requireNonNull(gossipNetwork);
         this.nodeConfiguration =
                 new FalconNodeConfiguration(() -> lifeCycle, networkConfiguration.overrideProperties());
         this.transactionShape = transactionShape;
@@ -142,7 +142,7 @@ public class FalconMiniNode extends AbstractMiniNode implements MiniNode, TimeTi
             currentEventWindow = eventWindow;
             final List<PlatformEvent> orderedEvents = intake.setEventWindow(eventWindow);
             eventCreationManager.setEventWindow(eventWindow);
-            networkConnectivity.updateEventWindow(selfId, eventWindow);
+            gossipNetwork.updateEventWindow(selfId, eventWindow);
             registerAndSubmit(orderedEvents);
         }
         return true;
@@ -160,7 +160,7 @@ public class FalconMiniNode extends AbstractMiniNode implements MiniNode, TimeTi
             final PlatformEvent orderedEvent = orderedEvents.get(i);
             eventCreationManager.registerEvent(orderedEvent);
             orderedEvent.setSenderId(selfId);
-            networkConnectivity.submitEvent(orderedEvent);
+            gossipNetwork.submitEvent(orderedEvent);
         }
     }
 
