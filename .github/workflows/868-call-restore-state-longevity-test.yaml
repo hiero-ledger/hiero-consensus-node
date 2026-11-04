@@ -1432,7 +1432,6 @@ jobs:
 
       - name: Unarchive ZSTD files to BN nodes
         if: false
-        if: ${{ !cancelled() }}
         run: |
           set +x
           set +e
