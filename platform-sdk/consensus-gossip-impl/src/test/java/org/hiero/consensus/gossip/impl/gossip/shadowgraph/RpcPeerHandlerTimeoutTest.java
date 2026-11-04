@@ -15,6 +15,7 @@ import java.time.Duration;
 import java.util.List;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.gossip.config.BroadcastConfig;
+import org.hiero.consensus.gossip.config.GossipConfig;
 import org.hiero.consensus.gossip.config.SyncConfig;
 import org.hiero.consensus.gossip.impl.gossip.permits.SyncGuard;
 import org.hiero.consensus.gossip.impl.gossip.rpc.GossipRpcSender;
@@ -41,6 +42,7 @@ class RpcPeerHandlerTimeoutTest {
         final Configuration configuration =
                 new TestConfigBuilder().withValue("sync.maxSyncTime", "30s").getOrCreateConfig();
         final SyncConfig syncConfig = configuration.getConfigData(SyncConfig.class);
+        final GossipConfig gossipConfig = configuration.getConfigData(GossipConfig.class);
         final BroadcastConfig broadcastConfig = configuration.getConfigData(BroadcastConfig.class);
 
         final GossipRpcSender sender = mock(GossipRpcSender.class);
@@ -70,7 +72,9 @@ class RpcPeerHandlerTimeoutTest {
                 syncGuard,
                 mock(FallenBehindMonitor.class),
                 syncConfig,
-                broadcastConfig);
+                gossipConfig,
+                broadcastConfig,
+                EventWindow::getGenesisEventWindow);
 
         // first tick starts a sync; the peer never replies
         handler.checkForPeriodicActions(false, false);
@@ -99,6 +103,7 @@ class RpcPeerHandlerTimeoutTest {
         final Configuration configuration =
                 new TestConfigBuilder().withValue("sync.maxSyncTime", "30s").getOrCreateConfig();
         final SyncConfig syncConfig = configuration.getConfigData(SyncConfig.class);
+        final GossipConfig gossipConfig = configuration.getConfigData(GossipConfig.class);
         final BroadcastConfig broadcastConfig = configuration.getConfigData(BroadcastConfig.class);
 
         final GossipRpcSender sender = mock(GossipRpcSender.class);
@@ -127,7 +132,9 @@ class RpcPeerHandlerTimeoutTest {
                 syncGuard,
                 mock(FallenBehindMonitor.class),
                 syncConfig,
-                broadcastConfig);
+                gossipConfig,
+                broadcastConfig,
+                EventWindow::getGenesisEventWindow);
 
         // start a sync
         handler.checkForPeriodicActions(false, false);

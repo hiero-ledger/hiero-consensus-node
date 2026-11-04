@@ -2,6 +2,7 @@
 package org.hiero.consensus.gossip.impl.gossip.shadowgraph;
 
 import static com.swirlds.logging.legacy.LogMarker.SYNC_INFO;
+import static java.util.Objects.requireNonNull;
 import static org.hiero.base.CompareTo.isGreaterThanOrEqualTo;
 import static org.hiero.consensus.gossip.impl.gossip.shadowgraph.SyncUtils.getMyTipsTheyKnow;
 import static org.hiero.consensus.gossip.impl.gossip.shadowgraph.SyncUtils.getTheirTipsIHave;
@@ -15,6 +16,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -22,6 +24,7 @@ import org.hiero.base.concurrent.throttle.RateLimiter;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.gossip.config.BroadcastConfig;
+import org.hiero.consensus.gossip.config.GossipConfig;
 import org.hiero.consensus.gossip.config.SyncConfig;
 import org.hiero.consensus.gossip.impl.gossip.permits.SyncGuard;
 import org.hiero.consensus.gossip.impl.gossip.rpc.GossipRpcReceiverHandler;
@@ -140,6 +143,12 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
      */
     private boolean syncBreakRequested = false;
 
+    /** A supplier of this node's latest event window. */
+    private final Supplier<EventWindow> eventWindowSupplier;
+
+    /** The number of rounds ahead of the pending round this node is willing to accept. */
+    private final int farFutureEventThreshold;
+
     /**
      * Create new state class for an RPC peer
      *
@@ -155,7 +164,9 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
      * @param fallenBehindMonitor           an instance of the fallenBehind Monitor which tracks if the node has fallen
      *                                      behind
      * @param syncConfig                    sync configuration
+     * @param gossipConfig                  gossip configuration
      * @param broadcastConfig               broadcast configuration
+     * @param eventWindowSupplier           supplier for the current event window
      */
     public RpcPeerHandler(
             @NonNull final ShadowgraphSynchronizer sharedShadowgraphSynchronizer,
@@ -169,7 +180,9 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
             @NonNull final SyncGuard syncGuard,
             @NonNull final FallenBehindMonitor fallenBehindMonitor,
             @NonNull final SyncConfig syncConfig,
-            @NonNull final BroadcastConfig broadcastConfig) {
+            @NonNull final GossipConfig gossipConfig,
+            @NonNull final BroadcastConfig broadcastConfig,
+            @NonNull final Supplier<EventWindow> eventWindowSupplier) {
         this.sharedShadowgraphSynchronizer = Objects.requireNonNull(sharedShadowgraphSynchronizer);
         this.sender = Objects.requireNonNull(sender);
         this.selfId = Objects.requireNonNull(selfId);
@@ -185,6 +198,8 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
         this.lastSyncProgress = time.now();
         this.syncConfig = Objects.requireNonNull(syncConfig);
         this.broadcastConfig = Objects.requireNonNull(broadcastConfig);
+        this.eventWindowSupplier = requireNonNull(eventWindowSupplier);
+        this.farFutureEventThreshold = gossipConfig.farFutureEventThreshold();
     }
 
     /**
@@ -372,6 +387,19 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
     }
 
     /**
+     * Checks if the given event is considered "far future" for this node. Far future events are rejected.
+     *
+     * @param event the event to check
+     * @return true if the event is a far future event
+     */
+    private boolean isFarFutureEvent(@NonNull final GossipEvent event) {
+        requireNonNull(event.eventCore(), "eventCore must not be null in received gossip events");
+        final long maximumAcceptableBirthRound =
+                eventWindowSupplier.get().getPendingConsensusRound() + farFutureEventThreshold;
+        return event.eventCore().birthRound() > maximumAcceptableBirthRound;
+    }
+
+    /**
      * {@inheritDoc}
      */
     @Override
@@ -397,6 +425,11 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
 
         if (ignoreIncomingEvents) {
             // we need to ignore broadcast events if system is unhealthy
+            return;
+        }
+
+        if (isFarFutureEvent(gossipEvent)) {
+            // reject far future events
             return;
         }
 
@@ -574,6 +607,9 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
      * @param gossipEvent event received from the remote peer
      */
     private void handleIncomingSyncEvent(@NonNull final GossipEvent gossipEvent) {
+        if (isFarFutureEvent(gossipEvent)) {
+            return;
+        }
         final PlatformEvent platformEvent = new PlatformEvent(gossipEvent, EventOrigin.GOSSIP);
         platformEvent.setSenderId(peerId);
         this.intakeEventCounter.eventEnteredIntakePipeline(peerId);
