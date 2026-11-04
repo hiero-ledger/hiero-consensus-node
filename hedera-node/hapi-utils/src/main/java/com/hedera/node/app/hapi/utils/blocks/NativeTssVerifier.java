@@ -50,7 +50,7 @@ public class NativeTssVerifier implements TssVerifier {
                     ok);
             return ok;
         } catch (final IllegalArgumentException | IllegalStateException e) {
-            log.warn("NativeTssVerifier.verifyTss rejected proof for ledgerId {}: {}", ledgerId, e.getMessage());
+            log.debug("NativeTssVerifier.verifyTss rejected proof for ledgerId {}: {}", ledgerId, e.getMessage());
             return false;
         }
     }

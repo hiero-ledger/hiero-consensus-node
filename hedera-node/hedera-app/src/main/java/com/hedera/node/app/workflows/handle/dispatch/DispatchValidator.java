@@ -119,10 +119,13 @@ public class DispatchValidator {
         final var category = dispatch.txnCategory();
         // Check payer signature for all batch inner transactions, scheduled, and user transactions
         final var requiresPayerSig = category == SCHEDULED || category == USER || category == BATCH_INNER;
-        if (requiresPayerSig && !isHollow(payer)) {
-            // Skip payer verification for hollow accounts because ingest only submits valid signatures
-            // for hollow payers; and if an account is still hollow here, its alias cannot have changed
-            final var verification = dispatch.keyVerifier().verificationFor(payer.keyOrThrow());
+        if (requiresPayerSig) {
+            // A hollow payer has no key to verify against; it is authorized by a signature from the key behind
+            // its alias. Ingest checks that signature, but a transaction can reach consensus without passing
+            // any node's ingest, so it must be verified here, before the payer is charged
+            final var verification = isHollow(payer)
+                    ? dispatch.keyVerifier().verificationFor(payer.alias())
+                    : dispatch.keyVerifier().verificationFor(payer.keyOrThrow());
             if (verification.failed()) {
                 return newCreatorError(dispatch.creatorInfo().accountId(), INVALID_PAYER_SIGNATURE);
             }
@@ -254,7 +257,7 @@ public class DispatchValidator {
             } else if (payer.deleted()) {
                 return PAYER_ACCOUNT_DELETED;
             }
-            // As above, a hollow payer's signature was already verified at ingest and its alias cannot have changed
+            // A hollow inner payer's alias signature is checked when the inner itself is dispatched
             if (!isHollow(payer)) {
                 final var verifier = new DefaultKeyVerifier(hederaConfig, innerResult.getVerificationResults());
                 if (verifier.verificationFor(payer.keyOrThrow()).failed()) {

@@ -9,6 +9,7 @@
 | 005-user-artifact-determinism.yaml                  | 005: [USER] Artifact Determinism            | flow-artifact-determinism.yaml                        | Artifact Determinism                                              |
 | 006-user-update-gs-state-variable.yaml              | 006: [USER] Update GS State Var             | zxf-update-gs-state-variable.yaml                     | ZXF: Update GS_STATE Variable                                     |
 | 007-user-benchmark-calibration.yaml                 | 007: [USER] Benchmark Calibration           | N/A                                                   | N/A                                                               |
+| 008-user-ethereum-spec-tests.yaml                   | 008: [USER] Ethereum Spec Tests             | N/A                                                   | N/A                                                               |
 |                                                     |                                             |                                                       |                                                                   |
 | # OPERATIONAL (100-199)                             |                                             |                                                       |                                                                   |
 | 100-user-collect-workflow-logs.yaml                 | 100: [USER] Collect Workflow Logs           | zxf-collect-workflow-logs.yaml                        | ZXF: Collect Workflow Run Logs                                    |
@@ -40,7 +41,6 @@
 | 303-disp-deploy-integration.yaml                    | 303: [DISP] Deploy Integration              | node-zxf-deploy-integration.yaml                      | ZXF: [Node] Deploy Integration Network Release                    |
 | 304-flow-publish-yahcli-image.yaml                  | 304: [FLOW] Publish Yahcli Image            | zxf-publish-yahcli-image.yaml                         | ZXC: Publish Yahcli Image                                         |
 | 305-flow-generate-release-notes.yaml                | 305: [FLOW] Generate Rel Notes              | flow-generate-release-notes.yaml                      | Generate Release Notes                                            |
-| 306-flow-snyk-monitor.yaml                          | 306: [FLOW] Snyk Monitor                    | node-zxf-snyk-monitor.yaml                            | ZXF: Snyk Monitor                                                 |
 | 307-disp-build-commit-artifact.yaml                 | 307: [DISP] Build Commit Artifact           |                                                       |                                                                   |
 |                                                     |                                             |                                                       |                                                                   |
 | # RESERVED (400-599)                                |                                             |                                                       |                                                                   |
@@ -56,7 +56,6 @@
 |                                                     |                                             |                                                       |                                                                   |
 | # REUSABLE (800-899)                                |                                             |                                                       |                                                                   |
 | 800-call-mats-tests.yaml                            | 800: [CALL] Exec MATS Tests                 | zxc-mats-tests.yaml                                   | ZXC: Executable MATS Tests                                        |
-| 801-call-snyk-scan.yaml                             | 801: [CALL] Snyk Scan                       | zxc-snyk-scan.yaml                                    | ZXC: Snyk Scan                                                    |
 | 802-call-compile-and-spotless-check.yaml            | 802: [CALL] Compile And Spotless            | zxc-compile-and-spotless-check.yaml                   | ZXC: Compile and Spotless Check                                   |
 | 803-call-execute-unit-tests.yaml                    | 803: [CALL] Exec Unit Tests                 | zxc-execute-unit-tests.yaml                           | ZXC: Execute Unit Tests                                           |
 | 804-call-execute-integration-tests.yaml             | 804: [CALL] Exec Integration Tests          | zxc-execute-integration-tests.yaml                    | ZXC: Execute Integration Tests                                    |
@@ -84,6 +83,7 @@
 | 831-call-single-day-performance-test.yaml           | 831: [CALL] CITR Exec SDPT                  | zxc-single-day-performance-test.yaml                  | ZXC: [CITR] Single Day Performance Test                           |
 | 832-call-execute-performance-test.yaml              | 832: [CALL] CITR Exec Perf Test             | zxc-execute-performance-test.yaml                     | ZXC: [CITR] Execute Performance Test                              |
 | 833-call-single-day-longevity-test.yaml             | 833: [CALL] CITR Exec SDLT                  | zxc-single-day-longevity-test.yaml                    | ZXC: [CITR] Single Day Longevity Test                             |
+| 834-call-sdct-follow.yaml                           | 834: [CALL] CITR SDCT Follow                |                                                       |                                                                   |
 | 835-call-multi-day-longevity-test.yaml              | 835: [CALL] CITR Exec MDLT                  |                                                       |                                                                   |
 | 836-call-execute-hapi-misc.yaml                     | 836: [CALL] Exec HAPI Misc                  | N/A                                                   | N/A                                                               |
 | 837-call-execute-hapi-misc-records-crypto.yaml      | 837: [CALL] Exec HAPI Rec Crypto            | N/A                                                   | N/A                                                               |
@@ -116,6 +116,8 @@
 | 864-call-report-suite-result.yaml                   | 864: [CALL] Report Suite Result             |                                                       |                                                                   |
 | 870-call-execute-hapi-clpr.yaml                     | 870: [CALL] Exec HAPI CLPR                  | N/A                                                   | N/A                                                               |
 | 871-call-evm-functional-tests.yaml                  | 871: [CALL] EVM Functional Tests            | N/A                                                   | N/A                                                               |
+| 872-call-execute-otter-falcon.yaml                  | 872: [CALL] Exec Falcon Tests               | N/A                                                   | N/A                                                               |
+| 873-call-ethereum-spec-tests.yaml                   | 873: [CALL] Ethereum Spec Tests             | N/A                                                   | N/A                                                               |
 |                                                     |                                             |                                                       |                                                                   |
 | # CRON (900-999)                                    |                                             |                                                       |                                                                   |
 | 900-cron-extended-test-suite.yaml                   | 900: [CRON] CITR Ext Test Suite             | zxcron-extended-test-suite.yaml                       | ZXCron: [CITR] Extended Test Suite                                |
@@ -133,9 +135,9 @@
 
 - **Within REUSABLE (800-899)** the sub-blocks are conventional, not enforced: 800-809 MATS driver
   and shared building blocks; 810-814 MATS-specific callees; 815-830 XTS driver, panels and
-  XTS-specific callees; 831-833 CITR SDPT/SDLT; 836-849 consumer-neutral per-suite test leaves;
-  850-853 release; 854-864 utilities and Chewie. A callee that belongs to one consumer should be
-  numbered in that consumer's block; per-suite leaves are neutral and are not.
+  XTS-specific callees; 831-835 CITR SDPT, SDLT, SDCT and MDLT; 836-849 consumer-neutral
+  per-suite test leaves; 850-853 release; 854-864 utilities and Chewie. A callee that belongs to
+  one consumer should be numbered in that consumer's block; per-suite leaves are neutral and are not.
 
 - **The contiguous space below 850 is now exhausted.** The next batch of leaf workflows starts at
   **870**, on a clean ten boundary. 813-814 and 830 are reserved for MATS- and XTS-specific

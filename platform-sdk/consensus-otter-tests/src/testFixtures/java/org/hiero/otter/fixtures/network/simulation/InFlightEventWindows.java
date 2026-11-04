@@ -3,6 +3,7 @@ package org.hiero.otter.fixtures.network.simulation;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.Map;
 import java.util.function.BiPredicate;
 import org.hiero.consensus.model.node.NodeId;
@@ -27,12 +28,16 @@ public class InFlightEventWindows extends InFlightConnections<EventWindowInTrans
     /**
      * Constructor.
      *
+     * @param nodeIds   the ids of all nodes in the network, in any order
      * @param connected reports whether the connection from a sender to a receiver is currently up
      * @param start     the instant arrival times are measured from, which should be close to the start of the
      *                  simulation
      */
-    public InFlightEventWindows(@NonNull final BiPredicate<NodeId, NodeId> connected, @NonNull final Instant start) {
-        super(connected, start);
+    public InFlightEventWindows(
+            @NonNull final Collection<NodeId> nodeIds,
+            @NonNull final BiPredicate<NodeId, NodeId> connected,
+            @NonNull final Instant start) {
+        super(nodeIds, connected, start);
     }
 
     /**

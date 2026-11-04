@@ -213,6 +213,7 @@ public class ChildDispatchFactory {
                 stack, options.reversingBehavior(), options.category(), options.signedTxCustomizer(), streamMode);
         final var streamBuilder =
                 initializedForChild(childStack.getBaseBuilder(StreamBuilder.class), requireNonNull(childTxnInfo));
+        childStack.configureEvmTraceForNestedDispatch();
         // A dispatch made after the batch inner that caused it has already unwound cannot have its owner inferred
         // from the stack, so the caller names that owner explicitly here
         options.dispatchMetadata()
