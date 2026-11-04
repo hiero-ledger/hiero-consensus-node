@@ -271,7 +271,8 @@ class BesuQBFTVerifyBundleCallTest extends CallTestBase {
      */
     private Call.PricedResult executeWith(final BesuQbftVerifier.VerifiedBundle verified, final byte[] channelContext) {
         try (final MockedConstruction<BesuQbftVerifier> ignored = mockConstruction(
-                BesuQbftVerifier.class, (mock, ctx) -> given(mock.verifyBundle(any(), any(), aryEq(CHANNEL_ID)))
+                BesuQbftVerifier.class,
+                (mock, ctx) -> given(mock.verifyBundle(any(), any(), aryEq(CHANNEL_ID)))
                         .willReturn(verified))) {
             return new BesuQBFTVerifyBundleCall(
                             mockEnhancement(),
