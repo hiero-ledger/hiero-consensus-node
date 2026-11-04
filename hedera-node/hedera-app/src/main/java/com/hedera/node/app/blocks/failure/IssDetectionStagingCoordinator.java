@@ -250,18 +250,17 @@ public class IssDetectionStagingCoordinator {
                 .getConfiguration()
                 .getConfigData(BlockStreamConfig.class)
                 .writerMode();
-        List<Path> files =
-                switch (writerMode) {
-                    // FILE modes resolve from disk. The detection path polls until the (possibly still-open) block
-                    // becomes durable; the halt path resolves once (the block was already flushed, and we must not
-                    // stall the shutdown waiting for one that will not appear).
-                    case FILE, FILE_AND_GRPC ->
-                        materializeFromDisk(resolveFromDisk(config, round, pollForDurability), incidentDir);
-                    // The ISS-round block is normally still buffered: a block node never acknowledges a diverged ISS
-                    // block, and an unacknowledged block is not pruned under BLOCKS-mode back pressure. Capture it if
-                    // present, else fall through to the pointer marker below.
-                    case GRPC -> bufferReader.captureToDir(round, config.precedingBlocks(), incidentDir);
-                };
+        List<Path> files = switch (writerMode) {
+            // FILE modes resolve from disk. The detection path polls until the (possibly still-open) block
+            // becomes durable; the halt path resolves once (the block was already flushed, and we must not
+            // stall the shutdown waiting for one that will not appear).
+            case FILE, FILE_AND_GRPC ->
+                materializeFromDisk(resolveFromDisk(config, round, pollForDurability), incidentDir);
+            // The ISS-round block is normally still buffered: a block node never acknowledges a diverged ISS
+            // block, and an unacknowledged block is not pruned under BLOCKS-mode back pressure. Capture it if
+            // present, else fall through to the pointer marker below.
+            case GRPC -> bufferReader.captureToDir(round, config.precedingBlocks(), incidentDir);
+        };
         // GRPC last-resort fallback: if the ISS block is somehow NOT in the buffer, stage a plain-text pointer instead
         // of preserving nothing. Under normal operation this should NOT be reached (see above) — it is a regression
         // guard, logged at WARN.

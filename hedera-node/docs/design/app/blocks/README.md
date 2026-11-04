@@ -111,8 +111,8 @@ The timestamp folder is a UTC `yyyy-MM-dd'T'HH-mm-ss'Z'` instant, e.g.:
 
 Staged file extensions: `.blk.gz` (complete block), `.pnd.gz` + `.pnd.json` (pending block contents + proof sidecar),
 `.open.gz` (open block flushed at failure), `.iss.gz` (ISS-round block reconstructed from the in-memory buffer in
-`GRPC` mode), and `.txt` (a last-resort pointer with the block-node endpoint + ack watermark, staged only when a `GRPC`
-ISS block is no longer buffered). Every artifact is written to a `.tmp` sibling and then atomically renamed into place,
+`GRPC` mode), and `.txt` (a last-resort pointer with local diagnostic metadata — ISS round, writer mode and buffer
+watermarks — staged only when a `GRPC` ISS block is no longer buffered). Every artifact is written to a `.tmp` sibling and then atomically renamed into place,
 so the uploader must **ignore `.tmp`** and match only the final extensions.
 
 ### DevOps prerequisites (required before anything ships)

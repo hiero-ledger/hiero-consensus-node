@@ -21,8 +21,8 @@ import java.time.Duration;
  * <p>In {@code blockStream.writerMode=GRPC} the ISS-round block lives only in the in-memory block buffer, so its
  * detection-time capture is best-effort: it is staged if still buffered (a block node does not acknowledge the ISS
  * block, and an unacknowledged block is not pruned while back pressure is enabled — {@code streamMode=BLOCKS} — so it is
- * normally still present), otherwise a small pointer {@code .txt} — with the data needed to find the block on the block
- * node — is staged instead.
+ * normally still present), otherwise a small pointer {@code .txt} with local diagnostic metadata (ISS round, writer mode
+ * and buffer watermarks) is staged instead.
  *
  * <p><b>TODO(devops) — DEV-OPS RESPONSIBILITY, required before this feature does anything in a real deployment.</b> The
  * two items below are deployment (NMT / compose) actions, NOT code changes; until both are done the node stages the

@@ -63,7 +63,7 @@ public interface BlockItemWriter {
      * an incomplete final round — e.g. read each round by its leading {@code RoundHeader} rather than assuming a clean
      * round boundary at end-of-file.
      *
-     * @return the path of the flushed {@code .iss.gz} triage artifact, or {@code null} if nothing was written
+     * @return the path of the flushed {@code .open.gz} triage artifact, or {@code null} if nothing was written
      */
     @Nullable
     Path flushIncompleteBlock();
