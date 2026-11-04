@@ -223,7 +223,7 @@ if the E2E SLA is met. It runs on a large, mainnet-like environment.
     completion with [sdct-wait.sh](/.github/workflows/support/scripts/sdct-wait.sh)
   - A full run lasts about a day, longer than the 6 h runner job limit. `canonical-test` ends as soon as the Jenkins
     build has started; the build is then followed by a chain of jobs of at most 330 minutes each (`follow-1` …
-    `follow-6` through [864: [CALL] CITR SDCT Follow](/.github/workflows/864-call-sdct-follow.yaml)), and the
+    `follow-6` through [834: [CALL] CITR SDCT Follow](/.github/workflows/834-call-sdct-follow.yaml)), and the
     `SDCT Verdict` job decides the result
   - The workflow selects one of the SDCT tests: `sdct` (the full test, default), `mini` (the same flow in about two
     hours, for debugging and verification) or `custom` (an ad hoc test); each test is a profile of the test driver

@@ -83,6 +83,7 @@
 | 831-call-single-day-performance-test.yaml           | 831: [CALL] CITR Exec SDPT                  | zxc-single-day-performance-test.yaml                  | ZXC: [CITR] Single Day Performance Test                           |
 | 832-call-execute-performance-test.yaml              | 832: [CALL] CITR Exec Perf Test             | zxc-execute-performance-test.yaml                     | ZXC: [CITR] Execute Performance Test                              |
 | 833-call-single-day-longevity-test.yaml             | 833: [CALL] CITR Exec SDLT                  | zxc-single-day-longevity-test.yaml                    | ZXC: [CITR] Single Day Longevity Test                             |
+| 834-call-sdct-follow.yaml                           | 834: [CALL] CITR SDCT Follow                |                                                       |                                                                   |
 | 835-call-multi-day-longevity-test.yaml              | 835: [CALL] CITR Exec MDLT                  |                                                       |                                                                   |
 | 836-call-execute-hapi-misc.yaml                     | 836: [CALL] Exec HAPI Misc                  | N/A                                                   | N/A                                                               |
 | 837-call-execute-hapi-misc-records-crypto.yaml      | 837: [CALL] Exec HAPI Rec Crypto            | N/A                                                   | N/A                                                               |
@@ -134,9 +135,9 @@
 
 - **Within REUSABLE (800-899)** the sub-blocks are conventional, not enforced: 800-809 MATS driver
   and shared building blocks; 810-814 MATS-specific callees; 815-830 XTS driver, panels and
-  XTS-specific callees; 831-833 CITR SDPT/SDLT; 836-849 consumer-neutral per-suite test leaves;
-  850-853 release; 854-864 utilities and Chewie. A callee that belongs to one consumer should be
-  numbered in that consumer's block; per-suite leaves are neutral and are not.
+  XTS-specific callees; 831-835 CITR SDPT, SDLT, SDCT and MDLT; 836-849 consumer-neutral
+  per-suite test leaves; 850-853 release; 854-864 utilities and Chewie. A callee that belongs to
+  one consumer should be numbered in that consumer's block; per-suite leaves are neutral and are not.
 
 - **The contiguous space below 850 is now exhausted.** The next batch of leaf workflows starts at
   **870**, on a clean ten boundary. 813-814 and 830 are reserved for MATS- and XTS-specific

@@ -1005,6 +1005,9 @@ the Besu, Sei, and Ethereum verifiers accept an empty manifest proof.
 
 `generate-connector-identity` produces the matching JSON bundle for `complete-connector`.
 
+`register-connector` requires `--channel-id <hex>` and `--commitment <hex>`, both 32 bytes.
+The channel must already exist. The connector identity remains hidden until `complete-connector`.
+
 ### Bundles and messages
 
 |       Command        |                                                        Description                                                         |
