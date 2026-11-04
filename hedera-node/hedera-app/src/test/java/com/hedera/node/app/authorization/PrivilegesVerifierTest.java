@@ -118,49 +118,26 @@ class PrivilegesVerifierTest {
 
     @ParameterizedTest
     @MethodSource("foreignShardOrRealmPayers")
-    void privilegedAccountNumberOnForeignShardOrRealmIsNotPrivileged(final long shard, final long realm) {
-        final var freezeBody = com.hedera.hapi.node.transaction.TransactionBody.newBuilder()
-                .freeze(com.hedera.hapi.node.freeze.FreezeTransactionBody.DEFAULT)
-                .build();
-        final var fileUpdateBody = com.hedera.hapi.node.transaction.TransactionBody.newBuilder()
-                .fileUpdate(com.hedera.hapi.node.file.FileUpdateTransactionBody.newBuilder()
-                        .fileID(com.hedera.hapi.node.base.FileID.newBuilder()
-                                .fileNum(112L)
-                                .build())
-                        .build())
-                .build();
-        final var verifier =
-                new PrivilegesVerifier(() -> new VersionedConfigImpl(HederaTestConfigBuilder.createConfig(), 1L));
+    void privilegedAccountNumberOnForeignShardOrRealmIsNotPrivileged(final long shard, final long realm)
+            throws InvalidProtocolBufferException {
+        final var freeze = treasuryTxn().setFreeze(FreezeTransactionBody.getDefaultInstance());
+        final var fileUpdate =
+                treasuryTxn().setFileUpdate(FileUpdateTransactionBody.newBuilder().setFileID(file(112)));
         for (final long num : new long[] {TREASURY, SYSTEM_ADMIN, FREEZE_ADMIN}) {
             assertEquals(
-                    SystemPrivilege.AUTHORIZED,
-                    verifier.hasPrivileges(localPayer(num), HederaFunctionality.FREEZE, freezeBody));
+                    SystemOpAuthorization.AUTHORIZED, subject.authForTestCase(accessorWithPayer(freeze, account(num))));
             assertEquals(
-                    SystemPrivilege.UNAUTHORIZED,
-                    verifier.hasPrivileges(foreignPayer(shard, realm, num), HederaFunctionality.FREEZE, freezeBody));
+                    SystemOpAuthorization.UNAUTHORIZED,
+                    subject.authForTestCase(accessorWithPayer(freeze, account(shard, realm, num))));
         }
         for (final long num : new long[] {TREASURY, SYSTEM_ADMIN, EXCHANGE_RATES_ADMIN}) {
             assertEquals(
-                    SystemPrivilege.AUTHORIZED,
-                    verifier.hasPrivileges(localPayer(num), HederaFunctionality.FILE_UPDATE, fileUpdateBody));
+                    SystemOpAuthorization.AUTHORIZED,
+                    subject.authForTestCase(accessorWithPayer(fileUpdate, account(num))));
             assertEquals(
-                    SystemPrivilege.UNAUTHORIZED,
-                    verifier.hasPrivileges(
-                            foreignPayer(shard, realm, num), HederaFunctionality.FILE_UPDATE, fileUpdateBody));
+                    SystemOpAuthorization.UNAUTHORIZED,
+                    subject.authForTestCase(accessorWithPayer(fileUpdate, account(shard, realm, num))));
         }
-    }
-
-    private static com.hedera.hapi.node.base.AccountID localPayer(final long num) {
-        return com.hedera.hapi.node.base.AccountID.newBuilder().accountNum(num).build();
-    }
-
-    private static com.hedera.hapi.node.base.AccountID foreignPayer(
-            final long shard, final long realm, final long num) {
-        return com.hedera.hapi.node.base.AccountID.newBuilder()
-                .shardNum(shard)
-                .realmNum(realm)
-                .accountNum(num)
-                .build();
     }
 
     static Stream<Arguments> foreignShardOrRealmPayers() {
@@ -168,60 +145,68 @@ class PrivilegesVerifierTest {
     }
 
     @Test
-    void treasuryOnForeignShardCannotUpdateSystemAccounts() {
-        final var verifier =
-                new PrivilegesVerifier(() -> new VersionedConfigImpl(HederaTestConfigBuilder.createConfig(), 1L));
-        final var body = com.hedera.hapi.node.transaction.TransactionBody.newBuilder()
-                .cryptoUpdateAccount(com.hedera.hapi.node.token.CryptoUpdateTransactionBody.newBuilder()
-                        .accountIDToUpdate(com.hedera.hapi.node.base.AccountID.newBuilder()
-                                .accountNum(SYSTEM_ADMIN)
-                                .build())
-                        .build())
-                .build();
-        final var foreignTreasury = com.hedera.hapi.node.base.AccountID.newBuilder()
-                .shardNum(1L)
-                .accountNum(TREASURY)
-                .build();
+    void treasuryOnForeignShardCannotUpdateSystemAccounts() throws InvalidProtocolBufferException {
+        final var body = treasuryTxn()
+                .setCryptoUpdateAccount(
+                        CryptoUpdateTransactionBody.newBuilder().setAccountIDToUpdate(account(SYSTEM_ADMIN)));
         assertEquals(
-                SystemPrivilege.UNNECESSARY,
-                verifier.hasPrivileges(foreignTreasury, HederaFunctionality.CRYPTO_UPDATE, body));
+                SystemOpAuthorization.UNNECESSARY,
+                subject.authForTestCase(accessorWithPayer(body, account(1, 0, TREASURY))));
     }
 
     @ParameterizedTest
     @MethodSource("foreignShardOrRealmPayers")
-    void systemAccountNumberOnForeignShardOrRealmIsNotASystemTarget(final long shard, final long realm) {
-        final var verifier =
-                new PrivilegesVerifier(() -> new VersionedConfigImpl(HederaTestConfigBuilder.createConfig(), 1L));
-        final var localSystemAdmin = com.hedera.hapi.node.base.AccountID.newBuilder()
-                .accountNum(SYSTEM_ADMIN)
-                .build();
-        final var ordinaryPayer = com.hedera.hapi.node.base.AccountID.newBuilder()
-                .accountNum(1001L)
-                .build();
-        // A foreign-shard/realm "treasury" target must not get treasury protection or system-account handling
-        final var foreignTreasuryTarget = updateOf(foreignPayer(shard, realm, TREASURY));
-        assertEquals(
-                SystemPrivilege.UNNECESSARY,
-                verifier.hasPrivileges(ordinaryPayer, HederaFunctionality.CRYPTO_UPDATE, foreignTreasuryTarget));
-        assertEquals(
-                SystemPrivilege.UNNECESSARY,
-                verifier.hasPrivileges(localSystemAdmin, HederaFunctionality.CRYPTO_UPDATE, foreignTreasuryTarget));
-        // Sanity: the same number on the local shard/realm is still protected
-        final var localTreasuryTarget = updateOf(com.hedera.hapi.node.base.AccountID.newBuilder()
-                .accountNum(TREASURY)
-                .build());
-        assertEquals(
-                SystemPrivilege.UNAUTHORIZED,
-                verifier.hasPrivileges(localSystemAdmin, HederaFunctionality.CRYPTO_UPDATE, localTreasuryTarget));
+    void systemAccountNumberOnForeignShardOrRealmIsNotASystemTarget(final long shard, final long realm)
+            throws InvalidProtocolBufferException {
+        final var foreignTreasuryTarget = civilianTxn()
+                .setCryptoUpdateAccount(
+                        CryptoUpdateTransactionBody.newBuilder().setAccountIDToUpdate(account(shard, realm, TREASURY)));
+        assertEquals(SystemOpAuthorization.UNNECESSARY, subject.authForTestCase(accessor(foreignTreasuryTarget)));
+        final var adminOnForeignTreasury = sysAdminTxn()
+                .setCryptoUpdateAccount(
+                        CryptoUpdateTransactionBody.newBuilder().setAccountIDToUpdate(account(shard, realm, TREASURY)));
+        assertEquals(SystemOpAuthorization.UNNECESSARY, subject.authForTestCase(accessor(adminOnForeignTreasury)));
+        final var localTreasuryTarget = sysAdminTxn()
+                .setCryptoUpdateAccount(
+                        CryptoUpdateTransactionBody.newBuilder().setAccountIDToUpdate(account(TREASURY)));
+        assertEquals(SystemOpAuthorization.UNAUTHORIZED, subject.authForTestCase(accessor(localTreasuryTarget)));
     }
 
-    private static com.hedera.hapi.node.transaction.TransactionBody updateOf(
-            final com.hedera.hapi.node.base.AccountID target) {
-        return com.hedera.hapi.node.transaction.TransactionBody.newBuilder()
-                .cryptoUpdateAccount(com.hedera.hapi.node.token.CryptoUpdateTransactionBody.newBuilder()
-                        .accountIDToUpdate(target)
-                        .build())
-                .build();
+    @ParameterizedTest
+    @MethodSource("foreignShardOrRealmPayers")
+    void foreignFileAndContractTargetsAreNotLocalSystemEntities(final long shard, final long realm)
+            throws InvalidProtocolBufferException {
+        final var foreignFileUpdate = exchangeRatesAdminTxn()
+                .setFileUpdate(FileUpdateTransactionBody.newBuilder().setFileID(file(shard, realm, 112)));
+        assertEquals(SystemOpAuthorization.UNNECESSARY, subject.authForTestCase(accessor(foreignFileUpdate)));
+        final var localFileUpdate = exchangeRatesAdminTxn()
+                .setFileUpdate(FileUpdateTransactionBody.newBuilder().setFileID(file(112)));
+        assertEquals(SystemOpAuthorization.AUTHORIZED, subject.authForTestCase(accessor(localFileUpdate)));
+
+        final var foreignAppend = exchangeRatesAdminTxn()
+                .setFileAppend(FileAppendTransactionBody.newBuilder().setFileID(file(shard, realm, 112)));
+        assertEquals(SystemOpAuthorization.UNNECESSARY, subject.authForTestCase(accessor(foreignAppend)));
+
+        final var foreignDelete = treasuryTxn()
+                .setFileDelete(FileDeleteTransactionBody.newBuilder().setFileID(file(shard, realm, 100)));
+        assertEquals(SystemOpAuthorization.UNNECESSARY, subject.authForTestCase(accessor(foreignDelete)));
+
+        final var foreignCryptoDelete = treasuryTxn()
+                .setCryptoDelete(CryptoDeleteTransactionBody.newBuilder()
+                        .setDeleteAccountID(account(shard, realm, 100)));
+        assertEquals(SystemOpAuthorization.UNNECESSARY, subject.authForTestCase(accessor(foreignCryptoDelete)));
+
+        final var foreignSystemDelete = treasuryTxn()
+                .setSystemDelete(SystemDeleteTransactionBody.newBuilder().setContractID(contract(shard, realm, 123)));
+        assertEquals(SystemOpAuthorization.AUTHORIZED, subject.authForTestCase(accessor(foreignSystemDelete)));
+        final var localSystemDelete =
+                treasuryTxn().setSystemDelete(SystemDeleteTransactionBody.newBuilder().setContractID(contract(123)));
+        assertEquals(SystemOpAuthorization.IMPERMISSIBLE, subject.authForTestCase(accessor(localSystemDelete)));
+
+        final var foreignUndelete = treasuryTxn()
+                .setSystemUndelete(
+                        SystemUndeleteTransactionBody.newBuilder().setFileID(file(shard, realm, 123)));
+        assertEquals(SystemOpAuthorization.AUTHORIZED, subject.authForTestCase(accessor(foreignUndelete)));
     }
 
     @SuppressWarnings("DataFlowIssue")
@@ -861,12 +846,36 @@ class PrivilegesVerifierTest {
         return ContractID.newBuilder().setContractNum(num).build();
     }
 
+    private ContractID contract(long shard, long realm, long num) {
+        return ContractID.newBuilder()
+                .setShardNum(shard)
+                .setRealmNum(realm)
+                .setContractNum(num)
+                .build();
+    }
+
     private FileID file(long num) {
         return FileID.newBuilder().setFileNum(num).build();
     }
 
+    private FileID file(long shard, long realm, long num) {
+        return FileID.newBuilder()
+                .setShardNum(shard)
+                .setRealmNum(realm)
+                .setFileNum(num)
+                .build();
+    }
+
     private AccountID account(long num) {
         return AccountID.newBuilder().setAccountNum(num).build();
+    }
+
+    private AccountID account(long shard, long realm, long num) {
+        return AccountID.newBuilder()
+                .setShardNum(shard)
+                .setRealmNum(realm)
+                .setAccountNum(num)
+                .build();
     }
 
     private AccountID longZeroAccountId(long num) {

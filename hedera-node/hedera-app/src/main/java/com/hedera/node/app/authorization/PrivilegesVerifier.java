@@ -11,6 +11,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.file.SystemDeleteTransactionBody;
 import com.hedera.hapi.node.file.SystemUndeleteTransactionBody;
@@ -75,20 +76,16 @@ public class PrivilegesVerifier {
 
             // Authorization privileges for file updates and appends
             case FILE_UPDATE ->
-                checkFileChange(
-                        payerId, txBody.fileUpdateOrThrow().fileIDOrThrow().fileNum());
+                checkFileChange(payerId, localNumber(txBody.fileUpdateOrThrow().fileIDOrThrow()));
             case FILE_APPEND ->
-                checkFileChange(
-                        payerId, txBody.fileAppendOrThrow().fileIDOrThrow().fileNum());
+                checkFileChange(payerId, localNumber(txBody.fileAppendOrThrow().fileIDOrThrow()));
             // Authorization for crypto updates
             case CRYPTO_UPDATE -> checkCryptoUpdate(payerId, txBody.cryptoUpdateAccountOrThrow());
 
             // Authorization for deletes
-            case FILE_DELETE ->
-                checkEntityDelete(txBody.fileDeleteOrThrow().fileIDOrThrow().fileNum());
-            case CRYPTO_DELETE ->
-                checkCryptoDelete(
-                        effectiveNumber(txBody.cryptoDeleteOrThrow().deleteAccountIDOrElse(AccountID.DEFAULT)));
+            case FILE_DELETE -> checkEntityDelete(localNumber(txBody.fileDeleteOrThrow().fileIDOrThrow()));
+            case CRYPTO_DELETE -> checkCryptoDelete(
+                    localNumber(txBody.cryptoDeleteOrThrow().deleteAccountIDOrElse(AccountID.DEFAULT)));
             case NODE_CREATE -> checkNodeCreate(payerId);
             case CLPR_UPDATE_LEDGER_CONFIGURATION, CLPR_CLOSE_CHANNEL -> checkClprAdmin(payerId);
             default -> SystemPrivilege.UNNECESSARY;
@@ -142,7 +139,7 @@ public class PrivilegesVerifier {
 
     private SystemPrivilege checkSystemDelete(
             @NonNull final AccountID accountID, @NonNull final SystemDeleteTransactionBody op) {
-        final var entityNum = op.hasFileID() ? op.fileIDOrThrow().fileNum() : effectiveNumber(op.contractIDOrThrow());
+        final var entityNum = op.hasFileID() ? localNumber(op.fileIDOrThrow()) : localNumber(op.contractIDOrThrow());
         if (isSystemEntity(entityNum)) {
             return IMPERMISSIBLE;
         }
@@ -151,7 +148,7 @@ public class PrivilegesVerifier {
 
     private SystemPrivilege checkSystemUndelete(
             @NonNull final AccountID accountID, @NonNull final SystemUndeleteTransactionBody op) {
-        final var entityNum = op.hasFileID() ? op.fileIDOrThrow().fileNum() : effectiveNumber(op.contractIDOrThrow());
+        final var entityNum = op.hasFileID() ? localNumber(op.fileIDOrThrow()) : localNumber(op.contractIDOrThrow());
         if (isSystemEntity(entityNum)) {
             return IMPERMISSIBLE;
         }
@@ -259,21 +256,42 @@ public class PrivilegesVerifier {
      * @return the effective number for privileges checks
      */
     private long payerNumber(@NonNull final AccountID accountID) {
-        if (accountID.shardNum() != shard || accountID.realmNum() != realm) {
+        return scopedAccountNumber(accountID);
+    }
+
+    /**
+     * Target account number for privilege checks, or {@code 0} when the account is not on this node's shard and realm.
+     * Unlike {@link #payerNumber}, this is for the entity being acted on.
+     */
+    private long localNumber(@NonNull final AccountID accountID) {
+        return scopedAccountNumber(accountID);
+    }
+
+    /** Target file number, or {@code 0} when the file is not on this node's shard and realm. */
+    private long localNumber(@NonNull final FileID fileID) {
+        if (!onThisLedger(fileID.shardNum(), fileID.realmNum())) {
+            return 0L;
+        }
+        return fileID.fileNum();
+    }
+
+    /** Target contract number, or {@code 0} when the contract is not on this node's shard and realm. */
+    private long localNumber(@NonNull final ContractID contractID) {
+        if (!onThisLedger(contractID.shardNum(), contractID.realmNum())) {
+            return 0L;
+        }
+        return effectiveNumber(contractID);
+    }
+
+    private long scopedAccountNumber(@NonNull final AccountID accountID) {
+        if (!onThisLedger(accountID.shardNum(), accountID.realmNum())) {
             return 0L;
         }
         return effectiveNumber(accountID);
     }
 
-    /**
-     * Given a target account id, returns the effective number for privileges checks, or {@code 0} (which is never a
-     * system entity) if the account is not on this node's configured shard and realm, so e.g. {@code 1.0.2} is never
-     * treated as the local treasury or as a local system account.
-     * @param accountID the target {@link AccountID} to check
-     * @return the effective number for privileges checks
-     */
-    private long localNumber(@NonNull final AccountID accountID) {
-        return payerNumber(accountID);
+    private boolean onThisLedger(final long entityShard, final long entityRealm) {
+        return LedgerScope.sameShardAndRealm(entityShard, entityRealm, shard, realm);
     }
 
     private long effectiveNumber(@NonNull final ContractID contractID) {
