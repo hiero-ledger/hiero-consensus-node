@@ -49,9 +49,9 @@ public class BlockNodeSimSuite {
             networkSize = 1,
             blockNodeConfigs = {
                 @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR),
-                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.SIMULATOR),
-                @BlockNodeConfig(nodeId = 2, mode = BlockNodeMode.SIMULATOR),
-                @BlockNodeConfig(nodeId = 3, mode = BlockNodeMode.SIMULATOR)
+                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.SIMULATOR, catchUpFromPeers = true),
+                @BlockNodeConfig(nodeId = 2, mode = BlockNodeMode.SIMULATOR, catchUpFromPeers = true),
+                @BlockNodeConfig(nodeId = 3, mode = BlockNodeMode.SIMULATOR, catchUpFromPeers = true)
             },
             subProcessNodeConfigs = {
                 @SubProcessNodeConfig(
