@@ -1182,8 +1182,9 @@ class HandleWorkflowTest {
                                     .flatMap(item -> item.stateChangesOrThrow().stateChanges().stream())
                                     .toList();
                             return reasonOf(items) == ENDPOINT_MANIFEST_RECONCILIATION
-                                    && updates.stream().anyMatch(change -> change.singletonUpdateOrThrow()
-                                            .hasClprEndpointManifestConstructionValue());
+                                    && updates.stream()
+                                            .anyMatch(change -> change.singletonUpdateOrThrow()
+                                                    .hasClprEndpointManifestConstructionValue());
                         }),
                         eq(firstEventTime.minusNanos(100)));
         assertEquals(List.of(pendingChange), changes);
