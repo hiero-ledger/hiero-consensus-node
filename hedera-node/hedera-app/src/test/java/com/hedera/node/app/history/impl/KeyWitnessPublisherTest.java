@@ -196,6 +196,20 @@ class KeyWitnessPublisherTest {
     }
 
     @Test
+    void anotherNodesRejectionMarkerDoesNotDiscardTheLocalCandidate() {
+        records(PENDING);
+        subject.reconcile(store, NOW, true, GENERATION);
+        subject.offer(VK, WITNESS);
+        assertEquals(List.of(WITNESS), submissions);
+
+        // Another node's failed publication was recorded: the record changed, but what this candidate is for did not
+        records(PENDING.copyBuilder().rejectedNodeIds(List.of(5L)).build());
+        subject.reconcile(store, NOW.plus(KeyWitnessPublisher.RETRY_INTERVAL), true, GENERATION);
+
+        assertEquals(List.of(WITNESS, WITNESS), submissions);
+    }
+
+    @Test
     void onlyOneSubmissionMayBeInFlightForAGeneration() {
         records(PENDING);
         result = new CompletableFuture<>();

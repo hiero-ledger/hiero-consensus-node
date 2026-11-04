@@ -167,6 +167,20 @@ Handling checks the adopted record and timestamp eligibility again, and uses a
 cached verification result when available. A cache miss verifies deterministically
 in handle; local cache availability cannot change acceptance.
 
+The cache is a throughput optimization, not the bound on native work. Pre-handle
+also reruns on the handle thread before handling, a single event can carry tens of
+thousands of publications, and a flood of unique forgeries evicts the cache. The
+bound is consensus state: a publication that passes the cheap admission checks and
+then fails verification (or carries a timestamp after its consensus time) records
+its creator in the companion record's `rejected_node_ids`. Every later publication
+from a recorded creator for that record is ignored before any native work, in
+pre-handle and in handle alike. A node can therefore cost at most one failed
+verification per generation, whatever the cache holds, and it can only silence
+itself: a recorded node does not affect any other node's publications.
+Publications that fail the cheaper admission checks (no pending record, malformed
+shape, a timestamp at or before the activation boundary) record nothing, since no
+native work is spent on them.
+
 The first accepted witness is immutable. Consensus transaction order selects it,
 not local asynchronous completion order. Repeated publications do not replace
 the proof. Submitting a transaction or completing a local signature future is

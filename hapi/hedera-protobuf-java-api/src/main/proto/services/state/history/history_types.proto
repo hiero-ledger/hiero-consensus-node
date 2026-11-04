@@ -428,4 +428,11 @@ message HintsKeyWitnessRecord {
   proto.Timestamp activation_time = 2;
   /** The first valid witness accepted in consensus order, if available. */
   HintsKeyWitness witness = 3;
+  /**
+   * The nodes whose publications for this generation passed the cheap admission
+   * checks and then failed verification. A node is recorded at most once, and
+   * every later publication from a recorded node is ignored before any native
+   * work, so no node can cost more than one failed verification per generation.
+   */
+  repeated int64 rejected_node_ids = 4;
 }

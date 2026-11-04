@@ -206,6 +206,16 @@ public interface WritableHistoryStore extends ReadableHistoryStore {
     boolean setKeyWitness(@NonNull HintsKeyWitness witness);
 
     /**
+     * Records that a publication from the given node passed the cheap admission checks for a pending
+     * generation but failed verification, so that the node's later publications for that generation are
+     * ignored without native work. Each node is recorded at most once, and nothing is recorded for
+     * unadopted or already completed generations.
+     *
+     * @return true only when the node was newly recorded
+     */
+    boolean markWitnessRejected(long targetHintsConstructionId, long nodeId);
+
+    /**
      * Rebinds a completed active construction after the caller verifies that the adopted roster has
      * exactly the same node IDs and weights as its prepared target. Preserves the proof and source
      * identity. Returns false without mutation if the expected active target is not complete.

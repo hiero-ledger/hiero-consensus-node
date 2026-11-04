@@ -48,6 +48,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.DateTimeException;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.SortedSet;
@@ -462,6 +463,22 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
             return false;
         }
         keyWitnesses.put(key, existing.copyBuilder().witness(witness).build());
+        return true;
+    }
+
+    @Override
+    public boolean markWitnessRejected(final long targetHintsConstructionId, final long nodeId) {
+        final var key = new ProtoLong(targetHintsConstructionId);
+        final var existing = keyWitnesses.get(key);
+        if (existing == null
+                || existing.hasWitness()
+                || !existing.hasProvenance()
+                || existing.rejectedNodeIds().contains(nodeId)) {
+            return false;
+        }
+        final var rejected = new ArrayList<>(existing.rejectedNodeIds());
+        rejected.add(nodeId);
+        keyWitnesses.put(key, existing.copyBuilder().rejectedNodeIds(rejected).build());
         return true;
     }
 

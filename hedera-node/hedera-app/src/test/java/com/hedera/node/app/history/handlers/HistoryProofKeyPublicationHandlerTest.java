@@ -6,6 +6,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.atMost;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -38,7 +40,10 @@ import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -181,6 +186,8 @@ class HistoryProofKeyPublicationHandlerTest {
 
         verify(store, never()).setKeyWitness(any());
         verifyNoInteractions(witnessVerifier);
+        // Pre-handle cannot know the consensus time, so it may already have paired this publication
+        verify(store).markWitnessRejected(CONSTRUCTION_ID, NODE_ID);
     }
 
     @Test
@@ -194,6 +201,7 @@ class HistoryProofKeyPublicationHandlerTest {
         subject.handle(context);
 
         verify(store, never()).setKeyWitness(any());
+        verify(store).markWitnessRejected(CONSTRUCTION_ID, NODE_ID);
     }
 
     @Test
@@ -333,6 +341,169 @@ class HistoryProofKeyPublicationHandlerTest {
         final var body = context.body();
         given(preHandleContext.body()).willReturn(body);
         given(preHandleContext.createStore(ReadableHistoryStore.class)).willReturn(store);
+        givenCreator();
+    }
+
+    @Test
+    void recordedCreatorCostsNoNativeWorkInPreHandleOrHandle() throws Exception {
+        final var witness = witnessAt(CONSENSUS_NOW.minusSeconds(1));
+        final var record = witnessRecord(null)
+                .copyBuilder()
+                .rejectedNodeIds(List.of(NODE_ID))
+                .build();
+        givenWitnessPublication(witness, record);
+        givenPreHandleWitnessPublication();
+
+        subject.preHandle(preHandleContext);
+        subject.handle(context);
+
+        verifyNoInteractions(witnessVerifier);
+        verify(store, never()).setKeyWitness(any());
+        verify(store, never()).markWitnessRejected(anyLong(), anyLong());
+    }
+
+    @Test
+    void anotherCreatorsRecordedRejectionDoesNotBlockThisCreator() {
+        final var witness = witnessAt(CONSENSUS_NOW.minusSeconds(1));
+        final var record = witnessRecord(null)
+                .copyBuilder()
+                .rejectedNodeIds(List.of(NODE_ID + 1))
+                .build();
+        givenWitnessPublication(witness, record);
+        given(witnessVerifier.verify(witness, record.provenanceOrThrow().targetVerificationKey()))
+                .willReturn(true);
+        given(store.setKeyWitness(witness)).willReturn(true);
+
+        subject.handle(context);
+
+        verify(store).setKeyWitness(witness);
+        verify(store, never()).markWitnessRejected(anyLong(), anyLong());
+    }
+
+    @Test
+    void aFloodOfUniqueForgeriesFromOneCreatorCostsExactlyOneFailedVerification() throws Exception {
+        final var state = givenConsensusStateOf(witnessRecord(null));
+        final var current = new AtomicReference<TransactionBody>();
+        givenPublicationsFrom(current);
+
+        for (int i = 0; i < 3_000; i++) {
+            current.set(keyWitnessBody(forgery(i)));
+            // Pre-handle also reruns on the handle thread, against handle-time state, before handle
+            subject.preHandle(preHandleContext);
+            subject.handle(context);
+        }
+
+        verify(witnessVerifier, times(1)).verify(any(), any());
+        verify(store, times(1)).markWitnessRejected(CONSTRUCTION_ID, NODE_ID);
+        assertEquals(List.of(NODE_ID), state.get().rejectedNodeIds());
+        verify(store, never()).setKeyWitness(any());
+    }
+
+    @Test
+    void forgeriesPreHandledBeforeTheRecordExistedStillCostOneFailedVerificationAtHandle() throws Exception {
+        final var pending = witnessRecord(null);
+        final var state = givenConsensusStateOf(null);
+        final var current = new AtomicReference<TransactionBody>();
+        givenPublicationsFrom(current);
+        final var forgeries = new ArrayList<TransactionBody>();
+        for (int i = 0; i < 500; i++) {
+            forgeries.add(keyWitnessBody(forgery(i)));
+        }
+        // The adoption has not happened yet, so no worker has a record to verify against
+        for (final var body : forgeries) {
+            current.set(body);
+            subject.preHandle(preHandleContext);
+        }
+        verifyNoInteractions(witnessVerifier);
+
+        state.set(pending);
+        for (final var body : forgeries) {
+            current.set(body);
+            subject.preHandle(preHandleContext);
+            subject.handle(context);
+        }
+
+        verify(witnessVerifier, times(1)).verify(any(), any());
+        assertEquals(List.of(NODE_ID), state.get().rejectedNodeIds());
+    }
+
+    @Test
+    void workersThatPreHandledAWholeFloodFirstLeaveAtMostOneVerificationToHandle() throws Exception {
+        final var state = givenConsensusStateOf(witnessRecord(null));
+        final var current = new AtomicReference<TransactionBody>();
+        givenPublicationsFrom(current);
+        final var forgeries = new ArrayList<TransactionBody>();
+        for (int i = 0; i < 3_000; i++) {
+            forgeries.add(keyWitnessBody(forgery(i)));
+        }
+        // Worker-side pre-handle runs ahead of consensus, so the record cannot know the creator yet
+        for (final var body : forgeries) {
+            current.set(body);
+            subject.preHandle(preHandleContext);
+        }
+        clearInvocations(witnessVerifier);
+
+        for (final var body : forgeries) {
+            current.set(body);
+            subject.preHandle(preHandleContext);
+            subject.handle(context);
+        }
+
+        // However much of the flood the bounded cache kept, the handle thread pays for at most one failure
+        verify(witnessVerifier, atMost(1)).verify(any(), any());
+        assertEquals(List.of(NODE_ID), state.get().rejectedNodeIds());
+    }
+
+    @Test
+    void preHandleContainsFailuresBecauseItAlsoRunsOnTheHandleThread() {
+        given(preHandleContext.body()).willReturn(keyWitnessBody(witnessAt(CONSENSUS_NOW.minusSeconds(1))));
+        given(preHandleContext.createStore(ReadableHistoryStore.class))
+                .willThrow(new IllegalStateException("state unavailable"));
+        givenCreator();
+
+        assertDoesNotThrow(() -> subject.preHandle(preHandleContext));
+    }
+
+    private void givenCreator() {
+        lenient().when(context.creatorInfo()).thenReturn(nodeInfo);
+        lenient().when(preHandleContext.creatorInfo()).thenReturn(nodeInfo);
+        lenient().when(nodeInfo.nodeId()).thenReturn(NODE_ID);
+    }
+
+    /** What consensus keeps: the first rejected publication records its creator on the companion record. */
+    private AtomicReference<HintsKeyWitnessRecord> givenConsensusStateOf(
+            @Nullable final HintsKeyWitnessRecord initial) {
+        final var state = new AtomicReference<>(initial);
+        given(store.getKeyWitnessRecord(CONSTRUCTION_ID)).willAnswer(invocation -> state.get());
+        given(store.markWitnessRejected(eq(CONSTRUCTION_ID), anyLong())).willAnswer(invocation -> {
+            final long nodeId = invocation.getArgument(1);
+            state.set(state.get().copyBuilder().rejectedNodeIds(List.of(nodeId)).build());
+            return true;
+        });
+        return state;
+    }
+
+    private void givenPublicationsFrom(final AtomicReference<TransactionBody> current) {
+        given(context.body()).willAnswer(invocation -> current.get());
+        given(preHandleContext.body()).willAnswer(invocation -> current.get());
+        given(context.storeFactory()).willReturn(factory);
+        given(factory.writableStore(WritableHistoryStore.class)).willReturn(store);
+        given(preHandleContext.createStore(ReadableHistoryStore.class)).willReturn(store);
+        lenient().when(context.consensusNow()).thenReturn(CONSENSUS_NOW);
+        givenCreator();
+    }
+
+    /** Every forgery passes the cheap admission checks; unique nanos make each a distinct cache key. */
+    private static HintsKeyWitness forgery(final int i) {
+        return witnessAt(CONSENSUS_NOW.minusSeconds(1).plusNanos(i));
+    }
+
+    private static TransactionBody keyWitnessBody(final HintsKeyWitness witness) {
+        return TransactionBody.newBuilder()
+                .historyProofKeyPublication(HistoryProofKeyPublicationTransactionBody.newBuilder()
+                        .keyWitness(witness)
+                        .build())
+                .build();
     }
 
     private static HintsKeyWitness witnessAt(final Instant time) {
@@ -370,6 +541,7 @@ class HistoryProofKeyPublicationHandlerTest {
         given(factory.writableStore(WritableHistoryStore.class)).willReturn(store);
         given(store.getKeyWitnessRecord(witness.targetHintsConstructionId())).willReturn(record);
         lenient().when(context.consensusNow()).thenReturn(CONSENSUS_NOW);
+        givenCreator();
     }
 
     @Test

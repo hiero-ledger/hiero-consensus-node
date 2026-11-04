@@ -14,6 +14,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -101,7 +102,7 @@ final class KeyWitnessPublisher {
         candidates
                 .entrySet()
                 .removeIf(entry -> !nextPending.containsKey(entry.getKey())
-                        || !nextPending.get(entry.getKey()).equals(pending.get(entry.getKey())));
+                        || !sameBinding(nextPending.get(entry.getKey()), pending.get(entry.getKey())));
         pending = Map.copyOf(nextPending);
         observedActiveConstructionId = activeConstructionId;
         nextStateRefresh = now.plus(STATE_REFRESH_INTERVAL);
@@ -159,6 +160,17 @@ final class KeyWitnessPublisher {
         if (record != null && record.hasProvenance() && !record.hasWitness()) {
             records.put(record.provenanceOrThrow().targetHintsConstructionId(), record);
         }
+    }
+
+    /**
+     * Whether two views of a pending record bind the same adopted key and activation boundary. The rejection
+     * markers that other nodes accumulate on a record do not change what a local candidate is for.
+     */
+    private static boolean sameBinding(
+            @NonNull final HintsKeyWitnessRecord next, @Nullable final HintsKeyWitnessRecord previous) {
+        return previous != null
+                && next.provenance().equals(previous.provenance())
+                && Objects.equals(next.activationTime(), previous.activationTime());
     }
 
     private void submitIfDue(final long constructionId, @NonNull final Candidate candidate) {

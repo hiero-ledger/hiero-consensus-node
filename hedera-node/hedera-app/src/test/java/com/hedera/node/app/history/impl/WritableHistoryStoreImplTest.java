@@ -513,6 +513,30 @@ class WritableHistoryStoreImplTest {
     }
 
     @Test
+    void rejectedPublishersAreRecordedOncePerNodeAndOnlyOnPendingAdoptedGenerations() throws Exception {
+        assertFalse(subject.markWitnessRejected(2L, 7L));
+        assertNull(subject.getKeyWitnessRecord(2L));
+        adoptWitnessGeneration(2L, CONSENSUS_NOW);
+        assertTrue(subject.markWitnessRejected(2L, 7L));
+        assertFalse(subject.markWitnessRejected(2L, 7L));
+        assertTrue(subject.markWitnessRejected(2L, 3L));
+        commit(states -> {});
+        subject = new WritableHistoryStoreImpl(state.getWritableStates(HistoryService.NAME));
+        final var persisted = subject.getKeyWitnessRecord(2L);
+        assertEquals(List.of(7L, 3L), persisted.rejectedNodeIds());
+        assertTrue(persisted.hasProvenance());
+        assertTrue(persisted.hasActivationTime());
+        assertFalse(persisted.hasWitness());
+        assertEquals(
+                persisted, HintsKeyWitnessRecord.PROTOBUF.parse(HintsKeyWitnessRecord.PROTOBUF.toBytes(persisted)));
+
+        // A recorded node never blocks the first valid witness, and a completed record takes no further marks
+        assertTrue(subject.setKeyWitness(witness(2L, CONSENSUS_NOW.plusSeconds(1))));
+        assertFalse(subject.markWitnessRejected(2L, 99L));
+        assertEquals(List.of(7L, 3L), subject.getKeyWitnessRecord(2L).rejectedNodeIds());
+    }
+
+    @Test
     void witnessEligibilityUsesStoredActivationRatherThanCurrentGeneration() {
         adoptWitnessGeneration(2L, CONSENSUS_NOW);
         assertFalse(subject.setKeyWitness(witness(2L, CONSENSUS_NOW.minusNanos(1))));

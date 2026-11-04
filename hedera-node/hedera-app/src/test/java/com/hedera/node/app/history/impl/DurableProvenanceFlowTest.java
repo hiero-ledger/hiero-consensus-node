@@ -26,6 +26,7 @@ import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.WritableHistoryStore;
 import com.hedera.node.app.history.handlers.HistoryProofKeyPublicationHandler;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -35,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 
@@ -55,6 +57,9 @@ class DurableProvenanceFlowTest {
                 .thenReturn(HederaTestConfigBuilder.create()
                         .withValue("tss.forceMockSignatures", false)
                         .getOrCreateConfig());
+        final var creator = mock(NodeInfo.class);
+        when(creator.nodeId()).thenReturn(3L);
+        when(context.creatorInfo()).thenReturn(creator);
         final var storeFactory = mock(StoreFactory.class);
         when(context.storeFactory()).thenReturn(storeFactory);
         when(storeFactory.writableStore(WritableHistoryStore.class)).thenReturn(store);
@@ -113,6 +118,74 @@ class DurableProvenanceFlowTest {
                 witness,
                 restored.getKeyWitnessRecord(certificate.targetHintsConstructionId())
                         .witness());
+    }
+
+    @Test
+    void aRejectedPublisherIsRecordedAndSilencedWhileAnotherNodeStillCompletesTheRecord() throws Exception {
+        final var vectors = new ObjectMapper()
+                .readTree(requireNonNull(getClass().getResourceAsStream("/provenance-witnesses/native-v1.json")));
+        final var certificate = HintsKeyProvenance.PROTOBUF.parse(Bytes.fromHex(
+                vectors.get("certificates").get(0).get("protobufHex").asText()));
+        final var witness = HintsKeyWitness.PROTOBUF.parse(
+                Bytes.fromHex(vectors.get("witnesses").get(0).get("protobufHex").asText()));
+        final var id = certificate.targetHintsConstructionId();
+        final var state = stateWithPreparedCandidate(certificate);
+        final var store = new WritableHistoryStoreImpl(state.getWritableStates(HistoryService.NAME));
+        assertTrue(store.handoff(
+                Roster.DEFAULT,
+                null,
+                null,
+                asInstant(witness.timestampOrThrow()).minusSeconds(1)));
+        final var creatorId = new AtomicLong();
+        final var creator = mock(NodeInfo.class);
+        when(creator.nodeId()).thenAnswer(invocation -> creatorId.get());
+        final var publication = new AtomicReference<TransactionBody>();
+        final var context = mock(HandleContext.class);
+        when(context.configuration())
+                .thenReturn(HederaTestConfigBuilder.create()
+                        .withValue("tss.forceMockSignatures", false)
+                        .getOrCreateConfig());
+        when(context.creatorInfo()).thenReturn(creator);
+        when(context.body()).thenAnswer(invocation -> publication.get());
+        final var storeFactory = mock(StoreFactory.class);
+        when(context.storeFactory()).thenReturn(storeFactory);
+        when(storeFactory.writableStore(WritableHistoryStore.class)).thenReturn(store);
+        when(context.consensusNow())
+                .thenReturn(asInstant(witness.timestampOrThrow()).plusSeconds(60));
+        final var handler = new HistoryProofKeyPublicationHandler(
+                mock(ProofControllers.class), new HintsKeyWitnessVerifier(new HintsLibraryImpl()));
+        // Well formed, so it passes the cheap admission checks, but not signed by the adopted key
+        final var forged = witness.copyBuilder()
+                .signature(Bytes.wrap(new byte[HintsLibraryImpl.SIGNATURE_LENGTH]))
+                .build();
+
+        creatorId.set(3L);
+        publication.set(publicationOf(forged));
+        handler.handle(context);
+        assertEquals(List.of(3L), store.getKeyWitnessRecord(id).rejectedNodeIds());
+        assertFalse(store.getKeyWitnessRecord(id).hasWitness());
+
+        // A recorded node is ignored without native work, even when its later publication would have been valid
+        publication.set(publicationOf(witness));
+        handler.handle(context);
+        assertFalse(store.getKeyWitnessRecord(id).hasWitness());
+        assertEquals(List.of(3L), store.getKeyWitnessRecord(id).rejectedNodeIds());
+
+        // And it only silences itself: another node still completes the record
+        creatorId.set(4L);
+        handler.handle(context);
+        final var completed = store.getKeyWitnessRecord(id);
+        assertEquals(witness, completed.witness());
+        assertEquals(List.of(3L), completed.rejectedNodeIds());
+        assertEquals(
+                completed, HintsKeyWitnessRecord.PROTOBUF.parse(HintsKeyWitnessRecord.PROTOBUF.toBytes(completed)));
+    }
+
+    private static TransactionBody publicationOf(final HintsKeyWitness witness) {
+        return TransactionBody.newBuilder()
+                .historyProofKeyPublication(
+                        HistoryProofKeyPublicationTransactionBody.newBuilder().keyWitness(witness))
+                .build();
     }
 
     private static FakeState stateWithPreparedCandidate(final HintsKeyProvenance certificate) {

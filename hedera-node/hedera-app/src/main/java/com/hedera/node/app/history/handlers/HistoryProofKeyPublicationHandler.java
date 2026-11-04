@@ -58,6 +58,16 @@ public class HistoryProofKeyPublicationHandler implements TransactionHandler {
     @Override
     public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
         requireNonNull(context);
+        try {
+            warmWitnessVerification(context);
+        } catch (Exception e) {
+            // Pre-handle only warms a cache, but it also reruns on the handle thread, where an escaping
+            // exception would drop the transaction; so it must never throw
+            log.debug("Ignoring block-signing witness in pre-handle", e);
+        }
+    }
+
+    private void warmWitnessVerification(@NonNull final PreHandleContext context) {
         final var op = context.body().historyProofKeyPublicationOrThrow();
         if (!op.hasKeyWitness()
                 || context.configuration().getConfigData(TssConfig.class).forceMockSignatures()) {
@@ -66,9 +76,10 @@ public class HistoryProofKeyPublicationHandler implements TransactionHandler {
         final var witness = op.keyWitnessOrThrow();
         final var record = context.createStore(ReadableHistoryStore.class)
                 .getKeyWitnessRecord(witness.targetHintsConstructionId());
-        if (isEligiblePendingRecord(witness, record)) {
+        if (isEligiblePendingRecord(witness, record, context.creatorInfo().nodeId())) {
             // Pairings normally run on the pre-handle workers. Both valid and invalid results are cached,
             // with bounded memory; neither cache residency nor pre-handle's state snapshot decides admission.
+            // The cache is not what bounds native work: a creator already recorded as rejected never gets here
             witnessVerifications.get(
                     new WitnessVerification(record.provenanceOrThrow().targetVerificationKey(), witness));
         }
@@ -84,10 +95,11 @@ public class HistoryProofKeyPublicationHandler implements TransactionHandler {
                 return;
             }
             final var witness = op.keyWitnessOrThrow();
+            final long creatorId = context.creatorInfo().nodeId();
             final var record = historyStore.getKeyWitnessRecord(witness.targetHintsConstructionId());
             // Publication is independent of an in-progress history proof, including historical backfill.
             // Never let local aggregation completion, or a certificate for an unadopted key, create this record.
-            if (!isEligiblePendingRecord(witness, record)) {
+            if (!isEligiblePendingRecord(witness, record, creatorId)) {
                 return;
             }
             final var provenance = record.provenanceOrThrow();
@@ -97,9 +109,16 @@ public class HistoryProofKeyPublicationHandler implements TransactionHandler {
                     // scheduling cannot change consensus results.
                     || !Boolean.TRUE.equals(witnessVerifications.get(
                             new WitnessVerification(provenance.targetVerificationKey(), witness)))) {
-                log.debug(
-                        "Ignoring invalid block-signing witness for hinTS construction #{}",
-                        witness.targetHintsConstructionId());
+                // Pre-handle has usually already paid for this publication, and no cache can bound that against
+                // unique forgeries. Consensus state does: the creator is recorded, and every later publication
+                // from it for this record is ignored before any native work, here and in pre-handle alike.
+                if (historyStore.markWitnessRejected(witness.targetHintsConstructionId(), creatorId)) {
+                    log.warn(
+                            "Ignoring further block-signing witnesses from node{} for hinTS construction #{}"
+                                    + " after a rejected publication",
+                            creatorId,
+                            witness.targetHintsConstructionId());
+                }
                 return;
             }
             if (historyStore.setKeyWitness(witness)) {
@@ -136,10 +155,13 @@ public class HistoryProofKeyPublicationHandler implements TransactionHandler {
     }
 
     private static boolean isEligiblePendingRecord(
-            @NonNull final HintsKeyWitness witness, @Nullable final HintsKeyWitnessRecord record) {
+            @NonNull final HintsKeyWitness witness,
+            @Nullable final HintsKeyWitnessRecord record,
+            final long creatorId) {
         return record != null
                 && !record.hasWitness()
                 && record.hasProvenance()
+                && !record.rejectedNodeIds().contains(creatorId)
                 && witness.targetHintsConstructionId() > 0
                 && record.provenanceOrThrow().targetHintsConstructionId() == witness.targetHintsConstructionId()
                 && HintsKeyWitnessVerifier.hasValidStructure(witness)
