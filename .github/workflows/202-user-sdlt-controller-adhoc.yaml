@@ -54,7 +54,7 @@ on:
         description: 'Add props to settings.txt, e.g. "state.saveStatePeriod, 300". Newline is "\n"'
       duration-minutes:
         required: false
-        default: "3600"
+        default: "120"
         description: "Expected duration of all tests in minutes"
         type: string
       disable-notifications:
