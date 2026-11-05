@@ -32,6 +32,7 @@ import com.hedera.services.bdd.spec.remote.RemoteNetworkFactory;
 import com.hedera.services.bdd.suites.validation.ConcurrentSubprocessValidationTest;
 import com.swirlds.config.api.ConfigurationBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -143,6 +144,9 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                     final boolean isRemote = Optional.ofNullable(System.getProperty("hapi.spec.remote"))
                             .map(Boolean::parseBoolean)
                             .orElse(false);
+                    if (!isRemote) {
+                        pinFileWriterForLocalRuns();
+                    }
                     yield isRemote ? sharedRemoteNetworkIfRequested() : sharedSubProcessNetwork(null, null);
                 }
                 // For the default Test task, we need to run some tests in concurrent embedded mode and
@@ -153,8 +157,18 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                 case PER_CLASS, CONCURRENT, REPEATABLE -> null;
             };
             if (network != null) {
-                maybeStartBlockNodeStreaming(network);
+                final var blockNodeNetwork = maybeStartBlockNodeStreaming(network);
                 network.start();
+                if (blockNodeNetwork != null) {
+                    try {
+                        // Its containers started alongside the consensus nodes
+                        blockNodeNetwork.awaitStarted();
+                    } catch (final RuntimeException e) {
+                        // Leave no consensus nodes running, as when a block node failed before they started
+                        network.terminate();
+                        throw e;
+                    }
+                }
                 SHARED_NETWORK.set(network);
                 if (network instanceof SubProcessNetwork subProcessNetwork) {
                     reconfigureSharedSubProcessLogging(subProcessNetwork);
@@ -349,13 +363,34 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
     }
 
     /**
+     * Outside CI, a shared subprocess network that asks for neither a block node mode nor a writer only writes block
+     * files, so running a test locally needs no Docker. Setting {@code -Dhapi.spec.blocknode.mode} streams to a
+     * simulated or real block node, as in CI. Must run before the network is created, which reads the overrides.
+     */
+    private static void pinFileWriterForLocalRuns() {
+        if (System.getenv("CI") != null
+                || System.getProperty("hapi.spec.blocknode.mode") != null
+                || ProcessUtils.prCheckOverrides().containsKey("blockStream.writerMode")) {
+            return;
+        }
+        final var overrides = System.getProperty("hapi.spec.test.overrides", "");
+        System.setProperty(
+                "hapi.spec.test.overrides",
+                (overrides.isBlank() ? "" : overrides + ",") + "blockStream.writerMode=FILE");
+        log.info("Outside CI with no block node requested, the shared network only writes block files; set"
+                + " -Dhapi.spec.blocknode.mode to stream to a block node");
+    }
+
+    /**
      * Starts a {@link BlockNodeNetwork} for the shared subprocess network whenever its effective writer streams over
      * gRPC, whether a per-task override or the production default sets it. Never for a {@code FILE} writer, a
      * {@code RECORDS}-only stream, or {@code -Dhapi.spec.blocknode.mode=NONE}.
+     *
+     * @return the block node network, whose real containers are still starting; or null if there is none
      */
-    private static void maybeStartBlockNodeStreaming(HederaNetwork network) {
+    private static @Nullable BlockNodeNetwork maybeStartBlockNodeStreaming(HederaNetwork network) {
         if (!(network instanceof SubProcessNetwork subProcessNetwork)) {
-            return;
+            return null;
         }
         final Map<String, String> prCheckOverrides = ProcessUtils.prCheckOverrides();
         // Fall back to the production defaults, which count the same as an override
@@ -375,7 +410,7 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
         final boolean streamsToBlockNodes =
                 writerMode != BlockStreamWriterMode.FILE && streamMode != StreamMode.RECORDS;
         if (!streamsToBlockNodes || blockNodeMode == BlockNodeMode.NONE) {
-            return;
+            return null;
         }
         log.info(
                 "Block streaming active (effective writerMode={}, streamMode={}); configuring a Block Node network with mode {}",
@@ -391,13 +426,14 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
         if (blockNodeMode == BlockNodeMode.REAL) {
             blockNodeNetwork.setRsaBootstrapJson(buildRsaBootstrapJson(subProcessNetwork.getNodeKeys()));
         }
-        blockNodeNetwork.start();
+        blockNodeNetwork.startInBackground();
         SHARED_BLOCK_NODE_NETWORK.set(blockNodeNetwork);
         subProcessNetwork.setBlockNodeMode(blockNodeMode);
         subProcessNetwork.getPostInitWorkingDirActions().add(blockNodeNetwork::configureBlockNodeConnectionInformation);
         subProcessNetwork
                 .getPostInitWorkingDirActions()
                 .add(node -> subProcessNetwork.configureBlockNodeCommunicationLogLevel(node, "DEBUG"));
+        return blockNodeNetwork;
     }
 
     public static String buildRsaBootstrapJson(final Map<NodeId, KeysAndCerts> nodeKeys) {

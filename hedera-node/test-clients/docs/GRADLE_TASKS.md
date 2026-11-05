@@ -101,9 +101,10 @@ Each task that needs to ship configuration changes adds them to a comma-separate
 See `build.gradle.kts` for the full table.
 
 Every other subprocess task except the `RECORDS`-only `hapiTestMiscRecords*` runs the production block stream
-defaults (`streamMode=BLOCKS`, `writerMode=FILE_AND_GRPC`, real TSS signatures), so it starts one real block node
-shared by all the nodes. Stream assertions follow the effective stream mode: with no record stream (`BLOCKS`),
-record-stream checks read the block stream instead.
+defaults (`streamMode=BLOCKS`, `writerMode=FILE_AND_GRPC`, real TSS signatures), so in CI it starts one real block
+node shared by all the nodes. Run locally, it writes block files only unless `hapi.spec.blocknode.mode` is set (see
+[`../README.md`](../README.md) § *Block Node Modes*). Stream assertions follow the effective stream mode: with no
+record stream (`BLOCKS`), record-stream checks read the block stream instead.
 
 ### Pre-cutover configuration profile
 

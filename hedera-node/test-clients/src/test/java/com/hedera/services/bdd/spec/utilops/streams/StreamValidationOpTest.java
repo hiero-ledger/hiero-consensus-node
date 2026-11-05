@@ -3,9 +3,12 @@ package com.hedera.services.bdd.spec.utilops.streams;
 
 import static com.hedera.services.bdd.spec.utilops.streams.StreamValidationOp.blockNodeCopyProblems;
 import static com.hedera.services.bdd.spec.utilops.streams.StreamValidationOp.findCompleteBlockIn;
+import static com.hedera.services.bdd.spec.utilops.streams.StreamValidationOp.joinRethrowingCause;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
@@ -22,7 +25,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.zip.GZIPOutputStream;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -192,6 +197,22 @@ class StreamValidationOpTest {
         final var problems = blockNodeCopyProblems(Set.of(1L), Map.of(), Map.of(1L, signedBlock(1L, ROOT_HASH, 1)));
 
         assertEquals(List.of(), problems);
+    }
+
+    @Test
+    void backgroundAssertionFailureSurfacesUnwrapped() {
+        final CompletableFuture<Void> read = CompletableFuture.runAsync(() -> Assertions.fail("block 7 is missing"));
+        final var e = assertThrows(AssertionError.class, () -> joinRethrowingCause(read));
+        assertEquals("block 7 is missing", e.getMessage());
+    }
+
+    @Test
+    void backgroundRuntimeFailureSurfacesUnwrapped() {
+        final var cause = new IllegalStateException("block node unreachable");
+        final CompletableFuture<Void> read = CompletableFuture.runAsync(() -> {
+            throw cause;
+        });
+        assertSame(cause, assertThrows(IllegalStateException.class, () -> joinRethrowingCause(read)));
     }
 
     // A block whose proof carries the given signature byte, as different nodes' proofs may differ

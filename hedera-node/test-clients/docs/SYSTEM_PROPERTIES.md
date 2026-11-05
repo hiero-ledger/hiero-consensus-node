@@ -33,10 +33,10 @@ the default is.
 
 ## Block-node integration
 
-|                 Property                  |                             Read in                             |                  Values                   |                                                        Default                                                         |             Set by              |
-|-------------------------------------------|-----------------------------------------------------------------|-------------------------------------------|------------------------------------------------------------------------------------------------------------------------|---------------------------------|
-| `hapi.spec.blocknode.mode`                | `SharedNetworkLauncherSessionListener`, `BlockNodeMode` Javadoc | `REAL`, `SIMULATOR`, `LOCAL_NODE`, `NONE` | `REAL` in the listener when the effective `writerMode` is not `FILE` and the stream is not `RECORDS`; otherwise `NONE` | unset by default; pass via `-D` |
-| `hapi.spec.blocknode.simulator.manyToOne` | `SubProcessNetwork`                                             | `true` / `false`                          | `false`                                                                                                                | unset by default; pass via `-D` |
+|                 Property                  |                             Read in                             |                  Values                   |                                                                                           Default                                                                                           |             Set by              |
+|-------------------------------------------|-----------------------------------------------------------------|-------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------|
+| `hapi.spec.blocknode.mode`                | `SharedNetworkLauncherSessionListener`, `BlockNodeMode` Javadoc | `REAL`, `SIMULATOR`, `LOCAL_NODE`, `NONE` | In CI, `REAL` when the effective `writerMode` is not `FILE` and the stream is not `RECORDS`, otherwise `NONE`; outside CI an unpinned shared network runs a `FILE` writer and no block node | unset by default; pass via `-D` |
+| `hapi.spec.blocknode.simulator.manyToOne` | `SubProcessNetwork`                                             | `true` / `false`                          | `false`                                                                                                                                                                                     | unset by default; pass via `-D` |
 
 See [`../README.md`](../README.md) § *Block Node Testing*.
 
