@@ -4,6 +4,7 @@ package com.hedera.node.app.service.clpr.impl.test.handlers;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_DECODE_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_CHANNEL_NOT_FOUND;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INTERNAL_STATE_CORRUPTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INVALID_CHANNEL_STATUS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NOT_ENABLED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NO_PROGRESS;
@@ -1038,6 +1039,23 @@ class ClprSubmitBundleHandlerTest {
         assertThat(messageQueueStore.getMessage(CHANNEL_ID, 2)).isNull();
         assertThat(messageQueueStore.getMessage(CHANNEL_ID, 3)).isNull();
         assertThat(channelStore.getChannel(CHANNEL_ID).ackedMessageId()).isEqualTo(3L);
+    }
+
+    @Test
+    @DisplayName("rejects a bundle acknowledging outbound slots missing from the queue as local corruption")
+    void rejectsAckOfMissingOutboundSlotsAsLocalCorruption() {
+        // nextMessageId=4, ackedMessageId=0 → slots 1–3 must still be queued, but the queue is empty
+        putChannel(ClprChannelStatus.ACTIVE, 4, 0, ZERO_HASH);
+        // Bundle claims the peer received all three outbound messages
+        final var bundle = buildBundle(ClprChannelStatus.ACTIVE, 0, 3, ZERO_HASH, List.of(dataPayload()));
+        setupHandleContext(bundle, true);
+        putConnector();
+
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(CLPR_INTERNAL_STATE_CORRUPTION));
+        // The channel is left unchanged
+        assertThat(channelStore.getChannel(CHANNEL_ID).ackedMessageId()).isZero();
     }
 
     @Test
