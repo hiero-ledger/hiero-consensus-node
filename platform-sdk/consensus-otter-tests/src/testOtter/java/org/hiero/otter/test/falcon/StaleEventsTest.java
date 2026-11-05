@@ -12,7 +12,6 @@ import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
-import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 
 /**
  * Checks that no events are lost while some of them become stale.
@@ -28,13 +27,13 @@ public class StaleEventsTest {
      *
      * @param env the test environment for this test
      */
-    @FalconTest
+    @FalconTest(repetitions = 50)
     void testNoEventsLostWithStaleEvents(@NonNull final TestEnvironment env) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
 
         // Setup simulation
-        final List<Node> nodes = network.addNodes(4);
+        final List<Node> nodes = network.addNodes(10);
         network.withConfigValue(ConsensusConfig_.ROUNDS_NON_ANCIENT, ROUNDS_NON_ANCIENT);
 
         // Start simulation
@@ -47,8 +46,8 @@ public class StaleEventsTest {
             network.unidirectionalConnection(slowNode, peer).latency(SLOW_LINK_LATENCY);
         }
 
-        // Run the network for 10s simulated time
-        timeManager.waitFor(Duration.ofSeconds(10L));
+        // Run the network for 30s simulated time
+        timeManager.waitFor(Duration.ofSeconds(30L));
 
         // Validations
         assertThat(network.newConsensusResults())
@@ -56,8 +55,14 @@ public class StaleEventsTest {
                 .haveConsistentRounds()
                 .haveNoLostEvents()
                 .haveNoUnannouncedEvents();
-        final SingleNodeConsensusResult slowNodeResult = slowNode.newConsensusResult();
-        assertThat(slowNodeResult.preConsensusEvents()).isNotEmpty();
-        assertThat(slowNodeResult.staleEvents()).isNotEmpty();
+
+        // The events of the slow node, about a tenth of all events, become stale on the slow node only.
+        // Apart from them, every node keeps reaching consensus.
+        assertThat(slowNode.newConsensusResult())
+                .hasStaleRatioBetween(0.05, 0.12)
+                .hasConsensusRatioBetween(0.75, 0.95);
+        assertThat(network.newConsensusResults().suppressingNode(slowNode))
+                .haveStaleRatioBetween(0.0, 0.01)
+                .haveConsensusRatioBetween(0.85, 1.0);
     }
 }
