@@ -63,6 +63,7 @@ public final class MetricRegistry implements Closeable {
 
         final List<MetricSnapshot> metricSnapshots = new ArrayList<>(builders.size());
         for (Metric.Builder<?, ?> builder : builders) {
+            Objects.requireNonNull(builder, "metric builder must not be null");
             final MetricKey<?> key = builder.key();
             throwIfDuplicateMetricName(key, metrics.get(key.name()));
 
@@ -297,7 +298,7 @@ public final class MetricRegistry implements Closeable {
          * Registry may have associated {@link MetricsExporter} if set via
          * {@link #setMetricsExporter(MetricsExporter)} or discovered via
          * {@link #discoverMetricsExporter(Configuration)}. Discovered exporter takes precedence over
-         * explicitly set exporter, that can be used a default fallback.
+         * an explicitly set exporter, which serves as a fallback.
          * <p>
          * If exporter discovery is enabled via {@link #discoverMetricsExporter(Configuration)} and not disabled by
          * configuration property {@value #PROPERTY_EXPORT_DISCOVERY_DISABLED}, it attempts to discover a single
@@ -318,6 +319,7 @@ public final class MetricRegistry implements Closeable {
         public MetricRegistry build() {
             final List<Metric.Builder<?, ?>> providerBuilders = loadProviderBuilders();
 
+            MetricsExporter exporter = this.metricsExporter;
             boolean exporterCreated = false;
             if (configuration != null) {
                 Boolean exporterDiscoveryDisabled =
@@ -337,11 +339,11 @@ public final class MetricRegistry implements Closeable {
                                 factories);
                     } else if (factories.size() == 1) {
                         MetricsExporterFactory factory = factories.getFirst();
-                        MetricsExporter exporter =
+                        MetricsExporter created =
                                 factory.createExporter(Collections.unmodifiableList(globalLabels), configuration);
 
-                        if (exporter != null) {
-                            this.metricsExporter = exporter;
+                        if (created != null) {
+                            exporter = created;
                             exporterCreated = true;
                         } else {
                             logger.log(INFO, "Exporter factory did not create an exporter: {0}", factory.getClass());
@@ -351,11 +353,11 @@ public final class MetricRegistry implements Closeable {
             }
 
             try {
-                return new MetricRegistry(globalLabels, metricsExporter, providerBuilders);
+                return new MetricRegistry(globalLabels, exporter, providerBuilders);
             } catch (RuntimeException e) {
                 if (exporterCreated) {
                     try {
-                        metricsExporter.close();
+                        exporter.close();
                     } catch (IOException | RuntimeException closeException) {
                         e.addSuppressed(closeException);
                     }
