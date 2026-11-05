@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package com.hedera.hapi.node.clpr;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.clpr">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/state/clpr/clpr_ledger_configuration.proto";
+
+/**
+ * Removes a peer endpoint from a CLPR Channel's cached peer endpoint manifest, so that
+ * no node dials it. Requires the CLPR admin key.
+ *
+ * Every entry whose service endpoint equals `service_endpoint` is removed. The manifest
+ * version is unchanged, so a later bundle that advances the peer's manifest replaces the
+ * cached manifest and MAY list the endpoint again.
+ *
+ * The Channel MUST exist and MUST NOT be CLOSED, and the endpoint MUST be in its cached
+ * manifest.
+ */
+message ClprEvictPeerEndpointTransactionBody {
+    /**
+     * 32-byte ID of the Channel whose cached manifest lists the endpoint.
+     */
+    bytes channel_id = 1;
+
+    /**
+     * The address and port of the endpoint to remove.
+     */
+    com.hedera.hapi.node.state.clpr.ClprServiceEndpoint service_endpoint = 2;
+}

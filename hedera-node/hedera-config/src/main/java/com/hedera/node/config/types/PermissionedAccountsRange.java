@@ -12,7 +12,7 @@ public class PermissionedAccountsRange {
     private static final Pattern DEGENERATE = Pattern.compile("\\d+");
     private static final Pattern NON_DEGENERATE = Pattern.compile("(\\d+)-(\\d+)");
     private static final Pattern NON_DEGENERATE_WILDCARD = Pattern.compile("(\\d+)-[*]");
-    private static final Pattern INCLUSION_LIST = Pattern.compile("(\\d+(?:-\\d+|-\\*)?(?:,\\d+(?:-\\d+|-\\*)?)*)");
+    private static final Pattern LIST_ELEMENT = Pattern.compile("\\d+(?:-\\d+|-\\*)?");
 
     final List<Range> allowedRanges;
 
@@ -61,8 +61,7 @@ public class PermissionedAccountsRange {
         }
 
         // First, try to parse as inclusion list syntax (comma-separated ranges)
-        final Matcher inclusionListOfRanges = INCLUSION_LIST.matcher(description);
-        if (inclusionListOfRanges.matches()) {
+        if (isInclusionList(description)) {
             List<Range> allowedRanges = new ArrayList<>();
             String[] parts = description.split(",");
 
@@ -135,6 +134,16 @@ public class PermissionedAccountsRange {
         }
 
         return null;
+    }
+
+    // Checks one element at a time; a single regex over the whole list recurses once per element
+    private static boolean isInclusionList(final String description) {
+        for (final String element : description.split(",", -1)) {
+            if (!LIST_ELEMENT.matcher(element).matches()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     public PermissionedAccountsRange(List<Range> allowedRanges) {

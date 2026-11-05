@@ -181,12 +181,13 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
         nodeCoolDownTimestampRef().set(Instant.parse("2026-04-02T18:00:15Z"));
         localActiveStreamingConnectionCount().set(1);
 
-        final String expectedOutput = """
+        final String expectedOutput =
+                """
                 Block Node (host: localhost, port: 1234, priority: 1, isStreamingCandidate: false, coolDownTimestamp: 2026-04-02T18:00:15Z, activeConnections: 1)
                   Connection History
-                    N0-STR3 => created: 2026-04-02T12:00:00Z, activated: 2026-04-02T12:00:01Z, closed: *, duration: *, closeReason: *, numBlocksSent: 44*, lastBlockSent: 93*, numBlocksAcked: 43*, lastBlockAcked: 92*, reqSendAttempts: 100*, reqSendSuccesses: 100*, lastHeartbeat: 20000*
-                    N0-STR2 => created: 2026-04-02T11:00:00Z, activated: 2026-04-02T11:00:01Z, closed: 2026-04-02T11:00:05Z, duration: PT4S, closeReason: CONNECTION_ERROR, numBlocksSent: 3, lastBlockSent: 9, numBlocksAcked: 3, lastBlockAcked: 9, reqSendAttempts: 5, reqSendSuccesses: 4, lastHeartbeat: 15000
-                    N0-STR1 => created: 2026-04-02T10:00:00Z, activated: 2026-04-02T10:00:01Z, closed: 2026-04-02T10:00:05Z, duration: PT4S, closeReason: CONFIG_UPDATE, numBlocksSent: 10, lastBlockSent: 10, numBlocksAcked: 10, lastBlockAcked: 10, reqSendAttempts: 25, reqSendSuccesses: 25, lastHeartbeat: 10000""";
+                    N0-STR3%s => created: 2026-04-02T12:00:00Z, activated: 2026-04-02T12:00:01Z, closed: *, duration: *, closeReason: *, numBlocksSent: 44*, lastBlockSent: 93*, numBlocksAcked: 43*, lastBlockAcked: 92*, reqSendAttempts: 100*, reqSendSuccesses: 100*, lastHeartbeat: 20000*
+                    N0-STR2%s => created: 2026-04-02T11:00:00Z, activated: 2026-04-02T11:00:01Z, closed: 2026-04-02T11:00:05Z, duration: PT4S, closeReason: CONNECTION_ERROR, numBlocksSent: 3, lastBlockSent: 9, numBlocksAcked: 3, lastBlockAcked: 9, reqSendAttempts: 5, reqSendSuccesses: 4, lastHeartbeat: 15000
+                    N0-STR1%s => created: 2026-04-02T10:00:00Z, activated: 2026-04-02T10:00:01Z, closed: 2026-04-02T10:00:05Z, duration: PT4S, closeReason: CONFIG_UPDATE, numBlocksSent: 10, lastBlockSent: 10, numBlocksAcked: 10, lastBlockAcked: 10, reqSendAttempts: 25, reqSendSuccesses: 25, lastHeartbeat: 10000""".formatted(ConnectionId.JVM_SUFFIX, ConnectionId.JVM_SUFFIX, ConnectionId.JVM_SUFFIX);
 
         final StringBuilder sb = new StringBuilder();
         node.writeInformation(sb);
@@ -204,6 +205,8 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
     @Test
     void testOnActive_openMultipleConnections() {
         final BlockNodeStreamingConnection existingConnection = mock(BlockNodeStreamingConnection.class);
+        when(existingConnection.connectionId())
+                .thenReturn(new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 1));
         localActiveStreamingConnectionCount().set(1);
         globalActiveStreamConnectionCount.set(1);
         activeStreamingConnectionRef().set(existingConnection);

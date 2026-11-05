@@ -2178,4 +2178,9 @@ enum ResponseCodeEnum {
      * The submitting endpoint is charged a penalty fee.
      */
     CLPR_NO_PROGRESS = 571;
+
+    /**
+     * The peer endpoint to evict is not in the Channel's cached endpoint manifest.
+     */
+    CLPR_PEER_ENDPOINT_NOT_FOUND = 572;
 }

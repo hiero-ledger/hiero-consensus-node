@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CHANNEL;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SUBMIT_BUNDLE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNRESOLVABLE_REQUIRED_SIGNERS;
 import static com.hedera.hapi.util.HapiUtils.functionOf;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_GAS_RESERVATION;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_VERIFIER;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.INNER_TRANSACTION_BYTES;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.BATCH_INNER;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.CHILD;
@@ -26,6 +30,7 @@ import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.fees.context.ChildFeeContext;
 import com.hedera.node.app.history.ReadableHistoryStore;
 import com.hedera.node.app.service.entityid.EntityNumGenerator;
+import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.signature.AppKeyVerifier;
 import com.hedera.node.app.spi.authorization.Authorizer;
@@ -53,6 +58,7 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.TransactionKeys;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.store.StoreFactoryImpl;
+import com.hedera.node.app.throttle.HydratedCallDataSize;
 import com.hedera.node.app.workflows.InnerTransaction;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
@@ -66,6 +72,8 @@ import com.hedera.node.app.workflows.prehandle.PreHandleContextImpl;
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
 import com.hedera.node.app.workflows.prehandle.PreHandleWorkflow;
 import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
+import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -175,7 +183,7 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
         this.expiryValidator = new ExpiryValidatorImpl(this);
         this.dispatcher = requireNonNull(dispatcher);
         this.networkInfo = requireNonNull(networkInfo);
-        this.dispatchMetaData = requireNonNull(handleMetaData);
+        this.dispatchMetaData = new DispatchMetadata(handleMetaData);
         this.transactionChecker = requireNonNull(transactionChecker);
         this.transactionCategory = requireNonNull(transactionCategory);
         this.preHandleResults = preHandleResults;
@@ -283,10 +291,19 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
     @Override
     public int numTxnBytes() {
         // serialized signed transaction is null for system transaction dispatches
-        return (int)
-                (txnInfo.serializedSignedTx() != null
-                        ? txnInfo.serializedSignedTx().length()
-                        : 0);
+        final long wireBytes = txnInfo.serializedSignedTx() != null
+                ? txnInfo.serializedSignedTx().length()
+                : 0;
+        // Meter file-referenced EthereumTransaction callData by its decoded (hydrated) size, so the per-byte
+        // node fee matches what an equivalent inline payload would incur (0 for every other transaction).
+        long extraCallDataBytes = 0;
+        if (config.getConfigData(JumboTransactionsConfig.class).chargeHydratedCallDataSize()) {
+            extraCallDataBytes = HydratedCallDataSize.fileReferencedCallDataBytes(
+                    txnInfo.txBody(),
+                    storeFactory.readableStore(ReadableFileStore.class),
+                    config.getConfigData(HederaConfig.class).firstUserEntity());
+        }
+        return (int) (wireBytes + extraCallDataBytes);
     }
 
     @Override
@@ -521,6 +538,15 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
                 blockRecordInfo,
                 options,
                 childPreHandleResult);
+        if ((txnInfo.functionality() == CLPR_COMPLETE_CHANNEL || txnInfo.functionality() == CLPR_SUBMIT_BUNDLE)
+                && Boolean.TRUE.equals(options.dispatchMetadata().getMetadataIfPresent(CLPR_VERIFIER, Boolean.class))) {
+            dispatchMetaData
+                    .getMetadata(CLPR_GAS_RESERVATION, TransactionInfo.class)
+                    .ifPresent(reservation -> childDispatch
+                            .handleContext()
+                            .dispatchMetadata()
+                            .putMetadata(CLPR_GAS_RESERVATION, reservation));
+        }
         dispatchProcessor.processDispatch(childDispatch);
         // This can be non-empty for SCHEDULED dispatches, if rewards are paid for the triggered transaction
         final var paidStakingRewards = childDispatch.streamBuilder().getPaidStakingRewards();

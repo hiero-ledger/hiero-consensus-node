@@ -34,11 +34,11 @@ import org.junit.jupiter.api.Tag;
  * throttle but fails at consensus. The reclaim must return capacity to exactly the bucket that was charged, and
  * only that bucket.
  *
- * <p>Both scenarios follow the same shape: constrain one frontend bucket to a single logical operation, prove
- * it is saturated, run a transaction that fails at consensus, then assert that capacity comes back only to the
- * bucket that was actually charged. They run in embedded mode so there is a single frontend throttle to observe,
- * and the throttled transactions are paid by {@link com.hedera.services.bdd.suites.HapiSuite#CIVILIAN_PAYER}
- * because system accounts are exempt from throttling.
+ * <p>Each scenario constrains a frontend bucket to a single operation, then observes which buckets a
+ * transaction charges at ingest and which get capacity back when it fails at consensus. They run in embedded
+ * mode so there is a single frontend throttle to observe, and the throttled transactions are paid by
+ * {@link com.hedera.services.bdd.suites.HapiSuite#CIVILIAN_PAYER} because system accounts are exempt from
+ * throttling.
  *
  * <p>The same definitions also drive the consensus throttle, where an auto-creation claims {@code CRYPTO_CREATE}
  * capacity for the transfer's implicit creation and again for the child {@code CRYPTO_CREATE} dispatch. The 4s
@@ -102,20 +102,15 @@ public class FrontendThrottleReclaimTest {
     }
 
     /**
-     * A {@code CRYPTO_TRANSFER} that both auto-creates an account and auto-associates a token claims only its
-     * implicit {@code CRYPTO_CREATE} capacity (implicit creations take precedence over auto associations at
-     * claim time). On consensus failure the reclaim must return capacity to exactly that charged leg and to
-     * nothing else. Both the {@code CRYPTO_CREATE} and {@code TOKEN_ASSOCIATE_TO_ACCOUNT} buckets are constrained
-     * to a single operation so the routing is fully observable: the auto-association bucket stays saturated (its
-     * probe is throttled) because it was never charged, while the charged CryptoCreate leg is credited back (its
-     * probe is admitted).
+     * A transfer that both auto-creates and auto-associates is charged for each leg, so a saturated
+     * association bucket throttles it at ingest even while its creation leg has capacity.
      */
     @LeakyEmbeddedHapiTest(
             reason = NEEDS_STATE_ACCESS,
             requirement = {THROTTLE_OVERRIDES},
             throttles = "testSystemFiles/frontend-reclaim-assoc-throttles.json")
-    @DisplayName("Failed auto-creating transfer does not refund the auto-association bucket")
-    final Stream<DynamicTest> failedAutoCreationDoesNotRefundAutoAssociationBucket() {
+    @DisplayName("Auto-creating transfer is still charged for its auto-association leg")
+    final Stream<DynamicTest> autoCreatingTransferIsAlsoChargedForItsAutoAssociationLeg() {
         return hapiTest(
                 cryptoCreate(CIVILIAN_PAYER).balance(ONE_MILLION_HBARS),
                 cryptoCreate("treasury").balance(ONE_HUNDRED_HBARS),
@@ -124,39 +119,56 @@ public class FrontendThrottleReclaimTest {
                         .initialSupply(1000L)
                         .treasury("treasury"),
                 cryptoCreate("saturateReceiver").maxAutomaticTokenAssociations(1),
-                cryptoCreate("sanityReceiver").maxAutomaticTokenAssociations(1),
-                cryptoCreate("failReceiver").maxAutomaticTokenAssociations(1),
-                cryptoCreate("probeReceiver").maxAutomaticTokenAssociations(1),
-                cryptoCreate("poorSender").balance(1L),
-                newKeyNamed("failAlias"),
-                newKeyNamed("createProbeAlias"),
-                // 1) Saturate the TokenAssociateToAccount bucket with one successful auto-association.
+                cryptoCreate("bothLegsReceiver").maxAutomaticTokenAssociations(1),
+                newKeyNamed("bothLegsAlias"),
+                // Saturate the TokenAssociateToAccount bucket
                 cryptoTransfer(moving(1L, "tok").between("treasury", "saturateReceiver"))
                         .payingWith(CIVILIAN_PAYER)
                         .signedBy(CIVILIAN_PAYER, "treasury"),
-                // 2) Confirm saturation: a second auto-association is throttled at ingest.
-                cryptoTransfer(moving(1L, "tok").between("treasury", "sanityReceiver"))
+                cryptoTransfer(
+                                movingHbar(ONE_HBAR).between(CIVILIAN_PAYER, "bothLegsAlias"),
+                                moving(1L, "tok").between("treasury", "bothLegsReceiver"))
                         .payingWith(CIVILIAN_PAYER)
                         .signedBy(CIVILIAN_PAYER, "treasury")
-                        .hasPrecheck(BUSY),
-                // 3) Fail a transfer that has BOTH an implicit creation and an auto association. At ingest it
-                //    claims only CryptoCreate (implicit creations take precedence), so its reclaim must leave
-                //    the TokenAssociateToAccount bucket untouched.
+                        .hasPrecheck(BUSY));
+    }
+
+    /**
+     * A transfer that both auto-creates and auto-associates charges both buckets at ingest, so on consensus
+     * failure both must be refunded; each bucket holds one operation, so a probe is admitted only if its leg
+     * came back. The scenarios above cover that the buckets are genuinely tight.
+     */
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            requirement = {THROTTLE_OVERRIDES},
+            throttles = "testSystemFiles/frontend-reclaim-assoc-throttles.json")
+    @DisplayName("Failed auto-creating transfer refunds both the create and the association bucket")
+    final Stream<DynamicTest> failedAutoCreatingTransferRefundsBothBuckets() {
+        return hapiTest(
+                cryptoCreate(CIVILIAN_PAYER).balance(ONE_MILLION_HBARS),
+                cryptoCreate("treasury").balance(ONE_HUNDRED_HBARS),
+                tokenCreate("tok")
+                        .tokenType(FUNGIBLE_COMMON)
+                        .initialSupply(1000L)
+                        .treasury("treasury"),
+                cryptoCreate("failReceiver").maxAutomaticTokenAssociations(1),
+                cryptoCreate("assocProbeReceiver").maxAutomaticTokenAssociations(1),
+                cryptoCreate("poorSender").balance(1L),
+                newKeyNamed("failAlias"),
+                newKeyNamed("createProbeAlias"),
                 cryptoTransfer(
                                 movingHbar(ONE_HUNDRED_HBARS).between("poorSender", "failAlias"),
                                 moving(1L, "tok").between("treasury", "failReceiver"))
                         .payingWith(CIVILIAN_PAYER)
                         .signedBy(CIVILIAN_PAYER, "poorSender", "treasury")
                         .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE),
-                // 4) Associate-bucket probe: it was never charged by the failed transfer, so it stays saturated.
-                cryptoTransfer(moving(1L, "tok").between("treasury", "probeReceiver"))
+                // Both probes are admitted at ingest only because the failed transfer refunded each leg;
+                // their consensus outcome is irrelevant here
+                cryptoTransfer(moving(1L, "tok").between("treasury", "assocProbeReceiver"))
                         .payingWith(CIVILIAN_PAYER)
                         .signedBy(CIVILIAN_PAYER, "treasury")
-                        .hasPrecheck(BUSY),
-                // 5) CryptoCreate-bucket probe: the failed transfer charged and then reclaimed the CryptoCreate
-                //    bucket, so it has capacity again and an implicit-creation transfer is admitted at ingest.
-                //    Only the frontend (precheck) result matters here; the consensus outcome may be SUCCESS or
-                //    (backend-)throttled.
+                        .hasPrecheck(OK)
+                        .hasKnownStatusFrom(SUCCESS, THROTTLED_AT_CONSENSUS),
                 cryptoTransfer(movingHbar(ONE_HBAR).between(CIVILIAN_PAYER, "createProbeAlias"))
                         .payingWith(CIVILIAN_PAYER)
                         .signedBy(CIVILIAN_PAYER)

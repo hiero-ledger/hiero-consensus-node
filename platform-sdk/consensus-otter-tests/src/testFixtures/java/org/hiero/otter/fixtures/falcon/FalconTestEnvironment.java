@@ -11,7 +11,6 @@ import java.util.EnumSet;
 import java.util.Set;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.otter.fixtures.Capability;
-import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionGenerator;
@@ -31,23 +30,38 @@ public class FalconTestEnvironment implements TestEnvironment {
     private static final Set<Capability> CAPABILITIES = unmodifiableSet(EnumSet.of(Capability.DETERMINISTIC_EXECUTION));
 
     /** Default granularity of the simulation */
-    static final Duration GRANULARITY = Duration.ofMillis(10);
+    public static final Duration DEFAULT_GRANULARITY = Duration.ofMillis(10);
 
     private final FalconNetwork network;
     private final SimulatorTimeManager timeManager;
     private final TransactionGenerator transactionGenerator;
 
     /**
-     * Constructor of {@link FalconTestEnvironment}
+     * Constructor of {@link FalconTestEnvironment} with the {@link #DEFAULT_GRANULARITY}.
      *
      * @param randomSeed the seed for the random number generator used in the test environment
      */
     public FalconTestEnvironment(final long randomSeed) {
+        this(randomSeed, DEFAULT_GRANULARITY);
+    }
+
+    /**
+     * Constructor of {@link FalconTestEnvironment}
+     *
+     * @param randomSeed the seed for the random number generator used in the test environment
+     * @param granularity the time step of the simulation: every event arrival and every creation attempt falls on a
+     * multiple of it
+     * @throws IllegalArgumentException if the granularity is zero or negative
+     */
+    public FalconTestEnvironment(final long randomSeed, @NonNull final Duration granularity) {
+        if (granularity.isZero() || granularity.isNegative()) {
+            throw new IllegalArgumentException("The granularity must be positive, but is " + granularity);
+        }
         FalconLogConfigBuilder.configure();
 
         final Randotron randotron = Randotron.create(randomSeed);
         final FakeTime time = new FakeTime(randotron.nextInstant(), Duration.ZERO);
-        timeManager = new SimulatorTimeManager(time, GRANULARITY);
+        timeManager = new SimulatorTimeManager(time, granularity);
         transactionGenerator = new FalconTransactionGenerator();
         network = new FalconNetwork(randotron, timeManager, transactionGenerator);
         timeManager.addTimeTickReceiver(network);
@@ -67,7 +81,7 @@ public class FalconTestEnvironment implements TestEnvironment {
      */
     @Override
     @NonNull
-    public Network network() {
+    public FalconNetwork network() {
         return network;
     }
 

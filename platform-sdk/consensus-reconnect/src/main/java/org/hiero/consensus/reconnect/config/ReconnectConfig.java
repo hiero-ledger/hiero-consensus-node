@@ -32,4 +32,4 @@ public record ReconnectConfig(
         @ConfigProperty(defaultValue = "60s") Duration socketTimeout,
         @ConfigProperty(defaultValue = "10") int maximumReconnectFailuresBeforeShutdown,
         @ConfigProperty(defaultValue = "10m") Duration minimumTimeBetweenReconnects,
-        @ConfigProperty(defaultValue = "false") boolean copyLearnerStateEarly) {}
+        @ConfigProperty(defaultValue = "true") boolean copyLearnerStateEarly) {}

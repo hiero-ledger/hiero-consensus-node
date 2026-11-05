@@ -70,7 +70,10 @@ final class ReconnectTest {
     private final Configuration configuration =
             new TestConfigBuilder().withValue("socket.gzipCompression", false).getOrCreateConfig();
 
-    /** Same as {@link #configuration}, with the learner copying its state while it waits for the signatures. */
+    /**
+     * Same as {@link #configuration}, with the learner copying its state while it waits for the signatures. The
+     * value is set explicitly, so that the tests that need it don't depend on the default.
+     */
     private final Configuration earlyCopyConfiguration = new TestConfigBuilder()
             .withValue("socket.gzipCompression", false)
             .withValue("reconnect.copyLearnerStateEarly", true)

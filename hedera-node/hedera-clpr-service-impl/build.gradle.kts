@@ -17,7 +17,6 @@ testModuleInfo {
     requires("net.i2p.crypto.eddsa")
     requires("org.apache.commons.lang3")
     requires("org.assertj.core")
-    requires("org.bouncycastle.provider")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
     requires("org.mockito")

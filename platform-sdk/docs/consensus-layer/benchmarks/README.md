@@ -8,8 +8,12 @@ machine, and track it every night. They apply to every benchmark in a module's `
 |               File               |    Topic    |                                          Summary                                          |
 |----------------------------------|-------------|-------------------------------------------------------------------------------------------|
 | [writing.md](writing.md)         | Writing     | Module setup, inputs, latency and allocation measurement, profilers, profiling.           |
-| [calibration.md](calibration.md) | Calibration | The calibration run and its analysis, forks and iterations, fork modes, heap, the record. |
+| [calibration.md](calibration.md) | Calibration | The probe and the configuration run, their analysis, forks, fork modes, heap, the record. |
 | [operations.md](operations.md)   | Operations  | Tracking, the smoke run, the nightly run, the benchmark machine, publishing, alerts.      |
+
+New to JMH? Three diagrams show its terms and how they relate, from the outside in:
+[parameter sets, forks, and trials](images/jmh-forks.png), [a trial's warmup and measurement iterations](images/jmh-trials.png),
+and [an iteration's invocations and operations](images/jmh-iterations.png).
 
 The shared Java tooling is described in the [`consensus-benchmark-tools` README](../../../consensus-benchmark-tools/README.md),
 which also lists the developer scripts.
@@ -21,7 +25,7 @@ writing.md       benchmark class in src/jmh
                  LatencyRecorder times every call, LatencyProfiler reports the percentiles and alloc.norm
                  profile-regions.sh proves that the measured time is spent in the code under test
                      │
-calibration.md   007 calibration workflow on the benchmark machine
+calibration.md   007 calibration workflow on the benchmark machine: the probe, then the configuration run
                  run_benchmarks.py --jar  →  analyze_calibration.py
                  →  @Fork, @Warmup, @Measurement and the Javadoc calibration block
                      │

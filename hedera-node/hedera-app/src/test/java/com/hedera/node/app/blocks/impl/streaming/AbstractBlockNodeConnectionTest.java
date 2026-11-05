@@ -234,6 +234,44 @@ class AbstractBlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(connection.findGrpcException(new IOException("kaboom!"))).isNull();
     }
 
+    @Test
+    void testBuildRequestCorrelationId_connectionRequest() {
+        final BlockNodeConfiguration config = newBlockNodeConfig("localhost", 8080, 1);
+        final AbstractBlockNodeConnection connection = newInstance(ConnectionType.BLOCK_STREAMING, config);
+
+        final String correlationId = connection.buildRequestCorrelationId(12L);
+
+        assertThat(correlationId)
+                .isEqualTo(connection.connectionId() + "-CRN12")
+                .startsWith(connection.connectionId().toString());
+    }
+
+    @Test
+    void testBuildRequestCorrelationId_blockRequest() {
+        final BlockNodeConfiguration config = newBlockNodeConfig("localhost", 8080, 1);
+        final AbstractBlockNodeConnection connection = newInstance(ConnectionType.BLOCK_STREAMING, config);
+
+        final String correlationId = connection.buildRequestCorrelationId(12809L, 101388558L, 1, 1);
+
+        assertThat(correlationId)
+                .isEqualTo(connection.connectionId() + "-BLK101388558-BAN1-REQ1-CRN12809")
+                .startsWith(connection.connectionId().toString());
+    }
+
+    @Test
+    void testConnectionContext_usesSuppliedCorrelationId() {
+        final BlockNodeConfiguration config = newBlockNodeConfig("localhost", 8080, 1);
+        final AbstractBlockNodeConnection connection = newInstance(ConnectionType.SERVER_STATUS, config);
+        final String correlationId = connection.buildRequestCorrelationId(3L);
+
+        assertThat(connection.connectionContext(correlationId))
+                .isEqualTo("[" + correlationId + "/localhost:8080/UNINITIALIZED]");
+        assertThat(connection.connectionContext(null))
+                .isEqualTo("[" + connection.connectionId() + "/localhost:8080/UNINITIALIZED]");
+        assertThat(connection.connectionContext("  "))
+                .isEqualTo("[" + connection.connectionId() + "/localhost:8080/UNINITIALIZED]");
+    }
+
     private AbstractBlockNodeConnection newInstance(final ConnectionType type, final BlockNodeConfiguration config) {
         return new AbstractBlockNodeConnection(type, config, configProvider, 0L) {
             @Override
