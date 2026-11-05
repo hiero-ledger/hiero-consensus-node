@@ -81,9 +81,13 @@ public abstract class SettableMetric<I, M> extends Metric {
         final LabelValues labelValues = createLabelValues(namesAndValues);
         if (labelValues.size() == 0) {
             return getOrCreateNotLabeled();
-        } else {
-            return measurements.computeIfAbsent(labelValues, this::createMeasurementAndSnapshot);
         }
+        // lock-free lookup first: computeIfAbsent may lock the map bin even when the key exists
+        final M existing = measurements.get(labelValues);
+        if (existing != null) {
+            return existing;
+        }
+        return measurements.computeIfAbsent(labelValues, this::createMeasurementAndSnapshot);
     }
 
     /**
@@ -106,9 +110,13 @@ public abstract class SettableMetric<I, M> extends Metric {
                     "This metric has no dynamic labels, so you must call getOrCreateNotLabeled()");
         }
         Objects.requireNonNull(initializer, "custom measurement initializer must not be null");
+        final LabelValues labelValues = createLabelValues(namesAndValues);
+        final M existing = measurements.get(labelValues);
+        if (existing != null) {
+            return existing;
+        }
         return measurements.computeIfAbsent(
-                createLabelValues(namesAndValues),
-                labelValues -> createMeasurementAndSnapshot(labelValues, initializer));
+                labelValues, newLabelValues -> createMeasurementAndSnapshot(newLabelValues, initializer));
     }
 
     /**
