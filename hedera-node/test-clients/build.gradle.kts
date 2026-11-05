@@ -200,32 +200,30 @@ val prCheckStartPorts =
     )
 val prCheckPropOverrides =
     mapOf(
-        "hapiTestAdhoc" to
-            "tss.hintsEnabled=true,tss.historyEnabled=true,block.stateproof.verification.enabled=true",
+        "hapiTestAdhoc" to "block.stateproof.verification.enabled=true",
         "hapiTestToken" to
             "hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
         "hapiTestCrypto" to
             "blockStream.blockPeriod=1s,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
         "hapiTestCryptoSerial" to
-            "tss.hintsEnabled=true,tss.historyEnabled=true,blockStream.blockPeriod=1s,block.stateproof.verification.enabled=true",
+            "blockStream.blockPeriod=1s,block.stateproof.verification.enabled=true",
         "hapiTestSmartContract" to "hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         // hapiTestRestart exercises repeated freeze/upgrade/restart cycles. With history enabled,
         // the genesis chain-of-trust proof must progress under that pressure, and
         // DabEnabledUpgradeTest's upgrades start timing out, so it keeps a hints-only TSS surface
         "hapiTestRestart" to
-            "tss.hintsEnabled=true,tss.historyEnabled=false,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
+            "blockStream.writerMode=FILE,tss.historyEnabled=false,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
         // The pre-cutover world mainnet runs until it cuts over (BOTH with wrapped record blocks)
         // for the jumpstart and wrapped record hash tests, plus the hapiTestRestart pins they had
         "hapiTestPreCutover" to
-            "blockStream.streamMode=BOTH,blockStream.enableCutover=false,blockStream.streamWrappedRecordBlocks=true,blockStream.writerMode=FILE,tss.hintsEnabled=true,tss.historyEnabled=false,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
+            "blockStream.streamMode=BOTH,blockStream.enableCutover=false,blockStream.streamWrappedRecordBlocks=true,blockStream.writerMode=FILE,tss.historyEnabled=false,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
         "hapiTestMisc" to
             "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
         "hapiTestMiscSerial" to
             "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true",
         "hapiTestTimeConsuming" to
             "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
-        "hapiTestWraps" to
-            "tss.hintsEnabled=true,tss.historyEnabled=true,staking.periodMins=25,blockStream.maxBlockSizeBytes=0",
+        "hapiTestWraps" to "staking.periodMins=25,blockStream.maxBlockSizeBytes=0",
         // Starts in the pre-cutover world, which TssCutoverTest leaves only by its TSS settings;
         // FILE_AND_GRPC keeps a file drain while the block node rejects the genesis WRAPS blocks
         "hapiTestCutover" to
@@ -252,8 +250,7 @@ val prCheckPropOverrides =
         // savepoint; disable the block size circuit breaker so genesis output is not
         // suppressed and the block stream can be validated. Multi-network nets get no block
         // node, so they keep a FILE writer
-        "hapiTestClprMultinetwork" to
-            "blockStream.writerMode=FILE,tss.hintsEnabled=true,tss.historyEnabled=true,blockStream.maxBlockSizeBytes=0",
+        "hapiTestClprMultinetwork" to "blockStream.writerMode=FILE,blockStream.maxBlockSizeBytes=0",
     )
 
 // Overridable per-task DEFAULTS. Unlike prCheckPropOverrides (delivered as node environment
