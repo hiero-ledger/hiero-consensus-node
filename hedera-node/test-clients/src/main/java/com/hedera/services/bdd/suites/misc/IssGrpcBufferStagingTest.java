@@ -36,6 +36,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
@@ -55,6 +56,9 @@ import org.junit.jupiter.api.Tag;
  * {@link BlockNodeMode#SIMULATOR} keeps it Docker-free for local runs. Uses the same {@code ledger.transfers.maxLen}
  * ISS induction as {@link IssHandlingTest}.
  */
+// IssStagingUploadRoundTripTest has the full coverage of this test (plus the upload and delete). Use this Docker-free
+// test instead if that one is not stable.
+@Disabled("Covered by IssStagingUploadRoundTripTest; re-enable if that test is not stable")
 @Tag(ISS_GRPC)
 @OrderedInIsolation
 class IssGrpcBufferStagingTest implements LifecycleTest {
