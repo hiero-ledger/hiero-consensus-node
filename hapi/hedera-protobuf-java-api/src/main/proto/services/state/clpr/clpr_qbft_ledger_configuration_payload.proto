@@ -56,16 +56,17 @@ message StorageProofEntry {
  * verify the configuration against the source ledger's state root.
  *
  * The trust anchor is derived on the verifier side from
- * genesis_block_header (QBFT validator address from extra_data, the
- * ClprService address from the configuration, and the contract's
- * code hash from clpr_service_account_proof). Carrying the raw genesis
- * header instead of a pre-computed anchor lets the verifier check the
- * derivation rather than trusting the source.
+ * current_block_header (the QBFT validator set from extra_data, which
+ * must have sealed that header, and its block number), the ClprService
+ * address from the configuration, and the contract's code hash from
+ * clpr_service_account_proof. Carrying the raw header instead of a
+ * pre-computed anchor lets the verifier check the derivation rather
+ * than trusting the source.
  */
 message ClprQbftLedgerConfigurationPayload {
     /**
-     * The source ledger's genesis block header. Verifier reconstructs
-     * the initial QBFT validator set from extra_data.
+     * Not read by the verifier: every QBFT header lists the validator set that sealed it,
+     * so the initial set is taken from current_block_header. Kept for wire compatibility.
      */
     BlockHeader genesis_block_header = 1;
 
