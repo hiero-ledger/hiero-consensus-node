@@ -7,6 +7,10 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.keys.KeyShape.CONTRACT;
 import static com.hedera.services.bdd.spec.keys.KeyShape.DELEGATE_CONTRACT;
+import static com.hedera.services.bdd.spec.keys.KeyShape.ED25519;
+import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
+import static com.hedera.services.bdd.spec.keys.KeyShape.threshOf;
+import static com.hedera.services.bdd.spec.keys.SigControl.ON;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
@@ -18,11 +22,13 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoApproveAl
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
+import static com.hedera.services.bdd.spec.transactions.token.CustomFeeTests.fixedHbarFeeInSchedule;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.accountAmount;
@@ -269,6 +275,187 @@ public class IdentityScopedSignatureRequirementsTest {
                                 recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)),
                         // The holder keeps every token; nothing was rejected back to treasury.
                         getAccountBalance("holder").hasTokenBalance("token", 5))));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> sharedAdminKeyDoesNotAuthorizeAirdropDebit() {
+        final var contract = "Airdrop";
+        return hapiTest(
+                newKeyNamed("shared"),
+                cryptoCreate("joe").balance(ONE_HUNDRED_HBARS),
+                cryptoCreate("treasury"),
+                // Jane's account key equals the calling contract's key; airdrops of her tokens still
+                // require her own authorization, despite the shared key value.
+                cryptoCreate("jane").key("shared").maxAutomaticTokenAssociations(10),
+                tokenCreate("token").treasury("treasury").initialSupply(10),
+                tokenAssociate("joe", "token"),
+                cryptoTransfer(moving(5, "token").between("treasury", "jane")),
+                uploadInitCode(contract),
+                contractCreate(contract).adminKey("shared"),
+                withOpContext((spec, log) -> allRunFor(
+                        spec,
+                        contractCall(
+                                        contract,
+                                        "tokenAirdrop",
+                                        idAsHeadlongAddress(spec.registry().getTokenID("token")),
+                                        idAsHeadlongAddress(spec.registry().getAccountID("jane")),
+                                        idAsHeadlongAddress(spec.registry().getAccountID("joe")),
+                                        5L)
+                                .payingWith("joe")
+                                .signedBy("joe")
+                                .refusingEthConversion()
+                                .gas(1_500_000)
+                                .via("unsignedAirdrop")
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED),
+                        childRecordsCheck(
+                                "unsignedAirdrop",
+                                CONTRACT_REVERT_EXECUTED,
+                                recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)),
+                        getAccountBalance("jane").hasTokenBalance("token", 5),
+                        getAccountBalance("joe").hasTokenBalance("token", 0))),
+                // An owner whose key names the contract authorizes the same airdrop by execution alone.
+                newKeyNamed("contractOwnerKey").shape(CONTRACT.signedWith(contract)),
+                cryptoCreate("delegatedOwner").key("contractOwnerKey").maxAutomaticTokenAssociations(10),
+                cryptoTransfer(moving(5, "token").between("treasury", "delegatedOwner")),
+                withOpContext((spec, log) -> allRunFor(
+                        spec,
+                        contractCall(
+                                        contract,
+                                        "tokenAirdrop",
+                                        idAsHeadlongAddress(spec.registry().getTokenID("token")),
+                                        idAsHeadlongAddress(spec.registry().getAccountID("delegatedOwner")),
+                                        idAsHeadlongAddress(spec.registry().getAccountID("joe")),
+                                        5L)
+                                .payingWith("joe")
+                                .signedBy("joe")
+                                .refusingEthConversion()
+                                .gas(1_500_000)
+                                .via("authorizedAirdrop"),
+                        childRecordsCheck(
+                                "authorizedAirdrop", SUCCESS, recordWith().status(SUCCESS)),
+                        getAccountBalance("delegatedOwner").hasTokenBalance("token", 0),
+                        getAccountBalance("joe").hasTokenBalance("token", 5))));
+    }
+
+    /**
+     * The token's admin key is the same key as the contract's admin key. Joe calls the contract to make
+     * the contract itself the token's treasury, which would move Jane's whole treasury balance to it.
+     * The contract authorizes its own account as the new treasury just by executing, but a key that merely
+     * equals the contract's key must not count as the token admin key having signed, so the update fails.
+     * Once the admin key explicitly names the contract, the same call succeeds.
+     */
+    @HapiTest
+    final Stream<DynamicTest> sharedAdminKeyDoesNotAuthorizeTreasuryChange() {
+        final var contract = "UpdateTokenInfoContract";
+        return hapiTest(
+                newKeyNamed("shared"),
+                cryptoCreate("joe").balance(ONE_HUNDRED_HBARS),
+                cryptoCreate("jane"),
+                tokenCreate("token").treasury("jane").initialSupply(10).adminKey("shared"),
+                uploadInitCode(contract),
+                contractCreate(contract).adminKey("shared").gas(4_000_000),
+                // Associate the contract up front so only the signing requirements can fail the update.
+                tokenAssociate(contract, "token"),
+                withOpContext((spec, log) -> allRunFor(
+                        spec,
+                        // Making the contract the new treasury also moves Jane's treasury balance to it.
+                        contractCall(
+                                        contract,
+                                        "updateTokenTreasury",
+                                        idAsHeadlongAddress(spec.registry().getTokenID("token")),
+                                        asHeadlongAddress(
+                                                asAddress(spec.registry().getContractId(contract))))
+                                .payingWith("joe")
+                                .signedBy("joe")
+                                .refusingEthConversion()
+                                .gas(1_000_000)
+                                .via("unsignedTreasuryChange")
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED),
+                        childRecordsCheck(
+                                "unsignedTreasuryChange",
+                                CONTRACT_REVERT_EXECUTED,
+                                recordWith().status(INVALID_SIGNATURE)),
+                        getTokenInfo("token").hasTreasury("jane"),
+                        getAccountBalance("jane").hasTokenBalance("token", 10),
+                        getAccountBalance(contract).hasTokenBalance("token", 0),
+                        // An admin key with a leg naming the contract authorizes the same change by execution.
+                        newKeyNamed("contractAdminKey")
+                                .shape(threshOf(1, ED25519, CONTRACT).signedWith(sigs(ON, contract))),
+                        tokenUpdate("token")
+                                .adminKey("contractAdminKey")
+                                .signedBy(GENESIS, "shared", "contractAdminKey"),
+                        contractCall(
+                                        contract,
+                                        "updateTokenTreasury",
+                                        idAsHeadlongAddress(spec.registry().getTokenID("token")),
+                                        asHeadlongAddress(
+                                                asAddress(spec.registry().getContractId(contract))))
+                                .payingWith("joe")
+                                .signedBy("joe")
+                                .refusingEthConversion()
+                                .gas(1_000_000)
+                                .via("authorizedTreasuryChange"),
+                        childRecordsCheck(
+                                "authorizedTreasuryChange",
+                                SUCCESS,
+                                recordWith().status(SUCCESS)),
+                        getTokenInfo("token").hasTreasury(contract),
+                        getAccountBalance(contract).hasTokenBalance("token", 10))));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> sharedFeeScheduleKeyDoesNotAuthorizeCustomFeeUpdate() {
+        final var contract = "UpdateTokenFeeSchedules";
+        return hapiTest(
+                newKeyNamed("shared"),
+                cryptoCreate("joe").balance(ONE_HUNDRED_HBARS),
+                cryptoCreate("jane"),
+                tokenCreate("token")
+                        .treasury("jane")
+                        .initialSupply(10)
+                        .adminKey("shared")
+                        .feeScheduleKey("shared"),
+                uploadInitCode(contract),
+                contractCreate(contract).adminKey("shared").gas(4_000_000),
+                withOpContext((spec, log) -> allRunFor(
+                        spec,
+                        // A fixed hbar fee collected by Joe applies to every later transfer of the token.
+                        contractCall(
+                                        contract,
+                                        "updateFungibleFixedHbarFee",
+                                        idAsHeadlongAddress(spec.registry().getTokenID("token")),
+                                        1L,
+                                        idAsHeadlongAddress(spec.registry().getAccountID("joe")))
+                                .payingWith("joe")
+                                .signedBy("joe")
+                                .refusingEthConversion()
+                                .gas(1_000_000)
+                                .via("unsignedFeeUpdate")
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED),
+                        childRecordsCheck(
+                                "unsignedFeeUpdate",
+                                CONTRACT_REVERT_EXECUTED,
+                                recordWith().status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE)),
+                        getTokenInfo("token").hasEmptyCustom(),
+                        // A fee schedule key naming the contract authorizes the same update by execution alone.
+                        newKeyNamed("contractFeeScheduleKey").shape(CONTRACT.signedWith(contract)),
+                        tokenUpdate("token")
+                                .feeScheduleKey("contractFeeScheduleKey")
+                                .signedBy(GENESIS, "shared"),
+                        contractCall(
+                                        contract,
+                                        "updateFungibleFixedHbarFee",
+                                        idAsHeadlongAddress(spec.registry().getTokenID("token")),
+                                        1L,
+                                        idAsHeadlongAddress(spec.registry().getAccountID("joe")))
+                                .payingWith("joe")
+                                .signedBy("joe")
+                                .refusingEthConversion()
+                                .gas(1_000_000)
+                                .via("authorizedFeeUpdate"),
+                        childRecordsCheck(
+                                "authorizedFeeUpdate", SUCCESS, recordWith().status(SUCCESS)),
+                        getTokenInfo("token").hasCustom(fixedHbarFeeInSchedule(1L, "joe")))));
     }
 
     @HapiTest
