@@ -205,6 +205,7 @@ public class ShadowgraphSynchronizer {
 
         List<PlatformEvent> nonFarFutureEventsToSend =
                 filterFarFutureEvents(theirEventWindow.getPendingConsensusRound(), sendList);
+        syncMetrics.syncEventsHeldBack(sendList.size() - nonFarFutureEventsToSend.size());
 
         if (maximumEventsPerSync > 0 && nonFarFutureEventsToSend.size() > maximumEventsPerSync) {
             nonFarFutureEventsToSend = nonFarFutureEventsToSend.subList(0, maximumEventsPerSync);
