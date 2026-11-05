@@ -111,8 +111,10 @@ record-stream checks read the block stream instead.
 pre-cutover world that MATS ran before the defaults switched: `streamMode=BOTH` with wrapped record blocks, the
 cutover disabled, no buffer persistence and mock signatures:
 
-- each task then gets the pins it had in that world (`preCutoverTaskOverrides`, e.g. the `FILE_AND_GRPC` writer
-  that attaches a block node to `hapiTestMisc` and `hapiTestSmartContract`), and its `prCheckPropOverrides` on top;
+- each task then gets the pins it had in that world (`preCutoverTaskOverrides`, e.g. real signatures for
+  `hapiTestCrypto`), and its `prCheckPropOverrides` on top;
+- every task whose writer streams over gRPC still gets a block node, which in `BOTH` mode receives the wrapped
+  record blocks;
 - embedded and repeatable nodes get the profile as system properties, and keep the `FILE` writer and mock
   signatures;
 - `hapiTestMiscRecords*`, `hapiTestCutover`, `hapiTestPreCutover` and `hapiTestBlockNodeCommunication` ignore it.

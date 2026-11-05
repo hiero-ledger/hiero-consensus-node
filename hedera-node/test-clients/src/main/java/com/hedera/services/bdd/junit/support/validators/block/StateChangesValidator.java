@@ -297,7 +297,6 @@ public class StateChangesValidator implements BlockStreamValidator {
         // Read TSS config from the node's actual application.properties so that properties written
         // by copyBootstrapAssets() (e.g. from configuration/dev) are respected. Fall back to
         // spec.startupProperties() for anything not explicitly in the file
-        // (e.g. @ConfigProperty annotation defaults such as tss.forceMockSignatures=true).
         final var nodeStartupProperties = inPriorityOrder(
                 new JutilPropertySource(node0.getExternalPath(APPLICATION_PROPERTIES)), spec.startupProperties());
         final boolean isHintsEnabled = nodeStartupProperties.getBoolean("tss.hintsEnabled");

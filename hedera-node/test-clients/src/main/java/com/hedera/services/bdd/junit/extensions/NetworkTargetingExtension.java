@@ -230,7 +230,7 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
                         // Create a temporary HapiSpec to run the validation against the per-method network
                         // Validate logs after a short delay to ensure all log entries are flushed
                         final var logValidationOp = validateAllLogsAfter(Duration.ofSeconds(1L));
-                        final var streamValidationOp = validateStreams();
+                        final var streamValidationOp = validateStreams().forPerMethodNetwork();
                         final var validationSpec = new HapiSpec(
                                 "LogAndStreamValidationSpec",
                                 new SpecOperation[] {logValidationOp, streamValidationOp});

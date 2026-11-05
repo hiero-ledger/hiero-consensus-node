@@ -96,6 +96,8 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
     private final List<RecordStreamValidator> recordStreamValidators;
     private final WrappedRecordHashesByRecordFilesValidator wrappedRecordHashesValidator =
             new WrappedRecordHashesByRecordFilesValidator();
+    // Per-method block node tests own their block nodes, and often break them on purpose
+    private boolean perMethodNetwork = false;
 
     private static final List<BlockStreamValidator.Factory> BLOCK_STREAM_VALIDATOR_FACTORIES = List.of(
             TransactionRecordParityValidator.FACTORY,
@@ -154,6 +156,16 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                 new BalanceReconciliationValidator(),
                 new TokenReconciliationValidator(),
                 new RunningHashChainValidator());
+    }
+
+    /**
+     * Marks this as the validation of a per-method network, which keeps checking only simulated block nodes.
+     *
+     * @return this
+     */
+    public StreamValidationOp forPerMethodNetwork() {
+        this.perMethodNetwork = true;
+        return this;
     }
 
     @Override
@@ -327,7 +339,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                     }
                 });
             } else {
-                validateProofs(spec);
+                validateProofs(spec, perMethodNetwork);
             }
 
             // CI-focused cross-node validation of wrapped record hashes for nodes with identical record stream files
@@ -341,7 +353,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                         "Wrapped record hashes validation failed:" + ERROR_PREFIX + maybeWrappedHashesErrors);
             }
         } else {
-            validateProofs(spec);
+            validateProofs(spec, perMethodNetwork);
         }
 
         return false;
@@ -826,7 +838,11 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                 .toList();
     }
 
-    private static void validateProofs(@NonNull final HapiSpec spec) {
+    private static void validateProofs(@NonNull final HapiSpec spec, final boolean perMethodNetwork) {
+        if (!perMethodNetwork) {
+            validateBlockNodeReceivedAllBlocks(spec);
+            return;
+        }
         if (!BlockSourceFactory.isWriterModeGrpcOnly(spec)) {
             log.info("Beginning block proof validation for each node in the network");
             spec.getNetworkNodes().forEach(node -> {
@@ -862,6 +878,56 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
             });
             log.info("Block proofs validation completed successfully");
         }
+    }
+
+    /**
+     * Fails unless the block node, real or simulated, received every block that node 0 completed on disk. A GRPC-only
+     * writer already read its blocks back from the block node, and a network without one has nothing to check.
+     */
+    private static void validateBlockNodeReceivedAllBlocks(@NonNull final HapiSpec spec) {
+        final var blockNodeNetwork = BlockNodeReader.activeNetwork();
+        if (BlockSourceFactory.isWriterModeGrpcOnly(spec) || blockNodeNetwork == null || blockNodeNetwork.isEmpty()) {
+            return;
+        }
+        final var node0 = spec.getNetworkNodes().getFirst();
+        final var completed = BlockStreamAccess.getAllMarkerFileNumbers(
+                node0.getExternalPath(BLOCK_STREAMS_PARENT_DIR).toAbsolutePath());
+        if (completed.isEmpty()) {
+            Assertions.fail("No completed blocks found for node " + node0.getNodeId());
+        }
+        final var reader = BlockNodeReader.of(blockNodeNetwork);
+        // The block node verifies the final blocks after node 0 completes them, so allow it to catch up
+        final long deadlineNanos = System.nanoTime() + STREAM_SETTLE_TIMEOUT.toNanos();
+        var missing = blocksMissingFrom(reader, completed);
+        while (!missing.isEmpty() && System.nanoTime() < deadlineNanos) {
+            try {
+                Thread.sleep(BLOCK_NODE_READ_RETRY_MS);
+            } catch (final InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+            missing = blocksMissingFrom(reader, completed);
+        }
+        if (!missing.isEmpty()) {
+            Assertions.fail(String.format(
+                    "Block node is missing %d of the %d blocks node %d completed (first missing %s, latest it has %d)",
+                    missing.size(),
+                    completed.size(),
+                    node0.getNodeId(),
+                    missing.subList(0, Math.min(5, missing.size())),
+                    reader.latestAvailableBlock()));
+        }
+        log.info("Block node received all {} blocks node {} completed", completed.size(), node0.getNodeId());
+    }
+
+    // A real block node only reports the end of its contiguous range; a simulator can be asked per block
+    private static List<Long> blocksMissingFrom(
+            @NonNull final BlockNodeReader reader, @NonNull final Set<Long> blockNumbers) {
+        if (reader.isReal()) {
+            final long latest = reader.latestAvailableBlock();
+            return blockNumbers.stream().filter(number -> number > latest).toList();
+        }
+        return blockNumbers.stream().filter(number -> !reader.hasBlock(number)).toList();
     }
 
     private static Set<Long> getVerifiedBlockNumbers(@NonNull final HapiSpec spec, final long nodeId) {

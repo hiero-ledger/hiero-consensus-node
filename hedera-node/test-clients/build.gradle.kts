@@ -227,7 +227,7 @@ val prCheckPropOverrides =
         "hapiTestWraps" to
             "tss.hintsEnabled=true,tss.historyEnabled=true,staking.periodMins=25,blockStream.maxBlockSizeBytes=0",
         // Starts in the pre-cutover world, which TssCutoverTest leaves only by its TSS settings;
-        // the explicit FILE_AND_GRPC writer is what attaches a block node in BOTH mode
+        // FILE_AND_GRPC keeps a file drain while the block node rejects the genesis WRAPS blocks
         "hapiTestCutover" to
             "blockStream.streamMode=BOTH,blockStream.writerMode=FILE_AND_GRPC,blockStream.enableCutover=false,blockStream.streamWrappedRecordBlocks=true,blockStream.buffer.isBufferPersistenceEnabled=false,tss.hintsEnabled=false,tss.historyEnabled=false,tss.forceMockSignatures=false,tss.initialCrsParties=8,staking.periodMins=25,blockStream.maxBlockSizeBytes=0",
         "hapiTestTimeConsumingSerial" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
@@ -278,8 +278,7 @@ val hapiTestConfigProfile =
         .gradleProperty("hapiTestConfigProfile")
         .orElse(providers.environmentVariable("HAPI_TEST_CONFIG_PROFILE"))
         .getOrElse("")
-// The pre-cutover production defaults. The writer is FILE_AND_GRPC in both worlds; pinning it would
-// attach a block node to every task, since in BOTH mode only an explicit writer does that
+// The pre-cutover production defaults (the writer is FILE_AND_GRPC in both worlds)
 val preCutoverConfigValues =
     mapOf(
         "blockStream.streamMode" to "BOTH",
@@ -294,11 +293,9 @@ val preCutoverTaskOverrides =
         "hapiTestAdhoc" to "tss.forceMockSignatures=false",
         "hapiTestCrypto" to "tss.forceMockSignatures=false",
         "hapiTestCryptoSerial" to "tss.forceMockSignatures=false",
-        // writerMode=FILE_AND_GRPC (here and on hapiTestMisc) is what attaches a block node
-        "hapiTestSmartContract" to "blockStream.writerMode=FILE_AND_GRPC,tss.historyEnabled=false",
+        "hapiTestSmartContract" to "tss.historyEnabled=false",
         "hapiTestSmartContractSerial" to "tss.historyEnabled=false",
         "hapiTestRestart" to "tss.forceMockSignatures=false",
-        "hapiTestMisc" to "blockStream.writerMode=FILE_AND_GRPC",
         "hapiTestWraps" to "tss.forceMockSignatures=false",
         "hapiTestNodeStaking" to "tss.forceMockSignatures=false",
         "hapiTestClprMultinetwork" to "tss.forceMockSignatures=false",

@@ -349,17 +349,16 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
     }
 
     /**
-     * Starts a {@link BlockNodeNetwork} for the shared subprocess network when a per-task override asks for a gRPC
-     * writer, when the effective writer is {@code GRPC}-only (in {@code BLOCKS} mode its unacknowledged buffer
-     * back-pressures and stalls the handle thread), or in {@code BLOCKS} mode, so the block stream reaches a block
-     * node. Never for a {@code FILE} writer, a {@code RECORDS}-only stream, or {@code -Dhapi.spec.blocknode.mode=NONE}.
+     * Starts a {@link BlockNodeNetwork} for the shared subprocess network whenever its effective writer streams over
+     * gRPC, whether a per-task override or the production default sets it. Never for a {@code FILE} writer, a
+     * {@code RECORDS}-only stream, or {@code -Dhapi.spec.blocknode.mode=NONE}.
      */
     private static void maybeStartBlockNodeStreaming(HederaNetwork network) {
         if (!(network instanceof SubProcessNetwork subProcessNetwork)) {
             return;
         }
         final Map<String, String> prCheckOverrides = ProcessUtils.prCheckOverrides();
-        // Also read the production defaults, so a GRPC-only or BLOCKS default still gets a block node
+        // Fall back to the production defaults, which count the same as an override
         final BlockStreamConfig defaults = ConfigurationBuilder.create()
                 .withConfigDataType(BlockStreamConfig.class)
                 .build()
@@ -373,11 +372,8 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
         final BlockNodeMode blockNodeMode = Optional.ofNullable(System.getProperty("hapi.spec.blocknode.mode"))
                 .map(BlockNodeMode::valueOf)
                 .orElse(BlockNodeMode.REAL);
-        final boolean streamsToBlockNodes = writerMode != BlockStreamWriterMode.FILE
-                && streamMode != StreamMode.RECORDS
-                && (prCheckOverrides.containsKey("blockStream.writerMode")
-                        || writerMode == BlockStreamWriterMode.GRPC
-                        || streamMode == StreamMode.BLOCKS);
+        final boolean streamsToBlockNodes =
+                writerMode != BlockStreamWriterMode.FILE && streamMode != StreamMode.RECORDS;
         if (!streamsToBlockNodes || blockNodeMode == BlockNodeMode.NONE) {
             return;
         }
