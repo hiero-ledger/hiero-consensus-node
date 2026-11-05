@@ -274,6 +274,40 @@ class BesuQBFTVerifyBundleCallTest extends CallTestBase {
     }
 
     @Test
+    void contentLessBundleReturnsAContractModeAdvance() {
+        // A content-less contract-mode bundle (e.g. only the validator contract's storage root moved) keeps the full
+        // contract-mode successor: validator contract carried over, new storage root.
+        final var currentAnchor = new BesuQbftVerifier.TrustAnchor(
+                BesuQbftVerifier.encodeValidatorSet(List.of(VALIDATOR_ADDR)),
+                SERVICE_ADDR,
+                CODE_HASH,
+                ANCHOR_BLOCK,
+                new BesuQbftVerifier.ValidatorContract(
+                        filled(20, 0x55), filled(32, 0x56), filled(32, 0x57), filled(32, 0x58)));
+        final byte[] provenSet = BesuQbftVerifier.encodeValidatorSet(List.of(VALIDATOR_ADDR));
+        final byte[] provenStorageRoot = filled(32, 0x59);
+        final var verified = new BesuQbftVerifier.VerifiedBundle(
+                filled(32, 0x01),
+                new byte[0],
+                provenMetadata(),
+                provenSet,
+                blockNumberId(PROVEN_BLOCK),
+                new byte[0],
+                provenStorageRoot);
+
+        final var result = executeWith(verified, channelContext(CHANNEL_ID, SERVICE_ADDR), currentAnchor.encode());
+
+        assertThat(result.responseCode()).isEqualTo(SUCCESS);
+        final var decoded = ClprVerifierAbi.VERIFY_BUNDLE_RETURN.decode(
+                result.fullResult().output().toArray());
+        assertThat((byte[]) decoded.get(2))
+                .isEqualTo(currentAnchor
+                        .advance(provenSet, PROVEN_BLOCK, provenStorageRoot)
+                        .encode());
+        assertThat((byte[]) decoded.get(3)).isEqualTo(blockNumberId(PROVEN_BLOCK));
+    }
+
+    @Test
     void rejectsContractModeAdvanceWithoutAProvenStorageRoot() {
         // A contract-mode successor needs the validator contract's storage root; an advance that lacks one fails
         // the call cleanly instead of storing a malformed anchor.
@@ -391,7 +425,42 @@ class BesuQBFTVerifyBundleCallTest extends CallTestBase {
     }
 
     @Test
-    void rejectsEmptyBundleWithoutEndpointManifest() {
+    void manifestOnlyBundleReturnsAProvenRotation() {
+        // A content-less bundle that crossed a rotation: the proven anchor must not be dropped.
+        final byte[] provenSet = BesuQbftVerifier.encodeValidatorSet(List.of(NEW_VALIDATOR_ADDR));
+        final var result =
+                executeWith(verifiedBundle(new byte[0], manifestBytes(4L), provenSet, blockNumberId(PROVEN_BLOCK)));
+
+        assertThat(result.responseCode()).isEqualTo(SUCCESS);
+        final var decoded = ClprVerifierAbi.VERIFY_BUNDLE_RETURN.decode(
+                result.fullResult().output().toArray());
+        assertThat(((BigInteger) ((Tuple) decoded.get(0)).get(0)).longValueExact())
+                .isZero();
+        assertThat((byte[]) decoded.get(2)).isEqualTo(fullTrustAnchor(NEW_VALIDATOR_ADDR, PROVEN_BLOCK));
+        assertThat((byte[]) decoded.get(3)).isEqualTo(blockNumberId(PROVEN_BLOCK));
+        assertThat(((BigInteger) ((Tuple) decoded.get(4)).get(0)).longValueExact())
+                .isEqualTo(4L);
+    }
+
+    @Test
+    void rotationOnlyBundleWithoutContentReturnsTheProvenAnchor() {
+        final byte[] provenSet = BesuQbftVerifier.encodeValidatorSet(List.of(NEW_VALIDATOR_ADDR));
+        final var result =
+                executeWith(verifiedBundle(new byte[0], new byte[0], provenSet, blockNumberId(PROVEN_BLOCK)));
+
+        assertThat(result.responseCode()).isEqualTo(SUCCESS);
+        final var decoded = ClprVerifierAbi.VERIFY_BUNDLE_RETURN.decode(
+                result.fullResult().output().toArray());
+        assertThat(((BigInteger) ((Tuple) decoded.get(0)).get(0)).longValueExact())
+                .isZero();
+        assertThat((byte[]) decoded.get(2)).isEqualTo(fullTrustAnchor(NEW_VALIDATOR_ADDR, PROVEN_BLOCK));
+        assertThat((byte[]) decoded.get(3)).isEqualTo(blockNumberId(PROVEN_BLOCK));
+        assertThat(((BigInteger) ((Tuple) decoded.get(4)).get(0)).longValueExact())
+                .isZero();
+    }
+
+    @Test
+    void rejectsEmptyBundleWithoutEndpointManifestOrRotation() {
         final var result = executeWith(verifiedBundle(new byte[0], new byte[0]));
 
         assertThat(result.responseCode()).isEqualTo(CLPR_BUNDLE_VERIFICATION_FAILED);

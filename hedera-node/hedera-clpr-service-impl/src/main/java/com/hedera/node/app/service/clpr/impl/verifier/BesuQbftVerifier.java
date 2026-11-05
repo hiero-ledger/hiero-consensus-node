@@ -118,9 +118,6 @@ public final class BesuQbftVerifier {
      */
     static final int MAX_CONTRACT_MODE_HOPS = 32;
 
-    /** Most members a contract-mode validator array may hold. */
-    static final int MAX_CONTRACT_MODE_VALIDATORS = 256;
-
     /** Field index of {@code stateRoot} inside the canonical Ethereum block-header RLP. */
     private static final int HEADER_STATE_ROOT_INDEX = 3;
 
@@ -152,6 +149,13 @@ public final class BesuQbftVerifier {
 
     private static final byte[] ZERO_ADDRESS = new byte[ADDRESS_LENGTH];
 
+    /**
+     * Most members a validator set may have, as in the spec ("The verifier accepts at most 256 validators") and
+     * the Solidity {@code ClprQbftQuorum.MAX_VALIDATORS}. Checked before any seal is recovered, so a header costs at
+     * most this many signature recoveries.
+     */
+    static final int MAX_VALIDATORS = 256;
+
     // ── Storage-proof layout produced by QbftBundleConstructor (SC-189 Channel struct) ──
     // The relay proves 5 Channel-struct slots — keccak(connId,15)+{1,2,4,5,16} = status|nextMsgId,
     // acked|received|reply, sentRunningHash, receivedRunningHash, endpointManifestVersion — plus, when
@@ -171,6 +175,16 @@ public final class BesuQbftVerifier {
     // keccak256(abi.encode(uint64(L), keccak256(abi.encode(channelId, 1)))) + 1.
     private static final int MESSAGE_QUEUES_MAPPING_SLOT = 1;
     private static final int MESSAGE_OFFSET_RUNNING_HASH = 1;
+
+    /**
+     * Most message ids {@link #findLastMessageId} tries. Each probe costs two keccak256 hashes (about 84 gas in the
+     * EVM); 512 probes is roughly half of the flat {@code verifyBundle} charge of 100k gas, leaving the rest for the
+     * other verification work. An honest bundle starts right after the peer's acked id and matches on the first probe.
+     *
+     * <p>Future: charge gas by the work done (per probe, seal, hop and byte) instead of a flat amount.
+     */
+    static final int MAX_LAST_MESSAGE_PROBES = 512;
+
     private static final int CHANNEL_OFFSET_STATUS_NEXTMSGID = 1;
     private static final int CHANNEL_OFFSET_ACKED_RECEIVED = 2;
     private static final int CHANNEL_OFFSET_SENT_RUNNING_HASH = 4;
@@ -405,15 +419,8 @@ public final class BesuQbftVerifier {
         if (!trustedSetItem.isList() || !hopsItem.isList()) {
             throw ProofException.besuQbft("validator source trustedSet and hops must be RLP lists");
         }
-        // As in the QBFT verifier spec, the trusted set is always sent; duplicates are dropped before it is
-        // compared with the anchored set.
-        if (trustedSetItem.children().size() > MAX_CONTRACT_MODE_VALIDATORS) {
-            throw ProofException.besuQbft("validator source trustedSet lists "
-                    + trustedSetItem.children().size() + " validators; at most " + MAX_CONTRACT_MODE_VALIDATORS
-                    + " are accepted");
-        }
-        final List<byte[]> trustedSet =
-                distinctSorted(decodeValidatorSet(trustedSetItem.rawBytes(), "validatorSource.trustedSet"));
+        // As in the QBFT verifier spec, the trusted set is always sent; decoding caps it and drops duplicates.
+        final List<byte[]> trustedSet = decodeValidatorSet(trustedSetItem.rawBytes(), "validatorSource.trustedSet");
         if (!sameValidators(trustedSet, anchorValidators)) {
             throw ProofException.besuQbft(
                     "validator source trustedSet does not match the trust anchor's validator set");
@@ -707,10 +714,11 @@ public final class BesuQbftVerifier {
 
     /**
      * As {@link #verifyConfigPayload(byte[])}, additionally verifying the peer's endpoint-manifest
-     * state against the same config block when {@code endpointManifestProofBytes} is non-empty
+     * state when {@code endpointManifestProofBytes} is non-empty
      * (spec §4.4 / §2.4.2). The proof is {@code RLP([blockHeader, accountProof, manifestStorageProof,
      * manifestPreimage])} — mirroring SC-189 {@code QBFTVerifier._verifyConfigEndpointManifest}: the
-     * header seal is authenticated against the config's initial validator set, the CLPR-service account
+     * header seal is authenticated against the config's initial validator set (as in the spec, the manifest
+     * block need not be the config block; it must be sealed by the same set), the CLPR-service account
      * is authenticated against the header's state root (codeHash unpinned here — the config trust anchor
      * establishes the account, and bundle-time proofs pin the codeHash), then the manifest commitment is
      * bound and {@code service_address} checked against the proven config service address.
@@ -867,8 +875,8 @@ public final class BesuQbftVerifier {
                 .build();
 
         // --- 7. Verify the endpoint-manifest state proof (Step 1b bootstrap), if one was supplied ----
-        // A non-empty third verifyConfig argument carries the peer's endpoint-manifest state proof,
-        // authenticated against the same config block. Empty → byte[0]; the caller applies its bring-up
+        // A non-empty third verifyConfig argument carries the peer's endpoint-manifest state proof, whose
+        // header must be sealed by the config validator set. Empty → byte[0]; the caller applies its bring-up
         // fallback (the real manifest then arrives via the first bundle's Step 1b).
         final byte[] endpointManifestBytes = endpointManifestProofBytes.length == 0
                 ? new byte[0]
@@ -916,9 +924,10 @@ public final class BesuQbftVerifier {
 
     /**
      * Verify the config-path endpoint-manifest proof {@code RLP([blockHeader, accountProof,
-     * manifestStorageProof, manifestPreimage])} against the config block, mirroring SC-189
+     * manifestStorageProof, manifestPreimage])}, mirroring SC-189
      * {@code QBFTVerifier._verifyConfigEndpointManifest}. The header seal is authenticated against the
-     * config's {@code configValidators}; the CLPR-service account is authenticated against the header
+     * config's {@code configValidators}; as in the spec, the header need not be the config block, only sealed
+     * by a quorum of the same set. The CLPR-service account is authenticated against the header
      * state root (codeHash unpinned — the config trust anchor establishes the account); then the manifest
      * commitment slot is bound to the preimage and {@code service_address} checked against
      * {@code serviceAddress20}. Returns the verified preimage bytes (never empty on success).
@@ -1074,10 +1083,12 @@ public final class BesuQbftVerifier {
     }
 
     /**
-     * Decodes a validator set previously encoded by {@link #encodeValidatorSet}.
-     * Returns the addresses in the stored (sorted) order.
+     * Decodes a validator set: a trust anchor's set ({@link #encodeValidatorSet}) or a bundle's submitted
+     * {@code trustedSet}. Returns the distinct addresses, sorted: duplicates are dropped, as in the Solidity verifier,
+     * so the quorum and set comparisons always see a true set.
      *
-     * @throws ProofException if {@code encoded} is not a non-empty RLP list
+     * @throws ProofException if {@code encoded} is not a non-empty RLP list of at most {@value #MAX_VALIDATORS}
+     *     non-zero addresses
      * @throws IllegalArgumentException if any address is not exactly 20 bytes
      */
     static List<byte[]> decodeValidatorSet(@NonNull final byte[] encoded, @NonNull final String name) {
@@ -1094,12 +1105,16 @@ public final class BesuQbftVerifier {
         if (children.isEmpty()) {
             throw ProofException.besuQbft(name + " contains no validators");
         }
+        if (children.size() > MAX_VALIDATORS) {
+            throw ProofException.besuQbft(
+                    name + " lists " + children.size() + " validators; at most " + MAX_VALIDATORS + " are accepted");
+        }
         final List<byte[]> result = new ArrayList<>(children.size());
         for (int i = 0; i < children.size(); i++) {
             result.add(checkedCopy(children.get(i).asBytes(), ADDRESS_LENGTH, name + "[" + i + "]"));
         }
         requireNoZeroAddress(result, name);
-        return result;
+        return distinctSorted(result);
     }
 
     /** Rejects the zero address, which no validator key can sign for, in a validator list. */
@@ -1122,6 +1137,10 @@ public final class BesuQbftVerifier {
         final List<Rlp.Item> validatorItems = listedValidatorItems(headerItem);
         if (validatorItems.isEmpty()) {
             throw ProofException.besuQbft("blockHeader.extraData.validators list is empty");
+        }
+        if (validatorItems.size() > MAX_VALIDATORS) {
+            throw ProofException.besuQbft("blockHeader.extraData.validators lists " + validatorItems.size()
+                    + " validators; at most " + MAX_VALIDATORS + " are accepted");
         }
         final List<byte[]> validators = new ArrayList<>(validatorItems.size());
         for (int i = 0; i < validatorItems.size(); i++) {
@@ -1155,19 +1174,7 @@ public final class BesuQbftVerifier {
     /** The items of a header's QBFT extra-data validators list. */
     @NonNull
     private static List<Rlp.Item> listedValidatorItems(@NonNull final Rlp.Item headerItem) {
-        final byte[] extraDataRlp =
-                headerItem.children().get(HEADER_EXTRA_DATA_INDEX).asBytes();
-        final Rlp.Item extra;
-        try {
-            extra = Rlp.decodeOne(extraDataRlp);
-        } catch (final RuntimeException e) {
-            throw ProofException.besuQbft("blockHeader.extraData is not valid RLP: " + e.getMessage());
-        }
-        if (!extra.isList() || extra.children().size() != QBFT_EXTRA_FIELDS) {
-            throw ProofException.besuQbft(
-                    "blockHeader.extraData is not a QBFT extra-data RLP list of " + QBFT_EXTRA_FIELDS + " fields");
-        }
-        final Rlp.Item validatorsItem = extra.children().get(QBFT_EXTRA_INDEX_VALIDATORS);
+        final Rlp.Item validatorsItem = decodeQbftExtra(headerItem).children().get(QBFT_EXTRA_INDEX_VALIDATORS);
         if (!validatorsItem.isList()) {
             throw ProofException.besuQbft("blockHeader.extraData.validators is not an RLP list");
         }
@@ -1224,7 +1231,7 @@ public final class BesuQbftVerifier {
      *       changed: the storage proofs are not read and no set is returned.</li>
      *   <li>Otherwise the array's length slot ({@code arraySlot}) and element slots ({@code keccak256(arraySlot) + i})
      *       are proven under the account's storage root. The array must hold 1 to
-     *       {@value #MAX_CONTRACT_MODE_VALIDATORS} distinct, non-zero addresses (the low 20 bytes of each slot).</li>
+     *       {@value #MAX_VALIDATORS} distinct, non-zero addresses (the low 20 bytes of each slot).</li>
      * </ol>
      *
      * @param expected the validator contract and array slot the proof must name
@@ -1276,9 +1283,9 @@ public final class BesuQbftVerifier {
         }
 
         final List<SlotProof> entries = proof.storageProof().get();
-        if (entries.size() > MAX_CONTRACT_MODE_VALIDATORS + 1) {
+        if (entries.size() > MAX_VALIDATORS + 1) {
             throw ProofException.besuQbft("validator array proof has " + entries.size() + " entries; at most "
-                    + (MAX_CONTRACT_MODE_VALIDATORS + 1) + " (length and elements) are accepted");
+                    + (MAX_VALIDATORS + 1) + " (length and elements) are accepted");
         }
         // Entries may come in any order. Only the entry for each needed slot is verified: entries for other slots are
         // ignored, and for a slot listed twice only the first entry is used (a bad first entry fails the bundle).
@@ -1294,9 +1301,9 @@ public final class BesuQbftVerifier {
         if (length.signum() == 0) {
             throw ProofException.besuQbft("validator array is empty");
         }
-        if (length.compareTo(BigInteger.valueOf(MAX_CONTRACT_MODE_VALIDATORS)) > 0) {
-            throw ProofException.besuQbft("validator array holds " + length + " members; at most "
-                    + MAX_CONTRACT_MODE_VALIDATORS + " are accepted");
+        if (length.compareTo(BigInteger.valueOf(MAX_VALIDATORS)) > 0) {
+            throw ProofException.besuQbft(
+                    "validator array holds " + length + " members; at most " + MAX_VALIDATORS + " are accepted");
         }
         final int n = length.intValueExact();
         final byte[] elementsBase = MiscCryptoUtils.keccak256DigestOf(proof.arraySlot32());
@@ -1464,10 +1471,22 @@ public final class BesuQbftVerifier {
      */
     @NonNull
     static byte[] besuBlockHash(@NonNull final Rlp.Item headerItem) {
+        return hashWithoutSeals(headerItem, decodeQbftExtra(headerItem), Rlp.encodeUint(0));
+    }
+
+    /**
+     * Decodes a header's QBFT extra-data, {@code RLP([vanity, validators[], vote, round, committedSeals[]])}: the one
+     * place it is decoded and shape-checked.
+     *
+     * @throws ProofException if extra-data is not valid RLP or not a list of {@value #QBFT_EXTRA_FIELDS} items
+     */
+    @NonNull
+    private static Rlp.Item decodeQbftExtra(@NonNull final Rlp.Item headerItem) {
+        final byte[] extraDataRlp =
+                headerItem.children().get(HEADER_EXTRA_DATA_INDEX).asBytes();
         final Rlp.Item extra;
         try {
-            extra = Rlp.decodeOne(
-                    headerItem.children().get(HEADER_EXTRA_DATA_INDEX).asBytes());
+            extra = Rlp.decodeOne(extraDataRlp);
         } catch (final RuntimeException e) {
             throw ProofException.besuQbft("blockHeader.extraData is not valid RLP: " + e.getMessage());
         }
@@ -1475,18 +1494,30 @@ public final class BesuQbftVerifier {
             throw ProofException.besuQbft(
                     "blockHeader.extraData is not a QBFT extra-data RLP list of " + QBFT_EXTRA_FIELDS + " fields");
         }
-        final byte[] onchainExtraData = Rlp.encodeList(List.of(
+        return extra;
+    }
+
+    /**
+     * keccak256 of the header with its extra-data re-encoded with the given round and no committed seals: the commit
+     * seal digest (original round) or Besu's on-chain block hash (round 0).
+     *
+     * @param roundRaw the RLP encoding of the round to put in extra-data
+     */
+    @NonNull
+    private static byte[] hashWithoutSeals(
+            @NonNull final Rlp.Item headerItem, @NonNull final Rlp.Item extra, @NonNull final byte[] roundRaw) {
+        final byte[] extraWithoutSeals = Rlp.encodeList(List.of(
                 extra.children().get(0).rawBytes(), // vanity
                 extra.children().get(1).rawBytes(), // validators[]
                 extra.children().get(2).rawBytes(), // vote
-                Rlp.encodeUint(0), // round = 0
+                roundRaw, // round
                 Rlp.encodeList(List.of()))); // committedSeals = []
         final List<Rlp.Item> headerChildren = headerItem.children();
         final List<byte[]> fields = new ArrayList<>(headerChildren.size());
         for (int i = 0; i < headerChildren.size(); i++) {
             fields.add(
                     i == HEADER_EXTRA_DATA_INDEX
-                            ? Rlp.encodeBytes(onchainExtraData)
+                            ? Rlp.encodeBytes(extraWithoutSeals)
                             : headerChildren.get(i).rawBytes());
         }
         return MiscCryptoUtils.keccak256DigestOf(Rlp.encodeList(fields));
@@ -1543,10 +1574,11 @@ public final class BesuQbftVerifier {
      * ({@code VoteTally}). So the listed set may differ from the trusted set by at most one member, and the
      * seals are checked against the listed set.
      *
-     * <p>CLPR light-client rules (not Besu behaviour): when the listed set differs from the trusted set, the
-     * trusted set must still vouch for the change — at least {@code quorum(trusted) - 1} of the signers must
-     * be trusted members, or the full {@code quorum(trusted)} when a newly added member did not seal. A hop
-     * ({@code requireChange}) must change the set; only the current block may list the trusted set unchanged.
+     * <p>CLPR light-client rule (spec): when the listed set differs from the trusted set, at least
+     * {@code quorum(trusted) - 1} of the signers must be trusted members, or {@code quorum(trusted)} when a newly
+     * added member did not seal. With at most one change per header this is implied by the listed-set quorum above,
+     * so it is kept as an assertion of that invariant (for parity with the spec), not as an independent safeguard.
+     * A hop ({@code requireChange}) must change the set; only the current block may list the trusted set unchanged.
      *
      * @param headerItem the hop or current block header
      * @param trustedSet the validator set trusted before this header
@@ -1576,7 +1608,7 @@ public final class BesuQbftVerifier {
         verifyCommitters(committers, listed);
 
         if (changes == 1) {
-            // CLPR light-client rule: the trusted set vouches for the change.
+            // Spec rule 2, implied by the listed-set quorum check above (see Javadoc); kept as an invariant assertion.
             final boolean addedMemberSealed = !added.isEmpty()
                     && Collections.binarySearch(committers, added.get(0), Arrays::compareUnsigned) >= 0;
             final int trustedQuorum = quorum(trusted.size());
@@ -1683,18 +1715,7 @@ public final class BesuQbftVerifier {
         final int quorum = quorum(validatorCount);
 
         // 1. Pull extraData out of the block header.
-        final byte[] extraDataRlp =
-                headerItem.children().get(HEADER_EXTRA_DATA_INDEX).asBytes();
-        final Rlp.Item extra;
-        try {
-            extra = Rlp.decodeOne(extraDataRlp);
-        } catch (final RuntimeException e) {
-            throw ProofException.besuQbft("blockHeader.extraData is not valid RLP: " + e.getMessage());
-        }
-        if (!extra.isList() || extra.children().size() != QBFT_EXTRA_FIELDS) {
-            throw ProofException.besuQbft(
-                    "blockHeader.extraData is not a QBFT extra-data RLP list of " + QBFT_EXTRA_FIELDS + " fields");
-        }
+        final Rlp.Item extra = decodeQbftExtra(headerItem);
         final Rlp.Item committedSealsItem = extra.children().get(QBFT_EXTRA_INDEX_COMMITTED_SEALS);
         if (!committedSealsItem.isList()) {
             throw ProofException.besuQbft("blockHeader.extraData.committedSeals is not an RLP list");
@@ -1746,25 +1767,8 @@ public final class BesuQbftVerifier {
      * {@code BftExtraDataCodec.encodeWithoutCommitSeals} / {@code BftBlockHashing}.
      */
     static byte[] buildCommitSealHash(@NonNull final Rlp.Item headerItem, @NonNull final Rlp.Item extra) {
-        // Re-encode extraData with committedSeals=[] but PRESERVE the original round.
-        final List<byte[]> sealingExtraFields = new ArrayList<>(QBFT_EXTRA_FIELDS);
-        sealingExtraFields.add(extra.children().get(0).rawBytes()); // vanity
-        sealingExtraFields.add(extra.children().get(1).rawBytes()); // validators[]
-        sealingExtraFields.add(extra.children().get(2).rawBytes()); // vote
-        sealingExtraFields.add(extra.children().get(3).rawBytes()); // round — preserve original
-        sealingExtraFields.add(Rlp.encodeList(List.of())); // committedSeals = []
-        final byte[] sealingExtraData = Rlp.encodeList(sealingExtraFields);
-
-        // Re-encode the full header, swapping in the stripped extraData.
-        final List<Rlp.Item> headerChildren = headerItem.children();
-        final List<byte[]> sealingHeaderFields = new ArrayList<>(headerChildren.size());
-        for (int i = 0; i < headerChildren.size(); i++) {
-            sealingHeaderFields.add(
-                    i == HEADER_EXTRA_DATA_INDEX
-                            ? Rlp.encodeBytes(sealingExtraData)
-                            : headerChildren.get(i).rawBytes());
-        }
-        return MiscCryptoUtils.keccak256DigestOf(Rlp.encodeList(sealingHeaderFields));
+        // Committed seals stripped, the original round preserved.
+        return hashWithoutSeals(headerItem, extra, extra.children().get(3).rawBytes());
     }
 
     /**
@@ -1880,6 +1884,11 @@ public final class BesuQbftVerifier {
                         "6-slot bundle has no message running-hash slot outside the Channel cluster for channelId 0x"
                                 + HEX.formatHex(channelId32));
             }
+            // A message's running hash is never zero; a zero value is a proof that the slot is empty.
+            if (Arrays.equals(provenSlotValues[messageHashIdx], new byte[32])) {
+                throw ProofException.besuQbft(
+                        "last-message running-hash slot 0x" + HEX.formatHex(slotKeys[messageHashIdx]) + " is empty");
+            }
             out[SP_INDEX_LAST_MSG_RUNNING_HASH] = provenSlotValues[messageHashIdx];
             return new MatchedSlots(out, slotKeys[messageHashIdx]);
         } else if (messageHashIdx >= 0) {
@@ -1897,16 +1906,16 @@ public final class BesuQbftVerifier {
     /**
      * Finds the message whose running-hash slot is {@code lastMessageSlotKey32}: the last message L of a bundle
      * of {@code messageCount} messages. The bundle's messages are not yet acknowledged by the sender, so L lies in
-     * {@code [ackedMessageId + messageCount, nextMessageId - 1]}; the search is bounded by the sender's proven
-     * queue and hits on its first probe when the bundle starts at {@code ackedMessageId + 1}. Mirrors the Solidity
-     * {@code ClprEvmBundleVerifier._findLastMessageId}.
+     * {@code [ackedMessageId + messageCount, nextMessageId - 1]}. It hits on its first probe when the bundle starts
+     * at {@code ackedMessageId + 1}, and tries at most {@link #MAX_LAST_MESSAGE_PROBES} ids. Mirrors the Solidity
+     * {@code ClprEvmBundleVerifier._findLastMessageId}, which is bounded by gas instead.
      *
      * @param channelId32 the channel the slot must belong to
      * @param lastMessageSlotKey32 the proven 6th slot's key
      * @param ackedMessageId the sender's proven {@code ackedMessageId}
      * @param nextMessageId the sender's proven {@code nextMessageId}
      * @param messageCount the number of messages in the bundle
-     * @return L, or empty when no message in the range has that slot
+     * @return L, or empty when none of the ids tried has that slot
      */
     @NonNull
     public static OptionalLong findLastMessageId(
@@ -1922,7 +1931,9 @@ public final class BesuQbftVerifier {
         }
         final byte[] queueBase =
                 MiscCryptoUtils.keccak256DigestOf(concat(channelId32, uint256Bytes(MESSAGE_QUEUES_MAPPING_SLOT)));
-        for (long id = ackedMessageId + messageCount; id > 0 && id < nextMessageId; id++) {
+        final long first = ackedMessageId + messageCount;
+        final long end = Math.min(nextMessageId, first + MAX_LAST_MESSAGE_PROBES);
+        for (long id = first; id > 0 && id < end; id++) {
             final byte[] messageBase = MiscCryptoUtils.keccak256DigestOf(concat(uint256Bytes(id), queueBase));
             if (Arrays.equals(addToBytes32(messageBase, MESSAGE_OFFSET_RUNNING_HASH), lastMessageSlotKey32)) {
                 return OptionalLong.of(id);

@@ -145,11 +145,39 @@ public class BesuQBFTVerifyBundleCall extends AbstractCall {
 
         final var bundleContentBytes = verified.bundleContentBytes();
 
-        // Manifest-only recovery bundle (spec §8.1.4): the verifier proved an endpoint manifest with no
-        // bundle content. Accepted so the CLPR Service can apply the manifest update out-of-band.
+        // A trust anchor comes only from an advance the verifier proved, anchored at the block its id names.
+        // The service contract address and code hash (and, in contract mode, the validator contract, array slot
+        // and code hash) are stable across advances and carry forward from the current trust anchor.
+        if (verified.newTrustAnchor().length > 0 && verified.newTrustAnchorId().length != Long.BYTES) {
+            log.warn("verifyBundle (QBFT): proven trust anchor id is not an 8-byte block number");
+            return fail();
+        }
+        final byte[] provenTrustAnchor;
+        try {
+            provenTrustAnchor = verified.newTrustAnchor().length > 0
+                    ? anchor.advance(
+                                    verified.newTrustAnchor(),
+                                    ByteBuffer.wrap(verified.newTrustAnchorId()).getLong(),
+                                    verified.newValidatorStorageRoot32())
+                            .encode()
+                    : null;
+        } catch (final IllegalArgumentException e) {
+            log.warn("verifyBundle (QBFT): proven trust anchor advance is malformed ({})", e.getMessage());
+            return fail();
+        }
+        if (provenTrustAnchor != null) {
+            log.info(
+                    "verifyBundle (QBFT): trust anchor advanced to {} trustAnchorId=0x{}",
+                    Bytes.wrap(verified.newTrustAnchor()),
+                    HexFormat.of().formatHex(verified.newTrustAnchorId()));
+        }
+
+        // A bundle without content carries only a proven state update: an endpoint-manifest recovery (spec §8.1.4)
+        // and/or a trust-anchor rotation. Both are returned, so a rotation the verifier proved is not lost.
         if (bundleContentBytes.length == 0) {
-            if (verified.newEndpointManifestBytes().length > 0) {
-                return manifestOnlySuccess(verified.newEndpointManifestBytes());
+            if (verified.newEndpointManifestBytes().length > 0 || provenTrustAnchor != null) {
+                return stateUpdateOnlySuccess(
+                        verified.newEndpointManifestBytes(), provenTrustAnchor, verified.newTrustAnchorId());
             }
             return fail();
         }
@@ -173,36 +201,10 @@ public class BesuQBFTVerifyBundleCall extends AbstractCall {
             return fail();
         }
 
-        // A trust anchor comes only from an advance the verifier proved, anchored at the block its id names.
-        // The service contract address and code hash (and, in contract mode, the validator contract, array slot
-        // and code hash) are stable across advances and carry forward from the current trust anchor.
-        if (verified.newTrustAnchor().length > 0 && verified.newTrustAnchorId().length != Long.BYTES) {
-            log.warn("verifyBundle (QBFT): proven trust anchor id is not an 8-byte block number");
-            return fail();
-        }
-        final byte[] provenTrustAnchor;
-        try {
-            provenTrustAnchor = verified.newTrustAnchor().length > 0
-                    ? anchor.advance(
-                                    verified.newTrustAnchor(),
-                                    ByteBuffer.wrap(verified.newTrustAnchorId()).getLong(),
-                                    verified.newValidatorStorageRoot32())
-                            .encode()
-                    : null;
-        } catch (final IllegalArgumentException e) {
-            log.warn("verifyBundle (QBFT): proven trust anchor advance is malformed ({})", e.getMessage());
-            return fail();
-        }
         final ClprBundleContent reconciledContent =
                 reconcileTrustAnchor(scopedContent, provenTrustAnchor, verified.newTrustAnchorId());
         if (reconciledContent == null) {
             return fail();
-        }
-        if (provenTrustAnchor != null) {
-            log.info(
-                    "verifyBundle (QBFT): trust anchor advanced to {} trustAnchorId=0x{}",
-                    Bytes.wrap(verified.newTrustAnchor()),
-                    HexFormat.of().formatHex(verified.newTrustAnchorId()));
         }
         final byte[] finalBundleContentBytes =
                 ClprBundleContent.PROTOBUF.toBytes(reconciledContent).toByteArray();
@@ -383,21 +385,30 @@ public class BesuQBFTVerifyBundleCall extends AbstractCall {
     }
 
     /**
-     * Manifest-aware success return for a manifest-only recovery bundle (spec §8.1.4): the endpoint manifest with an
-     * empty message set and no trust-anchor rotation. Metadata is signalled absent via a zero
-     * {@code nextMessageId} sentinel (a normal bundle's is always {@code >= 1}), which
+     * Success return for a bundle without content: a state update only, carrying the proven endpoint manifest
+     * (spec §8.1.4 recovery) and/or the proven trust-anchor rotation, with an empty message set. Metadata is signalled
+     * absent via a zero {@code nextMessageId} sentinel (a normal bundle's is always {@code >= 1}), which
      * {@link com.hedera.node.app.service.clpr.impl.verifier.EvmClprVerifier} decodes to a null metadata so
-     * {@code ClprSubmitBundleHandler} takes its state-update-only path.
+     * {@code ClprSubmitBundleHandler} takes its state-update-only path, which installs the new anchor and manifest.
+     *
+     * @param newEndpointManifestBytes the proven manifest, or empty when there is none
+     * @param provenTrustAnchor the proven successor anchor, or {@code null} when there was no rotation
+     * @param provenTrustAnchorId the successor's id (ignored when there was no rotation)
      */
     @NonNull
-    private PricedResult manifestOnlySuccess(@NonNull final byte[] newEndpointManifestBytes) {
-        final ClprEndpointManifest manifest;
-        try {
-            manifest = ClprEndpointManifest.PROTOBUF.parseStrict(
-                    Bytes.wrap(newEndpointManifestBytes).toReadableSequentialData());
-        } catch (final Exception e) {
-            log.warn("verifyBundle (QBFT): manifest-only recovery bytes are not a ClprEndpointManifest", e);
-            return fail();
+    private PricedResult stateUpdateOnlySuccess(
+            @NonNull final byte[] newEndpointManifestBytes,
+            @Nullable final byte[] provenTrustAnchor,
+            @NonNull final byte[] provenTrustAnchorId) {
+        ClprEndpointManifest manifest = ClprEndpointManifest.DEFAULT;
+        if (newEndpointManifestBytes.length > 0) {
+            try {
+                manifest = ClprEndpointManifest.PROTOBUF.parseStrict(
+                        Bytes.wrap(newEndpointManifestBytes).toReadableSequentialData());
+            } catch (final Exception e) {
+                log.warn("verifyBundle (QBFT): manifest-only recovery bytes are not a ClprEndpointManifest", e);
+                return fail();
+            }
         }
         final Tuple absentMetadata = absentMetadataTuple();
         return gasOnly(
@@ -405,8 +416,8 @@ public class BesuQBFTVerifyBundleCall extends AbstractCall {
                         VERIFY_BUNDLE_RETURN.encode(Tuple.of(
                                 absentMetadata,
                                 new byte[0][],
-                                new byte[0],
-                                new byte[0],
+                                provenTrustAnchor == null ? new byte[0] : provenTrustAnchor,
+                                provenTrustAnchor == null ? new byte[0] : provenTrustAnchorId,
                                 manifestStructTuple(manifest))),
                         GAS_REQUIREMENT),
                 SUCCESS,

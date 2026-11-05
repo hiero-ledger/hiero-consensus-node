@@ -440,7 +440,7 @@ class BesuQbftContractModeTest {
         @Test
         void trustedSetOfMoreThan256IsRejected() {
             final List<byte[]> members = new ArrayList<>();
-            for (int i = 1; i <= BesuQbftVerifier.MAX_CONTRACT_MODE_VALIDATORS + 1; i++) {
+            for (int i = 1; i <= BesuQbftVerifier.MAX_VALIDATORS + 1; i++) {
                 final byte[] member = new byte[20];
                 ByteBuffer.wrap(member, 12, 8).putLong(i);
                 members.add(member);
@@ -453,7 +453,7 @@ class BesuQbftContractModeTest {
 
             assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(payload, anchor, CHANNEL_ID))
                     .isInstanceOf(ProofException.class)
-                    .hasMessageContaining("at most " + BesuQbftVerifier.MAX_CONTRACT_MODE_VALIDATORS);
+                    .hasMessageContaining("at most " + BesuQbftVerifier.MAX_VALIDATORS);
         }
 
         @Test
@@ -461,7 +461,7 @@ class BesuQbftContractModeTest {
             final Chain changed = chain(set(0, 1, 2, 4));
             final byte[] entry = arrayEntries(changed).getFirst();
             final List<byte[]> entries = new ArrayList<>();
-            for (int i = 0; i <= BesuQbftVerifier.MAX_CONTRACT_MODE_VALIDATORS + 1; i++) {
+            for (int i = 0; i <= BesuQbftVerifier.MAX_VALIDATORS + 1; i++) {
                 entries.add(entry);
             }
             final byte[] payload = bundle(
@@ -471,7 +471,7 @@ class BesuQbftContractModeTest {
 
             assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(payload, anchor, CHANNEL_ID))
                     .isInstanceOf(ProofException.class)
-                    .hasMessageContaining("at most " + (BesuQbftVerifier.MAX_CONTRACT_MODE_VALIDATORS + 1));
+                    .hasMessageContaining("at most " + (BesuQbftVerifier.MAX_VALIDATORS + 1));
         }
 
         /** A bundle crossing one hop to {@code afterHop}, whose proof is {@code hopProof}, must fail with {@code message}. */

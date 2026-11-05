@@ -91,6 +91,17 @@ class BesuQbftVerifierTest {
                 channelId);
     }
 
+    /** {@code count} distinct, non-zero 20-byte addresses. */
+    private static List<byte[]> distinctAddresses(final int count) {
+        final List<byte[]> out = new ArrayList<>(count);
+        for (int i = 1; i <= count; i++) {
+            final byte[] address = new byte[20];
+            ByteBuffer.wrap(address, 12, 8).putLong(i);
+            out.add(address);
+        }
+        return out;
+    }
+
     // Convenience: encode a validator set from varargs addresses
     private static byte[] validatorSet(byte[]... addrs) {
         return BesuQbftVerifier.encodeValidatorSet(Arrays.asList(addrs));
@@ -301,6 +312,51 @@ class BesuQbftVerifierTest {
             // extractValidators must not throw and must return both addresses
             List<byte[]> validators = BesuQbftVerifier.extractValidators(item);
             assertThat(validators).hasSize(2);
+        }
+
+        @Test
+        void configHeaderListingMoreThanMaxValidatorsIsRejectedBeforeRecovery() {
+            // 257 listed validators and as many junk seals: rejected on the list size, before any seal is recovered.
+            final List<byte[]> listed = distinctAddresses(BesuQbftVerifier.MAX_VALIDATORS + 1);
+            final List<byte[]> junkSeals =
+                    listed.stream().map(a -> new byte[65]).toList();
+            final byte[] headerRlp = buildRlpHeader(new byte[32], buildQbftExtra(listed, junkSeals), 15);
+            final byte[] payload = minimalPayload(buildGenesisHeader(VALIDATOR_ADDR), headerRlp);
+
+            assertThatThrownBy(() -> SUBJECT.verifyConfigPayload(payload))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("at most " + BesuQbftVerifier.MAX_VALIDATORS);
+        }
+
+        @Test
+        void headerListingMaxValidatorsIsAccepted() {
+            final List<byte[]> listed = distinctAddresses(BesuQbftVerifier.MAX_VALIDATORS);
+            final byte[] headerRlp = buildRlpHeader(new byte[32], buildQbftExtra(listed, List.of()), 15);
+
+            assertThat(BesuQbftVerifier.extractValidators(Rlp.decodeOne(headerRlp)))
+                    .hasSize(BesuQbftVerifier.MAX_VALIDATORS);
+        }
+
+        @Test
+        void validatorSetWithADuplicateDecodesToTheDistinctSet() {
+            // Built by hand: a legacy or corrupted anchor might list an address twice.
+            final byte[] encoded = Rlp.encodeList(List.of(
+                    Rlp.encodeBytes(VALIDATOR_ADDR), Rlp.encodeBytes(OTHER_ADDR), Rlp.encodeBytes(VALIDATOR_ADDR)));
+
+            assertThat(BesuQbftVerifier.decodeValidatorSet(encoded, "trustAnchor"))
+                    .usingElementComparator(Arrays::compare)
+                    .containsExactlyElementsOf(BesuQbftVerifier.decodeValidatorSet(
+                            BesuQbftVerifier.encodeValidatorSet(List.of(VALIDATOR_ADDR, OTHER_ADDR)), "expected"));
+        }
+
+        @Test
+        void trustAnchorSetOfMoreThanMaxValidatorsIsRejected() {
+            final byte[] encoded =
+                    BesuQbftVerifier.encodeValidatorSet(distinctAddresses(BesuQbftVerifier.MAX_VALIDATORS + 1));
+
+            assertThatThrownBy(() -> BesuQbftVerifier.decodeValidatorSet(encoded, "trustAnchor"))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("at most " + BesuQbftVerifier.MAX_VALIDATORS);
         }
 
         @Test
@@ -1324,6 +1380,18 @@ class BesuQbftVerifierTest {
         }
 
         @Test
+        void searchStopsAfterTheProbeLimit() {
+            // acked = 0 and one message: ids 1..MAX_LAST_MESSAGE_PROBES are tried, the next one is not.
+            final long limit = BesuQbftVerifier.MAX_LAST_MESSAGE_PROBES;
+            assertThat(BesuQbftVerifier.findLastMessageId(
+                            channelId, messageRunningHashSlot(channelId, limit), 0L, 10_000L, 1))
+                    .hasValue(limit);
+            assertThat(BesuQbftVerifier.findLastMessageId(
+                            channelId, messageRunningHashSlot(channelId, limit + 1), 0L, 10_000L, 1))
+                    .isEmpty();
+        }
+
+        @Test
         void bundleWithoutMessagesHasNoLastMessage() {
             assertThat(BesuQbftVerifier.findLastMessageId(channelId, messageRunningHashSlot(channelId, 6L), 3L, 10L, 0))
                     .isEmpty();
@@ -1420,6 +1488,23 @@ class BesuQbftVerifierTest {
                             metadata.nextMessageId(),
                             3))
                     .hasValue(6L);
+        }
+
+        @Test
+        void exactConnId_emptyMessageSlot_isRejected() {
+            // A 6th slot proven empty (value zero) is not a message's running hash.
+            byte[] connId = findConnId(true);
+            byte[] base = connSlotBase(connId);
+            byte[][] keys = {
+                plusOffset(base, 1), plusOffset(base, 2), plusOffset(base, 4),
+                plusOffset(base, 5), plusOffset(base, 16), MiscCryptoUtils.keccak256DigestOf(connId)
+            };
+            byte[][] vals = {new byte[32], new byte[32], new byte[32], new byte[32], new byte[32], new byte[32]};
+            byte[] bundle = buildBundleWithSlots(keys, vals);
+
+            assertThatThrownBy(() -> verifyHeaderMode(BUNDLE_SUBJECT, bundle, validatorSet(VALIDATOR_ADDR), 0L, connId))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("is empty");
         }
 
         @Test
@@ -2046,6 +2131,21 @@ class BesuQbftVerifierTest {
             final byte[][] accountProof = buildAccountMptProof(SERVICE_ADDR, EMPTY_TRIE_ROOT, new byte[32]);
             final byte[] currentHeader = buildSignedHeaderMultiSeal(addrs(0, 1, 2, 3), accountProof[0], keys(signers));
             return buildBundlePayloadWithValidatorSource(validatorSourceRlp, currentHeader, accountProof);
+        }
+
+        @Test
+        void trustedSetWithDuplicatesIsAcceptedAsInSolidity() {
+            // The submitted trustedSet is de-duplicated before it is compared with the anchored set.
+            final byte[] withDuplicate = Rlp.encodeList(
+                    addrs(0, 1, 1, 2, 3).stream().map(Rlp::encodeBytes).toList());
+            final byte[][] accountProof = buildAccountMptProof(SERVICE_ADDR, EMPTY_TRIE_ROOT, new byte[32]);
+            final byte[] currentHeader = buildSignedHeaderMultiSeal(addrs(0, 1, 2, 3), accountProof[0], keys(0, 1, 2));
+            final byte[] payload = buildBundlePayloadWithValidatorSource(
+                    Rlp.encodeList(List.of(withDuplicate, Rlp.encodeList(List.of()))), currentHeader, accountProof);
+
+            assertThat(verifyHeaderMode(BUNDLE_SUBJECT, payload, trusted(0, 1, 2, 3), 0L, CHANNEL_ID)
+                            .newTrustAnchor())
+                    .isEmpty();
         }
 
         @Test
