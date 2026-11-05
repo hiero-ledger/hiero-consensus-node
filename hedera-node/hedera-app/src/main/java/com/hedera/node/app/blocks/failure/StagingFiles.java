@@ -37,8 +37,6 @@ final class StagingFiles {
     static final String ISS_BLOCK_EXT = ".iss.gz";
     /** {@code FileBlockItemWriter}'s completion marker; a {@link #COMPLETE_EXT} is finished only once this exists. */
     static final String COMPLETION_MARKER_EXT = ".mf";
-    /** The plain-text pointer staged as a last resort when a {@code GRPC} ISS block is no longer buffered. */
-    static final String POINTER_EXT = ".txt";
 
     /** Per-incident folder name: a UTC timestamp, key-safe and lexicographically sortable. */
     private static final DateTimeFormatter INCIDENT_FOLDER_FORMAT =

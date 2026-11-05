@@ -21,8 +21,7 @@ import java.time.Duration;
  * <p>In {@code blockStream.writerMode=GRPC} the ISS-round block lives only in the in-memory block buffer, so its
  * detection-time capture is best-effort: it is staged if still buffered (a block node does not acknowledge the ISS
  * block, and an unacknowledged block is not pruned while back pressure is enabled — {@code streamMode=BLOCKS} — so it is
- * normally still present), otherwise a small pointer {@code .txt} with local diagnostic metadata (ISS round, writer mode
- * and buffer watermarks) is staged instead.
+ * normally still present); otherwise nothing is staged.
  *
  * <p><b>TODO(devops) — DEV-OPS RESPONSIBILITY, required before this feature does anything in a real deployment.</b> The
  * two items below are deployment (NMT / compose) actions, NOT code changes; until both are done the node stages the
@@ -32,8 +31,8 @@ import java.time.Duration;
  *   unmounted path the staged block is lost when the consensus container dies.</li>
  *   <li><b>Provision an uploader instance for {@link #issBlockDir}.</b> Point a mirror.py uploader at it with its own
  *   bucket + key — a private bucket (e.g. the backups bucket), ideally a create-only key. It must ship <b>every</b>
- *   staged extension — {@code .gz} blocks, {@code .pnd.json} proof sidecars, and the {@code .txt} pointer fallback —
- *   not only {@code .gz}, or the sidecars/pointer are staged locally but never reach the bucket.</li>
+ *   staged extension — {@code .gz} blocks and {@code .pnd.json} proof sidecars — not only {@code .gz}, or the sidecars
+ *   are staged locally but never reach the bucket.</li>
  * </ol>
  * The exact host dir and bucket/key are owned by DevOps and are intentionally not pinned here.
  *

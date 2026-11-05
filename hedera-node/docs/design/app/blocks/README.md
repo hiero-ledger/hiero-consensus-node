@@ -110,10 +110,9 @@ The timestamp folder is a UTC `yyyy-MM-dd'T'HH-mm-ss'Z'` instant, e.g.:
 ```
 
 Staged file extensions: `.blk.gz` (complete block), `.pnd.gz` + `.pnd.json` (pending block contents + proof sidecar),
-`.open.gz` (open block flushed at failure), `.iss.gz` (ISS-round block reconstructed from the in-memory buffer in
-`GRPC` mode), and `.txt` (a last-resort pointer with local diagnostic metadata — ISS round, writer mode and buffer
-watermarks — staged only when a `GRPC` ISS block is no longer buffered). Every artifact is written to a `.tmp` sibling and then atomically renamed into place,
-so the uploader must **ignore `.tmp`** and match only the final extensions.
+`.open.gz` (open block flushed at failure), and `.iss.gz` (ISS-round block reconstructed from the in-memory buffer in
+`GRPC` mode). Every artifact is written to a `.tmp` sibling and then atomically renamed into place, so the uploader
+must **ignore `.tmp`** and match only the final extensions.
 
 ### DevOps prerequisites (required before anything ships)
 
@@ -122,4 +121,4 @@ reaches a bucket:
 
 1. Make `issBlockDir` a host bind mount (mainnet/testnet/previewnet persist via bind mounts).
 2. Point a `mirror.py` uploader instance at `issBlockDir` with its own private bucket + key, configured to ship **every**
-   staged extension (`.gz`, `.pnd.json`, and `.txt`) — not only `.gz`.
+   staged extension (`.gz` and `.pnd.json`) — not only `.gz`.

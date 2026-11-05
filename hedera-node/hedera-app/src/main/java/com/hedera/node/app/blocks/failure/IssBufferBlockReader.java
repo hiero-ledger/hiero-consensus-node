@@ -29,8 +29,8 @@ import org.apache.logging.log4j.Logger;
  * round still lives at detection time. Capture is best-effort: the block is normally still buffered because a block
  * node never acknowledges a diverged ISS block, and an unacknowledged block is not pruned while back pressure is
  * enabled ({@code streamMode=BLOCKS} with gRPC streaming). In other stream modes back pressure is off, so an
- * unacknowledged block can be pruned once the buffer exceeds its limits; the caller then falls back to a {@code .txt}
- * pointer. This returns empty if the block is no longer buffered.
+ * unacknowledged block can be pruned once the buffer exceeds its limits. This returns empty if the block is no longer
+ * buffered.
  *
  * <p>The round is found the same way as on disk: every round's first block item is a {@code RoundHeader}, so a block's
  * first {@code RoundHeader} is its first round, and first-round-per-block increases monotonically with block number.

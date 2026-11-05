@@ -23,6 +23,6 @@ class FatalIssListenerImplTest {
 
         listener.notify(new IssNotification(42L, IssType.SELF_ISS));
 
-        verify(detectionStagingCoordinator).captureAndStage(IssType.SELF_ISS, 42L);
+        verify(detectionStagingCoordinator).captureAndStage(42L);
     }
 }

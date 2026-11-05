@@ -35,6 +35,6 @@ public class FatalIssListenerImpl implements AsyncFatalIssListener {
     @Override
     public void notify(@NonNull final IssNotification data) {
         log.warn("ISS detected (type={}, round={})", data.getIssType(), data.getRound());
-        detectionStagingCoordinator.captureAndStage(data.getIssType(), data.getRound());
+        detectionStagingCoordinator.captureAndStage(data.getRound());
     }
 }
