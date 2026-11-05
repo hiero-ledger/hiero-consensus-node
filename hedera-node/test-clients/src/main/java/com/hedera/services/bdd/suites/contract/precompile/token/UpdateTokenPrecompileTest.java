@@ -97,6 +97,28 @@ public class UpdateTokenPrecompileTest {
     }
 
     @HapiTest
+    @DisplayName("cannot update the keys of a token that has no keys at all")
+    public Stream<DynamicTest> cannotUpdateKeysOfKeylessToken() {
+        // The annotation DSL cannot declare an empty key set, so build the token directly (keys unset = no keys)
+        final var keylessToken = new SpecFungibleToken("keylessToken");
+        return hapiTest(
+                updateTokenContract
+                        .call("tokenUpdateKeys", keylessToken, ed25519Key, secp256k1Key, updateTokenContract)
+                        .gas(GAS_NEEDED)
+                        .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, TOKEN_IS_IMMUTABLE)),
+                // The rejected call must not have set any key
+                keylessToken
+                        .getInfo()
+                        .andAssert(info -> info.hasEmptyAdminKey()
+                                .hasEmptyKycKey()
+                                .hasEmptyFreezeKey()
+                                .hasEmptyWipeKey()
+                                .hasEmptySupplyKey()
+                                .hasEmptyFeeScheduleKey()
+                                .hasEmptyPauseKey()));
+    }
+
+    @HapiTest
     @DisplayName("can only update a mutable token treasury if authorized")
     public Stream<DynamicTest> canUpdateMutableTokenTreasuryOnceAuthorized(
             @Account final SpecAccount newTreasury,
