@@ -1,0 +1,65 @@
+﻿/**
+ * # State Signature Transaction
+ * An signature of a state snapshot gossiped to other nodes.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in [RFC2119](https://www.ietf.org/rfc/rfc2119).
+ */
+syntax = "proto3";
+
+package proto.platform.event;
+
+/*
+ * Hedera Network Services Protobuf
+ *
+ * Copyright (C) 2018 - 2024 Hedera Hashgraph, LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+option java_package = "com.hiero.proto.platform.event";
+option csharp_namespace = "Hiero.Proto.Platform.Event";
+// <<<pbj.java_package = "com.hiero.proto.platform.event">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+/**
+ * An signature of a state snapshot gossiped to other nodes.
+ * Each node SHALL hash the root of the merkle tree of a state snapshot every
+ * round. Once this hash is calculated, it SHOULD be signed with the nodes
+ * private signing key. This signature, together with the hash SHOULD be added
+ * to an event as a StateSignatureTransaction.
+ */
+message StateSignatureTransaction {
+
+  /**
+   * The round number corresponding to the round number of the state snapshot
+   * being signed.<br/>
+   * This number MUST be greater than 0.
+   */
+  int64 round = 1;
+
+  /**
+   * The signature of state snapshot hash.<br/>
+   * This signature MUST be a RSA signature with a maximum length of 384 bytes.<br/>
+   * The signature algorithm used MUST be RSASSA-PKCS1-v1_5 with SHA-384.
+   */
+  bytes signature = 2;
+
+  /**
+   * The hash of the state snapshot being signed.<br/>
+   * This hash MUST be a SHA-384 hash.
+   */
+  bytes hash = 3;
+}
