@@ -17,8 +17,12 @@ import static com.hedera.node.app.spi.authorization.SystemPrivilege.IMPERMISSIBL
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.UNIVERSAL_NOOP_FEE_CHARGING;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.setupDispatch;
+import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.subDispatch;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.EMPTY_METADATA;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_DISPATCH;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_GAS_RESERVATION;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_VERIFIER;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.CHILD;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
@@ -58,6 +62,7 @@ import com.hedera.hapi.node.base.SignaturePair;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.clpr.ClprSubmitBundleTransactionBody;
 import com.hedera.hapi.node.consensus.ConsensusSubmitMessageTransactionBody;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
@@ -151,6 +156,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Answers;
 import org.mockito.ArgumentCaptor;
@@ -912,8 +918,51 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
     }
 
     @Test
-    void dispatchMetadata_exposesInjectedMetadata() {
-        assertSame(EMPTY_METADATA, subject.dispatchMetadata());
+    void dispatchMetadata_isMutableAndIsolatedFromOtherContexts() {
+        subject.dispatchMetadata().putMetadata(CLPR_GAS_RESERVATION, txnInfo);
+
+        assertThat(subject.dispatchMetadata().getMetadata(CLPR_GAS_RESERVATION, TransactionInfo.class))
+                .containsSame(txnInfo);
+        assertThat(EMPTY_METADATA.getMetadata(CLPR_GAS_RESERVATION, TransactionInfo.class))
+                .isEmpty();
+        assertThat(createContext(txBody).dispatchMetadata().getMetadata(CLPR_GAS_RESERVATION, TransactionInfo.class))
+                .isEmpty();
+    }
+
+    @ParameterizedTest
+    @CsvSource({"true, true, true", "true, true, false", "true, false, true", "false, true, true"})
+    void passesGasReservationOnlyToDirectVerifierChild(
+            final boolean hasReservation,
+            final boolean isVerifier,
+            final boolean isClprParent,
+            @Mock final HandleContext childContext) {
+        if (isClprParent) {
+            subject = createContext(txBody.copyBuilder()
+                    .clprSubmitBundle(ClprSubmitBundleTransactionBody.DEFAULT)
+                    .build());
+        }
+        final var childMetadata = new HandleContext.DispatchMetadata(EMPTY_METADATA);
+        if (hasReservation) {
+            subject.dispatchMetadata().putMetadata(CLPR_GAS_RESERVATION, txnInfo);
+        }
+        final var metadata = new HandleContext.DispatchMetadata(CLPR_DISPATCH, new Object());
+        if (isVerifier) {
+            metadata.putMetadata(CLPR_VERIFIER, true);
+        }
+        if (hasReservation && isVerifier && isClprParent) {
+            given(childDispatch.handleContext()).willReturn(childContext);
+            given(childContext.dispatchMetadata()).willReturn(childMetadata);
+        }
+
+        subject.dispatch(stepDispatch(payerId, txBody, StreamBuilder.class, NOOP_SIGNED_TX_CUSTOMIZER, metadata));
+
+        assertThat(childMetadata
+                        .getMetadata(CLPR_GAS_RESERVATION, TransactionInfo.class)
+                        .isPresent())
+                .isEqualTo(hasReservation && isVerifier && isClprParent);
+        assertThat(metadata.getMetadata(CLPR_GAS_RESERVATION, TransactionInfo.class))
+                .isEmpty();
+        verify(dispatchProcessor).processDispatch(childDispatch);
     }
 
     @Test
