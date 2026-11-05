@@ -7,6 +7,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CHANNE
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CONNECTOR;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_DEREGISTER_CONNECTOR;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_ENDPOINT_PUBLICATION;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_EVICT_PEER_ENDPOINT;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_MAINTENANCE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_REGISTER_CHANNEL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_REGISTER_CONNECTOR;
@@ -219,6 +220,7 @@ public class BlockTransactionalUnitTranslator {
                     put(CLPR_REGISTER_CONNECTOR, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(CLPR_DEREGISTER_CONNECTOR, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                     put(CLPR_COMPLETE_CONNECTOR, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
+                    put(CLPR_EVICT_PEER_ENDPOINT, NO_EXPLICIT_SIDE_EFFECTS_TRANSLATOR);
                 }
             };
 
@@ -231,7 +233,8 @@ public class BlockTransactionalUnitTranslator {
             CLPR_REGISTER_CONNECTOR,
             CLPR_DEREGISTER_CONNECTOR,
             CLPR_COMPLETE_CONNECTOR,
-            CLPR_ENDPOINT_PUBLICATION);
+            CLPR_ENDPOINT_PUBLICATION,
+            CLPR_EVICT_PEER_ENDPOINT);
 
     private static final ContractCallTranslator CLPR_DISPATCHED_CONTRACT_CALL_TRANSLATOR =
             new ContractCallTranslator(true);

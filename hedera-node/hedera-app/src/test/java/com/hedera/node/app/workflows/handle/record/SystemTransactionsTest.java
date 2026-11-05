@@ -812,7 +812,7 @@ class SystemTransactionsTest {
     @Test
     @SuppressWarnings("unchecked")
     void testPostUpgradeCreatesSimpleFeesFileWhenMissing() {
-        // Reconfigure with nodes.enableDAB=false
+        // Focus on simple fees file creation without DAB or CLPR setup.
         final var config = HederaTestConfigBuilder.create()
                 .withValue("blockStream.streamMode", "BLOCKS")
                 .withValue("consensus.handleMaxPrecedingRecords", 3)
@@ -821,6 +821,7 @@ class SystemTransactionsTest {
                 .withValue("hedera.transactionMaxValidDuration", 180)
                 .withValue("accounts.systemAdmin", 50)
                 .withValue("nodes.enableDAB", "false")
+                .withValue("clpr.enabled", false)
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
 
@@ -869,7 +870,7 @@ class SystemTransactionsTest {
     @Test
     @SuppressWarnings("unchecked")
     void testPostUpgradeSkipsSimpleFeesFileCreationWhenPresent() {
-        // Reconfigure with nodes.enableDAB=false
+        // Focus on the existing simple fees file without DAB or CLPR setup.
         final var config = HederaTestConfigBuilder.create()
                 .withValue("blockStream.streamMode", "BLOCKS")
                 .withValue("consensus.handleMaxPrecedingRecords", 3)
@@ -878,6 +879,7 @@ class SystemTransactionsTest {
                 .withValue("hedera.transactionMaxValidDuration", 180)
                 .withValue("accounts.systemAdmin", 50)
                 .withValue("nodes.enableDAB", "false")
+                .withValue("clpr.enabled", false)
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
 
