@@ -30,9 +30,12 @@ import java.time.Duration;
  *   <li><b>Make {@link #issBlockDir} a host bind mount.</b> mainnet/testnet/previewnet persist via bind mounts; on an
  *   unmounted path the staged block is lost when the consensus container dies.</li>
  *   <li><b>Provision an uploader instance for {@link #issBlockDir}.</b> Point a mirror.py uploader at it with its own
- *   bucket + key — a private bucket (e.g. the backups bucket), ideally a create-only key. It must ship <b>every</b>
- *   staged extension — {@code .gz} blocks and {@code .pnd.json} proof sidecars — not only {@code .gz}, or the sidecars
- *   are staged locally but never reach the bucket.</li>
+ *   bucket + key — a private bucket (e.g. the backups bucket), ideally a create-only key. Every staged file ends in
+ *   {@code .gz} and gets an empty {@code .mf} marker once ready, so run it in marker mode ({@code --is-block-stream},
+ *   {@code STREAM_EXTENSION=gz}, {@code SIG_EXTENSION=mf}, {@code SIG_REQUIRE=true}, {@code REAPER_ENABLE=true}) with a
+ *   {@code DIR_PATTERN} matching the {@code block-<account>/<timestamp>/<stage>} folders and a {@code BUCKET_PATH}
+ *   (required, or every upload fails; a {@code *} in it keeps those folders in the object keys). It uploads each file,
+ *   verifies it, then deletes it.</li>
  * </ol>
  * The exact host dir and bucket/key are owned by DevOps and are intentionally not pinned here.
  *

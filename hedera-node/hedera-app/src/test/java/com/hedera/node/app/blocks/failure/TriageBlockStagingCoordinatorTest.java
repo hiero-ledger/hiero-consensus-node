@@ -92,8 +92,12 @@ class TriageBlockStagingCoordinatorTest {
         subject.stageFlushedTriageBlocks(null);
 
         assertThat(triageDir().resolve(pndBase + ".pnd.gz")).exists();
-        assertThat(triageDir().resolve(pndBase + ".pnd.json")).exists();
+        assertThat(triageDir().resolve(pndBase + ".pnd.json.gz")).exists();
         assertThat(triageDir().resolve(openBase + ".open.gz")).exists();
+        // Each staged file gets its upload marker.
+        assertThat(triageDir().resolve(pndBase + ".pnd.mf")).exists();
+        assertThat(triageDir().resolve(pndBase + ".pnd.json.mf")).exists();
+        assertThat(triageDir().resolve(openBase + ".open.mf")).exists();
     }
 
     @Test

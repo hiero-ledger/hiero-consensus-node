@@ -225,8 +225,9 @@ public class IssDetectionStagingCoordinator {
      * Resolves and stages the ISS-round block (plus any preceding context) into {@code incidentDir} for the current
      * writer mode: from disk in {@code FILE}/{@code FILE_AND_GRPC}, or from the in-memory buffer in {@code GRPC}. When
      * {@code pollForDurability} the disk resolve retries until the block is durable (the detection path, where it may
-     * still be the open block); otherwise it resolves once (the halt path, which must not stall). Returns the staged
-     * contents paths (ISS block last), or empty if nothing could be staged.
+     * still be the open block); otherwise it resolves once (the halt path, which must not stall). Only a complete
+     * capture gets upload markers. Returns the staged contents paths (ISS block last), or empty if nothing could be
+     * staged.
      */
     private List<Path> capture(
             @NonNull final FailureBlockStagingConfig config,
@@ -237,7 +238,7 @@ public class IssDetectionStagingCoordinator {
                 .getConfiguration()
                 .getConfigData(BlockStreamConfig.class)
                 .writerMode();
-        return switch (writerMode) {
+        final List<Path> files = switch (writerMode) {
             // FILE modes resolve from disk. The detection path polls until the (possibly still-open) block
             // becomes durable; the halt path resolves once (the block was already flushed, and we must not
             // stall the shutdown waiting for one that will not appear).
@@ -247,6 +248,10 @@ public class IssDetectionStagingCoordinator {
             // block, and an unacknowledged block is not pruned under BLOCKS-mode back pressure.
             case GRPC -> bufferReader.captureToDir(round, config.precedingBlocks(), incidentDir);
         };
+        if (!files.isEmpty()) {
+            StagingFiles.writeUploadMarkers(incidentDir);
+        }
+        return files;
     }
 
     /**
@@ -321,12 +326,12 @@ public class IssDetectionStagingCoordinator {
     }
 
     /**
-     * Copies each resolved block's on-disk files (the contents file plus any {@code .pnd.json} proof sidecar) into
-     * {@code issDir} atomically, and returns the copied <b>contents</b> paths. Per-block best-effort: a preceding context
-     * block (or a sidecar) that can no longer be copied — e.g. deleted by block retention cleanup between resolve and
-     * copy — is skipped rather than aborting the capture; but if the ISS block itself (the last entry) cannot be copied,
-     * the whole capture is discarded so the caller never stages a context block in its place and never marks the round
-     * done without the exact ISS block.
+     * Copies each resolved block's on-disk files (the contents file plus any {@code .pnd.json} proof sidecar, gzipped)
+     * into {@code issDir} atomically, and returns the copied <b>contents</b> paths. Per-block best-effort: a preceding
+     * context block (or a sidecar) that can no longer be copied — e.g. deleted by block retention cleanup between
+     * resolve and copy — is skipped rather than aborting the capture; but if the ISS block itself (the last entry)
+     * cannot be copied, the whole capture is discarded so the caller never stages a context block in its place and
+     * never marks the round done without the exact ISS block.
      */
     private List<Path> materializeFromDisk(@NonNull final List<IssBlockRef> refs, @NonNull final Path issDir) {
         if (refs.isEmpty()) {
@@ -361,8 +366,7 @@ public class IssDetectionStagingCoordinator {
             for (int j = 1; j < files.size(); j++) {
                 final Path sidecar = files.get(j);
                 try {
-                    StagingFiles.atomicCopy(
-                            sidecar, issDir.resolve(sidecar.getFileName().toString()));
+                    StagingFiles.atomicGzipCopy(sidecar, issDir.resolve(StagingFiles.stagedSidecarName(sidecar)));
                 } catch (final IOException e) {
                     log.warn("Skipping sidecar {} of block #{}", sidecar, ref.blockNumber(), e);
                 }

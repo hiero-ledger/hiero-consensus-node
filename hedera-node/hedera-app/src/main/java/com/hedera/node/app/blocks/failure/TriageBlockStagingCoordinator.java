@@ -97,6 +97,7 @@ public class TriageBlockStagingCoordinator {
                         "Triage block staging produced no files from {} flushed file(s); see prior errors",
                         files.size());
             } else {
+                StagingFiles.writeUploadMarkers(stageDir);
                 log.warn("Triage block staging complete: {} block file(s) staged under {}", staged, stageDir);
             }
         } catch (final Throwable t) {
@@ -104,7 +105,10 @@ public class TriageBlockStagingCoordinator {
         }
     }
 
-    /** Copies a flushed contents file (and, for a {@code .pnd.gz}, its {@code .pnd.json} sidecar) into {@code stageDir}. */
+    /**
+     * Copies a flushed contents file (and, for a {@code .pnd.gz}, its gzipped {@code .pnd.json} sidecar) into
+     * {@code stageDir}.
+     */
     private boolean stageOne(@NonNull final Path contents, @NonNull final Path stageDir) {
         final Path dest = stageDir.resolve(contents.getFileName().toString());
         try {
@@ -120,8 +124,7 @@ public class TriageBlockStagingCoordinator {
                             + StagingFiles.PENDING_PROOF_EXT);
             if (Files.exists(sidecar)) {
                 try {
-                    StagingFiles.atomicCopy(
-                            sidecar, stageDir.resolve(sidecar.getFileName().toString()));
+                    StagingFiles.atomicGzipCopy(sidecar, stageDir.resolve(StagingFiles.stagedSidecarName(sidecar)));
                 } catch (final IOException e) {
                     log.warn("Failed to stage triage proof sidecar {}", sidecar, e);
                 }

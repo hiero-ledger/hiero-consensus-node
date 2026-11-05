@@ -109,10 +109,10 @@ The timestamp folder is a UTC `yyyy-MM-dd'T'HH-mm-ss'Z'` instant, e.g.:
   triage/   # the open/pending blocks flushed at CATASTROPHIC_FAILURE
 ```
 
-Staged file extensions: `.blk.gz` (complete block), `.pnd.gz` + `.pnd.json` (pending block contents + proof sidecar),
-`.open.gz` (open block flushed at failure), and `.iss.gz` (ISS-round block reconstructed from the in-memory buffer in
-`GRPC` mode). Every artifact is written to a `.tmp` sibling and then atomically renamed into place, so the uploader
-must **ignore `.tmp`** and match only the final extensions.
+Staged file extensions: `.blk.gz` (complete block), `.pnd.gz` + `.pnd.json.gz` (pending block contents + gzipped proof
+sidecar), `.open.gz` (open block flushed at failure), and `.iss.gz` (ISS-round block reconstructed from the in-memory
+buffer in `GRPC` mode). Every artifact is written to a `.tmp` sibling and then atomically renamed into place. Once a
+whole capture is in place, each `<name>.gz` gets an empty `<name>.mf` upload marker; a discarded capture gets none.
 
 ### DevOps prerequisites (required before anything ships)
 
@@ -120,5 +120,7 @@ These are deployment (NMT / compose) actions, not code changes; until both are d
 reaches a bucket:
 
 1. Make `issBlockDir` a host bind mount (mainnet/testnet/previewnet persist via bind mounts).
-2. Point a `mirror.py` uploader instance at `issBlockDir` with its own private bucket + key, configured to ship **every**
-   staged extension (`.gz` and `.pnd.json`) — not only `.gz`.
+2. Point a `mirror.py` uploader instance at `issBlockDir` with its own private bucket + key, in marker mode:
+   `--is-block-stream`, `STREAM_EXTENSION=gz`, `SIG_EXTENSION=mf`, `SIG_REQUIRE=true` (without it, unmarked files are
+   deleted without being uploaded), `REAPER_ENABLE=true`, `DIR_PATTERN=block-*/*/*`, and `BUCKET_PATH=<prefix>/*` to
+   keep the incident folders. It uploads each file, verifies it, then deletes it.

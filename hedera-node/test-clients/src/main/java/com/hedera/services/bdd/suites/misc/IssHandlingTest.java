@@ -122,7 +122,7 @@ class IssHandlingTest implements LifecycleTest {
 
     /**
      * Asserts the ISS node staged its artifacts to disk: an ISS-round block under {@code detect/} or {@code failure/},
-     * and a flushed block under {@code triage/}.
+     * and a flushed block under {@code triage/}, each with its {@code .mf} upload marker.
      */
     private static void assertStaged(final Path issBlockDir) {
         final List<String> staged = IssStagingTestSupport.stagedRegularFiles(issBlockDir);
@@ -132,5 +132,11 @@ class IssHandlingTest implements LifecycleTest {
         assertTrue(
                 staged.stream().anyMatch(p -> p.contains("/triage/") && p.endsWith(".gz")),
                 "expected a triage/ block staged; saw " + staged);
+        assertTrue(
+                staged.stream().anyMatch(p -> (p.contains("/detect/") || p.contains("/failure/")) && p.endsWith(".mf")),
+                "expected an upload marker for the staged ISS block; saw " + staged);
+        assertTrue(
+                staged.stream().anyMatch(p -> p.contains("/triage/") && p.endsWith(".mf")),
+                "expected an upload marker for the staged triage block; saw " + staged);
     }
 }

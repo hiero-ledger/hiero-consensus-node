@@ -171,12 +171,19 @@ class IssGrpcBufferStagingTest implements LifecycleTest {
                 waitForFrozenNetwork(FREEZE_TIMEOUT, NodeSelector.exceptNodeIds(ISS_NODE_ID)));
     }
 
-    /** Asserts the reconstructed ISS-round block was staged as an {@code .iss.gz} under {@code detect/} or {@code failure/}. */
+    /**
+     * Asserts the reconstructed ISS-round block was staged as an {@code .iss.gz}, with its {@code .mf} upload marker,
+     * under {@code detect/} or {@code failure/}.
+     */
     private static void assertBufferBlockStaged(final Path issBlockDir) {
         final List<String> staged = IssStagingTestSupport.stagedRegularFiles(issBlockDir);
         final long issBlocks = staged.stream()
                 .filter(p -> (p.contains("/detect/") || p.contains("/failure/")) && p.endsWith(".iss.gz"))
                 .count();
         assertTrue(issBlocks >= 1, "expected an ISS .iss.gz staged from the buffer; saw " + staged);
+        assertTrue(
+                staged.stream()
+                        .anyMatch(p -> (p.contains("/detect/") || p.contains("/failure/")) && p.endsWith(".iss.mf")),
+                "expected an upload marker for the staged .iss.gz; saw " + staged);
     }
 }

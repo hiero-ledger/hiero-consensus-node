@@ -148,6 +148,7 @@ class IssDetectionStagingCoordinatorTest {
         final Path staged = detectDir().resolve(base + ".blk.gz");
         assertThat(staged).exists();
         assertThat(Files.readAllBytes(staged)).isEqualTo(new byte[] {1, 2, 3});
+        assertThat(detectDir().resolve(base + ".blk.mf")).exists();
         verifyNoInteractions(bufferReader);
         // The polling detection path must NOT clear the negative cache — only the authoritative failure path does.
         verify(diskResolver, never()).forgetUnreadable();
@@ -173,7 +174,10 @@ class IssDetectionStagingCoordinatorTest {
 
         assertThat(detectDir().resolve(precedingBase + ".blk.gz")).exists();
         assertThat(detectDir().resolve(issBase + ".pnd.gz")).exists();
-        assertThat(detectDir().resolve(issBase + ".pnd.json")).exists();
+        assertThat(detectDir().resolve(issBase + ".pnd.json.gz")).exists();
+        assertThat(detectDir().resolve(precedingBase + ".blk.mf")).exists();
+        assertThat(detectDir().resolve(issBase + ".pnd.mf")).exists();
+        assertThat(detectDir().resolve(issBase + ".pnd.json.mf")).exists();
     }
 
     @Test
@@ -188,6 +192,8 @@ class IssDetectionStagingCoordinatorTest {
 
         // captureToDir is handed the detection subdir, so the reconstructed .iss.gz lands there.
         assertThat(detectDir().resolve(issName)).exists();
+        assertThat(detectDir().resolve(FileBlockItemWriter.longToFileName(7L) + ".iss.mf"))
+                .exists();
         verifyNoInteractions(diskResolver);
     }
 
@@ -325,12 +331,15 @@ class IssDetectionStagingCoordinatorTest {
         // capture is discarded: the ISS file is absent and the round is NOT marked staged.
         assertThat(detectDir().resolve(precedingBase + ".blk.gz")).exists();
         assertThat(detectDir().resolve(issBase + ".blk.gz")).doesNotExist();
+        // A discarded capture gets no upload markers, so its context block is never uploaded in the ISS block's place.
+        assertThat(detectDir().resolve(precedingBase + ".blk.mf")).doesNotExist();
 
         // Because the round was not marked staged, the failure path still stages it once the ISS block is present.
         final Path issBlk = Files.write(missingIss, new byte[] {2, 3});
         when(diskResolver.resolve(9, 1)).thenReturn(List.of(new IssBlockRef(7, List.of(issBlk))));
         subject.stageDetectedIssOnFailure();
         assertThat(failureDir().resolve(issBase + ".blk.gz")).exists();
+        assertThat(failureDir().resolve(issBase + ".blk.mf")).exists();
     }
 
     @Test
@@ -458,7 +467,7 @@ class IssDetectionStagingCoordinatorTest {
 
         // The ISS block's contents were staged even though its proof sidecar could not be copied.
         assertThat(detectDir().resolve(issBase + ".pnd.gz")).exists();
-        assertThat(detectDir().resolve(issBase + ".pnd.json")).doesNotExist();
+        assertThat(detectDir().resolve(issBase + ".pnd.json.gz")).doesNotExist();
     }
 
     /** Simulates the buffer reader writing a captured block into the target dir it is handed, and returns it. */

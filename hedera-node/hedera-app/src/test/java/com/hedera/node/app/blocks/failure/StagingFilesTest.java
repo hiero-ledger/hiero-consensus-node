@@ -2,10 +2,13 @@
 package com.hedera.node.app.blocks.failure;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.zip.GZIPInputStream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -51,5 +54,41 @@ class StagingFilesTest {
 
         assertThat(tmp).doesNotExist();
         assertThat(Files.readString(dest)).isEqualTo("payload");
+    }
+
+    @Test
+    void atomicGzipCopyWritesGzippedDestinationAndLeavesNoTempBehind(@TempDir final Path dir) throws IOException {
+        final Path src = Files.writeString(dir.resolve("7.pnd.json"), "{\"block\":7}");
+        final Path dest = dir.resolve(StagingFiles.stagedSidecarName(src));
+
+        StagingFiles.atomicGzipCopy(src, dest);
+
+        assertThat(dest.getFileName().toString()).isEqualTo("7.pnd.json.gz");
+        try (final InputStream in = new GZIPInputStream(Files.newInputStream(dest))) {
+            assertThat(new String(in.readAllBytes())).isEqualTo("{\"block\":7}");
+        }
+        assertThat(StagingFiles.tmpFor(dest)).doesNotExist();
+    }
+
+    @Test
+    void writeUploadMarkersMarksEveryGzFileOnly(@TempDir final Path dir) throws IOException {
+        Files.write(dir.resolve("7.blk.gz"), new byte[] {1});
+        Files.write(dir.resolve("8.pnd.json.gz"), new byte[] {2});
+        Files.write(dir.resolve("9.open.gz.tmp"), new byte[] {3});
+
+        StagingFiles.writeUploadMarkers(dir);
+        // Idempotent: re-marking an already marked dir is harmless.
+        StagingFiles.writeUploadMarkers(dir);
+
+        assertThat(dir.resolve("7.blk.mf")).exists().isEmptyFile();
+        assertThat(dir.resolve("8.pnd.json.mf")).exists().isEmptyFile();
+        assertThat(dir.resolve("9.open.mf")).doesNotExist();
+        assertThat(dir.resolve("9.open.gz.mf")).doesNotExist();
+    }
+
+    @Test
+    void writeUploadMarkersToleratesAMissingDir(@TempDir final Path dir) {
+        assertThatCode(() -> StagingFiles.writeUploadMarkers(dir.resolve("missing")))
+                .doesNotThrowAnyException();
     }
 }
