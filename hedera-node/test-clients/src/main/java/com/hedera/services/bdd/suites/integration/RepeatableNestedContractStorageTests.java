@@ -410,7 +410,7 @@ public class RepeatableNestedContractStorageTests {
     }
 
     @RepeatableHapiTest({NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW, NEEDS_STATE_ACCESS})
-    final Stream<DynamicTest> batchInnerContractCallOwnsItsNestedExecution() {
+    final Stream<DynamicTest> executionNestedInBatchInnerContractCallUpdatesStorageCounts() {
         final var slotsBefore = new AtomicLong();
         final var scheduleId = new AtomicReference<ScheduleID>();
         final var batchOperator = "batchOperator";
@@ -617,7 +617,7 @@ public class RepeatableNestedContractStorageTests {
     }
 
     @RepeatableHapiTest({NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW, NEEDS_STATE_ACCESS})
-    final Stream<DynamicTest> hookExecutionCountsTheExecutionsNestedInIt() {
+    final Stream<DynamicTest> executionNestedInHookExecutionUpdatesStorageCounts() {
         final var slotsBefore = new AtomicLong();
         final var scheduleId = new AtomicReference<ScheduleID>();
         return hapiTest(
@@ -647,7 +647,7 @@ public class RepeatableNestedContractStorageTests {
     }
 
     @RepeatableHapiTest({NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW, NEEDS_STATE_ACCESS})
-    final Stream<DynamicTest> ethereumTransactionCountsTheExecutionsNestedInIt() {
+    final Stream<DynamicTest> executionNestedInEthereumTransactionUpdatesStorageCounts() {
         final var slotsBefore = new AtomicLong();
         final var scheduleId = new AtomicReference<ScheduleID>();
         return hapiTest(

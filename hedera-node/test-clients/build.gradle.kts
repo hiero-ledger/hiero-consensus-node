@@ -64,7 +64,7 @@ class TestResourceArgumentsProvider : CommandLineArgumentProvider {
                 ?: ((totalMemoryGib - testClientHeapGib) * 1024 * 0.8).toInt().coerceAtLeast(2048)
 
         logger.lifecycle(
-            "Test resource detection: cpus=$availableCpus, totalMem=${String.format("%.1f", totalMemoryGib)}GiB -> processorCount=$testProcessorCount, clientHeap=$testMaxHeap, nodePool=${nodePoolMib}m"
+            "Test resource detection: cpus=$availableCpus, totalMem=${String.format("%.1f", totalMemoryGib)}GiB -> processorCount=$testProcessorCount, clientHeap=$testMaxHeap, nodePool=${nodePoolMib}m",
         )
 
         return listOf(
@@ -393,7 +393,7 @@ val prCheckNetSizeOverrides =
     )
 // Caps a concurrent task's JUnit pool: the fixed strategy adds compensation threads
 // while tests block, up to parallelism + 256
-val prCheckJunitMaxPoolSizes = mapOf("hapiTestToken" to 32)
+val prCheckJunitMaxPoolSizes = mapOf("hapiTestToken" to 32, "hapiTestAtomicBatch" to 32)
 
 val embeddedBaseTags =
     mapOf(
@@ -587,7 +587,7 @@ fun TaskContainer.registerHapiTest(
             "--enable-native-access=" +
                 "com.hedera.common.nativesupport," +
                 "com.hedera.cryptography.libsecp256k1," +
-                "com.hedera.cryptography.libsodium"
+                "com.hedera.cryptography.libsodium",
         )
         // Isolate each subtask's working directory so logs are not overwritten
         systemProperty("hapi.spec.subtask.name", name)
@@ -669,7 +669,7 @@ fun TaskContainer.registerHapiTest(
                             name in prCheckWithoutStreamAndLogValidation
                     )
                         "(${ciTagExpression}${ciDefaultTagsWithoutStreamAndLogValidation})"
-                    else "(${ciTagExpression}${ciDefaultTags})"
+                    else "(${ciTagExpression}${ciDefaultTags})",
                 )
             }
             if (excludeTags != null) {
