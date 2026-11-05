@@ -8,18 +8,19 @@ import java.util.function.LongConsumer;
 /// `org.hiero.base.concurrent.jctools.queues`, while it's full or empty: [#SPIN_LIMIT] spin hints first,
 /// then parks of growing length, capped by the caller.
 ///
-/// The caller keeps the number of failed attempts in a local variable, starting at zero, passes it to
-/// [#backOff(int, int)] after every failed attempt, stores the returned value, and resets it to zero after a
-/// successful one:
+/// A wait goes through a schedule of steps: steps below [#SPIN_LIMIT] spin, each later step parks twice as long
+/// as the one before, and the last step, `SPIN_LIMIT + maxParkShift`, repeats. The caller keeps the current step
+/// in a local variable, starting at zero, passes it to [#backOff(int, int)] after every failed attempt, stores the
+/// returned step, and resets it to zero after a successful attempt:
 ///
 /// ```java
-/// int idle = 0;
+/// int backoffStep = 0;
 /// while (!queue.offer(element)) {
-///     idle = SpinThenParkBackoff.backOff(idle, MAX_PARK_SHIFT);
+///     backoffStep = SpinThenParkBackoff.backOff(backoffStep, MAX_PARK_SHIFT);
 /// }
 /// ```
 ///
-/// A count below [#SPIN_LIMIT] means the waiting thread is still spinning. Callers may use that, e.g. to treat
+/// A step below [#SPIN_LIMIT] means the waiting thread is still spinning. Callers may use that, e.g. to treat
 /// a queue that stays empty through the spin phase as drained.
 ///
 /// Waiting threads aren't served in any particular order. A thread that has backed off to parks at the cap
@@ -46,33 +47,33 @@ public final class SpinThenParkBackoff {
     /// interrupted, so this method doesn't wait while the interrupted flag is set, and leaves it set. Callers
     /// observe interrupts on their next check.
     ///
-    /// @param idle the number of failed attempts so far in the current wait, i.e. the value returned by the
-    ///     previous call, or zero for the first call
+    /// @param step the current step of this wait: zero for the first call, then the value returned by the
+    ///     previous call
     /// @param maxParkShift the park length cap, as a power of two of microseconds: parks are at most
     ///     `1µs << maxParkShift` long. Must be between 0 and [#MAX_PARK_SHIFT]
-    /// @return the value to pass as `idle` to the next call. It stops growing once parks reach their maximum
-    ///     length, so it never overflows during a long wait
+    /// @return the next step, to pass to the next call. It stops at the last step, `SPIN_LIMIT + maxParkShift`,
+    ///     so it never overflows during a long wait
     /// @throws IllegalArgumentException if `maxParkShift` is out of range
-    public static int backOff(final int idle, final int maxParkShift) {
-        return backOff(idle, maxParkShift, LockSupport::parkNanos);
+    public static int backOff(final int step, final int maxParkShift) {
+        return backOff(step, maxParkShift, LockSupport::parkNanos);
     }
 
     // Same as backOff(int, int), with the park injected, so tests can check park lengths without parking
-    static int backOff(final int idle, final int maxParkShift, final LongConsumer park) {
+    static int backOff(final int step, final int maxParkShift, final LongConsumer park) {
         if ((maxParkShift < 0) || (maxParkShift > MAX_PARK_SHIFT)) {
             throw new IllegalArgumentException(
                     "maxParkShift must be between 0 and " + MAX_PARK_SHIFT + ": " + maxParkShift);
         }
-        if (idle < SPIN_LIMIT) {
+        if (step < SPIN_LIMIT) {
             // first SPIN_LIMIT calls: stay on the CPU, the next element is likely microseconds away
             Thread.onSpinWait();
         } else {
-            // after that, park for 1µs << n, where n counts the parks so far: 1µs, 2µs, 4µs, ...
+            // after that, park for 1µs << n, where n is the number of steps past SPIN_LIMIT: 1µs, 2µs, 4µs, ...
             // capped at 1µs << maxParkShift
-            park.accept(1_000L << Math.min(idle - SPIN_LIMIT, maxParkShift));
+            park.accept(1_000L << Math.min(step - SPIN_LIMIT, maxParkShift));
         }
         // the caller passes the result back in on the next call. Capping it keeps the park length at its
-        // maximum and stops the counter from growing (and eventually overflowing) during a long wait
-        return Math.min(idle + 1, SPIN_LIMIT + maxParkShift);
+        // maximum and stops the step from growing (and eventually overflowing) during a long wait
+        return Math.min(step + 1, SPIN_LIMIT + maxParkShift);
     }
 }
