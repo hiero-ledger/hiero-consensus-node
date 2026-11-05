@@ -301,10 +301,10 @@ public class ConcurrentBlockingIteratorTest {
         iterator.close();
         supplier.join(5_000);
         assertFalse(supplier.isAlive(), "A blocked supply() should return on close()");
-        // The message tells it from the check on entry, which throws the same type
+        // awaitParked() above ensures this comes from a supplier that was waiting for space
         final IllegalStateException e = assertInstanceOf(
                 IllegalStateException.class, thrown.get(), "A blocked supply() should fail on close()");
-        assertEquals("ConcurrentBlockingIterator was closed while waiting for space", e.getMessage());
+        assertEquals("ConcurrentBlockingIterator is closed", e.getMessage());
     }
 
     @Test

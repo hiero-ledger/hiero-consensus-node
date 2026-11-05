@@ -139,13 +139,16 @@ public class ConcurrentBlockingIterator<T> implements Iterator<T> {
      * 		If the iterator is closed, on entry or while waiting
      */
     public void supply(final T element) throws InterruptedException {
-        if (closed) {
-            throw new IllegalStateException("Cannot supply elements to a closed ConcurrentBlockingIterator");
-        }
-
         Objects.requireNonNull(element);
         int backoffStep = 0;
         while (true) {
+            // Checked before every offer(), so an element isn't accepted once close() is seen, also after waiting
+            // for space. Another thread closes the iterator while a supplier waits only when reconnect is aborted,
+            // e.g. when hashing fails and the consumer stops. No slot may ever be freed then, so fail instead of
+            // waiting forever
+            if (closed) {
+                throw new IllegalStateException("ConcurrentBlockingIterator is closed");
+            }
             // Like LinkedBlockingQueue.put(): an interrupt fails the call, even if there is room
             if (Thread.interrupted()) {
                 throw new InterruptedException();
@@ -154,13 +157,6 @@ public class ConcurrentBlockingIterator<T> implements Iterator<T> {
                 return;
             }
             backoffStep = backOff(backoffStep, SUPPLIER_MAX_PARK_SHIFT);
-            // Another thread closes the iterator while a supplier waits only when reconnect is aborted, e.g. when
-            // hashing fails and the consumer stops. No slot may ever be freed then, so fail instead of waiting
-            // forever. Checked before the next offer(), so the element isn't accepted after close() even if a slot
-            // was freed in the meantime
-            if (closed) {
-                throw new IllegalStateException("ConcurrentBlockingIterator was closed while waiting for space");
-            }
         }
     }
 
