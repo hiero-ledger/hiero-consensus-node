@@ -12,7 +12,7 @@ import java.time.Duration;
  */
 @ConfigData("clpr")
 public record ClprConfig(
-        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        @ConfigProperty(defaultValue = "true") @NetworkProperty
         boolean enabled,
 
         @ConfigProperty(defaultValue = "1") @NetworkProperty int protocolVersion,
