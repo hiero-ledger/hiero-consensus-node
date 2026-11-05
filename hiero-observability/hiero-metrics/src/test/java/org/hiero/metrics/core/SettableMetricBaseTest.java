@@ -5,12 +5,28 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 import org.hiero.metrics.ThreadUtils;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 public abstract class SettableMetricBaseTest<M extends SettableMetric<?, ?>, B extends SettableMetric.Builder<?, B, M>>
         extends MetricBaseTest<M, B> {
+
+    @Test
+    void testIterationStartedBeforeAddSeesFixedList() {
+        M metric = emptyMetricBuilder().addDynamicLabelNames("label").build();
+        metric.getOrCreateLabeled("label", "a");
+
+        Iterator<MeasurementSnapshot> export = metric.snapshot().iterator();
+        metric.getOrCreateLabeled("label", "b");
+
+        List<String> seen = new ArrayList<>();
+        export.forEachRemaining(s -> seen.add(s.getDynamicLabelValues().toString()));
+        assertThat(seen).containsExactly("[a]");
+    }
 
     /**
      * Tests for accessing measurements in settable metrics.
