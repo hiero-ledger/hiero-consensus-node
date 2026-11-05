@@ -8,6 +8,7 @@ import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.T
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -44,6 +45,7 @@ import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import org.apache.tuweni.units.bigints.UInt256;
 import org.junit.jupiter.api.BeforeEach;
@@ -155,7 +157,6 @@ class RootProxyWorldUpdaterTest {
         final var mockChangedKeys = Set.of(new SlotKey(A_CONTRACT_ID, Bytes.wrap("123")));
         // Four keys being added and three removed in pending changes
         final var slotsUsedAfterCommit = slotsUsedBeforeCommit + 4 - 3;
-        given(storageAccountingScope.isOwner()).willReturn(true);
         given(context.dispatchMetadata())
                 .willReturn(new HandleContext.DispatchMetadata(EXPLICIT_WRITE_TRACING, Boolean.FALSE));
         given(evmFrameState.getKvStateSize()).willReturn(slotsUsedBeforeCommit);
@@ -203,7 +204,6 @@ class RootProxyWorldUpdaterTest {
         final var persistenceChanges = List.of(new StorageAccesses(
                 A_CONTRACT_ID, List.of(StorageAccess.newWrite(A_KEY_BEING_ADDED, UInt256.ONE, UInt256.ONE))));
         final var traceUsage = new TxStorageUsage(scopeChanges, Set.of());
-        given(storageAccountingScope.isOwner()).willReturn(true);
         given(context.dispatchMetadata())
                 .willReturn(new HandleContext.DispatchMetadata(EXPLICIT_WRITE_TRACING, Boolean.FALSE));
         given(evmFrameState.getTxStorageUsage(true)).willReturn(traceUsage);
@@ -234,12 +234,11 @@ class RootProxyWorldUpdaterTest {
         final var slotsUsedBeforeCommit = 10L;
         final var oneInsertion = List.of(new StorageAccesses(
                 A_CONTRACT_ID, List.of(new StorageAccess(A_KEY_BEING_ADDED, UInt256.ZERO, UInt256.ONE))));
-        // Not the scope owner, so the commit only validates
-        given(storageAccountingScope.isOwner()).willReturn(false);
         given(context.dispatchMetadata())
                 .willReturn(new HandleContext.DispatchMetadata(EXPLICIT_WRITE_TRACING, Boolean.FALSE));
         given(evmFrameState.getKvStateSize()).willReturn(slotsUsedBeforeCommit);
         given(evmFrameState.getTxStorageUsage(true)).willReturn(new TxStorageUsage(oneInsertion, Set.of()));
+        given(evmFrameState.getRentFactorsFor(A_CONTRACT_ID)).willReturn(new RentFactors(0, 0));
         given(hederaOperations.getStore()).willReturn(store);
         given(storageManager.getPersistenceChanges(enhancement, oneInsertion, store))
                 .willReturn(oneInsertion);
@@ -257,65 +256,56 @@ class RootProxyWorldUpdaterTest {
     }
 
     @Test
-    void nestedExecutionValidatesButLeavesRentAndPersistenceToScopeOwner() {
-        given(storageAccountingScope.isOwner()).willReturn(false);
-        given(context.dispatchMetadata())
-                .willReturn(new HandleContext.DispatchMetadata(EXPLICIT_WRITE_TRACING, Boolean.FALSE));
-        given(evmFrameState.getKvStateSize()).willReturn(123L);
-        given(evmFrameState.getTxStorageUsage(true)).willReturn(new TxStorageUsage(pendingChanges(), Set.of()));
-        given(hederaOperations.getStore()).willReturn(store);
-        given(storageManager.getPersistenceChanges(enhancement, pendingChanges(), store))
-                .willReturn(pendingChanges());
-        // Lenient, since a nested commit must not ask for rent factors
-        BDDMockito.lenient()
-                .when(evmFrameState.getRentFactorsFor(A_CONTRACT_ID))
-                .thenReturn(new RentFactors(0, 0));
-        given(hederaOperations.summarizeContractChanges())
-                .willReturn(new ContractChangeSummary(new ArrayList<>(), new ArrayList<>()));
+    void throttlesOnlyTheCreationsItsScopeHasNotThrottledYet() {
+        final var createdBeforeInScope =
+                ContractID.newBuilder().contractNum(345L).build();
+        givenSubjectWith(creationThrottleConfig(), enhancement);
+        givenCreatedContractsWithNoStorageChanges(createdBeforeInScope, CALLED_CONTRACT_ID);
+        given(storageAccountingScope.creationsToThrottle(List.of(createdBeforeInScope, CALLED_CONTRACT_ID)))
+                .willReturn(Optional.of(List.of(CALLED_CONTRACT_ID)));
+        given(context.throttleAdviser()).willReturn(throttleAdviser);
 
         subject.commit();
 
-        // Four pending insertions and three pending removals
-        BDDMockito.then(storageSizeValidator).should().assertValid(124L, hederaNativeOperations, expectedSizeChanges());
-        BDDMockito.then(rentCalculator).shouldHaveNoInteractions();
-        // The nested commit only reconciles its changes for validation, and never persists them
-        BDDMockito.then(storageManager).should().getPersistenceChanges(enhancement, pendingChanges(), store);
-        BDDMockito.then(storageManager).shouldHaveNoMoreInteractions();
-        BDDMockito.then(hederaOperations).should().commit();
+        BDDMockito.then(throttleAdviser).should().shouldThrottleNOfUnscaled(1, CRYPTO_CREATE);
+        BDDMockito.then(storageAccountingScope).should().creationsThrottled(List.of(CALLED_CONTRACT_ID));
+        assertEquals(List.of(createdBeforeInScope, CALLED_CONTRACT_ID), subject.getCreatedContractIds());
     }
 
     @Test
-    void scopeOwnerThrottlesCreatedContracts() {
+    void deniedCreationsFailTheCommitWithoutCountingAsThrottled() {
         givenSubjectWith(creationThrottleConfig(), enhancement);
-        givenOneCreatedContractWithNoStorageChanges();
-        given(storageAccountingScope.isOwner()).willReturn(true);
+        givenCreatedContractsWithNoStorageChanges(CALLED_CONTRACT_ID);
+        given(storageAccountingScope.creationsToThrottle(List.of(CALLED_CONTRACT_ID)))
+                .willReturn(Optional.of(List.of(CALLED_CONTRACT_ID)));
         given(context.throttleAdviser()).willReturn(throttleAdviser);
         given(throttleAdviser.shouldThrottleNOfUnscaled(1, CRYPTO_CREATE)).willReturn(true);
 
         final var e = assertThrows(ResourceExhaustedException.class, subject::commit);
         assertEquals(CONSENSUS_GAS_EXHAUSTED, e.getStatus());
+        BDDMockito.then(storageAccountingScope).should(never()).creationsThrottled(any());
     }
 
     @Test
-    void nestedExecutionLeavesCreationThrottleToScopeOwner() {
+    void skipsTheCreationThrottleWhenItsScopeNeedsNoCheck() {
         givenSubjectWith(creationThrottleConfig(), enhancement);
-        givenOneCreatedContractWithNoStorageChanges();
-        given(storageAccountingScope.isOwner()).willReturn(false);
-        // Lenient, since a nested commit must not consult the throttle
-        BDDMockito.lenient().when(context.throttleAdviser()).thenReturn(throttleAdviser);
+        givenCreatedContractsWithNoStorageChanges(CALLED_CONTRACT_ID);
+        given(storageAccountingScope.creationsToThrottle(List.of(CALLED_CONTRACT_ID)))
+                .willReturn(Optional.empty());
 
         subject.commit();
 
         BDDMockito.then(context).should(never()).throttleAdviser();
+        BDDMockito.then(storageAccountingScope).should(never()).creationsThrottled(any());
         assertEquals(List.of(CALLED_CONTRACT_ID), subject.getCreatedContractIds());
     }
 
-    private void givenOneCreatedContractWithNoStorageChanges() {
+    private void givenCreatedContractsWithNoStorageChanges(@NonNull final ContractID... createdIds) {
         given(context.dispatchMetadata())
                 .willReturn(new HandleContext.DispatchMetadata(EXPLICIT_WRITE_TRACING, Boolean.FALSE));
         given(evmFrameState.getTxStorageUsage(true)).willReturn(new TxStorageUsage(List.of(), Set.of()));
         given(hederaOperations.summarizeContractChanges())
-                .willReturn(new ContractChangeSummary(new ArrayList<>(List.of(CALLED_CONTRACT_ID)), new ArrayList<>()));
+                .willReturn(new ContractChangeSummary(new ArrayList<>(List.of(createdIds)), new ArrayList<>()));
     }
 
     private static Configuration creationThrottleConfig() {

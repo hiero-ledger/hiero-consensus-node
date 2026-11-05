@@ -443,7 +443,7 @@ public class RepeatableNestedContractStorageTests {
     }
 
     @RepeatableHapiTest({NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW, NEEDS_STATE_ACCESS})
-    final Stream<DynamicTest> executionNestedTwoLevelsDeepIsCountedByTheOutermostExecution() {
+    final Stream<DynamicTest> executionNestedTwoLevelsDeepUpdatesStorageCounts() {
         final var slotsBefore = new AtomicLong();
         final var innerId = new AtomicReference<ScheduleID>();
         final var middleId = new AtomicReference<ScheduleID>();
@@ -468,7 +468,7 @@ public class RepeatableNestedContractStorageTests {
     }
 
     @RepeatableHapiTest({NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW, NEEDS_STATE_ACCESS})
-    final Stream<DynamicTest> executionNestedThroughScheduleCreationIsCountedByTheOutermostExecution() {
+    final Stream<DynamicTest> executionNestedThroughScheduleCreationUpdatesStorageCounts() {
         final var slotsBefore = new AtomicLong();
         return hapiTest(
                 writerCreated(),
@@ -504,7 +504,7 @@ public class RepeatableNestedContractStorageTests {
     }
 
     @RepeatableHapiTest({NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW, NEEDS_STATE_ACCESS})
-    final Stream<DynamicTest> siblingNestedExecutionsAreCountedByTheirOutermostExecution() {
+    final Stream<DynamicTest> siblingNestedExecutionsUpdateStorageCounts() {
         final var slotsBefore = new AtomicLong();
         final var firstId = new AtomicReference<ScheduleID>();
         final var secondId = new AtomicReference<ScheduleID>();
@@ -525,7 +525,7 @@ public class RepeatableNestedContractStorageTests {
     @LeakyRepeatableHapiTest(
             value = {NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW, NEEDS_STATE_ACCESS},
             overrides = {"contracts.maxKvPairs.individual"})
-    final Stream<DynamicTest> siblingNestedInsertionsBeyondContractLimitFailOuterCall() {
+    final Stream<DynamicTest> siblingNestedInsertionBeyondContractLimitFailsOnlyThatScheduledCall() {
         final var slotsBefore = new AtomicLong();
         final var firstId = new AtomicReference<ScheduleID>();
         final var secondId = new AtomicReference<ScheduleID>();
@@ -536,38 +536,84 @@ public class RepeatableNestedContractStorageTests {
                 scheduledForWriter("first", writerCall("set", 2, 2), firstId),
                 scheduledForWriter("second", writerCall("set", 3, 3), secondId),
                 overriding("contracts.maxKvPairs.individual", "2"),
-                // Each scheduled insertion fits alone, but the outer call's commit sees both
-                writerAuthorizing(
-                        "outer", List.of(firstId, secondId), NO_WRITE, NO_WRITE, false, MAX_CONTRACT_STORAGE_EXCEEDED),
-                getScheduleInfo("first").isNotExecuted(),
-                getScheduleInfo("second").isNotExecuted(),
+                // Only one more slot fits, so the second scheduled insertion exceeds the limit
+                writerAuthorizing("outer", List.of(firstId, secondId), NO_WRITE, NO_WRITE, false, SUCCESS),
+                scheduledStatusIs("first", SUCCESS),
+                scheduledStatusIs("second", MAX_CONTRACT_STORAGE_EXCEEDED),
+                getScheduleInfo("first").isExecuted(),
+                getScheduleInfo("second").isExecuted(),
+                slotCountChangedBy(slotsBefore, 1),
+                storageValuesAre(WRITER, 1, 2));
+    }
+
+    @LeakyRepeatableHapiTest(
+            value = {NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW, NEEDS_STATE_ACCESS},
+            overrides = {"contracts.maxKvPairs.individual"})
+    final Stream<DynamicTest> siblingNestedRemovalMakesRoomForInsertionWithinContractLimit() {
+        final var slotsBefore = new AtomicLong();
+        final var firstId = new AtomicReference<ScheduleID>();
+        final var secondId = new AtomicReference<ScheduleID>();
+        return hapiTest(
+                writerCreated(),
+                writerCall("set", 1, 1),
+                writerCall("set", 2, 2),
+                recordSlotCount(slotsBefore),
+                scheduledForWriter("first", writerCall("set", 1, 0), firstId),
+                scheduledForWriter("second", writerCall("set", 3, 3), secondId),
+                overriding("contracts.maxKvPairs.individual", "2"),
+                // The first scheduled call frees the slot the second one uses
+                writerAuthorizing("outer", List.of(firstId, secondId), NO_WRITE, NO_WRITE, false, SUCCESS),
+                scheduledStatusIs("first", SUCCESS),
+                scheduledStatusIs("second", SUCCESS),
                 slotCountChangedBy(slotsBefore, 0),
-                storageValuesAre(WRITER, 1));
+                storageValuesAre(WRITER, 2, 3));
+    }
+
+    @LeakyRepeatableHapiTest(
+            value = {NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW, NEEDS_STATE_ACCESS},
+            overrides = {"contracts.maxKvPairs.aggregate"})
+    final Stream<DynamicTest> siblingNestedRemovalMakesRoomForInsertionWithinAggregateLimit() {
+        final var slotsBefore = new AtomicLong();
+        final var firstId = new AtomicReference<ScheduleID>();
+        final var secondId = new AtomicReference<ScheduleID>();
+        return hapiTest(
+                writerCreated(),
+                writerCall("set", 1, 1),
+                scheduledForWriter("first", writerCall("set", 1, 0), firstId),
+                scheduledForWriter("second", writerCall("set", 3, 3), secondId),
+                capAggregateSlotsAtCurrentPlus(0),
+                recordSlotCount(slotsBefore),
+                writerAuthorizing("outer", List.of(firstId, secondId), NO_WRITE, NO_WRITE, false, SUCCESS),
+                scheduledStatusIs("first", SUCCESS),
+                scheduledStatusIs("second", SUCCESS),
+                slotCountChangedBy(slotsBefore, 0),
+                storageValuesAre(WRITER, 3));
     }
 
     @LeakyRepeatableHapiTest(
             value = NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW,
             overrides = {"contracts.enforceCreationThrottle"},
             throttles = ONE_TPS_CRYPTO_CREATE_THROTTLES)
-    final Stream<DynamicTest> nestedCreationsBeyondCreationThrottleFailOuterCall() {
+    final Stream<DynamicTest> nestedCreationsBeyondCreationThrottleFailOnlyTheScheduledCreation() {
         final var factory = "NoncesExternalization";
         return hapiTest(
                 uploadInitCode(factory),
                 writerCreated(),
                 overriding("contracts.enforceCreationThrottle", "true"),
-                // The scheduled creation's constructor creates four more contracts, and the outer call's commit
-                // applies the throttle to all of them
+                // The scheduled creation's constructor creates four more contracts, more than the throttle admits
                 writeAroundAuthorizing(
                         "creating",
                         contractCreate(factory).omitAdminKey().gas(1_000_000L),
                         NO_WRITE,
                         NO_WRITE,
                         false,
-                        CONTRACT_REVERT_EXECUTED),
-                getTxnRecord("creatingOuter")
+                        SUCCESS),
+                scheduledStatusIs("creating", CONTRACT_REVERT_EXECUTED),
+                getTxnRecord("creatingCreation")
+                        .scheduled()
                         .hasPriority(recordWith()
-                                .contractCallResult(resultWith().error(revertReason(CONSENSUS_GAS_EXHAUSTED)))),
-                getScheduleInfo("creating").isNotExecuted());
+                                .contractCreateResult(resultWith().error(revertReason(CONSENSUS_GAS_EXHAUSTED)))),
+                getScheduleInfo("creating").isExecuted());
     }
 
     @RepeatableHapiTest({NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW, NEEDS_STATE_ACCESS})

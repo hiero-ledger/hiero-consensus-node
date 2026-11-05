@@ -73,10 +73,8 @@ public class RootProxyWorldUpdater extends ProxyWorldUpdater {
      * <ol>
      *     <li>Gets the list of pending storage changes and summarizes their effects on size.</li>
      *     <li>Validates the effects on size are legal.</li>
-     *     <li>For each increase in storage size, calculates rent and tries to charge the allocating contract
-     *     (storage accounting scope owner only).</li>
-     *     <li>"Rewrites" the pending storage changes to preserve per-contract linked lists (storage accounting scope
-     *     owner only).</li>
+     *     <li>For each increase in storage size, calculates rent and tries to charge the allocating contract.</li>
+     *     <li>"Rewrites" the pending storage changes to preserve per-contract linked lists.</li>
      * </ol>
      *
      * @throws ResourceExhaustedException if the storage size limit is exceeded or rent cannot be paid
@@ -94,29 +92,31 @@ public class RootProxyWorldUpdater extends ProxyWorldUpdater {
         final var sizeEffects = summarizeSizeEffects(writes);
         storageSizeValidator.assertValid(
                 sizeEffects.finalSlotsUsed(), enhancement.nativeOperations(), sizeEffects.sizeChanges());
-        // Nested executions commit into the owner's savepoints, so only the owner charges rent for and persists
-        // the changes of its whole scope
-        if (storageAccountingScope.isOwner()) {
-            // Charge rent for each increase in storage size
-            chargeRentFor(sizeEffects);
-            storageManager.persistChanges(
-                    enhancement,
-                    writes,
-                    sizeEffects.sizeChanges(),
-                    enhancement.operations().getStore(),
-                    enhancement.nativeOperations().writableEvmHookStore());
-        }
+        // Charge rent for each increase in storage size
+        chargeRentFor(sizeEffects);
+        // "Rewrite" the pending storage changes to preserve per-contract linked lists
+        storageManager.persistChanges(
+                enhancement,
+                writes,
+                sizeEffects.sizeChanges(),
+                enhancement.operations().getStore(),
+                enhancement.nativeOperations().writableEvmHookStore());
 
         // We now have an apparently valid change set, and want to capture some summary
         // information for the Hedera record
         final var contractChangeSummary = enhancement.operations().summarizeContractChanges();
         createdContractIds = contractChangeSummary.newContractIds();
 
-        // The owner also throttles the creations of nested executions, so a denial fails the owner's whole execution
-        if (contractsConfig.enforceCreationThrottle() && storageAccountingScope.isOwner()) {
-            final var creationCapacityIsAvailable =
-                    !context.throttleAdviser().shouldThrottleNOfUnscaled(createdContractIds.size(), CRYPTO_CREATE);
-            validateResource(creationCapacityIsAvailable, CONSENSUS_GAS_EXHAUSTED);
+        if (contractsConfig.enforceCreationThrottle()) {
+            // Throttle each creation once, in the first commit that includes it
+            final var creationsToThrottle = storageAccountingScope.creationsToThrottle(createdContractIds);
+            if (creationsToThrottle.isPresent()) {
+                final var creations = creationsToThrottle.get();
+                final var creationCapacityIsAvailable =
+                        !context.throttleAdviser().shouldThrottleNOfUnscaled(creations.size(), CRYPTO_CREATE);
+                validateResource(creationCapacityIsAvailable, CONSENSUS_GAS_EXHAUSTED);
+                storageAccountingScope.creationsThrottled(creations);
+            }
         }
 
         // If nonces externalization is enabled, we need to capture the updated nonces
@@ -176,7 +176,7 @@ public class RootProxyWorldUpdater extends ProxyWorldUpdater {
     private record SizeEffects(long finalSlotsUsed, List<StorageSizeChange> sizeChanges) {}
 
     private SizeEffects summarizeSizeEffects(@NonNull final List<StorageAccesses> allChanges) {
-        // The slot counts do not include the pending changes yet, so add their net effect
+        // Usage counters include previously persisted nested changes, but not this commit's changes.
         var finalSlotsUsed = evmFrameState.getKvStateSize();
         final List<StorageSizeChange> sizeChanges = new ArrayList<>();
         for (final var changes : allChanges) {
