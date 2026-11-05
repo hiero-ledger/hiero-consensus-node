@@ -129,11 +129,10 @@ public class ScheduleEvmTraceTest {
                 contractId(spec, CONTRACT), List.of(read(0, 55), write(1, 2, 55)),
                 contractId(spec, SECOND_CONTRACT), List.of(write(2, 12, 143)),
                 contractId(spec, THIRD_CONTRACT), List.of(write(0, 99, 0), write(1, 88, 0)));
-        final var splitter = new RoleFreeBlockUnitSplit();
         final var translator = new BlockTransactionalUnitTranslator(spec.shard(), spec.realm());
         return block -> {
             translator.scanBlockForGenesis(block);
-            for (final var rawUnit : splitter.split(block)) {
+            for (final var rawUnit : new RoleFreeBlockUnitSplit().split(block)) {
                 final var unit = rawUnit.withBatchTransactionParts();
                 final var scheduled = unit.blockTransactionParts().stream()
                         .filter(parts -> parts.transactionIdOrThrow().equals(scheduledId))
