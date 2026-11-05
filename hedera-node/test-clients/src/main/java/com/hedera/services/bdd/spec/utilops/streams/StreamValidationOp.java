@@ -18,6 +18,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForFrozenNetwor
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
+import static java.util.stream.Collectors.toSet;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
@@ -49,6 +50,7 @@ import com.hedera.services.bdd.junit.support.validators.block.WrbRecordFileValid
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.utilops.UtilOp;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
+import com.hedera.services.stream.proto.RecordStreamFile;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.File;
@@ -338,6 +340,13 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                                 "Block node WRB stream validation failed:" + ERROR_PREFIX + maybeErrors);
                     }
                 });
+                if (!perMethodNetwork) {
+                    // The validators above only see the wrapped record blocks the block node served
+                    final var recordFileNumbers = requireNonNull(dataRef.get()).files().stream()
+                            .map(RecordStreamFile::getBlockNumber)
+                            .collect(toSet());
+                    requireBlockNodeReceived(recordFileNumbers, "wrapped record blocks for the record files");
+                }
             } else {
                 validateProofs(spec, perMethodNetwork);
             }
@@ -841,7 +850,6 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
     private static void validateProofs(@NonNull final HapiSpec spec, final boolean perMethodNetwork) {
         if (!perMethodNetwork) {
             validateBlockNodeReceivedAllBlocks(spec);
-            return;
         }
         if (!BlockSourceFactory.isWriterModeGrpcOnly(spec)) {
             log.info("Beginning block proof validation for each node in the network");
@@ -885,8 +893,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
      * writer already read its blocks back from the block node, and a network without one has nothing to check.
      */
     private static void validateBlockNodeReceivedAllBlocks(@NonNull final HapiSpec spec) {
-        final var blockNodeNetwork = BlockNodeReader.activeNetwork();
-        if (BlockSourceFactory.isWriterModeGrpcOnly(spec) || blockNodeNetwork == null || blockNodeNetwork.isEmpty()) {
+        if (BlockSourceFactory.isWriterModeGrpcOnly(spec) || checkableBlockNodeNetwork() == null) {
             return;
         }
         final var node0 = spec.getNetworkNodes().getFirst();
@@ -895,10 +902,36 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
         if (completed.isEmpty()) {
             Assertions.fail("No completed blocks found for node " + node0.getNodeId());
         }
+        requireBlockNodeReceived(completed, "blocks node " + node0.getNodeId() + " completed");
+    }
+
+    /**
+     * Returns the active block node network, or {@code null} if there is none, or it is a local node this client
+     * can't ask which blocks it holds.
+     */
+    @Nullable
+    private static BlockNodeNetwork checkableBlockNodeNetwork() {
+        final var network = BlockNodeReader.activeNetwork();
+        if (network == null
+                || network.isEmpty()
+                || network.getBlockNodeModeById().containsValue(BlockNodeMode.LOCAL_NODE)) {
+            return null;
+        }
+        return network;
+    }
+
+    /**
+     * Fails unless the block node holds every given block, after giving it time to verify the last ones. Does nothing
+     * without a {@link #checkableBlockNodeNetwork() checkable} block node.
+     */
+    private static void requireBlockNodeReceived(@NonNull final Set<Long> blockNumbers, @NonNull final String what) {
+        final var blockNodeNetwork = checkableBlockNodeNetwork();
+        if (blockNodeNetwork == null) {
+            return;
+        }
         final var reader = BlockNodeReader.of(blockNodeNetwork);
-        // The block node verifies the final blocks after node 0 completes them, so allow it to catch up
         final long deadlineNanos = System.nanoTime() + STREAM_SETTLE_TIMEOUT.toNanos();
-        var missing = blocksMissingFrom(reader, completed);
+        var missing = blocksMissingFrom(reader, blockNumbers);
         while (!missing.isEmpty() && System.nanoTime() < deadlineNanos) {
             try {
                 Thread.sleep(BLOCK_NODE_READ_RETRY_MS);
@@ -906,25 +939,25 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                 Thread.currentThread().interrupt();
                 break;
             }
-            missing = blocksMissingFrom(reader, completed);
+            missing = blocksMissingFrom(reader, blockNumbers);
         }
         if (!missing.isEmpty()) {
             Assertions.fail(String.format(
-                    "Block node is missing %d of the %d blocks node %d completed (first missing %s, latest it has %d)",
+                    "Block node is missing %d of the %d %s (first missing %s, latest it has %d)",
                     missing.size(),
-                    completed.size(),
-                    node0.getNodeId(),
+                    blockNumbers.size(),
+                    what,
                     missing.subList(0, Math.min(5, missing.size())),
-                    reader.latestAvailableBlock()));
+                    reader.isReal() ? reader.lastStoredBlock() : reader.latestAvailableBlock()));
         }
-        log.info("Block node received all {} blocks node {} completed", completed.size(), node0.getNodeId());
+        log.info("Block node received all {} {}", blockNumbers.size(), what);
     }
 
-    // A real block node only reports the end of its contiguous range; a simulator can be asked per block
+    // A real block node only reports its newest stored block; a simulator can be asked per block
     private static List<Long> blocksMissingFrom(
             @NonNull final BlockNodeReader reader, @NonNull final Set<Long> blockNumbers) {
         if (reader.isReal()) {
-            final long latest = reader.latestAvailableBlock();
+            final long latest = reader.lastStoredBlock();
             return blockNumbers.stream().filter(number -> number > latest).toList();
         }
         return blockNumbers.stream().filter(number -> !reader.hasBlock(number)).toList();

@@ -234,8 +234,12 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
                         final var validationSpec = new HapiSpec(
                                 "LogAndStreamValidationSpec",
                                 new SpecOperation[] {logValidationOp, streamValidationOp});
-                        validationSpec.setTargetNetwork(sharedNetwork);
-                        validationSpec.setBlockNodeNetwork(SHARED_BLOCK_NODE_NETWORK.get());
+                        // Without the network's nodes, shard and realm the spec would pay node 0.0.3, which has no
+                        // client here
+                        HapiSpec.doTargetSpec(validationSpec, sharedNetwork);
+                        // Genesis networks have no block node
+                        Optional.ofNullable(SHARED_BLOCK_NODE_NETWORK.get())
+                                .ifPresent(validationSpec::setBlockNodeNetwork);
                         // Execute the validation spec
                         try {
                             validationSpec.execute();

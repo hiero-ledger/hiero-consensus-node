@@ -95,8 +95,8 @@ Each task that needs to ship configuration changes adds them to a comma-separate
 - `hapiTestPreCutover` runs the pre-cutover block stream that mainnet runs until it cuts over, for
   the `PRE_CUTOVER` jumpstart and wrapped record hash tests. It also runs the `BLOCK_HASHING` tests
   in that stream mode; `hapiTestMisc` and `hapiTestMiscRecords` run them in BLOCKS and RECORDS.
-- `hapiTestGenesisSubProcess`, `hapiTestClprMultinetwork`, `hapiTestRestart`, `hapiTestIss` and the
-  `hapiTestNodeStaking*` tasks pin a `FILE` writer, so their networks run without a block node.
+- `hapiTestGenesisSubProcess` and `hapiTestClprMultinetwork` pin a `FILE` writer, since block nodes attach
+  only to the shared network.
 
 See `build.gradle.kts` for the full table.
 

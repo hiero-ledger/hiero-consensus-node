@@ -213,7 +213,7 @@ val prCheckPropOverrides =
         // the genesis chain-of-trust proof must progress under that pressure, and
         // DabEnabledUpgradeTest's upgrades start timing out, so it keeps a hints-only TSS surface
         "hapiTestRestart" to
-            "blockStream.writerMode=FILE,tss.hintsEnabled=true,tss.historyEnabled=false,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
+            "tss.hintsEnabled=true,tss.historyEnabled=false,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
         // The pre-cutover world mainnet runs until it cuts over (BOTH with wrapped record blocks)
         // for the jumpstart and wrapped record hash tests, plus the hapiTestRestart pins they had
         "hapiTestPreCutover" to
@@ -239,13 +239,10 @@ val prCheckPropOverrides =
         "hapiTestSimpleFees" to
             "fees.simpleFeesEnabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,hooks.hooksEnabled=true",
         "hapiTestSimpleFeesSerial" to "fees.simpleFeesEnabled=true",
-        "hapiTestIss" to "blockStream.writerMode=FILE",
         // Genesis networks get no block node, so they keep a FILE writer
         "hapiTestGenesisSubProcess" to "blockStream.writerMode=FILE",
-        "hapiTestNodeStaking" to
-            "blockStream.writerMode=FILE,nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
-        "hapiTestNodeStakingSerial" to
-            "blockStream.writerMode=FILE,nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
+        "hapiTestNodeStaking" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
+        "hapiTestNodeStakingSerial" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
         "hapiTestNDReconnect" to "block.stateproof.verification.enabled=true",
         "hapiTestAtomicBatch" to
             "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
