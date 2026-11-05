@@ -20,6 +20,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCloseChanne
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprDeregisterConnector;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprEvictPeerEndpoint;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprSubmitBundle;
@@ -43,6 +44,7 @@ import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.toConfigProofBy
 import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.CLPR_SERVICE_ADDRESS_20;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_TRANSACTION_IN_BLACKLIST;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_PEER_ENDPOINT_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -461,12 +463,15 @@ public class ClprEnabledSuite {
     }
 
     private static HapiTxnOp<?> dispatch(final HapiTxnOp<?> op, final boolean inBatch, final boolean bypassIngest) {
-        op.hasKnownStatus(SUCCESS);
+        // The channel's cached manifest is empty here, so eviction reaching its handler proves the feature is enabled
+        final var expected =
+                op.type() == HederaFunctionality.ClprEvictPeerEndpoint ? CLPR_PEER_ENDPOINT_NOT_FOUND : SUCCESS;
+        op.hasKnownStatus(expected);
         final HapiTxnOp<?> submitted = inBatch
                 ? atomicBatch(op.batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(BATCH_TRANSACTION_IN_BLACKLIST)
-                : op.hasKnownStatus(SUCCESS);
+                : op.hasKnownStatus(expected);
         if (bypassIngest) {
             submitted.setNode(INGEST_BYPASS_NODE);
         }
@@ -507,7 +512,9 @@ public class ClprEnabledSuite {
                         .signature(crypto.signature())
                         .verifierContract(VERIFIER_CONTRACT)
                         .configProofBytes(toConfigProofBytes(ledgerConfig())));
-        txns.put("registerConnector", clprRegisterConnector().commitment(crypto.connectorCommitment()));
+        txns.put(
+                "registerConnector",
+                clprRegisterConnector().channelId(crypto.channelId()).commitment(crypto.connectorCommitment()));
         txns.put(
                 "completeConnector",
                 clprCompleteConnector()
@@ -542,12 +549,15 @@ public class ClprEnabledSuite {
                         .endpointNodeId(0L)
                         .bundlePayload(
                                 toBundleProofBytes(ClprChannelStatus.ACTIVE, 0L, 0L, new byte[32], List.of(payload))));
+        txns.put(
+                "evictPeerEndpoint",
+                clprEvictPeerEndpoint().channelId(crypto.channelId()).endpoint("203.0.113.1", 50211));
         txns.put("closeChannel", clprCloseChannel().channelId(crypto.channelId()));
         // Only governance operations require an administrator; public operations must exercise user throttles.
         txns.values()
                 .forEach(op -> op.payingWith(
                         switch (op.type()) {
-                            case ClprUpdateLedgerConfiguration, ClprCloseChannel -> GENESIS;
+                            case ClprUpdateLedgerConfiguration, ClprCloseChannel, ClprEvictPeerEndpoint -> GENESIS;
                             default -> CALLER;
                         }));
         return txns;

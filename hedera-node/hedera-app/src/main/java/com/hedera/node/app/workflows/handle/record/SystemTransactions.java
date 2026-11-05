@@ -7,6 +7,7 @@ import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.GENESIS_WORK;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.parseEd25519NodeAdminKeysFrom;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.LEDGER_CONFIGURATION_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.dispatchSynthFileUpdate;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.parseConfigList;
@@ -40,8 +41,11 @@ import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
+import com.hedera.hapi.node.clpr.ClprUpdateLedgerConfigurationTransactionBody;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.NodeMigrationRootHashVote;
+import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
+import com.hedera.hapi.node.state.clpr.ClprThrottles;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.state.history.ProofKey;
@@ -67,6 +71,8 @@ import com.hedera.node.app.records.impl.WrappedRecordBlockHashMigration;
 import com.hedera.node.app.records.schemas.V0490BlockRecordSchema;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema;
+import com.hedera.node.app.service.clpr.ClprService;
+import com.hedera.node.app.service.clpr.impl.ClprLedgerConfigurationFile;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.ReadableEntityIdStore;
@@ -515,6 +521,7 @@ public class SystemTransactions {
         if (isClprStakingAccountMissing(state, currentConfig)) {
             createClprStakingAccount(systemContext, currentConfig);
         }
+        maybeUpdateClprLedgerConfiguration(state, systemContext, currentConfig, adminConfig.upgradeSysFilesLoc());
         startupNetworks.clearCachedNetworks();
     }
 
@@ -661,6 +668,67 @@ public class SystemTransactions {
         final var stakingAccountId = idFactory.newAccountId(clprConfig.stakingAccount());
         final var accounts = state.getReadableStates(TokenService.NAME).<AccountID, Account>get(ACCOUNTS_STATE_ID);
         return accounts.get(stakingAccountId) == null;
+    }
+
+    /**
+     * Applies the throttles in the CLPR ledger configuration upgrade file, if present, with a synthetic
+     * {@code ClprUpdateLedgerConfiguration}. Skipped when CLPR is disabled (the handler would fail), when the
+     * ledger configuration does not exist yet (it is seeded from the same file right after post-upgrade setup),
+     * and when the throttles are unchanged (every update sets a new timestamp, which queues a config update on
+     * every channel).
+     *
+     * @param state the current state
+     * @param systemContext the system context to dispatch in
+     * @param config the current configuration
+     * @param upgradeSysFilesLoc the directory with the post-upgrade system files
+     */
+    private void maybeUpdateClprLedgerConfiguration(
+            @NonNull final State state,
+            @NonNull final SystemContext systemContext,
+            @NonNull final Configuration config,
+            @NonNull final String upgradeSysFilesLoc) {
+        final var clprConfig = config.getConfigData(ClprConfig.class);
+        if (!clprConfig.enabled()) {
+            log.info("CLPR is disabled, not applying any CLPR ledger configuration upgrade file");
+            return;
+        }
+        final var existing = state.getReadableStates(ClprService.NAME)
+                .<ClprLedgerConfiguration>getSingleton(LEDGER_CONFIGURATION_STATE_ID)
+                .get();
+        if (existing == null) {
+            log.info("CLPR ledger configuration not yet initialized, not applying its upgrade file");
+            return;
+        }
+        final var autoClprLedgerConfigurationUpdate = new AutoEntityUpdate<ClprThrottles>(
+                (ctx, throttles) -> applyClprThrottles(ctx, existing, throttles, config),
+                clprConfig.upgradeLedgerConfigurationFile(),
+                ClprLedgerConfigurationFile::parse);
+        autoClprLedgerConfigurationUpdate.tryIfPresent(upgradeSysFilesLoc, systemContext);
+    }
+
+    /**
+     * Dispatches a synthetic {@code ClprUpdateLedgerConfiguration} with the given throttles from the upgrade
+     * file, unless they match the existing ones.
+     *
+     * @param systemContext the system context to dispatch in
+     * @param existing the existing ledger configuration
+     * @param throttles the validated throttles from the upgrade file
+     * @param config the current configuration
+     */
+    private static void applyClprThrottles(
+            @NonNull final SystemContext systemContext,
+            @NonNull final ClprLedgerConfiguration existing,
+            @NonNull final ClprThrottles throttles,
+            @NonNull final Configuration config) {
+        final var maybeUpdate = ClprLedgerConfigurationFile.upgradeConfiguration(existing, throttles, config);
+        if (maybeUpdate.isEmpty()) {
+            log.info("CLPR ledger configuration throttles unchanged, not updating");
+            return;
+        }
+        final var body = ClprUpdateLedgerConfigurationTransactionBody.newBuilder()
+                .configuration(maybeUpdate.get())
+                .build();
+        systemContext.dispatchAdmin(b -> b.clprUpdateLedgerConfiguration(body));
     }
 
     private void createClprStakingAccount(

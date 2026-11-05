@@ -496,7 +496,7 @@ jobs:
     name: Follow 1
     needs: canonical-test
     if: ${{ needs.canonical-test.outputs.state == 'running' }}
-    uses: ./.github/workflows/864-call-sdct-follow.yaml
+    uses: ./.github/workflows/834-call-sdct-follow.yaml
     with:
       jenkins-build-number: ${{ needs.canonical-test.outputs.jenkins-build-number }}
       jenkins-build-url: ${{ needs.canonical-test.outputs.jenkins-build-url }}
@@ -519,7 +519,7 @@ jobs:
     name: Follow 2
     needs: [canonical-test, follow-1]
     if: ${{ needs.follow-1.outputs.state == 'running' }}
-    uses: ./.github/workflows/864-call-sdct-follow.yaml
+    uses: ./.github/workflows/834-call-sdct-follow.yaml
     with:
       jenkins-build-number: ${{ needs.follow-1.outputs.jenkins-build-number }}
       jenkins-build-url: ${{ needs.follow-1.outputs.jenkins-build-url }}
@@ -542,7 +542,7 @@ jobs:
     name: Follow 3
     needs: [canonical-test, follow-1, follow-2]
     if: ${{ needs.follow-2.outputs.state == 'running' }}
-    uses: ./.github/workflows/864-call-sdct-follow.yaml
+    uses: ./.github/workflows/834-call-sdct-follow.yaml
     with:
       jenkins-build-number: ${{ needs.follow-2.outputs.jenkins-build-number }}
       jenkins-build-url: ${{ needs.follow-2.outputs.jenkins-build-url }}
@@ -565,7 +565,7 @@ jobs:
     name: Follow 4
     needs: [canonical-test, follow-1, follow-2, follow-3]
     if: ${{ needs.follow-3.outputs.state == 'running' }}
-    uses: ./.github/workflows/864-call-sdct-follow.yaml
+    uses: ./.github/workflows/834-call-sdct-follow.yaml
     with:
       jenkins-build-number: ${{ needs.follow-3.outputs.jenkins-build-number }}
       jenkins-build-url: ${{ needs.follow-3.outputs.jenkins-build-url }}
@@ -588,7 +588,7 @@ jobs:
     name: Follow 5
     needs: [canonical-test, follow-1, follow-2, follow-3, follow-4]
     if: ${{ needs.follow-4.outputs.state == 'running' }}
-    uses: ./.github/workflows/864-call-sdct-follow.yaml
+    uses: ./.github/workflows/834-call-sdct-follow.yaml
     with:
       jenkins-build-number: ${{ needs.follow-4.outputs.jenkins-build-number }}
       jenkins-build-url: ${{ needs.follow-4.outputs.jenkins-build-url }}
@@ -611,7 +611,7 @@ jobs:
     name: Follow 6
     needs: [canonical-test, follow-1, follow-2, follow-3, follow-4, follow-5]
     if: ${{ needs.follow-5.outputs.state == 'running' }}
-    uses: ./.github/workflows/864-call-sdct-follow.yaml
+    uses: ./.github/workflows/834-call-sdct-follow.yaml
     with:
       jenkins-build-number: ${{ needs.follow-5.outputs.jenkins-build-number }}
       jenkins-build-url: ${{ needs.follow-5.outputs.jenkins-build-url }}

@@ -2,6 +2,7 @@
 package com.hedera.node.config.data;
 
 import com.hedera.node.config.NetworkProperty;
+import com.hedera.node.config.NodeProperty;
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
 import java.time.Duration;
@@ -11,13 +12,21 @@ import java.time.Duration;
  */
 @ConfigData("clpr")
 public record ClprConfig(
-        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        @ConfigProperty(defaultValue = "true") @NetworkProperty
         boolean enabled,
 
-        @ConfigProperty(defaultValue = "hiero:mainnet") @NetworkProperty
-        String chainId,
-
         @ConfigProperty(defaultValue = "1") @NetworkProperty int protocolVersion,
+
+        // --- Ledger configuration throttles (loaded like throttles.json) ---
+        // Node-local ClprLedgerConfiguration file (protobuf JSON, throttles only) that seeds the throttles at
+        // genesis; falls back to the bundled clpr/clprLedgerConfiguration.json resource if absent or invalid.
+        // Every node must have an identical file.
+        @ConfigProperty(defaultValue = "data/config/clprLedgerConfiguration.json") @NodeProperty
+        String ledgerConfigurationFile,
+        // Name of the file in networkAdmin.upgradeSysFilesLoc whose throttles are applied at each upgrade
+        // with a synthetic ClprUpdateLedgerConfiguration, when they differ from the current ones.
+        @ConfigProperty(defaultValue = "clprLedgerConfiguration.json")
+        String upgradeLedgerConfigurationFile,
 
         @ConfigProperty(defaultValue = "100000000") @NetworkProperty
         long minLockedStake,

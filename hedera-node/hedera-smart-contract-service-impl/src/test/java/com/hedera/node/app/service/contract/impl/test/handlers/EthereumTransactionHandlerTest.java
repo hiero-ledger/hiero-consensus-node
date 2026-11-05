@@ -46,6 +46,7 @@ import com.hedera.node.app.hapi.utils.ethereum.EthTxSigs;
 import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
 import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.ContextTransactionProcessor;
+import com.hedera.node.app.service.contract.impl.exec.StorageAccountingScope;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
 import com.hedera.node.app.service.contract.impl.exec.delegation.CodeDelegationResult;
@@ -169,6 +170,9 @@ class EthereumTransactionHandlerTest {
     private CustomGasCharging customGasCharging;
 
     @Mock
+    private StorageAccountingScope storageAccountingScope;
+
+    @Mock
     private HederaOperations hederaOperations;
 
     @Mock
@@ -231,7 +235,8 @@ class EthereumTransactionHandlerTest {
                 hevmTransactionFactory,
                 transactionProcessor,
                 customGasCharging,
-                contractMetrics);
+                contractMetrics,
+                storageAccountingScope);
 
         given(component.contextTransactionProcessor()).willReturn(contextTransactionProcessor);
         final var body = TransactionBody.newBuilder()

@@ -9,10 +9,10 @@ import org.junit.jupiter.api.Test;
 class ClprConfigTest {
 
     @Test
-    void disabledByDefault() {
+    void enabledByDefault() {
         final var config = HederaTestConfigBuilder.createConfig().getConfigData(ClprConfig.class);
 
-        assertThat(config.enabled()).isFalse();
+        assertThat(config.enabled()).isTrue();
     }
 
     @Test

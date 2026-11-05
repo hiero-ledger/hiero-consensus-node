@@ -9,6 +9,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -33,8 +34,12 @@ import org.hiero.otter.fixtures.util.CursoredLog.Cursor;
  * <p>
  * This gossip simulation is intentionally simplistic. It does not attempt to mimic any real gossip algorithm in any
  * meaningful way and makes no attempt to reduce the rate of duplicate events.
+ *
+ * <p>The nodes of the network are fixed when an instance is created and never change. An instance only runs the
+ * network: it is created when the network starts and discarded when the network is shut down. A network with other
+ * nodes, for example after a roster change, is run by a new instance.
  */
-public class SimulatedNetworkConnectivity {
+public class SimulatedNetworkConnectivity implements GossipNetwork {
 
     /**
      * The initial capacity of the sequence number space for the cursored log of events. This should match the number of
@@ -112,7 +117,7 @@ public class SimulatedNetworkConnectivity {
     /**
      * A map of cursors for each node in the network used to determine which events the node receives nest.
      */
-    private final Map<NodeId, Cursor<PlatformEvent>> nodeCursors = new HashMap<>();
+    private final Map<NodeId, Cursor<PlatformEvent>> nodeCursors;
 
     /**
      * Events submitted by each node since the previous tick, held until they can be added to {@link #eventLog}. Nodes
@@ -120,26 +125,25 @@ public class SimulatedNetworkConnectivity {
      * submissions of another. The iteration order of this map is not relied upon; {@link #submissionOrder} decides the
      * order the lists are drained in.
      */
-    private final Map<NodeId, List<PlatformEvent>> newlySubmittedEvents = new ConcurrentHashMap<>();
+    private final Map<NodeId, List<PlatformEvent>> newlySubmittedEvents;
 
     /**
-     * Every node in the network, in node id order. Maintained as nodes are added rather than being sorted on each tick,
-     * and never reordered, so that it can serve as the canonical starting point for the shuffle in
-     * {@link #addSubmittedEventsToEventLog()}.
+     * Every node in the network, in node id order. Fixed by the constructor and never reordered, so that it can serve
+     * as the canonical starting point for the shuffle in {@link #addSubmittedEventsToEventLog()}.
      */
-    private final List<NodeId> sortedNodeIds = new ArrayList<>();
+    private final List<NodeId> sortedNodeIds;
 
     /**
      * The order {@link #newlySubmittedEvents} is drained in on the current tick. A shuffled copy of
      * {@link #sortedNodeIds}, reused across ticks so that producing it does not allocate.
      */
-    private final List<NodeId> submissionOrder = new ArrayList<>();
+    private final List<NodeId> submissionOrder;
 
     /**
      * The most recent {@link EventWindow} reported by each node. A node's window determines which events are worth
      * transmitting to it, and the oldest window across all nodes determines what can be pruned from {@link #eventLog}.
      */
-    private final Map<NodeId, EventWindow> nodeEventWindows = new ConcurrentHashMap<>();
+    private final Map<NodeId, EventWindow> nodeEventWindows;
 
     /**
      * Event windows reported by each node since the previous tick, held until they can be put on the network. Nodes
@@ -185,7 +189,7 @@ public class SimulatedNetworkConnectivity {
     /**
      * The gossip "component" for each node in the network.
      */
-    private final Map<NodeId, EventReceiver> eventReceivers = new HashMap<>();
+    private final Map<NodeId, EventReceiver> eventReceivers;
 
     /**
      * A map containing the connection state between each pair of nodes in the network. Used to determine if and when an
@@ -199,42 +203,57 @@ public class SimulatedNetworkConnectivity {
     private final ArrivalTimeClamp arrivalTimeClamp = new ArrivalTimeClamp();
 
     /**
-     * Constructor.
+     * Constructor. Sets up the whole network at once, with one node for every event receiver. The nodes cannot be
+     * changed afterwards.
      *
-     * @param random the random number generator to use for simulating network delays
-     * @param start  the instant the simulation starts at
+     * <p>The nodes are visited in node id order throughout the simulation, whatever order the event receivers are given
+     * in. Visiting them in a fixed order is what keeps the simulation deterministic.
+     *
+     * <p>The network has no connections until {@link #setConnections(Map)} is called for the first time.
+     *
+     * @param random         the random number generator to use for simulating network delays
+     * @param start          the instant the simulation starts at
+     * @param eventReceivers the event receiver of every node in the network, in any order
+     * @throws IllegalArgumentException if two event receivers belong to the same node
      */
-    public SimulatedNetworkConnectivity(@NonNull final Random random, @NonNull final Instant start) {
+    public SimulatedNetworkConnectivity(
+            @NonNull final Random random,
+            @NonNull final Instant start,
+            @NonNull final Collection<? extends EventReceiver> eventReceivers) {
         this.random = requireNonNull(random);
         this.currentTime = requireNonNull(start);
-        inFlightEvents = new InFlightEvents(this::isConnected, nodeEventWindows::get, start);
-        inFlightEventWindows = new InFlightEventWindows(this::isConnected, start);
-        inFlightInDeliveryOrder = List.of(inFlightEventWindows, inFlightEvents);
+
+        final Map<NodeId, EventReceiver> receiversById = new HashMap<>();
+        for (final EventReceiver eventReceiver : eventReceivers) {
+            if (receiversById.put(eventReceiver.getNodeId(), eventReceiver) != null) {
+                throw new IllegalArgumentException(
+                        "There is more than one event receiver for " + eventReceiver.getNodeId());
+            }
+        }
+        this.eventReceivers = Map.copyOf(receiversById);
+        this.sortedNodeIds = receiversById.keySet().stream().sorted().toList();
+        this.submissionOrder = new ArrayList<>(sortedNodeIds);
+
         eventLog = new CursoredLog<>(
                 ConsensusConstants.ROUND_FIRST,
                 INITIAL_SEQUENCE_NUMBER_CAPACITY,
                 INITIAL_EVENT_LOG_CAPACITY,
                 PlatformEvent::getBirthRound);
-    }
-
-    /**
-     * Adds a node that is part of this simulated network.
-     *
-     * <p>Nodes have to be added in a deterministic order to ensure that the simulation is deterministic.
-     *
-     * @param newNodeId        the id of the node to add
-     * @param eventReceiver the event receiver for the node
-     */
-    public void addNode(@NonNull final NodeId newNodeId, @NonNull final EventReceiver eventReceiver) {
-        for (final InFlightConnections<?> inFlight : inFlightInDeliveryOrder) {
-            inFlight.addNode(newNodeId);
+        final Map<NodeId, Cursor<PlatformEvent>> cursors = new HashMap<>();
+        final Map<NodeId, EventWindow> eventWindows = new ConcurrentHashMap<>();
+        final Map<NodeId, List<PlatformEvent>> submittedEvents = new HashMap<>();
+        for (final NodeId nodeId : sortedNodeIds) {
+            cursors.put(nodeId, eventLog.newCursor());
+            eventWindows.put(nodeId, EventWindow.getGenesisEventWindow());
+            submittedEvents.put(nodeId, new ArrayList<>());
         }
-        eventReceivers.put(newNodeId, eventReceiver);
-        nodeCursors.put(newNodeId, eventLog.newCursor());
-        nodeEventWindows.put(newNodeId, EventWindow.getGenesisEventWindow());
-        newlySubmittedEvents.put(newNodeId, new ArrayList<>());
-        sortedNodeIds.add(newNodeId);
-        Collections.sort(sortedNodeIds);
+        this.nodeCursors = Map.copyOf(cursors);
+        this.nodeEventWindows = eventWindows;
+        this.newlySubmittedEvents = Map.copyOf(submittedEvents);
+
+        inFlightEvents = new InFlightEvents(sortedNodeIds, this::isConnected, nodeEventWindows::get, start);
+        inFlightEventWindows = new InFlightEventWindows(sortedNodeIds, this::isConnected, start);
+        inFlightInDeliveryOrder = List.of(inFlightEventWindows, inFlightEvents);
     }
 
     /**
@@ -363,7 +382,7 @@ public class SimulatedNetworkConnectivity {
     private void resendEventWindow(@NonNull final NodeId sender, @NonNull final NodeId receiver) {
         final EventWindow eventWindow = nodeEventWindows.get(sender);
         if (eventWindow == null || !eventReceivers.containsKey(receiver)) {
-            // a node that has not been added yet has no window to send and nowhere to receive one
+            // a node that is not part of the network has no window to send and nowhere to receive one
             return;
         }
         final Instant arrivalTime = nextArrivalTime(sender, receiver, MessageRoute.BROADCAST, currentTime);
@@ -381,6 +400,7 @@ public class SimulatedNetworkConnectivity {
      *
      * @param event the event to gossip, with its sender set to the node submitting it
      */
+    @Override
     public void submitEvent(@NonNull final PlatformEvent event) {
         final NodeId submitter = requireNonNull(event.getSenderId(), "a submitted event must have its sender set");
         newlySubmittedEvents.get(submitter).add(event);
@@ -427,6 +447,7 @@ public class SimulatedNetworkConnectivity {
      * @param nodeId      the id of the node the event window belongs to
      * @param eventWindow the node's latest event window
      */
+    @Override
     public void updateEventWindow(@NonNull final NodeId nodeId, @NonNull final EventWindow eventWindow) {
         nodeEventWindows.put(nodeId, eventWindow);
         newlyReportedEventWindows.put(nodeId, eventWindow);
@@ -452,7 +473,7 @@ public class SimulatedNetworkConnectivity {
             }
         }
         if (oldestEventWindow == null) {
-            // no nodes have been added yet
+            // the network has no nodes
             return;
         }
 
@@ -693,6 +714,7 @@ public class SimulatedNetworkConnectivity {
      *
      * @param nodeId the id of the node whose cursor should be reset
      */
+    @Override
     public void resetCursor(@NonNull final NodeId nodeId) {
         nodeCursors.get(nodeId).seekToFirst();
         for (final InFlightConnections<?> inFlight : inFlightInDeliveryOrder) {
