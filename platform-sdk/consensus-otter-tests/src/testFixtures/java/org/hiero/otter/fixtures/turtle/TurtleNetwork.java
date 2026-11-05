@@ -74,8 +74,8 @@ public class TurtleNetwork extends SimulatedNetwork implements TimeTickReceiver 
     @Override
     @NonNull
     protected TurtleNode doCreateNode(@NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
-        final SimulatedGossip simulatedGossip = new SimulatedGossip(simulatedNetworkConnectivity, nodeId);
-        simulatedNetworkConnectivity.addNode(nodeId, simulatedGossip);
+        final SimulatedGossip simulatedGossip = new SimulatedGossip(gossipNetwork, nodeId);
+        addEventReceiver(simulatedGossip);
         final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));
         return new TurtleNode(
                 random,
@@ -96,8 +96,8 @@ public class TurtleNetwork extends SimulatedNetwork implements TimeTickReceiver 
     @NonNull
     protected InstrumentedNode doCreateInstrumentedNode(
             @NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
-        final SimulatedGossip simulatedGossip = new SimulatedGossip(simulatedNetworkConnectivity, nodeId);
-        simulatedNetworkConnectivity.addNode(nodeId, simulatedGossip);
+        final SimulatedGossip simulatedGossip = new SimulatedGossip(gossipNetwork, nodeId);
+        addEventReceiver(simulatedGossip);
         final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));
         return new InstrumentedTurtleNode(
                 random,
@@ -117,7 +117,8 @@ public class TurtleNetwork extends SimulatedNetwork implements TimeTickReceiver 
     @Override
     @NonNull
     protected MiniNode doCreateMiniNode(@NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
-        throw new UnsupportedOperationException("MiniNode is currently not supported in TurtleNetwork");
+        // MiniNodes are not implemented, but we can return a regular TurtleNode for now.
+        return doCreateNode(nodeId, keysAndCerts);
     }
 
     /**
@@ -125,6 +126,7 @@ public class TurtleNetwork extends SimulatedNetwork implements TimeTickReceiver 
      */
     @Override
     protected void preStartHook(@NonNull final Roster roster) {
+        super.preStartHook(roster);
         final int size = nodes().size();
         executorService = NodeLoggingContext.wrap(Executors.newFixedThreadPool(
                 Math.min(size, Runtime.getRuntime().availableProcessors()), new ContextAwareThreadFactory()));
@@ -174,7 +176,7 @@ public class TurtleNetwork extends SimulatedNetwork implements TimeTickReceiver 
             return;
         }
 
-        simulatedNetworkConnectivity.tick(now);
+        simulatedNetworkConnectivity().tick(now);
         turtleTransactionGenerator.tick(now, nodes());
 
         // Iteration order over nodes does not need to be deterministic -- nodes are not permitted to communicate with

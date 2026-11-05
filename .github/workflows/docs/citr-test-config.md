@@ -52,7 +52,6 @@ the time constraint. The time limit for MATS is critical because it is also run 
 
 |                       Test Name                        |                                             Workflow                                             |                                                   Required Parameters                                                   |                                               Required Workflow Secrets                                               | Precursor Steps |
 |--------------------------------------------------------|--------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------|-----------------|
-| MATS - Snyk Checks                                     | [801: [CALL] Snyk Scan](/.github/workflows/801-call-snyk-scan.yaml)                              | `ref: <commit-sha>`                                                                                                     | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`<br/>`snyk-token`                               | build           |
 | MATS - Compile and Spotless Check                      | [802: [CALL] Compile And Spotless](/.github/workflows/802-call-compile-and-spotless-check.yaml)  | `ref: <commit-sha>`                                                                                                     | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`                                                |                 |
 | MATS - Unit Tests                                      | [803: [CALL] Exec Unit Tests](/.github/workflows/803-call-execute-unit-tests.yaml)               | `ref: <commit-sha>`                                                                                                     | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`<br/>`codacy-project-token`<br/>`codecov-token` | build           |
 | MATS - Integration Tests                               | [804: [CALL] Exec Integration Tests](/.github/workflows/804-call-execute-integration-tests.yaml) | `ref: <commit-sha>`<br/>`enable-network-log-capture: true`                                                              | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`                                                | build           |
@@ -164,6 +163,34 @@ catching regressions without being unnecessarily long-running.
 | Block Node Regression Panel               | [821: [CALL] Block Node Regression](/.github/workflows/821-call-block-node-regression.yaml)      | `ref: <commit-sha>`<br/>`solo-version: vars.CITR_SOLO_VERSION`                                                                                                                                                                                                                                                              | `access-token`<br/>`slack-detailed-report-webhook`                                                                                                                                                                                                       | Fetch XTS Candidate<br/>Compile Code |
 | Solo 3-Stage Block Stream Cutover Panel   | [826: [CALL] Solo 3-Stage Cutover](/.github/workflows/826-call-solo-three-stage-cutover.yaml)    | `ref: <commit-sha>`<br/>`solo-version: vars.CITR_SOLO_VERSION`                                                                                                                                                                                                                                                              |                                                                                                                                                                                                                                                          | Fetch XTS Candidate<br/>Compile Code |
 | EVM Functional Tests Panel                | [871: [CALL] EVM Functional Tests](/.github/workflows/871-call-evm-functional-tests.yaml)        | `ref: <commit-sha>`<br/>`solo-version: <citr-solo-version>`<br/>`mirror-node-version: <citr-mirror-node-version>`<br/>`json-rpc-relay-version: <json-rpc-relay-version>`                                                                                                                                                    | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`                                                                                                                                                                                   | Fetch XTS Candidate<br/>Compile Code |
+| Ethereum Spec Tests Panel                 | [873: [CALL] Ethereum Spec Tests](/.github/workflows/873-call-ethereum-spec-tests.yaml)          | `ref: <commit-sha>`<br/>`solo-version: <citr-solo-version>`                                                                                                                                                                                                                                                                 | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`                                                                                                                                                                                   | Fetch XTS Candidate<br/>Compile Code |
+
+### Ethereum Spec Tests
+
+#### Purpose
+
+Runs the Ethereum Execution Spec Tests from the Hedera fork of the suite
+([hiero-ledger/hiero-ethereum-execution-spec-tests](https://github.com/hiero-ledger/hiero-ethereum-execution-spec-tests))
+through [873: [CALL] Ethereum Spec Tests](/.github/workflows/873-call-ethereum-spec-tests.yaml), as a panel of every XTS
+run, so a regression against Ethereum behaviour blocks promotion. The network (1 consensus node built from the
+candidate, mirror node, JSON-RPC relay on kind) is started with `./test.sh solo start --profile spec` of
+[hashgraph/hedera-evm-testing](https://github.com/hashgraph/hedera-evm-testing); every fork directory of the suite
+(`tests/<fork>/`) then runs in parallel against it in `execute remote` mode through the relay. Known-unsupported tests
+are skipped by the spec tests repository itself (`docs/hedera/hedera_skips.toml`).
+
+#### Environment
+
+- Runs on one `hl-cn-rpc-relay-lin-lg` runner (shared with the JSON-RPC relay panel, the EVM functional tests and the
+  adhoc solo tests) and takes about 70 minutes, with a 120-minute job limit.
+- **Blocking in XTS.** A failed fork fails [815: [CALL] Exec XTS Tests](/.github/workflows/815-call-xts-tests.yaml), so
+  the candidate is not tagged `xts-pass` and is not promoted.
+- Versions: solo comes from [.citr-env](/.github/workflows/support/citr/.citr-env) (`citr-solo-version`); the mirror
+  node and JSON-RPC relay versions are pinned by `test.sh` of `hedera-evm-testing`, not by `.citr-env`.
+- Both test repositories are checked out at commit SHAs pinned in 873's `DEFAULT_SPEC_TESTS_REF` and
+  `DEFAULT_EVM_TESTING_REF`, because neither has tags yet. Upstream test changes take effect only when a PR here bumps
+  them; give that PR the `Run Ethereum Spec Tests` label so the suite runs against the new revisions.
+- [008: [USER] Ethereum Spec Tests](/.github/workflows/008-user-ethereum-spec-tests.yaml) runs the same workflow
+  manually (any ref, forks, worker scale or test selection) and on pull requests labelled `Run Ethereum Spec Tests`.
 
 
 ## SDCT 
@@ -196,7 +223,7 @@ if the E2E SLA is met. It runs on a large, mainnet-like environment.
     completion with [sdct-wait.sh](/.github/workflows/support/scripts/sdct-wait.sh)
   - A full run lasts about a day, longer than the 6 h runner job limit. `canonical-test` ends as soon as the Jenkins
     build has started; the build is then followed by a chain of jobs of at most 330 minutes each (`follow-1` …
-    `follow-6` through [864: [CALL] CITR SDCT Follow](/.github/workflows/864-call-sdct-follow.yaml)), and the
+    `follow-6` through [834: [CALL] CITR SDCT Follow](/.github/workflows/834-call-sdct-follow.yaml)), and the
     `SDCT Verdict` job decides the result
   - The workflow selects one of the SDCT tests: `sdct` (the full test, default), `mini` (the same flow in about two
     hours, for debugging and verification) or `custom` (an ad hoc test); each test is a profile of the test driver
@@ -342,6 +369,20 @@ the final disposition); `GET api/v1/suites/results?build_number=<n>&suite_type=s
 | `fail` | `failed` |
 | Infrastructure error, including a Jenkins build that never started | `not_run` (TODO: refine, e.g. `isolated_issue`, once the Chewie semantics are confirmed) |
 | Workflow run cancelled | `cancelled` |
+
+### Test Breakdowns
+
+The test is based primarily on **NLG** (network-load-generator)’s LongevityLoadTest, and its main coverage includes:
+
+| Test Type(running in parallel) | TPS |
+| --- | --- |
+| Crypto | ~5K |
+| HCS | ~2K |
+| NFT | ~3K |
+| Smartcontract | ~50 |
+| Heliswap | ~300 |
+| Best coverage of All Hedera Major Tx Types | < 100 TPS |
+| Re-connects | At most 2 nodes in re-connect at the same time |
 
 
 ## SDPT

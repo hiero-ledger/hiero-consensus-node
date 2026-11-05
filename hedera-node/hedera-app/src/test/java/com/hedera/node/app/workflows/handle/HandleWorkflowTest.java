@@ -37,6 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -44,6 +45,7 @@ import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willAnswer;
 import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
@@ -62,6 +64,8 @@ import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.FileID;
+import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.Timestamp;
@@ -113,6 +117,7 @@ import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.roster.RosterService;
+import com.hedera.node.app.service.schedule.ExecutableTxn;
 import com.hedera.node.app.service.schedule.ExecutableTxnIterator;
 import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.token.TokenService;
@@ -128,7 +133,9 @@ import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.state.HederaRecordCache;
+import com.hedera.node.app.state.recordcache.BlockRecordSource;
 import com.hedera.node.app.throttle.CongestionMetrics;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
@@ -139,6 +146,7 @@ import com.hedera.node.app.workflows.handle.cache.CacheWarmer;
 import com.hedera.node.app.workflows.handle.record.MigrationRootHashSubmissions;
 import com.hedera.node.app.workflows.handle.record.SystemTransactions;
 import com.hedera.node.app.workflows.handle.steps.HollowAccountCompletions;
+import com.hedera.node.app.workflows.handle.steps.ParentTxn;
 import com.hedera.node.app.workflows.handle.steps.ParentTxnFactory;
 import com.hedera.node.app.workflows.handle.steps.StakePeriodChanges;
 import com.hedera.node.config.ConfigProvider;
@@ -148,8 +156,10 @@ import com.hedera.node.config.types.BlockStreamWriterMode;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.InitTrigger;
+import com.swirlds.state.State;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
+import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableSingletonState;
@@ -165,6 +175,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -186,6 +197,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mock;
@@ -935,7 +947,17 @@ class HandleWorkflowTest {
 
         final var reconciliationTimes = ArgumentCaptor.forClass(Instant.class);
         verify(historyService, times(4))
-                .reconcile(any(), any(), any(), reconciliationTimes.capture(), any(), eq(true), any(), eq(false));
+                .reconcile(
+                        any(),
+                        any(),
+                        any(),
+                        reconciliationTimes.capture(),
+                        any(),
+                        eq(true),
+                        any(),
+                        eq(false),
+                        any(),
+                        anyLong());
         assertEquals(
                 List.of(firstRoundTime, afterGracePeriod, readyBlockTime, readyBlockTime),
                 reconciliationTimes.getAllValues());
@@ -1045,7 +1067,7 @@ class HandleWorkflowTest {
                 .state(construction)
                 .build();
         given(state.getWritableStates(ClprService.NAME)).willReturn(clprStates);
-        givenSubjectWith(mode, BlockStreamWriterMode.FILE, emptyList(), Map.of("clpr.chainId", "upgrade-chain"));
+        givenSubjectWith(mode, BlockStreamWriterMode.FILE, emptyList(), Map.of("contracts.chainId", "299"));
         final var method = HandleWorkflow.class.getDeclaredMethod(
                 "initializeMissingClprSingletons",
                 com.swirlds.state.State.class,
@@ -1072,7 +1094,7 @@ class HandleWorkflowTest {
                         }),
                         eq(NOW.minusNanos(100)));
         assertEquals(ClprEndpointManifestConstruction.DEFAULT, construction.get());
-        assertEquals("upgrade-chain", ledgerConfig.get().chainId());
+        assertEquals("eip155:299", ledgerConfig.get().chainId());
         assertEquals(new Timestamp(1, 0), ledgerConfig.get().timestamp());
         assertEquals(1, manifest.get().version());
 
@@ -1479,6 +1501,193 @@ class HandleWorkflowTest {
         verify(blockRecordManager, never()).closeCurrentRecordFileIfOpen(state);
     }
 
+    @ParameterizedTest
+    @EnumSource(
+            value = HederaFunctionality.class,
+            names = {"CRYPTO_TRANSFER", "CLPR_SUBMIT_BUNDLE"})
+    void fullBlockDelegatesToFeeChargingDispatchPath(final HederaFunctionality functionality) throws Exception {
+        givenSubjectWith(BLOCKS, BlockStreamWriterMode.FILE, emptyList());
+        given(blockStreamManager.hasReachedMaxBlockSize()).willReturn(true);
+        final var parent = mock(ParentTxn.class, RETURNS_DEEP_STUBS);
+        given(parent.functionality()).willReturn(functionality);
+        // CLPR bundles are never payer-exempt, so their payer is not consulted
+        lenient()
+                .when(parent.txnInfo().payerID())
+                .thenReturn(AccountID.newBuilder().accountNum(1001L).build());
+        given(parent.consensusNow()).willReturn(NOW);
+        given(parent.baseBuilder().status()).willReturn(ResponseCodeEnum.THROTTLED_AT_CONSENSUS);
+        final var dispatch = mock(Dispatch.class);
+        given(parentTxnFactory.createDispatch(eq(parent), any())).willReturn(dispatch);
+        given(parent.stack().buildHandleOutput(any(), any(), any()))
+                .willReturn(new HandleOutput(new BlockRecordSource(List.of()), null, NOW));
+        final var method = HandleWorkflow.class.getDeclaredMethod(
+                "executeSubmittedParent", ParentTxn.class, long.class, State.class);
+        method.setAccessible(true);
+        method.invoke(subject, parent, 100L, state);
+        verify(dispatchProcessor).processDispatch(eq(dispatch), any(), eq(true));
+        verify(blockStreamManager).recordSubmittedTransaction(List.of(), true);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"0,false", "1,true", "37,true", "38,false"})
+    void fullBlockRespectsConfiguredThrottleExemptPayerRange(final long payerNum, final boolean exempt)
+            throws Exception {
+        givenSubjectWith(BLOCKS, BlockStreamWriterMode.FILE, emptyList(), Map.of("accounts.lastThrottleExempt", "37"));
+        lenient().when(blockStreamManager.hasReachedMaxBlockSize()).thenReturn(true);
+        final var parent = mock(ParentTxn.class, RETURNS_DEEP_STUBS);
+        given(parent.functionality()).willReturn(HederaFunctionality.CRYPTO_TRANSFER);
+        given(parent.txnInfo().payerID())
+                .willReturn(AccountID.newBuilder().accountNum(payerNum).build());
+        given(parent.consensusNow()).willReturn(NOW);
+        final var dispatch = mock(Dispatch.class);
+        given(parentTxnFactory.createDispatch(eq(parent), any())).willReturn(dispatch);
+        given(parent.stack().buildHandleOutput(any(), any(), any()))
+                .willReturn(new HandleOutput(new BlockRecordSource(List.of()), null, NOW));
+        final var method = HandleWorkflow.class.getDeclaredMethod(
+                "executeSubmittedParent", ParentTxn.class, long.class, State.class);
+        method.setAccessible(true);
+
+        method.invoke(subject, parent, 100L, state);
+
+        if (exempt) {
+            verify(dispatchProcessor).processDispatch(eq(dispatch), any());
+            verify(dispatchProcessor, never()).processDispatch(any(), any(), eq(true));
+        } else {
+            verify(dispatchProcessor).processDispatch(eq(dispatch), any(), eq(true));
+        }
+        verify(blockStreamManager).recordSubmittedTransaction(List.of(), false);
+    }
+
+    @Test
+    void fullBlockRejectsClprBundleRelayedByThrottleExemptNodePayer() throws Exception {
+        givenSubjectWith(BLOCKS, BlockStreamWriterMode.FILE, emptyList());
+        given(blockStreamManager.hasReachedMaxBlockSize()).willReturn(true);
+        final var parent = mock(ParentTxn.class, RETURNS_DEEP_STUBS);
+        given(parent.functionality()).willReturn(HederaFunctionality.CLPR_SUBMIT_BUNDLE);
+        // Nodes relay bundles with their own accounts, which are within the default throttle-exempt range
+        lenient()
+                .when(parent.txnInfo().payerID())
+                .thenReturn(AccountID.newBuilder().accountNum(3L).build());
+        given(parent.consensusNow()).willReturn(NOW);
+        given(parent.baseBuilder().status()).willReturn(ResponseCodeEnum.THROTTLED_AT_CONSENSUS);
+        final var dispatch = mock(Dispatch.class);
+        given(parentTxnFactory.createDispatch(eq(parent), any())).willReturn(dispatch);
+        given(parent.stack().buildHandleOutput(any(), any(), any()))
+                .willReturn(new HandleOutput(new BlockRecordSource(List.of()), null, NOW));
+        final var method = HandleWorkflow.class.getDeclaredMethod(
+                "executeSubmittedParent", ParentTxn.class, long.class, State.class);
+        method.setAccessible(true);
+
+        method.invoke(subject, parent, 100L, state);
+
+        verify(dispatchProcessor).processDispatch(eq(dispatch), any(), eq(true));
+        verify(dispatchProcessor, never()).processDispatch(any(), any());
+        verify(blockStreamManager).recordSubmittedTransaction(List.of(), true);
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = HederaFunctionality.class,
+            names = {
+                "HINTS_PARTIAL_SIGNATURE",
+                "MIGRATION_ROOT_HASH_VOTE",
+                "HINTS_KEY_PUBLICATION",
+                "HINTS_PREPROCESSING_VOTE",
+                "CRS_PUBLICATION",
+                "HISTORY_PROOF_KEY_PUBLICATION",
+                "HISTORY_ASSEMBLY_SIGNATURE",
+                "HISTORY_PROOF_VOTE",
+                "CLPR_ENDPOINT_PUBLICATION"
+            })
+    void fullBlockStillDispatchesProtocolTransactionsWithNonExemptPayer(final HederaFunctionality functionality)
+            throws Exception {
+        givenSubjectWith(BLOCKS, BlockStreamWriterMode.FILE, emptyList());
+        lenient().when(blockStreamManager.hasReachedMaxBlockSize()).thenReturn(true);
+        final var parent = mock(ParentTxn.class, RETURNS_DEEP_STUBS);
+        given(parent.functionality()).willReturn(functionality);
+        given(parent.txnInfo().payerID())
+                .willReturn(AccountID.newBuilder().accountNum(1001L).build());
+        given(parent.consensusNow()).willReturn(NOW);
+        final var dispatch = mock(Dispatch.class);
+        given(parentTxnFactory.createDispatch(eq(parent), any())).willReturn(dispatch);
+        given(parent.stack().buildHandleOutput(any(), any(), any()))
+                .willReturn(new HandleOutput(new BlockRecordSource(List.of()), null, NOW));
+        final var method = HandleWorkflow.class.getDeclaredMethod(
+                "executeSubmittedParent", ParentTxn.class, long.class, State.class);
+        method.setAccessible(true);
+
+        method.invoke(subject, parent, 100L, state);
+
+        verify(dispatchProcessor).processDispatch(eq(dispatch), any());
+        verify(dispatchProcessor, never()).processDispatch(any(), any(), eq(true));
+        verify(opWorkflowMetrics, never()).incrementThrottled(any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void fullBlockStillExecutesAllDueSchedules(final boolean initiallyFull) throws Exception {
+        givenSubjectWith(BLOCKS, BlockStreamWriterMode.FILE, emptyList(), Map.of("scheduling.longTermEnabled", "true"));
+        final var executionStart = NOW.minusSeconds(2);
+        final var entityIdStates =
+                mock(WritableStates.class, withSettings().extraInterfaces(CommittableWritableStates.class));
+        given(state.getWritableStates(EntityIdService.NAME)).willReturn(entityIdStates);
+        given(state.getWritableStates(ScheduleService.NAME)).willReturn(mock(WritableStates.class));
+        given(blockStreamManager.lastUsedConsensusTime()).willReturn(NOW);
+        // Either the block is already full, or the first scheduled execution's output fills it
+        final var full = new AtomicBoolean(initiallyFull);
+        lenient().when(blockStreamManager.hasReachedMaxBlockSize()).thenAnswer(ignore -> full.get());
+        willAnswer(ignore -> {
+                    full.set(true);
+                    return null;
+                })
+                .given(blockStreamManager)
+                .writeSavepointItems(any(), any());
+
+        // Schedules paid by an account outside the throttle-exempt range
+        final var executable = new ExecutableTxn<>(
+                TransactionBody.DEFAULT,
+                AccountID.newBuilder().accountNum(1001L).build(),
+                key -> true,
+                executionStart,
+                StreamBuilder.class,
+                builder -> {});
+        final var remaining = new AtomicInteger(3);
+        final var iter = mock(ExecutableTxnIterator.class);
+        given(iter.hasNext()).willAnswer(ignore -> remaining.get() > 0);
+        given(iter.next()).willAnswer(ignore -> executable);
+        willAnswer(ignore -> {
+                    remaining.decrementAndGet();
+                    return null;
+                })
+                .given(iter)
+                .remove();
+        given(scheduleService.executableTxns(any(), any(), any())).willReturn(iter);
+
+        final var parent = mock(ParentTxn.class, RETURNS_DEEP_STUBS);
+        given(parentTxnFactory.createSystemTxn(any(), any(), any(), any(), any(), any()))
+                .willReturn(parent);
+        final var dispatch = mock(Dispatch.class);
+        given(parentTxnFactory.createDispatch(eq(parent), any(), any(), any())).willReturn(dispatch);
+        given(parent.stack().buildHandleOutput(any(), any(), any()))
+                .willReturn(new HandleOutput(new BlockRecordSource(List.of()), null, NOW.plusNanos(1)));
+
+        final var method = HandleWorkflow.class.getDeclaredMethod(
+                "executeAsManyScheduled", State.class, Instant.class, Instant.class, NodeInfo.class);
+        method.setAccessible(true);
+
+        assertTrue((boolean) method.invoke(subject, state, executionStart, NOW, mock(NodeInfo.class)));
+
+        // Every due schedule runs through the ordinary scheduled dispatch path, never the block-full rejection
+        assertEquals(0, remaining.get());
+        verify(dispatchProcessor, times(3)).processDispatch(dispatch);
+        verify(dispatchProcessor, never()).processDispatch(any(), any(), anyBoolean());
+        // Scheduled output is still written, so it counts toward the block size
+        verify(blockStreamManager, times(3)).writeSavepointItems(any(), any());
+        // The whole interval is processed, so nothing is left behind for a later block
+        verify(blockStreamManager).setLastIntervalProcessTime(NOW);
+        assertTrue(full.get());
+    }
+
     /**
      * The {@code nextTime} for the first scheduled transaction must equal
      * {@code lastUsedConsensusTime + txnOffsetNanos}. This test uses {@code txnOffsetNanos = 104}
@@ -1573,6 +1782,71 @@ class HandleWorkflowTest {
         verify(scheduleService).executableTxns(any(), any(), any());
         // Only the round-start initialization — no scheduled txn dispatch triggered a second call
         verify(stakePeriodManager).setCurrentStakePeriodFor(eq(NOW));
+    }
+
+    @Test
+    void freshGenesisHandoffKeepsTheProofKeysOfNodesAPendingCandidateRosterDrops() {
+        final var activeRosterHash = Bytes.wrap("ACTIVE");
+        final var candidateRosterHash = Bytes.wrap("CANDIDATE");
+        final var activeRoster = Roster.newBuilder()
+                .rosterEntries(
+                        RosterEntry.newBuilder().nodeId(0L).weight(1L).build(),
+                        RosterEntry.newBuilder().nodeId(1L).weight(1L).build())
+                .build();
+        final var candidateRoster = Roster.newBuilder()
+                .rosterEntries(RosterEntry.newBuilder().nodeId(0L).weight(1L).build())
+                .build();
+        final var rosterStates = mock(ReadableStates.class);
+        final ReadableSingletonState<RosterState> rosterState = mock(ReadableSingletonState.class);
+        final ReadableKVState<ProtoBytes, Roster> rosters = mock(ReadableKVState.class);
+        given(state.getReadableStates(RosterService.NAME)).willReturn(rosterStates);
+        given(rosterStates.<RosterState>getSingleton(ROSTER_STATE_STATE_ID)).willReturn(rosterState);
+        given(rosterStates.<ProtoBytes, Roster>get(ROSTERS_STATE_ID)).willReturn(rosters);
+        given(rosterState.get())
+                .willReturn(RosterState.newBuilder()
+                        .candidateRosterHash(candidateRosterHash)
+                        .roundRosterPairs(new RoundRosterPair(0, activeRosterHash))
+                        .build());
+        given(rosters.get(new ProtoBytes(activeRosterHash))).willReturn(activeRoster);
+        given(rosters.get(new ProtoBytes(candidateRosterHash))).willReturn(candidateRoster);
+        final var historyStore = mock(WritableHistoryStore.class);
+        given(historyStore.getActiveConstruction())
+                .willReturn(
+                        HistoryProofConstruction.newBuilder().constructionId(1L).build());
+        // A finished construction that grounds a new chain of trust for the roster the network already has
+        final var groundingConstruction = HistoryProofConstruction.newBuilder()
+                .constructionId(2L)
+                .sourceRosterHash(activeRosterHash)
+                .targetRosterHash(activeRosterHash)
+                .targetProof(HistoryProof.DEFAULT)
+                .build();
+        willAnswer(invocation -> {
+                    invocation
+                            .<OnProofFinished>getArgument(0)
+                            .onFinished(historyStore, groundingConstruction, new TreeMap<>());
+                    return null;
+                })
+                .given(historyService)
+                .onFinishedConstruction(any());
+        // A round with one event and no transactions
+        final var creatorId = NodeId.of(0L);
+        given(round.iterator()).willAnswer(ignore -> List.of(event).iterator());
+        lenient().when(event.getConsensusTimestamp()).thenReturn(NOW);
+        lenient().when(event.allParentsIterator()).thenAnswer(ignore -> emptyIterator());
+        lenient().when(event.getCreatorId()).thenReturn(creatorId);
+        lenient().when(event.consensusTransactionIterator()).thenAnswer(ignore -> emptyIterator());
+        lenient().when(networkInfo.nodeInfo(creatorId.id())).thenReturn(mock(NodeInfo.class));
+        lenient().when(blockStreamManager.lastIntervalProcessTime()).thenReturn(NOW);
+        givenSubjectWith(
+                BLOCKS,
+                BlockStreamWriterMode.FILE,
+                emptyList(),
+                Map.of("tss.hintsEnabled", "true", "tss.historyEnabled", "true"));
+
+        subject.handleRound(state, round, txns -> {});
+
+        // The roster does not change, so no node's proof key may be removed
+        verify(historyStore).handoff(activeRoster, null, null);
     }
 
     @Test

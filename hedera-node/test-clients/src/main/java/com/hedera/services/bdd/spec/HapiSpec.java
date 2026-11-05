@@ -1107,7 +1107,8 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
                     }
                 })
                 : null;
-        for (final var assertion : streamAssertions) {
+        for (int i = 0, n = streamAssertions.size(); i < n; i++) {
+            final var assertion = streamAssertions.get(i);
             if (!quietMode) {
                 log.info("Checking record stream for {}", assertion);
             }
@@ -1117,6 +1118,8 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
             } catch (final Throwable t) {
                 log.warn("{}{} failed", logPrefix(), assertion, t);
                 answer = Optional.of(new Failure(t, assertion.toString()));
+                // Only assertHasPassed() unsubscribes, so release the ones not reached
+                streamAssertions.subList(i + 1, n).forEach(AbstractEventualStreamAssertion::unsubscribe);
                 break;
             }
         }

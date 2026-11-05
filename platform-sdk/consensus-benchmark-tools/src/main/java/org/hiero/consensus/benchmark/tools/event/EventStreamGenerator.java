@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.Random;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.SignatureType;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.crypto.PbjStreamHasher;
@@ -42,7 +43,7 @@ import org.hiero.consensus.model.roster.RosterWrapper;
  *   <li>carries {@link EventShape#transactionsPerEvent()} transactions of random bytes, each of a size drawn from
  *       {@link EventShape#transactionSize()};</li>
  *   <li>is hashed by its creator, and signed with its creator's key if keys are given; otherwise its signature is
- *       empty;</li>
+ *       random bytes of the length of an RSA signature;</li>
  *   <li>is returned as its creator created it, with the origin {@link EventOrigin#RUNTIME}.</li>
  * </ul>
  *
@@ -90,7 +91,8 @@ public final class EventStreamGenerator {
     private EventStreamGenerator() {}
 
     /**
-     * Generates unsigned events: every signature is empty.
+     * Generates unsigned events: every signature is made up of random bytes of the length of an RSA signature, and does
+     * not verify.
      *
      * @param shape  the shape of the events
      * @param roster the creators of the events
@@ -204,7 +206,7 @@ public final class EventStreamGenerator {
             // The creator hashes and signs the event.
             hasher.hashUnsignedEvent(unsignedEvent);
             final Bytes signature = signers.isEmpty()
-                    ? Bytes.EMPTY
+                    ? madeUpSignature(random)
                     : signers.get(creator).sign(unsignedEvent.getHash().getBytes());
             events.add(new PlatformEvent(unsignedEvent, signature, EventOrigin.RUNTIME));
         }
@@ -256,6 +258,14 @@ public final class EventStreamGenerator {
             parents.add(madeUpParent(otherCreator, random));
         }
         return parents;
+    }
+
+    /** Makes up a signature: random bytes of the length of an RSA signature, which do not verify. */
+    @NonNull
+    private static Bytes madeUpSignature(@NonNull final Random random) {
+        final byte[] signature = new byte[SignatureType.RSA.signatureLength()];
+        random.nextBytes(signature);
+        return Bytes.wrap(signature);
     }
 
     /** Makes up a parent: a random hash of the right length for its birth round. */

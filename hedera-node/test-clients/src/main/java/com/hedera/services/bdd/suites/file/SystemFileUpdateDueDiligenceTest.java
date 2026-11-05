@@ -31,9 +31,9 @@ import org.junit.jupiter.api.DynamicTest;
  * {@code AUTHORIZATION_FAILED}, and the handle-side due-diligence check attributes this to the node that
  * failed to reject it at ingest, so the submitting node is charged rather than the named payer.
  *
- * <p>Also documents the same scenario inside an atomic batch, where the submitting node is currently not
- * charged: inner-transaction dispatches skip creator charging, so the batch fails with
- * {@code INNER_TRANSACTION_FAILED} and the batch payer is charged instead.
+ * <p>The same scenario inside an atomic batch is also a node due-diligence failure: an honest node rejects
+ * the batch at ingest, so letting it reach consensus is the node's fault. The batch is rejected before any inner
+ * runs, with the inner's own status, and the submitting node — not the batch payer — is charged for it.
  */
 public class SystemFileUpdateDueDiligenceTest {
     // 0.0.4 is a non-default node; submitting to it bypasses ingest in embedded mode
@@ -87,32 +87,29 @@ public class SystemFileUpdateDueDiligenceTest {
     }
 
     @EmbeddedHapiTest(value = MUST_SKIP_INGEST)
-    @DisplayName(
-            "an unauthorized system-file update inside an atomic batch that bypassed ingest charges the batch payer")
-    final Stream<DynamicTest> unauthorizedSystemFileUpdateInAtomicBatchThatBypassedIngestChargesTheBatchPayer() {
+    @DisplayName("an unauthorized system-file update inside an atomic batch that bypassed ingest charges the node")
+    final Stream<DynamicTest> unauthorizedSystemFileUpdateInAtomicBatchThatBypassedIngestChargesTheNode() {
         final var nonPrivilegedPayer = "nonPrivilegedPayer";
         final var batchOperator = "batchOperator";
         final var batchTxn = "batchTxn";
         return hapiTest(
                 cryptoCreate(nonPrivilegedPayer),
                 cryptoCreate(batchOperator),
-                // Fund the submitting node so a due-diligence charge could be collected from it
+                // Fund the submitting node so its due-diligence charge can be collected
                 cryptoTransfer(tinyBarsFromTo(GENESIS, SUBMITTING_NODE_ACCOUNT_ID, ONE_HBAR)),
                 // Ingest privilege-checks batch inner transactions too, so an honest node rejects this batch
                 // outright; submitting to a non-default node bypasses ingest and lets it reach consensus.
-                // This documents the current charging for that case: pre-handle flags the inner update as a
-                // node due-diligence failure, but BATCH_INNER dispatches skip creator charging, so the batch
-                // fails with INNER_TRANSACTION_FAILED and the batch payer — not the submitting node — is
-                // charged. Whether the node should be charged instead is tracked as a follow-up.
+                // Pre-handle flags the inner update as a node due-diligence failure, and the batch repeats every
+                // inner's ingest-level checks before running any of them; so the batch is rejected with the inner's
+                // status, no inner runs, and the submitting node — not the batch payer — is charged. See #26804.
                 atomicBatch(fileUpdate(EXCHANGE_RATES)
                                 .contents("Should be impossible!")
                                 .payingWith(nonPrivilegedPayer)
-                                .batchKey(batchOperator)
-                                .hasKnownStatus(AUTHORIZATION_FAILED))
+                                .batchKey(batchOperator))
                         .payingWith(batchOperator)
                         .via(batchTxn)
                         .setNode(SUBMITTING_NODE_ACCOUNT_ID)
-                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                validateChargedAccount(batchTxn, batchOperator));
+                        .hasKnownStatus(AUTHORIZATION_FAILED),
+                validateChargedAccount(batchTxn, SUBMITTING_NODE_ACCOUNT_ID));
     }
 }

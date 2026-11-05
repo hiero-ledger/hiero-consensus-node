@@ -434,7 +434,8 @@ public class HelloWorldEthereumSuite {
                         txn,
                         SUCCESS,
                         recordWith().hasMirrorIdInReceipt(),
-                        recordWith().hasMirrorIdInReceipt()));
+                        recordWith().hasMirrorIdInReceipt(),
+                        recordWith().status(SUCCESS).fee(0L).targetedContractId(selfDestructingContract)));
     }
 
     @HapiTest
