@@ -2,6 +2,7 @@
 package com.hedera.node.config.converter;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
 import com.hedera.node.config.types.PermissionedAccountsRange;
 import com.hedera.node.config.types.PermissionedAccountsRange.Range;
@@ -11,8 +12,40 @@ import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 final class PermissionedAccountsRangeConverterTest {
+
+    // Far more elements than any thread stack can hold if parsing recurses once per element
+    private static final int MANY_ELEMENTS = 200_000;
+
+    @Test
+    void longInclusionListDoesNotOverflowStack() {
+        final PermissionedAccountsRangeConverter converter = new PermissionedAccountsRangeConverter();
+        final String value = "1,".repeat(MANY_ELEMENTS - 1) + "2-3";
+
+        final PermissionedAccountsRange converted = assertDoesNotThrow(() -> converter.convert(value));
+
+        Assertions.assertThat(converted.contains(1)).isTrue();
+        Assertions.assertThat(converted.contains(3)).isTrue();
+        Assertions.assertThat(converted.contains(4)).isFalse();
+    }
+
+    @Test
+    void longMalformedInclusionListIsRejectedWithoutOverflowingStack() {
+        final PermissionedAccountsRangeConverter converter = new PermissionedAccountsRangeConverter();
+        final String value = "1,".repeat(MANY_ELEMENTS) + "x";
+
+        assertThatThrownBy(() -> converter.convert(value)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"1,", ",1", "1,,2", "1, 2", "1-2,", "1,2-", "1,-2", "1,2-*-3", "1,*"})
+    void malformedInclusionListIsRejected(final String value) {
+        final PermissionedAccountsRangeConverter converter = new PermissionedAccountsRangeConverter();
+
+        assertThatThrownBy(() -> converter.convert(value)).isInstanceOf(IllegalArgumentException.class);
+    }
 
     @Test
     void testNullParam() {
