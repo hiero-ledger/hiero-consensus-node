@@ -30,7 +30,7 @@ import java.util.Optional;
  * @param farFutureEventThreshold        the number of birth rounds ahead of the pending round for which this node will
  *                                       accept events from peers. All events with a birth round higher than the pending
  *                                       round plus this number are considered to be far future events and will be
- *                                       rejected.
+ *                                       rejected. A negative value means no event is considered far future.
  */
 @ConfigData("gossip")
 public record GossipConfig(
@@ -42,7 +42,7 @@ public record GossipConfig(
 
         @ConfigProperty(defaultValue = "5") int connectionServerThreadPriority,
         @ConfigProperty(defaultValue = "60s") Duration hangingThreadDuration,
-        @ConfigProperty(defaultValue = "5") int farFutureEventThreshold) {
+        @ConfigProperty(defaultValue = "-1") int farFutureEventThreshold) {
 
     /**
      * Returns the interface binding for the given node ID.

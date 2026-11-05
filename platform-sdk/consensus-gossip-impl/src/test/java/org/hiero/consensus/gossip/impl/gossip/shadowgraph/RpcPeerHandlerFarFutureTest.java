@@ -110,8 +110,13 @@ class RpcPeerHandlerFarFutureTest {
     }
 
     private RpcPeerHandler createPeerHandler(final Supplier<EventWindow> selfEventWindowSupplier) {
+        return createPeerHandler(selfEventWindowSupplier, THRESHOLD);
+    }
+
+    private RpcPeerHandler createPeerHandler(
+            final Supplier<EventWindow> selfEventWindowSupplier, final int farFutureEventThreshold) {
         final Configuration configuration = new TestConfigBuilder()
-                .withValue("gossip.farFutureEventThreshold", THRESHOLD)
+                .withValue("gossip.farFutureEventThreshold", farFutureEventThreshold)
                 .getOrCreateConfig();
         return new RpcPeerHandler(
                 synchronizer,
@@ -361,5 +366,38 @@ class RpcPeerHandlerFarFutureTest {
         final GossipEvent event = gossipEvent(SELF, PEER_MAX_ACCEPTABLE_BIRTH_ROUND + 1);
         handler.broadcastEvent(event);
         verify(sender).sendBroadcastEvent(event);
+    }
+
+    // FILTER DISABLED
+
+    /** A negative threshold disables the filter, so far future events are accepted by both broadcast and sync. */
+    @Test
+    void negativeThresholdAcceptsFarFutureEvents() {
+        final RpcPeerHandler handler = createPeerHandler(() -> MY_WINDOW, -1);
+
+        final GossipEvent broadcast = gossipEventWithBirthRound(MAX_ACCEPTABLE_BIRTH_ROUND + 100);
+        handler.receiveBroadcastEvent(broadcast);
+
+        final GossipEvent synced = gossipEventWithBirthRound(MAX_ACCEPTABLE_BIRTH_ROUND + 100);
+        handler.receiveEvents(List.of(synced));
+
+        assertThat(eventsPassedToIntake(2)).containsExactly(broadcast, synced);
+        verify(intakeEventCounter).eventEnteredIntakePipeline(PEER);
+    }
+
+    /**
+     * A negative threshold disables the filter, so a self event far ahead of the peer is still broadcast, and nothing
+     * is counted as held back.
+     */
+    @Test
+    void negativeThresholdBroadcastsFarFutureEventsForPeer() {
+        final RpcPeerHandler handler = createPeerHandler(() -> MY_WINDOW_AHEAD_OF_PEER, -1);
+        completeSync(handler, PEER_WINDOW);
+
+        final GossipEvent event = gossipEvent(SELF, PEER_MAX_ACCEPTABLE_BIRTH_ROUND + 100);
+        handler.broadcastEvent(event);
+
+        verify(sender).sendBroadcastEvent(event);
+        verify(syncMetrics, never()).broadcastEventHeldBack();
     }
 }

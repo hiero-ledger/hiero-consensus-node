@@ -176,4 +176,18 @@ class ShadowgraphSynchronizerFarFutureTest {
                         + " future events")
                 .containsExactlyElementsOf(acceptable.subList(0, maxSyncEventCount));
     }
+
+    /** A negative threshold disables the filter: every event is sent, however far ahead of the peer it is. */
+    @ParameterizedTest
+    @ValueSource(ints = {-1, -5})
+    void negativeThresholdSendsAllEvents(final int threshold) {
+        final ShadowgraphSynchronizer synchronizer = createSynchronizer(threshold, UNLIMITED_EVENTS_PER_SYNC);
+
+        final List<PlatformEvent> all = new ArrayList<>();
+        all.addAll(addSingleCreatorEventChain(synchronizer, NodeId.of(1), 1, 11));
+        all.addAll(addSingleCreatorEventChain(synchronizer, NodeId.of(2), 20, 31));
+
+        final EventWindow theirWindow = new EventWindow(10, 11, 1, 1);
+        assertThat(createSendList(synchronizer, theirWindow)).containsExactlyInAnyOrderElementsOf(all);
+    }
 }

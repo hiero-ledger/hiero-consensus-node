@@ -224,6 +224,9 @@ public class ShadowgraphSynchronizer {
      */
     private List<PlatformEvent> filterFarFutureEvents(
             final long theirPendingRound, @NonNull final List<PlatformEvent> sendList) {
+        if (farFutureEventThreshold < 0) {
+            return sendList;
+        }
         final long maximumAcceptedBirthRound = theirPendingRound + farFutureEventThreshold;
         return sendList.stream()
                 .filter(e -> e.getBirthRound() <= maximumAcceptedBirthRound)
