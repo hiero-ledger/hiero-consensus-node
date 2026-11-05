@@ -151,6 +151,7 @@ class AtomicBatchHandlerTest {
             HederaFunctionality.CLPR_REGISTER_CHANNEL,
             HederaFunctionality.CLPR_COMPLETE_CHANNEL,
             HederaFunctionality.CLPR_CLOSE_CHANNEL,
+            HederaFunctionality.CLPR_EVICT_PEER_ENDPOINT,
             HederaFunctionality.CLPR_SUBMIT_BUNDLE,
             HederaFunctionality.CLPR_REGISTER_CONNECTOR,
             HederaFunctionality.CLPR_DEREGISTER_CONNECTOR,
@@ -282,17 +283,13 @@ class AtomicBatchHandlerTest {
     void failsOnInnerScheduleTx(final TransactionBody.DataOneOfType scheduleTxnType) throws PreCheckException {
         final var builder = newTxnBodyBuilder(payerId2, consensusTimestamp, SIMPLE_KEY_A)
                 .nodeAccountID(ATOMIC_BATCH_NODE_ACCOUNT_ID);
-        final var innerTxnBody =
-                switch (scheduleTxnType) {
-                    case SCHEDULE_CREATE ->
-                        builder.scheduleCreate(ScheduleCreateTransactionBody.DEFAULT)
-                                .build();
-                    case SCHEDULE_SIGN ->
-                        builder.scheduleSign(ScheduleSignTransactionBody.DEFAULT)
-                                .build();
-                    default ->
-                        throw new IllegalArgumentException("Not a schedule transaction type: " + scheduleTxnType);
-                };
+        final var innerTxnBody = switch (scheduleTxnType) {
+            case SCHEDULE_CREATE ->
+                builder.scheduleCreate(ScheduleCreateTransactionBody.DEFAULT).build();
+            case SCHEDULE_SIGN ->
+                builder.scheduleSign(ScheduleSignTransactionBody.DEFAULT).build();
+            default -> throw new IllegalArgumentException("Not a schedule transaction type: " + scheduleTxnType);
+        };
         final var bytes = transactionsToBytes(innerTxnFrom("123"));
         given(preHandleContext.body()).willReturn(newAtomicBatch(payerId1, consensusTimestamp, bytes));
         given(transactionParser.parse(eq(bytes.getFirst()), any())).willReturn(innerTxnBody);

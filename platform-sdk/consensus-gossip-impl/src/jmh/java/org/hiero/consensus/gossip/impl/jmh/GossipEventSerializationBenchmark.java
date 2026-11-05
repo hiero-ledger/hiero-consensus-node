@@ -107,30 +107,32 @@ import org.openjdk.jmh.annotations.Warmup;
  * invocation, so the latency results and {@code latency.mean} exclude garbage collection. JMH's primary score, measured
  * by JMH itself, still includes discarded passes.
  *
- * <p>Each fork settles at its own latency level and keeps it. On the benchmark machine, {@code latency.mean} varies
- * between forks by 0.9% and 6.4% for {@code read} without and with transactions, and by 5.0% and 4.7% for
- * {@code write}, against 0.3–0.6% between the iterations of one fork, although every fork allocates the same and the
- * machine was quiet. With two transactions, the forks of {@code read} fell into two groups about 10% apart. In compile
- * logs on a laptop, the levels of {@code read} followed how the JIT compiler had inlined the stream reads into the PBJ
- * parser, and for {@code write} a flag that makes such inlining independent of which compilation finishes first
- * ({@code -XX:InlineSmallCode=10000}) brought the forks together
- * (<a href="https://github.com/hiero-ledger/hiero-consensus-node/issues/27940">#27940</a>). The levels set the number of
- * forks. In the calibration block, the parameter sets are {@code read} with 0 and 2 transactions, then {@code write}
+ * <p>Each fork settles at its own latency level and keeps it, although every fork allocates the same and the machine
+ * was quiet. On the benchmark machine with 32 nodes, {@code latency.mean} varied between forks by 0.9% and 6.4% for
+ * {@code read} without and with transactions, and by 5.0% and 4.7% for {@code write}; with two transactions, the forks
+ * of {@code read} fell into two groups about 10% apart. In the calibration run with 28 nodes, it varied by 4.7% and
+ * 1.6% for {@code read}, where one fork without transactions was 11% faster than the median, and by 3.8% and 4.2% for
+ * {@code write}, against 0.2–1.2% between the iterations of one fork. In compile logs on a laptop, the levels of
+ * {@code read} followed how the JIT compiler had inlined the stream reads into the PBJ parser, and for {@code write} a
+ * flag that makes such inlining independent of which compilation finishes first ({@code -XX:InlineSmallCode=10000})
+ * brought the forks together (<a href="https://github.com/hiero-ledger/hiero-consensus-node/issues/27940">#27940</a>).
+ * Bringing the noise of a run's result down to 0.5% would take 134 forks after the calibration run, so the benchmark
+ * keeps 5. In the calibration block, the parameter sets are {@code read} with 0 and 2 transactions, then {@code write}
  * with 0 and 2.
  *
  * <p>Run with {@code -prof org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler}.
  *
  * <h2>Calibration</h2>
  * <ul>
- *   <li>Date / commit: 2026-10-29, ce5a742d81</li>
+ *   <li>Date / commit: 2026-11-03, e5608e0366</li>
  *   <li>Machine: hl-cn-benchmark-lin, AS-2115GT-HNTR, AMD EPYC 9254 24-Core Processor, JDK 25.0.2, -XX:ActiveProcessorCount=12 -Xms1g -Xmx1g -XX:+AlwaysPreTouch</li>
  *   <li>Parameter sets: transactionsPerEvent=0 / transactionsPerEvent=2 / transactionsPerEvent=0 / transactionsPerEvent=2</li>
- *   <li>Steady state after: 5 s / 5 s / 0 s / 5 s</li>
- *   <li>Noise (latency.mean, CV): 0.30% / 0.56% / 0.26% / 0.38% per 5 s iteration, 0.88% / 6.40% / 4.97% / 4.71% between forks, - / - / - / - between runs (1 of 1 / 1 of 1 / 1 of 1 / 1 of 1 runs quiet)</li>
- *   <li>Expected detectable regression: 0.80% / 5.60% / 4.35% / 4.13% (95 % CI half-width of one run)</li>
- *   <li>Samples per iteration: 2.2 M / 1.8 M / 8.5 M / 7.3 M; expected stable: mean, p50, p90, p99 / p99 / p99.99 / p90, p99, p99.99</li>
+ *   <li>Steady state after: 5 s / 5 s / 0 s / 0 s</li>
+ *   <li>Noise (latency.mean, CV): 1.17% / 0.40% / 0.33% / 0.22% per 5 s iteration, 4.71% / 1.62% / 3.79% / 4.18% between forks, - / - / - / - between runs (1 of 1 / 1 of 1 / 1 of 1 / 1 of 1 runs quiet)</li>
+ *   <li>Expected detectable regression: 4.19% / 1.44% / 3.32% / 3.66% (95 % CI half-width of one run)</li>
+ *   <li>Samples per iteration: 2.2 M / 1.8 M / 8.5 M / 7.1 M; expected stable: p99 / mean, p50, p90, p99, p99.99 / mean, p50, p90, p99, p99.99 / mean, p90, p99.99</li>
  *   <li>Runtime: 1.7 / 1.8 / 1.7 / 1.8 min per parameter set</li>
- *   <li>Raw data: https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/40837996738, https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/40853788703</li>
+ *   <li>Raw data: https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/41684206600, https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/41706897170</li>
  * </ul>
  */
 @Fork(
@@ -146,16 +148,16 @@ public class GossipEventSerializationBenchmark {
     /** The number of events written or read in one invocation. */
     private static final int NUMBER_OF_EVENTS = 10_000;
 
-    /** The number of nodes that create the events: 32, as in the other consensus-layer benchmarks. */
-    private static final int NUMBER_OF_NODES = 32;
+    /** The number of nodes that create the events: 28, as in the other consensus-layer benchmarks. */
+    private static final int NUMBER_OF_NODES = 28;
 
     /**
      * The SHA-256 digest of the serialized form of all events, by the number of transactions per event. A change to
      * the generated events changes it.
      */
     private static final Map<Integer, String> EXPECTED_DIGESTS = Map.of(
-            0, "c291032c9a54ecaf691f8b55ec779661204ccc6f94f7f0edcc6a568ffaafe7ab",
-            2, "2c1513343e60e542e3e00dada9c331d3f0caba16dd3c6a2cb8e069cacb064d2b");
+            0, "29fd710621a3a00c546c12025957af6e5aa0489e3d686340fb32bce8f2be3eb6",
+            2, "ae32ba9f9d23b68ff4302f5dc2e81f323220beee351fd8bdf39f2f5bdc13f723");
 
     /** The state of {@code write}: the events and the stream they are written to. */
     @State(Scope.Thread)

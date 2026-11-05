@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import org.apache.logging.log4j.Marker;
+import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
@@ -28,11 +29,15 @@ public class NodeResultsCollector {
 
     private final NodeId nodeId;
     private final List<ConsensusRoundSubscriber> consensusRoundSubscribers = new CopyOnWriteArrayList<>();
+    private final List<EventDescriptorWrapper> preConsensusEvents = new ArrayList<>();
+    private final List<EventDescriptorWrapper> staleEvents = new ArrayList<>();
     private final List<PlatformStatus> platformStatuses = new ArrayList<>();
     private final List<PlatformStatusSubscriber> platformStatusSubscribers = new CopyOnWriteArrayList<>();
     private final List<StructuredLog> logEntries = new ArrayList<>();
     private final List<LogSubscriber> logSubscribers = new CopyOnWriteArrayList<>();
     private final ConsensusRoundPool roundPool;
+    // Turtle and Container do not pass their pre-consensus and stale events yet (#28054, #28056)
+    private final boolean collectsEvents;
 
     // This class may be used in a multi-threaded context, so we use volatile to ensure visibility of state changes
     private volatile boolean destroyed = false;
@@ -42,10 +47,13 @@ public class NodeResultsCollector {
      *
      * @param nodeId the node ID of the node
      * @param roundPool the shared pool for deduplicating consensus rounds across nodes
+     * @param collectsEvents whether the node passes its pre-consensus and stale events to this collector
      */
-    public NodeResultsCollector(@NonNull final NodeId nodeId, @NonNull final ConsensusRoundPool roundPool) {
+    public NodeResultsCollector(
+            @NonNull final NodeId nodeId, @NonNull final ConsensusRoundPool roundPool, final boolean collectsEvents) {
         this.nodeId = requireNonNull(nodeId, "nodeId should not be null");
         this.roundPool = requireNonNull(roundPool, "roundPool should not be null");
+        this.collectsEvents = collectsEvents;
     }
 
     /**
@@ -72,6 +80,83 @@ public class NodeResultsCollector {
 
             consensusRoundSubscribers.removeIf(
                     subscriber -> subscriber.onConsensusRound(nodeId, internalRound) == SubscriberAction.UNSUBSCRIBE);
+        }
+    }
+
+    /**
+     * Adds an event that the node emitted for pre-consensus handling.
+     *
+     * @param event the descriptor of the pre-consensus event
+     */
+    public void addPreConsensusEvent(@NonNull final EventDescriptorWrapper event) {
+        requireNonNull(event);
+        if (!destroyed) {
+            preConsensusEvents.add(event);
+        }
+    }
+
+    /**
+     * Adds an event that the node reported as stale.
+     *
+     * @param event the descriptor of the stale event
+     */
+    public void addStaleEvent(@NonNull final EventDescriptorWrapper event) {
+        requireNonNull(event);
+        if (!destroyed) {
+            staleEvents.add(event);
+        }
+    }
+
+    /**
+     * Returns all the pre-consensus events emitted by this node until the moment of invocation, starting with and
+     * including the provided index.
+     *
+     * @param startIndex the index to start from
+     * @return the list of pre-consensus events
+     * @throws UnsupportedOperationException if the node does not pass its pre-consensus events to this collector
+     */
+    @NonNull
+    public List<EventDescriptorWrapper> currentPreConsensusEvents(final int startIndex) {
+        throwIfEventsNotCollected();
+        return List.copyOf(preConsensusEvents.subList(startIndex, preConsensusEvents.size()));
+    }
+
+    /**
+     * Returns the number of pre-consensus events emitted by this node.
+     *
+     * @return the count of pre-consensus events
+     */
+    public int currentPreConsensusEventsCount() {
+        return preConsensusEvents.size();
+    }
+
+    /**
+     * Returns all the stale events reported by this node until the moment of invocation, starting with and including
+     * the provided index.
+     *
+     * @param startIndex the index to start from
+     * @return the list of stale events
+     * @throws UnsupportedOperationException if the node does not pass its stale events to this collector
+     */
+    @NonNull
+    public List<EventDescriptorWrapper> currentStaleEvents(final int startIndex) {
+        throwIfEventsNotCollected();
+        return List.copyOf(staleEvents.subList(startIndex, staleEvents.size()));
+    }
+
+    /**
+     * Returns the number of stale events reported by this node.
+     *
+     * @return the count of stale events
+     */
+    public int currentStaleEventsCount() {
+        return staleEvents.size();
+    }
+
+    private void throwIfEventsNotCollected() {
+        if (!collectsEvents) {
+            throw new UnsupportedOperationException(
+                    "Pre-consensus and stale events are not collected in this environment yet.");
         }
     }
 

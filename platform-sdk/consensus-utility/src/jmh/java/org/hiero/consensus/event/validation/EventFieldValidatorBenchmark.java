@@ -88,19 +88,25 @@ import org.openjdk.jmh.annotations.Warmup;
  * receiving allocates several kilobytes per event. A pass during which one does is discarded and replaced by the next
  * invocation, so the latency results and {@code latency.mean} exclude garbage collection.
  *
+ * <p>Each fork settles at its own latency level and keeps it, although every fork allocates the same and the machine
+ * was quiet. In the calibration run, {@code latency.mean} varied between forks by 3.7% without transactions, because
+ * one fork of 10 was 12% slower than the median, and by 1.1% with two; with 32 nodes, it had varied by 1.0% and 1.2%.
+ * The cause is unknown (<a href="https://github.com/hiero-ledger/hiero-consensus-node/issues/27940">#27940</a>).
+ * Bringing the noise of a run's result down to 0.5% would take 78 forks after that run, so the benchmark keeps 9.
+ *
  * <p>Run with {@code -prof org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler}.
  *
  * <h2>Calibration</h2>
  * <ul>
- *   <li>Date / commit: 2026-10-30, 7956479b66</li>
+ *   <li>Date / commit: 2026-11-03, e5608e0366</li>
  *   <li>Machine: hl-cn-benchmark-lin, AS-2115GT-HNTR, AMD EPYC 9254 24-Core Processor, JDK 25.0.2, -XX:ActiveProcessorCount=12 -Xms1g -Xmx1g -XX:+AlwaysPreTouch</li>
  *   <li>Parameter sets: transactionsPerEvent=0 / transactionsPerEvent=2</li>
  *   <li>Steady state after: 5 s / 5 s</li>
- *   <li>Noise (latency.mean, CV): 0.27% / 0.36% per 10 s iteration, 0.96% / 1.19% between forks, - / - between runs (1 of 1 / 1 of 1 runs quiet)</li>
- *   <li>Expected detectable regression: 0.64% / 0.79% (95 % CI half-width of one run)</li>
- *   <li>Samples per iteration: 2.4 M / 1.5 M; expected stable: mean, p50, p90, p99, p99.9 / mean, p50, p90, p99</li>
+ *   <li>Noise (latency.mean, CV): 0.12% / 0.24% per 10 s iteration, 3.65% / 1.08% between forks, - / - between runs (1 of 1 / 1 of 1 runs quiet)</li>
+ *   <li>Expected detectable regression: 2.37% / 0.71% (95 % CI half-width of one run)</li>
+ *   <li>Samples per iteration: 2.4 M / 1.6 M; expected stable: mean, p50, p90, p99, p99.9 / mean, p50, p90, p99</li>
  *   <li>Runtime: 4.6 / 4.6 min per parameter set</li>
- *   <li>Raw data: https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/41018545353, https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/41020351322</li>
+ *   <li>Raw data: https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/41684195648, https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/41706886129</li>
  * </ul>
  */
 @State(Scope.Thread)
@@ -121,7 +127,7 @@ public class EventFieldValidatorBenchmark {
      * The number of nodes that create the events. It does not change the validator's work, which only needs more nodes
      * than an event has parents.
      */
-    private static final int NUMBER_OF_NODES = 32;
+    private static final int NUMBER_OF_NODES = 28;
 
     /**
      * The transaction limits of the execution layer's defaults: {@code transaction.maxBytes} and
