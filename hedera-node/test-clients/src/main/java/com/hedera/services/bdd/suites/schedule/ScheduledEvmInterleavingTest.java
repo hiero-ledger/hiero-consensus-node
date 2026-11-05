@@ -264,13 +264,12 @@ public class ScheduledEvmInterleavingTest {
             final HapiSpec spec,
             final Map<TransactionID, List<ContractID>> createdIdsByExecution,
             final Map<TransactionID, List<ContractID>> syntheticCreatedIds) {
-        final var splitter = new RoleFreeBlockUnitSplit();
         final var translator = new BlockTransactionalUnitTranslator(spec.shard(), spec.realm());
         final var seenExecutions = new HashSet<TransactionID>();
         final var seenSyntheticCreations = new HashSet<TransactionID>();
         return block -> {
             translator.scanBlockForGenesis(block);
-            for (final var rawUnit : splitter.split(block)) {
+            for (final var rawUnit : new RoleFreeBlockUnitSplit().split(block)) {
                 final var unit = rawUnit.withBatchTransactionParts();
                 if (unit.blockTransactionParts().stream()
                         .noneMatch(parts -> createdIdsByExecution.containsKey(parts.transactionIdOrThrow()))) {
@@ -342,13 +341,12 @@ public class ScheduledEvmInterleavingTest {
             expected.put(scheduledId, List.of(write(0, priorValue, scheduledValues.get(i)), read(1, READ_ONLY_VALUE)));
             priorValue = scheduledValues.get(i);
         }
-        final var splitter = new RoleFreeBlockUnitSplit();
         final var translator = new BlockTransactionalUnitTranslator(spec.shard(), spec.realm());
         final var bookkeeping = new StorageBookkeeping(contractId);
         return inBlockOrder(block -> {
             bookkeeping.apply(block);
             translator.scanBlockForGenesis(block);
-            for (final var rawUnit : splitter.split(block)) {
+            for (final var rawUnit : new RoleFreeBlockUnitSplit().split(block)) {
                 final var unit = rawUnit.withBatchTransactionParts();
                 if (unit.blockTransactionParts().stream()
                         .noneMatch(parts -> parts.transactionIdOrThrow().equals(outerId))) {
