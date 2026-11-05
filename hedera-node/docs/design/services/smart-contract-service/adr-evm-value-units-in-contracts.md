@@ -86,12 +86,12 @@ Reasons:
 
 ### Dependencies
 
-**1. Documentation team**
+#### 1. Documentation team
 
 * [hedera-docs#801](https://github.com/hashgraph/hedera-docs/pull/801): review and merge (open, no reviews yet). Needed for all documentation corrections.
 * Agreement on the wording "tinybar inside Solidity, weibar on the JSON-RPC wire". Needed for #801 and the new "Hedera EVM vs Ethereum" differences entry.
 
-Coverage of the pages to correct by #801 (checked against `origin/fix/792-hbar-units` at `5b589d4`, 15 files changed):
+Coverage of the pages to correct by #801 (checked against `origin/fix/792-hbar-units` at `5b589d4`):
 
 | Page                                                 | In ADR "Pages to correct" | In #801 | Notes                                                                                         |
 |------------------------------------------------------|---------------------------|---------|-----------------------------------------------------------------------------------------------|
