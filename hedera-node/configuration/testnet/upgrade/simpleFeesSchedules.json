@@ -795,14 +795,12 @@
         {
           "name": "ClprUpdateLedgerConfiguration",
           "baseFee": 0,
-          "extras": [],
-          "failureFee": 100000000
+          "extras": []
         },
         {
           "name": "ClprRegisterChannel",
           "baseFee": 1000000000000,
-          "extras": [],
-          "failureFee": 100000000
+          "extras": []
         },
         {
           "name": "ClprCompleteChannel",
@@ -810,8 +808,7 @@
           "extras": [
             { "name": "STATE_BYTES", "includedCount": 8192 },
             { "name": "GAS", "includedCount": 0 }
-          ],
-          "failureFee": 100000000
+          ]
         },
         {
           "name": "ClprCloseChannel",
@@ -829,26 +826,22 @@
           "extras": [
             { "name": "PROCESSING_BYTES", "includedCount": 0 },
             { "name": "GAS", "includedCount": 0 }
-          ],
-          "failureFee": 100000000
+          ]
         },
         {
           "name": "ClprRegisterConnector",
           "baseFee": 100000000000,
-          "extras": [],
-          "failureFee": 100000000
+          "extras": []
         },
         {
           "name": "ClprCompleteConnector",
           "baseFee": 250000000000,
-          "extras": [],
-          "failureFee": 100000000
+          "extras": []
         },
         {
           "name": "ClprDeregisterConnector",
           "baseFee": 100000000,
-          "extras": [],
-          "failureFee": 100000000
+          "extras": []
         },
         {
           "name": "ClprEndpointPublication",

@@ -165,10 +165,9 @@ bundle payload. Both are charged the `GAS` extra for their verifier call at a fi
 `ClprGetLedgerConfiguration` and `ClprGetEndpointManifest` queries are paid, priced by `ClprQueryFeeCalculator`
 (exposed by `FacilityInitModule.provideClprQueryFeeCalculators`) at their base fee plus the same `GAS` extra.
 
-Most CLPR transactions also set a `failureFee` in the schedule: a failed transaction is charged that flat service
-fee in place of its base fee and extras (for example $0.01 instead of $100 for a failed `ClprRegisterChannel`).
-The admin-only transactions are priced at $0, since a privileged payer's fees are waived anyway; a non-admin payer
-pays the failure fee, if any, when the transaction fails authorization.
+CLPR transactions use the standard fee-charging path, including its existing treatment of failures. There is no
+separate failure price in the schedule; handler failures retain the configured base fee and extras. The admin-only
+transactions have a $0 service fee, while a privileged payer's fees are waived entirely.
 
 Defaults for connector bonds and penalties (`minLockedStake`, `slashBasePenalty`,
 `endpointMisbehaviorPenaltyTinybars`) are in tinybars, sized from the fee proposal's USD figures at $0.10/ℏ:

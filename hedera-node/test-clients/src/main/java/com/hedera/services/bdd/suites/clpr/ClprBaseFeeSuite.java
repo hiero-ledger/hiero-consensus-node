@@ -13,6 +13,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdFromRecordWithTxnSize;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.GAS_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NETWORK_MULTIPLIER;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_INCLUDED_BYTES;
@@ -33,8 +34,8 @@ import org.junit.jupiter.api.Tag;
 /**
  * HapiTests that close the unit-test ↔ live-HAPI gap on CLPR fee charging.
  *
- * <p>The genesis fee schedule prices each CLPR transaction per the CLPR fee proposal, and gives most of them a
- * {@code failureFee}: the flat service fee a failed transaction pays in place of its base fee and extras.
+ * <p>The genesis fee schedule sets each CLPR transaction's base fee and extras. Handler failures retain the
+ * configured service fee under the standard charging path.
  * {@code ClprFeeCalculatorTest} and {@code ClprGenesisFeeScheduleTest} verify the calculator and schedule
  * independently. These tests exercise the wire and confirm the USD actually charged.
  *
@@ -43,19 +44,18 @@ import org.junit.jupiter.api.Tag;
  *   <li>{@code registerChannel} — success path; the permissionless commit only needs CLPR enabled, and pays the
  *       full $100 base fee.</li>
  *   <li>{@code submitBundle} and {@code registerConnector} — failure paths against an unknown channel. Pre-check
- *       passes and the handler throws {@code CLPR_CHANNEL_NOT_FOUND}, so the payer is charged the $0.01 failure
- *       fee instead of the usual service fee.</li>
+ *       passes and the handler throws {@code CLPR_CHANNEL_NOT_FOUND}, so the payer is charged the configured
+ *       base fee and extras.</li>
  *   <li>{@code updateLedgerConfiguration} and {@code closeChannel} — a non-admin payer fails authorization at
- *       consensus. The admin-only transactions are priced at $0, so the failure fee is what a non-admin pays:
- *       $0.01 for a ledger configuration update, and nothing beyond the node and network fees for a close.</li>
+ *       consensus. The admin-only transactions have a $0 service fee, so a non-admin pays only the node and
+ *       network fees.</li>
  *   <li>Reveal-phase ops ({@code completeChannel}, {@code completeConnector}) are not covered here because they
  *       require a deployed verifier/connector smart contract and a full two-phase lifecycle setup.</li>
  * </ul>
  *
  * <p>Tests pay with a freshly-created account rather than {@code GENESIS}: the treasury is
  * fee-exempt at the record level, so a GENESIS-paid record always shows zero fees and
- * cannot validate the charge. The account must afford the $100 success price even where the
- * transaction fails, since the failure is only known after the payer is checked.
+ * cannot validate the charge. The account must afford the configured fees even when the transaction fails.
  *
  * <p>{@code fees.simpleFeesEnabled} is pinned {@code true} per test, so that if the network default ever
  * flips, the suite does not silently assert {@link #expectedClprTotalUsd} against the wrong fee model.
@@ -76,8 +76,13 @@ public class ClprBaseFeeSuite {
     /** {@code ClprRegisterChannel} base fee from genesis simpleFeesSchedules.json. */
     private static final double REGISTER_CHANNEL_FEE_USD = 100.0;
 
-    /** The {@code failureFee} genesis simpleFeesSchedules.json gives CLPR transactions. */
-    private static final double CLPR_FAILURE_FEE_USD = 0.01;
+    /** {@code ClprRegisterConnector} base fee from genesis simpleFeesSchedules.json. */
+    private static final double REGISTER_CONNECTOR_FEE_USD = 10.0;
+
+    /** {@code ClprSubmitBundle} base fee and verifier gas charged by its calculator. */
+    private static final double SUBMIT_BUNDLE_BASE_FEE_USD = 0.01;
+
+    private static final long SUBMIT_BUNDLE_VERIFIER_GAS = 300_000L;
 
     /** Matches the HIP-1261 simple-fees convention. Tight, because the expected USD is precise. */
     private static final double ALLOWED_PERCENT_DIFF = 0.1;
@@ -86,21 +91,25 @@ public class ClprBaseFeeSuite {
     private static final long PAYER_SIGNATURES = 1L;
 
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
-    final Stream<DynamicTest> failedSubmitBundleChargesFailureFee() {
-        final var txn = "clprSubmitBundleFailureFeeTxn";
+    final Stream<DynamicTest> failedSubmitBundleChargesConfiguredFees() {
+        final var txn = "clprSubmitBundleConfiguredFeesTxn";
+        final var bundlePayload = new byte[] {1};
+        final double serviceFeeUsd = SUBMIT_BUNDLE_BASE_FEE_USD
+                + bundlePayload.length * PROCESSING_BYTES_FEE_USD
+                + SUBMIT_BUNDLE_VERIFIER_GAS * GAS_FEE_USD;
         return hapiTest(
                 overriding("fees.simpleFeesEnabled", "true"),
                 cryptoCreate(PAYER).balance(ONE_MILLION_HBARS),
                 clprSubmitBundle()
                         .channelId(new byte[32])
-                        .bundlePayload(new byte[] {1})
+                        .bundlePayload(bundlePayload)
                         .endpointNodeId(0L)
                         .payingWith(PAYER)
                         .via(txn)
                         .hasKnownStatus(CLPR_CHANNEL_NOT_FOUND),
                 validateChargedUsdFromRecordWithTxnSize(
                         txn,
-                        txnSize -> expectedClprTotalUsd(CLPR_FAILURE_FEE_USD, PAYER_SIGNATURES, txnSize),
+                        txnSize -> expectedClprTotalUsd(serviceFeeUsd, PAYER_SIGNATURES, txnSize),
                         ALLOWED_PERCENT_DIFF));
     }
 
@@ -121,8 +130,8 @@ public class ClprBaseFeeSuite {
     }
 
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
-    final Stream<DynamicTest> failedRegisterConnectorChargesFailureFee() {
-        final var txn = "clprRegisterConnectorFailureFeeTxn";
+    final Stream<DynamicTest> failedRegisterConnectorChargesConfiguredBaseFee() {
+        final var txn = "clprRegisterConnectorBaseFeeTxn";
         return hapiTest(
                 overriding("fees.simpleFeesEnabled", "true"),
                 cryptoCreate(PAYER).balance(ONE_MILLION_HBARS),
@@ -134,13 +143,13 @@ public class ClprBaseFeeSuite {
                         .hasKnownStatus(CLPR_CHANNEL_NOT_FOUND),
                 validateChargedUsdFromRecordWithTxnSize(
                         txn,
-                        txnSize -> expectedClprTotalUsd(CLPR_FAILURE_FEE_USD, PAYER_SIGNATURES, txnSize),
+                        txnSize -> expectedClprTotalUsd(REGISTER_CONNECTOR_FEE_USD, PAYER_SIGNATURES, txnSize),
                         ALLOWED_PERCENT_DIFF));
     }
 
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
-    final Stream<DynamicTest> nonAdminLedgerConfigurationUpdateChargesFailureFee() {
-        final var txn = "clprUpdateLedgerConfigurationFailureFeeTxn";
+    final Stream<DynamicTest> nonAdminLedgerConfigurationUpdateChargesOnlyNodeAndNetworkFees() {
+        final var txn = "clprUpdateLedgerConfigurationFeesTxn";
         return hapiTest(
                 overriding("fees.simpleFeesEnabled", "true"),
                 cryptoCreate(PAYER).balance(ONE_MILLION_HBARS),
@@ -151,14 +160,12 @@ public class ClprBaseFeeSuite {
                         .via(txn)
                         .hasKnownStatusFrom(AUTHORIZATION_FAILED, NOT_SUPPORTED),
                 validateChargedUsdFromRecordWithTxnSize(
-                        txn,
-                        txnSize -> expectedClprTotalUsd(CLPR_FAILURE_FEE_USD, PAYER_SIGNATURES, txnSize),
-                        ALLOWED_PERCENT_DIFF));
+                        txn, txnSize -> expectedClprTotalUsd(0.0, PAYER_SIGNATURES, txnSize), ALLOWED_PERCENT_DIFF));
     }
 
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
     final Stream<DynamicTest> nonAdminCloseChannelChargesOnlyNodeAndNetworkFees() {
-        final var txn = "clprCloseChannelFailureFeeTxn";
+        final var txn = "clprCloseChannelFeesTxn";
         return hapiTest(
                 overriding("fees.simpleFeesEnabled", "true"),
                 cryptoCreate(PAYER).balance(ONE_MILLION_HBARS),

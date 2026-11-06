@@ -17,7 +17,6 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
 import com.hedera.node.app.fees.congestion.CongestionMultipliers;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fees.QueryFeeCalculator;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
@@ -186,54 +185,6 @@ public final class FeeManager {
             throw new IllegalStateException("The simple fee schedule is missing the required GAS extra");
         }
         return gasExtra.fee();
-    }
-
-    /**
-     * Returns the fees to charge a transaction that is charged but does not succeed. These are the given fees with
-     * their service component replaced by the schedule's failure fee for the functionality, or the given fees as-is if
-     * the schedule has no failure fee for it, or if they have nothing to charge.
-     *
-     * @param functionality the functionality of the failed transaction
-     * @param fees the fees the transaction would pay if it succeeded
-     * @param consensusTime the consensus time, whose exchange rate converts the failure fee to tinybars
-     * @return the fees to charge on failure
-     */
-    @NonNull
-    public Fees failureFees(
-            @NonNull final HederaFunctionality functionality,
-            @NonNull final Fees fees,
-            @NonNull final Instant consensusTime) {
-        requireNonNull(functionality);
-        requireNonNull(fees);
-        requireNonNull(consensusTime);
-        if (fees.nothingToCharge()) {
-            return fees;
-        }
-        final var serviceDef = lookupServiceFee(getSimpleFeesSchedule(), functionality);
-        if (serviceDef == null || serviceDef.free() || serviceDef.failureFee() == 0) {
-            return fees;
-        }
-        final long failureServiceFee =
-                exchangeRateManager.getTinybarsFromTinycents(serviceDef.failureFee(), consensusTime);
-        return fees.copyBuilder().serviceFee(failureServiceFee).build();
-    }
-
-    /**
-     * Returns the fees a payer must be able to afford before a transaction is handled. Since the transaction may still
-     * fail, these are the given fees with their service component raised to the failure fee when that is larger.
-     *
-     * @param functionality the functionality of the transaction
-     * @param fees the fees the transaction would pay if it succeeded
-     * @param consensusTime the consensus time, whose exchange rate converts the failure fee to tinybars
-     * @return the fees to validate the payer against
-     */
-    @NonNull
-    public Fees solvencyFees(
-            @NonNull final HederaFunctionality functionality,
-            @NonNull final Fees fees,
-            @NonNull final Instant consensusTime) {
-        final var failureFees = failureFees(functionality, fees, consensusTime);
-        return failureFees.serviceFee() > fees.serviceFee() ? failureFees : fees;
     }
 
     /**
