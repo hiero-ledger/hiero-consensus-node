@@ -17,6 +17,8 @@ import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * The proven storage of a peer's ClprService contract, and the CLPR data decoded from it.
@@ -32,6 +34,8 @@ import java.util.Objects;
  * <p>Not thread-safe: fill and decode it within a single verification.
  */
 public final class ClprContractStorage {
+
+    private static final Logger logger = LogManager.getLogger(ClprContractStorage.class);
 
     /**
      * Number of proven slots for an ACK-only bundle: the Channel slots, no message running hash.
@@ -97,11 +101,15 @@ public final class ClprContractStorage {
             }
             channelSlotValues.put(slot.getKey(), value);
         }
-        byte[] lastMessageRunningHash = new byte[SLOT_VALUE_LENGTH];
+        byte[] lastMessageRunningHash = null;
         for (final Map.Entry<Bytes, byte[]> slot : provenSlots.entrySet()) {
             if (!channelSlotKeys.containsValue(slot.getKey())) {
                 lastMessageRunningHash = slot.getValue();
             }
+        }
+        if (lastMessageRunningHash == null) {
+            logger.debug("ClprContractStorage: no last-message running-hash slot proven; using 32 zero bytes");
+            lastMessageRunningHash = new byte[SLOT_VALUE_LENGTH];
         }
 
         // Slot +1: verifier(20) | status(1) | nextMessageId(8) — first declared field at LSB.

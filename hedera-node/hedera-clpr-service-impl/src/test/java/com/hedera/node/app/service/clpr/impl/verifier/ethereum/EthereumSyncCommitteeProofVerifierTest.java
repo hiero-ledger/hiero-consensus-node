@@ -537,6 +537,21 @@ class EthereumSyncCommitteeProofVerifierTest {
             assertRejected(
                     bundle(builder.build()), "finality branch does not verify against the attested header stateRoot");
         }
+
+        @Test
+        @DisplayName("given a rejected delivery, then the rejection names the anchor and the delivery's slots")
+        void givenRejectedDelivery_thenMessageCarriesBundleContext() {
+            final DeliveryBuilder builder = delivery();
+            builder.finalityBranchOverride = zeroBranch(9);
+            builder.finalityBranchOverride[0] = deterministicBytes(32, 0x99);
+            assertThatThrownBy(() -> verify(bundle(builder.build())))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessage("EthereumSyncCommitteeProofVerifier: bundle rejected (anchorPeriod=" + ANCHOR_PERIOD
+                            + ", preset=MAINNET, rotations=0, signatureSlot=" + (builder.attestedSlot + 1)
+                            + ", attestedSlot=" + builder.attestedSlot
+                            + ", finalizedSlot=" + builder.finalizedSlot
+                            + "): finality branch does not verify against the attested header stateRoot");
+        }
     }
 
     @Nested

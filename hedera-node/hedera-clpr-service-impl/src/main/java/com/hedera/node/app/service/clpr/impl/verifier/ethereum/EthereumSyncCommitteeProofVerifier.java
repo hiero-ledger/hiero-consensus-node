@@ -127,61 +127,16 @@ public final class EthereumSyncCommitteeProofVerifier {
                 bundlePayload.length,
                 trustAnchor.length);
 
-        // --- 1. Decode -----
         final TrustAnchor currentAnchor = TrustAnchor.decode(trustAnchor);
         validateChannelContext(channelContext);
         final byte[] channelId32 = Arrays.copyOf(channelContext, CHANNEL_ID_LENGTH);
         final byte[] serviceAddress20 = Arrays.copyOfRange(channelContext, CHANNEL_ID_LENGTH, channelContext.length);
         final BundlePayload bundle = PayloadDecoder.decodeBundle(bundlePayload, currentAnchor.preset());
-
-        // --- 2. Advance the trusted committee through the rotations -----
-        final TrustAnchor anchor = verifyRotations(bundle.rotations(), currentAnchor);
-
-        // --- 3. Authenticate the chain down to the CLPR contract account -----
-        final MessageDelivery delivery = bundle.delivery();
-        final BeaconHeader attestedHeader = delivery.signedHeader().attestedHeader();
-        final SyncCommittee signer = verifySignatureSlot(delivery.signatureSlot(), attestedHeader, anchor);
-        final byte[] beaconBlockRoot32 = verifySignedHeader(delivery.signedHeader(), signer, anchor);
-        verifyFinality(delivery.finalizedExecution().finalizedHeader(), delivery.finalityBranch(), attestedHeader);
-        final byte[] executionStateRoot32 = verifyExecutionStateRoot(delivery.finalizedExecution());
-        final EvmAccount provenAccount = verifyAccountProof(
-                executionStateRoot32, serviceAddress20, delivery.accountProof(), anchor.codeHash32());
-
-        // --- 4. Prove the queue metadata -----
-        // A bundle with no queue storage proof simply has no queue metadata — the all-zero absent sentinel
-        // (nextMessageId == 0). It is decoded and treated as any other bundle; the §8.1.4 invariant is enforced after
-        // the manifest step below.
-        final ProvenQueueMetadata queueMetadata = delivery.storageProof().isEmpty()
-                ? ProvenQueueMetadata.absent()
-                : proveQueueMetadata(delivery.storageProof(), provenAccount, channelId32);
-
-        // --- 5. Endpoint-manifest update (spec §4.9), if the bundle carries one -----
-        // Verified against the SAME proven account storage root as the queue metadata. Null when absent.
-        final ClprEndpointManifest newEndpointManifest = verifyEndpointManifestProof(
-                delivery.manifestPreimage(), delivery.manifestStorageProof(), provenAccount, serviceAddress20);
-
-        // A bundle must carry SOMETHING: queue metadata, message content, or a manifest advance. When both the
-        // queue metadata and the content are absent, the bundle MUST carry a manifest advance (spec §8.1.4);
-        // otherwise it is empty/meaningless and verification fails.
-        if (delivery.storageProof().isEmpty() && delivery.bundleContent().length == 0 && newEndpointManifest == null) {
-            throw EthProofs.fail("bundle has no queue metadata, no content, and no endpoint-manifest advance");
+        try {
+            return verifyDecodedBundle(bundle, currentAnchor, channelId32, serviceAddress20);
+        } catch (final ProofException e) {
+            throw EthProofs.withContext(describe(bundle, currentAnchor), e);
         }
-
-        // --- 6. Trust anchor rotation -----
-        final boolean rotated = !bundle.rotations().isEmpty();
-        log.debug(
-                "EthSyncCommitteeProofVerifier.verifyBundle EXIT: SUCCESS beaconBlockRoot=0x{}, rotations={}, period={}",
-                () -> HexFormat.of().formatHex(beaconBlockRoot32),
-                () -> bundle.rotations().size(),
-                anchor::period);
-        return VerifiedBundle.builder()
-                .beaconBlockRoot32(beaconBlockRoot32)
-                .bundleContentBytes(delivery.bundleContent())
-                .queueMetadata(queueMetadata)
-                .nextTrustAnchor(rotated ? anchor.encode() : null)
-                .nextTrustAnchorId(rotated ? anchor.id() : null)
-                .newEndpointManifest(newEndpointManifest)
-                .build();
     }
 
     /**
@@ -245,11 +200,19 @@ public final class EthereumSyncCommitteeProofVerifier {
                 .initialTrustAnchor(Bytes.wrap(initialAnchor.encode()))
                 .initialTrustAnchorId(Bytes.wrap(initialAnchor.id()))
                 .build();
+        // The anchor header is not authenticated (see the trust model above), so record what the approver accepted.
         log.info(
-                "EthSyncCommitteeProofVerifier.verifyConfigPayload EXIT: SUCCESS chainId={} preset={} period={}",
+                "EthSyncCommitteeProofVerifier.verifyConfigPayload EXIT: SUCCESS chainId={} preset={} period={}"
+                        + " anchorSlot={} anchorHeaderRoot=0x{} genesisValidatorsRoot=0x{} forkVersion=0x{}"
+                        + " codeHash=0x{}",
                 ledgerCfg::chainId,
                 () -> preset,
-                initialAnchor::period);
+                initialAnchor::period,
+                () -> Long.toUnsignedString(anchorHeader.slot()),
+                () -> HexFormat.of().formatHex(anchorHeader.hashTreeRoot()),
+                () -> HexFormat.of().formatHex(initialAnchor.genesisValidatorsRoot32()),
+                () -> HexFormat.of().formatHex(initialAnchor.forkVersion4()),
+                () -> HexFormat.of().formatHex(initialAnchor.codeHash32()));
         return new VerifiedConfig(ledgerCfg, payload.slot());
     }
 
@@ -258,6 +221,90 @@ public final class EthereumSyncCommitteeProofVerifier {
             throw EthProofs.fail("channelContext must be " + (CHANNEL_ID_LENGTH + SERVICE_ADDRESS_LENGTH)
                     + " bytes (channelId ‖ serviceAddress), got " + channelContext.length);
         }
+    }
+
+    @NonNull
+    private VerifiedBundle verifyDecodedBundle(
+            @NonNull final BundlePayload bundle,
+            @NonNull final TrustAnchor currentAnchor,
+            @NonNull final byte[] channelId32,
+            @NonNull final byte[] serviceAddress20) {
+        // --- Advance the trusted committee through the rotations -----
+        final TrustAnchor anchor = verifyRotations(bundle.rotations(), currentAnchor);
+
+        // --- Authenticate the chain down to the CLPR contract account -----
+        final MessageDelivery delivery = bundle.delivery();
+        final BeaconHeader attestedHeader = delivery.signedHeader().attestedHeader();
+        final SyncCommittee signer = verifySignatureSlot(delivery.signatureSlot(), attestedHeader, anchor);
+        final byte[] beaconBlockRoot32 = verifySignedHeader(delivery.signedHeader(), signer, anchor);
+        verifyFinality(delivery.finalizedExecution().finalizedHeader(), delivery.finalityBranch(), attestedHeader);
+        final byte[] executionStateRoot32 = verifyExecutionStateRoot(delivery.finalizedExecution());
+        final EvmAccount provenAccount = verifyAccountProof(
+                executionStateRoot32, serviceAddress20, delivery.accountProof(), anchor.codeHash32());
+
+        // --- Prove the queue metadata -----
+        // A bundle with no queue storage proof simply has no queue metadata — the all-zero absent sentinel
+        // (nextMessageId == 0). It is decoded and treated as any other bundle; the §8.1.4 invariant is enforced after
+        // the manifest step below.
+        final ProvenQueueMetadata queueMetadata;
+        if (delivery.storageProof().isEmpty()) {
+            log.debug("EthSyncCommitteeProofVerifier: no queue storage proof; queue metadata is absent");
+            queueMetadata = ProvenQueueMetadata.absent();
+        } else {
+            queueMetadata = proveQueueMetadata(delivery.storageProof(), provenAccount, channelId32);
+        }
+
+        // --- Endpoint-manifest update (spec §4.9), if the bundle carries one -----
+        // Verified against the SAME proven account storage root as the queue metadata. Null when absent.
+        final ClprEndpointManifest newEndpointManifest = verifyEndpointManifestProof(
+                delivery.manifestPreimage(), delivery.manifestStorageProof(), provenAccount, serviceAddress20);
+
+        // A bundle must carry SOMETHING: queue metadata, message content, or a manifest advance. When both the
+        // queue metadata and the content are absent, the bundle MUST carry a manifest advance (spec §8.1.4);
+        // otherwise it is empty/meaningless and verification fails.
+        if (delivery.storageProof().isEmpty() && delivery.bundleContent().length == 0 && newEndpointManifest == null) {
+            throw EthProofs.fail("bundle has no queue metadata, no content, and no endpoint-manifest advance");
+        }
+
+        // --- Trust anchor rotation -----
+        final boolean rotated = !bundle.rotations().isEmpty();
+        log.debug(
+                "EthSyncCommitteeProofVerifier.verifyBundle EXIT: SUCCESS beaconBlockRoot=0x{}, rotations={}, period={},"
+                        + " signatureSlot={}, attestedSlot={}, finalizedSlot={}",
+                () -> HexFormat.of().formatHex(beaconBlockRoot32),
+                () -> bundle.rotations().size(),
+                anchor::period,
+                () -> Long.toUnsignedString(delivery.signatureSlot()),
+                () -> Long.toUnsignedString(attestedHeader.slot()),
+                () -> Long.toUnsignedString(
+                        delivery.finalizedExecution().finalizedHeader().slot()));
+        return VerifiedBundle.builder()
+                .beaconBlockRoot32(beaconBlockRoot32)
+                .bundleContentBytes(delivery.bundleContent())
+                .queueMetadata(queueMetadata)
+                .nextTrustAnchor(rotated ? anchor.encode() : null)
+                .nextTrustAnchorId(rotated ? anchor.id() : null)
+                .newEndpointManifest(newEndpointManifest)
+                .build();
+    }
+
+    /**
+     * Describes the decoded bundle for a rejection message: the anchor it was verified against and the delivery's
+     * slots.
+     */
+    @NonNull
+    private static String describe(@NonNull final BundlePayload bundle, @NonNull final TrustAnchor anchor) {
+        final MessageDelivery delivery = bundle.delivery();
+        return "bundle rejected (anchorPeriod=" + anchor.period()
+                + ", preset=" + anchor.preset()
+                + ", rotations=" + bundle.rotations().size()
+                + ", signatureSlot=" + Long.toUnsignedString(delivery.signatureSlot())
+                + ", attestedSlot="
+                + Long.toUnsignedString(delivery.signedHeader().attestedHeader().slot())
+                + ", finalizedSlot="
+                + Long.toUnsignedString(
+                        delivery.finalizedExecution().finalizedHeader().slot())
+                + ")";
     }
 
     /**
@@ -308,12 +355,17 @@ public final class EthereumSyncCommitteeProofVerifier {
                 Gloas.NEXT_SYNC_COMMITTEE,
                 attestedHeader,
                 "next sync committee");
-        log.debug(
-                "EthSyncCommitteeProofVerifier: rotation verified: periods {}-{} -> {}-{}",
+        log.info(
+                "EthSyncCommitteeProofVerifier: rotation verified: periods {}-{} -> {}-{}, attestedSlot={},"
+                        + " finalizedSlot={}, committee of period {} pubkeysRoot=0x{}",
                 anchor.period(),
                 rotationPeriod,
                 rotationPeriod,
-                rotationPeriod + 1);
+                rotationPeriod + 1,
+                Long.toUnsignedString(attestedHeader.slot()),
+                Long.toUnsignedString(finalizedHeader.slot()),
+                rotationPeriod + 1,
+                HexFormat.of().formatHex(committeeAfterNext.pubkeysRoot32()));
         return anchor.rotatedTo(committeeAfterNext);
     }
 
@@ -331,7 +383,17 @@ public final class EthereumSyncCommitteeProofVerifier {
             throw EthProofs.fail("signature slot " + Long.toUnsignedString(signatureSlot)
                     + " is not after the attested header slot " + Long.toUnsignedString(attestedHeader.slot()));
         }
-        return anchor.committeeFor(anchor.preset().periodOf(signatureSlot));
+        final long signingPeriod = anchor.preset().periodOf(signatureSlot);
+        final SyncCommittee signer = anchor.committeeFor(signingPeriod);
+        log.debug(
+                "EthSyncCommitteeProofVerifier: signature slot {} is in period {}; signer is the anchor's {} committee"
+                        + " (anchor periods {}-{})",
+                () -> Long.toUnsignedString(signatureSlot),
+                () -> signingPeriod,
+                () -> signingPeriod == anchor.period() ? "current" : "next",
+                anchor::period,
+                () -> anchor.period() + 1);
+        return signer;
     }
 
     /**
