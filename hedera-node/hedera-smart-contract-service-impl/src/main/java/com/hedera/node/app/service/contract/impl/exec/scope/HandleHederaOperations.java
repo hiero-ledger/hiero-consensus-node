@@ -2,10 +2,13 @@
 package com.hedera.node.app.service.contract.impl.exec.scope;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_DELETE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.FEE_SCHEDULE_UNITS_PER_TINYCENT;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asNumericContractId;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.selfManagedCustomizedCreation;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.THREE_MONTHS_IN_SECONDS;
@@ -26,6 +29,7 @@ import com.hedera.hapi.node.base.Duration;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
+import com.hedera.hapi.node.contract.ContractDeleteTransactionBody;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
 import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
@@ -38,6 +42,7 @@ import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.utils.PendingCreationMetadata;
 import com.hedera.node.app.service.contract.impl.exec.utils.PendingCreationMetadataRef;
 import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder;
+import com.hedera.node.app.service.contract.impl.records.ContractDeleteStreamBuilder;
 import com.hedera.node.app.service.contract.impl.records.ContractOperationStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.ContractStateStore;
 import com.hedera.node.app.service.contract.impl.state.WritableContractStateStore;
@@ -329,19 +334,58 @@ public class HandleHederaOperations implements HederaOperations {
      * {@inheritDoc}
      */
     @Override
-    public void deleteAliasedContract(@NonNull final Bytes evmAddress) {
+    public void deleteAliasedContract(@NonNull final Bytes evmAddress, @NonNull final AccountID beneficiaryId) {
         requireNonNull(evmAddress);
-        final var tokenServiceApi = context.storeFactory().serviceApi(TokenServiceApi.class);
-        tokenServiceApi.deleteContract(entityIdFactory.newContractIdWithEvmAddress(evmAddress));
+        deleteContract(entityIdFactory.newContractIdWithEvmAddress(evmAddress), beneficiaryId);
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public void deleteUnaliasedContract(final long number) {
+    public void deleteUnaliasedContract(final long number, @NonNull final AccountID beneficiaryId) {
+        deleteContract(entityIdFactory.newContractId(number), beneficiaryId);
+    }
+
+    private void deleteContract(@NonNull final ContractID contractId, @NonNull final AccountID beneficiaryId) {
+        requireNonNull(beneficiaryId);
         final var tokenServiceApi = context.storeFactory().serviceApi(TokenServiceApi.class);
-        tokenServiceApi.deleteContract(entityIdFactory.newContractId(number));
+        if (!contractsConfig.selfDestructsExternalizationEnabled()) {
+            tokenServiceApi.deleteContract(contractId);
+            return;
+        }
+        // Resolve the canonical id before deleting the alias mapping. The EVM has already transferred
+        // the balance and authorized the operation; this child only externalizes the resulting deletion.
+        final var contract =
+                context.storeFactory().readableStore(ReadableAccountStore.class).getContractById(contractId);
+        if (contract == null || contract.deleted()) {
+            tokenServiceApi.deleteContract(contractId);
+            return;
+        }
+        final var numericContractId = asNumericContractId(entityIdFactory, contract.accountIdOrThrow());
+        final ContractDeleteStreamBuilder recordBuilder;
+        try {
+            recordBuilder = context.savepointStack()
+                    .addRemovableChildRecordBuilder(ContractDeleteStreamBuilder.class, CONTRACT_DELETE);
+        } catch (final HandleException e) {
+            if (e.getStatus() == MAX_CHILD_RECORDS_EXCEEDED) {
+                // TransactionProcessor must roll back every pending deletion if its records cannot fit.
+                throw new ResourceExhaustedException(e.getStatus());
+            }
+            throw e;
+        }
+        tokenServiceApi.deleteContract(contractId);
+        // Staking finalization folds committed child beneficiaries into the parent. Use the journaled
+        // beneficiary so a later reverted self-destruct attempt cannot redirect the deleted account's reward.
+        recordBuilder.addBeneficiaryForDeletedAccount(contract.accountIdOrThrow(), beneficiaryId);
+        recordBuilder
+                .contractID(numericContractId)
+                .signedTx(signedTxWith(TransactionBody.newBuilder()
+                        .contractDeleteInstance(ContractDeleteTransactionBody.newBuilder()
+                                .contractID(numericContractId)
+                                .transferAccountID(beneficiaryId))
+                        .build()))
+                .status(SUCCESS);
     }
 
     /**

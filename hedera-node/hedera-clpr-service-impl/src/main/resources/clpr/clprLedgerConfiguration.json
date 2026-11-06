@@ -1,0 +1,9 @@
+{
+  "throttles": {
+    "maxMessagesPerBundle": 1000,
+    "maxMessagePayloadBytes": 65536,
+    "maxGasPerMessage": 15000000,
+    "maxQueueDepth": 10000,
+    "maxSyncBytes": 4194304
+  }
+}

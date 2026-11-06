@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
@@ -73,6 +74,7 @@ import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableKVState;
+import com.swirlds.state.spi.ReadableKVStateBase;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
 import java.util.List;
@@ -123,6 +125,9 @@ class ClprBundlePrevalidatorTest {
 
     @Mock
     private State state;
+
+    @Mock
+    private ReadableKVStateBase<ProtoBytes, ClprChannel> cachedChannels;
 
     @Mock
     private ReadableStates clprStates;
@@ -225,6 +230,30 @@ class ClprBundlePrevalidatorTest {
         assertRejected(PAYLOAD.copyBuilder().channelId(Bytes.fromHex("01")).build(), INVALID_TRANSACTION_BODY);
 
         verifyNoInteractions(stateAccessor, verifierFactory, handlersSupplier, releaseState);
+    }
+
+    @Test
+    void checksProgressAndRepliesAgainstTheChannelReadLiveAfterVerification() throws PreCheckException {
+        // The handle thread changed the channel while the proof was being verified
+        final var advanced = CHANNEL.copyBuilder()
+                .endpointManifestVersion(CHANNEL.endpointManifestVersion() + 1)
+                .build();
+        when(clprStates.<ProtoBytes, ClprChannel>get(CHANNELS_STATE_ID)).thenReturn(cachedChannels);
+        when(cachedChannels.get(new ProtoBytes(CHANNEL_ID))).thenReturn(CHANNEL, advanced);
+        final var content = bundle(List.of(dataPayload()));
+        givenLocalReturn(content);
+
+        subject.validate(PAYLOAD, configuration);
+
+        // Each read bypasses this round's read cache
+        final var order = inOrder(cachedChannels, localHandler, validator);
+        order.verify(cachedChannels).reset();
+        order.verify(cachedChannels).get(new ProtoBytes(CHANNEL_ID));
+        order.verify(localHandler).findResponse(any(), any());
+        order.verify(cachedChannels).reset();
+        order.verify(cachedChannels).get(new ProtoBytes(CHANNEL_ID));
+        order.verify(validator).validate(advanced, content, LEDGER_CONFIG);
+        order.verify(validator).validateReplies(eq(advanced), any(), any(ReadableMessageQueueStore.class));
     }
 
     @Test

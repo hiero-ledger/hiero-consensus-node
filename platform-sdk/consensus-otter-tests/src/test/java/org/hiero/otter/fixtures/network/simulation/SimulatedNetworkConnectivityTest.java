@@ -2,6 +2,7 @@
 package org.hiero.otter.fixtures.network.simulation;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hiero.otter.fixtures.network.BandwidthLimit.UNLIMITED_BANDWIDTH;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -53,19 +54,16 @@ class SimulatedNetworkConnectivityTest {
 
     @BeforeEach
     void setUp() {
-        network = new SimulatedNetworkConnectivity(new Random(0), START);
-        addNodes();
-        now = 0;
-        network.tick(at(0));
+        createNetwork(0);
     }
 
-    private void addNodes() {
+    private void createNetwork(final long seed) {
         node0 = new RecordingReceiver(NODE_0);
         node1 = new RecordingReceiver(NODE_1);
         node2 = new RecordingReceiver(NODE_2);
-        network.addNode(NODE_0, node0);
-        network.addNode(NODE_1, node1);
-        network.addNode(NODE_2, node2);
+        network = new SimulatedNetworkConnectivity(new Random(seed), START, List.of(node0, node1, node2));
+        now = 0;
+        network.tick(at(0));
     }
 
     @Test
@@ -79,6 +77,31 @@ class SimulatedNetworkConnectivityTest {
 
         assertThat(node1.receivedEvents).hasSize(1);
         assertThat(node1.receivedEvents.getFirst().getDescriptor()).isEqualTo(event.getDescriptor());
+    }
+
+    @Test
+    @DisplayName("the event receivers may be given in any order")
+    void eventReceiversMayBeGivenInAnyOrder() {
+        node0 = new RecordingReceiver(NODE_0);
+        node1 = new RecordingReceiver(NODE_1);
+        node2 = new RecordingReceiver(NODE_2);
+        network = new SimulatedNetworkConnectivity(new Random(0), START, List.of(node2, node0, node1));
+        network.tick(at(0));
+        network.setConnections(connections(true));
+
+        submit(NODE_0);
+        tickTo(1);
+        tickTo(101);
+        assertThat(node1.receivedEvents).hasSize(1);
+        assertThat(node2.receivedEvents).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("a node cannot have more than one event receiver")
+    void duplicateEventReceiversAreRejected() {
+        assertThatThrownBy(() -> new SimulatedNetworkConnectivity(
+                        new Random(0), START, List.of(new RecordingReceiver(NODE_0), new RecordingReceiver(NODE_0))))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
@@ -246,10 +269,7 @@ class SimulatedNetworkConnectivityTest {
     @DisplayName("the reconnect delay is 5 round trips give or take 20%")
     void reconnectDelayIsWithinJitterOfFiveRoundTrips() {
         for (long seed = 0; seed < 20; seed++) {
-            network = new SimulatedNetworkConnectivity(new Random(seed), START);
-            addNodes();
-            now = 0;
-            network.tick(at(0));
+            createNetwork(seed);
             network.setConnections(connections(true));
             network.setConnections(connections(false));
             tickTo(10);

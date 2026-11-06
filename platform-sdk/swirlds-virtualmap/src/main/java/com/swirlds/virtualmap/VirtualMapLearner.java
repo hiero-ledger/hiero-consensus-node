@@ -65,7 +65,9 @@ public final class VirtualMapLearner {
 
     private static final Logger logger = LogManager.getLogger(VirtualMapLearner.class);
 
-    private static final int MAX_RECONNECT_HASHING_BUFFER_SIZE = 10_000_000;
+    // Dirty leaves waiting for the hasher. The buffer is a preallocated ring buffer: 2^20 slots take 8 MiB
+    // with uncompressed references.
+    private static final int MAX_RECONNECT_HASHING_BUFFER_SIZE = 1 << 20;
 
     // How long abortOnException() waits for a running flush before closing the data source. A single flush
     // normally takes a few seconds, but an abort may be caused by a slow disk
@@ -253,6 +255,21 @@ public final class VirtualMapLearner {
         } catch (final Exception e) {
             throw new MerkleSynchronizationException("Failed to handle a leaf during reconnect on the learner", e);
         }
+    }
+
+    /**
+     * @return the number of dirty leaves supplied to the hashing pipeline but not yet consumed by the hasher
+     */
+    public int getHashingBufferSize() {
+        return reconnectIterator.size();
+    }
+
+    /**
+     * @return a short human-readable summary of the reconnect flusher state, for reconnect status logs
+     */
+    @NonNull
+    public String getFlusherStatus() {
+        return reconnectFlusher.getStatus();
     }
 
     /**

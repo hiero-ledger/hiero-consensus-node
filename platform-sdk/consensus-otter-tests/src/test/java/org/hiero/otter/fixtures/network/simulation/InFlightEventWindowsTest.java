@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiPredicate;
@@ -43,11 +44,7 @@ class InFlightEventWindowsTest {
 
         final BiPredicate<NodeId, NodeId> connected =
                 (sender, receiver) -> !downConnections.contains(Map.entry(sender, receiver));
-        inFlightEventWindows = new InFlightEventWindows(connected, START);
-
-        inFlightEventWindows.addNode(NODE_0);
-        inFlightEventWindows.addNode(NODE_1);
-        inFlightEventWindows.addNode(NODE_2);
+        inFlightEventWindows = new InFlightEventWindows(List.of(NODE_0, NODE_1, NODE_2), connected, START);
 
         node0 = new RecordingReceiver(NODE_0);
     }

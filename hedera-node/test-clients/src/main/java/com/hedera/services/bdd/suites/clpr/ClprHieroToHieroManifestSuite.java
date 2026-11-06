@@ -42,13 +42,14 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
     private static final String LEDGER_B_MANIFEST = "ledgerB_manifest";
 
     // HAPI TLS listener ports for the rotation test. Distinct from ClprHieroToHieroTlsSuite's
-    // 41450/42450 so the two suites' hard-coded tlsPorts never collide if scheduled together.
-    private static final int HAPI_TLS_PORT_A = 43450;
-    private static final int HAPI_TLS_PORT_B = 44450;
+    // 21450/22450 so the two suites' hard-coded tlsPorts never collide if scheduled together.
+    // Below the ephemeral range (32768+) and the test networks' ports (25000+), so nothing else holds them.
+    private static final int HAPI_TLS_PORT_A = 23450;
+    private static final int HAPI_TLS_PORT_B = 24450;
     /** A's new tlsPort after the rotation restart — a genuinely reachable listener B can dial. */
-    private static final int HAPI_TLS_PORT_A_ROTATED = 43460;
+    private static final int HAPI_TLS_PORT_A_ROTATED = 23460;
     /** B's new base tlsPort after a rotation (8.1.3 both-sides turnover). */
-    private static final int HAPI_TLS_PORT_B_ROTATED = 44460;
+    private static final int HAPI_TLS_PORT_B_ROTATED = 24460;
 
     @MultiNetworkHapiTest({
         @Network(
@@ -165,7 +166,7 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
                     @ConfigOverride(key = "clpr.syncPeerExclusionEnabled", value = "true")
                 })
     })
-    @DisplayName("8.1.1 partial rotation (HAPI TLS, 3-node): A's node0 rotates its grpc.tlsPort; the advanced "
+    @DisplayName("8.1.1 partial rotation (HAPI TLS, 2-node): A's node0 rotates its grpc.tlsPort; the advanced "
             + "manifest propagates to B via a bundle state proof, B dials A's new listener, and no messages are lost")
     Stream<DynamicTest> partialRotationPropagatesToPeer(
             final SubProcessNetwork ledgerA, final SubProcessNetwork ledgerB) {
@@ -184,14 +185,13 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
                         Stream.of(
                                 // Baseline: A's cold-start-derived manifest (version >= 2, three endpoints).
                                 captureManifestVersion(ledgerA, versionBeforeRotation),
-                                // Rotate ONLY node 0 of A: kill it, change its node-local grpc.tlsPort, restart just
-                                // that node (ReassignPorts.NO, no freeze, no roster/TSS change). The other 3 nodes stay
-                                // up and keep their in-memory #335 peerObservedManifestVersions, so the ledger still
-                                // detects B's stale view and drives the manifest proof; B stays reachable via them
-                                // while node 0 returns on its new, genuinely reachable HAPI TLS port. Node 0's
-                                // re-publish
-                                // opens a construction; nodes 1-3 publish their own endpoints into it (all-hands
-                                // snapshot, no carry-over) and it fast-closes, advancing the manifest by exactly one.
+                                // Rotate ONLY node 0 of A: stop it gracefully, change its node-local grpc.tlsPort,
+                                // restart just that node (ReassignPorts.NO, no freeze, no roster/TSS change). Node 1
+                                // stays up and keeps its in-memory #335 peerObservedManifestVersions, so the ledger
+                                // still detects B's stale view and drives the manifest proof once node 0 is back on
+                                // its new, genuinely reachable HAPI TLS port. Node 0's re-publish opens a construction;
+                                // node 1 publishes its own endpoint into it (all-hands snapshot, no carry-over) and it
+                                // fast-closes, advancing the manifest by exactly one.
                                 rotateNodeHapiTlsPort(ledgerA, 0L, HAPI_TLS_PORT_A_ROTATED),
                                 // Node 0 actually bound its HAPI TLS listener to the rotated port (proves the endpoint
                                 // change is real and reachable, not merely an advertised value). awaitLogLine scans
@@ -233,7 +233,7 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
                                 // B applies the advanced manifest via Step 1b (verifyBundle -> new_endpoint_manifest).
                                 awaitManifestAppliedOnPeer(ledgerB, versionBeforeRotation),
                                 // Prove B didn't just bump a version number: the manifest it applied actually carries
-                                // A's node0 ROTATED endpoint (:43460), so B's dial-target set now points at the new
+                                // A's node0 ROTATED endpoint (:23460), so B's dial-target set now points at the new
                                 // port. (The apply log lists the endpoints; assert the new port is present.)
                                 networkHapiTest(
                                                 "Assert B's applied manifest carries A node0's new port "

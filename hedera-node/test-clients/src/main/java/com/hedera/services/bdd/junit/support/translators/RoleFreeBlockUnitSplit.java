@@ -31,6 +31,7 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionParts;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionalUnit;
@@ -308,7 +309,8 @@ public class RoleFreeBlockUnitSplit {
     }
 
     /**
-     * Checks if this is the first contract operation in a unit whose parent was top-level schedule operation.
+     * Recognizes a scheduled EVM execution's enriched legacy result, including execution triggered through HSS.
+     * Synthetic contract creations within that execution do not receive the same enrichment.
      * @param unitSoFar the unit so far, which is a list of {@link BlockTransactionParts}
      * @param pendingParts the pending parts of the next transaction
      * @return true if the next contract operation uses enriched legacy record, false otherwise
@@ -316,22 +318,19 @@ public class RoleFreeBlockUnitSplit {
     private boolean nextContractOpUsesEnrichedLegacyRecord(
             @NonNull final List<BlockTransactionParts> unitSoFar,
             @NonNull final PendingBlockTransactionParts pendingParts) {
-        if (unitSoFar.isEmpty()) {
+        if (unitSoFar.isEmpty()
+                || pendingParts.parts == null
+                || !CONTRACT_OPERATIONS.contains(pendingParts.parts.function())) {
             return false;
-        } else {
-            BlockTransactionParts topLevelParts = null;
-            for (final var parts : unitSoFar) {
-                if (parts.isTopLevel()) {
-                    topLevelParts = parts;
-                    break;
-                }
-            }
-            return topLevelParts != null
-                    && TRIGGERING_OPS.contains(topLevelParts.functionality())
-                    && CONTRACT_OPERATIONS.contains(
-                            requireNonNull(pendingParts.parts).function())
-                    && unitSoFar.stream().noneMatch(parts -> CONTRACT_OPERATIONS.contains(parts.functionality()));
         }
+        // The schedule reference belongs to the actual scheduled execution, regardless of preset or recursive
+        // nonces. Synthetic CREATE children can inherit the scheduled transaction-id flag but not this reference.
+        if (pendingParts.result != null && pendingParts.result.hasScheduleRef()) {
+            return true;
+        }
+        return unitSoFar.stream()
+                        .anyMatch(parts -> parts.isTopLevel() && TRIGGERING_OPS.contains(parts.functionality()))
+                && unitSoFar.stream().noneMatch(parts -> CONTRACT_OPERATIONS.contains(parts.functionality()));
     }
 
     private void clear() {
@@ -348,6 +347,10 @@ public class RoleFreeBlockUnitSplit {
         return changes.isEmpty()
                 || changes.stream()
                         .anyMatch(change -> change.hasMapUpdate()
+                                // Some singletons (e.g. CLPR's) are streamed with the transaction that changes them
+                                // instead of at the block boundary
+                                || (change.hasSingletonUpdate()
+                                        && ImmediateStateChangeListener.isImmediateSingleton(change.stateId()))
                                 || (change.hasMapDelete() && !SYSTEM_PURGED_KV_STATES.contains(change.stateId()))
                                 || (change.hasQueuePush()
                                         && change.stateId() != STATE_ID_TRANSACTION_RECEIPTS.protoOrdinal())

@@ -4,6 +4,7 @@ package com.hedera.node.app.hapi.utils.sysfiles.validation;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprCloseChannel;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprCompleteChannel;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprDeregisterConnector;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprEvictPeerEndpoint;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprGetLedgerConfiguration;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprRegisterChannel;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprRegisterConnector;
@@ -131,6 +132,7 @@ public final class ExpectedCustomThrottles {
             ClprRegisterChannel,
             ClprCompleteChannel,
             ClprCloseChannel,
+            ClprEvictPeerEndpoint,
             ClprGetLedgerConfiguration,
             ClprSubmitBundle,
             ClprRegisterConnector,
@@ -145,6 +147,7 @@ public final class ExpectedCustomThrottles {
             ClprRegisterChannel,
             ClprCompleteChannel,
             ClprCloseChannel,
+            ClprEvictPeerEndpoint,
             ClprGetLedgerConfiguration,
             ClprSubmitBundle,
             ClprRegisterConnector,

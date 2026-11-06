@@ -122,6 +122,7 @@ public class ServiceScopeLookup {
                     CLPR_REGISTER_CHANNEL,
                     CLPR_COMPLETE_CHANNEL,
                     CLPR_CLOSE_CHANNEL,
+                    CLPR_EVICT_PEER_ENDPOINT,
                     CLPR_SUBMIT_BUNDLE,
                     CLPR_REGISTER_CONNECTOR,
                     CLPR_COMPLETE_CONNECTOR,
