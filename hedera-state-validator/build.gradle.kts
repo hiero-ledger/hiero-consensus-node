@@ -9,6 +9,11 @@ plugins {
 
 mainModuleInfo { runtimeOnly("org.junit.jupiter.engine") }
 
+testModuleInfo {
+    requires("org.assertj.core")
+    requires("org.junit.jupiter.api")
+}
+
 // besu-util (via the contract service) ships its own Log4j2Plugins.dat; merge it with log4j-core's
 // instead of letting the duplicates strategy keep whichever jar comes first on the classpath.
 tasks.withType<ShadowJar>().configureEach {
