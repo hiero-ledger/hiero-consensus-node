@@ -20,8 +20,9 @@ import org.hiero.base.crypto.Hash;
  * (it went ancient before consensus) and is therefore absent from the block stream. During replay of an old stream,
  * such a parent can never arrive, so {@link DefaultOrphanBuffer} must treat it as permanently absent to avoid a
  * deadlock. The set of such hashes is produced by {@code BlocksToPcesWorkflow} while generating the PCES and written
- * to a sidecar file ({@value #SIDECAR_FILE_NAME}) in the PCES directory, one lowercase 96-character (SHA-384) hex
- * hash per line.
+ * to a sidecar file ({@value #SIDECAR_FILE_NAME}) in the PCES directory, one lowercase hex hash per line: 96 characters
+ * for SHA-384 event hashes (pre event hash cutover) or 64 characters for SHA-256 (post cutover). A sidecar spanning
+ * the cutover may contain both.
  *
  * <p><b>Directory source.</b> The PCES directory to read the sidecar from is named by the
  * {@value #PCES_REPLAY_DIR_PROPERTY} system property. When set, {@link #loadForReplay()} looks for
@@ -40,6 +41,9 @@ public final class StaleParentSet {
      */
     public static final String PCES_REPLAY_DIR_PROPERTY = "pces.replayDir";
 
+    /** Hex length of a SHA-256 event hash (post event hash cutover): 32 bytes. */
+    private static final int SHA_256_HEX_LENGTH = 64;
+    /** Hex length of a SHA-384 event hash (pre event hash cutover): 48 bytes. */
     private static final int SHA_384_HEX_LENGTH = 96;
 
     private StaleParentSet() {
@@ -83,12 +87,13 @@ public final class StaleParentSet {
     }
 
     /**
-     * Load the stale-parent set from the given file. Each non-blank line must be a 96-character SHA-384 hex hash.
+     * Load the stale-parent set from the given file. Each non-blank line must be a 96-character SHA-384 or a
+     * 64-character SHA-256 hex hash.
      *
      * @param file the sidecar file
      * @return the set of stale parent hashes
      * @throws UncheckedIOException     if the file cannot be read
-     * @throws IllegalArgumentException if any line is not a valid 96-character hex hash
+     * @throws IllegalArgumentException if any line is not a valid SHA-384 or SHA-256 hex hash
      */
     @NonNull
     public static Set<Hash> load(@NonNull final Path file) {
@@ -106,13 +111,31 @@ public final class StaleParentSet {
             if (line.isEmpty()) {
                 continue;
             }
-            if (line.length() != SHA_384_HEX_LENGTH) {
+            final DigestType digestType = digestTypeForHexLength(line.length());
+            if (digestType == null) {
                 throw new IllegalArgumentException("Invalid stale-parent hash at " + file + ":" + lineNo + " (expected "
-                        + SHA_384_HEX_LENGTH + " hex chars, got " + line.length() + ")");
+                        + SHA_256_HEX_LENGTH + " or " + SHA_384_HEX_LENGTH + " hex chars, got " + line.length()
+                        + ")");
             }
-            result.add(new Hash(hexToBytes(line, file, lineNo), DigestType.SHA_384));
+            result.add(new Hash(hexToBytes(line, file, lineNo), digestType));
         }
         return Set.copyOf(result);
+    }
+
+    /**
+     * Maps a hex hash length to the event digest type it encodes. Event hashes are SHA-384 before the event hash
+     * cutover and SHA-256 after it (see {@code EventHashFactory}); the byte length identifies the type unambiguously,
+     * so the loaded {@link Hash} equals the one carried by the parent's {@code EventDescriptorWrapper}.
+     *
+     * @return the digest type, or {@code null} if the length matches no event digest type
+     */
+    @Nullable
+    private static DigestType digestTypeForHexLength(final int hexLength) {
+        return switch (hexLength) {
+            case SHA_256_HEX_LENGTH -> DigestType.SHA_256;
+            case SHA_384_HEX_LENGTH -> DigestType.SHA_384;
+            default -> null;
+        };
     }
 
     private static byte[] hexToBytes(@NonNull final String hex, @NonNull final Path file, final int lineNo) {
