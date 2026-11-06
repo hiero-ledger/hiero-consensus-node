@@ -36,6 +36,7 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingAllOf;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.VERIFY_CONFIG;
@@ -120,6 +121,9 @@ import org.junit.jupiter.api.Tag;
 @OrderedInIsolation
 @HapiTestLifecycle
 public class ClprEnabledSuite {
+    /** The default {@code clpr.minLockedStake} (30,000 ℏ). */
+    private static final long DEFAULT_MIN_LOCKED_STAKE = 3_000_000_000_000L;
+
     private static final String BATCH_OPERATOR = "batchOperator";
     private static final String CALLER = "caller";
     private static final String CLPR_CONTRACT = "ClprSystemContract";
@@ -169,12 +173,19 @@ public class ClprEnabledSuite {
     @HapiTest
     @DisplayName("Both CLPR queries accept COST_ANSWER and ANSWER_ONLY when enabled")
     final Stream<DynamicTest> clprQueriesSucceed() {
+        // The queries are paid, so an answer's node payment must cover their cost
         return hapiTest(
-                cryptoCreate(CALLER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(CALLER).balance(ONE_MILLION_HBARS),
                 clprGetLedgerConfiguration().payingWith(CALLER).hasCostAnswerPrecheck(OK),
                 clprGetEndpointManifest().payingWith(CALLER).hasCostAnswerPrecheck(OK),
-                clprGetLedgerConfiguration().payingWith(CALLER).nodePayment(1L).hasAnswerOnlyPrecheck(OK),
-                clprGetEndpointManifest().payingWith(CALLER).nodePayment(1L).hasAnswerOnlyPrecheck(OK));
+                clprGetLedgerConfiguration()
+                        .payingWith(CALLER)
+                        .nodePayment(ONE_HBAR)
+                        .hasAnswerOnlyPrecheck(OK),
+                clprGetEndpointManifest()
+                        .payingWith(CALLER)
+                        .nodePayment(ONE_HBAR)
+                        .hasAnswerOnlyPrecheck(OK));
     }
 
     @HapiTest
@@ -184,7 +195,7 @@ public class ClprEnabledSuite {
         // native contract's address behaves as a plain system account and succeeds without executing anything, so it
         // cannot satisfy this test.
         final var operations = new ArrayList<SpecOperation>();
-        operations.add(cryptoCreate(CALLER).balance(ONE_HUNDRED_HBARS));
+        operations.add(cryptoCreate(CALLER).balance(ONE_MILLION_HBARS));
         CLPR_SYSTEM_CONTRACT_NUMS.forEach(num -> operations.add(
                 contractCallWithFunctionAbi(num, VERIFY_CONFIG.toJson(false), new byte[] {1}, new byte[32], new byte[0])
                         .payingWith(CALLER)
@@ -484,7 +495,7 @@ public class ClprEnabledSuite {
                 contractCreate(VERIFIER_CONTRACT),
                 contractCreate(CONNECTOR_CONTRACT),
                 contractCreate(CLPR_CONTRACT),
-                cryptoCreate(CALLER).balance(ONE_HUNDRED_HBARS)));
+                cryptoCreate(CALLER).balance(ONE_MILLION_HBARS)));
     }
 
     private static HapiTxnOp<?> sendMessage(final ClprChannelCrypto crypto) {
@@ -495,6 +506,7 @@ public class ClprEnabledSuite {
                         crypto.connectorId(),
                         new byte[20],
                         new byte[] {1, 2, 3})
+                .sending(ONE_HBAR)
                 .payingWith(CALLER)
                 .gas(GAS_TO_OFFER)
                 .hasKnownStatus(SUCCESS);
@@ -525,7 +537,7 @@ public class ClprEnabledSuite {
                         .channelId(crypto.channelId())
                         .connectorContract(CONNECTOR_CONTRACT)
                         .adminKeyName(GENESIS)
-                        .lockedStake(100_000_000L));
+                        .lockedStake(DEFAULT_MIN_LOCKED_STAKE));
         txns.put(
                 "deregisterConnector",
                 clprDeregisterConnector()

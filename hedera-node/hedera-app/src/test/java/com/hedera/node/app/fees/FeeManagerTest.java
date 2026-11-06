@@ -11,12 +11,14 @@ import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraIncluded;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeService;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeServiceFee;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.BDDMockito.given;
 
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.congestion.CongestionMultipliers;
+import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fees.QueryFeeCalculator;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -203,6 +205,56 @@ class FeeManagerTest {
                 .network(NetworkFee.DEFAULT.copyBuilder().multiplier(1).build())
                 .services(makeService("Test", fees))
                 .build();
+    }
+
+    @Test
+    void failureFeesReplaceServiceComponentWithScheduledFailureFee() {
+        final var now = Instant.ofEpochSecond(1_234_567L);
+        installScheduleWithCryptoCreateFailureFee(100_000_000L);
+        given(exchangeRateManager.getTinybarsFromTinycents(100_000_000L, now)).willReturn(42L);
+        final var fees = new Fees(10L, 90L, 1_000L);
+
+        final var failureFees = subject.failureFees(CRYPTO_CREATE, fees, now);
+
+        assertEquals(new Fees(10L, 90L, 42L), failureFees);
+        assertSame(fees, subject.solvencyFees(CRYPTO_CREATE, fees, now));
+    }
+
+    @Test
+    void solvencyFeesCoverAFailureFeeAboveTheSuccessPrice() {
+        final var now = Instant.ofEpochSecond(1_234_567L);
+        installScheduleWithCryptoCreateFailureFee(100_000_000L);
+        given(exchangeRateManager.getTinybarsFromTinycents(100_000_000L, now)).willReturn(42L);
+        final var fees = new Fees(10L, 90L, 0L);
+
+        assertEquals(new Fees(10L, 90L, 42L), subject.solvencyFees(CRYPTO_CREATE, fees, now));
+    }
+
+    @Test
+    void failureFeesAreUnchangedWithoutAScheduledFailureFee() {
+        final var now = Instant.ofEpochSecond(1_234_567L);
+        installScheduleWithCryptoCreateFailureFee(0L);
+        final var fees = new Fees(10L, 90L, 1_000L);
+
+        assertSame(fees, subject.failureFees(CRYPTO_CREATE, fees, now));
+        assertSame(fees, subject.failureFees(CONSENSUS_CREATE_TOPIC, fees, now));
+        assertSame(Fees.FREE, subject.failureFees(CRYPTO_CREATE, Fees.FREE, now));
+    }
+
+    private void installScheduleWithCryptoCreateFailureFee(final long failureFee) {
+        final var schedule = FeeSchedule.DEFAULT
+                .copyBuilder()
+                .extras(makeExtraDef(Extra.GAS, 852))
+                .node(NodeFee.DEFAULT.copyBuilder().baseFee(100).build())
+                .network(NetworkFee.DEFAULT.copyBuilder().multiplier(9).build())
+                .services(makeService(
+                        "Crypto",
+                        makeServiceFee(CRYPTO_CREATE, 1_000)
+                                .copyBuilder()
+                                .failureFee(failureFee)
+                                .build()))
+                .build();
+        assertEquals(SUCCESS, subject.updateSimpleFees(toBytes(schedule)));
     }
 
     private static Bytes toBytes(final FeeSchedule schedule) {

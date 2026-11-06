@@ -219,6 +219,18 @@ message ServiceFeeDefinition {
    * is entirely free.
    */
   bool node_network_fee_exempt = 6;
+
+  /**
+   * The service fee, in tinycents, charged in place of `base_fee` and `extras` when a
+   * transaction reaches consensus and charges its payer, but does not succeed.
+   *
+   * <p>This applies whether the transaction fails before or during handling. A
+   * transaction that is throttled at consensus, or fails for an internal reason, keeps
+   * paying no service fee. If zero, a failed transaction pays the same service fee as a
+   * successful one. This value MAY exceed the success price; a payer must be able to pay
+   * the larger of the two.
+   */
+  uint64 failure_fee = 7;
 }
 
 /**

@@ -7,13 +7,15 @@ contract ClprSystemContract {
 
     address constant CLPR_PRECOMPILE = address(0x16e);
 
+    /// Sends a message, attaching this contract's balance (including any value sent with this call) to cover the
+    /// CLPR system contract's sendMessage fee; the system contract collects only that fee.
     function sendMessage(
         bytes32 channelId,
         bytes32 connectorId,
         bytes calldata targetApplication,
         bytes calldata messageData
-    ) external returns (uint64 messageId) {
-        (bool success, bytes memory result) = CLPR_PRECOMPILE.call(
+    ) external payable returns (uint64 messageId) {
+        (bool success, bytes memory result) = CLPR_PRECOMPILE.call{value: address(this).balance}(
             abi.encodeWithSelector(
                 IClprSystemContract.sendMessage.selector,
                 channelId,

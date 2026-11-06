@@ -24,6 +24,7 @@ import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.node.app.fees.AppFeeCharging;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeAccumulator;
+import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.service.contract.impl.handlers.EthereumTransactionHandler;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.FeeCharging;
@@ -78,6 +79,7 @@ public class DispatchProcessor {
     private final NetworkInfo networkInfo;
     private final OpWorkflowMetrics workflowMetrics;
     private final AppFeeCharging appFeeCharging;
+    private final FeeManager feeManager;
 
     @Inject
     public DispatchProcessor(
@@ -92,7 +94,8 @@ public class DispatchProcessor {
             @NonNull final EthereumTransactionHandler ethereumTransactionHandler,
             @NonNull final NetworkInfo networkInfo,
             @NonNull final OpWorkflowMetrics workflowMetrics,
-            @NonNull final AppFeeCharging appFeeCharging) {
+            @NonNull final AppFeeCharging appFeeCharging,
+            @NonNull final FeeManager feeManager) {
         this.authorizer = requireNonNull(authorizer);
         this.validator = requireNonNull(validator);
         this.recordFinalizer = requireNonNull(recordFinalizer);
@@ -105,6 +108,7 @@ public class DispatchProcessor {
         this.networkInfo = requireNonNull(networkInfo);
         this.workflowMetrics = requireNonNull(workflowMetrics);
         this.appFeeCharging = requireNonNull(appFeeCharging);
+        this.feeManager = requireNonNull(feeManager);
     }
 
     /**
@@ -149,8 +153,12 @@ public class DispatchProcessor {
             }
             chargeCreator(dispatch, validation);
         } else {
-            final var fees = chargePayer(dispatch, validation, false);
-            if (!alreadyFailed(dispatch, validation)) {
+            // A failure found before handling is known before charging, since the payer pays the failure price for it
+            final boolean failedBeforeHandle = alreadyFailed(dispatch, validation);
+            final var fees = failedBeforeHandle
+                    ? chargePayerForFailure(dispatch, validation)
+                    : chargePayer(dispatch, validation, false);
+            if (!failedBeforeHandle) {
                 tryHandle(dispatch, validation, fees, hollowAccountCompletionsDetails, blockFull);
             }
         }
@@ -205,7 +213,7 @@ public class DispatchProcessor {
             final var feeCharging = dispatch.feeChargingOrElse(appFeeCharging);
             feeCharging.rollback();
             rollback(e.getStatus(), dispatch.stack(), dispatch.streamBuilder(), dispatch.feeAccumulator());
-            chargePayer(dispatch, validation, false);
+            chargePayerForFailure(dispatch, validation);
             e.maybeReplay(feeCharging.customized(dispatch), dispatch.handleContext());
         } catch (ThrottleException e) {
             if (isClprSubmitBundle(dispatch)) {
@@ -317,7 +325,29 @@ public class DispatchProcessor {
             @NonNull final Dispatch dispatch,
             @NonNull final FeeCharging.Validation validation,
             final boolean waiveServiceFee) {
-        final var fees = dispatch.fees();
+        return chargePayer(dispatch, validation, dispatch.fees(), waiveServiceFee);
+    }
+
+    /**
+     * Charges the payer for a dispatch that does not succeed. If the fee schedule sets a failure fee for the
+     * dispatch's functionality, the payer is charged that in place of the usual service fee.
+     *
+     * @param dispatch the dispatch that failed
+     * @param validation the validation of the charging scenario
+     * @return the fees charged
+     */
+    private Fees chargePayerForFailure(
+            @NonNull final Dispatch dispatch, @NonNull final FeeCharging.Validation validation) {
+        final var failureFees =
+                feeManager.failureFees(dispatch.txnInfo().functionality(), dispatch.fees(), dispatch.consensusNow());
+        return chargePayer(dispatch, validation, failureFees, false);
+    }
+
+    private Fees chargePayer(
+            @NonNull final Dispatch dispatch,
+            @NonNull final FeeCharging.Validation validation,
+            @NonNull final Fees fees,
+            final boolean waiveServiceFee) {
         if (fees.nothingToCharge()) {
             return Fees.FREE;
         }

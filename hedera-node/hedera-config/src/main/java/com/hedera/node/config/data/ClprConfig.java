@@ -28,13 +28,17 @@ public record ClprConfig(
         @ConfigProperty(defaultValue = "clprLedgerConfiguration.json")
         String upgradeLedgerConfigurationFile,
 
-        @ConfigProperty(defaultValue = "100000000") @NetworkProperty
+        // --- Connector bonds and penalties, in tinybars; defaults size the CLPR fee proposal's USD figures at $0.10/ℏ
+        // ---
+        // Minimum locked stake of a Connector ($3,000)
+        @ConfigProperty(defaultValue = "3000000000000") @NetworkProperty
         long minLockedStake,
 
         @ConfigProperty(defaultValue = "803") @NetworkProperty
         long stakingAccount,
 
-        @ConfigProperty(defaultValue = "10000000") @NetworkProperty
+        // First slash of a Connector ($10), multiplied by slashMultiplier for each later one until slashBanThreshold
+        @ConfigProperty(defaultValue = "10000000000") @NetworkProperty
         long slashBasePenalty,
 
         @ConfigProperty(defaultValue = "2") @NetworkProperty int slashMultiplier,
@@ -43,7 +47,8 @@ public record ClprConfig(
         @ConfigProperty(defaultValue = "5000000") @NetworkProperty
         long endpointPayoutCapTinybars,
 
-        @ConfigProperty(defaultValue = "5000000") @NetworkProperty
+        // Charged to an endpoint whose bundle fails verification ($1)
+        @ConfigProperty(defaultValue = "1000000000") @NetworkProperty
         long endpointMisbehaviorPenaltyTinybars,
 
         @ConfigProperty(defaultValue = "1000000") @NetworkProperty
@@ -67,6 +72,14 @@ public record ClprConfig(
         @ConfigProperty(defaultValue = "50") @NetworkProperty
         int connectorQueueQuotaPct,
 
+        // --- sendMessage system contract price ---
+        // Price of a sendMessage call in tinycents ($0.10), including its gas; the caller attaches the rest as value
+        @ConfigProperty(defaultValue = "1000000000") @NetworkProperty
+        long sendMessageFeeTinycents,
+        // Message data bytes covered by sendMessageFeeTinycents; each further byte is priced at the STATE_BYTES rate
+        @ConfigProperty(defaultValue = "1024") @NetworkProperty
+        int sendMessageIncludedBytes,
+
         // --- Verifier contract dispatch (CLPR-5.3) ---
         // The dispatched call's gas must cover the EIP-7623 calldata floor (~40 gas per proof byte); a Hiero
         // state proof carrying a WRAPS proof is ~15 KB, so even a single-message bundle needs ~640K gas
@@ -74,8 +87,9 @@ public record ClprConfig(
         long verifierGasLimit,
 
         // --- Node-submitted ClprSubmitBundle fee cap (tinybars) ---
-        // Maximum fee the node will pay when submitting an inbound bundle for consensus.
-        @ConfigProperty(defaultValue = "1000000000") @NetworkProperty
+        // Maximum fee the node will pay when submitting an inbound bundle for consensus. A bundle pays for its bytes
+        // and verifier gas, so a large one can cost over $1.
+        @ConfigProperty(defaultValue = "10000000000") @NetworkProperty
         long nodeSubmitBundleMaxFee,
 
         // --- Sender-side state-proof verification (bring-up sanity check) ---

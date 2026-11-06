@@ -28,6 +28,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.fees.AppFeeCharging;
+import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.signature.DefaultKeyVerifier;
 import com.hedera.node.app.spi.fees.FeeCharging;
@@ -65,6 +66,8 @@ public class DispatchValidator {
      */
     private final NodeControlledPayerGuard nodeControlledPayerGuard;
 
+    private final FeeManager feeManager;
+
     @Nullable
     private final AtomicBoolean systemEntitiesCreatedFlag;
 
@@ -76,6 +79,7 @@ public class DispatchValidator {
      * @param feeCharging the fee-charging strategy
      * @param systemEntitiesCreatedFlag the genesis system-entities-created flag (present only on a genesis boot)
      * @param nodeControlledPayerGuard the NODE-category foreign-payer guard for this component
+     * @param feeManager the fee manager, whose schedule sets the failure price a payer must also afford
      */
     @Inject
     public DispatchValidator(
@@ -83,12 +87,14 @@ public class DispatchValidator {
             @NonNull final TransactionChecker transactionChecker,
             @NonNull final AppFeeCharging feeCharging,
             @Nullable final AtomicBoolean systemEntitiesCreatedFlag,
-            @NonNull final NodeControlledPayerGuard nodeControlledPayerGuard) {
+            @NonNull final NodeControlledPayerGuard nodeControlledPayerGuard,
+            @NonNull final FeeManager feeManager) {
         this.recordCache = requireNonNull(recordCache);
         this.transactionChecker = requireNonNull(transactionChecker);
         this.feeCharging = requireNonNull(feeCharging);
         this.systemEntitiesCreatedFlag = systemEntitiesCreatedFlag;
         this.nodeControlledPayerGuard = requireNonNull(nodeControlledPayerGuard);
+        this.feeManager = requireNonNull(feeManager);
     }
 
     /**
@@ -174,7 +180,9 @@ public class DispatchValidator {
                 .validate(
                         payer,
                         creatorId,
-                        dispatch.fees(),
+                        // The transaction may still fail, so the payer must also afford any larger failure price
+                        feeManager.solvencyFees(
+                                dispatch.txnInfo().functionality(), dispatch.fees(), dispatch.consensusNow()),
                         dispatch.txnInfo().txBody(),
                         isDuplicate,
                         dispatch.txnInfo().functionality(),

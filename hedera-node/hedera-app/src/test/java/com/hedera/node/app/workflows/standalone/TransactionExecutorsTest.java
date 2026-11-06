@@ -309,7 +309,14 @@ public class TransactionExecutorsTest {
 
     @Test
     void connectorAuthorizationIsTracedAndItsHaltContainedWithinSendMessageTransaction() {
-        final var overrides = Map.of("hedera.transaction.maxMemoUtf8Bytes", "101", "clpr.enabled", "true");
+        // The forwarder attaches no value, so price sendMessage entirely as gas
+        final var overrides = Map.of(
+                "hedera.transaction.maxMemoUtf8Bytes",
+                "101",
+                "clpr.enabled",
+                "true",
+                "clpr.sendMessageFeeTinycents",
+                "0");
         final var state = genesisState(overrides);
         final var executor = TRANSACTION_EXECUTORS.newExecutor(
                 TransactionExecutors.Properties.newBuilder()
@@ -381,7 +388,14 @@ public class TransactionExecutorsTest {
             final boolean channelExists,
             final boolean callerReverts,
             final boolean commits) {
-        final var overrides = Map.of("hedera.transaction.maxMemoUtf8Bytes", "101", "clpr.enabled", "true");
+        // The forwarder attaches no value, so price sendMessage entirely as gas
+        final var overrides = Map.of(
+                "hedera.transaction.maxMemoUtf8Bytes",
+                "101",
+                "clpr.enabled",
+                "true",
+                "clpr.sendMessageFeeTinycents",
+                "0");
         final var state = genesisState(overrides);
         final var executor = TRANSACTION_EXECUTORS.newExecutor(
                 TransactionExecutors.Properties.newBuilder()
@@ -486,8 +500,9 @@ public class TransactionExecutorsTest {
 
     @Test
     void propertiesBuilderRequiresNonNullState() {
-        assertThrows(IllegalStateException.class, () -> TransactionExecutors.Properties.newBuilder()
-                .build());
+        assertThrows(
+                IllegalStateException.class,
+                () -> TransactionExecutors.Properties.newBuilder().build());
     }
 
     @Test

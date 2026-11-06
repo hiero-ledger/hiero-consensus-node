@@ -55,6 +55,7 @@ import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.util.AtomicBatchTransactionBody;
 import com.hedera.node.app.fees.AppFeeCharging;
+import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.signature.AppKeyVerifier;
 import com.hedera.node.app.signature.SignatureVerificationFuture;
@@ -134,8 +135,15 @@ class DispatchValidatorTest {
 
     private DispatchValidator subject;
 
+    @Mock
+    private FeeManager feeManager;
+
     @BeforeEach
     void setUp() {
+        // Unless a test sets a failure fee, a payer is validated against the fees of a successful transaction
+        lenient()
+                .when(feeManager.solvencyFees(any(), any(), any()))
+                .thenAnswer(invocation -> invocation.getArgument(1));
         // A live consensus node that booted from a restart/reconnect: system-entities flag is null (only a genesis
         // boot has it), and the live guard is bound (a no-op only in the standalone executor). This is the boot state
         // where the NODE-payer guard must apply.
@@ -144,7 +152,8 @@ class DispatchValidatorTest {
                 transactionChecker,
                 new AppFeeCharging(solvencyPreCheck),
                 null,
-                new LiveNodeControlledPayerGuard());
+                new LiveNodeControlledPayerGuard(),
+                feeManager);
     }
 
     @Test
@@ -202,6 +211,30 @@ class DispatchValidatorTest {
         final var report = subject.validateFeeChargingScenario(dispatch);
 
         assertEquals(newCreatorError(dispatch.creatorInfo().accountId(), INVALID_PAYER_SIGNATURE), report);
+    }
+
+    @Test
+    void solvencyCheckCoversALargerFailurePrice() throws PreCheckException {
+        final var solvencyFees = new Fees(FEES.nodeFee(), FEES.networkFee(), FEES.serviceFee() + 1);
+        given(feeManager.solvencyFees(any(), any(), any())).willReturn(solvencyFees);
+        givenCreatorInfo();
+        givenPreceding();
+        givenSolvencyCheckSetup();
+        given(dispatch.preHandleResult()).willReturn(SUCCESSFUL_PREHANDLE);
+        final var payerAccount = givenPayer(payer -> payer.tinybarBalance(1L));
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+
+        subject.validateFeeChargingScenario(dispatch);
+
+        verify(solvencyPreCheck)
+                .checkSolvency(
+                        TXN_BODY,
+                        PAYER_ACCOUNT_ID,
+                        TXN_INFO.functionality(),
+                        payerAccount,
+                        solvencyFees,
+                        NOT_INGEST,
+                        SKIP_OFFERED_FEE_CHECK);
     }
 
     @Test
@@ -264,7 +297,8 @@ class DispatchValidatorTest {
                 transactionChecker,
                 new AppFeeCharging(solvencyPreCheck),
                 null,
-                new NoOpNodeControlledPayerGuard());
+                new NoOpNodeControlledPayerGuard(),
+                feeManager);
         givenCreatorInfo();
         givenNodeDispatch();
         givenNonDuplicate();
@@ -305,7 +339,8 @@ class DispatchValidatorTest {
                 transactionChecker,
                 new AppFeeCharging(solvencyPreCheck),
                 new AtomicBoolean(true),
-                new LiveNodeControlledPayerGuard());
+                new LiveNodeControlledPayerGuard(),
+                feeManager);
         givenCreatorInfo();
         givenNodeDispatch();
         given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
@@ -324,7 +359,8 @@ class DispatchValidatorTest {
                 transactionChecker,
                 new AppFeeCharging(solvencyPreCheck),
                 genesisBooted ? new AtomicBoolean(true) : null,
-                new LiveNodeControlledPayerGuard());
+                new LiveNodeControlledPayerGuard(),
+                feeManager);
         givenCreatorInfo();
         givenNodeDispatch();
         given(dispatch.payerId())
