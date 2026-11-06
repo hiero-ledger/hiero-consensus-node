@@ -9,9 +9,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 
 /**
- * Storage accounting shared by a contract execution and the executions nested in it through child dispatches. The
- * nested executions commit into the savepoints of the dispatches enclosing them, so only the owner (the outermost
- * execution) charges rent, persists storage and applies the creation throttle for the whole scope.
+ * Scope shared by a contract execution and the executions nested in it through child dispatches. Its owner, the
+ * outermost execution, is the only one that checks the creation throttle for a commit without creations.
  */
 @TransactionScope
 public class StorageAccountingScope {
@@ -25,7 +24,7 @@ public class StorageAccountingScope {
     }
 
     /**
-     * Returns whether this execution owns its scope, and so finalizes the storage effects of the whole scope.
+     * Returns whether this execution owns its scope, as the outermost execution in it.
      *
      * @return whether this execution owns its scope
      */
