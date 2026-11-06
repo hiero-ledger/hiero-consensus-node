@@ -75,7 +75,7 @@ class FalconRecorderTest {
     }
 
     @Test
-    @DisplayName("Every event has the state it has at that point in production")
+    @DisplayName("Every event, and every pristine copy of it, has the state it has at that point in production")
     void eventsHaveProductionState() {
         final NodeRecording node = FalconRecorder.record(
                         RecordingSpec.builder(4, RANDOM_SEED, 1_000).build())
@@ -87,57 +87,23 @@ class FalconRecorderTest {
         int createdWithTransactions = 0;
         int released = 0;
         for (final Step step : node.steps()) {
+            assertProductionState(step, node.nodeId());
+            final Step pristine = step.pristine();
+            assertProductionState(pristine, node.nodeId());
+            assertNewCopy(step, pristine);
             switch (step) {
-                case Received r -> {
-                    final PlatformEvent event = r.event();
-                    assertThat(event.getHash()).as("Hash of a received event").isNull();
-                    assertThat(event.getOrigin()).isEqualTo(EventOrigin.GOSSIP);
-                    assertThat(event.getSenderId()).isEqualTo(r.sender());
-                    assertThat(event.getLastStageTime()).isEqualTo(event.getTimeReceived());
-                    assertThat(event.getTransactionReceivedTimes()).isEmpty();
-                    assertThat(event.getNGen()).isEqualTo(GENERATION_UNDEFINED);
-                    assertThat(event.getSequenceNumber()).isEqualTo(SEQUENCE_NUMBER_UNDEFINED);
-                    assertThat(received.add(event.getGossipEvent()))
+                case Received r ->
+                    assertThat(received.add(r.event().getGossipEvent()))
                             .as("First copy of a received event")
                             .isTrue();
-                }
-                case CreationAttempt a when a.created() != null -> {
-                    final PlatformEvent event = a.created();
-                    assertThat(event.getHash()).as("Hash of a created event").isNotNull();
-                    assertThat(contentHash(event)).as("Hash of the copy's content").isEqualTo(event.getHash());
-                    assertThat(event.getOrigin()).isEqualTo(EventOrigin.RUNTIME);
-                    assertThat(event.getSenderId()).isNull();
-                    // the simulated time stands still while the creator takes the transactions and builds the event,
-                    // and Falcon's transactions reach the pool at that time, none with priority
-                    assertThat(event.getLastStageTime()).isEqualTo(a.time());
-                    assertThat(event.getTransactionReceivedTimes())
-                            .hasSize(event.getGossipEvent().transactions().size())
-                            .allSatisfy(time -> assertThat(time).isEqualTo(a.time()));
-                    assertThat(event.getNGen()).isEqualTo(GENERATION_UNDEFINED);
-                    assertThat(event.getSequenceNumber()).isEqualTo(SEQUENCE_NUMBER_UNDEFINED);
+                case CreationAttempt a
+                when a.created() != null -> {
                     created++;
-                    if (!event.getGossipEvent().transactions().isEmpty()) {
+                    if (!a.created().getGossipEvent().transactions().isEmpty()) {
                         createdWithTransactions++;
                     }
                 }
-                case Released r -> {
-                    final PlatformEvent event = r.event();
-                    final boolean own = event.getCreatorId().equals(node.nodeId());
-                    assertThat(event.getHash()).as("Hash of a released event").isNotNull();
-                    assertThat(event.getOrigin()).isEqualTo(own ? EventOrigin.RUNTIME : EventOrigin.GOSSIP);
-                    assertThat(event.getSenderId() == null).isEqualTo(own);
-                    assertThat(event.getLastStageTime()).isEqualTo(r.time());
-                    assertThat(event.getTransactionReceivedTimes())
-                            .hasSize(own ? event.getGossipEvent().transactions().size() : 0);
-                    assertThat(event.getNGen()).isNotEqualTo(GENERATION_UNDEFINED);
-                    assertThat(event.getSequenceNumber()).isNotEqualTo(SEQUENCE_NUMBER_UNDEFINED);
-                    if (own) {
-                        assertThat(contentHash(event))
-                                .as("Hash of the copy's content")
-                                .isEqualTo(event.getHash());
-                    }
-                    released++;
-                }
+                case Released _ -> released++;
                 case CreationAttempt _, NewEventWindow _, PlatformStatusChange _ -> {}
             }
         }
@@ -145,6 +111,89 @@ class FalconRecorderTest {
         assertThat(created).isPositive();
         assertThat(createdWithTransactions).isPositive();
         assertThat(released).isPositive();
+    }
+
+    /**
+     * Checks that the event of a step has the state the step's Javadoc describes.
+     */
+    private static void assertProductionState(@NonNull final Step step, @NonNull final NodeId self) {
+        switch (step) {
+            case Received r -> {
+                final PlatformEvent event = r.event();
+                assertThat(event.getHash()).as("Hash of a received event").isNull();
+                assertThat(event.getOrigin()).isEqualTo(EventOrigin.GOSSIP);
+                assertThat(event.getSenderId()).isEqualTo(r.sender());
+                assertThat(event.getLastStageTime()).isEqualTo(event.getTimeReceived());
+                assertThat(event.getTransactionReceivedTimes()).isEmpty();
+                assertThat(event.getNGen()).isEqualTo(GENERATION_UNDEFINED);
+                assertThat(event.getSequenceNumber()).isEqualTo(SEQUENCE_NUMBER_UNDEFINED);
+            }
+            case CreationAttempt a
+            when a.created() != null -> {
+                final PlatformEvent event = a.created();
+                assertThat(event.getHash()).as("Hash of a created event").isNotNull();
+                assertThat(contentHash(event)).as("Hash of the copy's content").isEqualTo(event.getHash());
+                assertThat(event.getOrigin()).isEqualTo(EventOrigin.RUNTIME);
+                assertThat(event.getSenderId()).isNull();
+                // the simulated time stands still while the creator takes the transactions and builds the event,
+                // and Falcon's transactions reach the pool at that time, none with priority
+                assertThat(event.getLastStageTime()).isEqualTo(a.time());
+                assertThat(event.getTransactionReceivedTimes())
+                        .hasSize(event.getGossipEvent().transactions().size())
+                        .allSatisfy(time -> assertThat(time).isEqualTo(a.time()));
+                assertThat(event.getNGen()).isEqualTo(GENERATION_UNDEFINED);
+                assertThat(event.getSequenceNumber()).isEqualTo(SEQUENCE_NUMBER_UNDEFINED);
+            }
+            case Released r -> {
+                final PlatformEvent event = r.event();
+                final boolean own = event.getCreatorId().equals(self);
+                assertThat(event.getHash()).as("Hash of a released event").isNotNull();
+                assertThat(contentHash(event)).as("Hash of the copy's content").isEqualTo(event.getHash());
+                assertThat(event.getOrigin()).isEqualTo(own ? EventOrigin.RUNTIME : EventOrigin.GOSSIP);
+                assertThat(event.getSenderId() == null).isEqualTo(own);
+                assertThat(event.getLastStageTime()).isEqualTo(r.time());
+                assertThat(event.getTransactionReceivedTimes())
+                        .hasSize(own ? event.getGossipEvent().transactions().size() : 0);
+                assertThat(event.getNGen()).isNotEqualTo(GENERATION_UNDEFINED);
+                assertThat(event.getSequenceNumber()).isNotEqualTo(SEQUENCE_NUMBER_UNDEFINED);
+            }
+            case CreationAttempt _, NewEventWindow _, PlatformStatusChange _ -> {}
+        }
+    }
+
+    /**
+     * Checks that a pristine step holds a new copy of the step's event, with new byte buffers, or is the step itself if
+     * it has no event.
+     */
+    private static void assertNewCopy(@NonNull final Step step, @NonNull final Step pristine) {
+        final PlatformEvent event = eventOf(step);
+        if (event == null) {
+            assertThat(pristine).isSameAs(step);
+            return;
+        }
+        assertThat(pristine.time()).isEqualTo(step.time());
+        final PlatformEvent copy = requireNonNull(eventOf(pristine));
+        assertThat(copy).isNotSameAs(event);
+        assertThat(copy.getGossipEvent()).isNotSameAs(event.getGossipEvent()).isEqualTo(event.getGossipEvent());
+        final List<Bytes> transactions = event.getGossipEvent().transactions();
+        for (int i = 0; i < transactions.size(); i++) {
+            assertThat(copy.getGossipEvent().transactions().get(i)).isNotSameAs(transactions.get(i));
+        }
+        if (event.getSignature().length() > 0) {
+            // an unsigned event's empty signature is the shared Bytes.EMPTY
+            assertThat(copy.getSignature()).isNotSameAs(event.getSignature());
+        }
+        assertThat(copy.getTimeReceived()).isEqualTo(event.getTimeReceived());
+    }
+
+    @Nullable
+    private static PlatformEvent eventOf(@NonNull final Step step) {
+        return switch (step) {
+            case Received r -> r.event();
+            case Released r -> r.event();
+            case CreationAttempt a -> a.created();
+            case NewEventWindow _, PlatformStatusChange _ -> null;
+        };
     }
 
     @Test

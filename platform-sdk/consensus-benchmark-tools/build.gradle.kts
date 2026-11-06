@@ -19,4 +19,5 @@ testModuleInfo {
 
 jmhModuleInfo {
     requires("org.hiero.consensus.benchmark.tools")
+    requires("org.hiero.consensus.fakes")
 }

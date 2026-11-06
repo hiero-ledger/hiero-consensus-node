@@ -7,14 +7,10 @@ import com.swirlds.base.time.Time;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
-import java.time.Instant;
-import java.util.List;
 import java.util.function.Consumer;
-import org.hiero.consensus.benchmark.tools.event.EventStreamGenerator;
 import org.hiero.consensus.event.creator.impl.EventCreationManager;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
@@ -59,57 +55,13 @@ final class RecordingEventCreationManager implements EventCreationManager {
     }
 
     /**
-     * Copies an event as a step of the event creator holds it: if the origin is {@link EventOrigin#GOSSIP}, as the
-     * node receives it through gossip, sent through the gossip streams with {@link EventStreamGenerator#receive} and
-     * hashed as the intake hashes it; otherwise as its event creator builds it, from an {@link UnsignedEvent}, with
-     * the times its transactions were received by the transaction pool. Either way, the copy is hashed and keeps the
-     * time received, sender, non-deterministic generation and sequence number the event has now.
-     *
-     * @param event the event
-     * @param origin the origin of the copy
-     * @param lastStageTime the time the event's last pipeline stage ended in production
-     * ({@link PlatformEvent#getLastStageTime()}), which only the stage metrics read
-     * @return the copy
-     */
-    @NonNull
-    static PlatformEvent copyEvent(
-            @NonNull final PlatformEvent event, @NonNull final EventOrigin origin, @NonNull final Instant lastStageTime) {
-        final PlatformEvent copy;
-        if (origin == EventOrigin.GOSSIP) {
-            copy = EventStreamGenerator.receive(List.of(event)).getFirst();
-        } else {
-            final UnsignedEvent unsignedEvent = new UnsignedEvent(
-                    event.getCreatorId(),
-                    event.getAllParents(),
-                    event.getBirthRound(),
-                    event.getTimeCreated(),
-                    event.getGossipEvent().transactions(),
-                    event.getEventCore().coin(),
-                    lastStageTime,
-                    List.copyOf(event.getTransactionReceivedTimes()));
-            copy = new PlatformEvent(unsignedEvent, event.getSignature(), origin);
-            copy.setHash(event.getHash());
-        }
-        copy.setTimeReceived(event.getTimeReceived());
-        copy.setLastStageTime(lastStageTime);
-        if (event.getSenderId() != null) {
-            copy.setSenderId(event.getSenderId());
-        }
-        copy.setNGen(event.getNGen());
-        copy.setSequenceNumber(event.getSequenceNumber());
-        return copy;
-    }
-
-    /**
      * {@inheritDoc}
      */
     @Override
     @Nullable
     public PlatformEvent maybeCreateEvent() {
         final PlatformEvent created = delegate.maybeCreateEvent();
-        stepRecorder.accept(new CreationAttempt(
-                time.now(),
-                created == null ? null : copyEvent(created, EventOrigin.RUNTIME, created.getLastStageTime())));
+        stepRecorder.accept(CreationAttempt.of(time.now(), created));
         return created;
     }
 
@@ -119,7 +71,7 @@ final class RecordingEventCreationManager implements EventCreationManager {
     @Override
     public void registerEvent(@NonNull final PlatformEvent event) {
         final EventOrigin origin = event.getCreatorId().equals(selfId) ? EventOrigin.RUNTIME : EventOrigin.GOSSIP;
-        stepRecorder.accept(new Released(time.now(), copyEvent(event, origin, time.now())));
+        stepRecorder.accept(Released.of(time.now(), event, origin));
         delegate.registerEvent(event);
     }
 
