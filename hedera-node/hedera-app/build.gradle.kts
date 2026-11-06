@@ -58,6 +58,18 @@ testModuleInfo {
     opensTo("com.swirlds.common") // instantiation via reflection
 }
 
+tasks.test {
+    // HtsAutoCreationIngestThrottleTest reads the network throttle files
+    inputs
+        .files(
+            listOf("mainnet", "testnet", "previewnet").map {
+                "../configuration/$it/upgrade/throttles.json"
+            }
+        )
+        .withPropertyName("networkThrottles")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+}
+
 jmhModuleInfo {
     requires("com.hedera.node.app")
     requires("com.hedera.node.app.hapi.utils")
