@@ -34,5 +34,9 @@ public interface HistoryServiceComponent {
 
     HistorySubmissions submissions();
 
+    HintsKeyWitnessVerifier witnessVerifier();
+
+    Executor executor();
+
     Supplier<Configuration> configSupplier();
 }

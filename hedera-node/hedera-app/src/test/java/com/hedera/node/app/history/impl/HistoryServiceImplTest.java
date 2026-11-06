@@ -211,9 +211,17 @@ class HistoryServiceImplTest {
                 .willAnswer(ignored -> List.of(record).iterator());
         given(component.submissions()).willReturn(submissions);
         given(submissions.submitKeyWitness(witness)).willReturn(CompletableFuture.completedFuture(null));
+        final var work = new java.util.ArrayList<Runnable>();
+        given(component.executor()).willReturn(work::add);
+        final var verifier = mock(HintsKeyWitnessVerifier.class);
+        given(component.witnessVerifier()).willReturn(verifier);
+        given(verifier.verify(witness, CURRENT_VK)).willReturn(true);
 
         reconcileWitnesses(REAL_SIGNING_CONFIG, CONSENSUS_NOW);
         subject.publishKeyWitness(CURRENT_VK, witness);
+        verifyNoInteractions(submissions, verifier);
+        assertEquals(1, work.size());
+        work.removeFirst().run();
         verify(submissions).submitKeyWitness(witness);
 
         given(store.getKeyWitnessRecord(7))

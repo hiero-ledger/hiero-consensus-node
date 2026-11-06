@@ -34,14 +34,84 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.CommittableWritableStates;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /** Exercises native fixture bytes through consensus admission, persistent state, and consumer catch-up. */
 class DurableProvenanceFlowTest {
+    @ParameterizedTest
+    @ValueSource(strings = {"Modified signature", "Exactly one third signing weight (1 of 3 equal-weight parties)"})
+    void localVerificationPreservesThePublishersEligibilityForALaterValidWitness(final String rejectedReason)
+            throws Exception {
+        final var vectors = new ObjectMapper()
+                .readTree(requireNonNull(getClass().getResourceAsStream("/provenance-witnesses/native-v1.json")));
+        final var certificate = HintsKeyProvenance.PROTOBUF.parse(Bytes.fromHex(
+                vectors.get("certificates").get(0).get("protobufHex").asText()));
+        final var witness = HintsKeyWitness.PROTOBUF.parse(
+                Bytes.fromHex(vectors.get("witnesses").get(0).get("protobufHex").asText()));
+        final var rejectedVector = java.util.stream.StreamSupport.stream(
+                        vectors.get("rejectedWitnesses").spliterator(), false)
+                .filter(vector -> rejectedReason.equals(vector.get("reason").asText()))
+                .findFirst()
+                .orElseThrow();
+        final var invalid = HintsKeyWitness.PROTOBUF.parse(
+                Bytes.fromHex(rejectedVector.get("witnessProtobufHex").asText()));
+        final var id = certificate.targetHintsConstructionId();
+        final var key = certificate.targetVerificationKey();
+        final var state = stateWithPreparedCandidate(certificate);
+        final var store = new WritableHistoryStoreImpl(state.getWritableStates(HistoryService.NAME));
+        final var now = asInstant(witness.timestampOrThrow()).plusSeconds(60);
+        assertTrue(store.handoff(
+                Roster.DEFAULT,
+                null,
+                null,
+                asInstant(witness.timestampOrThrow()).minusSeconds(1)));
+        final var context = mock(HandleContext.class);
+        when(context.configuration())
+                .thenReturn(HederaTestConfigBuilder.create()
+                        .withValue("tss.forceMockSignatures", false)
+                        .getOrCreateConfig());
+        final var creator = mock(NodeInfo.class);
+        when(creator.nodeId()).thenReturn(3L);
+        when(context.creatorInfo()).thenReturn(creator);
+        when(context.consensusNow()).thenReturn(now.plusSeconds(30));
+        final var storeFactory = mock(StoreFactory.class);
+        when(context.storeFactory()).thenReturn(storeFactory);
+        when(storeFactory.writableStore(WritableHistoryStore.class)).thenReturn(store);
+        final var verifier = new HintsKeyWitnessVerifier(new HintsLibraryImpl());
+        final var handler = new HistoryProofKeyPublicationHandler(mock(ProofControllers.class), verifier);
+        final var submitted = new java.util.ArrayList<HintsKeyWitness>();
+        final var publisher = new KeyWitnessPublisher(
+                candidate -> {
+                    submitted.add(candidate);
+                    when(context.body()).thenReturn(publicationOf(candidate));
+                    handler.handle(context);
+                    return CompletableFuture.completedFuture(null);
+                },
+                (candidate, vk) -> CompletableFuture.completedFuture(verifier.verify(candidate, vk)));
+
+        assertTrue(HintsKeyWitnessVerifier.hasValidStructure(invalid));
+        assertFalse(verifier.verify(invalid, key));
+        publisher.reconcile(store, now, true, id);
+        publisher.offer(key, invalid);
+        assertTrue(submitted.isEmpty());
+        assertTrue(store.getKeyWitnessRecord(id).rejectedNodeIds().isEmpty());
+        assertFalse(store.getKeyWitnessRecord(id).hasWitness());
+
+        publisher.offer(key, witness);
+        publisher.reconcile(store, now.plusSeconds(30), true, id);
+        assertEquals(List.of(witness), submitted);
+        final var completed = store.getKeyWitnessRecord(id);
+        assertEquals(witness, completed.witness());
+        assertTrue(completed.rejectedNodeIds().isEmpty());
+    }
+
     @Test
     void admitsNativeWitnessOnlyAfterAdoptionAndRestoresItForHistoricalCatchUp() throws Exception {
         final var vectors = new ObjectMapper()

@@ -61,6 +61,11 @@ public class HistoryServiceImpl implements HistoryService {
         return component.submissions().submitKeyWitness(witness);
     }
 
+    private CompletableFuture<Boolean> verifyKeyWitness(final HintsKeyWitness witness, final Bytes verificationKey) {
+        return CompletableFuture.supplyAsync(
+                () -> component.witnessVerifier().verify(witness, verificationKey), component.executor());
+    }
+
     /**
      * If not null, the proof of the history ending at the current roster.
      */
@@ -86,7 +91,8 @@ public class HistoryServiceImpl implements HistoryService {
             @NonNull final Supplier<Network> genesisNetworkSupplier) {
         this.genesisNetworkSupplier = requireNonNull(genesisNetworkSupplier);
         this.component = DaggerHistoryServiceComponent.factory().create(library, appContext, executor, metrics, this);
-        this.witnessPublisher = new KeyWitnessPublisher(this::submitKeyWitness, new KeyWitnessMetrics(metrics)::update);
+        this.witnessPublisher = new KeyWitnessPublisher(
+                this::submitKeyWitness, this::verifyKeyWitness, new KeyWitnessMetrics(metrics)::update);
     }
 
     @VisibleForTesting
@@ -99,7 +105,7 @@ public class HistoryServiceImpl implements HistoryService {
             @NonNull final HistoryServiceComponent component, @NonNull final Supplier<Network> genesisNetworkSupplier) {
         this.component = requireNonNull(component);
         this.genesisNetworkSupplier = requireNonNull(genesisNetworkSupplier);
-        this.witnessPublisher = new KeyWitnessPublisher(this::submitKeyWitness);
+        this.witnessPublisher = new KeyWitnessPublisher(this::submitKeyWitness, this::verifyKeyWitness);
     }
 
     @Override

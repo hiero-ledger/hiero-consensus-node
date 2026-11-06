@@ -46,16 +46,21 @@ class KeyWitnessPublisherTest {
     private ReadableHistoryStore store;
 
     private final List<HintsKeyWitness> submissions = new ArrayList<>();
+    private final List<HintsKeyWitness> verifications = new ArrayList<>();
     private CompletableFuture<Void> result;
+    private CompletableFuture<Boolean> verificationResult;
     private KeyWitnessPublisher subject;
 
     @BeforeEach
     void setUp() {
         result = CompletableFuture.completedFuture(null);
-        subject = new KeyWitnessPublisher(witness -> {
-            submissions.add(witness);
-            return result;
-        });
+        verificationResult = CompletableFuture.completedFuture(true);
+        subject = new KeyWitnessPublisher(
+                witness -> {
+                    submissions.add(witness);
+                    return result;
+                },
+                this::verifyWitness);
     }
 
     @Test
@@ -68,7 +73,8 @@ class KeyWitnessPublisherTest {
         assertEquals(List.of(WITNESS), submissions);
 
         subject.reconcile(store, NOW.plus(KeyWitnessPublisher.RETRY_INTERVAL), true, GENERATION);
-        assertEquals(List.of(WITNESS, witness(GENERATION, NOW)), submissions);
+        assertEquals(List.of(WITNESS, WITNESS), submissions);
+        assertEquals(List.of(WITNESS), verifications);
 
         records(PENDING.copyBuilder().witness(WITNESS).build());
         subject.reconcile(store, NOW.plusSeconds(60), true, GENERATION);
@@ -222,16 +228,18 @@ class KeyWitnessPublisherTest {
         result.completeExceptionally(new IllegalStateException("eventual failure"));
         result = CompletableFuture.completedFuture(null);
         subject.reconcile(store, NOW.plusSeconds(301), true, GENERATION);
-        assertEquals(List.of(WITNESS, witness(GENERATION, NOW.plusSeconds(200))), submissions);
+        assertEquals(List.of(WITNESS, WITNESS), submissions);
     }
 
     @Test
     void throwingSubmitterIsIsolatedAndStillThrottled() {
         final var attempts = new AtomicInteger();
-        subject = new KeyWitnessPublisher(witness -> {
-            attempts.incrementAndGet();
-            throw new IllegalStateException("executor rejected submission");
-        });
+        subject = new KeyWitnessPublisher(
+                witness -> {
+                    attempts.incrementAndGet();
+                    throw new IllegalStateException("executor rejected submission");
+                },
+                this::verifyWitness);
         records(PENDING);
         subject.reconcile(store, NOW, true, GENERATION);
         assertDoesNotThrow(() -> subject.offer(VK, WITNESS));
@@ -288,10 +296,11 @@ class KeyWitnessPublisherTest {
     void reportsPendingCountAndAgeWithoutInventingLegacyActivationTimes() {
         final var pendingCount = new AtomicInteger();
         final var oldestAge = new AtomicLong();
-        subject = new KeyWitnessPublisher(witness -> CompletableFuture.completedFuture(null), (count, age) -> {
-            pendingCount.set(count);
-            oldestAge.set(age);
-        });
+        subject = new KeyWitnessPublisher(
+                witness -> CompletableFuture.completedFuture(null), this::verifyWitness, (count, age) -> {
+                    pendingCount.set(count);
+                    oldestAge.set(age);
+                });
         records(
                 PENDING,
                 pending(8, VK)
@@ -306,6 +315,153 @@ class KeyWitnessPublisherTest {
         subject.stop();
         assertEquals(0, pendingCount.get());
         assertEquals(0, oldestAge.get());
+    }
+
+    @Test
+    void failedLocalVerificationNeverPublishesAndACorrectedCandidateCanRecover() {
+        records(PENDING);
+        subject.reconcile(store, NOW, true, GENERATION);
+        verificationResult = CompletableFuture.completedFuture(false);
+        subject.offer(VK, WITNESS);
+        assertTrue(submissions.isEmpty());
+
+        // A corrected aggregate can have the same block timestamp as the rejected local candidate.
+        final var correctedSignature = new byte[SIGNATURE_LENGTH];
+        Arrays.fill(correctedSignature, (byte) 1);
+        final var corrected =
+                WITNESS.copyBuilder().signature(Bytes.wrap(correctedSignature)).build();
+        verificationResult = CompletableFuture.completedFuture(true);
+        subject.offer(VK, corrected);
+        subject.reconcile(store, NOW.plusSeconds(29), true, GENERATION);
+        assertTrue(submissions.isEmpty());
+        subject.reconcile(store, NOW.plusSeconds(30), true, GENERATION);
+        assertEquals(List.of(corrected), submissions);
+        assertEquals(2, verifications.size());
+    }
+
+    @Test
+    void pendingVerificationDoesNotBlockReconciliationAndRetainsALaterCandidateAfterFailure() {
+        records(PENDING);
+        subject.reconcile(store, NOW, true, GENERATION);
+        final var inFlight = new CompletableFuture<Boolean>();
+        verificationResult = inFlight;
+        subject.offer(VK, WITNESS);
+        final var later = witness(GENERATION, NOW);
+        subject.offer(VK, later);
+        subject.reconcile(store, NOW.plusSeconds(30), true, GENERATION + 1);
+        assertEquals(List.of(WITNESS), verifications);
+        assertTrue(submissions.isEmpty());
+
+        inFlight.complete(false);
+        verificationResult = CompletableFuture.completedFuture(true);
+        subject.reconcile(store, NOW.plusSeconds(31), true, GENERATION + 1);
+        assertEquals(List.of(WITNESS, later), verifications);
+        assertEquals(List.of(later), submissions);
+    }
+
+    @Test
+    void aVerifiedCandidateIsNeverReplacedAndRetriesNeedNoMoreNativeWork() {
+        records(PENDING);
+        subject.reconcile(store, NOW, true, GENERATION);
+        subject.offer(VK, WITNESS);
+        verificationResult = CompletableFuture.completedFuture(false);
+        subject.offer(VK, witness(GENERATION, NOW));
+        subject.reconcile(store, NOW.plusSeconds(30), true, GENERATION);
+        assertEquals(List.of(WITNESS, WITNESS), submissions);
+        assertEquals(List.of(WITNESS), verifications);
+    }
+
+    @Test
+    void successfulVerificationRetainsItsSnapshotEvenIfANewerCandidateArrivedMeanwhile() {
+        records(PENDING);
+        subject.reconcile(store, NOW, true, GENERATION);
+        final var inFlight = new CompletableFuture<Boolean>();
+        verificationResult = inFlight;
+        subject.offer(VK, WITNESS);
+        subject.offer(VK, witness(GENERATION, NOW));
+        inFlight.complete(true);
+        subject.reconcile(store, NOW.plusSeconds(30), true, GENERATION);
+        assertEquals(List.of(WITNESS, WITNESS), submissions);
+        assertEquals(List.of(WITNESS), verifications);
+    }
+
+    @Test
+    void rejectedVerificationSchedulingDoesNotLeaveWorkPermanentlyInFlight() {
+        final var attempts = new AtomicInteger();
+        subject = new KeyWitnessPublisher(
+                candidate -> {
+                    submissions.add(candidate);
+                    return result;
+                },
+                (candidate, key) -> {
+                    if (attempts.getAndIncrement() == 0) {
+                        throw new java.util.concurrent.RejectedExecutionException("worker unavailable");
+                    }
+                    return CompletableFuture.completedFuture(true);
+                });
+        records(PENDING);
+        subject.reconcile(store, NOW, true, GENERATION);
+        assertDoesNotThrow(() -> subject.offer(VK, WITNESS));
+        assertTrue(submissions.isEmpty());
+        subject.reconcile(store, NOW.plusSeconds(30), true, GENERATION);
+        assertEquals(List.of(WITNESS), submissions);
+    }
+
+    @Test
+    void stoppedOrReboundPublisherDiscardsOutstandingVerificationResults() {
+        records(PENDING);
+        subject.reconcile(store, NOW, true, GENERATION);
+        final var inFlight = new CompletableFuture<Boolean>();
+        verificationResult = inFlight;
+        subject.offer(VK, WITNESS);
+        subject.stop();
+        subject.reconcile(store, NOW.plusSeconds(30), true, GENERATION);
+        inFlight.complete(true);
+        assertTrue(submissions.isEmpty());
+
+        final var rebound = new CompletableFuture<Boolean>();
+        verificationResult = rebound;
+        subject.offer(VK, WITNESS);
+        records(pending(GENERATION, Bytes.wrap("replacement key")));
+        subject.reconcile(store, NOW.plusSeconds(60), true, GENERATION);
+        rebound.complete(true);
+        assertTrue(submissions.isEmpty());
+    }
+
+    @Test
+    void verificationFailureCanRetryWithoutPoisoningTheGeneration() {
+        records(PENDING);
+        subject.reconcile(store, NOW, true, GENERATION);
+        verificationResult = CompletableFuture.failedFuture(new IllegalStateException("worker unavailable"));
+        subject.offer(VK, WITNESS);
+        assertTrue(submissions.isEmpty());
+        verificationResult = CompletableFuture.completedFuture(true);
+        subject.reconcile(store, NOW.plusSeconds(30), true, GENERATION);
+        assertEquals(List.of(WITNESS), submissions);
+    }
+
+    @Test
+    void futureWitnessWaitsForConsensusAndInactiveCompletionWaitsForReactivation() {
+        records(PENDING);
+        subject.reconcile(store, NOW, true, GENERATION);
+        final var futureWitness = witness(GENERATION, NOW.plusSeconds(10));
+        subject.offer(VK, futureWitness);
+        assertTrue(verifications.isEmpty());
+        final var inFlight = new CompletableFuture<Boolean>();
+        verificationResult = inFlight;
+        subject.reconcile(store, NOW.plusSeconds(10), true, GENERATION);
+        subject.reconcile(store, NOW.plusSeconds(11), false, GENERATION);
+        inFlight.complete(true);
+        assertTrue(submissions.isEmpty());
+        subject.reconcile(store, NOW.plusSeconds(40), true, GENERATION);
+        assertEquals(List.of(futureWitness), submissions);
+        assertEquals(List.of(futureWitness), verifications);
+    }
+
+    private CompletableFuture<Boolean> verifyWitness(final HintsKeyWitness witness, final Bytes verificationKey) {
+        assertEquals(VK, verificationKey);
+        verifications.add(witness);
+        return verificationResult;
     }
 
     private static void await(final CountDownLatch latch) {

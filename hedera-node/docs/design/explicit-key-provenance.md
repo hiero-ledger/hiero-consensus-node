@@ -124,10 +124,11 @@ their existing block-tree domain separation, with exactly 32- and 48-byte siblin
 hashes respectively. The signature must verify under the certificate's exact
 target verification key at the strict greater-than-one-third threshold. This
 fixed witness threshold, like the certificate threshold, is independent of
-`tss.signingThresholdDivisor`. Producers must collect more than one third of the
-generation's weight even if their block-signing configuration permits a lower
-threshold. A divisor greater than three does not guarantee a usable witness:
-the block aggregate may complete before it contains sufficient weight. Exactly
+`tss.signingThresholdDivisor`. When hinTS and history are enabled with real signing,
+configuration requires a divisor of two or three. A larger divisor can complete
+a block aggregate without sufficient witness weight; a divisor of one requires
+more than the entire roster's weight and cannot complete. Mock signing and profiles
+without hinTS history keep their existing threshold options. Exactly
 one third is insufficient, including with unequal party weights. No WRAPS
 proof is duplicated in this witness: consumers establish key authority by
 verifying the provenance chain from their own trusted key.
@@ -187,9 +188,20 @@ the proof. Submitting a transaction or completing a local signature future is
 not evidence that the witness was persisted. While real signing is enabled,
 publication retries until consensus state contains it, and delayed signatures
 retain their original generation binding even after another handoff. A generation
-has at most one in-flight submission. Retries back off from 30 to at most 300
-consensus seconds; retaining retries avoids stranding an already retired key
-during a temporary outage. A replacement block candidate preserves the throttle.
+has at most one in-flight local verification or submission. Retries back off from
+30 to at most 300 consensus seconds; retaining retries avoids stranding an already retired key
+during a temporary outage. Before submitting, the producer asynchronously verifies
+the candidate against the adopted key at the fixed witness threshold. Invalid
+candidates and worker failures never cause a publication, so they cannot consume
+the node's one permitted consensus rejection. A later candidate, including a
+corrected aggregate for the same block, can replace an unverified candidate without
+resetting the throttle. The first locally verified candidate is retained unchanged
+for retries, without repeating native verification, even after its generation
+retires. A newer invalid block cannot displace it. Submission waits until the local
+consensus clock has reached the witness timestamp. Verification completion after
+stop or a changed adoption binding is discarded; completion while inactive waits
+for reactivation. Native verification runs on the history executor and does not
+hold the publisher's monitor or read consensus state.
 Pending state is refreshed at most once per 30 consensus seconds between changes
 of the active construction, rather than scanned on every round.
 

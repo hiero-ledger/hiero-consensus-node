@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -33,6 +34,7 @@ final class KeyWitnessPublisher {
     static final Duration STATE_REFRESH_INTERVAL = Duration.ofSeconds(30);
 
     private final Function<HintsKeyWitness, CompletableFuture<Void>> submitter;
+    private final BiFunction<HintsKeyWitness, Bytes, CompletableFuture<Boolean>> verifier;
     private final BiConsumer<Integer, Long> updateMetrics;
     private final Map<Long, Candidate> candidates = new HashMap<>();
     private Map<Long, HintsKeyWitnessRecord> pending = Map.of();
@@ -46,14 +48,18 @@ final class KeyWitnessPublisher {
     private boolean active;
     private long observedActiveConstructionId = -1;
 
-    KeyWitnessPublisher(@NonNull final Function<HintsKeyWitness, CompletableFuture<Void>> submitter) {
-        this(submitter, (count, age) -> {});
+    KeyWitnessPublisher(
+            @NonNull final Function<HintsKeyWitness, CompletableFuture<Void>> submitter,
+            @NonNull final BiFunction<HintsKeyWitness, Bytes, CompletableFuture<Boolean>> verifier) {
+        this(submitter, verifier, (count, age) -> {});
     }
 
     KeyWitnessPublisher(
             @NonNull final Function<HintsKeyWitness, CompletableFuture<Void>> submitter,
+            @NonNull final BiFunction<HintsKeyWitness, Bytes, CompletableFuture<Boolean>> verifier,
             @NonNull final BiConsumer<Integer, Long> updateMetrics) {
         this.submitter = requireNonNull(submitter);
+        this.verifier = requireNonNull(verifier);
         this.updateMetrics = requireNonNull(updateMetrics);
     }
 
@@ -135,9 +141,10 @@ final class KeyWitnessPublisher {
             return;
         }
         final var candidate = candidates.computeIfAbsent(constructionId, ignored -> new Candidate(witness));
-        // A later block can replace a candidate rejected at admission, without resetting the retry throttle.
-        // Retired generations keep their last candidate until consensus confirms a durable witness.
-        if (asInstant(witness.timestampOrThrow()).isAfter(asInstant(candidate.witness.timestampOrThrow()))) {
+        // Replace only unverified candidates. Once verified, retain exactly those bytes through retries and
+        // retirement: submitting an invalid replacement would permanently silence this publisher for the generation.
+        if (!candidate.verified
+                && !asInstant(witness.timestampOrThrow()).isBefore(asInstant(candidate.witness.timestampOrThrow()))) {
             candidate.witness = witness;
         }
         submitIfDue(constructionId, candidate);
@@ -176,6 +183,7 @@ final class KeyWitnessPublisher {
     private void submitIfDue(final long constructionId, @NonNull final Candidate candidate) {
         if (!active
                 || candidate.inFlight
+                || asInstant(candidate.witness.timestampOrThrow()).isAfter(consensusNow)
                 || (candidate.lastSubmission != null
                         && consensusNow.isBefore(candidate.lastSubmission.plus(candidate.retryInterval)))) {
             return;
@@ -186,6 +194,49 @@ final class KeyWitnessPublisher {
         }
         candidate.lastSubmission = consensusNow;
         candidate.inFlight = true;
+        if (candidate.verified) {
+            submitVerified(constructionId, candidate);
+        } else {
+            final var witness = candidate.witness;
+            final var verificationKey =
+                    pending.get(constructionId).provenanceOrThrow().targetVerificationKey();
+            try {
+                // The verifier schedules native work on an executor; neither reconciliation nor this monitor
+                // may wait for pairings. Only one verification or publication per generation can be in flight.
+                requireNonNull(verifier.apply(witness, verificationKey))
+                        .whenComplete((valid, failure) ->
+                                onVerificationComplete(constructionId, candidate, witness, valid, failure));
+            } catch (RuntimeException e) {
+                onVerificationComplete(constructionId, candidate, witness, false, e);
+            }
+        }
+    }
+
+    private synchronized void onVerificationComplete(
+            final long constructionId,
+            final Candidate candidate,
+            final HintsKeyWitness witness,
+            @Nullable final Boolean valid,
+            @Nullable final Throwable failure) {
+        // Stop, adoption removal, or a changed binding invalidates an outstanding local verification.
+        if (candidates.get(constructionId) != candidate) {
+            return;
+        }
+        candidate.inFlight = false;
+        if (failure == null && Boolean.TRUE.equals(valid)) {
+            candidate.witness = witness;
+            candidate.verified = true;
+            if (active && !asInstant(witness.timestampOrThrow()).isAfter(consensusNow)) {
+                candidate.inFlight = true;
+                submitVerified(constructionId, candidate);
+            }
+        } else {
+            log.warn("Local witness verification failed for hinTS construction #{}; retaining retries", constructionId);
+        }
+        refreshNextSubmission();
+    }
+
+    private void submitVerified(final long constructionId, @NonNull final Candidate candidate) {
         try {
             requireNonNull(submitter.apply(candidate.witness)).whenComplete((ignored, failure) -> {
                 onSubmissionComplete(constructionId, candidate);
@@ -212,9 +263,13 @@ final class KeyWitnessPublisher {
     private void refreshNextSubmission() {
         nextSubmission = candidates.values().stream()
                 .filter(candidate -> !candidate.inFlight)
-                .map(candidate -> candidate.lastSubmission == null
-                        ? Instant.MIN
-                        : candidate.lastSubmission.plus(candidate.retryInterval))
+                .map(candidate -> {
+                    final var retryAt = candidate.lastSubmission == null
+                            ? Instant.MIN
+                            : candidate.lastSubmission.plus(candidate.retryInterval);
+                    final var witnessTime = asInstant(candidate.witness.timestampOrThrow());
+                    return retryAt.isAfter(witnessTime) ? retryAt : witnessTime;
+                })
                 .min(Instant::compareTo)
                 .orElse(Instant.MAX);
     }
@@ -227,6 +282,7 @@ final class KeyWitnessPublisher {
 
         private Duration retryInterval = RETRY_INTERVAL;
         private boolean inFlight;
+        private boolean verified;
 
         private Candidate(final HintsKeyWitness witness) {
             this.witness = witness;
