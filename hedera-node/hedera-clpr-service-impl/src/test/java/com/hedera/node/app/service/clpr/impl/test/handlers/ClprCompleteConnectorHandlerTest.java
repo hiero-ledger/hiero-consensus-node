@@ -125,7 +125,8 @@ class ClprCompleteConnectorHandlerTest {
         derivedConnectorId =
                 CryptoTestHelpers.computeConnectorId(CHANNEL_ID.toByteArray(), ecdsaPublicKey64, SALT.toByteArray());
         ecdsaCommitment = CryptoTestHelpers.computeCommitment(derivedConnectorId.toByteArray(), ecdsaPublicKey64);
-        ecdsaSignature = CryptoTestHelpers.signEcdsa(SECRET_KEY, derivedConnectorId.toByteArray());
+        ecdsaSignature =
+                CryptoTestHelpers.signEcdsa(SECRET_KEY, CHANNEL_ID, derivedConnectorId, CONTRACT_ID, ADMIN_KEY);
 
         // Connectors state
         final var writableConnectors = MapWritableKVState.<ClprConnectorKey, ClprConnector>builder(
@@ -312,7 +313,8 @@ class ClprCompleteConnectorHandlerTest {
         final var commitmentForMissing =
                 CryptoTestHelpers.computeCommitment(connIdForMissing.toByteArray(), ecdsaPublicKey64);
         commitmentStore.put(commitmentForMissing);
-        final var sig = CryptoTestHelpers.signEcdsa(SECRET_KEY, connIdForMissing.toByteArray());
+        final var sig =
+                CryptoTestHelpers.signEcdsa(SECRET_KEY, missingChannelId, connIdForMissing, CONTRACT_ID, ADMIN_KEY);
         final var op = validOpBuilder()
                 .connectorId(connIdForMissing)
                 .channelId(missingChannelId)
@@ -420,7 +422,8 @@ class ClprCompleteConnectorHandlerTest {
                 CryptoTestHelpers.computeConnectorId(CHANNEL_ID.toByteArray(), ed25519PublicKey, SALT.toByteArray());
         final var ed25519Commitment =
                 CryptoTestHelpers.computeCommitment(ed25519ConnectorId.toByteArray(), ed25519PublicKey);
-        final var ed25519Signature = CryptoTestHelpers.signEd25519(SECRET_KEY, ed25519ConnectorId.toByteArray());
+        final var ed25519Signature =
+                CryptoTestHelpers.signEd25519(SECRET_KEY, CHANNEL_ID, ed25519ConnectorId, CONTRACT_ID, ADMIN_KEY);
 
         commitmentStore.put(ed25519Commitment);
         setupSmartContractMock();
@@ -456,6 +459,42 @@ class ClprCompleteConnectorHandlerTest {
         assertThat(connector).isNotNull();
         assertThat(connector.lockedStake()).isEqualTo(MIN_LOCKED_STAKE);
         verify(tokenServiceApi).transferFromTo(PAYER_ID, STAKING_ACCOUNT_ID, MIN_LOCKED_STAKE);
+    }
+
+    @Test
+    @DisplayName("should reject a revealed signature reused with a different connector contract or admin key")
+    void revealedSignatureCannotCompleteConnectorWithDifferentContractOrAdminKey() {
+        final var otherContractId = ContractID.newBuilder()
+                .shardNum(0)
+                .realmNum(0)
+                .contractNum(6666)
+                .build();
+        final var otherAdminKey = Key.newBuilder()
+                .ed25519(Bytes.wrap(new byte[] {
+                    7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+                    7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7
+                }))
+                .build();
+        final var otherContract = Account.newBuilder()
+                .accountId(AccountID.newBuilder().shardNum(0).realmNum(0).accountNum(6666))
+                .smartContract(true)
+                .build();
+        lenient().when(accountStore.getContractById(otherContractId)).thenReturn(otherContract);
+        commitmentStore.put(ecdsaCommitment);
+
+        // The owner signed for CONTRACT_ID + ADMIN_KEY; another payer reuses that signature
+        // with its own contract and admin key.
+        final var op = validOpBuilder()
+                .connectorContract(otherContractId)
+                .adminKey(otherAdminKey)
+                .build();
+        setupHandleContext(txnWith(op), true);
+
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(CLPR_INVALID_SIGNATURE));
+        assertThat(connectorStore.getConnector(new ClprConnectorKey(CHANNEL_ID, derivedConnectorId)))
+                .isNull();
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────

@@ -26,6 +26,7 @@ public class HapiClprCompleteConnector extends HapiTxnOp<HapiClprCompleteConnect
     private byte[] connectorId;
     private byte[] publicKey;
     private byte[] signature;
+    private java.util.function.UnaryOperator<byte[]> ownerSigner;
     private ClprSignatureScheme signatureScheme = ClprSignatureScheme.ED25519;
     private byte[] salt;
     private byte[] channelId;
@@ -51,6 +52,34 @@ public class HapiClprCompleteConnector extends HapiTxnOp<HapiClprCompleteConnect
         this.signature = signature;
         return this;
     }
+
+    /**
+     * Signs the completion body with the given connector-key signer once all fields are known; the
+     * signature covers the channel id, connector id, connector contract and admin key.
+     */
+    public HapiClprCompleteConnector signedWith(final java.util.function.UnaryOperator<byte[]> ownerSigner) {
+        this.ownerSigner = ownerSigner;
+        return this;
+    }
+
+    /** Mirrors {@code ClprCompleteConnectorHandler.completeConnectorSigningMessage}. */
+    public static byte[] completeConnectorSigningMessage(
+            final byte[] channelId, final byte[] connectorId, final ContractID connectorContract, final Key adminKey) {
+        final var out = new java.io.ByteArrayOutputStream();
+        out.writeBytes("hiero.clpr.complete-connector.v1".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        out.writeBytes(channelId);
+        out.writeBytes(connectorId);
+        out.writeBytes(CLPR_SERVICE_ADDRESS);
+        out.writeBytes(
+                com.hedera.node.app.hapi.utils.MiscCryptoUtils.keccak256DigestOf(connectorContract.toByteArray()));
+        out.writeBytes(com.hedera.node.app.hapi.utils.MiscCryptoUtils.keccak256DigestOf(adminKey.toByteArray()));
+        return com.hedera.node.app.hapi.utils.MiscCryptoUtils.keccak256DigestOf(out.toByteArray());
+    }
+
+    /** The CLPR service EVM address ({@code 0x...016e}) bound into connector signatures. */
+    private static final byte[] CLPR_SERVICE_ADDRESS = {
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, (byte) 0x6e
+    };
 
     public HapiClprCompleteConnector signatureScheme(final ClprSignatureScheme scheme) {
         this.signatureScheme = scheme;
@@ -122,6 +151,14 @@ public class HapiClprCompleteConnector extends HapiTxnOp<HapiClprCompleteConnect
                                 b.setAdminKey(spec.registry().getKey(adminKeyName.get()));
                             }
                             b.setLockedStake(lockedStake);
+                            if (ownerSigner != null) {
+                                final var message = completeConnectorSigningMessage(
+                                        b.getChannelId().toByteArray(),
+                                        b.getConnectorId().toByteArray(),
+                                        b.getConnectorContract(),
+                                        b.getAdminKey());
+                                b.setSignature(ByteString.copyFrom(ownerSigner.apply(message)));
+                            }
                         });
         return b -> b.setClprCompleteConnector(opBody);
     }
