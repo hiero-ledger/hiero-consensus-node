@@ -209,7 +209,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           repository: hashgraph/network-load-generator
-          ref: "00438-update-protobuf"
+          ref: "00437-duplicate-mints"
           token: ${{ secrets.github-token2 }}
           path: NLG
 
