@@ -175,11 +175,15 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
             final boolean hasAnyCapacityLeft = throttleAdviser.availableOpsDurationCapacity() > 0;
             if (!hasAnyCapacityLeft) {
                 contractMetrics.opsDurationMetrics().recordTransactionThrottledByOpsDuration();
+                // Hook dispatches are synthetic children without a TransactionID and with prepaid gas, so
+                // derive the sender from the HEVM transaction and never charge gas for them here
                 final var outcome = maybeChargeFeesAndReturnOutcome(
                         hevmTransaction.withException(new ResourceExhaustedException(CONSENSUS_GAS_EXHAUSTED)),
-                        context.body().transactionIDOrThrow().accountIDOrThrow(),
+                        context.body()
+                                .transactionIDOrElse(TransactionID.DEFAULT)
+                                .accountIDOrElse(hevmTransaction.senderId()),
                         rootProxyWorldUpdater.getHederaAccount(hevmTransaction.senderId()),
-                        true);
+                        !hevmTransaction.isHookExecution());
 
                 final var elapsedNanos = System.nanoTime() - startTimeNanos;
                 recordProcessedTransactionToMetrics(
