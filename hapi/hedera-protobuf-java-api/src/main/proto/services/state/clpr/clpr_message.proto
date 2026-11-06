@@ -20,7 +20,7 @@ enum ClprMessageReplyStatus {
     SUCCESS = 0;
 
     /**
-     * The destination application reverted during execution.
+     * The destination application failed during execution or returned an invalid or oversized response.
      */
     APPLICATION_ERROR = 1;
 
@@ -82,7 +82,8 @@ message ClprMessageReply {
     ClprMessageReplyStatus status = 2;
 
     /**
-     * Opaque application response (empty on protocol errors).
+     * Opaque application response bounded by the reply recipient's payload limit.
+     * A return that exceeds the reply budget produces an empty APPLICATION_ERROR reply.
      */
     bytes message_reply_data = 3;
 }

@@ -121,7 +121,7 @@ public class ClprBundlePrevalidator {
      * the channel exists and is neither {@code CLOSED} nor {@code PENDING}; the raw payload fits
      * {@code max_sync_bytes}; the proof verifies; the successor trust-anchor invariant holds;
      * {@link ClprBundleValidator#validate} passes; and {@link ClprBundleValidator#validateReplies} passes without an
-     * ordering violation.
+     * ordering violation, with enough outbound capacity for any replies the bundle requires.
      *
      * <p>The channel is read live twice: once to verify the proof, and again right before the bundle's progress and
      * replies are checked against it and the outbound queue. Verification takes long enough for the handle thread to
@@ -174,8 +174,11 @@ public class ClprBundlePrevalidator {
             final var validated = bundleValidator.validate(current, content, ledgerConfig);
             final var replies = bundleValidator.validateReplies(
                     current, validated, stores.readableStore(ReadableMessageQueueStore.class));
-            validateTruePreCheck(
-                    !(replies instanceof ReplyValidation.OrderingViolated), CLPR_BUNDLE_VERIFICATION_FAILED);
+            if (replies instanceof ReplyValidation.AckedThrough ack) {
+                bundleValidator.validateReplyCapacity(current, validated, ack, ledgerConfig.throttlesOrThrow());
+            } else {
+                throw new PreCheckException(CLPR_BUNDLE_VERIFICATION_FAILED);
+            }
         } catch (final HandleException e) {
             throw new PreCheckException(e.getStatus());
         }

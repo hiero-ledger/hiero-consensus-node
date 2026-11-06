@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_VERIFICATIO
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INTERNAL_STATE_CORRUPTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NO_PROGRESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_PAYLOAD_TOO_LARGE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_QUEUE_FULL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_RUNNING_HASH_MISMATCH;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
@@ -116,13 +117,15 @@ public class ClprBundleValidator {
      *       draining; or advances the endpoint manifest. A claimed acknowledgement is only matched against the
      *       outbound queue later, by {@link #validateReplies}, because the peer may legitimately defer a reply.</li>
      *   <li><b>Size limits</b> (spec §3.5.4): at most {@link ClprThrottles#maxMessagesPerBundle()} messages, and, when
-     *       {@link ClprThrottles#maxMessagePayloadBytes()} is positive, no data message larger than that.</li>
+     *       {@link ClprThrottles#maxMessagePayloadBytes()} is positive, no data payload larger than that.</li>
      *   <li><b>Replay defense</b>: the bundle covers the peer's outbound ids that end at
      *       {@code metadata.next_message_id - 1}. Its first id must be at least 1 and at most
      *       {@code channel.received_message_id + 1}, so it skips nothing we have not received, and its last id must be
      *       at least {@code channel.received_message_id}. A bundle may repeat messages we already received, because the
      *       sender's view of our acknowledgement can lag. That prefix is dropped, which makes re-delivery idempotent;
      *       requiring an exact start would deadlock two peers whose bundles keep overlapping.</li>
+     *   <li><b>Reply size limit</b>: new replies must fit the current payload limit. A replayed reply was already
+     *       processed, so it does not need to fit a limit lowered since then.</li>
      *   <li><b>Running hash</b> (spec §4.2 Step 4, §4.4): folding only the new messages into
      *       {@link ClprChannel#receivedRunningHash()} must give the peer's attested {@code sent_running_hash}. The
      *       replayed prefix is already folded into the stored hash. An empty stored hash is only valid before the
@@ -202,6 +205,15 @@ public class ClprBundleValidator {
         final long skipCount = channel.receivedMessageId() - lastIdBeforeBundle;
         validateTruePreCheck(skipCount <= messages.size(), CLPR_BUNDLE_VERIFICATION_FAILED);
         final var newMessages = skipCount > 0 ? messages.subList((int) skipCount, messages.size()) : messages;
+        if (maxPayloadBytes > 0) {
+            for (final var payload : newMessages) {
+                if (payload.hasMessageReply()) {
+                    validateTruePreCheck(
+                            payload.messageReplyOrThrow().messageReplyData().length() <= maxPayloadBytes,
+                            CLPR_PAYLOAD_TOO_LARGE);
+                }
+            }
+        }
 
         // Resume the hash chain from our anchor, folding only the new tail.
         var computedHash = channel.receivedRunningHash();
@@ -314,6 +326,32 @@ public class ClprBundleValidator {
             return new ReplyValidation.OrderingViolated(newAckedMessageId + 1, replyTargetId);
         }
         return new ReplyValidation.AckedThrough(newAckedMessageId);
+    }
+
+    /**
+     * Checks that the queue has room for the replies this bundle must produce. Application sends and
+     * configuration updates may fill the ordinary queue budget. Replies have an additional budget of
+     * the same size so peers with full DATA queues can still exchange replies. Acknowledgements in
+     * this bundle free space for its replies.
+     *
+     * @throws PreCheckException with {@code CLPR_QUEUE_FULL} if the replies would exceed the combined budget
+     */
+    public void validateReplyCapacity(
+            @NonNull final ClprChannel channel,
+            @NonNull final ValidatedBundle bundle,
+            @NonNull final ReplyValidation.AckedThrough ack,
+            @NonNull final ClprThrottles throttles)
+            throws PreCheckException {
+        final long repliesNeeded = bundle.newMessages().stream()
+                .filter(ClprMessagePayload::hasMessage)
+                .count();
+        if (repliesNeeded > 0) {
+            final long ordinaryDepth = throttles.maxQueueDepth();
+            final long remainingDepth = channel.nextMessageId() - ack.lastAckedMessageId() - 1;
+            // Nested callbacks may enqueue their own DATA, up to the ordinary budget.
+            validateTruePreCheck(
+                    Math.max(ordinaryDepth, remainingDepth) + repliesNeeded <= 2 * ordinaryDepth, CLPR_QUEUE_FULL);
+        }
     }
 
     /**

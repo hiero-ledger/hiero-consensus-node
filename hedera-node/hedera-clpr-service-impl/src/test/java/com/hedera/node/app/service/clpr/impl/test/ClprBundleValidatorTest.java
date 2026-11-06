@@ -235,12 +235,22 @@ class ClprBundleValidatorTest {
     }
 
     @Test
-    void dataPayloadLimitDoesNotApplyToReplyData() throws PreCheckException {
-        final var reply = ClprMessagePayload.newBuilder()
-                .messageReply(ClprMessageReply.newBuilder().messageReplyData(Bytes.wrap(new byte[4])))
+    void rejectsReplyPayloadAboveTheLimit() {
+        final var reply = replyPayload(1, 4);
+
+        assertRejected(CHANNEL, bundle(CHANNEL, List.of(reply)), CLPR_PAYLOAD_TOO_LARGE);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"0,4", "3,3"})
+    void acceptsReplyAtThePayloadLimitOrWithNoLimit(final int limit, final int payloadBytes) throws PreCheckException {
+        final var reply = replyPayload(1, payloadBytes);
+        final var config = LEDGER_CONFIG
+                .copyBuilder()
+                .throttles(THROTTLES.copyBuilder().maxMessagePayloadBytes(limit))
                 .build();
 
-        assertThat(subject.validate(CHANNEL, bundle(CHANNEL, List.of(reply)), LEDGER_CONFIG)
+        assertThat(subject.validate(CHANNEL, bundle(CHANNEL, List.of(reply)), config)
                         .newMessages())
                 .containsExactly(reply);
     }
@@ -494,8 +504,9 @@ class ClprBundleValidatorTest {
     }
 
     @Test
-    void replyValidationSkipsAlreadyProcessedReplayPrefix() throws PreCheckException {
-        final var replay = replyPayload(1);
+    void replyValidationSkipsAlreadyProcessedReplayPrefixEvenWhenItsPayloadExceedsTheCurrentLimit()
+            throws PreCheckException {
+        final var replay = replyPayload(1, 4);
         final var channel = CHANNEL.copyBuilder()
                 .receivedMessageId(1)
                 .receivedRunningHash(ClprHashUtils.computeRunningHash(ZERO_HASH, replay))
@@ -540,8 +551,14 @@ class ClprBundleValidatorTest {
     }
 
     private static ClprMessagePayload replyPayload(final long messageId) {
+        return replyPayload(messageId, 0);
+    }
+
+    private static ClprMessagePayload replyPayload(final long messageId, final int payloadBytes) {
         return ClprMessagePayload.newBuilder()
-                .messageReply(ClprMessageReply.newBuilder().messageId(messageId))
+                .messageReply(ClprMessageReply.newBuilder()
+                        .messageId(messageId)
+                        .messageReplyData(Bytes.wrap(new byte[payloadBytes])))
                 .build();
     }
 

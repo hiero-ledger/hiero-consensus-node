@@ -12,9 +12,8 @@ import picocli.CommandLine.Option;
 import picocli.CommandLine.ParentCommand;
 
 /**
- * Submits a {@code ClprCloseChannel} HAPI transaction to terminate an active
- * cross-ledger channel. Required input is the hex-encoded {@code --channel-id}; the
- * channel moves to {@code CLOSED} and stops accepting further bundles or messages.
+ * Submits a {@code ClprCloseChannel} HAPI transaction to initiate graceful closure
+ * or explicitly force-close a cross-ledger channel.
  */
 @Command(
         name = "close-channel",
@@ -32,10 +31,17 @@ public class CloseChannelCommand implements Callable<Integer> {
             description = "Hex-encoded channel id (32 bytes)")
     String channelIdHex;
 
+    @Option(
+            names = {"--force-close"},
+            description = "Close immediately and discard a batch of queued messages. Repeat to continue cleanup.")
+    boolean forceClose;
+
     @Override
     public Integer call() throws Exception {
         final var config = configFrom(clprCommand.getYahcli());
-        final var op = clprCloseChannel().channelId(ClprArgs.requiredBytes("channel-id", channelIdHex));
+        final var op = clprCloseChannel()
+                .channelId(ClprArgs.requiredBytes("channel-id", channelIdHex))
+                .forceClose(forceClose);
         final var delegate = new ClprTxnSuite(config, "ClprCloseChannel", op);
         delegate.runSuiteSync();
         return ClprOutcome.reportTxn(config, delegate, op, "closed CLPR channel", "could not close CLPR channel");

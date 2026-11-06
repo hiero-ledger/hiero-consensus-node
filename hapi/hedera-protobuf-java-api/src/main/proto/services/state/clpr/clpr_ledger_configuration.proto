@@ -86,7 +86,7 @@ message ClprThrottles {
     uint32 max_messages_per_bundle = 1;
 
     /**
-     * Maximum payload size in bytes for a single message.
+     * Maximum payload size in bytes for a single data message or application reply.
      */
     uint32 max_message_payload_bytes = 2;
 
@@ -96,7 +96,9 @@ message ClprThrottles {
     uint64 max_gas_per_message = 3;
 
     /**
-     * Maximum unacknowledged messages in the outbound queue per Channel.
+     * Ordinary outbound queue capacity per Channel. Hiero also reserves up to this
+     * many additional slots for application replies. A peer may use this value to
+     * limit its outstanding data messages to this ledger's reply capacity.
      */
     uint32 max_queue_depth = 4;
 

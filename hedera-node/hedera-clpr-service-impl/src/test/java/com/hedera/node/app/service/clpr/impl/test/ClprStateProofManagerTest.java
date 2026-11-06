@@ -1,14 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.test;
 
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.MESSAGE_QUEUE_STATE_ID;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 
 import com.hedera.hapi.block.stream.MerklePath;
 import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
+import com.hedera.hapi.node.state.clpr.ClprMessageKey;
+import com.hedera.hapi.node.state.clpr.ClprSyncPayload;
+import com.hedera.hapi.node.state.clpr.ClprThrottles;
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.node.app.hapi.utils.blocks.TssVerifier;
 import com.hedera.node.app.service.clpr.impl.ClprStateProofManager;
 import com.hedera.node.app.spi.state.BlockProvenSnapshot;
@@ -27,12 +35,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
- * Unit tests for {@link ClprStateProofManager#buildManifestStateProofWithValue()} that drive the real
- * manager, mocking only its collaborators.
+ * Unit tests for {@link ClprStateProofManager} that drive the real manager, mocking only its collaborators.
  */
 @ExtendWith(MockitoExtension.class)
 class ClprStateProofManagerTest {
@@ -162,15 +171,73 @@ class ClprStateProofManagerTest {
         assertThat(subject.buildManifestStateProofWithValue()).isNull();
     }
 
+    @ParameterizedTest
+    @CsvSource({"512,false,1,2", "2048,false,1,3", "320,true,0,1", "160,true,0,0"})
+    void fitsProofWithinPeerLimitWithOptionalManifest(
+            final long maxSyncBytes,
+            final boolean allowPureAck,
+            final int expectedMessageCount,
+            final int expectedPathCount)
+            throws Exception {
+        final var channelId = Bytes.wrap(new byte[32]);
+        final var channelLeaf = Bytes.wrap(new byte[64]);
+        final var messageLeaf = Bytes.wrap(new byte[128]);
+        final var manifestLeaf = Bytes.wrap(new byte[512]);
+        final var signature = Bytes.wrap(new byte[] {1});
+        final var messageKey = new ClprMessageKey(channelId, 1L);
+        givenSnapshotState();
+        given(snapshot.tssSignature()).willReturn(signature);
+        if (expectedPathCount > 0) {
+            given(snapshot.ledgerId()).willReturn(Bytes.EMPTY);
+            given(tssVerifier.verifyTss(eq(Bytes.EMPTY), eq(signature), any())).willReturn(true);
+        }
+        given(binaryState.getKvPath(CHANNELS_STATE_ID, ProtoBytes.PROTOBUF.toBytes(new ProtoBytes(channelId))))
+                .willReturn(1L);
+        given(binaryState.getKvPath(MESSAGE_QUEUE_STATE_ID, ClprMessageKey.PROTOBUF.toBytes(messageKey)))
+                .willReturn(2L);
+        given(binaryState.getSingletonPath(ENDPOINT_MANIFEST_STATE_ID)).willReturn(3L);
+        given(binaryState.getMerkleProof(1L)).willReturn(new MerkleProof(channelLeaf, List.of(), List.of()));
+        given(binaryState.getMerkleProof(2L)).willReturn(new MerkleProof(messageLeaf, List.of(), List.of()));
+        given(binaryState.getMerkleProof(3L)).willReturn(new MerkleProof(manifestLeaf, List.of(), List.of()));
+        final var throttles = ClprThrottles.newBuilder()
+                .maxMessagesPerBundle(1)
+                .maxSyncBytes(maxSyncBytes)
+                .build();
+
+        final var bundle = subject.buildBundleProof(channelId, 1L, throttles, allowPureAck, true);
+
+        if (expectedPathCount == 0) {
+            assertThat(bundle).isNull();
+            return;
+        }
+        assertThat(bundle).isNotNull();
+        assertThat(bundle.messageCount()).isEqualTo(expectedMessageCount);
+        assertThat(bundle.lastMessageId()).isEqualTo(expectedMessageCount);
+        final var proof = StateProof.PROTOBUF.parse(bundle.payload().toReadableSequentialData());
+        assertThat(proof.paths()).hasSize(expectedPathCount);
+        assertThat(proof.paths().getFirst().stateItemLeaf()).isEqualTo(channelLeaf);
+        assertThat(proof.paths().getLast().stateItemLeaf())
+                .isEqualTo(expectedMessageCount == 0 ? channelLeaf : messageLeaf);
+        final var envelope = ClprSyncPayload.newBuilder()
+                .channelId(channelId)
+                .bundlePayload(bundle.payload())
+                .build();
+        assertThat((long) envelope.protobufSize()).isLessThanOrEqualTo(maxSyncBytes);
+    }
+
     /** Stubs the snapshot and BinaryState so buildSingletonProof produces a real StateProof. */
     private void givenProvableSnapshot() {
+        givenSnapshotState();
+        given(snapshot.tssSignature()).willReturn(Bytes.EMPTY);
+        given(binaryState.getSingletonPath(ENDPOINT_MANIFEST_STATE_ID)).willReturn(1L);
+        given(binaryState.getMerkleProof(1L)).willReturn(new MerkleProof(Bytes.EMPTY, List.of(), List.of()));
+    }
+
+    private void givenSnapshotState() {
         given(snapshotProvider.latestSnapshot()).willReturn(Optional.of(snapshot));
         given(snapshot.state()).willReturn(provenState);
         given(snapshot.blockTimestamp())
                 .willReturn(Timestamp.newBuilder().seconds(1L).build());
         given(snapshot.path()).willReturn(MerklePath.DEFAULT);
-        given(snapshot.tssSignature()).willReturn(Bytes.EMPTY);
-        given(binaryState.getSingletonPath(ENDPOINT_MANIFEST_STATE_ID)).willReturn(1L);
-        given(binaryState.getMerkleProof(1L)).willReturn(new MerkleProof(Bytes.EMPTY, List.of(), List.of()));
     }
 }

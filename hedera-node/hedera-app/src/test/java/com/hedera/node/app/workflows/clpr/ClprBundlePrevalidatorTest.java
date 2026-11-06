@@ -7,6 +7,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INVALID_CHANNEL_ST
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NOT_ENABLED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NO_PROGRESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_PAYLOAD_TOO_LARGE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_QUEUE_FULL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_RUNNING_HASH_MISMATCH;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
@@ -113,7 +114,8 @@ class ClprBundlePrevalidatorTest {
             .throttles(ClprThrottles.newBuilder()
                     .maxSyncBytes(1024)
                     .maxMessagesPerBundle(10)
-                    .maxMessagePayloadBytes(1024))
+                    .maxMessagePayloadBytes(1024)
+                    .maxQueueDepth(10))
             .build();
     private static final ClprSyncPayload PAYLOAD = ClprSyncPayload.newBuilder()
             .channelId(CHANNEL_ID)
@@ -287,6 +289,19 @@ class ClprBundlePrevalidatorTest {
 
         verify(releaseState).run();
         verifyNoInteractions(verifierFactory, handlersSupplier);
+    }
+
+    @Test
+    void rejectsVerifiedDataWhenTheReplyQueueIsFull() {
+        // CHANNEL already has two unacknowledged slots, filling the ordinary and reply budgets.
+        final var fullQueueConfig = LEDGER_CONFIG
+                .copyBuilder()
+                .throttles(LEDGER_CONFIG.throttlesOrThrow().copyBuilder().maxQueueDepth(1))
+                .build();
+        when(ledgerConfig.get()).thenReturn(fullQueueConfig);
+        givenLocalReturn(bundle(List.of(dataPayload())));
+
+        assertRejected(PAYLOAD, CLPR_QUEUE_FULL);
     }
 
     @Test
