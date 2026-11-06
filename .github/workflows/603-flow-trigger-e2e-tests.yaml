@@ -1,0 +1,91 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "603: [FLOW] Trigger E2E Tests"
+
+# Fires the CLPR End-to-End Tests workflow in the clpr-e2e repository against
+# this PR's branch (other repos pinned at their main branch) whenever a PR is
+# opened or updated.
+#
+# This job only dispatches and returns immediately — it does NOT hold a runner
+# for the duration of the E2E suite. The pass/fail result is reported back
+# asynchronously by clpr-e2e as a commit status on this PR's head commit
+# (context: "CLPR End-to-End Tests (clpr-e2e repository)"). Lifecycle of that status:
+#   1. this workflow posts "pending" right after a successful dispatch;
+#   2. if the dispatch call itself fails, this workflow posts "error" instead;
+#   3. clpr-e2e overwrites it with "success"/"failure" when the suite finishes.
+#
+# Optional: Make "CLPR End-to-End Tests (clpr-e2e repository)" a required status check to
+# gate merges on E2E.
+#
+# Secrets:
+#   CLPR_E2E_DISPATCH_TOKEN — PAT with actions:write on swirldslabs/clpr-e2e
+#                             (used to dispatch the workflow).
+# The built-in GITHUB_TOKEN posts the commit status on this repo (statuses:write
+# granted below); no extra secret is needed for that.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths-ignore:
+      - ".github/**"
+      - "docs/**"
+      - "test/**"
+      - "**/src/test/**"
+      - "**/*.md"
+      - ".gitignore"
+      - "LICENSE"
+
+permissions:
+  statuses: write
+
+jobs:
+  dispatch:
+    # Pull requests from forks cannot read repository secrets, so the dispatch
+    # would only fail; skip them.
+    if: >-
+      github.event.pull_request.draft == false
+      && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: hl-cn-default-lin-sm
+    env:
+      STATUS_CONTEXT: "CLPR End-to-End Tests (clpr-e2e repository)"
+      HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Dispatch request to clpr-e2e
+        id: dispatch
+        uses: step-security/workflow-dispatch@821295dcc146c6330b5a388c03d56f9c90e667fc # v1.3.1
+        with:
+          workflow: .github/workflows/e2e-report-clpr.yml
+          repo: swirldslabs/clpr-e2e
+          ref: main
+          token: ${{ secrets.CLPR_E2E_DISPATCH_TOKEN }}
+          # Repo-agnostic dispatch: clpr-e2e derives which clpr_*_ref to pin from
+          # source_repo (this repo's short name) and tests exactly source_sha
+          # (this PR's head commit) — the same commit the result status is posted
+          # back to. This block is byte-for-byte identical across every source
+          # repo; no repo-specific ref key here.
+          # source_branch scopes clpr-e2e's concurrency group to this PR, so a new
+          # commit supersedes only this PR's run; toJSON quotes the branch name safely.
+          inputs: |
+            {
+              "source_repo": "${{ github.event.repository.name }}",
+              "source_sha":  "${{ github.event.pull_request.head.sha }}",
+              "source_branch": ${{ toJSON(github.head_ref) }}
+            }
+
+      - name: Mark CLPR End-to-End Tests as pending
+        if: success()
+        run: |
+          gh api --method POST \
+            "repos/${{ github.repository }}/statuses/${HEAD_SHA}" \
+            -f state=pending \
+            -f context="${STATUS_CONTEXT}" \
+            -f description="Request for CLPR End-to-End Tests dispatched to the clpr-e2e repository, waiting for result"
+
+      - name: Mark CLPR End-to-End Tests dispatch failure
+        if: failure()
+        run: |
+          gh api --method POST \
+            "repos/${{ github.repository }}/statuses/${HEAD_SHA}" \
+            -f state=error \
+            -f context="${STATUS_CONTEXT}" \
+            -f description="Failed to dispatch request for CLPR End-to-End Tests to the clpr-e2e repository"
