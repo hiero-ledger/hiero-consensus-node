@@ -87,6 +87,12 @@ public class StateOperatorCommand implements Runnable {
             return;
         }
 
+        if (stateDir == null) {
+            throw new IllegalArgumentException(
+                    "State directory is required: pass it as the operator's positional argument or via the "
+                            + "subcommand's --state-dir option (where supported).");
+        }
+
         if (GcpPathHelper.isGcpPath(stateDir)) {
             GcpPathHelper.ensureGcloudAvailable();
             try {
@@ -154,6 +160,20 @@ public class StateOperatorCommand implements Runnable {
         }
         System.setProperty(
                 TMP_DIR_PROPERTY, "state-validator-" + ProcessHandle.current().pid());
+    }
+
+    /**
+     * Sets the state directory from a subcommand option (e.g. {@code replay-pces --state-dir}). Must be called
+     * before {@link #resolveAndGetStateDir()}.
+     *
+     * @throws IllegalArgumentException if a different state directory was already given positionally
+     */
+    void setStateDirFromSubcommand(final String subcommandStateDir) {
+        if (stateDir != null && !stateDir.equals(subcommandStateDir)) {
+            throw new IllegalArgumentException("Conflicting state directories: positional '" + stateDir
+                    + "' and --state-dir '" + subcommandStateDir + "'");
+        }
+        stateDir = subcommandStateDir;
     }
 
     /**
