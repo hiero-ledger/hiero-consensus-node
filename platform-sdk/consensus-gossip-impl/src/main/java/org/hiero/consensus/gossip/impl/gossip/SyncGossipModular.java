@@ -12,6 +12,7 @@ import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -61,21 +62,23 @@ public class SyncGossipModular implements Gossip {
     // this is not a nice dependency, should be removed as well as the sharedState
     private Consumer<PlatformEvent> receivedEventHandler;
     private Consumer<SyncProgress> syncProgressHandler;
+    private final AtomicReference<EventWindow> eventWindowHolder =
+            new AtomicReference<>(EventWindow.getGenesisEventWindow());
 
     /**
      * Builds the gossip engine, depending on which flavor is requested in the configuration.
      *
-     * @param configuration the configuration
-     * @param metrics the metrics registry
-     * @param time the time source
-     * @param threadManager the thread manager
-     * @param ownKeysAndCerts private keys and public certificates for this node
-     * @param roster the active roster
-     * @param selfId this node's ID
-     * @param appVersion the version of the app
-     * @param intakeEventCounter keeps track of the number of events in the intake pipeline from each peer
+     * @param configuration       the configuration
+     * @param metrics             the metrics registry
+     * @param time                the time source
+     * @param threadManager       the thread manager
+     * @param ownKeysAndCerts     private keys and public certificates for this node
+     * @param roster              the active roster
+     * @param selfId              this node's ID
+     * @param appVersion          the version of the app
+     * @param intakeEventCounter  keeps track of the number of events in the intake pipeline from each peer
      * @param fallenBehindMonitor an instance of the fallenBehind Monitor which tracks if the node has fallen behind
-     * @param reconnectProtocol the reconnect protocol to use
+     * @param reconnectProtocol   the reconnect protocol to use
      */
     public SyncGossipModular(
             @NonNull final Configuration configuration,
@@ -145,7 +148,8 @@ public class SyncGossipModular implements Gossip {
                 selfId,
                 fallenBehindMonitor,
                 event -> receivedEventHandler.accept(event),
-                socketExceptionDeduplicator);
+                socketExceptionDeduplicator,
+                eventWindowHolder::get);
 
         this.protocols = List.of(
                 HeartbeatProtocol.create(configuration, time, this.network.getNetworkMetrics()),
@@ -166,7 +170,7 @@ public class SyncGossipModular implements Gossip {
      * can be a short moment when it will drop out of the network if disconnect happens at a bad moment. NOT THREAD
      * SAFE. Synchronize externally.
      *
-     * @param added peers to be added
+     * @param added   peers to be added
      * @param removed peers to be removed
      */
     public void addRemovePeers(@NonNull final List<PeerInfo> added, @NonNull final List<PeerInfo> removed) {
@@ -210,7 +214,10 @@ public class SyncGossipModular implements Gossip {
             rpcProtocol.addEvent(event);
             synchronizer.addEvent(event);
         });
-        eventWindowInput.bindConsumer(synchronizer::updateEventWindow);
+        eventWindowInput.bindConsumer(eventWindow -> {
+            synchronizer.updateEventWindow(eventWindow);
+            eventWindowHolder.set(eventWindow);
+        });
 
         systemHealthInput.bindConsumer(rpcProtocol::reportUnhealthyDuration);
         platformStatusInput.bindConsumer(status -> {

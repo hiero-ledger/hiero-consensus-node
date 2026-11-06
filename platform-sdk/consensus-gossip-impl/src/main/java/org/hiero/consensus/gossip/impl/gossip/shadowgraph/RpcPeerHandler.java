@@ -2,6 +2,7 @@
 package org.hiero.consensus.gossip.impl.gossip.shadowgraph;
 
 import static com.swirlds.logging.legacy.LogMarker.SYNC_INFO;
+import static java.util.Objects.requireNonNull;
 import static org.hiero.base.CompareTo.isGreaterThanOrEqualTo;
 import static org.hiero.consensus.gossip.impl.gossip.shadowgraph.SyncUtils.getMyTipsTheyKnow;
 import static org.hiero.consensus.gossip.impl.gossip.shadowgraph.SyncUtils.getTheirTipsIHave;
@@ -14,7 +15,9 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -22,6 +25,7 @@ import org.hiero.base.concurrent.throttle.RateLimiter;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.gossip.config.BroadcastConfig;
+import org.hiero.consensus.gossip.config.GossipConfig;
 import org.hiero.consensus.gossip.config.SyncConfig;
 import org.hiero.consensus.gossip.impl.gossip.permits.SyncGuard;
 import org.hiero.consensus.gossip.impl.gossip.rpc.GossipRpcReceiverHandler;
@@ -30,6 +34,7 @@ import org.hiero.consensus.gossip.impl.gossip.rpc.SyncData;
 import org.hiero.consensus.gossip.impl.gossip.sync.SyncMetrics;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
@@ -37,8 +42,8 @@ import org.hiero.consensus.monitoring.FallenBehindStatus;
 
 /**
  * Conversation logic for an RPC exchange between two nodes. At this moment mostly concerned with performing a sync,
- * using {@link ShadowgraphSynchronizer}, but in the future, it can extend to handle more responsibilities. Most of its
- * internal state was externalized to {@link RpcPeerState} for clarity.
+ * using {@link ShadowgraphSynchronizer}, but in the future, it can extend to handle more responsibilities. Most of
+ * its internal state was externalized to {@link RpcPeerState} for clarity.
  */
 public class RpcPeerHandler implements GossipRpcReceiverHandler {
 
@@ -84,8 +89,8 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
     private final Consumer<PlatformEvent> eventHandler;
 
     /**
-     * Internal state class, which offloads some complexity of managing it, but still is very much internal detail of
-     * RpcPeerHandler
+     * Internal state class, which offloads some complexity of managing it, but still is very much internal detail
+     * of RpcPeerHandler
      */
     private final RpcPeerState state = new RpcPeerState();
 
@@ -125,8 +130,9 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
     private boolean ignoreIncomingEvents;
 
     /**
-     * Indication if communication with peer is overloaded for some reason (network issues). Used to disable broadcast
-     * in such periods. Volatile, as it can be set from various threads and read from dispatch thread later.
+     * Indication if communication with peer is overloaded for some reason (network issues). Used to disable
+     * broadcast in such periods. Volatile, as it can be set from various threads and read from dispatch thread
+     * later.
      */
     private volatile boolean communicationOverload = false;
 
@@ -140,11 +146,23 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
      */
     private boolean syncBreakRequested = false;
 
+    /** A supplier of this node's latest event window. */
+    private final Supplier<EventWindow> selfEventWindowSupplier;
+
+    /**
+     * The last known pending round of the peer, based on their events and event windows we have received. It is a
+     * maximum value during the length of a single connection.
+     */
+    private final AtomicLong peerPendingConsensusRound = new AtomicLong(ConsensusConstants.ROUND_UNDEFINED);
+
+    /** The number of rounds ahead of the pending round this node is willing to accept. */
+    private final int farFutureEventOffset;
+
     /**
      * Create new state class for an RPC peer
      *
-     * @param sharedShadowgraphSynchronizer shared logic reference for actions which have to work against global state
-     *                                      (mostly shadowgraph)
+     * @param sharedShadowgraphSynchronizer shared logic reference for actions which have to work against global
+     *                                      state (mostly shadowgraph)
      * @param sender                        endpoint for sending messages to peer endpoint asynchronously
      * @param selfId                        id of current node
      * @param peerId                        id of the peer node
@@ -152,10 +170,12 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
      * @param time                          platform time
      * @param intakeEventCounter            used for tracking events in the intake pipeline per peer
      * @param eventHandler                  events that are received are passed here
-     * @param fallenBehindMonitor           an instance of the fallenBehind Monitor which tracks if the node has fallen
-     *                                      behind
+     * @param fallenBehindMonitor           an instance of the fallenBehind Monitor which tracks if the node has
+     *                                      fallen behind
      * @param syncConfig                    sync configuration
+     * @param gossipConfig                  gossip configuration
      * @param broadcastConfig               broadcast configuration
+     * @param selfEventWindowSupplier       supplier for this node's current event window
      */
     public RpcPeerHandler(
             @NonNull final ShadowgraphSynchronizer sharedShadowgraphSynchronizer,
@@ -169,7 +189,9 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
             @NonNull final SyncGuard syncGuard,
             @NonNull final FallenBehindMonitor fallenBehindMonitor,
             @NonNull final SyncConfig syncConfig,
-            @NonNull final BroadcastConfig broadcastConfig) {
+            @NonNull final GossipConfig gossipConfig,
+            @NonNull final BroadcastConfig broadcastConfig,
+            @NonNull final Supplier<EventWindow> selfEventWindowSupplier) {
         this.sharedShadowgraphSynchronizer = Objects.requireNonNull(sharedShadowgraphSynchronizer);
         this.sender = Objects.requireNonNull(sender);
         this.selfId = Objects.requireNonNull(selfId);
@@ -185,6 +207,8 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
         this.lastSyncProgress = time.now();
         this.syncConfig = Objects.requireNonNull(syncConfig);
         this.broadcastConfig = Objects.requireNonNull(broadcastConfig);
+        this.selfEventWindowSupplier = requireNonNull(selfEventWindowSupplier);
+        this.farFutureEventOffset = gossipConfig.farFutureEventOffset();
     }
 
     /**
@@ -258,6 +282,7 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
         }
         clearInternalState();
         state.peerStillSendingEvents = false;
+        peerPendingConsensusRound.set(ConsensusConstants.ROUND_UNDEFINED);
         syncBreakRequested = false;
         lastSyncProgress = time.now();
         this.syncMetrics.reportSyncPhase(peerId, SyncPhase.OUTSIDE_OF_RPC);
@@ -284,10 +309,23 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
         // don't spam remote side if it is going to reconnect
         // or if we haven't completed even a first sync, as it might be a recovery phase for either for us
 
-        // be careful - this is unsynchronized access to non-volatile variables; given it is only a hint, we don't
-        // really care if it is immediately visible with updates
+        // be careful - this is un-synchronized access to non-volatile variables;
+        // given it is only a hint, we don't really care if it is immediately visible with updates
         if (isBroadcastRunning()) {
-            sender.sendBroadcastEvent(gossipEvent);
+            if (farFutureEventOffset < 0) {
+                sender.sendBroadcastEvent(gossipEvent);
+                return;
+            }
+            final long pendingRound = peerPendingConsensusRound.get();
+            if (pendingRound == ConsensusConstants.ROUND_UNDEFINED) {
+                // no estimate of the peer's pending round yet; the next sync will deliver the event
+                return;
+            }
+            if (isFarFutureEvent(gossipEvent, pendingRound)) {
+                syncMetrics.broadcastEventHeldBack();
+            } else {
+                sender.sendBroadcastEvent(gossipEvent);
+            }
         }
     }
 
@@ -304,7 +342,7 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
         this.syncMetrics.acceptedSyncRequest();
 
         state.syncInitiated(syncMessage);
-
+        peerPendingConsensusRound.accumulateAndGet(syncMessage.eventWindow().getPendingConsensusRound(), Math::max);
         maybeBothSentSyncData();
     }
 
@@ -372,6 +410,19 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
     }
 
     /**
+     * Checks if the given event is considered "far future" for the provided pending round value.
+     *
+     * @param event        the event to check
+     * @param pendingRound the pending round to base the far future check against
+     * @return true if the event is a far future event
+     */
+    private boolean isFarFutureEvent(@NonNull final GossipEvent event, final long pendingRound) {
+        assert event.eventCore() != null;
+        return SyncUtils.isFarFutureEvent(
+                farFutureEventOffset, event.eventCore().birthRound(), pendingRound);
+    }
+
+    /**
      * {@inheritDoc}
      */
     @Override
@@ -395,8 +446,20 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
         // we don't use handleIncomingSyncEvent, as we don't want to block sync till this event is resolved
         // so no marking it in intakeEventCounter
 
+        assert gossipEvent.eventCore() != null;
+
+        // Update the peer's pending round even if we are unhealthy and are otherwise ignoring broadcast events
+        if (peerId.id() == gossipEvent.eventCore().creatorNodeId()) {
+            peerPendingConsensusRound.accumulateAndGet(gossipEvent.eventCore().birthRound(), Math::max);
+        }
+
         if (ignoreIncomingEvents) {
             // we need to ignore broadcast events if system is unhealthy
+            return;
+        }
+
+        if (isFarFutureEvent(gossipEvent, selfEventWindowSupplier.get().getPendingConsensusRound())) {
+            // reject far future events
             return;
         }
 
@@ -574,6 +637,9 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
      * @param gossipEvent event received from the remote peer
      */
     private void handleIncomingSyncEvent(@NonNull final GossipEvent gossipEvent) {
+        if (isFarFutureEvent(gossipEvent, selfEventWindowSupplier.get().getPendingConsensusRound())) {
+            return;
+        }
         final PlatformEvent platformEvent = new PlatformEvent(gossipEvent, EventOrigin.GOSSIP);
         platformEvent.setSenderId(peerId);
         this.intakeEventCounter.eventEnteredIntakePipeline(peerId);
@@ -589,7 +655,6 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
      * @return should broadcast be active
      */
     private boolean isBroadcastRunning() {
-
         return broadcastConfig.enableBroadcast()
                 && !state.peerIsBehind
                 && state.lastSyncFinishedTime != Instant.MIN
