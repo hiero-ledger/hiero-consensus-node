@@ -20,7 +20,7 @@ public class SingleNodeConsensusResultImpl implements SingleNodeConsensusResult 
     private final NodeResultsCollector collector;
 
     // This class may be used in a multithreaded context, so we use volatile to ensure visibility of state changes
-    private volatile long lastClearedRoundNum = -1L;
+    private volatile int consensusRoundsStartIndex = 0;
     private volatile int preConsensusEventsStartIndex = 0;
     private volatile int staleEventsStartIndex = 0;
     private volatile boolean cleared = false;
@@ -49,7 +49,7 @@ public class SingleNodeConsensusResultImpl implements SingleNodeConsensusResult 
     @Override
     @NonNull
     public List<ConsensusRound> consensusRounds() {
-        return collector.currentConsensusRoundsAfter(lastClearedRoundNum);
+        return collector.currentConsensusRounds(consensusRoundsStartIndex);
     }
 
     /**
@@ -96,10 +96,7 @@ public class SingleNodeConsensusResultImpl implements SingleNodeConsensusResult 
      */
     @Override
     public void clear() {
-        final long lastRoundNum = lastRoundNum();
-        if (lastRoundNum >= 0) {
-            lastClearedRoundNum = lastRoundNum;
-        }
+        consensusRoundsStartIndex = collector.currentConsensusRoundsCount();
         preConsensusEventsStartIndex = collector.currentPreConsensusEventsCount();
         staleEventsStartIndex = collector.currentStaleEventsCount();
         cleared = true;

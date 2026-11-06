@@ -25,6 +25,8 @@ balanced; for example, `hapiTestCrypto` includes only `CRYPTO`-tagged tests.
 | `BLOCK_NODE`       | `hapiTestBlockNodeCommunication`                                                  | Block-node integration tests                 |
 | `WRAPS`            | `hapiTestWraps`, `hapiTestCutover`                                                | TSS `wraps` / weighted re-signing tests      |
 | `CUTOVER`          | `hapiTestCutover`                                                                 | TSS cutover scenarios                        |
+| `PRE_CUTOVER`      | `hapiTestPreCutover` (not `hapiTestRestart`)                                      | Tests that need the pre-cutover block stream |
+| `BLOCK_HASHING`    | `hapiTestMisc`, `hapiTestMiscRecords`, `hapiTestPreCutover`                       | Block hashing, run in every stream mode      |
 | `LONG_RUNNING`     | `hapiTestTimeConsuming`, `hapiTestTimeConsumingSerial`                            | Tests that take a long time                  |
 | `NODE_STAKING`     | `hapiTestNodeStaking`, `hapiTestNodeStakingSerial`                                | Node stake-weight-changing tests             |
 | `STATE_THROTTLING` | `hapiTestStateThrottling`                                                         | State-rate-limit tests                       |
