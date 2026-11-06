@@ -3,9 +3,11 @@ package com.hedera.node.app.history.impl;
 
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
+import static com.hedera.node.app.hints.impl.HintsLibraryImpl.SIGNATURE_LENGTH;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.BOOTSTRAP;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.HANDOFF;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.TRANSITION;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -13,9 +15,13 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.isA;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -25,6 +31,8 @@ import com.hedera.hapi.node.state.hints.HintsScheme;
 import com.hedera.hapi.node.state.hints.PreprocessedKeys;
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
 import com.hedera.hapi.node.state.history.HintsKeyProvenance;
+import com.hedera.hapi.node.state.history.HintsKeyWitness;
+import com.hedera.hapi.node.state.history.HintsKeyWitnessRecord;
 import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
@@ -37,6 +45,7 @@ import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.WritableHistoryStore;
 import com.hedera.node.app.history.handlers.HistoryHandlers;
 import com.hedera.node.app.history.schemas.V071HistorySchema;
+import com.hedera.node.app.history.schemas.V0800HistorySchema;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.config.data.TssConfig;
@@ -46,10 +55,13 @@ import com.hedera.node.internal.network.NodeTssMetadata;
 import com.hedera.node.internal.network.TssMetadata;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.state.lifecycle.SchemaRegistry;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import java.time.Instant;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ForkJoinPool;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.junit.jupiter.api.Test;
@@ -65,6 +77,10 @@ class HistoryServiceImplTest {
     private static final Metrics NO_OP_METRICS = new NoOpMetrics();
     private static final Instant CONSENSUS_NOW = Instant.ofEpochSecond(1_234_567L, 890);
     private static final TssConfig DEFAULT_TSS_CONFIG = DEFAULT_CONFIG.getConfigData(TssConfig.class);
+    private static final TssConfig REAL_SIGNING_CONFIG = HederaTestConfigBuilder.create()
+            .withValue("tss.forceMockSignatures", false)
+            .getOrCreateConfig()
+            .getConfigData(TssConfig.class);
 
     @Mock
     private AppContext appContext;
@@ -108,7 +124,19 @@ class HistoryServiceImplTest {
     @Mock
     private KeyProvenanceSigner sourceSigner;
 
+    @Mock
+    private HistorySubmissions submissions;
+
     private HistoryServiceImpl subject;
+
+    @Test
+    void registersTheWitnessSchemaAlongsideExistingHistorySchemas() {
+        withMockSubject();
+        final var registry = mock(SchemaRegistry.class);
+        subject.registerSchemas(registry);
+        verify(registry).register(isA(V0800HistorySchema.class));
+        verify(registry, times(4)).register(any());
+    }
 
     @Test
     void metadataAsExpected() {
@@ -171,6 +199,108 @@ class HistoryServiceImplTest {
         withMockSubject();
         given(activeRosters.phase()).willReturn(HANDOFF);
         subject.reconcile(activeRosters, Bytes.EMPTY, store, CONSENSUS_NOW, DEFAULT_TSS_CONFIG, true, null, false);
+    }
+
+    @Test
+    void reconciliationAndCapturedWitnessReachConsensusSubmissionAndStopAfterStateAccepts() {
+        withMockSubject();
+        given(activeRosters.phase()).willReturn(HANDOFF);
+        final var witness = eligibleWitness();
+        final var record = pendingWitnessRecord();
+        given(store.keyProvenanceWithWitnesses())
+                .willAnswer(ignored -> List.of(record).iterator());
+        given(component.submissions()).willReturn(submissions);
+        given(submissions.submitKeyWitness(witness)).willReturn(CompletableFuture.completedFuture(null));
+        final var work = new java.util.ArrayList<Runnable>();
+        given(component.executor()).willReturn(work::add);
+        final var verifier = mock(HintsKeyWitnessVerifier.class);
+        given(component.witnessVerifier()).willReturn(verifier);
+        given(verifier.verify(witness, CURRENT_VK)).willReturn(true);
+
+        reconcileWitnesses(REAL_SIGNING_CONFIG, CONSENSUS_NOW);
+        subject.publishKeyWitness(CURRENT_VK, witness);
+        verifyNoInteractions(submissions, verifier);
+        assertEquals(1, work.size());
+        work.removeFirst().run();
+        verify(submissions).submitKeyWitness(witness);
+
+        given(store.getKeyWitnessRecord(7))
+                .willReturn(record.copyBuilder().witness(witness).build());
+        reconcileWitnesses(REAL_SIGNING_CONFIG, CONSENSUS_NOW.plusSeconds(30));
+        subject.publishKeyWitness(CURRENT_VK, witness);
+        verifyNoMoreInteractions(submissions);
+    }
+
+    @Test
+    void mockSigningSkipsWitnessStateReadsAndDropsRetainedLocalCandidates() {
+        withMockSubject();
+        given(activeRosters.phase()).willReturn(HANDOFF);
+
+        reconcileWitnesses(DEFAULT_TSS_CONFIG, CONSENSUS_NOW);
+        subject.publishKeyWitness(CURRENT_VK, eligibleWitness());
+        verifyNoInteractions(store, submissions);
+
+        given(store.keyProvenanceWithWitnesses())
+                .willAnswer(ignored -> List.of(pendingWitnessRecord()).iterator());
+        reconcileWitnesses(REAL_SIGNING_CONFIG, CONSENSUS_NOW.plusSeconds(1));
+        reconcileWitnesses(DEFAULT_TSS_CONFIG, CONSENSUS_NOW.plusSeconds(2));
+        subject.publishKeyWitness(CURRENT_VK, eligibleWitness());
+        verifyNoInteractions(submissions);
+        verify(store).keyProvenanceWithWitnesses();
+    }
+
+    @Test
+    void localWitnessFailureDoesNotAbortControllerReconciliation() {
+        withMockSubject();
+        given(activeRosters.phase()).willReturn(TRANSITION);
+        given(store.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, REAL_SIGNING_CONFIG, false, CURRENT_VK))
+                .willReturn(HistoryProofConstruction.DEFAULT);
+        given(store.getActiveConstruction()).willReturn(HistoryProofConstruction.DEFAULT);
+        given(component.controllers()).willReturn(controllers);
+        given(controllers.getOrCreateFor(
+                        activeRosters,
+                        HistoryProofConstruction.DEFAULT,
+                        store,
+                        HintsConstruction.DEFAULT,
+                        HistoryProofConstruction.DEFAULT,
+                        REAL_SIGNING_CONFIG,
+                        null))
+                .willReturn(controller);
+        given(store.keyProvenanceWithWitnesses()).willThrow(new IllegalStateException("local refresh failed"));
+
+        assertDoesNotThrow(() -> subject.reconcile(
+                activeRosters,
+                CURRENT_VK,
+                store,
+                CONSENSUS_NOW,
+                REAL_SIGNING_CONFIG,
+                true,
+                HintsConstruction.DEFAULT,
+                false));
+
+        verify(controller).advanceConstruction(CONSENSUS_NOW, CURRENT_VK, store, true, REAL_SIGNING_CONFIG);
+    }
+
+    private void reconcileWitnesses(final TssConfig config, final Instant now) {
+        subject.reconcile(activeRosters, CURRENT_VK, store, now, config, true, completedHints(7, CURRENT_VK), false);
+    }
+
+    private static HintsKeyWitness eligibleWitness() {
+        return HintsKeyWitness.newBuilder()
+                .targetHintsConstructionId(7)
+                .timestamp(asTimestamp(CONSENSUS_NOW.minusSeconds(1)))
+                .siblingHash(Bytes.wrap(new byte[32]))
+                .signature(Bytes.wrap(new byte[SIGNATURE_LENGTH]))
+                .build();
+    }
+
+    private static HintsKeyWitnessRecord pendingWitnessRecord() {
+        return HintsKeyWitnessRecord.newBuilder()
+                .provenance(HintsKeyProvenance.newBuilder()
+                        .targetHintsConstructionId(7)
+                        .targetVerificationKey(CURRENT_VK))
+                .activationTime(asTimestamp(CONSENSUS_NOW.minusSeconds(2)))
+                .build();
     }
 
     @Test
@@ -581,6 +711,7 @@ class HistoryServiceImplTest {
     }
 
     private void withMockSubject() {
+        lenient().when(store.keyProvenanceWithWitnesses()).thenAnswer(ignored -> java.util.Collections.emptyIterator());
         subject = new HistoryServiceImpl(component);
     }
 

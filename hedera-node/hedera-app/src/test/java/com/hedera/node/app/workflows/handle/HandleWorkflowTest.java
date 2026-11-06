@@ -50,6 +50,7 @@ import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -103,6 +104,7 @@ import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.hints.HintsService;
+import com.hedera.node.app.hints.impl.WritableHintsStoreImpl;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.WritableHistoryStore;
 import com.hedera.node.app.history.impl.OnProofFinished;
@@ -138,6 +140,7 @@ import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.state.recordcache.BlockRecordSource;
 import com.hedera.node.app.throttle.CongestionMetrics;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
+import com.hedera.node.app.tss.PreparedTssHandoff;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.clpr.ClprEndpointManifestReconciler;
 import com.hedera.node.app.workflows.clpr.ClprHapiTlsEndpoint;
@@ -1179,8 +1182,9 @@ class HandleWorkflowTest {
                                     .flatMap(item -> item.stateChangesOrThrow().stateChanges().stream())
                                     .toList();
                             return reasonOf(items) == ENDPOINT_MANIFEST_RECONCILIATION
-                                    && updates.stream().anyMatch(change -> change.singletonUpdateOrThrow()
-                                            .hasClprEndpointManifestConstructionValue());
+                                    && updates.stream()
+                                            .anyMatch(change -> change.singletonUpdateOrThrow()
+                                                    .hasClprEndpointManifestConstructionValue());
                         }),
                         eq(firstEventTime.minusNanos(100)));
         assertEquals(List.of(pendingChange), changes);
@@ -1785,6 +1789,62 @@ class HandleWorkflowTest {
     }
 
     @Test
+    void completedWeightRotationRecordsTheDispatchConsensusTime() throws Exception {
+        final var activeRosterHash = Bytes.wrap("ACTIVE");
+        final var candidateRosterHash = Bytes.wrap("CANDIDATE");
+        final var activeRoster = Roster.newBuilder()
+                .rosterEntries(RosterEntry.newBuilder().nodeId(0L).weight(1L).build())
+                .build();
+        final var candidateRoster = Roster.newBuilder()
+                .rosterEntries(RosterEntry.newBuilder().nodeId(0L).weight(2L).build())
+                .build();
+        final var rosterStates = mock(ReadableStates.class);
+        final ReadableSingletonState<RosterState> rosterState = mock(ReadableSingletonState.class);
+        final ReadableKVState<ProtoBytes, Roster> rosters = mock(ReadableKVState.class);
+        given(state.getReadableStates(RosterService.NAME)).willReturn(rosterStates);
+        given(rosterStates.<RosterState>getSingleton(ROSTER_STATE_STATE_ID)).willReturn(rosterState);
+        given(rosterStates.<ProtoBytes, Roster>get(ROSTERS_STATE_ID)).willReturn(rosters);
+        given(rosterState.get())
+                .willReturn(RosterState.newBuilder()
+                        .candidateRosterHash(candidateRosterHash)
+                        .roundRosterPairs(new RoundRosterPair(0, activeRosterHash))
+                        .build());
+        given(rosters.get(new ProtoBytes(activeRosterHash))).willReturn(activeRoster);
+        given(rosters.get(new ProtoBytes(candidateRosterHash))).willReturn(candidateRoster);
+        final var prepared = new PreparedTssHandoff(candidateRosterHash);
+        final var historyStore = mock(WritableHistoryStore.class);
+        prepared.stub(historyStore);
+        final var boundary = NOW.plusSeconds(5).plusNanos(123);
+        given(historyStore.handoff(activeRoster, candidateRoster, candidateRosterHash, boundary))
+                .willReturn(true);
+        given(hintsService.handoff(any(), eq(activeRoster), eq(candidateRoster), eq(candidateRosterHash)))
+                .willReturn(true);
+        final var dispatch = mock(Dispatch.class, RETURNS_DEEP_STUBS);
+        given(dispatch.consensusNow()).willReturn(boundary);
+        givenSubjectWith(
+                BLOCKS,
+                BlockStreamWriterMode.FILE,
+                emptyList(),
+                Map.of("tss.hintsEnabled", "true", "tss.historyEnabled", "true"));
+        final var field = HandleWorkflow.class.getDeclaredField("inFlightDispatch");
+        field.setAccessible(true);
+        field.set(subject, dispatch);
+        final var configure =
+                HandleWorkflow.class.getDeclaredMethod("configureTssCallbacks", State.class, AtomicReference.class);
+        configure.setAccessible(true);
+        configure.invoke(subject, state, new AtomicReference<>());
+        final var callback = ArgumentCaptor.forClass(OnProofFinished.class);
+        verify(historyService).onFinishedConstruction(callback.capture());
+        try (final var hintsStores =
+                mockConstruction(WritableHintsStoreImpl.class, (store, _) -> prepared.stub(store))) {
+            callback.getValue().onFinished(historyStore, prepared.history(), new TreeMap<>());
+            verify(historyStore).handoff(activeRoster, candidateRoster, candidateRosterHash, boundary);
+            verify(historyService).setLatestHistoryProof(prepared.history().targetProofOrThrow());
+            assertEquals(1, hintsStores.constructed().size());
+        }
+    }
+
+    @Test
     void freshGenesisHandoffKeepsTheProofKeysOfNodesAPendingCandidateRosterDrops() {
         final var activeRosterHash = Bytes.wrap("ACTIVE");
         final var candidateRosterHash = Bytes.wrap("CANDIDATE");
@@ -1846,7 +1906,7 @@ class HandleWorkflowTest {
         subject.handleRound(state, round, txns -> {});
 
         // The roster does not change, so no node's proof key may be removed
-        verify(historyStore).handoff(activeRoster, null, null);
+        verify(historyStore).handoff(activeRoster, null, null, null);
     }
 
     @Test

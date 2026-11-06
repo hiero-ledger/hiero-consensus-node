@@ -25,6 +25,7 @@ import static java.util.concurrent.CompletableFuture.completedFuture;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.hiero.consensus.model.status.PlatformStatus.STARTING_UP;
 import static org.hiero.consensus.platformstate.PlatformStateAccessor.GENESIS_ROUND;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.consensusTimestampOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSemanticVersionOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.freezeTimeOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.lastFrozenTimeOf;
@@ -596,10 +597,12 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
         hintsService =
                 hintsServiceFactory.apply(appContext, bootstrapConfig, rsaContext, rsaSignings, genesisNetworkSupplier);
         historyService = historyServiceFactory.apply(appContext, bootstrapConfig, genesisNetworkSupplier);
-        utilServiceImpl = new UtilServiceImpl(appContext, (txnBytes, config) -> requireNonNull(daggerApp)
-                .transactionChecker()
-                .parseSignedAndCheck(txnBytes)
-                .txBody());
+        utilServiceImpl = new UtilServiceImpl(
+                appContext,
+                (txnBytes, config) -> requireNonNull(daggerApp)
+                        .transactionChecker()
+                        .parseSignedAndCheck(txnBytes)
+                        .txBody());
         tokenServiceImpl = new TokenServiceImpl(appContext);
         consensusServiceImpl = new ConsensusServiceImpl();
         clprServiceImpl = new ClprServiceImpl();
@@ -1931,11 +1934,14 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
                     hintsService,
                     previousRoster,
                     adoptedRoster,
-                    preparedRosterHash)) {
+                    preparedRosterHash,
+                    requireNonNull(
+                            consensusTimestampOf(initState), "Roster adoption requires a consensus timestamp"))) {
                 throw new IllegalStateException("Prepared TSS constructions failed to promote with the adopted roster");
             }
         } else if (tssConfig.historyEnabled()) {
-            writableHistoryStore.handoff(previousRoster, adoptedRoster, adoptedRosterHash);
+            writableHistoryStore.handoff(
+                    previousRoster, adoptedRoster, adoptedRosterHash, consensusTimestampOf(initState));
         } else if (tssConfig.hintsEnabled()
                 && !hintsService.handoff(writableHintsStore, previousRoster, adoptedRoster, preparedRosterHash)) {
             throw new IllegalStateException("Prepared hinTS construction failed to promote with the adopted roster");

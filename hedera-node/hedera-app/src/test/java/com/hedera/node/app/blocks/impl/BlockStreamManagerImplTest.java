@@ -43,6 +43,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -61,6 +62,7 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
+import com.hedera.hapi.node.state.history.HintsKeyWitness;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockItemWriter;
@@ -70,6 +72,7 @@ import com.hedera.node.app.blocks.InitialStateHash;
 import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.OnDiskPendingBlock;
 import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.hints.impl.HintsContext;
+import com.hedera.node.app.history.impl.HintsKeyWitnessVerifier;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.records.BlockRecordService;
@@ -130,6 +133,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.function.Executable;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -1538,8 +1543,9 @@ class BlockStreamManagerImplTest {
         assertEquals(header.blockTimestamp(), asTimestamp(CONSENSUS_NOW));
     }
 
-    @Test
-    void pendingBlockProofsFutureCompletesWhenPendingBlockIsSigned() {
+    @ParameterizedTest
+    @ValueSource(strings = {"normal", "publisher failure", "root mismatch"})
+    void pendingBlockProofsCompleteDespiteWitnessPublicationFailureOrRootMismatch(final String scenario) {
         givenSubjectWith(
                 1,
                 0,
@@ -1552,7 +1558,19 @@ class BlockStreamManagerImplTest {
         given(round.getRoundNum()).willReturn(ROUND_NO);
         given(blockHashSigner.isReady()).willReturn(true);
         given(blockHashSigner.sign(any(), eq(SUCCINCT_SIGNATURE)))
-                .willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
+                .willReturn(
+                        new BlockHashSigner.Attempt(Bytes.EMPTY, null, mockSigningFuture, completedFuture(null), 7));
+        if (!scenario.equals("root mismatch")) {
+            doAnswer(invocation -> {
+                        assertTrue(subject.pendingBlockProofsFuture().isDone());
+                        if (scenario.equals("publisher failure")) {
+                            throw new IllegalStateException("witness publisher unavailable");
+                        }
+                        return null;
+                    })
+                    .when(blockHashSigner)
+                    .publishKeyWitness(eq(Bytes.EMPTY), any());
+        }
         final AtomicReference<Consumer<Bytes>> signatureConsumer = new AtomicReference<>();
         doAnswer(invocationOnMock -> {
                     signatureConsumer.set(invocationOnMock.getArgument(0));
@@ -1572,7 +1590,18 @@ class BlockStreamManagerImplTest {
 
         assertFalse(pendingBlockProofsFuture.isDone());
 
-        signatureConsumer.get().accept(FIRST_FAKE_SIGNATURE);
+        if (scenario.equals("root mismatch")) {
+            try (final var witnessVerifier = mockStatic(HintsKeyWitnessVerifier.class)) {
+                witnessVerifier
+                        .when(() -> HintsKeyWitnessVerifier.rootHash(any()))
+                        .thenReturn(Bytes.EMPTY);
+                assertDoesNotThrow(() -> signatureConsumer.get().accept(FIRST_FAKE_SIGNATURE));
+            }
+            verify(blockHashSigner, never()).publishKeyWitness(any(), any());
+        } else {
+            assertDoesNotThrow(() -> signatureConsumer.get().accept(FIRST_FAKE_SIGNATURE));
+            verify(blockHashSigner).publishKeyWitness(eq(Bytes.EMPTY), any());
+        }
 
         assertTrue(pendingBlockProofsFuture.isDone());
         verify(aWriter).closeCompleteBlock();
@@ -1864,7 +1893,7 @@ class BlockStreamManagerImplTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    void registersClprBlockMetadataOnlyForDirectlySignedBlock() {
+    void registersClprMetadataOnlyForDirectBlockButPublishesBothCapturedGenerationWitnesses() {
         clprStateAccessor = mock(BlockProvenStateAccessor.class);
         clprEnabled = true;
         given(blockHashSigner.isReady()).willReturn(true);
@@ -1899,8 +1928,8 @@ class BlockStreamManagerImplTest {
         given(firstSignature.thenAcceptAsync(any())).willReturn(completedFuture(null));
         given(secondSignature.thenAcceptAsync(any())).willReturn(completedFuture(null));
         given(blockHashSigner.sign(any(), any()))
-                .willReturn(new BlockHashSigner.Attempt(null, null, firstSignature))
-                .willReturn(new BlockHashSigner.Attempt(null, null, secondSignature));
+                .willReturn(new BlockHashSigner.Attempt(Bytes.EMPTY, null, firstSignature, completedFuture(null), 7))
+                .willReturn(new BlockHashSigner.Attempt(Bytes.EMPTY, null, secondSignature, completedFuture(null), 8));
         // End the round in block N
         subject.endRound(state, ROUND_NO);
 
@@ -1933,6 +1962,29 @@ class BlockStreamManagerImplTest {
                 .registerBlockMetadata(
                         eq(FAKE_START_OF_BLOCK_STATE_HASH.getBytes()), any(), eq(FIRST_FAKE_SIGNATURE), any(), any());
         verifyNoMoreInteractions(clprStateAccessor);
+
+        // The old direct signature must still produce its original generation's witness, even though
+        // its pending block was already closed indirectly and the mutable manager is on a later block.
+        final var witnesses = ArgumentCaptor.forClass(HintsKeyWitness.class);
+        verify(blockHashSigner, times(2)).publishKeyWitness(eq(Bytes.EMPTY), witnesses.capture());
+        final var published = witnesses.getAllValues();
+        assertEquals(8L, published.get(0).targetHintsConstructionId());
+        assertEquals(7L, published.get(1).targetHintsConstructionId());
+        assertEquals(asTimestamp(CONSENSUS_NOW.plusSeconds(1)), published.get(0).timestamp());
+        assertEquals(asTimestamp(CONSENSUS_NOW), published.get(1).timestamp());
+        assertEquals(FIRST_FAKE_SIGNATURE, published.get(0).signature());
+        assertEquals(SECOND_FAKE_SIGNATURE, published.get(1).signature());
+        final var roots = ArgumentCaptor.forClass(Bytes.class);
+        verify(blockHashSigner, times(2)).sign(roots.capture(), eq(SUCCINCT_SIGNATURE));
+        for (int i = 0; i < 2; i++) {
+            final var witness = published.get(i);
+            assertEquals(com.hedera.hapi.node.base.BlockHashAlgorithm.SHA2_384, witness.hashAlgorithm());
+            final var timestampHash =
+                    hashLeaf(sha384DigestOrThrow(), Timestamp.PROTOBUF.toBytes(witness.timestampOrThrow()));
+            assertEquals(
+                    roots.getAllValues().get(1 - i),
+                    BlockImplUtils.hashInternalNode(sha384DigestOrThrow(), timestampHash, witness.siblingHash()));
+        }
     }
 
     @Test
