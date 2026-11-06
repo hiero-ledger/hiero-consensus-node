@@ -5,8 +5,12 @@ import static java.util.Objects.requireNonNull;
 import static org.hiero.base.file.FileUtils.hardLinkTree;
 
 import com.swirlds.config.api.Configuration;
+import com.swirlds.merkledb.config.DataSourceCopyMode;
 import com.swirlds.merkledb.config.MerkleDbConfig;
+import com.swirlds.merkledb.internal.InMemoryDataSourceCopy;
 import com.swirlds.merkledb.internal.MerkleDbDataSource;
+import com.swirlds.merkledb.internal.MerkleDbDataSource.CopiedIndexes;
+import com.swirlds.virtualmap.datasource.PreparedDataSourceCopy;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -16,6 +20,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.hiero.base.file.FileSystemManager;
+import org.hiero.base.file.FileUtils;
 
 /**
  * Virtual data source builder that manages MerkleDb data sources.
@@ -213,16 +218,7 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
             final boolean compactionEnabled,
             final boolean offlineUse) {
         try {
-            Path dataSourceDir = null;
-            if (defaultDbFolderName != null) {
-                final Path defaultDir = fileSystemManager.getTempPath().resolve(defaultDbFolderName);
-                if (!Files.exists(defaultDir)) {
-                    dataSourceDir = defaultDir;
-                }
-            }
-            if (dataSourceDir == null) {
-                dataSourceDir = newTempDataSourceDir(label);
-            }
+            final Path dataSourceDir = newRestoredDataSourceDir(label);
             final Path snapshotDataSourceDir = snapshotDataDir(snapshotDir, label);
             if (Files.isDirectory(snapshotDataSourceDir)) {
                 hardLinkTree(snapshotDataSourceDir, dataSourceDir);
@@ -233,6 +229,90 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
                     "Cannot restore MerkleDb data source: label=" + label + " snapshotDir=" + snapshotDir);
         } catch (final IOException z) {
             throw new UncheckedIOException(z);
+        }
+    }
+
+    /**
+     * Returns a new storage dir for a data source, which is restored from a snapshot or copied from
+     * another data source. The default DB folder is used, if configured and doesn't exist yet.
+     * Otherwise, a new temp folder is used.
+     */
+    private Path newRestoredDataSourceDir(final String label) {
+        if (defaultDbFolderName != null) {
+            final Path defaultDir = fileSystemManager.getTempPath().resolve(defaultDbFolderName);
+            if (!Files.exists(defaultDir)) {
+                return defaultDir;
+            }
+        }
+        return newTempDataSourceDir(label);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>How the copy is made depends on {@link MerkleDbConfig#dataSourceCopyMode()}, see
+     * {@link DataSourceCopyMode}. An in-memory copy is a snapshot made directly in the copy's storage
+     * dir, but its indexes are copied in memory instead of written to disk, see
+     * {@link MerkleDbDataSource#snapshotWithCopiedIndexes(Path)}. The copy is created from the snapshot
+     * and the copied indexes, when it's completed. Other copies are restored from a regular snapshot,
+     * as in the default implementation. Copies for offline use, copies of data sources with disk-based
+     * indices, and all copies when {@link MerkleDbConfig#indexRebuildingEnforced()} is set, are always
+     * restored from a snapshot.
+     */
+    @NonNull
+    @Override
+    public PreparedDataSourceCopy prepareCopy(
+            final String label,
+            @NonNull final VirtualDataSource dataSource,
+            final boolean compactionEnabled,
+            final boolean offlineUse) {
+        if (!(dataSource instanceof MerkleDbDataSource merkleDbDataSource)) {
+            throw new IllegalArgumentException("The data source must be compatible with the MerkleDb");
+        }
+        final DataSourceCopyMode copyMode = configuration.dataSourceCopyMode();
+        // Copies for offline use, like createSnapshot()'s, and read-only copies in DISK_INDEXES mode, like
+        // the teacher's, use disk-based indices to save memory
+        final boolean diskBasedIndices =
+                offlineUse || (copyMode == DataSourceCopyMode.DISK_INDEXES && !compactionEnabled);
+        // Disk-based indices can't be copied in memory, and enforced index rebuilding needs a snapshot to
+        // rebuild the indexes from
+        if (diskBasedIndices
+                || copyMode == DataSourceCopyMode.SNAPSHOT
+                || merkleDbDataSource.isPreferDiskBasedIndices()
+                || configuration.indexRebuildingEnforced()) {
+            return VirtualDataSourceBuilder.super.prepareCopy(label, dataSource, compactionEnabled, diskBasedIndices);
+        }
+        return copyInMemory(label, merkleDbDataSource, compactionEnabled);
+    }
+
+    /**
+     * Prepares a copy with indexes copied in memory, see {@link MerkleDbDataSource#snapshotWithCopiedIndexes(Path)}.
+     */
+    private PreparedDataSourceCopy copyInMemory(
+            final String label, final MerkleDbDataSource merkleDbDataSource, final boolean compactionEnabled) {
+        final Path copyDir = newRestoredDataSourceDir(label);
+        try {
+            final CopiedIndexes indexes = merkleDbDataSource.pauseCompactionAndCall(
+                    () -> merkleDbDataSource.snapshotWithCopiedIndexes(copyDir));
+            return new InMemoryDataSourceCopy(
+                    label, copyDir, indexes, configuration, fileSystemManager, compactionEnabled);
+        } catch (final IOException e) {
+            deleteDirectory(copyDir, e);
+            throw new UncheckedIOException(e);
+        } catch (final RuntimeException | Error e) {
+            deleteDirectory(copyDir, e);
+            throw e;
+        }
+    }
+
+    /**
+     * Deletes a directory after a failure. Deletion failures are added to the failure as suppressed.
+     */
+    private static void deleteDirectory(@NonNull final Path dir, @NonNull final Throwable cause) {
+        try {
+            FileUtils.deleteDirectory(dir);
+        } catch (final IOException e) {
+            cause.addSuppressed(e);
         }
     }
 }

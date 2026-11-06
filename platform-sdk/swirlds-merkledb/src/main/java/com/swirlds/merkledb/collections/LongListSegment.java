@@ -125,6 +125,36 @@ public final class LongListSegment extends AbstractLongList<LongListSegment.Segm
         loadFromFile(file);
     }
 
+    /**
+     * Create a copy of the given list in memory, with the same chunk size, capacity, reserved buffer
+     * size, size and valid range. Every chunk of the source is copied into a new chunk, so the copy
+     * doesn't share memory with the source, and either list can be changed or closed independently.
+     *
+     * <p>The source must not be modified while it's copied. It may be read concurrently.
+     *
+     * @param source the list to copy
+     */
+    public LongListSegment(@NonNull final LongListSegment source) {
+        super(source.longsPerChunk, source.capacity, source.reservedBufferSize);
+        try {
+            for (int i = 0; i < source.chunkList.length(); i++) {
+                final SegmentChunk sourceChunk = source.chunkList.get(i);
+                if (sourceChunk != null) {
+                    final SegmentChunk chunk = createChunk();
+                    chunkList.set(i, chunk);
+                    MemorySegment.copy(sourceChunk.segment(), 0, chunk.segment(), 0, memoryChunkSize);
+                }
+            }
+        } catch (final RuntimeException | Error e) {
+            // Don't leak the chunks allocated so far, e.g. if there isn't enough off-heap memory
+            close();
+            throw e;
+        }
+        size.set(source.size.get());
+        minValidIndex.set(source.minValidIndex.get());
+        maxValidIndex.set(source.maxValidIndex.get());
+    }
+
     // =========================================================================
     // Chunk lifecycle
     // =========================================================================

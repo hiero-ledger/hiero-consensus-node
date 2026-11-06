@@ -41,14 +41,15 @@ import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -69,6 +70,7 @@ import org.hiero.base.crypto.DigestType;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.file.FileUtils;
 import org.hiero.base.io.IORunnable;
+import org.hiero.base.io.IOSupplier;
 
 public final class MerkleDbDataSource implements VirtualDataSource {
 
@@ -299,10 +301,68 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             final boolean compactionEnabled,
             final boolean diskBasedIndices)
             throws IOException {
+        this(
+                storageDir,
+                config,
+                fileSystemManager,
+                tableName,
+                initialCapacity,
+                compactionEnabled,
+                diskBasedIndices,
+                null);
+    }
+
+    /**
+     * Creates a new MerkleDb data source from a snapshot made with {@link #snapshotWithCopiedIndexes(Path)}.
+     * The copied indexes are used instead of index files, even if {@link MerkleDbConfig#indexRebuildingEnforced()}
+     * is set. If this constructor succeeds, the data source owns the indexes. Otherwise, the caller is
+     * responsible for closing them.
+     *
+     * @param storageDir Directory with the snapshot
+     * @param config merkle db configuration
+     * @param tableName Data source label, used in logs, metrics, etc.
+     * @param compactionEnabled Indicates whether background compaction should be running for this data
+     *                          source
+     * @param copiedIndexes The indexes copied when the snapshot was made
+     * @throws IOException If an I/O error occurs
+     */
+    public MerkleDbDataSource(
+            final Path storageDir,
+            final MerkleDbConfig config,
+            final FileSystemManager fileSystemManager,
+            final String tableName,
+            final boolean compactionEnabled,
+            @NonNull final CopiedIndexes copiedIndexes)
+            throws IOException {
+        this(
+                storageDir,
+                config,
+                fileSystemManager,
+                tableName,
+                0,
+                compactionEnabled,
+                false,
+                requireNonNull(copiedIndexes));
+    }
+
+    private MerkleDbDataSource(
+            final Path storageDir,
+            final MerkleDbConfig config,
+            final FileSystemManager fileSystemManager,
+            final String tableName,
+            final long initialCapacity,
+            final boolean compactionEnabled,
+            final boolean diskBasedIndices,
+            @Nullable final CopiedIndexes copiedIndexes)
+            throws IOException {
         this.tableName = tableName;
         this.merkleDbConfig = config;
 
-        this.preferDiskBasedIndices = diskBasedIndices || merkleDbConfig.useDiskIndices();
+        if ((copiedIndexes != null) && !Files.exists(storageDir)) {
+            throw new IllegalArgumentException("Indexes are provided, but the storage dir doesn't exist");
+        }
+        // Copied indexes are always in memory
+        this.preferDiskBasedIndices = (copiedIndexes == null) && (diskBasedIndices || merkleDbConfig.useDiskIndices());
         this.hashChunkHeight = merkleDbConfig.hashChunkHeight();
 
         // create thread group with label
@@ -370,7 +430,9 @@ public final class MerkleDbDataSource implements VirtualDataSource {
 
         // Hash chunk disk location index (chunk ID to disk location)
         final Path idToHashChunksFile = dbPaths.idToDiskLocationHashChunksFile;
-        if (Files.exists(idToHashChunksFile) && !forceIndexRebuilding) {
+        if (copiedIndexes != null) {
+            idToDiskLocationHashChunks = copiedIndexes.hashChunkIndex();
+        } else if (Files.exists(idToHashChunksFile) && !forceIndexRebuilding) {
             idToDiskLocationHashChunks = preferDiskBasedIndices
                     ? new LongListDisk(idToHashChunksFile, hashIndexCapacity, merkleDbConfig, fileSystemManager)
                     : new LongListSegment(idToHashChunksFile, hashIndexCapacity, merkleDbConfig);
@@ -415,7 +477,9 @@ public final class MerkleDbDataSource implements VirtualDataSource {
 
         // KV disk location index (path to disk location)
         final Path pathToLeafLocationFile = dbPaths.pathToDiskLocationLeafNodesFile;
-        if (Files.exists(pathToLeafLocationFile) && !forceIndexRebuilding) {
+        if (copiedIndexes != null) {
+            pathToDiskLocationLeafNodes = copiedIndexes.leafIndex();
+        } else if (Files.exists(pathToLeafLocationFile) && !forceIndexRebuilding) {
             pathToDiskLocationLeafNodes = preferDiskBasedIndices
                     ? new LongListDisk(pathToLeafLocationFile, kvIndexCapacity, config, fileSystemManager)
                     : new LongListSegment(pathToLeafLocationFile, kvIndexCapacity, config);
@@ -464,7 +528,8 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 dbPaths.keyToPathDirectory,
                 tableName + "_objectkeytopath",
                 null,
-                preferDiskBasedIndices);
+                preferDiskBasedIndices,
+                (copiedIndexes != null) ? copiedIndexes.bucketIndex() : null);
         keyToPath.printStats();
         // Repair keyToPath based on pathToKeyValue data, if requested and not disk based indices
         if (!preferDiskBasedIndices) {
@@ -581,6 +646,16 @@ public final class MerkleDbDataSource implements VirtualDataSource {
      */
     public void pauseCompactionAndRun(@NonNull final IORunnable action) throws IOException {
         compactionCoordinator.pauseCompactionAndRun(action);
+    }
+
+    /**
+     * Same as {@link #pauseCompactionAndRun(IORunnable)}, but returns the result of the action.
+     *
+     * @param action action to run while compaction is paused
+     * @return the result of the action
+     */
+    public <T> T pauseCompactionAndCall(@NonNull final IOSupplier<T> action) throws IOException {
+        return compactionCoordinator.pauseCompactionAndCall(action);
     }
 
     /**
@@ -941,65 +1016,143 @@ public final class MerkleDbDataSource implements VirtualDataSource {
      */
     @Override
     public void snapshot(final Path snapshotDirectory) throws IOException, IllegalStateException {
+        snapshot(snapshotDirectory, false);
+    }
+
+    /**
+     * Same as {@link #snapshot(Path)}, but the indexes aren't written to the snapshot. Instead, they
+     * are copied in memory and returned. To load the snapshot, use {@link #MerkleDbDataSource(Path,
+     * MerkleDbConfig, FileSystemManager, String, boolean, CopiedIndexes)}. This is faster than writing
+     * the indexes to disk and reading them back, but needs memory for the index copies.
+     *
+     * <p><b>IMPORTANT, after this is completed the caller owns the directory and the copied indexes.
+     * It is responsible for deleting / closing them when they are no longer needed.</b>
+     *
+     * @param snapshotDirectory Directory to put snapshot into, it will be created if it doesn't exist
+     * @return the copied indexes
+     * @throws IOException If there was a problem writing the snapshot
+     * @throws IllegalStateException If this data source uses disk based indices, or if there is
+     *     already a snapshot happening
+     */
+    @NonNull
+    public CopiedIndexes snapshotWithCopiedIndexes(final Path snapshotDirectory) throws IOException {
+        if (preferDiskBasedIndices) {
+            throw new IllegalStateException("Disk based indices can't be copied in memory");
+        }
+        return requireNonNull(snapshot(snapshotDirectory, true));
+    }
+
+    /**
+     * Writes a snapshot. If {@code copyIndexes} is true, the indexes are copied in memory and returned
+     * instead of written to the snapshot. Otherwise, returns {@code null}.
+     */
+    @Nullable
+    private CopiedIndexes snapshot(final Path snapshotDirectory, final boolean copyIndexes) throws IOException {
         // check if another snapshot was running
         final boolean aSnapshotWasInProgress = snapshotInProgress.getAndSet(true);
         if (aSnapshotWasInProgress) {
             throw new IllegalStateException("Tried to start a snapshot when one was already in progress");
         }
-        logger.info(MERKLE_DB.getMarker(), "[{}] Starting snapshot to {}", tableName, snapshotDirectory);
+        final String type = copyIndexes ? "snapshot with copied indexes" : "snapshot";
+        logger.info(MERKLE_DB.getMarker(), "[{}] Starting {} to {}", tableName, type, snapshotDirectory);
         try {
             // start timing snapshot
             final long START = System.currentTimeMillis();
             // create snapshot dir if it doesn't exist
             Files.createDirectories(snapshotDirectory);
             final MerkleDbPaths snapshotDbPaths = new MerkleDbPaths(snapshotDirectory);
+            // Flush cached hash chunks to the hash chunk store
+            flushHashChunkCache();
             // main snapshotting process in multiple-threads
+            final LongList[] indexCopies = new LongList[3];
+            final List<CompletableFuture<Void>> tasks = new ArrayList<>();
             try {
-                // Flush cached hash chunks to the hash chunk store
-                flushHashChunkCache();
-                final CountDownLatch countDownLatch = new CountDownLatch(6);
-                // write all data stores
-                runWithSnapshotExecutor(countDownLatch, "idToDiskLocationHashChunks", () -> {
-                    idToDiskLocationHashChunks.writeToFile(snapshotDbPaths.idToDiskLocationHashChunksFile);
-                    return true;
-                });
-                runWithSnapshotExecutor(countDownLatch, "pathToDiskLocationLeafNodes", () -> {
-                    pathToDiskLocationLeafNodes.writeToFile(snapshotDbPaths.pathToDiskLocationLeafNodesFile);
-                    return true;
-                });
-                runWithSnapshotExecutor(countDownLatch, "hashChunkStore", () -> {
-                    hashChunkStore.snapshot(snapshotDbPaths.hashChunkDirectory);
-                    return true;
-                });
-                runWithSnapshotExecutor(countDownLatch, "keyToPath", () -> {
-                    keyToPath.snapshot(snapshotDbPaths.keyToPathDirectory);
-                    return true;
-                });
-                runWithSnapshotExecutor(countDownLatch, "keyValueStore", () -> {
-                    keyValueStore.snapshot(snapshotDbPaths.pathToKeyValueDirectory);
-                    return true;
-                });
-                runWithSnapshotExecutor(countDownLatch, "metadata", () -> {
-                    saveMetadata(snapshotDbPaths);
-                    return true;
-                });
-                // wait for the others to finish
-                countDownLatch.await();
-            } catch (final InterruptedException e) {
-                logger.error(
-                        EXCEPTION.getMarker(),
-                        "[{}] InterruptedException from waiting for countDownLatch in snapshot",
-                        tableName,
-                        e);
-                Thread.currentThread().interrupt();
+                if (copyIndexes) {
+                    tasks.add(runWithSnapshotExecutor(
+                            "idToDiskLocationHashChunks",
+                            () -> indexCopies[0] = copyIndex(idToDiskLocationHashChunks)));
+                    tasks.add(runWithSnapshotExecutor(
+                            "pathToDiskLocationLeafNodes",
+                            () -> indexCopies[1] = copyIndex(pathToDiskLocationLeafNodes)));
+                    tasks.add(runWithSnapshotExecutor(
+                            "bucketIndexToBucketLocation",
+                            () -> indexCopies[2] = copyIndex(keyToPath.getBucketIndexToBucketLocation())));
+                    tasks.add(runWithSnapshotExecutor(
+                            "keyToPath", () -> keyToPath.snapshotWithoutIndex(snapshotDbPaths.keyToPathDirectory)));
+                } else {
+                    tasks.add(runWithSnapshotExecutor(
+                            "idToDiskLocationHashChunks",
+                            () -> idToDiskLocationHashChunks.writeToFile(
+                                    snapshotDbPaths.idToDiskLocationHashChunksFile)));
+                    tasks.add(runWithSnapshotExecutor(
+                            "pathToDiskLocationLeafNodes",
+                            () -> pathToDiskLocationLeafNodes.writeToFile(
+                                    snapshotDbPaths.pathToDiskLocationLeafNodesFile)));
+                    tasks.add(runWithSnapshotExecutor(
+                            "keyToPath", () -> keyToPath.snapshot(snapshotDbPaths.keyToPathDirectory)));
+                }
+                tasks.add(runWithSnapshotExecutor(
+                        "hashChunkStore", () -> hashChunkStore.snapshot(snapshotDbPaths.hashChunkDirectory)));
+                tasks.add(runWithSnapshotExecutor(
+                        "keyValueStore", () -> keyValueStore.snapshot(snapshotDbPaths.pathToKeyValueDirectory)));
+                tasks.add(runWithSnapshotExecutor("metadata", () -> saveMetadata(snapshotDbPaths)));
+                // Wait for all tasks to finish, even if some of them fail. join() isn't interruptible
+                CompletableFuture.allOf(tasks.toArray(CompletableFuture[]::new)).join();
+            } catch (final RuntimeException | Error e) {
+                // A task failed, or a task couldn't be started, for example because the executor is shut
+                // down. Wait for the started tasks, so no index copy is made after the copies are closed
+                CompletableFuture.allOf(tasks.toArray(CompletableFuture[]::new))
+                        .exceptionally(t -> null)
+                        .join();
+                Arrays.stream(indexCopies).filter(Objects::nonNull).forEach(LongList::close);
+                final Throwable cause = (e instanceof CompletionException) ? e.getCause() : e;
+                if (cause instanceof Error error) {
+                    // For example, an OutOfMemoryError when an index is copied
+                    throw error;
+                }
+                throw new IOException(
+                        "[" + tableName + "] Snapshot failed",
+                        (cause instanceof UncheckedIOException u) ? u.getCause() : cause);
             }
             logger.info(
                     MERKLE_DB.getMarker(),
-                    "[{}] Snapshot all finished in {} seconds",
+                    "[{}] {} all finished in {} seconds",
                     tableName,
+                    copyIndexes ? "Snapshot with copied indexes" : "Snapshot",
                     (System.currentTimeMillis() - START) * UnitConstants.MILLISECONDS_TO_SECONDS);
+            return copyIndexes ? new CopiedIndexes(indexCopies[0], indexCopies[1], indexCopies[2]) : null;
         } finally {
             snapshotInProgress.set(false);
+        }
+    }
+
+    private static LongList copyIndex(final LongList index) {
+        if (!(index instanceof LongListSegment segment)) {
+            throw new IllegalStateException("Only in-memory indexes can be copied, but got " + index);
+        }
+        return new LongListSegment(segment);
+    }
+
+    /**
+     * Indexes copied in memory by {@link #snapshotWithCopiedIndexes(Path)}. Closing releases the
+     * indexes. Don't close them after they're passed to a data source that was successfully created.
+     */
+    public record CopiedIndexes(
+            @NonNull LongList hashChunkIndex,
+            @NonNull LongList leafIndex,
+            @NonNull LongList bucketIndex) implements AutoCloseable {
+
+        public CopiedIndexes {
+            requireNonNull(hashChunkIndex);
+            requireNonNull(leafIndex);
+            requireNonNull(bucketIndex);
+        }
+
+        @Override
+        public void close() {
+            hashChunkIndex.close();
+            leafIndex.close();
+            bucketIndex.close();
         }
     }
 
@@ -1030,6 +1183,14 @@ public final class MerkleDbDataSource implements VirtualDataSource {
 
     public long getInitialCapacity() {
         return initialCapacity;
+    }
+
+    /**
+     * Indicates whether this data source uses disk based indices. Such indices can't be copied with
+     * {@link #snapshotWithCopiedIndexes(Path)}.
+     */
+    public boolean isPreferDiskBasedIndices() {
+        return preferDiskBasedIndices;
     }
 
     // For testing purpose
@@ -1128,35 +1289,33 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     // private methods
 
     /**
-     * Run a runnable on background thread using snapshot ExecutorService, counting down latch when
-     * done.
+     * Run a runnable on background thread using snapshot ExecutorService.
      *
-     * @param countDownLatch latch to count down when done
      * @param taskName the name of the task for logging
      * @param runnable the code to run
+     * @return a future, which completes when the task is done, exceptionally if the task fails
      */
-    private void runWithSnapshotExecutor(
-            final CountDownLatch countDownLatch, final String taskName, final Callable<Object> runnable) {
-        snapshotExecutor.submit(() -> {
-            final long START = System.currentTimeMillis();
-            try {
-                runnable.call();
-                logger.trace(
-                        MERKLE_DB.getMarker(),
-                        "[{}] Snapshot {} complete in {} seconds",
-                        tableName,
-                        taskName,
-                        (System.currentTimeMillis() - START) * UnitConstants.MILLISECONDS_TO_SECONDS);
-                return true; // turns this into a callable, so it can throw checked
-                // exceptions
-            } catch (final Throwable t) {
-                // log and rethrow
-                logger.error(EXCEPTION.getMarker(), "[{}] Snapshot {} failed", tableName, taskName, t);
-                throw t;
-            } finally {
-                countDownLatch.countDown();
-            }
-        });
+    private CompletableFuture<Void> runWithSnapshotExecutor(final String taskName, final IORunnable runnable) {
+        return CompletableFuture.runAsync(
+                () -> {
+                    final long START = System.currentTimeMillis();
+                    try {
+                        runnable.run();
+                        logger.trace(
+                                MERKLE_DB.getMarker(),
+                                "[{}] Snapshot {} complete in {} seconds",
+                                tableName,
+                                taskName,
+                                (System.currentTimeMillis() - START) * UnitConstants.MILLISECONDS_TO_SECONDS);
+                    } catch (final IOException e) {
+                        logger.error(EXCEPTION.getMarker(), "[{}] Snapshot {} failed", tableName, taskName, e);
+                        throw new UncheckedIOException(e);
+                    } catch (final RuntimeException | Error e) {
+                        logger.error(EXCEPTION.getMarker(), "[{}] Snapshot {} failed", tableName, taskName, e);
+                        throw e;
+                    }
+                },
+                snapshotExecutor);
     }
 
     /**

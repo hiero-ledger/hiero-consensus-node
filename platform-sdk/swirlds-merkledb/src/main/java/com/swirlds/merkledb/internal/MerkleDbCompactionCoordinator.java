@@ -41,6 +41,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.framework.config.CompositeThreadNameProvider;
 import org.hiero.base.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.base.io.IORunnable;
+import org.hiero.base.io.IOSupplier;
 
 /**
  * Coordinates compaction tasks for a {@link MerkleDbDataSource}. Manages two kinds of background tasks:
@@ -163,11 +164,24 @@ class MerkleDbCompactionCoordinator {
      * @param action action to run while compaction is paused
      */
     synchronized void pauseCompactionAndRun(final @NonNull IORunnable action) throws IOException {
+        pauseCompactionAndCall(() -> {
+            action.run();
+            return null;
+        });
+    }
+
+    /**
+     * Same as {@link #pauseCompactionAndRun(IORunnable)}, but returns the result of the action.
+     *
+     * @param action action to run while compaction is paused
+     * @return the result of the action
+     */
+    synchronized <T> T pauseCompactionAndCall(final @NonNull IOSupplier<T> action) throws IOException {
         try {
             for (final DataFileCompactor compactor : compactorsByName.values()) {
                 compactor.pauseCompaction();
             }
-            action.run();
+            return action.get();
         } finally {
             for (final DataFileCompactor compactor : compactorsByName.values()) {
                 compactor.resumeCompaction();

@@ -26,6 +26,7 @@ import com.swirlds.common.utility.Labeled;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
+import com.swirlds.virtualmap.datasource.PreparedDataSourceCopy;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
@@ -61,7 +62,6 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.ExecutorFactory;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
-import org.hiero.base.file.FileUtils;
 
 /**
  * A Merkle tree that virtualizes all of its children, such that the child nodes
@@ -1206,16 +1206,21 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      */
     public RecordAccessor detach() {
         checkDataSourceCanBeCopied();
-        final DataSourceAndCacheSnapshot snapshot = snapshotDataSourceAndCache();
+        final DataSourceCopyAndCacheSnapshot snapshot = prepareDataSourceCopyAndSnapshotCache(false, false);
 
-        // build() below is called outside pausePipelineAndExecute() to unpause the lifecycle thread
+        // complete() below is called outside pausePipelineAndExecute() to unpause the lifecycle thread
         // as quickly as possible. If the lifecycle thread is paused for too long, unhandled copies
         // pile up in the virtual pipeline, which triggers size backpressure mechanism
-        try {
-            // Restore a data source into memory from the snapshot. It will use its own directory
-            // to store data files
-            final VirtualDataSource dataSourceCopy =
-                    dataSourceBuilder.build(getLabel(), snapshot.dataSourcePath(), false, false);
+        try (final PreparedDataSourceCopy preparedCopy = snapshot.dataSourceCopy()) {
+            // Create the data source copy. It will use its own directory to store data files
+            final long completeStart = System.currentTimeMillis();
+            final VirtualDataSource dataSourceCopy = preparedCopy.complete();
+            logger.info(
+                    VIRTUAL_MERKLE_STATS.getMarker(),
+                    "Detached data source copy of {}: pipeline paused for {} ms, copy completed in {} ms",
+                    getLabel(),
+                    snapshot.pauseMillis(),
+                    System.currentTimeMillis() - completeStart);
             try {
                 final int hashChunkHeight = dataSource.getHashChunkHeight();
                 return new RecordAccessor(metadata.copy(), hashChunkHeight, snapshot.cache(), dataSourceCopy);
@@ -1224,34 +1229,41 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
                 closeDataSourceCopy(dataSourceCopy, e);
                 throw e;
             }
-        } finally {
-            deleteSnapshotDirectory(snapshot.dataSourcePath());
         }
     }
 
     /**
      * Creates a copy of this map's data source with this map's cache flushed into it. The virtual
-     * pipeline is paused only to take data source and cache snapshots. The copy is restored from
-     * the snapshots after the pipeline is unpaused.
+     * pipeline is paused only to snapshot the cache and to prepare the data source copy. The copy is
+     * completed after the pipeline is unpaused.
      *
      * @param compactionEnabled whether background compaction should be enabled in the copy
      * @param offlineUse whether the copy should use as little resources as possible
      * @return the data source copy, the caller is responsible for closing it
      */
     private VirtualDataSource createDataSourceCopy(final boolean compactionEnabled, final boolean offlineUse) {
-        final DataSourceAndCacheSnapshot snapshot = snapshotDataSourceAndCache();
+        final DataSourceCopyAndCacheSnapshot snapshot =
+                prepareDataSourceCopyAndSnapshotCache(compactionEnabled, offlineUse);
 
-        // build() and flush() below are called outside pausePipelineAndExecute() to unpause the
+        // complete() and flush() below are called outside pausePipelineAndExecute() to unpause the
         // lifecycle thread as quickly as possible. If the lifecycle thread is paused for too long,
         // unhandled copies pile up in the virtual pipeline, which triggers size backpressure mechanism
-        try {
-            // Restore a data source into memory from the snapshot. It will use its own directory
-            // to store data files
-            final VirtualDataSource dataSourceCopy =
-                    dataSourceBuilder.build(getLabel(), snapshot.dataSourcePath(), compactionEnabled, offlineUse);
+        try (final PreparedDataSourceCopy preparedCopy = snapshot.dataSourceCopy()) {
+            // Create the data source copy. It will use its own directory to store data files
+            final long completeStart = System.currentTimeMillis();
+            final VirtualDataSource dataSourceCopy = preparedCopy.complete();
+            final long flushStart = System.currentTimeMillis();
             try {
                 // Then flush the cache snapshot to the data source copy
                 flush(snapshot.cache(), dataSourceCopy);
+                logger.info(
+                        VIRTUAL_MERKLE_STATS.getMarker(),
+                        "Created data source copy of {}: pipeline paused for {} ms, copy completed in {} ms,"
+                                + " cache flushed in {} ms",
+                        getLabel(),
+                        snapshot.pauseMillis(),
+                        flushStart - completeStart,
+                        System.currentTimeMillis() - flushStart);
                 // flush() doesn't throw, if the thread is interrupted. The data source copy may be
                 // incomplete in this case, it must not be returned
                 if (Thread.currentThread().isInterrupted()) {
@@ -1264,35 +1276,40 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
                 throw e;
             }
             return dataSourceCopy;
-        } finally {
-            deleteSnapshotDirectory(snapshot.dataSourcePath());
         }
     }
 
     /**
-     * Snapshots of this map's cache and data source, taken at the same moment.
+     * A snapshot of this map's cache and a copy of its data source, prepared at the same moment.
      *
      * @param cache the cache snapshot
-     * @param dataSourcePath the base path to the data source snapshot. The snapshot is in the temp
-     *                       directory, it must be deleted, once a data source copy is restored from it
+     * @param dataSourceCopy the prepared data source copy. It must be closed, once the copy is
+     *                       completed or abandoned
+     * @param pauseMillis how long the virtual pipeline was paused to prepare the copy
      */
-    private record DataSourceAndCacheSnapshot(
-            @NonNull VirtualNodeCache cache, @NonNull Path dataSourcePath) {}
+    private record DataSourceCopyAndCacheSnapshot(
+            @NonNull VirtualNodeCache cache, @NonNull PreparedDataSourceCopy dataSourceCopy, long pauseMillis) {}
 
     /**
-     * Takes snapshots of this map's cache and data source. The virtual pipeline is paused while the
-     * snapshots are taken to make sure no data is flushed to the data source and no caches are
-     * merged. The data source snapshot is not loaded here, though, it's up to the caller.
+     * Takes a snapshot of this map's cache and prepares a copy of its data source. The virtual
+     * pipeline is paused meanwhile to make sure no data is flushed to the data source and no caches
+     * are merged. The data source copy is not completed here, though, it's up to the caller.
      *
-     * @return the cache snapshot and the path to the data source snapshot
+     * @param compactionEnabled whether background compaction should be enabled in the copy
+     * @param offlineUse whether the copy should use as little resources as possible
+     * @return the cache snapshot and the prepared data source copy
      */
-    private DataSourceAndCacheSnapshot snapshotDataSourceAndCache() {
+    private DataSourceCopyAndCacheSnapshot prepareDataSourceCopyAndSnapshotCache(
+            final boolean compactionEnabled, final boolean offlineUse) {
         return pipeline.pausePipelineAndExecute("detach", () -> {
+            final long start = System.currentTimeMillis();
             // Lifecycle thread is paused, no cache flushes/merges, it's safe to take cache snapshot
             final VirtualNodeCache cacheSnapshot = cache.snapshot();
-            // And make a data source snapshot
-            final Path dataSourceSnapshotPath = dataSourceBuilder.snapshot(null, dataSource);
-            return new DataSourceAndCacheSnapshot(cacheSnapshot, dataSourceSnapshotPath);
+            // And prepare a data source copy
+            final PreparedDataSourceCopy dataSourceCopy =
+                    dataSourceBuilder.prepareCopy(getLabel(), dataSource, compactionEnabled, offlineUse);
+            return new DataSourceCopyAndCacheSnapshot(
+                    cacheSnapshot, dataSourceCopy, System.currentTimeMillis() - start);
         });
     }
 
@@ -1309,21 +1326,6 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             dataSourceCopy.close();
         } catch (final IOException | RuntimeException e) {
             cause.addSuppressed(e);
-        }
-    }
-
-    /**
-     * Deletes a temporary data source snapshot directory, once a data source copy is built from
-     * it. Failures are logged, but not thrown. The data source copy is still valid, and the
-     * snapshot directory is in the temp directory, which is cleaned up on node restart.
-     *
-     * @param snapshotPath the snapshot directory to delete
-     */
-    private static void deleteSnapshotDirectory(@NonNull final Path snapshotPath) {
-        try {
-            FileUtils.deleteDirectory(snapshotPath);
-        } catch (final IOException e) {
-            logger.error(EXCEPTION.getMarker(), "Unable to delete snapshot directory {}", snapshotPath, e);
         }
     }
 
