@@ -73,7 +73,16 @@ public final class ClprCompleteConnectorHandler extends AbstractClprHandler {
 
     @Override
     public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
-        // Permissionless — no additional key requirements beyond payer
+        requireNonNull(context);
+        final var op = context.body().clprCompleteConnectorOrThrow();
+        // Registration itself is permissionless, but the referenced connector contract is the account
+        // later debited for message delivery; so its owner must consent by signing this transaction.
+        final var accountStore = context.createStore(ReadableAccountStore.class);
+        final var contractAccount = accountStore.getContractById(op.connectorContractOrThrow());
+        validateTruePreCheck(
+                contractAccount != null && contractAccount.smartContract() && !contractAccount.deleted(),
+                CLPR_INVALID_CONNECTOR_CONTRACT);
+        context.requireKeyOrThrow(contractAccount.key(), CLPR_INVALID_CONNECTOR_CONTRACT);
     }
 
     @Override

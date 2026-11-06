@@ -15,7 +15,9 @@ import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.PEND
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -43,6 +45,7 @@ import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -516,5 +519,46 @@ class ClprCompleteConnectorHandlerTest {
                 .smartContract(true)
                 .build();
         lenient().when(accountStore.getContractById(CONTRACT_ID)).thenReturn(smartContract);
+    }
+
+    // ── preHandle: connector contract owner consent ───────────────────────────
+
+    @Mock
+    private PreHandleContext preHandleContext;
+
+    private static final Key CONTRACT_ADMIN_KEY = Key.newBuilder()
+            .ed25519(Bytes.wrap(new byte[] {
+                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
+            }))
+            .build();
+
+    private void setupPreHandle(final Account contract) throws PreCheckException {
+        lenient().when(preHandleContext.body()).thenReturn(validTxn());
+        lenient().when(preHandleContext.createStore(ReadableAccountStore.class)).thenReturn(accountStore);
+        lenient().when(accountStore.getContractById(CONTRACT_ID)).thenReturn(contract);
+        lenient()
+                .when(preHandleContext.requireKeyOrThrow(any(Key.class), any()))
+                .thenReturn(preHandleContext);
+    }
+
+    @Test
+    @DisplayName("preHandle requires the connector contract's key")
+    void preHandleRequiresConnectorContractKey() throws PreCheckException {
+        setupPreHandle(Account.newBuilder()
+                .accountId(CONTRACT_ACCOUNT_ID)
+                .smartContract(true)
+                .key(CONTRACT_ADMIN_KEY)
+                .build());
+        subject.preHandle(preHandleContext);
+        verify(preHandleContext).requireKeyOrThrow(CONTRACT_ADMIN_KEY, CLPR_INVALID_CONNECTOR_CONTRACT);
+    }
+
+    @Test
+    @DisplayName("preHandle rejects a missing or non-contract connector contract")
+    void preHandleRejectsMissingConnectorContract() throws PreCheckException {
+        setupPreHandle(null);
+        assertThatThrownBy(() -> subject.preHandle(preHandleContext)).isInstanceOf(PreCheckException.class);
+        verify(preHandleContext, never()).requireKeyOrThrow(any(Key.class), any());
     }
 }
