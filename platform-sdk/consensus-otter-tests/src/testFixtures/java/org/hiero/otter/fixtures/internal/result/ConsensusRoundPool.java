@@ -6,10 +6,8 @@ import static java.util.Objects.requireNonNull;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -89,25 +87,8 @@ public class ConsensusRoundPool {
      */
     @Nullable
     public ConsensusRound getRound(final long roundNumber, @NonNull final NodeId nodeId) {
-        return findRoundForNode(roundCache.get(roundNumber), nodeId);
-    }
-
-    /**
-     * Returns all the consensus rounds created at the moment of invocation whose round number is greater than the
-     * provided round number.
-     *
-     * @param roundNum the round number after which rounds are returned
-     * @param nodeId the nodeId querying for the result
-     * @return the list of consensus rounds
-     */
-    @NonNull
-    public List<ConsensusRound> currentConsensusRoundsAfter(final long roundNum, @NonNull final NodeId nodeId) {
-        return roundCache.keySet().stream()
-                .filter(i -> i > roundNum)
-                .sorted()
-                .map(i -> getRound(i, nodeId))
-                .filter(Objects::nonNull)
-                .toList();
+        final Map<ConsensusRound, Set<NodeId>> consensusRoundSetMap = roundCache.get(roundNumber);
+        return consensusRoundSetMap == null ? null : findRoundForNode(consensusRoundSetMap, nodeId);
     }
 
     /**

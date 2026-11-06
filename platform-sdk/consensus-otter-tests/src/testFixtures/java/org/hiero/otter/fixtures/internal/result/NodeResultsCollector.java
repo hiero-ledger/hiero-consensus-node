@@ -6,6 +6,7 @@ import static java.util.Objects.requireNonNull;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import org.apache.logging.log4j.Marker;
@@ -28,6 +29,8 @@ import org.hiero.otter.fixtures.result.SubscriberAction;
 public class NodeResultsCollector {
 
     private final NodeId nodeId;
+    // The round numbers in the order the node delivered them. A restart delivers some of them again.
+    private final List<Long> consensusRoundNums = new CopyOnWriteArrayList<>();
     private final List<ConsensusRoundSubscriber> consensusRoundSubscribers = new CopyOnWriteArrayList<>();
     private final List<EventDescriptorWrapper> preConsensusEvents = new ArrayList<>();
     private final List<EventDescriptorWrapper> staleEvents = new ArrayList<>();
@@ -77,6 +80,7 @@ public class NodeResultsCollector {
         if (!destroyed) {
             // sends each round through the pool to deduplicate across nodes
             final ConsensusRound internalRound = roundPool.update(round, nodeId);
+            consensusRoundNums.add(internalRound.getRoundNum());
 
             consensusRoundSubscribers.removeIf(
                     subscriber -> subscriber.onConsensusRound(nodeId, internalRound) == SubscriberAction.UNSUBSCRIBE);
@@ -198,15 +202,31 @@ public class NodeResultsCollector {
     }
 
     /**
-     * Returns all the consensus rounds created by this node at the moment of invocation whose round number is greater
-     * than the provided round number.
+     * Returns the consensus rounds delivered by this node until the moment of invocation, starting with and including
+     * the delivery at the provided index. A round that was delivered more than once is returned once. The rounds are
+     * ordered by round number.
      *
-     * @param roundNum the round number after which rounds are returned
+     * @param startIndex the index of the first delivery to include
      * @return the list of consensus rounds
      */
     @NonNull
-    public List<ConsensusRound> currentConsensusRoundsAfter(final long roundNum) {
-        return roundPool.currentConsensusRoundsAfter(roundNum, nodeId);
+    public List<ConsensusRound> currentConsensusRounds(final int startIndex) {
+        final List<Long> roundNums = List.copyOf(consensusRoundNums);
+        return roundNums.subList(startIndex, roundNums.size()).stream()
+                .distinct()
+                .sorted()
+                .map(roundNum -> roundPool.getRound(roundNum, nodeId))
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
+    /**
+     * Returns the number of consensus rounds delivered by this node, counting a round once for every delivery.
+     *
+     * @return the count of delivered consensus rounds
+     */
+    public int currentConsensusRoundsCount() {
+        return consensusRoundNums.size();
     }
 
     /**
