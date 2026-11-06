@@ -45,6 +45,7 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import java.util.Set;
 import java.util.function.Predicate;
 import org.apache.tuweni.bytes.Bytes;
+import org.hiero.hapi.support.fees.FeeSchedule;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -270,5 +271,13 @@ class HandleSystemContractOperationsTest {
     @Test
     void maybeEthSenderKeyTest() {
         assertSame(A_SECP256K1_KEY, subject.maybeEthSenderKey());
+    }
+
+    @Test
+    void simpleFeesScheduleIsTheContextSchedule() {
+        final var schedule = FeeSchedule.DEFAULT;
+        given(context.simpleFeesSchedule()).willReturn(schedule);
+
+        assertThat(subject.simpleFeesSchedule()).isSameAs(schedule);
     }
 }

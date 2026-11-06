@@ -206,24 +206,24 @@ operations on it are blocked until an admin intervenes.
 
 ### Default values (from `ClprConfig`)
 
-|       Parameter       |        Config key        |            Default             |
-|-----------------------|--------------------------|--------------------------------|
-| Base penalty          | `clpr.slashBasePenalty`  | 10,000,000 tinybars (0.1 HBAR) |
-| Escalation multiplier | `clpr.slashMultiplier`   | 2                              |
-| Ban threshold         | `clpr.slashBanThreshold` | 5                              |
+|       Parameter       |        Config key        |             Default             |
+|-----------------------|--------------------------|---------------------------------|
+| Base penalty          | `clpr.slashBasePenalty`  | 10,000,000,000 tinybars (100 ℏ) |
+| Escalation multiplier | `clpr.slashMultiplier`   | 2                               |
+| Ban threshold         | `clpr.slashBanThreshold` | 5                               |
 
 With defaults, the escalation sequence is:
 
 | Offence # |                      Penalty                       |
 |-----------|----------------------------------------------------|
-| 1st       | 10 M tinybars                                      |
-| 2nd       | 20 M tinybars                                      |
-| 3rd       | 40 M tinybars                                      |
-| 4th       | 80 M tinybars                                      |
+| 1st       | 100 ℏ                                              |
+| 2nd       | 200 ℏ                                              |
+| 3rd       | 400 ℏ                                              |
+| 4th       | 800 ℏ                                              |
 | 5th (ban) | remaining locked stake forfeited; connector banned |
 
-A connector starting with the minimum locked stake of 100 M tinybars would have its
-entire stake exhausted by the 4th offence and would be banned on the 5th.
+A connector starting with the minimum locked stake of 30,000 ℏ would lose 1,500 ℏ (5% of
+its stake) over the first four offences and would be banned on the 5th.
 
 **Endpoint payout:** on a slash event, the submitting endpoint receives
 `min(endpointPenaltyTinybars, penalty * endpointMarginPercent / 100)` from the slashed

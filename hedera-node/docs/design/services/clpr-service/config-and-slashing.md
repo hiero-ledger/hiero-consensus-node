@@ -38,9 +38,9 @@ derived from the network's HIP-26 EVM chain ID, `contracts.chainId`, as `eip155:
 
 |            Key            |            Default            | Network? |                                  Purpose                                   |
 |---------------------------|-------------------------------|----------|----------------------------------------------------------------------------|
-| `minLockedStake`          | `100 000 000` tinybars        | yes      | Required stake for `completeConnector`; transferred to `stakingAccount`.   |
+| `minLockedStake`          | `3 000 000 000 000` tinybars  | yes      | Required stake for `completeConnector`; transferred to `stakingAccount`.   |
 | `stakingAccount`          | `0.0.803` (account num `803`) | yes      | Holds locked connector stake; created at genesis/upgrade if CLPR enabled.  |
-| `slashBasePenalty`        | `10 000 000` tinybars         | yes      | Base slash on first offence.                                               |
+| `slashBasePenalty`        | `10 000 000 000` tinybars     | yes      | Base slash on first offence.                                               |
 | `slashMultiplier`         | `2`                           | yes      | Geometric escalation factor per repeat offence.                            |
 | `slashBanThreshold`       | `5`                           | yes      | Cumulative offences after which a connector is banned.                     |
 | `endpointPenaltyTinybars` | `5 000 000`                   | yes      | Penalty paid by source connector to the submitting endpoint per spec §4.6. |
@@ -157,6 +157,21 @@ calculator instance. Each looks up its base fee from the platform `FeeSchedule` 
 `FacilityInitModule.provideClprServiceFeeCalculators` exposes the set into the standard
 fee plumbing, so CLPR fees ride the normal fee-schedule path and are tunable through the
 fee schedule update mechanism, not config.
+
+Besides its base fee, `ClprCompleteChannel` is charged the `STATE_BYTES` extra for its config and
+endpoint-manifest proof bytes (first 8,192 free), and `ClprSubmitBundle` the `PROCESSING_BYTES` extra for its
+bundle payload. Both are charged the `GAS` extra for their verifier call at a fixed
+`ClprFeeCalculator.VERIFIER_FEE_GAS` (300,000), since the actual gas is only known after handling. The
+`ClprGetLedgerConfiguration` and `ClprGetEndpointManifest` queries are paid, priced by `ClprQueryFeeCalculator`
+(exposed by `FacilityInitModule.provideClprQueryFeeCalculators`) at their base fee plus the same `GAS` extra.
+
+CLPR transactions use the standard fee-charging path, including its existing treatment of failures. There is no
+separate failure price in the schedule; handler failures retain the configured base fee and extras. The admin-only
+transactions have a $0 service fee, while a privileged payer's fees are waived entirely.
+
+Defaults for connector bonds and penalties (`minLockedStake`, `slashBasePenalty`,
+`endpointMisbehaviorPenaltyTinybars`) are in tinybars, sized from the fee proposal's USD figures at $0.10/ℏ:
+$3,000 stake, $10 first slash (doubling, ban on the 5th), and a $1 endpoint misbehavior penalty.
 
 ## Slashing: `ClprSlashingUtils`
 

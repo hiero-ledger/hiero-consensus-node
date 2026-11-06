@@ -23,7 +23,7 @@ import java.util.Optional;
 import java.util.function.Consumer;
 
 /**
- * HAPI spec operation for {@code ClprGetEndpointManifest} free queries (spec §6.5).
+ * HAPI spec operation for {@code ClprGetEndpointManifest} paid queries (spec §6.5).
  *
  * <p>Usage:
  * <pre>
