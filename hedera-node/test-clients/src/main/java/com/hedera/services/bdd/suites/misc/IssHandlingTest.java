@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 /**
@@ -56,6 +57,8 @@ import org.junit.jupiter.api.Tag;
  * </ul>
  */
 @Tag(ISS)
+// Runs last: it halts node1 and freezes the shared network.
+@Order(Integer.MAX_VALUE)
 class IssHandlingTest implements LifecycleTest {
 
     /** The absolute staging dir the ISS node writes captured artifacts into; asserted on disk after the ISS. */

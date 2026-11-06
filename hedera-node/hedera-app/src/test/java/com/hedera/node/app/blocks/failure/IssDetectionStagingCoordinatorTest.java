@@ -32,6 +32,8 @@ import java.time.InstantSource;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -468,6 +470,59 @@ class IssDetectionStagingCoordinatorTest {
         // The ISS block's contents were staged even though its proof sidecar could not be copied.
         assertThat(detectDir().resolve(issBase + ".pnd.gz")).exists();
         assertThat(detectDir().resolve(issBase + ".pnd.json.gz")).doesNotExist();
+    }
+
+    @Test
+    void detectionDoesNotStageARoundTheFailurePathStagedWhileItWasResolving() throws IOException {
+        when(issConfig.issBlockStagingEnabled()).thenReturn(true);
+        when(blockStreamConfig.writerMode()).thenReturn(BlockStreamWriterMode.FILE);
+        final List<Runnable> deferred = new ArrayList<>();
+        final IssDetectionStagingCoordinator asyncSubject = newSubject(deferred::add);
+        final String base = FileBlockItemWriter.longToFileName(7L);
+        final Path sourceBlk = Files.write(tempDir.resolve(base + ".blk.gz"), new byte[] {1, 2, 3});
+        final List<IssBlockRef> refs = List.of(new IssBlockRef(7, List.of(sourceBlk)));
+        // Detection resolves the block, but the halt path stages the round before detection copies it.
+        final AtomicBoolean firstResolve = new AtomicBoolean(true);
+        when(diskResolver.resolve(9, 0)).thenAnswer(inv -> {
+            if (firstResolve.getAndSet(false)) {
+                asyncSubject.stageDetectedIssOnFailure();
+            }
+            return refs;
+        });
+
+        asyncSubject.captureAndStage(9);
+        deferred.getFirst().run();
+
+        assertThat(failureDir().resolve(base + ".blk.gz")).exists();
+        assertThat(detectDir()).doesNotExist();
+    }
+
+    @Test
+    void detectionStopsPollingOnceTheFailurePathStagesTheRound() throws IOException {
+        when(issConfig.issBlockStagingEnabled()).thenReturn(true);
+        when(blockStreamConfig.writerMode()).thenReturn(BlockStreamWriterMode.FILE);
+        when(issConfig.captureTimeout()).thenReturn(Duration.ofSeconds(30));
+        final List<Runnable> deferred = new ArrayList<>();
+        final IssDetectionStagingCoordinator asyncSubject = newSubject(deferred::add);
+        final String base = FileBlockItemWriter.longToFileName(7L);
+        final Path sourceBlk = Files.write(tempDir.resolve(base + ".blk.gz"), new byte[] {1, 2, 3});
+        // Detection's first poll finds nothing yet; meanwhile the halt path resolves the flushed block and stages it.
+        final AtomicInteger resolves = new AtomicInteger();
+        when(diskResolver.resolve(9, 0)).thenAnswer(inv -> {
+            if (resolves.incrementAndGet() == 1) {
+                asyncSubject.stageDetectedIssOnFailure();
+                return List.of();
+            }
+            return List.of(new IssBlockRef(7, List.of(sourceBlk)));
+        });
+
+        asyncSubject.captureAndStage(9);
+        deferred.getFirst().run();
+
+        // One poll by detection plus the halt path's single resolve; detection did not keep polling for 30s.
+        verify(diskResolver, times(2)).resolve(9, 0);
+        assertThat(failureDir().resolve(base + ".blk.gz")).exists();
+        assertThat(detectDir()).doesNotExist();
     }
 
     /** Simulates the buffer reader writing a captured block into the target dir it is handed, and returns it. */

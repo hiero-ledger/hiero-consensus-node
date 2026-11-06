@@ -130,9 +130,9 @@ public class IssBlockResolver {
         final int maxReadSize = config.maxReadBytesSize();
         int issIndex = -1;
         Long oldestReadableRound = null;
-        // Whether a READABLE block newer than the pick bounds the round to the pick (its first round > round). If none
-        // does — because the newest block(s) were unreadable and skipped — the pick needs the last-round confirmation
-        // below before it can be trusted.
+        // Whether the pick's direct successor is READABLE and bounds the round to the pick (its first round > round).
+        // If not (the newest block(s) were unreadable and skipped, or a missing/unmarked block sits between them), the
+        // pick needs the last-round confirmation below before it can be trusted.
         boolean boundedByReadableNewerBlock = false;
         for (int i = blocks.size() - 1; i >= 0; i--) {
             final OptionalLong firstRound = cachedFirstRound(blocks.get(i), maxReadDepth, maxReadSize);
@@ -151,7 +151,9 @@ public class IssBlockResolver {
                 issIndex = i;
                 break;
             }
-            boundedByReadableNewerBlock = true;
+            // A missing or unmarked block between this block and the next candidate may hold the round.
+            boundedByReadableNewerBlock =
+                    i > 0 && blocks.get(i).blockNumber() == blocks.get(i - 1).blockNumber() + 1;
         }
         if (issIndex < 0) {
             log.warn(

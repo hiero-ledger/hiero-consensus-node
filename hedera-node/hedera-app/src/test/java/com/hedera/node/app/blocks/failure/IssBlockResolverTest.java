@@ -246,6 +246,27 @@ class IssBlockResolverTest {
     }
 
     @Test
+    void doesNotStageOlderBlockWhenAMissingBlockSitsBetweenPickAndBound() throws IOException {
+        // Block 2, which would hold round 6, is not on disk. Readable block 3 starts after round 6 but does not
+        // directly
+        // follow block 1, so it does not prove block 1 (last round 4) holds round 6: stage nothing, not the wrong
+        // block.
+        writeBlock(1, 1, 4, ".blk.gz");
+        writeBlock(3, 9, 12, ".blk.gz");
+
+        assertThat(subject.resolve(6, 0)).isEmpty();
+    }
+
+    @Test
+    void resolvesThePickAcrossAMissingBlockWhenItsLastRoundCoversTheRound() throws IOException {
+        // Same gap, but round 3 is inside block 1 (rounds 1..4), which the last-round check confirms.
+        writeBlock(1, 1, 4, ".blk.gz");
+        writeBlock(3, 9, 12, ".blk.gz");
+
+        assertThat(subject.resolve(3, 0).stream().map(IssBlockRef::blockNumber)).containsExactly(1L);
+    }
+
+    @Test
     void resolvingTheSameRoundTwiceReusesMemoizedRounds() throws IOException {
         writeBlock(1, 1, 4, ".blk.gz");
         writeBlock(2, 5, 7, ".blk.gz");
