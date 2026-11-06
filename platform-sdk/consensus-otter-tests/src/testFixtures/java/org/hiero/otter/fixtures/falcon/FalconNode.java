@@ -2,7 +2,6 @@
 package org.hiero.otter.fixtures.falcon;
 
 import static java.util.Objects.requireNonNull;
-import static org.hiero.otter.fixtures.falcon.RecordingEventCreationManager.copyEvent;
 import static org.hiero.otter.fixtures.internal.AbstractMiniNode.LifeCycle.DESTROYED;
 import static org.hiero.otter.fixtures.internal.AbstractMiniNode.LifeCycle.RUNNING;
 
@@ -21,9 +20,9 @@ import java.util.Random;
 import java.util.function.Consumer;
 import org.hiero.base.crypto.BytesSigner;
 import org.hiero.consensus.benchmark.tools.event.EventShape;
+import org.hiero.consensus.benchmark.tools.event.EventStreamGenerator;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.gossip.impl.gossip.sync.protocol.SyncStatusChecker;
-import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -188,12 +187,28 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver, 
             if (stepRecorder != null) {
                 // Before the event goes onto the wire: on direct schedulers, the put releases it right away
                 final NodeId sender = requireNonNull(event.getSenderId());
-                stepRecorder.accept(new Received(timeManager.now(), sender, copyEvent(event, EventOrigin.GOSSIP)));
+                stepRecorder.accept(new Received(timeManager.now(), sender, receivedCopy(event)));
             }
             wiring.receivedGossipEventsInputWire().put(event);
             return true;
         }
         return false;
+    }
+
+    /**
+     * Copies an event as gossip delivers it in production: sent through the gossip streams
+     * ({@link EventStreamGenerator#receiveUnhashed}), so not hashed and with the origin GOSSIP, with the sender and the
+     * time received of the delivered event, which is also the time its first stage starts. The simulated network
+     * delivers hashed events, which saves hashing every copy; the recording leaves the hashing to the intake that
+     * replays it.
+     */
+    @NonNull
+    private static PlatformEvent receivedCopy(@NonNull final PlatformEvent event) {
+        final PlatformEvent copy = EventStreamGenerator.receiveUnhashed(event);
+        copy.setSenderId(requireNonNull(event.getSenderId()));
+        copy.setTimeReceived(event.getTimeReceived());
+        copy.setLastStageTime(event.getTimeReceived());
+        return copy;
     }
 
     /**

@@ -15,8 +15,24 @@ import org.hiero.consensus.model.status.PlatformStatus;
  * <p>The events of the steps are copies, as they were at that time; the simulation keeps changing its own objects. An
  * event from another node is copied as the node would receive it through gossip, with the origin
  * {@link org.hiero.consensus.model.event.EventOrigin#GOSSIP GOSSIP}; an event of the node itself as its event creator
- * built it, with the origin {@link org.hiero.consensus.model.event.EventOrigin#RUNTIME RUNTIME}. Each copy keeps its
- * hash, and the time received, sender, non-deterministic generation and sequence number it had at that time.
+ * built it, with the origin {@link org.hiero.consensus.model.event.EventOrigin#RUNTIME RUNTIME}. Each copy has the
+ * state its event has at that point in production:
+ * <ul>
+ *   <li>{@link Received}: as gossip delivers it, not hashed, with the sender and the time received;</li>
+ *   <li>{@link CreationAttempt}: as the event creator hands it over, hashed, with the time received;</li>
+ *   <li>{@link Released}: as the orphan buffer hands it on, hashed, with the time received, the sender of an event
+ *       from another node, the non-deterministic generation, and the sequence number.</li>
+ * </ul>
+ *
+ * <p>Each copy also has the times that only metrics read:
+ * <ul>
+ *   <li>the time its last pipeline stage ended
+ *       ({@link org.hiero.consensus.model.event.PlatformEvent#getLastStageTime() getLastStageTime()}): the time
+ *       received, the time the event creator took the transactions from the pool, and the time of the release;</li>
+ *   <li>for an event of the node itself, the times its transactions were received by the transaction pool
+ *       ({@link org.hiero.consensus.model.event.PlatformEvent#getTransactionReceivedTimes()
+ *       getTransactionReceivedTimes()}).</li>
+ * </ul>
  */
 public sealed interface Step {
 
