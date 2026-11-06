@@ -3,6 +3,7 @@ package com.hedera.node.app.service.util.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_LIST_CONTAINS_DUPLICATES;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_LIST_EMPTY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_SIZE_LIMIT_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_TRANSACTION_IN_BLACKLIST;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_BATCH_KEY;
@@ -198,6 +199,19 @@ class AtomicBatchHandlerTest {
 
         final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertEquals(BATCH_LIST_EMPTY, msg.responseCode());
+    }
+
+    @Test
+    void pureChecksFailsWhenBatchSizeExceedsMax() throws PreCheckException {
+        // Config in setUp caps atomicBatch.maxNumberOfTransactions at 2. Three inners must fail at
+        // pureChecks (ingest) without attempting to parse any inner transaction.
+        final var bytes = transactionsToBytes(innerTxnFrom("123"), innerTxnFrom("456"), innerTxnFrom("789"));
+        final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, bytes);
+        given(pureChecksContext.body()).willReturn(txnBody);
+
+        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+        assertEquals(BATCH_SIZE_LIMIT_EXCEEDED, msg.responseCode());
+        verify(transactionParser, times(0)).parse(any(), any());
     }
 
     @Test

@@ -344,17 +344,27 @@ public final class IngestChecker {
             result.setThrottleUsages(result.throttleUsages());
         }
 
+        final var storeFactory = new ReadableStoreFactoryImpl(state);
+        // For AtomicBatch, resolve payer and enforce the payer-based size limit BEFORE pureChecks.
+        // Preliminary size checks are permissive when governanceTransactions are enabled (payer not
+        // yet known), so a non-governance client can otherwise force this node to parse every inner
+        // transaction of an oversized batch during pureChecks before being rejected as OVERSIZE.
+        if (functionality == ATOMIC_BATCH) {
+            final var earlyPayer = solvencyPreCheck.getPayerAccount(storeFactory, txInfo.payerID());
+            transactionChecker.checkTransactionSizeLimitBasedOnPayer(txInfo, earlyPayer.accountIdOrThrow());
+        }
+
         // 4a. Run pure checks
         final var pureChecksContext = new PureChecksContextImpl(txBody, dispatcher);
         dispatcher.dispatchPureChecks(pureChecksContext);
 
         // 5. Get payer account
-        final var storeFactory = new ReadableStoreFactoryImpl(state);
         final var payer = solvencyPreCheck.getPayerAccount(storeFactory, txInfo.payerID());
         final var payerAccountId = payer.accountIdOrThrow();
 
         // 5a. Check transaction size limits based on the payer account's privileges
-        // (governance accounts may submit larger transactions)
+        // (governance accounts may submit larger transactions). Redundant for AtomicBatch when the
+        // early check above already ran, but cheap and keeps the common path uniform.
         transactionChecker.checkTransactionSizeLimitBasedOnPayer(txInfo, payerAccountId);
 
         // 5b. Enforce, at ingest, the payer privileges required by operations whose authorization is decidable from

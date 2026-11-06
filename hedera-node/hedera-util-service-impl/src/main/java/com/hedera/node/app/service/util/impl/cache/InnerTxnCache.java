@@ -17,11 +17,14 @@ import java.util.concurrent.TimeUnit;
  */
 public class InnerTxnCache {
     private static final int INNER_TXN_CACHE_TIMEOUT = 15;
+    /** Bound cache residency so a flood of unique inner txn bytes cannot grow unbounded for the TTL window. */
+    private static final long INNER_TXN_CACHE_MAX_SIZE = 10_000L;
     private final LoadingCache<Bytes, TransactionBody> transactionsCache;
 
     public InnerTxnCache(
             @NonNull final TransactionParser transactionParser, @NonNull final Configuration configuration) {
         transactionsCache = Caffeine.newBuilder()
+                .maximumSize(INNER_TXN_CACHE_MAX_SIZE)
                 .expireAfterWrite(INNER_TXN_CACHE_TIMEOUT, TimeUnit.SECONDS)
                 .build(transactionBytes -> transactionParser.parse(transactionBytes, configuration));
     }
