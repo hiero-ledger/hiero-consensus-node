@@ -7,6 +7,7 @@ import static java.util.Objects.requireNonNull;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
@@ -215,7 +216,9 @@ public class NodeResultsCollector {
      */
     @NonNull
     public List<ConsensusRound> currentConsensusRounds(final int startIndex) {
-        // The pool returns the same instance whenever a node delivers an identical round again
+        // This creates a Set based on identity. The ConsensusRoundPool ensures that the same round is always the same
+        // object. We cannot use a regular Set because equality of ConsensusRounds is based on the events only,
+        // which means a regular Set would remove empty rounds that were emitted at different times.
         final Set<ConsensusRound> distinctRounds = Collections.newSetFromMap(new IdentityHashMap<>());
         distinctRounds.addAll(consensusRounds.subList(startIndex, consensusRounds.size()));
         return distinctRounds.stream()
