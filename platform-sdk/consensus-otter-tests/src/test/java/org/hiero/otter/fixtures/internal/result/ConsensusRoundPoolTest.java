@@ -25,8 +25,8 @@ class ConsensusRoundPoolTest {
         final ConsensusRound firstRound = emptyRound(1L);
         final ConsensusRound identicalRound = emptyRound(1L);
 
-        assertThat(pool.update(firstRound)).isSameAs(firstRound);
-        assertThat(pool.update(identicalRound)).isSameAs(firstRound);
+        assertThat(pool.canonicalize(firstRound)).isSameAs(firstRound);
+        assertThat(pool.canonicalize(identicalRound)).isSameAs(firstRound);
     }
 
     @Test
@@ -38,9 +38,9 @@ class ConsensusRoundPoolTest {
         final ConsensusRound differentRound = mock(ConsensusRound.class);
         when(differentRound.getRoundNum()).thenReturn(1L);
 
-        assertThat(pool.update(round)).isSameAs(round);
-        assertThat(pool.update(differentRound)).isSameAs(differentRound);
-        assertThat(pool.update(round)).isSameAs(round);
+        assertThat(pool.canonicalize(round)).isSameAs(round);
+        assertThat(pool.canonicalize(differentRound)).isSameAs(differentRound);
+        assertThat(pool.canonicalize(round)).isSameAs(round);
     }
 
     @Test
@@ -51,8 +51,8 @@ class ConsensusRoundPoolTest {
         final ConsensusRound round2 = emptyRound(2L);
         assertThat(round1).isEqualTo(round2);
 
-        assertThat(pool.update(round1)).isSameAs(round1);
-        assertThat(pool.update(round2)).isSameAs(round2);
+        assertThat(pool.canonicalize(round1)).isSameAs(round1);
+        assertThat(pool.canonicalize(round2)).isSameAs(round2);
     }
 
     @NonNull

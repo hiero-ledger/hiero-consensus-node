@@ -39,7 +39,7 @@ public class ConsensusRoundPool {
      * @return the canonical instance (either existing or newly stored)
      */
     @NonNull
-    public ConsensusRound update(@NonNull final ConsensusRound round) {
+    public ConsensusRound canonicalize(@NonNull final ConsensusRound round) {
         requireNonNull(round, "round must not be null");
 
         if (destroyed) {

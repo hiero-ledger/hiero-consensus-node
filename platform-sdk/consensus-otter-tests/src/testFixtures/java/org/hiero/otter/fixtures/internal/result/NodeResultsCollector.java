@@ -83,7 +83,7 @@ public class NodeResultsCollector {
         requireNonNull(round);
         if (!destroyed) {
             // sends each round through the pool to deduplicate across nodes
-            final ConsensusRound canonicalRound = roundPool.update(round);
+            final ConsensusRound canonicalRound = roundPool.canonicalize(round);
             consensusRounds.add(canonicalRound);
 
             consensusRoundSubscribers.removeIf(
