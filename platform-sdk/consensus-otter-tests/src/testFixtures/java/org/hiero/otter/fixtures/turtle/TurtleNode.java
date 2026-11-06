@@ -164,7 +164,7 @@ public class TurtleNode extends AbstractNode implements Node, SimulatorTimeManag
             this.logging = requireNonNull(logging);
             this.nodeConfiguration = new TurtleNodeConfiguration(
                     () -> lifeCycle, networkConfiguration.overrideProperties(), outputDirectory);
-            this.resultsCollector = new NodeResultsCollector(selfId, consensusRoundPool, false);
+            this.resultsCollector = new NodeResultsCollector(selfId, consensusRoundPool, true);
         }
     }
 
@@ -307,6 +307,23 @@ public class TurtleNode extends AbstractNode implements Node, SimulatorTimeManag
                             "nodeConsensusRoundsCollector",
                             "consensusRounds",
                             wrapConsumerWithNodeContext(resultsCollector::addConsensusRound));
+
+            // Soldered before the platform starts, so that the events replayed during startup are collected, too
+            buildingBlocks
+                    .hashgraphModule()
+                    .preconsensusEventOutputWire()
+                    .solderTo(
+                            "nodePreConsensusEventsCollector",
+                            "preConsensusEvents",
+                            event -> resultsCollector.addPreConsensusEvent(event.getDescriptor()));
+
+            buildingBlocks
+                    .hashgraphModule()
+                    .staleEventOutputWire()
+                    .solderTo(
+                            "nodeStaleEventsCollector",
+                            "staleEvents",
+                            event -> resultsCollector.addStaleEvent(event.getDescriptor()));
 
             buildingBlocks
                     .statusMonitorModule()
