@@ -3,13 +3,13 @@ package com.swirlds.merkledb.internal;
 
 import static com.swirlds.merkledb.internal.MerkleDbDataSourceTest.assertLeaf;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_CONFIGURATION;
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_MERKLE_DB_CONFIG;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.assertAllDatabasesClosed;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.assertNoDatabaseFolders;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.createHashChunkStream;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -17,6 +17,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.collections.LongList;
+import com.swirlds.merkledb.collections.LongListSegment;
 import com.swirlds.merkledb.config.DataSourceCopyMode;
 import com.swirlds.merkledb.config.MerkleDbConfig_;
 import com.swirlds.merkledb.internal.MerkleDbDataSource.CopiedIndexes;
@@ -26,7 +27,7 @@ import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.List;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.hiero.base.utility.test.fixtures.file.AbstractFileManagerAwareTest;
@@ -145,8 +146,22 @@ class MerkleDbDataSourceCopyTest extends AbstractFileManagerAwareTest {
         try {
             final MerkleDbDataSourceBuilder builder = builder(DEFAULT_CONFIGURATION);
             final PreparedDataSourceCopy prepared = builder.prepareCopy(LABEL, source, false, false);
+            final CopiedIndexes indexes =
+                    assertInstanceOf(InMemoryDataSourceCopy.class, prepared).indexes();
+            final List<LongList> indexList =
+                    List.of(indexes.hashChunkIndex(), indexes.leafIndex(), indexes.bucketIndex());
+            for (final LongList index : indexList) {
+                assertTrue(index.size() > 0, "The copied index should have entries");
+                assertTrue(offHeapConsumption(index) > 0, "The copied index should use off-heap memory");
+            }
             prepared.close();
             assertAllDatabasesClosedExcept(1);
+            for (final LongList index : indexList) {
+                assertEquals(0, index.size(), "The copied index should be closed");
+                assertEquals(0, offHeapConsumption(index), "The copied index memory should be released");
+            }
+            // The source's indexes aren't affected
+            checkData(TestType.long_fixed, source, 1);
         } finally {
             source.close();
         }
@@ -196,6 +211,7 @@ class MerkleDbDataSourceCopyTest extends AbstractFileManagerAwareTest {
                 assertEquals(expectedCopyClass, prepared.getClass().getSimpleName());
                 final MerkleDbDataSource copy = assertInstanceOf(MerkleDbDataSource.class, prepared.complete());
                 try {
+                    assertThrows(IllegalStateException.class, prepared::complete, "A copy is completed only once");
                     assertEquals(expectedDiskBasedIndices, copy.isPreferDiskBasedIndices());
                     checkData(TestType.long_fixed, copy, 1);
                 } finally {
@@ -222,26 +238,18 @@ class MerkleDbDataSourceCopyTest extends AbstractFileManagerAwareTest {
     }
 
     /**
-     * Copies the data source in memory, the same way the builder does, and creates a data source from
-     * the copy.
+     * Copies the data source in memory with the builder, and completes the copy.
      */
-    private MerkleDbDataSource copyInMemory(final MerkleDbDataSource source, final boolean compactionEnabled)
-            throws IOException {
-        final Path copyDir = fileSystemManager.resolveNewTemp(MerkleDbDataSourceBuilder.FOLDER_PREFIX + LABEL);
-        final AtomicReference<CopiedIndexes> indexes = new AtomicReference<>();
-        source.pauseCompactionAndRun(() -> indexes.set(source.snapshotWithCopiedIndexes(copyDir)));
-        try {
-            return new MerkleDbDataSource(
-                    copyDir,
-                    DEFAULT_MERKLE_DB_CONFIG,
-                    fileSystemManager,
-                    source.getTableName(),
-                    compactionEnabled,
-                    indexes.get());
-        } catch (final IOException | RuntimeException e) {
-            indexes.get().close();
-            throw e;
+    private MerkleDbDataSource copyInMemory(final MerkleDbDataSource source, final boolean compactionEnabled) {
+        try (final PreparedDataSourceCopy prepared =
+                builder(DEFAULT_CONFIGURATION).prepareCopy(LABEL, source, compactionEnabled, false)) {
+            assertInstanceOf(InMemoryDataSourceCopy.class, prepared);
+            return (MerkleDbDataSource) prepared.complete();
         }
+    }
+
+    private static long offHeapConsumption(final LongList index) {
+        return assertInstanceOf(LongListSegment.class, index).getOffHeapConsumption();
     }
 
     /**

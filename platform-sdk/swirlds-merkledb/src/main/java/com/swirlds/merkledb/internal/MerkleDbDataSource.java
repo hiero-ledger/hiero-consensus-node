@@ -70,6 +70,7 @@ import org.hiero.base.crypto.DigestType;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.file.FileUtils;
 import org.hiero.base.io.IORunnable;
+import org.hiero.base.io.IOSupplier;
 
 public final class MerkleDbDataSource implements VirtualDataSource {
 
@@ -313,8 +314,9 @@ public final class MerkleDbDataSource implements VirtualDataSource {
 
     /**
      * Creates a new MerkleDb data source from a snapshot made with {@link #snapshotWithCopiedIndexes(Path)}.
-     * The copied indexes are used instead of index files. If this constructor succeeds, the data source
-     * owns the indexes. Otherwise, the caller is responsible for closing them.
+     * The copied indexes are used instead of index files, even if {@link MerkleDbConfig#indexRebuildingEnforced()}
+     * is set. If this constructor succeeds, the data source owns the indexes. Otherwise, the caller is
+     * responsible for closing them.
      *
      * @param storageDir Directory with the snapshot
      * @param config merkle db configuration
@@ -644,6 +646,16 @@ public final class MerkleDbDataSource implements VirtualDataSource {
      */
     public void pauseCompactionAndRun(@NonNull final IORunnable action) throws IOException {
         compactionCoordinator.pauseCompactionAndRun(action);
+    }
+
+    /**
+     * Same as {@link #pauseCompactionAndRun(IORunnable)}, but returns the result of the action.
+     *
+     * @param action action to run while compaction is paused
+     * @return the result of the action
+     */
+    public <T> T pauseCompactionAndCall(@NonNull final IOSupplier<T> action) throws IOException {
+        return compactionCoordinator.pauseCompactionAndCall(action);
     }
 
     /**
@@ -1054,39 +1066,53 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             // main snapshotting process in multiple-threads
             final LongList[] indexCopies = new LongList[3];
             final List<CompletableFuture<Void>> tasks = new ArrayList<>();
-            if (copyIndexes) {
-                tasks.add(runWithSnapshotExecutor(
-                        "idToDiskLocationHashChunks", () -> indexCopies[0] = copyIndex(idToDiskLocationHashChunks)));
-                tasks.add(runWithSnapshotExecutor(
-                        "pathToDiskLocationLeafNodes", () -> indexCopies[1] = copyIndex(pathToDiskLocationLeafNodes)));
-                tasks.add(runWithSnapshotExecutor(
-                        "bucketIndexToBucketLocation",
-                        () -> indexCopies[2] = copyIndex(keyToPath.getBucketIndexToBucketLocation())));
-                tasks.add(runWithSnapshotExecutor(
-                        "keyToPath", () -> keyToPath.snapshotWithoutIndex(snapshotDbPaths.keyToPathDirectory)));
-            } else {
-                tasks.add(runWithSnapshotExecutor(
-                        "idToDiskLocationHashChunks",
-                        () -> idToDiskLocationHashChunks.writeToFile(snapshotDbPaths.idToDiskLocationHashChunksFile)));
-                tasks.add(runWithSnapshotExecutor(
-                        "pathToDiskLocationLeafNodes",
-                        () -> pathToDiskLocationLeafNodes.writeToFile(
-                                snapshotDbPaths.pathToDiskLocationLeafNodesFile)));
-                tasks.add(runWithSnapshotExecutor(
-                        "keyToPath", () -> keyToPath.snapshot(snapshotDbPaths.keyToPathDirectory)));
-            }
-            tasks.add(runWithSnapshotExecutor(
-                    "hashChunkStore", () -> hashChunkStore.snapshot(snapshotDbPaths.hashChunkDirectory)));
-            tasks.add(runWithSnapshotExecutor(
-                    "keyValueStore", () -> keyValueStore.snapshot(snapshotDbPaths.pathToKeyValueDirectory)));
-            tasks.add(runWithSnapshotExecutor("metadata", () -> saveMetadata(snapshotDbPaths)));
-            // Wait for all tasks to finish, even if some of them fail. join() isn't interruptible
             try {
+                if (copyIndexes) {
+                    tasks.add(runWithSnapshotExecutor(
+                            "idToDiskLocationHashChunks",
+                            () -> indexCopies[0] = copyIndex(idToDiskLocationHashChunks)));
+                    tasks.add(runWithSnapshotExecutor(
+                            "pathToDiskLocationLeafNodes",
+                            () -> indexCopies[1] = copyIndex(pathToDiskLocationLeafNodes)));
+                    tasks.add(runWithSnapshotExecutor(
+                            "bucketIndexToBucketLocation",
+                            () -> indexCopies[2] = copyIndex(keyToPath.getBucketIndexToBucketLocation())));
+                    tasks.add(runWithSnapshotExecutor(
+                            "keyToPath", () -> keyToPath.snapshotWithoutIndex(snapshotDbPaths.keyToPathDirectory)));
+                } else {
+                    tasks.add(runWithSnapshotExecutor(
+                            "idToDiskLocationHashChunks",
+                            () -> idToDiskLocationHashChunks.writeToFile(
+                                    snapshotDbPaths.idToDiskLocationHashChunksFile)));
+                    tasks.add(runWithSnapshotExecutor(
+                            "pathToDiskLocationLeafNodes",
+                            () -> pathToDiskLocationLeafNodes.writeToFile(
+                                    snapshotDbPaths.pathToDiskLocationLeafNodesFile)));
+                    tasks.add(runWithSnapshotExecutor(
+                            "keyToPath", () -> keyToPath.snapshot(snapshotDbPaths.keyToPathDirectory)));
+                }
+                tasks.add(runWithSnapshotExecutor(
+                        "hashChunkStore", () -> hashChunkStore.snapshot(snapshotDbPaths.hashChunkDirectory)));
+                tasks.add(runWithSnapshotExecutor(
+                        "keyValueStore", () -> keyValueStore.snapshot(snapshotDbPaths.pathToKeyValueDirectory)));
+                tasks.add(runWithSnapshotExecutor("metadata", () -> saveMetadata(snapshotDbPaths)));
+                // Wait for all tasks to finish, even if some of them fail. join() isn't interruptible
                 CompletableFuture.allOf(tasks.toArray(CompletableFuture[]::new)).join();
-            } catch (final CompletionException e) {
+            } catch (final RuntimeException | Error e) {
+                // A task failed, or a task couldn't be started, for example because the executor is shut
+                // down. Wait for the started tasks, so no index copy is made after the copies are closed
+                CompletableFuture.allOf(tasks.toArray(CompletableFuture[]::new))
+                        .exceptionally(t -> null)
+                        .join();
                 Arrays.stream(indexCopies).filter(Objects::nonNull).forEach(LongList::close);
-                final Throwable cause = (e.getCause() instanceof UncheckedIOException u) ? u.getCause() : e.getCause();
-                throw new IOException("[" + tableName + "] Snapshot failed", cause);
+                final Throwable cause = (e instanceof CompletionException) ? e.getCause() : e;
+                if (cause instanceof Error error) {
+                    // For example, an OutOfMemoryError when an index is copied
+                    throw error;
+                }
+                throw new IOException(
+                        "[" + tableName + "] Snapshot failed",
+                        (cause instanceof UncheckedIOException u) ? u.getCause() : cause);
             }
             logger.info(
                     MERKLE_DB.getMarker(),

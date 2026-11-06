@@ -80,8 +80,8 @@ import com.swirlds.config.api.validation.annotation.Positive;
  *      pointless runs when only a few small files exist.
  * @param dataSourceCopyMode
  *      How a data source is copied, for example when a virtual map is detached for a reconnect. See
- *      {@link DataSourceCopyMode}. Data sources with disk-based indices are always copied through a
- *      snapshot.
+ *      {@link DataSourceCopyMode}. Data sources with disk-based indices, and all data sources when
+ *      indexRebuildingEnforced is set, are always copied through a snapshot.
  */
 // spotless:off
 @ConfigData("merkleDb")

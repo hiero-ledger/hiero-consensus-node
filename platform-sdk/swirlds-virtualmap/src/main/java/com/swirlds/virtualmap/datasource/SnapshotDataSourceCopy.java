@@ -24,6 +24,7 @@ final class SnapshotDataSourceCopy implements PreparedDataSourceCopy {
     private final Path snapshotPath;
     private final boolean compactionEnabled;
     private final boolean offlineUse;
+    private boolean completed = false;
 
     SnapshotDataSourceCopy(
             @NonNull final VirtualDataSourceBuilder builder,
@@ -46,7 +47,12 @@ final class SnapshotDataSourceCopy implements PreparedDataSourceCopy {
     @NonNull
     @Override
     public VirtualDataSource complete() {
-        return builder.build(label, snapshotPath, compactionEnabled, offlineUse);
+        if (completed) {
+            throw new IllegalStateException("The copy is already completed");
+        }
+        final VirtualDataSource dataSource = builder.build(label, snapshotPath, compactionEnabled, offlineUse);
+        completed = true;
+        return dataSource;
     }
 
     /**

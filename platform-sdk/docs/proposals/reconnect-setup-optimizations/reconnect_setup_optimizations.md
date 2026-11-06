@@ -92,14 +92,18 @@ used. They were dropped: writes to one index file are serialized by the kernel's
 If copying the leaf index alone turns out to be slow, splitting it into chunk ranges is a follow-up.
 
 `merkleDb.dataSourceCopyMode` selects how a data source is copied:
-- `IN_MEMORY` (default): the in-memory copy above.
-- `SNAPSHOT`: today's snapshot + rebuild, as a rollback switch. It uses as much memory as `IN_MEMORY`.
-- `DISK_INDEXES`: copies with compaction disabled, like the teacher's, are restored from a snapshot with disk-based
-  indexes. They need no off-heap memory for indexes, but read their indexes from disk. Copies with compaction enabled
-  become live data sources, so they are made as with `IN_MEMORY`.
 
-If the source uses disk-based indexes (`merkleDb.useDiskIndices = true`), or the copy is requested for offline use,
-as `createSnapshot()` does, the copy is made through a snapshot.
+- `IN_MEMORY` (default): the in-memory copy above.
+- `SNAPSHOT`: today's snapshot + rebuild, as a rollback switch. It uses as much memory as `IN_MEMORY`, and writes the
+  indexes to disk inside the pipeline pause, as today.
+- `DISK_INDEXES`: copies with compaction disabled, like the teacher's, are restored from a snapshot with disk-based
+  indexes. They need no off-heap memory for indexes, but read their indexes from disk. As with `SNAPSHOT`, the indexes
+  are written to disk inside the pipeline pause, so the teacher's pause is as long as today. Copies with compaction
+  enabled become live data sources, so they are made as with `IN_MEMORY`.
+
+If the source uses disk-based indexes (`merkleDb.useDiskIndices = true`), the copy is requested for offline use, as
+`createSnapshot()` does, or index rebuilding is enforced (`merkleDb.indexRebuildingEnforced = true`), the copy is made
+through a snapshot.
 
 ### What the copy carries over
 
