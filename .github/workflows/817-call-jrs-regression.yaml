@@ -146,7 +146,7 @@ env:
   MAVEN_OPTS: -Xmx16g -XX:ActiveProcessorCount=16
   JAVA_OPTS: -Xmx28g -XX:ActiveProcessorCount=16
   GRADLE_CACHE_USERNAME: ${{ secrets.gradle-cache-username }}
-  GRADLE_CACHE_PASSWORD: ${{ secrets.gradle-cache-password }}
+  # GRADLE_CACHE_PASSWORD: ${{ secrets.gradle-cache-password }}
   CG_EXEC: ionice -c 2 -n 2 nice -n 19
 
 defaults:
