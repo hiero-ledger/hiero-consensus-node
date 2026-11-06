@@ -296,8 +296,9 @@ public class BlockStreamEventBuilder {
     /**
      * Computes the event hash, mirroring the production {@code PbjStreamHasher}: hash
      * {@code EventCore} + parent {@code EventDescriptor}s + per-transaction double-hash
-     * (hash of the transaction bytes, then that hash fed into the event digest), using the given
-     * digest type for both.
+     * (hash of the transaction bytes, then that hash fed into the event digest). The given digest
+     * type applies to the event digest only: like {@code PbjStreamHasher}, transactions are always
+     * hashed with SHA-384, also after the event hash cutover.
      */
     @NonNull
     private static Hash hashEvent(
@@ -314,7 +315,7 @@ public class BlockStreamEventBuilder {
                 EventDescriptor.PROTOBUF.write(parent, eventStream);
             }
 
-            final MessageDigest transactionDigest = digestType.buildDigest();
+            final MessageDigest transactionDigest = DigestType.SHA_384.buildDigest();
             final WritableSequentialData transactionStream =
                     new WritableStreamingData(new HashingOutputStream(transactionDigest));
             for (final Bytes transaction : transactions) {

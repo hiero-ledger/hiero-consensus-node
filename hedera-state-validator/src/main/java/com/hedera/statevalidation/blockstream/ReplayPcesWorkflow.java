@@ -455,8 +455,12 @@ public final class ReplayPcesWorkflow {
      * Returns a description of the first block file that is not yet finalized (a .blk/.blk.gz without a
      * sibling .mf, or a leftover .pnd.json), or empty if all blocks are finalized. Searches the
      * node-scoped subdirectory tree under blockStreamsDir.
+     *
+     * <p>Zero-size block files are ignored: when the PCES input runs out, the block that was opened for the
+     * next round (past the target, in the decision margin) is left empty and never receives a proof. It holds
+     * no items, and {@code validate-replay.sh} deletes zero-size block files before apply-blocks.
      */
-    private static Optional<String> firstUnfinalized(@NonNull final Path blockStreamsDir) {
+    static Optional<String> firstUnfinalized(@NonNull final Path blockStreamsDir) {
         if (!Files.isDirectory(blockStreamsDir)) {
             // No block output dir at all -> nothing was produced to finalize. This is itself suspicious for a
             // normal replay; treat as "nothing pending" ONLY if no blocks were expected. If blocks were
@@ -470,6 +474,9 @@ public final class ReplayPcesWorkflow {
                     .filter(name -> {
                         if (name.endsWith(".pnd.json") || name.endsWith(".pnd.gz") || name.endsWith(".pnd")) {
                             return true;
+                        }
+                        if ((name.endsWith(".blk.gz") || name.endsWith(".blk")) && isEmptyFile(Path.of(name))) {
+                            return false;
                         }
                         if (name.endsWith(".blk.gz")) {
                             return !Files.exists(
@@ -485,6 +492,15 @@ public final class ReplayPcesWorkflow {
             // Do NOT treat a scan failure as success. Surface it so the command fails rather than reporting a
             // possibly-incomplete block stream as valid.
             throw new UncheckedIOException("Failed scanning block output for finalization under " + blockStreamsDir, e);
+        }
+    }
+
+    /** @return true if the file is empty; false if it has content or its size cannot be read (stays pending) */
+    private static boolean isEmptyFile(@NonNull final Path file) {
+        try {
+            return Files.size(file) == 0;
+        } catch (final IOException e) {
+            return false;
         }
     }
 }
