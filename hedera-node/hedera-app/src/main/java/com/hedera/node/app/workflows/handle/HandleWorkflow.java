@@ -340,12 +340,10 @@ public class HandleWorkflow {
         systemTransactions.resetNextDispatchNonce();
         recordCache.resetRoundReceipts();
         boolean transactionsDispatched = false;
-        final boolean isGenesis =
-                switch (streamMode) {
-                    case RECORDS ->
-                        blockRecordManager.consTimeOfLastHandledTxn().equals(EPOCH);
-                    case BLOCKS, BOTH -> blockStreamManager.pendingWork() == GENESIS_WORK;
-                };
+        final boolean isGenesis = switch (streamMode) {
+            case RECORDS -> blockRecordManager.consTimeOfLastHandledTxn().equals(EPOCH);
+            case BLOCKS, BOTH -> blockStreamManager.pendingWork() == GENESIS_WORK;
+        };
         if (isGenesis) {
             final var genesisEventTime = firstEvent.getConsensusTimestamp();
             logger.info("Doing genesis setup before {}", genesisEventTime);
@@ -1015,6 +1013,7 @@ public class HandleWorkflow {
             return handleOutput;
         } catch (Exception e) {
             logger.error("{} - exception thrown while handling user transaction", ALERT_MESSAGE, e);
+            dispatchProcessor.resyncAfterAbandonedTransaction(state);
             return HandleOutput.failInvalidStreamItems(
                     parentTxn, exchangeRateManager.exchangeRates(), streamMode, recordCache);
         } finally {
@@ -1061,6 +1060,7 @@ public class HandleWorkflow {
             return handleOutput;
         } catch (final Exception e) {
             logger.error("{} - exception thrown while handling scheduled transaction", ALERT_MESSAGE, e);
+            dispatchProcessor.resyncAfterAbandonedTransaction(state);
             return HandleOutput.failInvalidStreamItems(
                     scheduledTxn, exchangeRateManager.exchangeRates(), streamMode, recordCache);
         }

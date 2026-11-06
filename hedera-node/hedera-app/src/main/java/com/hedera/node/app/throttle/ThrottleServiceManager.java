@@ -125,14 +125,84 @@ public class ThrottleServiceManager {
     }
 
     /**
+     * A snapshot of the accumulated in-memory gas and ops-duration throttle usage and the congestion-level starts,
+     * captured so recovery can restore them after rebuilding the configuration-dependent throttles.
+     *
+     * @param gasUsage the gas throttle usage snapshot
+     * @param opsDurationUsage the ops-duration throttle usage snapshot
+     * @param utilizationStarts the entity-utilization congestion-level starts, or null
+     * @param gasStarts the gas-throttle-multiplier congestion-level starts, or null
+     */
+    public record PreservedThrottleUsage(
+            @NonNull ThrottleUsageSnapshot gasUsage,
+            @NonNull ThrottleUsageSnapshot opsDurationUsage,
+            @Nullable Instant[] utilizationStarts,
+            @Nullable Instant[] gasStarts) {}
+
+    /**
+     * Captures the accumulated in-memory gas and ops-duration throttle usage and the congestion-level starts. Read-only;
+     * taken before a dispatched network-properties update rebuilds the throttles, so recovery can restore the usage the
+     * update discarded if the dispatch is rolled back.
+     *
+     * @return the captured usage
+     */
+    public PreservedThrottleUsage captureThrottleUsage() {
+        return new PreservedThrottleUsage(
+                backendThrottle.gasLimitThrottle().usageSnapshot(),
+                backendThrottle.opsDurationThrottle().usageSnapshot(),
+                congestionMultipliers.entityUtilizationCongestionStarts(),
+                congestionMultipliers.gasThrottleMultiplierCongestionStarts());
+    }
+
+    /**
+     * Refreshes the configuration-dependent throttles exactly as {@link #refreshThrottleConfiguration()}, then restores
+     * the given captured usage and congestion-level starts. Used by recovery after a rolled-back network-properties
+     * update, which rebuilt the throttles and so discarded the accumulated usage and restarted the minimum congestion
+     * period; the captured snapshot was taken before that update, so restoring it undoes the discard.
+     *
+     * @param usage the usage captured before the rolled-back update, by {@link #captureThrottleUsage()}
+     */
+    public void refreshThrottleConfigurationRestoring(@NonNull final PreservedThrottleUsage usage) {
+        refreshThrottleConfiguration();
+        backendThrottle.gasLimitThrottle().resetUsageTo(usage.gasUsage());
+        backendThrottle.opsDurationThrottle().resetUsageTo(usage.opsDurationUsage());
+        final var utilizationStarts = usage.utilizationStarts();
+        if (utilizationStarts != null && utilizationStarts.length > 0) {
+            congestionMultipliers.resetUtilizationScaledThrottleMultiplierStarts(utilizationStarts);
+        }
+        final var gasStarts = usage.gasStarts();
+        if (gasStarts != null && gasStarts.length > 0) {
+            congestionMultipliers.resetGasThrottleMultiplierStarts(gasStarts);
+        }
+    }
+
+    /**
+     * Refreshes the configuration-dependent throttles while preserving the usage accumulated up to this call, by
+     * capturing it first and restoring it after the rebuild. Used by recovery for a target that carries no
+     * pre-update snapshot; equivalent to {@link #refreshThrottleConfigurationRestoring(PreservedThrottleUsage)} with
+     * {@link #captureThrottleUsage()}.
+     */
+    public void refreshThrottleConfigurationPreservingUsage() {
+        refreshThrottleConfigurationRestoring(captureThrottleUsage());
+    }
+
+    /**
      * Recreates the throttles based on the given throttle definitions.
      *
      * @param encoded the serialized throttle definitions
      * @return the success status to use if the update was via HAPI
      */
     public ResponseCodeEnum recreateThrottles(@NonNull final Bytes encoded) {
-        final var validatedThrottles = rebuildThrottlesFrom(encoded);
-        congestionMultipliers.resetExpectations();
+        final var validatedThrottles = throttleParser.parse(encoded);
+        // Only rebuild the buckets and reset the congestion multipliers when the definitions actually changed. A
+        // rejected or rolled-back upload re-derives from the unchanged committed definitions; rebuilding then would
+        // needlessly discard the accumulated bucket usage and restart the minimum congestion period.
+        if (!validatedThrottles.throttleDefinitions().equals(activeDefinitions)) {
+            ingestThrottle.rebuildFor(validatedThrottles.throttleDefinitions());
+            backendThrottle.rebuildFor(validatedThrottles.throttleDefinitions());
+            this.activeDefinitions = validatedThrottles.throttleDefinitions();
+            congestionMultipliers.resetExpectations();
+        }
         return validatedThrottles.successStatus();
     }
 
