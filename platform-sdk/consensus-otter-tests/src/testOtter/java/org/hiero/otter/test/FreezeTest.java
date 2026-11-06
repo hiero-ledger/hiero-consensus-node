@@ -7,6 +7,7 @@ import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
+import org.hiero.otter.fixtures.Capability;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
@@ -32,6 +33,8 @@ public class FreezeTest {
     void testMultipleFreezes(@NonNull final TestEnvironment env) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
+        // Container does not collect pre-consensus and stale events yet (#28056)
+        final boolean collectsEvents = env.capabilities().contains(Capability.DETERMINISTIC_EXECUTION);
 
         network.addNodes(4);
 
@@ -51,12 +54,16 @@ public class FreezeTest {
             final long freezeRound =
                     network.nodes().getFirst().newConsensusResult().lastRoundNum();
 
+            network.shutdown();
+
             assertThat(network.newConsensusResults())
                     .haveEqualCommonRounds()
                     .haveConsistentRounds()
                     .haveLastRoundNum(freezeRound);
+            if (collectsEvents) {
+                assertThat(network.newConsensusResults()).haveNoLostEvents().haveNoUnannouncedEvents();
+            }
 
-            network.shutdown();
             final Instant postFreezeTime = timeManager.now();
             assertThat(network.newPcesResults())
                     .haveMaxBirthRoundLessThanOrEqualTo(freezeRound)
@@ -72,6 +79,12 @@ public class FreezeTest {
             networkConsensusResults.clear();
         }
 
+        network.shutdown();
+
         assertThat(network.newEventStreamResults()).haveEqualFiles();
+
+        if (collectsEvents) {
+            assertThat(network.newConsensusResults()).haveNoLostEvents().haveNoUnannouncedEvents();
+        }
     }
 }
