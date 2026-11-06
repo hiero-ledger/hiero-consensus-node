@@ -106,7 +106,8 @@ jobs:
           set -eo pipefail
           HELM_VERSION="v3.14.2"
           ARCHIVE="helm-${HELM_VERSION}-linux-amd64.tar.gz"
-          curl -fsSL "https://get.helm.sh/${ARCHIVE}" -o "${RUNNER_TEMP}/${ARCHIVE}"
+          curl -fsSL --retry 5 --retry-delay 5 --retry-all-errors --connect-timeout 20 --max-time 300 \
+            "https://get.helm.sh/${ARCHIVE}" -o "${RUNNER_TEMP}/${ARCHIVE}"
           tar -xzf "${RUNNER_TEMP}/${ARCHIVE}" -C "${RUNNER_TEMP}"
           install "${RUNNER_TEMP}/linux-amd64/helm" "${RUNNER_TEMP}/helm"
           export PATH="${RUNNER_TEMP}:${PATH}"

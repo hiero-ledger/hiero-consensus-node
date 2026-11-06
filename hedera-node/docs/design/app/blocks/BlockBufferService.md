@@ -48,6 +48,10 @@ If block acknowledgments are delayed beyond a configurable threshold, this mecha
 and transaction handling on the consensus node. This ensures system stability and prevents the accumulation of
 unacknowledged blocks in the stream buffer.
 
+Back pressure only applies with `blockStream.streamMode=BLOCKS` and `blockStream.writerMode=GRPC`, where block nodes are
+the only sink for blocks. With `FILE_AND_GRPC` every block is also written to disk, so a saturated buffer prunes its
+oldest unacknowledged blocks instead of halting the node, as it does in `BOTH` mode.
+
 ### Buffer Management
 
 The system maintains a buffer of block states in `BlockBufferService` with the following characteristics:
