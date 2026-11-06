@@ -27,7 +27,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 /**
  * Tests that {@link ShadowgraphSynchronizer#createSendList} never sends an event that is a far future event for the
  * peer, i.e. an event whose birth round is greater than the peer's pending round plus
- * {@code gossip.farFutureEventThreshold}.
+ * {@code gossip.farFutureEventOffset}.
  */
 class ShadowgraphSynchronizerFarFutureTest {
 
@@ -50,12 +50,12 @@ class ShadowgraphSynchronizerFarFutureTest {
         nextSequenceNumber = 1;
     }
 
-    private static ShadowgraphSynchronizer createSynchronizer(final int threshold, final int maxSyncEventCount) {
+    private static ShadowgraphSynchronizer createSynchronizer(final int offset, final int maxSyncEventCount) {
         final Configuration configuration = new TestConfigBuilder()
                 // isolate the far future filter: do not let the duplicate filter drop events based on age
                 .withValue("sync.filterLikelyDuplicates", false)
                 .withValue("sync.maxSyncEventCount", maxSyncEventCount)
-                .withValue("gossip.farFutureEventThreshold", threshold)
+                .withValue("gossip.farFutureEventOffset", offset)
                 .getOrCreateConfig();
         final ShadowgraphSynchronizer synchronizer = new ShadowgraphSynchronizer(
                 configuration,
@@ -98,16 +98,16 @@ class ShadowgraphSynchronizerFarFutureTest {
     }
 
     /**
-     * An event whose birth round is exactly the peer's pending round plus the threshold is sent; one round higher is
+     * An event whose birth round is exactly the peer's pending round plus the offset is sent; one round higher is
      * not.
      */
     @ParameterizedTest
     @ValueSource(ints = {0, 1, 5, 10})
-    void boundaryIsPendingRoundPlusThreshold(final int threshold) {
-        final ShadowgraphSynchronizer synchronizer = createSynchronizer(threshold, UNLIMITED_EVENTS_PER_SYNC);
+    void boundaryIsPendingRoundPlusOffset(final int offset) {
+        final ShadowgraphSynchronizer synchronizer = createSynchronizer(offset, UNLIMITED_EVENTS_PER_SYNC);
 
         final EventWindow theirWindow = new EventWindow(10, 11, 1, 1);
-        final long maxAcceptable = theirWindow.getPendingConsensusRound() + threshold;
+        final long maxAcceptable = theirWindow.getPendingConsensusRound() + offset;
 
         // A list of all events we expect to be sent to the peer
         final List<PlatformEvent> accepted = new ArrayList<>();
@@ -134,8 +134,8 @@ class ShadowgraphSynchronizerFarFutureTest {
      */
     @Test
     void filterUsesPeerPendingRound() {
-        final int threshold = 5;
-        final ShadowgraphSynchronizer synchronizer = createSynchronizer(threshold, UNLIMITED_EVENTS_PER_SYNC);
+        final int offset = 5;
+        final ShadowgraphSynchronizer synchronizer = createSynchronizer(offset, UNLIMITED_EVENTS_PER_SYNC);
 
         // our pending round is 31 (max acceptable for us would be 36); the peer's is 11 (max acceptable 16)
         // Add two events to the shadowgraph which are acceptable for the peer
@@ -159,9 +159,9 @@ class ShadowgraphSynchronizerFarFutureTest {
      */
     @Test
     void filterIsAppliedBeforeTruncation() {
-        final int threshold = 5;
+        final int offset = 5;
         final int maxSyncEventCount = 2;
-        final ShadowgraphSynchronizer synchronizer = createSynchronizer(threshold, maxSyncEventCount);
+        final ShadowgraphSynchronizer synchronizer = createSynchronizer(offset, maxSyncEventCount);
 
         // far future events for the peer, released first so they have the lowest sequence numbers
         addSingleCreatorEventChain(synchronizer, NodeId.of(1), 17, 17, 18);
@@ -177,11 +177,11 @@ class ShadowgraphSynchronizerFarFutureTest {
                 .containsExactlyElementsOf(acceptable.subList(0, maxSyncEventCount));
     }
 
-    /** A negative threshold disables the filter: every event is sent, however far ahead of the peer it is. */
+    /** A negative offset disables the filter: every event is sent, however far ahead of the peer it is. */
     @ParameterizedTest
     @ValueSource(ints = {-1, -5})
-    void negativeThresholdSendsAllEvents(final int threshold) {
-        final ShadowgraphSynchronizer synchronizer = createSynchronizer(threshold, UNLIMITED_EVENTS_PER_SYNC);
+    void negativeOffsetSendsAllEvents(final int offset) {
+        final ShadowgraphSynchronizer synchronizer = createSynchronizer(offset, UNLIMITED_EVENTS_PER_SYNC);
 
         final List<PlatformEvent> all = new ArrayList<>();
         all.addAll(addSingleCreatorEventChain(synchronizer, NodeId.of(1), 1, 11));

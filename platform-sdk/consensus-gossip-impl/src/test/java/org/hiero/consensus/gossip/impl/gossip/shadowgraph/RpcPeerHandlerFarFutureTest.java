@@ -50,18 +50,18 @@ import org.mockito.ArgumentCaptor;
  *     the birth rounds of the peer's own events received by broadcast</li>
  * </ul>
  * An event is a far future event if its birth round is greater than the pending round plus
- * {@code gossip.farFutureEventThreshold}.
+ * {@code gossip.farFutureEventOffset}.
  */
 class RpcPeerHandlerFarFutureTest {
 
     private static final NodeId SELF = NodeId.of(0L);
     private static final NodeId PEER = NodeId.of(1L);
-    private static final int THRESHOLD = 5;
+    private static final int OFFSET = 5;
 
     /** This node's event window: the pending round is 11, so the maximum acceptable birth round is 16. */
     private static final EventWindow MY_WINDOW = new EventWindow(10, 11, 1, 1);
 
-    private static final long MAX_ACCEPTABLE_BIRTH_ROUND = MY_WINDOW.getPendingConsensusRound() + THRESHOLD;
+    private static final long MAX_ACCEPTABLE_BIRTH_ROUND = MY_WINDOW.getPendingConsensusRound() + OFFSET;
 
     /**
      * This node's event window for the broadcast tests. It is well ahead of every peer window used, so none of the self
@@ -72,7 +72,7 @@ class RpcPeerHandlerFarFutureTest {
     /** A peer event window with pending round 11, so the maximum birth round the peer accepts is 16. */
     private static final EventWindow PEER_WINDOW = new EventWindow(10, 11, 1, 1);
 
-    private static final long PEER_MAX_ACCEPTABLE_BIRTH_ROUND = PEER_WINDOW.getPendingConsensusRound() + THRESHOLD;
+    private static final long PEER_MAX_ACCEPTABLE_BIRTH_ROUND = PEER_WINDOW.getPendingConsensusRound() + OFFSET;
 
     private Random random;
     private FakeTime time;
@@ -110,13 +110,13 @@ class RpcPeerHandlerFarFutureTest {
     }
 
     private RpcPeerHandler createPeerHandler(final Supplier<EventWindow> selfEventWindowSupplier) {
-        return createPeerHandler(selfEventWindowSupplier, THRESHOLD);
+        return createPeerHandler(selfEventWindowSupplier, OFFSET);
     }
 
     private RpcPeerHandler createPeerHandler(
-            final Supplier<EventWindow> selfEventWindowSupplier, final int farFutureEventThreshold) {
+            final Supplier<EventWindow> selfEventWindowSupplier, final int farFutureEventOffset) {
         final Configuration configuration = new TestConfigBuilder()
-                .withValue("gossip.farFutureEventThreshold", farFutureEventThreshold)
+                .withValue("gossip.farFutureEventOffset", farFutureEventOffset)
                 .getOrCreateConfig();
         return new RpcPeerHandler(
                 synchronizer,
@@ -305,11 +305,11 @@ class RpcPeerHandlerFarFutureTest {
         handler.broadcastEvent(event);
         verify(sender).sendBroadcastEvent(event);
 
-        final GossipEvent atNewLimit = gossipEvent(SELF, peerBirthRound + THRESHOLD);
+        final GossipEvent atNewLimit = gossipEvent(SELF, peerBirthRound + OFFSET);
         handler.broadcastEvent(atNewLimit);
         verify(sender).sendBroadcastEvent(atNewLimit);
 
-        handler.broadcastEvent(gossipEvent(SELF, peerBirthRound + THRESHOLD + 1));
+        handler.broadcastEvent(gossipEvent(SELF, peerBirthRound + OFFSET + 1));
         verify(sender, times(2)).sendBroadcastEvent(any());
     }
 
@@ -329,7 +329,7 @@ class RpcPeerHandlerFarFutureTest {
         handler.receiveBroadcastEvent(gossipEvent(PEER, peerBirthRound - 1));
         completeSync(handler, PEER_WINDOW);
 
-        final GossipEvent atLimit = gossipEvent(SELF, peerBirthRound + THRESHOLD);
+        final GossipEvent atLimit = gossipEvent(SELF, peerBirthRound + OFFSET);
         handler.broadcastEvent(atLimit);
         verify(sender).sendBroadcastEvent(atLimit);
     }
@@ -370,9 +370,9 @@ class RpcPeerHandlerFarFutureTest {
 
     // FILTER DISABLED
 
-    /** A negative threshold disables the filter, so far future events are accepted by both broadcast and sync. */
+    /** A negative offset disables the filter, so far future events are accepted by both broadcast and sync. */
     @Test
-    void negativeThresholdAcceptsFarFutureEvents() {
+    void negativeOffsetAcceptsFarFutureEvents() {
         final RpcPeerHandler handler = createPeerHandler(() -> MY_WINDOW, -1);
 
         final GossipEvent broadcast = gossipEventWithBirthRound(MAX_ACCEPTABLE_BIRTH_ROUND + 100);
@@ -386,11 +386,11 @@ class RpcPeerHandlerFarFutureTest {
     }
 
     /**
-     * A negative threshold disables the filter, so a self event far ahead of the peer is still broadcast, and nothing
+     * A negative offset disables the filter, so a self event far ahead of the peer is still broadcast, and nothing
      * is counted as held back.
      */
     @Test
-    void negativeThresholdBroadcastsFarFutureEventsForPeer() {
+    void negativeOffsetBroadcastsFarFutureEventsForPeer() {
         final RpcPeerHandler handler = createPeerHandler(() -> MY_WINDOW_AHEAD_OF_PEER, -1);
         completeSync(handler, PEER_WINDOW);
 

@@ -27,7 +27,7 @@ import java.util.Optional;
  * @param hangingThreadDuration        the length of time a gossip thread is allowed to wait when it is asked to
  *                                      shutdown. If a gossip thread takes longer than this period to shut down, then an
  *                                      error message is written to the log.
- * @param farFutureEventThreshold        the number of birth rounds ahead of the pending round for which this node will
+ * @param farFutureEventOffset        the number of birth rounds ahead of the pending round for which this node will
  *                                       accept events from peers. All events with a birth round higher than the pending
  *                                       round plus this number are considered to be far future events and will be
  *                                       rejected. A negative value means no event is considered far future.
@@ -42,7 +42,7 @@ public record GossipConfig(
 
         @ConfigProperty(defaultValue = "5") int connectionServerThreadPriority,
         @ConfigProperty(defaultValue = "60s") Duration hangingThreadDuration,
-        @ConfigProperty(defaultValue = "-1") int farFutureEventThreshold) {
+        @ConfigProperty(defaultValue = "-1") int farFutureEventOffset) {
 
     /**
      * Returns the interface binding for the given node ID.

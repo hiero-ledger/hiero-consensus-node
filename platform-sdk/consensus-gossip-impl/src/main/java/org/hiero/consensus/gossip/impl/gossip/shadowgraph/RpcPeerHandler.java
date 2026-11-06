@@ -156,7 +156,7 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
     private final AtomicLong peerPendingConsensusRound = new AtomicLong(ConsensusConstants.ROUND_UNDEFINED);
 
     /** The number of rounds ahead of the pending round this node is willing to accept. */
-    private final int farFutureEventThreshold;
+    private final int farFutureEventOffset;
 
     /**
      * Create new state class for an RPC peer
@@ -208,7 +208,7 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
         this.syncConfig = Objects.requireNonNull(syncConfig);
         this.broadcastConfig = Objects.requireNonNull(broadcastConfig);
         this.selfEventWindowSupplier = requireNonNull(selfEventWindowSupplier);
-        this.farFutureEventThreshold = gossipConfig.farFutureEventThreshold();
+        this.farFutureEventOffset = gossipConfig.farFutureEventOffset();
     }
 
     /**
@@ -312,7 +312,7 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
         // be careful - this is un-synchronized access to non-volatile variables;
         // given it is only a hint, we don't really care if it is immediately visible with updates
         if (isBroadcastRunning()) {
-            if (farFutureEventThreshold < 0) {
+            if (farFutureEventOffset < 0) {
                 sender.sendBroadcastEvent(gossipEvent);
                 return;
             }
@@ -418,11 +418,8 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
      */
     private boolean isFarFutureEvent(@NonNull final GossipEvent event, final long pendingRound) {
         assert event.eventCore() != null;
-        if (farFutureEventThreshold < 0) {
-            return false;
-        }
-        final long maximumAcceptableBirthRound = pendingRound + farFutureEventThreshold;
-        return event.eventCore().birthRound() > maximumAcceptableBirthRound;
+        return SyncUtils.isFarFutureEvent(
+                farFutureEventOffset, event.eventCore().birthRound(), pendingRound);
     }
 
     /**

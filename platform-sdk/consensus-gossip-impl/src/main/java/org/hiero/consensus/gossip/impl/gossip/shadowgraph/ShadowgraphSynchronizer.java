@@ -82,7 +82,7 @@ public class ShadowgraphSynchronizer {
 
     private final Consumer<SyncProgress> syncProgressHandler;
 
-    private final int farFutureEventThreshold;
+    private final int farFutureEventOffset;
 
     /**
      * Constructs a new ShadowgraphSynchronizer.
@@ -112,8 +112,8 @@ public class ShadowgraphSynchronizer {
         this.nonAncestorFilterThreshold = syncConfig.nonAncestorFilterThreshold();
         this.ancestorFilterThreshold = syncConfig.ancestorFilterThreshold();
         this.selfFilterThreshold = syncConfig.selfFilterThreshold();
-        this.farFutureEventThreshold =
-                configuration.getConfigData(GossipConfig.class).farFutureEventThreshold();
+        this.farFutureEventOffset =
+                configuration.getConfigData(GossipConfig.class).farFutureEventOffset();
 
         this.filterLikelyDuplicates = syncConfig.filterLikelyDuplicates();
         this.maximumEventsPerSync = syncConfig.maxSyncEventCount();
@@ -224,12 +224,12 @@ public class ShadowgraphSynchronizer {
      */
     private List<PlatformEvent> filterFarFutureEvents(
             final long theirPendingRound, @NonNull final List<PlatformEvent> sendList) {
-        if (farFutureEventThreshold < 0) {
+        if (farFutureEventOffset < 0) {
             return sendList;
         }
-        final long maximumAcceptedBirthRound = theirPendingRound + farFutureEventThreshold;
+
         return sendList.stream()
-                .filter(e -> e.getBirthRound() <= maximumAcceptedBirthRound)
+                .filter(e -> !SyncUtils.isFarFutureEvent(farFutureEventOffset, e.getBirthRound(), theirPendingRound))
                 .toList();
     }
 

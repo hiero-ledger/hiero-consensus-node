@@ -266,4 +266,21 @@ public final class SyncUtils {
 
         return knownTips;
     }
+
+    /**
+     * Checks if the given event is considered "far future" for the provided pending round value.
+     *
+     * @param farFutureEventOffset        the number of birth rounds ahead of the pending round that is not considered "far future"
+     * @param eventBirthRound the birth round of the event to check
+     * @param pendingRound the pending round to base the far future check against
+     * @return true if the event is a far future event
+     */
+    public static boolean isFarFutureEvent(
+            final long farFutureEventOffset, final long eventBirthRound, final long pendingRound) {
+        if (farFutureEventOffset < 0) {
+            return false;
+        }
+        final long maximumAcceptableBirthRound = pendingRound + farFutureEventOffset;
+        return eventBirthRound > maximumAcceptableBirthRound;
+    }
 }
