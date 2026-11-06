@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.collections;
 
+import static com.swirlds.base.units.UnitConstants.MEBIBYTES_TO_BYTES;
 import static java.lang.Math.toIntExact;
 import static java.nio.ByteBuffer.allocateDirect;
 
@@ -36,6 +37,9 @@ import org.hiero.base.utility.MemoryUtils;
  */
 @SuppressWarnings("unused")
 public final class LongListHeap extends AbstractLongList<AtomicLongArray> {
+
+    /// The current writer range's buffer, reused by its chunk writes and released when the range finishes.
+    private static final ThreadLocal<ByteBuffer> WRITE_BUFFER_THREAD_LOCAL = new ThreadLocal<>();
 
     /** A buffer for reading chunk data from the file only during the initialization. */
     private ByteBuffer initReadBuffer;
@@ -150,37 +154,53 @@ public final class LongListHeap extends AbstractLongList<AtomicLongArray> {
         return chunk.compareAndSet(subIndex, oldValue, newValue);
     }
 
-    /**
-     * Write the long data to file, This it is expected to be in one simple block of raw longs.
-     *
-     * @param fc The file channel to write to
-     * @throws IOException if there was a problem writing longs
-     */
+    /// {@inheritDoc}
     @Override
-    protected void writeLongsData(final FileChannel fc) throws IOException {
-        // write data
-        final ByteBuffer tempBuffer = allocateDirect(1024 * 1024);
+    protected void writeLongsData(
+            final FileChannel fc,
+            final ByteBuffer zeroBuffer,
+            final long startIndex,
+            final long endIndex,
+            final long fileOffset)
+            throws IOException {
+        final ByteBuffer tempBuffer = allocateDirect(MEBIBYTES_TO_BYTES);
         try {
             tempBuffer.order(ByteOrder.LITTLE_ENDIAN);
-            final LongBuffer tempLongBuffer = tempBuffer.asLongBuffer();
-            for (long i = minValidIndex.get(); i < size(); i++) {
-                // if buffer is full then write
-                if (!tempLongBuffer.hasRemaining()) {
-                    tempBuffer.clear();
-                    MerkleDbFileUtils.completelyWrite(fc, tempBuffer);
-                    tempLongBuffer.clear();
-                }
-                // add value to buffer
-                tempLongBuffer.put(get(i, 0));
-            }
-            // write any remaining
-            if (tempLongBuffer.position() > 0) {
-                tempBuffer.position(0);
-                tempBuffer.limit(tempLongBuffer.position() * Long.BYTES);
-                MerkleDbFileUtils.completelyWrite(fc, tempBuffer);
-            }
+            WRITE_BUFFER_THREAD_LOCAL.set(tempBuffer);
+            super.writeLongsData(fc, zeroBuffer, startIndex, endIndex, fileOffset);
         } finally {
+            WRITE_BUFFER_THREAD_LOCAL.remove();
             MemoryUtils.closeDirectByteBuffer(tempBuffer);
+        }
+    }
+
+    /// {@inheritDoc}
+    @Override
+    protected void writeChunkData(
+            @NonNull final FileChannel fc,
+            @NonNull final AtomicLongArray chunk,
+            final int startIndexInChunk,
+            final int endIndexInChunk,
+            long fileOffset)
+            throws IOException {
+        final ByteBuffer tempBuffer = WRITE_BUFFER_THREAD_LOCAL.get();
+        tempBuffer.clear();
+        final LongBuffer tempLongBuffer = tempBuffer.asLongBuffer();
+        for (int i = startIndexInChunk; i < endIndexInChunk; i++) {
+            // If the buffer is full, write it before adding the next value.
+            if (!tempLongBuffer.hasRemaining()) {
+                tempBuffer.clear();
+                fileOffset += MerkleDbFileUtils.completelyWrite(fc, tempBuffer, fileOffset);
+                tempLongBuffer.clear();
+            }
+            // Add the next value to the buffer.
+            tempLongBuffer.put(chunk.get(i));
+        }
+        // Write any remaining values.
+        if (tempLongBuffer.position() > 0) {
+            tempBuffer.position(0);
+            tempBuffer.limit(tempLongBuffer.position() * Long.BYTES);
+            MerkleDbFileUtils.completelyWrite(fc, tempBuffer, fileOffset);
         }
     }
 

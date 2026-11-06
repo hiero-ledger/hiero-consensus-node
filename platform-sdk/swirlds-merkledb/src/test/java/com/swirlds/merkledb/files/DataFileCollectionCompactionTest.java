@@ -4,6 +4,7 @@ package com.swirlds.merkledb.files;
 import static com.swirlds.merkledb.files.DataFileCommon.getSizeOfFiles;
 import static com.swirlds.merkledb.files.DataFileCommon.getSizeOfFilesByPath;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_MERKLE_DB_CONFIG;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.writeLongListToFileAndVerify;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -543,7 +544,7 @@ class DataFileCollectionCompactionTest {
             // to acquire mergingPaused semaphore
             final Path snapshotDir = tempFileDir.resolve("testMergeSnapshotRestore-snapshot");
             Files.createDirectories(snapshotDir);
-            index.writeToFile(snapshotDir.resolve("index.ll"));
+            writeLongListToFileAndVerify(index, "index.ll", snapshotDir);
             store.snapshot(snapshotDir);
             // Release the semaphore to unpause merging and wait for it to complete
             compactor.resumeCompaction();
@@ -616,7 +617,7 @@ class DataFileCollectionCompactionTest {
                     // Start a snapshot while the index is being updated
                     try {
                         System.err.println("SAVED");
-                        index.writeToFile(savedIndex);
+                        writeLongListToFileAndVerify(index, "index.ll", testDir);
                         store.snapshot(snapshot);
                     } catch (IOException ex) {
                         ex.printStackTrace();
