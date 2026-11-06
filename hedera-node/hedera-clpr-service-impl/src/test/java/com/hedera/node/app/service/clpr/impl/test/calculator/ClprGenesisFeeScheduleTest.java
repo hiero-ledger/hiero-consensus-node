@@ -33,7 +33,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * Pins the CLPR fee proposal's prices in the genesis {@code simpleFeesSchedules.json} and the testnet and previewnet
- * upgrade schedules, so that any drift in a base fee, failure fee, extra, or node/network exemption is caught.
+ * upgrade schedules, so that any drift in a base fee, extra, or node/network exemption is caught.
  */
 class ClprGenesisFeeScheduleTest {
 
@@ -55,36 +55,36 @@ class ClprGenesisFeeScheduleTest {
             Path.of("..", "configuration", "testnet", "upgrade", "simpleFeesSchedules.json"),
             Path.of("..", "configuration", "previewnet", "upgrade", "simpleFeesSchedules.json"));
 
-    private record Price(long baseFee, long failureFee, Map<Extra, Integer> includedExtras, boolean nodeNetworkExempt) {
-        static Price of(final long baseFee, final long failureFee) {
-            return new Price(baseFee, failureFee, Map.of(), false);
+    private record Price(long baseFee, Map<Extra, Integer> includedExtras, boolean nodeNetworkExempt) {
+        static Price of(final long baseFee) {
+            return new Price(baseFee, Map.of(), false);
         }
 
         Price withExtras(final Map<Extra, Integer> includedExtras) {
-            return new Price(baseFee, failureFee, includedExtras, nodeNetworkExempt);
+            return new Price(baseFee, includedExtras, nodeNetworkExempt);
         }
     }
 
     /** The proposal's price for every CLPR transaction and query. */
     private static final Map<HederaFunctionality, Price> EXPECTED = Map.ofEntries(
-            Map.entry(CLPR_REGISTER_CHANNEL, Price.of(100 * USD, ONE_CENT)),
+            Map.entry(CLPR_REGISTER_CHANNEL, Price.of(100 * USD)),
             Map.entry(
                     CLPR_COMPLETE_CHANNEL,
-                    Price.of(100 * USD, ONE_CENT).withExtras(Map.of(Extra.STATE_BYTES, 8_192, Extra.GAS, 0))),
-            Map.entry(CLPR_REGISTER_CONNECTOR, Price.of(10 * USD, ONE_CENT)),
-            Map.entry(CLPR_COMPLETE_CONNECTOR, Price.of(25 * USD, ONE_CENT)),
-            Map.entry(CLPR_DEREGISTER_CONNECTOR, Price.of(ONE_CENT, ONE_CENT)),
+                    Price.of(100 * USD).withExtras(Map.of(Extra.STATE_BYTES, 8_192, Extra.GAS, 0))),
+            Map.entry(CLPR_REGISTER_CONNECTOR, Price.of(10 * USD)),
+            Map.entry(CLPR_COMPLETE_CONNECTOR, Price.of(25 * USD)),
+            Map.entry(CLPR_DEREGISTER_CONNECTOR, Price.of(ONE_CENT)),
             Map.entry(
                     CLPR_SUBMIT_BUNDLE,
-                    Price.of(ONE_CENT, ONE_CENT).withExtras(Map.of(Extra.PROCESSING_BYTES, 0, Extra.GAS, 0))),
-            // Admin-only: a privileged payer's fees are waived, so only a failing non-admin payer pays
-            Map.entry(CLPR_CLOSE_CHANNEL, Price.of(0, 0)),
-            Map.entry(CLPR_EVICT_PEER_ENDPOINT, Price.of(0, 0)),
-            Map.entry(CLPR_UPDATE_LEDGER_CONFIGURATION, Price.of(0, ONE_CENT)),
+                    Price.of(ONE_CENT).withExtras(Map.of(Extra.PROCESSING_BYTES, 0, Extra.GAS, 0))),
+            // Admin-only: a privileged payer's fees are waived
+            Map.entry(CLPR_CLOSE_CHANNEL, Price.of(0)),
+            Map.entry(CLPR_EVICT_PEER_ENDPOINT, Price.of(0)),
+            Map.entry(CLPR_UPDATE_LEDGER_CONFIGURATION, Price.of(0)),
             // Node-submitted; left free until nodes are funded to pay for it
-            Map.entry(CLPR_ENDPOINT_PUBLICATION, new Price(0, 0, Map.of(), true)),
-            Map.entry(CLPR_GET_LEDGER_CONFIGURATION, Price.of(ONE_CENT, 0).withExtras(Map.of(Extra.GAS, 0))),
-            Map.entry(CLPR_GET_ENDPOINT_MANIFEST, Price.of(ONE_CENT, 0).withExtras(Map.of(Extra.GAS, 0))));
+            Map.entry(CLPR_ENDPOINT_PUBLICATION, new Price(0, Map.of(), true)),
+            Map.entry(CLPR_GET_LEDGER_CONFIGURATION, Price.of(ONE_CENT).withExtras(Map.of(Extra.GAS, 0))),
+            Map.entry(CLPR_GET_ENDPOINT_MANIFEST, Price.of(ONE_CENT).withExtras(Map.of(Extra.GAS, 0))));
 
     @ParameterizedTest(name = "{0} prices {1} per the CLPR fee proposal")
     @MethodSource("schedulesAndFunctions")
@@ -98,9 +98,6 @@ class ClprGenesisFeeScheduleTest {
                 .as("%s entry for %s", schedulePath, functionality)
                 .isNotNull();
         assertThat(serviceDef.baseFee()).as("baseFee for %s", functionality).isEqualTo(expected.baseFee());
-        assertThat(serviceDef.failureFee())
-                .as("failureFee for %s", functionality)
-                .isEqualTo(expected.failureFee());
         assertThat(serviceDef.extras().stream()
                         .collect(Collectors.toMap(ExtraFeeReference::name, ExtraFeeReference::includedCount)))
                 .as("extras for %s", functionality)

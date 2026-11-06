@@ -36,7 +36,6 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
-import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -54,7 +53,6 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.AppFeeCharging;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeAccumulator;
-import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.service.contract.impl.handlers.EthereumTransactionHandler;
 import com.hedera.node.app.signature.AppKeyVerifier;
 import com.hedera.node.app.signature.impl.SignatureVerificationImpl;
@@ -81,7 +79,6 @@ import com.hedera.node.app.workflows.handle.throttle.DispatchUsageManager;
 import com.hedera.node.app.workflows.handle.throttle.ThrottleException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -100,7 +97,6 @@ class DispatchProcessorTest {
     private static final Fees FEES = new Fees(1L, 2L, 3L);
     private static final AccountID PAYER_ACCOUNT_ID =
             AccountID.newBuilder().accountNum(1_234).build();
-    private static final Instant CONSENSUS_NOW = Instant.ofEpochSecond(1_234_567L);
     private static final Account PAYER =
             Account.newBuilder().accountId(PAYER_ACCOUNT_ID).build();
     private static final AccountID CREATOR_ACCOUNT_ID =
@@ -188,9 +184,6 @@ class DispatchProcessorTest {
     @Mock
     private Details hollowAccountCompletionsDetails;
 
-    @Mock
-    private FeeManager feeManager;
-
     private DispatchProcessor subject;
 
     @BeforeEach
@@ -207,10 +200,7 @@ class DispatchProcessorTest {
                 ethereumTransactionHandler,
                 networkInfo,
                 opWorkflowMetrics,
-                new AppFeeCharging(solvencyPreCheck),
-                feeManager);
-        // Unless a test sets a failure fee, a failed transaction pays the same fees as a successful one
-        lenient().when(feeManager.failureFees(any(), any(), any())).thenAnswer(invocation -> invocation.getArgument(1));
+                new AppFeeCharging(solvencyPreCheck));
         given(dispatch.stack()).willReturn(stack);
         given(dispatch.streamBuilder()).willReturn(recordBuilder);
     }
@@ -525,73 +515,6 @@ class DispatchProcessorTest {
         // the fees re-charged after the rollback, the record, and usage tracking.
         inOrder.verify(stack).commitFullStack();
         verify(opWorkflowMetrics, never()).incrementThrottled(any());
-
-        assertFinished();
-    }
-
-    @Test
-    void handleExceptionChargesScheduledFailureFees() {
-        final var failureFees = new Fees(FEES.nodeFee(), FEES.networkFee(), 1L);
-        given(dispatch.fees()).willReturn(FEES);
-        given(dispatch.consensusNow()).willReturn(CONSENSUS_NOW);
-        given(feeManager.failureFees(CRYPTO_TRANSFER_TXN_INFO.functionality(), FEES, CONSENSUS_NOW))
-                .willReturn(failureFees);
-        given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
-        given(dispatchValidator.validateFeeChargingScenario(dispatch))
-                .willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
-        given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
-        given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
-        given(dispatch.handleContext()).willReturn(context);
-        givenAuthorization();
-        doThrow(new HandleException(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT))
-                .when(dispatcher)
-                .dispatchHandle(context);
-        given(dispatch.txnCategory()).willReturn(USER);
-        doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
-        doCallRealMethod().when(dispatch).category();
-        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
-        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
-
-        subject.processDispatch(dispatch);
-
-        verify(recordBuilder).status(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT);
-        final var inOrder = inOrder(feeAccumulator, stack);
-        inOrder.verify(feeAccumulator).chargeFees(PAYER_ACCOUNT_ID, CREATOR_ACCOUNT_ID, FEES, null);
-        inOrder.verify(stack).rollbackFullStack();
-        inOrder.verify(feeAccumulator).chargeFees(PAYER_ACCOUNT_ID, CREATOR_ACCOUNT_ID, failureFees, null);
-        inOrder.verify(stack).commitFullStack();
-
-        assertFinished();
-    }
-
-    @Test
-    void failureBeforeHandleChargesScheduledFailureFees() {
-        final var failureFees = new Fees(FEES.nodeFee(), FEES.networkFee(), 1L);
-        given(dispatchValidator.validateFeeChargingScenario(dispatch))
-                .willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
-        given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
-        given(dispatch.txnInfo()).willReturn(SYS_UNDEL_TXN_INFO);
-        given(authorizer.isAuthorized(PAYER_ACCOUNT_ID, SYS_UNDEL_TXN_INFO.functionality()))
-                .willReturn(false);
-        given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
-        given(dispatch.fees()).willReturn(FEES);
-        given(dispatch.consensusNow()).willReturn(CONSENSUS_NOW);
-        given(feeManager.failureFees(SYS_UNDEL_TXN_INFO.functionality(), FEES, CONSENSUS_NOW))
-                .willReturn(failureFees);
-        given(dispatch.txnCategory()).willReturn(USER);
-        doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
-        doCallRealMethod().when(dispatch).category();
-        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
-        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
-
-        subject.processDispatch(dispatch);
-
-        // The failure is known before charging, so the payer is charged once, at the failure price
-        verify(feeAccumulator).chargeFees(PAYER_ACCOUNT_ID, CREATOR_ACCOUNT_ID, failureFees, null);
-        verify(feeAccumulator, never()).chargeFees(PAYER_ACCOUNT_ID, CREATOR_ACCOUNT_ID, FEES, null);
-        verify(stack, never()).rollbackFullStack();
-        verify(recordBuilder).status(UNAUTHORIZED);
-        verify(dispatcher, never()).dispatchHandle(any());
 
         assertFinished();
     }
