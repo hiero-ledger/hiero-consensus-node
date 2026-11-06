@@ -31,8 +31,9 @@ import java.util.Map;
  * committee rotations and message deliveries whose SSZ branches, block header and Merkle-Patricia proofs all verify.
  *
  * <p>Keys are points on the BLS12-381 G1 curve, so a config payload's compressed keys decompress, but not keys of any
- * real validator, and signatures are zero bytes: the verifier's BLS check is a fake until real BLS lands. Each key's
- * uncompressed and compressed forms are consistent. Hashing, merkleization and the generalized indices are computed
+ * real validator, and signatures are zero bytes: the tests inject a {@link BlsSignatureVerifier} stub, and
+ * {@code NativeBlsSignatureVerifierTest} checks real signatures. Each key's uncompressed and compressed forms are
+ * consistent. Hashing, merkleization and the generalized indices are computed
  * here independently of {@link Ssz}.
  */
 final class EthereumBundleFixtures {

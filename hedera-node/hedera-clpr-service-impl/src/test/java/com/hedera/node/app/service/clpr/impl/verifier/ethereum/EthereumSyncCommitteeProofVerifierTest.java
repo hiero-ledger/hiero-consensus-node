@@ -6,6 +6,7 @@ import static com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBu
 import static com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.CHANNEL_CONTEXT;
 import static com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.CHANNEL_ID;
 import static com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.EMPTY_TRIE_ROOT;
+import static com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.FORK_VERSION;
 import static com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.SERVICE_ADDRESS;
 import static com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.accountLeafProof;
 import static com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.anchor;
@@ -46,6 +47,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.stream.IntStream;
 import org.jspecify.annotations.NonNull;
@@ -92,6 +94,11 @@ class EthereumSyncCommitteeProofVerifierTest {
         byte[] lastMessage;
         byte[] lastSignature;
 
+        /** The key {@link #validatePubkeys} rejects; every other key is valid. */
+        byte[] invalidPubkey;
+
+        final List<byte[]> validatedPubkeys = new ArrayList<>();
+
         @Override
         public boolean verifySyncAggregate(
                 final byte @NonNull [] aggregatePubkey,
@@ -103,6 +110,12 @@ class EthereumSyncCommitteeProofVerifierTest {
             lastMessage = message;
             lastSignature = signature;
             return result;
+        }
+
+        @Override
+        public boolean validatePubkeys(final @NonNull List<byte[]> pubkeys) {
+            validatedPubkeys.addAll(pubkeys);
+            return pubkeys.stream().noneMatch(pubkey -> Arrays.equals(pubkey, invalidPubkey));
         }
     }
 
@@ -326,14 +339,22 @@ class EthereumSyncCommitteeProofVerifierTest {
         }
 
         @Test
-        @DisplayName("given the BLS check fails, then verifyBundle rejects the signature")
+        @DisplayName("given the BLS check fails, then verifyBundle rejects the signature naming the header, the"
+                + " participation and the fork version")
         void givenBlsRejects_thenThrowsProofException() {
             final RecordingBls bls = new RecordingBls();
             bls.result = false;
             final var verifier = new EthereumSyncCommitteeProofVerifier(bls);
-            assertThatThrownBy(() -> verifier.verifyBundle(bundle(delivery().build()), TRUST_ANCHOR, CHANNEL_CONTEXT))
+            final DeliveryBuilder builder = delivery();
+            final byte[] bundlePayload = bundle(builder.build());
+
+            assertThatThrownBy(() -> verifier.verifyBundle(bundlePayload, TRUST_ANCHOR, CHANNEL_CONTEXT))
                     .isInstanceOf(ProofException.class)
-                    .hasMessageContaining("sync aggregate BLS signature verification failed");
+                    .hasMessageContaining("sync aggregate BLS signature verification failed: headerSlot="
+                            + builder.attestedSlot + ", headerRoot=0x"
+                            + HexFormat.of().formatHex(builder.attestedRoot())
+                            + ", participants=510/512, nonSigners=2, forkVersion=0x"
+                            + HexFormat.of().formatHex(FORK_VERSION));
         }
 
         @Test
@@ -347,7 +368,7 @@ class EthereumSyncCommitteeProofVerifierTest {
             new EthereumSyncCommitteeProofVerifier(bls)
                     .verifyBundle(bundle(builder.build()), TRUST_ANCHOR, CHANNEL_CONTEXT);
 
-            assertThat(bls.lastAggregatePubkey).isEqualTo(COMMITTEE.compressedAggregate);
+            assertThat(bls.lastAggregatePubkey).isEqualTo(COMMITTEE.uncompressedAggregate);
             assertThat(bls.lastNonSignerPubkeys)
                     .containsExactly(COMMITTEE.uncompressedKeys[1], COMMITTEE.uncompressedKeys[2]);
             assertThat(bls.lastMessage).isEqualTo(signingRoot(builder.attestedRoot()));
@@ -398,7 +419,7 @@ class EthereumSyncCommitteeProofVerifierTest {
 
             assertThat(verified.beaconBlockRoot32()).isEqualTo(builder.attestedRoot());
             assertThat(verified.nextTrustAnchor()).isNull();
-            assertThat(bls.lastAggregatePubkey).isEqualTo(NEXT_COMMITTEE.compressedAggregate);
+            assertThat(bls.lastAggregatePubkey).isEqualTo(NEXT_COMMITTEE.uncompressedAggregate);
         }
 
         @Test
@@ -413,7 +434,7 @@ class EthereumSyncCommitteeProofVerifierTest {
             new EthereumSyncCommitteeProofVerifier(bls)
                     .verifyBundle(bundle(builder.build()), TRUST_ANCHOR, CHANNEL_CONTEXT);
 
-            assertThat(bls.lastAggregatePubkey).isEqualTo(NEXT_COMMITTEE.compressedAggregate);
+            assertThat(bls.lastAggregatePubkey).isEqualTo(NEXT_COMMITTEE.uncompressedAggregate);
         }
 
         @Test
@@ -812,6 +833,34 @@ class EthereumSyncCommitteeProofVerifierTest {
         }
 
         @Test
+        @DisplayName("given one rotation, then verifyBundle validates the aggregate of the committee it proves")
+        void givenOneRotation_thenValidatesProvenCommitteeAggregate() {
+            final RecordingBls bls = new RecordingBls();
+            final byte[] delivery = new DeliveryBuilder(MAINNET, ANCHOR_PERIOD + 2, COMMITTEE_AFTER_NEXT).build();
+
+            new EthereumSyncCommitteeProofVerifier(bls)
+                    .verifyBundle(bundle(List.of(rotation().build()), delivery), TRUST_ANCHOR, CHANNEL_CONTEXT);
+
+            assertThat(bls.validatedPubkeys).containsExactly(COMMITTEE_AFTER_NEXT.uncompressedAggregate);
+        }
+
+        @Test
+        @DisplayName("given a next committee whose aggregate is not a valid public key, then verifyBundle rejects it")
+        void givenNextAggregateNotValidPubkey_thenThrowsProofException() {
+            final RecordingBls bls = new RecordingBls();
+            bls.invalidPubkey = COMMITTEE_AFTER_NEXT.uncompressedAggregate;
+            final byte[] delivery = new DeliveryBuilder(MAINNET, ANCHOR_PERIOD + 2, COMMITTEE_AFTER_NEXT).build();
+            final var verifier = new EthereumSyncCommitteeProofVerifier(bls);
+
+            assertThatThrownBy(() -> verifier.verifyBundle(
+                            bundle(List.of(rotation().build()), delivery), TRUST_ANCHOR, CHANNEL_CONTEXT))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("next sync committee aggregate pubkey 0x"
+                            + HexFormat.of().formatHex(COMMITTEE_AFTER_NEXT.compressedAggregate)
+                            + " is not a valid BLS public key");
+        }
+
+        @Test
         @DisplayName("given a delivery after a rotation still in the rotated-out period, then verifyBundle rejects it")
         void givenDeliveryInRotatedOutPeriod_thenThrowsProofException() {
             assertRejected(
@@ -1134,11 +1183,44 @@ class EthereumSyncCommitteeProofVerifierTest {
 
             verifier.verifyConfigPayload(builder.serialize());
 
-            assertThat(bls.lastAggregatePubkey).isEqualTo(COMMITTEE.compressedAggregate);
+            assertThat(bls.lastAggregatePubkey).isEqualTo(COMMITTEE.uncompressedAggregate);
             assertThat(bls.lastNonSignerPubkeys)
                     .containsExactly(COMMITTEE.uncompressedKeys[3], COMMITTEE.uncompressedKeys[17]);
             assertThat(bls.lastMessage).isEqualTo(signingRoot(builder.updateRoot()));
             assertThat(bls.lastSignature).isEqualTo(builder.signature);
+        }
+
+        @Test
+        @DisplayName("given a valid config, then verifyConfigPayload validates both committees' aggregates")
+        void givenValidConfig_thenValidatesBothAggregates() {
+            verifier.verifyConfigPayload(config().serialize());
+
+            assertThat(bls.validatedPubkeys)
+                    .containsExactly(COMMITTEE.uncompressedAggregate, NEXT_COMMITTEE.uncompressedAggregate);
+        }
+
+        @Test
+        @DisplayName("given a current committee whose aggregate is not a valid public key, then verifyConfigPayload"
+                + " rejects the payload")
+        void givenCurrentAggregateNotValidPubkey_thenThrowsProofException() {
+            bls.invalidPubkey = COMMITTEE.uncompressedAggregate;
+            assertConfigRejected(
+                    config().serialize(),
+                    "current sync committee aggregate pubkey 0x"
+                            + HexFormat.of().formatHex(COMMITTEE.compressedAggregate)
+                            + " is not a valid BLS public key");
+        }
+
+        @Test
+        @DisplayName("given a next committee whose aggregate is not a valid public key, then verifyConfigPayload"
+                + " rejects the payload")
+        void givenNextAggregateNotValidPubkey_thenThrowsProofException() {
+            bls.invalidPubkey = NEXT_COMMITTEE.uncompressedAggregate;
+            assertConfigRejected(
+                    config().serialize(),
+                    "next sync committee aggregate pubkey 0x"
+                            + HexFormat.of().formatHex(NEXT_COMMITTEE.compressedAggregate)
+                            + " is not a valid BLS public key");
         }
 
         @Test
