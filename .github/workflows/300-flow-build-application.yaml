@@ -144,7 +144,8 @@ jobs:
     needs:
       - mats-tests
       - deploy-ci-trigger
-    if: ${{ (needs.mats-tests.result != 'success' || needs.deploy-ci-trigger.result != 'success') && always() &&
+    if:
+      ${{ (needs.mats-tests.result != 'success' || needs.deploy-ci-trigger.result != 'success') && always() &&
       github.event.repository.visibility == 'public' }}
 
     steps:
