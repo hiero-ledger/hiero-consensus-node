@@ -79,6 +79,10 @@ To be discovered by SPI mechanism implementations of `MetricsExporterFactory` sh
 
 Snapshots provided to exporter contain all registered metrics in the registry with their measurements and values at the moment of snapshot.
 Snapshots internally are reusable objects and values are added/updates during each registry snapshot, which is **synchronous** operation.
+Each iteration over a snapshot (registry or metric level) reads a fixed list in append order.
+An export iterates twice: once in the snapshot supplier, which updates values, and once while writing.
+A metric or measurement added after the supplier read its list but before the writer read it is written with the value read when it was created; one added after the writer read its list is picked up by the next export.
+Metrics from discovered `MetricsRegistrationProvider`s are registered before the exporter receives its snapshot supplier, so the first export already contains all of them.
 
 ### Tips and Tricks
 
