@@ -252,7 +252,8 @@ public class CustomGasCharging {
         } else {
             validateTrue(relayer.getBalance().toLong() >= relayerGasCost, INSUFFICIENT_PAYER_BALANCE);
             validateTrue(
-                    sender.getBalance().toLong() >= senderGasCost + transaction.value(), INSUFFICIENT_PAYER_BALANCE);
+                    sender.getBalance().toLong() >= transaction.costWithValue(senderGasCost),
+                    INSUFFICIENT_PAYER_BALANCE);
         }
         worldUpdater.collectGasFee(relayer.hederaId(), relayerGasCost, false);
         worldUpdater.collectGasFee(sender.hederaId(), senderGasCost, true);
