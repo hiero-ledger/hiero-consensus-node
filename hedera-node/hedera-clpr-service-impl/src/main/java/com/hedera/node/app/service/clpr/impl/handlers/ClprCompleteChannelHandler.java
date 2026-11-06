@@ -190,9 +190,13 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
             throw new HandleException(CLPR_CHANNEL_ALREADY_EXISTS);
         }
 
-        // 3. Verify signature over keccak256(channel_id)
+        // 3. Verify the owner's signature. It must cover the verifier contract and the proofs as
+        // well as the channel id; otherwise a signature that becomes visible (for example in the
+        // record of a failed attempt) could be reused by any payer to complete the channel with a
+        // verifier and peer config the owner never chose.
         // FUTURE: We may be able to move this to pre-handle to avoid the crypto work on the handle thread
-        final var messageHash = MiscCryptoUtils.keccak256DigestOf(op.channelId().toByteArray());
+        final var messageHash = completeChannelSigningMessage(
+                op.channelId(), op.verifierContractOrThrow(), op.configProofBytes(), op.endpointManifestProofBytes());
         final var signatureType =
                 switch (op.signatureScheme()) {
                     case ECDSA_SECP256K1 -> SignatureType.ECDSA_SECP256K1;
@@ -488,6 +492,37 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
             return ZERO_HASH;
         }
         return MiscCryptoUtils.keccak256DigestOf(bytecode);
+    }
+
+    /** Domain separator for the channel-completion owner signature. */
+    private static final byte[] COMPLETE_CHANNEL_SIGNING_DOMAIN = "hiero.clpr.complete-channel.v1".getBytes(UTF_8);
+
+    /**
+     * Returns the 32-byte message the channel owner signs to complete a channel:
+     * {@code keccak256(domain || channel_id || keccak256(verifier_contract) || keccak256(config_proof_bytes)
+     * || keccak256(endpoint_manifest_proof_bytes))}, where {@code verifier_contract} is the protobuf
+     * serialization of the {@link ContractID} exactly as it appears in the transaction body.
+     *
+     * @param channelId the channel id being completed
+     * @param verifierContract the verifier contract named in the transaction
+     * @param configProofBytes the peer config proof bytes
+     * @param endpointManifestProofBytes the peer endpoint manifest proof bytes (may be empty)
+     * @return the keccak256 digest to be signed by the owner key
+     */
+    @NonNull
+    public static byte[] completeChannelSigningMessage(
+            @NonNull final Bytes channelId,
+            @NonNull final ContractID verifierContract,
+            @NonNull final Bytes configProofBytes,
+            @NonNull final Bytes endpointManifestProofBytes) {
+        final var out = new java.io.ByteArrayOutputStream();
+        out.writeBytes(COMPLETE_CHANNEL_SIGNING_DOMAIN);
+        out.writeBytes(channelId.toByteArray());
+        out.writeBytes(MiscCryptoUtils.keccak256DigestOf(
+                ContractID.PROTOBUF.toBytes(verifierContract).toByteArray()));
+        out.writeBytes(MiscCryptoUtils.keccak256DigestOf(configProofBytes.toByteArray()));
+        out.writeBytes(MiscCryptoUtils.keccak256DigestOf(endpointManifestProofBytes.toByteArray()));
+        return MiscCryptoUtils.keccak256DigestOf(out.toByteArray());
     }
 
     /**

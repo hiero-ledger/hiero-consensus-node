@@ -221,7 +221,8 @@ class ClprCommitRevealUnitScenariosTest {
         final var op = ClprCompleteChannelTransactionBody.newBuilder()
                 .channelId(CHANNEL_ID)
                 .publicKey(Bytes.wrap(publicKey))
-                .signature(Bytes.wrap(signChannelIdEd25519(privateKey, CHANNEL_ID)))
+                .signature(Bytes.wrap(signChannelIdEd25519(
+                        privateKey, CHANNEL_ID, Bytes.wrap(new byte[] {(byte) 0xFF, (byte) 0xFF}))))
                 .signatureScheme(ClprSignatureScheme.ED25519)
                 .verifierContract(VERIFIER_CONTRACT_ID)
                 .configProofBytes(Bytes.wrap(new byte[] {(byte) 0xFF, (byte) 0xFF}))
@@ -268,7 +269,8 @@ class ClprCommitRevealUnitScenariosTest {
     private TransactionBody validEd25519Txn() {
         final var privateKey = Ed25519Utils.keyFrom(SECRET_KEY);
         final var publicKey = privateKey.getAbyte();
-        final var signature = signChannelIdEd25519(privateKey, CHANNEL_ID);
+        final var signature =
+                signChannelIdEd25519(privateKey, CHANNEL_ID, ClprLedgerConfiguration.PROTOBUF.toBytes(PEER_CONFIG));
 
         final var op = ClprCompleteChannelTransactionBody.newBuilder()
                 .channelId(CHANNEL_ID)
@@ -281,8 +283,10 @@ class ClprCommitRevealUnitScenariosTest {
         return completeTxnWith(op);
     }
 
-    private static byte[] signChannelIdEd25519(final EdDSAPrivateKey privateKey, final Bytes channelId) {
-        final var messageHash = MiscCryptoUtils.keccak256DigestOf(channelId.toByteArray());
+    private static byte[] signChannelIdEd25519(
+            final EdDSAPrivateKey privateKey, final Bytes channelId, final Bytes configProof) {
+        final var messageHash = ClprCompleteChannelHandler.completeChannelSigningMessage(
+                channelId, VERIFIER_CONTRACT_ID, configProof, Bytes.EMPTY);
         try {
             final var engine = new EdDSAEngine(MessageDigest.getInstance("SHA-512"));
             engine.initSign(privateKey);
