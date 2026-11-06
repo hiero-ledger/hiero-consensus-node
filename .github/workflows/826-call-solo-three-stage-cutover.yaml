@@ -79,7 +79,7 @@ jobs:
           # vector (CodeQL actions/cache-poisoning/poisonable-step, alert #135). The deployed
           # Block Node chart version is pinned separately inside the scenario script; these sources are
           # used for offline wrapping, jumpstart generation and serverStatus/proto diagnostics.
-          ref: v0.45.0-rc2
+          ref: v0.46.0-rc1
           path: hiero-block-node
           fetch-depth: 0
           token: ${{ github.token }}

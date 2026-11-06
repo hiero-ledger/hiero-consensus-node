@@ -12,8 +12,8 @@ All pinned versions sit together at the top of the script:
 |          Variable          |   Default    |                                Purpose                                 |
 |----------------------------|--------------|------------------------------------------------------------------------|
 | `CN_BASELINE_RELEASE_TAG`  | v0.78.1      | Published CN release deployed at genesis (alias: `DEPLOY_RELEASE_TAG`) |
-| `BLOCK_NODE_TOOLS_REF`     | v0.45.0-rc2  | `hiero-block-node` tag for the offline `blocks wrap` CLI and BN protos |
-| `BLOCK_NODE_CHART_VERSION` | v0.45.0-rc4  | Block Node chart/image deployed after stage 2 and kept through cutover |
+| `BLOCK_NODE_TOOLS_REF`     | v0.46.0-rc1  | `hiero-block-node` tag for the offline `blocks wrap` CLI and BN protos |
+| `BLOCK_NODE_CHART_VERSION` | v0.46.0-rc1  | Block Node chart/image deployed after stage 2 and kept through cutover |
 | `MIRROR_NODE_VERSION`      | v0.165.2-rc1 | Mirror node deployed before stage 2 and kept through cutover           |
 
 Every stage explicitly preserves Solo's local-network settings: `contracts.chainId=298` and
@@ -26,7 +26,7 @@ each deployment or upgrade.
 |--------|-----------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | 0.78.1 | Published release genesis: BOTH / FILE, mock signatures, TSS off, no wrapped hashes, no BN                                  | Runtime properties and release JAR version                                                                                                                                                |
 | 0.79.0 | Upgrade to local build: BOTH / FILE_AND_GRPC, mock signatures, TSS off, wrapped-record streaming and disk writing on, no BN | Runtime properties and local JAR version; hashes file exists and grows on every CN                                                                                                        |
-| 0.79.1 | Jumpstart, live wrapped records, TSS enabled, mock signatures; then add BN v0.45.0-rc4                                      | Offline jumpstart matches every CN's saved hashes; migration consumes the file; every migration vote matches an offline replay and every live chain syncs to it; WRAPS constructs a proof |
+| 0.79.1 | Jumpstart, live wrapped records, TSS enabled, mock signatures; then add BN v0.46.0-rc1                                      | Offline jumpstart matches every CN's saved hashes; migration consumes the file; every migration vote matches an offline replay and every live chain syncs to it; WRAPS constructs a proof |
 | 0.80.0 | BLOCKS / GRPC, cutover enabled, real signatures                                                                             | Runtime properties and local JAR version; WRAPS proof construction; BN verifies and persists new blocks; CN restart has no SELF_ISS                                                       |
 
 The jumpstart flow uses `cutover-jumpstart.sh`:
@@ -106,7 +106,7 @@ Docker, kubectl, Helm, curl, unzip, Node/npm, jq, OpenSSL, grpcurl, Python 3, Gi
 required by the CN and Block Node builds. SDK TCK also needs lsof, pgrep and pnpm; the script installs pnpm
 with `npm install -g pnpm` if missing. Clone `hiero-block-node` next to this repository,
 or set `BLOCK_NODE_REPO_PATH`. Its Git history must include the pinned `BLOCK_NODE_TOOLS_REF`
-tag (`v0.45.0-rc2`). The script uses that tools revision in both CI and local runs; it is
+tag (`v0.46.0-rc1`). The script uses that tools revision in both CI and local runs; it is
 independent of the deployed BN chart version. If your checkout is on another
 revision or has changes, it creates an isolated Git worktree under
 `~/.cache/hiero-solo/block-node-tools/`, preserving your original branch and files. Set
@@ -116,7 +116,7 @@ the Gradle-cached `zstd-jni` fallback.
 
 The tools' HAPI wire definitions and hash algorithm must agree with the CN's. The CN encodes
 `BlockHashAlgorithm.SHA2_256` as `0` and `SHA2_384` as `1`, and hashes with
-`blockStream.digestType`. The `v0.45.0-rc2` wrap CLI hashes with SHA-256 and writes 32-byte
+`blockStream.digestType`. The `v0.46.0-rc1` wrap CLI hashes with SHA-256 and writes 32-byte
 hashes to `jumpstart.bin`, so the CN must also run with SHA-256. The jumpstart parser and
 `verify-jumpstart-hashes.py` infer the hash width (32 or 48 bytes) from the file length and
 require the CN's saved hashes to use the same width. A completed hash mismatch fails immediately

@@ -30,7 +30,7 @@ import org.testcontainers.utility.DockerImageName;
  * A test container for running a block node server instance.
  */
 public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
-    private static final String DEFAULT_BLOCK_NODE_VERSION = "0.45.0-tssupdate";
+    private static final String DEFAULT_BLOCK_NODE_VERSION = "0.46.0-rc1";
     /** Env var that overrides the Block Node image version (e.g. {@code v0.45.0} or {@code 0.45.0}). */
     private static final String BLOCK_NODE_VERSION_ENV = "BLOCK_NODE_VERSION";
 
@@ -51,6 +51,7 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
             + " -XX:ActiveProcessorCount=" + Runtime.getRuntime().availableProcessors();
     private static final Object PLUGINS_LOCK = new Object();
     private static final List<String> REQUIRED_PLUGIN_ARTIFACTS = List.of(
+            "facility-app-state",
             "facility-messaging",
             "health",
             "block-verification",
@@ -70,17 +71,17 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
             Map.entry("disruptor-4.0.0.jar", MAVEN_CENTRAL_BASE_URL + "/com/lmax/disruptor/4.0.0/disruptor-4.0.0.jar"),
             // Transitive deps of the block-verification plugin
             Map.entry(
-                    "hedera-cryptography-wraps-3.21.0-verifier.jar",
+                    "hedera-cryptography-wraps-3.22.0-verifier.jar",
                     MAVEN_CENTRAL_BASE_URL
-                            + "/com/hedera/cryptography/hedera-cryptography-wraps/3.21.0/hedera-cryptography-wraps-3.21.0-verifier.jar"),
+                            + "/com/hedera/cryptography/hedera-cryptography-wraps/3.22.0/hedera-cryptography-wraps-3.22.0-verifier.jar"),
             Map.entry(
-                    "hedera-cryptography-hints-3.21.0.jar",
+                    "hedera-cryptography-hints-3.22.0.jar",
                     MAVEN_CENTRAL_BASE_URL
-                            + "/com/hedera/cryptography/hedera-cryptography-hints/3.21.0/hedera-cryptography-hints-3.21.0.jar"),
+                            + "/com/hedera/cryptography/hedera-cryptography-hints/3.22.0/hedera-cryptography-hints-3.22.0.jar"),
             Map.entry(
-                    "hedera-common-nativesupport-3.21.0.jar",
+                    "hedera-common-nativesupport-3.22.0.jar",
                     MAVEN_CENTRAL_BASE_URL
-                            + "/com/hedera/common/hedera-common-nativesupport/3.21.0/hedera-common-nativesupport-3.21.0.jar"),
+                            + "/com/hedera/common/hedera-common-nativesupport/3.22.0/hedera-common-nativesupport-3.22.0.jar"),
             Map.entry(
                     "antlr4-runtime-4.13.2.jar",
                     MAVEN_CENTRAL_BASE_URL + "/org/antlr/antlr4-runtime/4.13.2/antlr4-runtime-4.13.2.jar"));
