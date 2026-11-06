@@ -20,6 +20,7 @@ import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
 
 import com.hedera.hapi.block.stream.Block;
+import com.hedera.node.app.hapi.utils.blocks.BlockFileUtils;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
 import com.hedera.services.bdd.junit.hedera.BlockNodeNetwork;
@@ -55,6 +56,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -65,7 +67,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.zip.GZIPOutputStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Assertions;
@@ -86,7 +87,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
     private static final long BLOCK_NODE_READ_RETRY_MS = 2000L;
     // Under writerMode=GRPC the freeze block's proof finalizes asynchronously and the block node
     // serves it only after the proof completes (the consensus node flushes its in-memory pending
-    // block to .pnd.gz only on a fatal shutdown, so it is NOT on disk after a normal freeze). The
+    // block to .pnd.zstd only on a fatal shutdown, so it is NOT on disk after a normal freeze). The
     // StateChanges/BinaryStateChanges validators reconstruct the saved-state root, which needs that
     // freeze block, so the GRPC read waits until a served block reaches the saved-state round (the
     // freeze round). Bounded by STREAM_SETTLE_TIMEOUT; if the freeze block never arrives the BLOCKS
@@ -547,8 +548,8 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
      */
     private static BlockPaths collectBlockPaths(@NonNull final Path activeDir) {
         final var activePaths = new ArrayList<Path>();
-        try (final var stream = Files.walk(activeDir)) {
-            stream.filter(p -> BlockStreamAccess.isBlockFile(p, true)).forEach(activePaths::add);
+        try {
+            activePaths.addAll(BlockStreamAccess.orderedBlockPathsFrom(activeDir, true));
         } catch (Exception ignore) {
             // Empty or unreadable active dir falls through; archive (if any) is still consulted.
         }
@@ -562,8 +563,8 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                 .min()
                 .orElse(Long.MAX_VALUE);
         final var archivedPaths = new ArrayList<Path>();
-        try (final var stream = Files.walk(archiveDir)) {
-            stream.filter(p -> BlockStreamAccess.isBlockFile(p, true))
+        try {
+            BlockStreamAccess.orderedBlockPathsFrom(archiveDir, true).stream()
                     .filter(p -> BlockStreamAccess.extractBlockNumber(p) < minActiveBlockNumber)
                     .forEach(archivedPaths::add);
         } catch (Exception ignore) {
@@ -602,7 +603,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
             }
             for (final var root : roots) {
                 final List<Path> candidates;
-                // Depth 2 is enough for the actual layout: blockStreams/block-<...>/<N>.blk.gz.
+                // Depth 2 is enough for the actual layout: blockStreams/block-<...>/<N>.blk.zstd.
                 try (final var stream = Files.walk(root, 2)) {
                     candidates = stream.filter(p -> BlockStreamAccess.isBlockFile(p, true))
                             .filter(p -> BlockStreamAccess.extractBlockNumber(p) == targetBlockNumber)
@@ -638,7 +639,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
             return Optional.empty();
         }
 
-        // Also read pending blocks (.pnd.gz) from subprocess nodes for the freeze block,
+        // Also read pending blocks (.pnd.zstd or legacy .pnd.gz/.pnd) from subprocess nodes for the freeze block,
         // deduplicating by block number (block node blocks take precedence over pending blocks)
         final var pendingBlocks = readPendingBlocksFromDisk(spec);
         if (!pendingBlocks.isEmpty()) {
@@ -672,22 +673,36 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
             if (!Files.exists(parentPath)) {
                 continue;
             }
+            record PendingSnapshot(Path path, FileTime proofModifiedTime) {}
+            final var snapshotOrder = Comparator.comparing(PendingSnapshot::proofModifiedTime)
+                    .thenComparing(snapshot -> snapshot.path().toString());
+            final var snapshots = new TreeMap<Long, PendingSnapshot>();
             try (final var stream = Files.walk(parentPath)) {
-                stream.filter(p -> {
-                            final var name = p.getFileName().toString();
-                            return name.endsWith(".pnd.gz") || name.endsWith(".pnd");
-                        })
+                for (final var path : stream.filter(BlockFileUtils::isPendingBlockFile)
                         .filter(p -> BlockStreamAccess.isBlockFile(p, false))
-                        .forEach(p -> {
-                            try {
-                                pendingBlocks.add(BlockStreamAccess.blockFrom(p));
-                                log.info("Read pending block from {}", p);
-                            } catch (Exception e) {
-                                log.warn("Failed to read pending block from {}", p, e);
-                            }
-                        });
+                        .toList()) {
+                    try {
+                        final var snapshot = new PendingSnapshot(
+                                path, Files.getLastModifiedTime(BlockFileUtils.pendingProofPathFor(path)));
+                        snapshots.merge(
+                                BlockStreamAccess.extractBlockNumber(path),
+                                snapshot,
+                                (current, candidate) ->
+                                        snapshotOrder.compare(current, candidate) >= 0 ? current : candidate);
+                    } catch (IOException e) {
+                        log.warn("Failed to inspect pending proof metadata for {}", path, e);
+                    }
+                }
             } catch (IOException e) {
                 log.warn("Failed to scan for pending blocks in {}", parentPath, e);
+            }
+            for (final var snapshot : snapshots.values()) {
+                try {
+                    pendingBlocks.add(BlockStreamAccess.blockFrom(snapshot.path()));
+                    log.info("Read pending block from {}", snapshot.path());
+                } catch (Exception e) {
+                    log.warn("Failed to read pending block from {}", snapshot.path(), e);
+                }
             }
             if (!pendingBlocks.isEmpty()) {
                 break;
@@ -764,12 +779,11 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
             log.warn("Skipping block without header; cannot determine block number");
             return;
         }
-        final String baseName = String.format("%036d", blockNumber);
-        final Path blockFile = dir.resolve(baseName + ".blk.gz");
-        try (final var out = new GZIPOutputStream(Files.newOutputStream(blockFile))) {
+        final Path blockFile = dir.resolve(BlockFileUtils.blockFileName(blockNumber));
+        try (final var out = BlockFileUtils.newZstdOutputStream(Files.newOutputStream(blockFile))) {
             out.write(Block.PROTOBUF.toBytes(block).toByteArray());
         }
-        Files.createFile(dir.resolve(baseName + ".mf"));
+        Files.createFile(BlockFileUtils.markerPathFor(blockFile));
     }
 
     private static boolean isStreamingWrappedRecordBlocks(@NonNull final HapiSpec spec) {

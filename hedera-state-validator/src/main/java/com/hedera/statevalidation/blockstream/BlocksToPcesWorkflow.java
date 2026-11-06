@@ -123,7 +123,8 @@ public final class BlocksToPcesWorkflow {
      * Reads block files from {@code blockStreamDirectory}, reconstructs events in parallel, and
      * writes them to PCES files under {@code pcesOutputDir} in block order.
      *
-     * @param blockStreamDirectory directory containing the {@code .blk.gz} files (must be contiguous)
+     * @param blockStreamDirectory directory containing {@code .blk.zstd} or legacy {@code .blk.gz}/{@code .blk} files
+     *                             (must be contiguous)
      * @param pcesOutputDir directory where the PCES database tree is created (must be empty/new)
      * @param originRound the starting round of the state snapshot the PCES files will be replayed
      *     against; stamped as the PCES stream origin
@@ -503,33 +504,21 @@ public final class BlocksToPcesWorkflow {
     }
 
     /**
-     * Discovers all block files under the directory, validates that they form a contiguous sequence
-     * with no gaps, and returns their paths sorted by block number. The walk, extraction, and gap
-     * scan run in parallel; the gap check is an order-independent scan over adjacent indices.
+     * Selects one canonical file per block number under the directory and validates that the blocks form a
+     * contiguous sequence with no gaps. The gap check is a parallel, order-independent scan over adjacent indices.
      *
      * @return block file paths sorted ascending by block number
      */
     private static List<Path> orderedBlockFiles(@NonNull final Path blockStreamDirectory) throws IOException {
-        record NumberedPath(long blockNumber, Path path) {}
-
-        final List<NumberedPath> numbered;
-        try (var stream = Files.walk(blockStreamDirectory)) {
-            numbered = stream.parallel()
-                    .filter(p -> BlockStreamAccess.isBlockFile(p, false))
-                    .map(p -> new NumberedPath(BlockStreamAccess.extractBlockNumber(p), p))
-                    .filter(np -> np.blockNumber() != -1)
-                    .sorted(java.util.Comparator.comparingLong(NumberedPath::blockNumber))
-                    .toList();
-        }
-
-        if (numbered.isEmpty()) {
+        final var ordered = BlockStreamAccess.orderedBlockPathsFrom(blockStreamDirectory, false);
+        if (ordered.isEmpty()) {
             return List.of();
         }
 
         // Parallel, order-independent contiguity check over adjacent indices.
-        IntStream.range(1, numbered.size()).parallel().forEach(i -> {
-            final long prev = numbered.get(i - 1).blockNumber();
-            final long curr = numbered.get(i).blockNumber();
+        IntStream.range(1, ordered.size()).parallel().forEach(i -> {
+            final long prev = BlockStreamAccess.extractBlockNumber(ordered.get(i - 1));
+            final long curr = BlockStreamAccess.extractBlockNumber(ordered.get(i));
             if (curr != prev + 1) {
                 throw new RuntimeException(
                         "Block stream is missing " + (curr - prev - 1) + " block(s) between " + prev + " and " + curr);
@@ -538,10 +527,10 @@ public final class BlocksToPcesWorkflow {
 
         log.info(
                 "Block file contiguity validated: {} block files present, range [{}, {}]",
-                numbered.size(),
-                numbered.getFirst().blockNumber(),
-                numbered.getLast().blockNumber());
+                ordered.size(),
+                BlockStreamAccess.extractBlockNumber(ordered.getFirst()),
+                BlockStreamAccess.extractBlockNumber(ordered.getLast()));
 
-        return numbered.stream().map(NumberedPath::path).toList();
+        return ordered;
     }
 }

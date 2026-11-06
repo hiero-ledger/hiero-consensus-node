@@ -13,6 +13,7 @@ import com.hedera.hapi.block.stream.BlockProof;
 import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.node.app.hapi.utils.blocks.BlockFileUtils;
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfiguration;
@@ -23,7 +24,6 @@ import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.zip.GZIPInputStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -164,13 +164,13 @@ class GrpcBlockItemWriterTest {
 
         final var baseName = FileBlockItemWriter.longToFileName(blockNumber);
         final var nodeDir = tempDir.resolve("block-0.0.3");
-        assertThat(Files.exists(nodeDir.resolve(baseName + ".pnd.gz"))).isTrue();
+        assertThat(Files.exists(nodeDir.resolve(baseName + ".pnd.zstd"))).isTrue();
         assertThat(Files.exists(nodeDir.resolve(baseName + ".pnd.json"))).isTrue();
 
         // The pending contents are written as BlockBytes, which is wire-identical to Block; verify the file is
         // recoverable as a Block (the recovery path parses it as Block) and round-trips to the original item.
         final byte[] contents;
-        try (final var in = new GZIPInputStream(Files.newInputStream(nodeDir.resolve(baseName + ".pnd.gz")))) {
+        try (final var in = BlockFileUtils.openInputStream(nodeDir.resolve(baseName + ".pnd.zstd"))) {
             contents = in.readAllBytes();
         }
         final Block parsedBlock = Block.PROTOBUF.parse(Bytes.wrap(contents));
@@ -203,16 +203,16 @@ class GrpcBlockItemWriterTest {
 
         final var baseName = FileBlockItemWriter.longToFileName(blockNumber);
         final var nodeDir = tempDir.resolve("block-0.0.3");
-        // The open block's items are persisted as a .open.gz triage artifact, with no pending-proof sidecar...
-        assertThat(Files.exists(nodeDir.resolve(baseName + ".open.gz"))).isTrue();
-        assertThat(Files.exists(nodeDir.resolve(baseName + ".pnd.gz"))).isFalse();
+        // The open block's items are persisted as a .open.zstd triage artifact, with no pending-proof sidecar...
+        assertThat(Files.exists(nodeDir.resolve(baseName + ".open.zstd"))).isTrue();
+        assertThat(Files.exists(nodeDir.resolve(baseName + ".pnd.zstd"))).isFalse();
         assertThat(Files.exists(nodeDir.resolve(baseName + ".pnd.json"))).isFalse();
         // ...and the buffer block is deliberately NOT closed (which would make it eligible for buffer persistence)
         verify(blockBufferService, never()).closeBlock(blockNumber);
 
-        // The .open.gz parses back as a Block for analysis (BlockBytes is wire-identical to Block)
+        // The .open.zstd parses back as a Block for analysis (BlockBytes is wire-identical to Block)
         final byte[] contents;
-        try (final var in = new GZIPInputStream(Files.newInputStream(nodeDir.resolve(baseName + ".open.gz")))) {
+        try (final var in = BlockFileUtils.openInputStream(nodeDir.resolve(baseName + ".open.zstd"))) {
             contents = in.readAllBytes();
         }
         final Block parsedBlock = Block.PROTOBUF.parse(Bytes.wrap(contents));
@@ -230,7 +230,7 @@ class GrpcBlockItemWriterTest {
         writer.flushIncompleteBlock();
 
         final var baseName = FileBlockItemWriter.longToFileName(blockNumber);
-        assertThat(Files.exists(tempDir.resolve("block-0.0.1").resolve(baseName + ".open.gz")))
+        assertThat(Files.exists(tempDir.resolve("block-0.0.1").resolve(baseName + ".open.zstd")))
                 .isFalse();
     }
 
@@ -244,7 +244,7 @@ class GrpcBlockItemWriterTest {
         writer.flushIncompleteBlock();
 
         final var baseName = FileBlockItemWriter.longToFileName(blockNumber);
-        assertThat(Files.exists(tempDir.resolve("block-0.0.1").resolve(baseName + ".open.gz")))
+        assertThat(Files.exists(tempDir.resolve("block-0.0.1").resolve(baseName + ".open.zstd")))
                 .isFalse();
     }
 
@@ -259,7 +259,7 @@ class GrpcBlockItemWriterTest {
         writer.flushIncompleteBlock();
 
         final var baseName = FileBlockItemWriter.longToFileName(blockNumber);
-        assertThat(Files.exists(tempDir.resolve("block-0.0.1").resolve(baseName + ".open.gz")))
+        assertThat(Files.exists(tempDir.resolve("block-0.0.1").resolve(baseName + ".open.zstd")))
                 .isFalse();
     }
 }

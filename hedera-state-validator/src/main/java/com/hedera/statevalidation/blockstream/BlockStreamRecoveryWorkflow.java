@@ -28,7 +28,6 @@ import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -274,14 +273,9 @@ public class BlockStreamRecoveryWorkflow {
      * @throws RuntimeException if missing block files are detected
      */
     private static void validateNoMissingBlocks(@NonNull final Path blockStreamDirectory) throws IOException {
-        final List<Long> blockNumbers;
-        try (var stream = Files.walk(blockStreamDirectory)) {
-            blockNumbers = stream.filter(p -> BlockStreamAccess.isBlockFile(p, false))
-                    .map(BlockStreamAccess::extractBlockNumber)
-                    .filter(n -> n != -1)
-                    .sorted()
-                    .toList();
-        }
+        final var blockNumbers = BlockStreamAccess.orderedBlockPathsFrom(blockStreamDirectory, false).stream()
+                .map(BlockStreamAccess::extractBlockNumber)
+                .toList();
 
         if (blockNumbers.size() < 2) {
             return;

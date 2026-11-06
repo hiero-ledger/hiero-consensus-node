@@ -22,7 +22,9 @@ import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -33,12 +35,15 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.zip.GZIPInputStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
  * Central utility for accessing blocks.
+ *
+ * <p>For duplicate block numbers, readers prefer a marked complete block, then a pending block with the newest
+ * proof, then an unmarked complete block when markers are ignored. Equal-priority artifacts are ordered by
+ * their marker, proof, or block modification time and then their path.
  */
 public enum BlockStreamAccess {
     BLOCK_STREAM_ACCESS;
@@ -97,7 +102,7 @@ public enum BlockStreamAccess {
     private static Stream<Block> readBlocks(
             @NonNull final Path path, final boolean checkForMarkerFiles, final boolean ignoreBlockReadErrors) {
         try {
-            final var blockPaths = orderedBlocksFrom(path, checkForMarkerFiles);
+            final var blockPaths = orderedBlockPathsFrom(path, checkForMarkerFiles);
             if (ignoreBlockReadErrors) {
                 return blockPaths.stream().map(BlockStreamAccess::tryBlockFrom).flatMap(Optional::stream);
             }
@@ -193,26 +198,14 @@ public enum BlockStreamAccess {
      * @return the block
      */
     public static Block blockFrom(@NonNull final Path path) {
-        final var fileName = path.getFileName().toString();
-        try {
-            if (fileName.endsWith(".gz")) {
-                try (final GZIPInputStream in = new GZIPInputStream(Files.newInputStream(path))) {
-                    // parseStrict shorthand omitted intentionally: maxSize validation requires the multi-arg overload.
-                    return Block.PROTOBUF.parse(
-                            Bytes.wrap(in.readAllBytes()).toReadableSequentialData(),
-                            true,
-                            false,
-                            DEFAULT_MAX_DEPTH,
-                            MAX_PBJ_RECORD_SIZE);
-                }
-            } else {
-                return Block.PROTOBUF.parse(
-                        Bytes.wrap(Files.readAllBytes(path)).toReadableSequentialData(),
-                        true,
-                        false,
-                        DEFAULT_MAX_DEPTH,
-                        MAX_PBJ_RECORD_SIZE);
-            }
+        try (final var in = BlockFileUtils.openInputStream(path)) {
+            // parseStrict shorthand omitted intentionally: maxSize validation requires the multi-arg overload.
+            return Block.PROTOBUF.parse(
+                    Bytes.wrap(in.readAllBytes()).toReadableSequentialData(),
+                    true,
+                    false,
+                    DEFAULT_MAX_DEPTH,
+                    MAX_PBJ_RECORD_SIZE);
         } catch (IOException | ParseException e) {
             throw new RuntimeException("Failed reading block @ " + path, e);
         }
@@ -228,20 +221,63 @@ public enum BlockStreamAccess {
     }
 
     private static Stream<StateChange> stateChangesForState(@NonNull final List<Block> blocks, final int stateId) {
-        return blocks.stream().flatMap(block -> block.items().stream()
-                .filter(BlockItem::hasStateChanges)
-                .flatMap(item -> item.stateChangesOrThrow().stateChanges().stream())
-                .filter(change -> change.stateId() == stateId));
+        return blocks.stream()
+                .flatMap(block -> block.items().stream()
+                        .filter(BlockItem::hasStateChanges)
+                        .flatMap(item -> item.stateChangesOrThrow().stateChanges().stream())
+                        .filter(change -> change.stateId() == stateId));
     }
 
-    private static List<Path> orderedBlocksFrom(@NonNull final Path path, boolean checkForMarkerFiles)
+    /**
+     * Selects one block file per numeric block number and returns their paths in ascending block-number order.
+     *
+     * <p>Marked complete blocks take precedence over pending blocks. Pending blocks require a regular
+     * {@code .pnd.json} proof file even when markers are ignored; among pending snapshots, the newest proof
+     * takes precedence. When markers are ignored, unmarked complete blocks are eligible after pending blocks.
+     * Equal-priority candidates use the newest marker, proof, or block modification time, then the lexically
+     * greatest path as a deterministic tie-breaker. Incomplete and unsupported artifacts are excluded.
+     *
+     * @param path the directory tree to scan
+     * @param checkForMarkerFiles whether complete blocks require a regular same-stem {@code .mf} marker
+     * @return the selected block paths, ordered by numeric block number
+     * @throws IOException if the directory cannot be scanned or candidate metadata cannot be read
+     */
+    public static List<Path> orderedBlockPathsFrom(@NonNull final Path path, final boolean checkForMarkerFiles)
             throws IOException {
         try (final var stream = Files.walk(path)) {
-            return stream.filter(p -> isBlockFile(p, checkForMarkerFiles))
+            final var preference = comparing(BlockCandidate::priority)
+                    .thenComparing(BlockCandidate::modifiedTime)
+                    .thenComparing(candidate -> candidate.path().toString());
+            final Map<Long, BlockCandidate> blocksByNumber = new HashMap<>();
+            for (final var blockPath :
+                    stream.filter(p -> isBlockFile(p, checkForMarkerFiles)).toList()) {
+                try {
+                    final var candidate = blockCandidate(blockPath);
+                    blocksByNumber.merge(
+                            extractBlockNumber(blockPath),
+                            candidate,
+                            (left, right) -> preference.compare(left, right) >= 0 ? left : right);
+                } catch (NoSuchFileException ignore) {
+                    // Finalizing a block may remove its pending proof during a live directory scan.
+                }
+            }
+            return blocksByNumber.values().stream()
+                    .map(BlockCandidate::path)
                     .sorted(comparing(BlockStreamAccess::extractBlockNumber))
                     .toList();
         }
     }
+
+    private static BlockCandidate blockCandidate(final Path path) throws IOException {
+        if (BlockFileUtils.isPendingBlockFile(path)) {
+            return new BlockCandidate(path, 1, Files.getLastModifiedTime(BlockFileUtils.pendingProofPathFor(path)));
+        }
+        final var marker = BlockFileUtils.markerPathFor(path);
+        final boolean marked = Files.isRegularFile(marker);
+        return new BlockCandidate(path, marked ? 2 : 0, Files.getLastModifiedTime(marked ? marker : path));
+    }
+
+    private record BlockCandidate(Path path, int priority, FileTime modifiedTime) {}
 
     /**
      * Checks if the given path is a block file.
@@ -252,20 +288,11 @@ public enum BlockStreamAccess {
         if (!path.toFile().isFile() || extractBlockNumber(path) == -1) {
             return false;
         }
-        final var name = path.getFileName().toString();
-        if (name.endsWith(".pnd.json")) {
-            return false;
+        if (BlockFileUtils.isPendingBlockFile(path)) {
+            return Files.isRegularFile(BlockFileUtils.pendingProofPathFor(path));
         }
-        if (name.endsWith(".pnd")) {
-            return Files.exists(path.resolveSibling(name + ".json"));
-        } else if (name.endsWith(".pnd.gz")) {
-            return Files.exists(path.resolveSibling(name.replace(".gz", ".json")));
-        }
-
-        // Check for marker file
-        return !checkForMarkerFiles
-                || Files.exists(
-                        path.resolveSibling(name.replace(".blk.gz", ".mf").replace(".blk", ".mf")));
+        return BlockFileUtils.isCompleteBlockFile(path)
+                && (!checkForMarkerFiles || Files.isRegularFile(BlockFileUtils.markerPathFor(path)));
     }
 
     /**
@@ -296,11 +323,20 @@ public enum BlockStreamAccess {
      */
     public static long extractBlockNumber(@NonNull final String fileName) {
         try {
-            int i = fileName.indexOf(".blk");
-            if (i == -1) {
-                i = fileName.indexOf(".pnd");
+            final var path = Path.of(fileName);
+            final int suffixStart;
+            if (BlockFileUtils.isCompleteBlockFile(path)) {
+                suffixStart = fileName.lastIndexOf(".blk");
+            } else if (BlockFileUtils.isPendingBlockFile(path)) {
+                suffixStart = fileName.lastIndexOf(".pnd");
+            } else {
+                return -1;
             }
-            return Long.parseLong(fileName.substring(0, i));
+            final var number = fileName.substring(0, suffixStart);
+            if (number.isEmpty() || !number.chars().allMatch(c -> c >= '0' && c <= '9')) {
+                return -1;
+            }
+            return Long.parseLong(number);
         } catch (Exception ignore) {
         }
         return -1;

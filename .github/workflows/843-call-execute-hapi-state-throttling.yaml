@@ -153,6 +153,7 @@ jobs:
           name: "HAPI Test (Token & State Throttling)${{ inputs.name-suffix }} Failure Artifacts"
           path: |
             hedera-node/test-clients/build/**/*.blk.gz
+            hedera-node/test-clients/build/**/*.blk.zstd
             hedera-node/test-clients/build/**/*.rcd.gz
             hedera-node/test-clients/build/**/*.pb
             hedera-node/test-clients/build/**/*.pces

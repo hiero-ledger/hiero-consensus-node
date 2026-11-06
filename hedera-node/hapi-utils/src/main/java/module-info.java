@@ -36,6 +36,7 @@ module com.hedera.node.app.hapi.utils {
     requires com.swirlds.base;
     requires org.hiero.consensus.utility;
     requires com.fasterxml.jackson.databind;
+    requires com.github.luben.zstd_jni;
     requires com.google.common;
     requires org.apache.logging.log4j.core;
     requires org.apache.logging.log4j;

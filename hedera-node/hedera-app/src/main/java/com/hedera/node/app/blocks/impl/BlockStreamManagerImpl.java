@@ -1113,12 +1113,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                         return null;
                     });
 
-            final var exportNetworkToDisk =
-                    switch (diskNetworkExport) {
-                        case NEVER -> false;
-                        case EVERY_BLOCK -> true;
-                        case ONLY_FREEZE_BLOCK -> roundNum == freezeRoundNumber;
-                    };
+            final var exportNetworkToDisk = switch (diskNetworkExport) {
+                case NEVER -> false;
+                case EVERY_BLOCK -> true;
+                case ONLY_FREEZE_BLOCK -> roundNum == freezeRoundNumber;
+            };
             if (exportNetworkToDisk) {
                 final var exportPath = Paths.get(diskNetworkExportFile);
                 final var infoTypes = EnumSet.of(InfoType.ROSTER, InfoType.NODE_DETAILS);
@@ -1971,7 +1970,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 }
                 // The in-progress writer is handler-owned (quiesced above) and is never touched by signing callbacks,
                 // so it can be flushed without the monitor. flushIncompleteBlock persists the open, unproven block as
-                // a ".open.gz" triage artifact (in every writer mode, incl. gRPC) that is never auto-recovered.
+                // a ".open.zstd" triage artifact (in every writer mode, incl. gRPC) that is never auto-recovered.
                 if (writer != null) {
                     log.fatal("Flushing in-progress block {} to disk for triage", blockNumber);
                     try {

@@ -13,13 +13,11 @@ import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.stream.Stream;
 
 /**
  * Splits the items of one round in a block into logical transactions, and collects the round's state changes.
@@ -244,15 +242,8 @@ public final class BlockRoundExtractor {
     /** Block files under {@code dir}, keyed by block number. */
     public static Map<Long, Path> indexByBlockNumber(final Path dir) throws IOException {
         final Map<Long, Path> map = new TreeMap<>();
-        try (final Stream<Path> s = Files.walk(dir)) {
-            s.filter(p -> !Files.isDirectory(p))
-                    .filter(p -> BlockStreamAccess.isBlockFile(p, false))
-                    .forEach(p -> {
-                        final long n = BlockStreamAccess.extractBlockNumber(p);
-                        if (n != -1) {
-                            map.put(n, p);
-                        }
-                    });
+        for (final var path : BlockStreamAccess.orderedBlockPathsFrom(dir, false)) {
+            map.put(BlockStreamAccess.extractBlockNumber(path), path);
         }
         return map;
     }

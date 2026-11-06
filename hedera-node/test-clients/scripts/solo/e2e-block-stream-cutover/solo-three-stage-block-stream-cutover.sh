@@ -1132,6 +1132,7 @@ write_ledger_id_extractor() {
 # SPDX-License-Identifier: Apache-2.0
 import sys
 import gzip
+import subprocess
 import base64
 import json
 import os
@@ -1228,14 +1229,18 @@ def tss_data_json(pub, block_number):
 
 def main():
     if len(sys.argv) < 3:
-        sys.stderr.write("usage: extract.py <out.json> <blockFile.blk[.gz]> [...]\n")
+        sys.stderr.write("usage: extract.py <out.json> <blockFile.blk[.gz|.zstd]> [...]\n")
         sys.exit(2)
     out = sys.argv[1]
     for path in sys.argv[2:]:
         try:
-            with open(path, "rb") as f:
-                raw = f.read()
-            data = gzip.decompress(raw) if path.endswith(".gz") else raw
+            if path.endswith(".zstd"):
+                data = subprocess.run(["zstd", "--decompress", "--stdout", "--", path],
+                                      check=True, stdout=subprocess.PIPE).stdout
+            else:
+                with open(path, "rb") as f:
+                    raw = f.read()
+                data = gzip.decompress(raw) if path.endswith(".gz") else raw
             pub = extract_from_block(data)
             if pub is not None:
                 block_number = int(os.path.basename(path).split(".", 1)[0])
@@ -1257,9 +1262,10 @@ EOF
 # Bootstrap the BN with the network's TSS ledger id so it can verify real-TSS-signed
 # blocks after the stage 3 upgrade. The BN only self-learns the ledger id from block 0; this
 # mid-chain BN never sees it, so we extract the LedgerIdPublication (published during stage 2)
-# from a MinIO .blk.gz, convert it to application-state TssData JSON, and roll the BN.
+# from a MinIO .blk.zstd or legacy .blk.gz, convert it to application-state TssData JSON, and roll the BN.
 seed_block_node_tss_parameters() {
   require_cmd python3
+  ensure_zstd_command_for_block_node || return 1
   local minio_pod creds_tmp u p in_pod_dir bn_pod
   minio_pod="$(kubectl -n "${MINIO_NAMESPACE}" get pods -o json 2>/dev/null | jq -r '
     .items[].metadata.name | select(test("^minio-"))' | head -n 1)"
@@ -1282,7 +1288,7 @@ seed_block_node_tss_parameters() {
   rm -rf "${BN_BLOCK_FILES_DIR}"; mkdir -p "${BN_BLOCK_FILES_DIR}"
   # Copy each block file out with a tar-free `kubectl exec ... cat` (kubectl cp shells out
   # to tar, which the distroless MinIO image does not ship). Stdout without a TTY is a raw
-  # binary stream, so .blk.gz bytes survive intact.
+  # binary stream, so compressed block bytes survive intact.
   local rel base dest pulled=0
   while IFS= read -r rel; do
     [[ -n "${rel}" ]] || continue
@@ -1293,12 +1299,12 @@ seed_block_node_tss_parameters() {
     # which trips `set -e` on bash 5 (CI). An assignment always returns 0.
     if [[ -s "${dest}" ]]; then pulled=$((pulled + 1)); else rm -f "${dest}"; fi
   done < <(kubectl -n "${MINIO_NAMESPACE}" exec "${minio_pod}" -c minio -- sh -c \
-            "for f in ${in_pod_dir}/*/*.blk.gz ${in_pod_dir}/*.blk.gz; do [ -f \"\$f\" ] && echo \"\$f\"; done" 2>/dev/null)
+            "for f in ${in_pod_dir}/*/*.blk.gz ${in_pod_dir}/*.blk.gz ${in_pod_dir}/*/*.blk.zstd ${in_pod_dir}/*.blk.zstd; do [ -f \"\$f\" ] && echo \"\$f\"; done" 2>/dev/null)
   kubectl -n "${MINIO_NAMESPACE}" exec "${minio_pod}" -c minio -- sh -c "rm -rf '${in_pod_dir}'" >/dev/null 2>&1 || true
 
   local blk_files=()
-  while IFS= read -r bf; do blk_files+=("${bf}"); done < <(find "${BN_BLOCK_FILES_DIR}" -type f -name '*.blk.gz' | sort)
-  [[ "${#blk_files[@]}" -gt 0 ]] || { echo "seed: no .blk.gz files retrieved from MinIO (pulled=${pulled})" >&2; return 1; }
+  while IFS= read -r bf; do blk_files+=("${bf}"); done < <(find "${BN_BLOCK_FILES_DIR}" -type f \( -name '*.blk.gz' -o -name '*.blk.zstd' \) | sort)
+  [[ "${#blk_files[@]}" -gt 0 ]] || { echo "seed: no .blk.zstd or .blk.gz files retrieved from MinIO (pulled=${pulled})" >&2; return 1; }
   log "Retrieved ${#blk_files[@]} block-stream files; extracting LedgerIdPublication"
 
   write_ledger_id_extractor

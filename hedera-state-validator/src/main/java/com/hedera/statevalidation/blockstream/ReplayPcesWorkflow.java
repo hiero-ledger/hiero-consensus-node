@@ -9,6 +9,8 @@ import static org.hiero.consensus.platformstate.PlatformStateUtils.ancientThresh
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.node.app.Hedera;
 import com.hedera.node.app.ServicesMain;
+import com.hedera.node.app.hapi.utils.blocks.BlockFileUtils;
+import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.statevalidation.ReplayPcesCommand;
 import com.swirlds.base.time.Time;
@@ -30,6 +32,7 @@ import java.nio.file.Path;
 import java.security.KeyStoreException;
 import java.time.Duration;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
@@ -420,9 +423,9 @@ public final class ReplayPcesWorkflow {
     private static final Duration BLOCK_FINALIZE_POLL = Duration.ofMillis(200);
 
     /**
-     * Waits until all block files under {@code blockStreamsDir} are finalized: every {@code .blk.gz}
-     * (or {@code .blk}) has a sibling {@code .mf} marker and no {@code .pnd.json} pending-proof files
-     * remain. Block proofs and their markers are written asynchronously from the signing callback after
+     * Waits until all block files under {@code blockStreamsDir} are finalized: every {@code .blk.zstd}
+     * (or legacy {@code .blk.gz}/{@code .blk}) has a sibling {@code .mf} marker and no unfinalized pending block
+     * or {@code .pnd.json} pending-proof files remain. Block proofs and their markers are written asynchronously from the signing callback after
      * the wiring pipeline is flushed, so this closes the race before the state is written and the platform
      * is destroyed. Times out (rather than hanging) if a signature never completes.
      */
@@ -452,9 +455,10 @@ public final class ReplayPcesWorkflow {
     }
 
     /**
-     * Returns a description of the first block file that is not yet finalized (a .blk/.blk.gz without a
-     * sibling .mf, or a leftover .pnd.json), or empty if all blocks are finalized. Searches the
-     * node-scoped subdirectory tree under blockStreamsDir.
+     * Returns a description of the first block file that is not yet finalized, or empty if all blocks are finalized.
+     * Completed payloads require a regular sibling marker; pending payloads/proofs are ignored only when their
+     * block number has a marked completed payload under blockStreamsDir. This replay output belongs to one node;
+     * its account-scoped subdirectories may retain files from before an account renumbering.
      */
     private static Optional<String> firstUnfinalized(@NonNull final Path blockStreamsDir) {
         if (!Files.isDirectory(blockStreamsDir)) {
@@ -465,21 +469,31 @@ public final class ReplayPcesWorkflow {
             return Optional.empty();
         }
         try (final Stream<Path> files = Files.walk(blockStreamsDir)) {
-            return files.filter(Files::isRegularFile)
-                    .map(Path::toString)
-                    .filter(name -> {
-                        if (name.endsWith(".pnd.json") || name.endsWith(".pnd.gz") || name.endsWith(".pnd")) {
-                            return true;
+            final var regularFiles = files.filter(Files::isRegularFile).toList();
+            final var finalizedBlocks = new HashSet<Long>();
+            for (final var path : regularFiles) {
+                if (BlockFileUtils.isCompleteBlockFile(path)
+                        && Files.isRegularFile(BlockFileUtils.markerPathFor(path))) {
+                    final long number = BlockStreamAccess.extractBlockNumber(path);
+                    if (number >= 0) {
+                        finalizedBlocks.add(number);
+                    }
+                }
+            }
+            return regularFiles.stream()
+                    .filter(path -> {
+                        final var name = path.getFileName().toString();
+                        final boolean isProof = name.endsWith(".pnd.json");
+                        if (isProof || BlockFileUtils.isPendingBlockFile(path)) {
+                            final long number = BlockStreamAccess.extractBlockNumber(
+                                    isProof ? name.substring(0, name.length() - ".json".length()) : name);
+                            // Retained pending snapshots are harmless once this node finalized the block.
+                            return !finalizedBlocks.contains(number);
                         }
-                        if (name.endsWith(".blk.gz")) {
-                            return !Files.exists(
-                                    Path.of(name.substring(0, name.length() - ".blk.gz".length()) + ".mf"));
-                        }
-                        if (name.endsWith(".blk")) {
-                            return !Files.exists(Path.of(name.substring(0, name.length() - ".blk".length()) + ".mf"));
-                        }
-                        return false;
+                        return BlockFileUtils.isCompleteBlockFile(path)
+                                && !Files.isRegularFile(BlockFileUtils.markerPathFor(path));
                     })
+                    .map(Path::toString)
                     .findFirst();
         } catch (final IOException e) {
             // Do NOT treat a scan failure as success. Surface it so the command fails rather than reporting a
