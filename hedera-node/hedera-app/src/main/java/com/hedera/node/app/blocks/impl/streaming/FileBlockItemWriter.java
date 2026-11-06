@@ -4,6 +4,7 @@ package com.hedera.node.app.blocks.impl.streaming;
 import static com.hedera.hapi.util.HapiUtils.asAccountString;
 import static com.hedera.node.app.blocks.BlockStreamManager.NUM_SIBLINGS_PER_BLOCK;
 import static java.util.Objects.requireNonNull;
+import static java.util.function.BinaryOperator.maxBy;
 import static org.hiero.base.file.FileUtils.getAbsolutePath;
 
 import com.hedera.hapi.block.stream.Block;
@@ -41,7 +42,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.TreeMap;
-import java.util.function.LongFunction;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -213,10 +213,11 @@ public class FileBlockItemWriter implements BlockItemWriter {
                     }
                 }
             }
-            for (final var proofJson : files.stream()
-                    .filter(p -> p.getFileName().toString().endsWith(".pnd.json"))
-                    .toList()) {
+            for (final var proofJson : files) {
                 final var name = proofJson.getFileName().toString();
+                if (!name.endsWith(".pnd.json")) {
+                    continue;
+                }
                 final long number;
                 try {
                     number = Long.parseLong(name.substring(0, name.length() - ".pnd.json".length()));
@@ -230,7 +231,7 @@ public class FileBlockItemWriter implements BlockItemWriter {
                 proofJsons.merge(
                         number,
                         new PendingProofFile(proofJson, Files.getLastModifiedTime(proofJson)),
-                        (left, right) -> PROOF_JSON_RECENCY_COMPARATOR.compare(left, right) >= 0 ? left : right);
+                        maxBy(PROOF_JSON_RECENCY_COMPARATOR));
             }
         } catch (IOException e) {
             logger.warn("Unable to scan pending blocks in {}", blockDirPath, e);
@@ -240,12 +241,6 @@ public class FileBlockItemWriter implements BlockItemWriter {
         logger.info("Evaluating {} distinct pending blocks on disk", proofJsons.size());
         long nextContiguousBlock = followingBlockNumber - 1;
         for (final var entry : proofJsons.descendingMap().entrySet()) {
-            // Signing finalizes or discards older pending blocks before completing a later block. Do not
-            // cross a completed block to revive retained snapshots without the intervening proof context.
-            if (completedBlockNumbers.contains(nextContiguousBlock)) {
-                logger.info("Stopping pending recovery at already completed block #{}", nextContiguousBlock);
-                break;
-            }
             final long nextNumber = entry.getKey();
             if (nextNumber != nextContiguousBlock) {
                 logger.info("No more contiguous blocks (#{} != #{})", nextNumber, nextContiguousBlock);
@@ -318,18 +313,17 @@ public class FileBlockItemWriter implements BlockItemWriter {
         if (blockNumber < 0) throw new IllegalArgumentException("Block number must be non-negative");
 
         this.blockNumber = blockNumber;
-        final var blockFilePath = pathOf(blockNumber, BlockFileUtils::blockFileName);
+        final var blockFilePath = nodeScopedBlockDir.resolve(BlockFileUtils.blockFileName(blockNumber));
         OutputStream out = null;
         try {
             if (!Files.exists(nodeScopedBlockDir)) {
                 Files.createDirectories(nodeScopedBlockDir);
             }
 
-            // Buffer raw items before compression, and compressed bytes before writing to disk.
-
             // An intentional rewrite must never expose partial bytes through an earlier completion marker.
             // Remove the marker first so a failure leaves the completed payload intact.
-            Files.deleteIfExists(pathOf(blockNumber, BlockFileUtils::markerFileName));
+            Files.deleteIfExists(nodeScopedBlockDir.resolve(BlockFileUtils.markerFileName(blockNumber)));
+            // Buffer raw items before compression, and compressed bytes before writing to disk.
             out = Files.newOutputStream(blockFilePath);
             out = new BufferedOutputStream(out, blockFileBufferInnerSizeBytes);
             out = BlockFileUtils.newZstdOutputStream(out);
@@ -411,7 +405,7 @@ public class FileBlockItemWriter implements BlockItemWriter {
             }
 
             // Write a .mf file to indicate that the block file is complete.
-            final Path markerFile = pathOf(blockNumber, BlockFileUtils::markerFileName);
+            final Path markerFile = nodeScopedBlockDir.resolve(BlockFileUtils.markerFileName(blockNumber));
             if (Files.exists(markerFile)) {
                 logger.info("Skipping block marker file for {} as it already exists", markerFile);
             } else {
@@ -430,8 +424,8 @@ public class FileBlockItemWriter implements BlockItemWriter {
             try {
                 writableStreamingData.close();
                 Files.move(
-                        pathOf(blockNumber, BlockFileUtils::blockFileName),
-                        pathOf(blockNumber, BlockFileUtils::pendingFileName));
+                        nodeScopedBlockDir.resolve(BlockFileUtils.blockFileName(blockNumber)),
+                        nodeScopedBlockDir.resolve(BlockFileUtils.pendingFileName(blockNumber)));
             } catch (IOException e) {
                 logger.error("Error flushing pending block #{}", blockNumber, e);
                 return;
@@ -447,7 +441,7 @@ public class FileBlockItemWriter implements BlockItemWriter {
             logger.info(
                     "Flushed pending block #{} ({}, {})",
                     blockNumber,
-                    pathOf(blockNumber, BlockFileUtils::pendingFileName),
+                    nodeScopedBlockDir.resolve(BlockFileUtils.pendingFileName(blockNumber)),
                     pendingProofPath(nodeScopedBlockDir, blockNumber));
         } else {
             logger.warn("Block #{} flushed in non-OPEN state '{}'", blockNumber, state, new IllegalStateException());
@@ -467,12 +461,12 @@ public class FileBlockItemWriter implements BlockItemWriter {
         try {
             writableStreamingData.close();
             Files.move(
-                    pathOf(blockNumber, BlockFileUtils::blockFileName),
-                    pathOf(blockNumber, BlockFileUtils::incompleteFileName));
+                    nodeScopedBlockDir.resolve(BlockFileUtils.blockFileName(blockNumber)),
+                    nodeScopedBlockDir.resolve(BlockFileUtils.incompleteFileName(blockNumber)));
             logger.info(
                     "Flushed incomplete block #{} for triage to {}",
                     blockNumber,
-                    pathOf(blockNumber, BlockFileUtils::incompleteFileName));
+                    nodeScopedBlockDir.resolve(BlockFileUtils.incompleteFileName(blockNumber)));
         } catch (final Exception e) {
             // Catch everything (not just IOException): per the BlockItemWriter contract this is best-effort and must
             // not throw, since the caller is already on the catastrophic-failure path.
@@ -480,17 +474,6 @@ public class FileBlockItemWriter implements BlockItemWriter {
         } finally {
             state = State.CLOSED;
         }
-    }
-
-    /**
-     * Get the path for a block file with the block number.
-     *
-     * @param blockNumber the block number for the block file
-     * @return Path to a block file for that block number
-     */
-    @NonNull
-    private Path pathOf(final long blockNumber, @NonNull final LongFunction<String> nameFn) {
-        return nodeScopedBlockDir.resolve(nameFn.apply(blockNumber));
     }
 
     /**

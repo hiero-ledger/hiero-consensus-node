@@ -56,7 +56,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.attribute.FileTime;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -557,11 +556,8 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
         if (!Files.isDirectory(archiveDir)) {
             return new BlockPaths(activePaths, List.of());
         }
-        final long minActiveBlockNumber = activePaths.stream()
-                .mapToLong(BlockStreamAccess::extractBlockNumber)
-                .filter(n -> n >= 0)
-                .min()
-                .orElse(Long.MAX_VALUE);
+        final long minActiveBlockNumber =
+                activePaths.isEmpty() ? Long.MAX_VALUE : BlockStreamAccess.extractBlockNumber(activePaths.getFirst());
         final var archivedPaths = new ArrayList<Path>();
         try {
             BlockStreamAccess.orderedBlockPathsFrom(archiveDir, true).stream()
@@ -673,36 +669,20 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
             if (!Files.exists(parentPath)) {
                 continue;
             }
-            record PendingSnapshot(Path path, FileTime proofModifiedTime) {}
-            final var snapshotOrder = Comparator.comparing(PendingSnapshot::proofModifiedTime)
-                    .thenComparing(snapshot -> snapshot.path().toString());
-            final var snapshots = new TreeMap<Long, PendingSnapshot>();
-            try (final var stream = Files.walk(parentPath)) {
-                for (final var path : stream.filter(BlockFileUtils::isPendingBlockFile)
-                        .filter(p -> BlockStreamAccess.isBlockFile(p, false))
-                        .toList()) {
+            try {
+                for (final var path : BlockStreamAccess.orderedBlockPathsFrom(parentPath, true)) {
+                    if (!BlockFileUtils.isPendingBlockFile(path)) {
+                        continue;
+                    }
                     try {
-                        final var snapshot = new PendingSnapshot(
-                                path, Files.getLastModifiedTime(BlockFileUtils.pendingProofPathFor(path)));
-                        snapshots.merge(
-                                BlockStreamAccess.extractBlockNumber(path),
-                                snapshot,
-                                (current, candidate) ->
-                                        snapshotOrder.compare(current, candidate) >= 0 ? current : candidate);
-                    } catch (IOException e) {
-                        log.warn("Failed to inspect pending proof metadata for {}", path, e);
+                        pendingBlocks.add(BlockStreamAccess.blockFrom(path));
+                        log.info("Read pending block from {}", path);
+                    } catch (Exception e) {
+                        log.warn("Failed to read pending block from {}", path, e);
                     }
                 }
             } catch (IOException e) {
                 log.warn("Failed to scan for pending blocks in {}", parentPath, e);
-            }
-            for (final var snapshot : snapshots.values()) {
-                try {
-                    pendingBlocks.add(BlockStreamAccess.blockFrom(snapshot.path()));
-                    log.info("Read pending block from {}", snapshot.path());
-                } catch (Exception e) {
-                    log.warn("Failed to read pending block from {}", snapshot.path(), e);
-                }
             }
             if (!pendingBlocks.isEmpty()) {
                 break;

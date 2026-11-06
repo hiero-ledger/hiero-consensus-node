@@ -173,8 +173,8 @@ class StreamValidationOpTest {
                 writeBlockFile(blockDir, completeName, blockWithProof());
             }
 
-            assertEquals(List.of(blockDir.resolve(completeName)), collectedPaths(streams, "active"));
             assertEquals(List.of(blockWithProof()), readDiskBlocks(streams).active());
+            assertEquals(List.of(), readPendingSnapshots(streams));
         }
     }
 
@@ -192,7 +192,6 @@ class StreamValidationOpTest {
             Files.setLastModifiedTime(legacy, FileTime.fromMillis(newerZstd ? 4_000L : 3_000L));
             Files.setLastModifiedTime(current, FileTime.fromMillis(newerZstd ? 3_000L : 4_000L));
 
-            assertEquals(List.of(newerZstd ? current : legacy), collectedPaths(streams, "active"));
             assertEquals(
                     List.of(newerZstd ? blockWithProof() : blockWithoutProof()),
                     readDiskBlocks(streams).active());
@@ -210,19 +209,9 @@ class StreamValidationOpTest {
         writeBlockFile(archive, BLOCK_NUMBER, blockWithoutProof());
         writeBlockFile(archive, 43L, blockWithProof(43L));
 
-        assertEquals(List.of(archive.resolve("0000000000000000041.blk.zstd")), collectedPaths(streams, "archived"));
         final var blocks = readDiskBlocks(streams);
         assertEquals(List.of(blockWithProof()), blocks.active());
         assertEquals(List.of(blockWithProof(41L)), blocks.archived());
-    }
-
-    private static List<?> collectedPaths(final Path dir, final String layer) throws Exception {
-        final var collect = StreamValidationOp.class.getDeclaredMethod("collectBlockPaths", Path.class);
-        collect.setAccessible(true);
-        final var paths = collect.invoke(null, dir);
-        final var accessor = paths.getClass().getDeclaredMethod(layer);
-        accessor.setAccessible(true);
-        return (List<?>) accessor.invoke(paths);
     }
 
     private static StreamValidationOp.DiskBlocks readDiskBlocks(final Path dir) throws Exception {

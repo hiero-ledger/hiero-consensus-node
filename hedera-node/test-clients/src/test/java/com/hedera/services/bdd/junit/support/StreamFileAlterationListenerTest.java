@@ -7,7 +7,6 @@ import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.node.app.hapi.utils.blocks.BlockFileUtils;
-import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicReference;
@@ -41,9 +40,7 @@ class StreamFileAlterationListenerTest {
                     observed.set(block);
                 }
             });
-            final var expose = StreamFileAlterationListener.class.getDeclaredMethod("exposeBlock", File.class);
-            expose.setAccessible(true);
-            expose.invoke(listener, marker.toFile());
+            listener.onFileCreate(marker.toFile());
             assertEquals(block, observed.get(), suffix);
             Files.delete(path);
         }

@@ -5,6 +5,7 @@ import static com.hedera.node.app.hapi.utils.CommonPbjConverters.MAX_PBJ_RECORD_
 import static com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils.SIDECAR_ONLY_TOKEN;
 import static com.hedera.pbj.runtime.Codec.DEFAULT_MAX_DEPTH;
 import static java.util.Comparator.comparing;
+import static java.util.function.BinaryOperator.maxBy;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
@@ -31,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -248,23 +250,17 @@ public enum BlockStreamAccess {
             final var preference = comparing(BlockCandidate::priority)
                     .thenComparing(BlockCandidate::modifiedTime)
                     .thenComparing(candidate -> candidate.path().toString());
-            final Map<Long, BlockCandidate> blocksByNumber = new HashMap<>();
+            final Map<Long, BlockCandidate> blocksByNumber = new TreeMap<>();
             for (final var blockPath :
                     stream.filter(p -> isBlockFile(p, checkForMarkerFiles)).toList()) {
                 try {
                     final var candidate = blockCandidate(blockPath);
-                    blocksByNumber.merge(
-                            extractBlockNumber(blockPath),
-                            candidate,
-                            (left, right) -> preference.compare(left, right) >= 0 ? left : right);
+                    blocksByNumber.merge(extractBlockNumber(blockPath), candidate, maxBy(preference));
                 } catch (NoSuchFileException ignore) {
                     // Finalizing a block may remove its pending proof during a live directory scan.
                 }
             }
-            return blocksByNumber.values().stream()
-                    .map(BlockCandidate::path)
-                    .sorted(comparing(BlockStreamAccess::extractBlockNumber))
-                    .toList();
+            return blocksByNumber.values().stream().map(BlockCandidate::path).toList();
         }
     }
 

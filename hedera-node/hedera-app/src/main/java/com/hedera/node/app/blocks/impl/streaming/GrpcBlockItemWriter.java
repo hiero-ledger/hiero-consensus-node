@@ -136,7 +136,7 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
         }
         try {
             Files.createDirectories(nodeScopedBlockDir);
-            final var contentsPath = pendingContentsPath(nodeScopedBlockDir, blockNumber);
+            final var contentsPath = nodeScopedBlockDir.resolve(BlockFileUtils.pendingFileName(blockNumber));
             try (final var out = BlockFileUtils.newZstdOutputStream(Files.newOutputStream(contentsPath))) {
                 // BlockBytes is wire-identical to Block, so this file parses back as a Block on recovery.
                 out.write(BlockBytes.PROTOBUF.toBytes(new BlockBytes(items)).toByteArray());
@@ -149,15 +149,10 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
         }
     }
 
-    private Path pendingContentsPath(@NonNull final Path blockDir, final long blockNumber) {
-        return blockDir.resolve(BlockFileUtils.pendingFileName(blockNumber));
-    }
-
     @Override
     public void flushIncompleteBlock() {
-        // Persist the open, unproven block's buffered items as a ".open.zstd" triage artifact (Zstandard-compressed
-        // BlockBytes,
-        // wire-identical to a Block so it parses back for analysis). We write NO ".pnd.json" proof sidecar, so it is
+        // Persist the open, unproven block's buffered items as a ".open.zstd" triage artifact. The compressed
+        // BlockBytes are wire-identical to a Block for analysis. We write NO ".pnd.json" proof sidecar, so it is
         // never picked up by pending-block recovery nor mistaken for a finished block. We also deliberately do NOT
         // close the block in the buffer service: a closed block would become eligible for the buffer's own
         // persistence/recovery path, which would re-introduce the same hazard. Best-effort: never throws.
@@ -179,7 +174,7 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
                 return;
             }
             Files.createDirectories(nodeScopedBlockDir);
-            final var contentsPath = incompleteContentsPath(nodeScopedBlockDir, blockNumber);
+            final var contentsPath = nodeScopedBlockDir.resolve(BlockFileUtils.incompleteFileName(blockNumber));
             try (final var out = BlockFileUtils.newZstdOutputStream(Files.newOutputStream(contentsPath))) {
                 out.write(BlockBytes.PROTOBUF.toBytes(new BlockBytes(items)).toByteArray());
             }
@@ -187,9 +182,5 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
         } catch (final Exception e) {
             logger.error("Error flushing incomplete block #{}", blockNumber, e);
         }
-    }
-
-    private Path incompleteContentsPath(@NonNull final Path blockDir, final long blockNumber) {
-        return blockDir.resolve(BlockFileUtils.incompleteFileName(blockNumber));
     }
 }

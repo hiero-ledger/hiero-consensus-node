@@ -141,15 +141,7 @@ public final class BlockFileUtils {
      * @return the first matching regular block file, or empty if none exists or the marker suffix is unsupported
      */
     public static Optional<Path> findBlockFileForMarker(@NonNull final Path markerPath) {
-        final var name = markerPath.getFileName().toString();
-        if (!name.endsWith(".mf")) {
-            return Optional.empty();
-        }
-        final var stem = name.substring(0, name.length() - ".mf".length());
-        return COMPLETE_SUFFIXES.stream()
-                .map(suffix -> markerPath.resolveSibling(stem + suffix))
-                .filter(Files::isRegularFile)
-                .findFirst();
+        return findSibling(markerPath, ".mf", COMPLETE_SUFFIXES);
     }
 
     /**
@@ -159,15 +151,7 @@ public final class BlockFileUtils {
      * @return the first matching regular pending file, or empty if none exists or the proof suffix is unsupported
      */
     public static Optional<Path> findPendingFileForProof(@NonNull final Path proofPath) {
-        final var name = proofPath.getFileName().toString();
-        if (!name.endsWith(".pnd.json")) {
-            return Optional.empty();
-        }
-        final var stem = name.substring(0, name.length() - ".pnd.json".length());
-        return PENDING_SUFFIXES.stream()
-                .map(suffix -> proofPath.resolveSibling(stem + suffix))
-                .filter(Files::isRegularFile)
-                .findFirst();
+        return findSibling(proofPath, ".pnd.json", PENDING_SUFFIXES);
     }
 
     /**
@@ -221,6 +205,19 @@ public final class BlockFileUtils {
             }
             throw e;
         }
+    }
+
+    private static Optional<Path> findSibling(
+            final Path path, final String suffix, final List<String> replacementSuffixes) {
+        final var name = path.getFileName().toString();
+        if (!name.endsWith(suffix)) {
+            return Optional.empty();
+        }
+        final var stem = name.substring(0, name.length() - suffix.length());
+        return replacementSuffixes.stream()
+                .map(replacement -> path.resolveSibling(stem + replacement))
+                .filter(Files::isRegularFile)
+                .findFirst();
     }
 
     private static Path replaceSuffix(final Path path, final List<String> suffixes, final String replacement) {

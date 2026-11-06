@@ -72,10 +72,8 @@ class BlockFormatPcesCompatibilityTest {
         final var currentFiles = pcesFiles(currentOutput);
         final var legacyFiles = pcesFiles(legacyOutput);
         assertEquals(1, currentFiles.size());
-        assertEquals(currentFiles.size(), legacyFiles.size());
-        for (int i = 0; i < currentFiles.size(); i++) {
-            assertArrayEquals(Files.readAllBytes(legacyFiles.get(i)), Files.readAllBytes(currentFiles.get(i)));
-        }
+        assertEquals(1, legacyFiles.size());
+        assertArrayEquals(Files.readAllBytes(legacyFiles.getFirst()), Files.readAllBytes(currentFiles.getFirst()));
     }
 
     private static List<Path> pcesFiles(final Path dir) throws IOException {
