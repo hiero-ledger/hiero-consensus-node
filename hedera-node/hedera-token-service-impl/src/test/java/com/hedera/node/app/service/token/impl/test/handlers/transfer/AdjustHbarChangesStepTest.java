@@ -19,6 +19,7 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TransferList;
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.token.AccountCryptoAllowance;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.node.app.service.token.impl.handlers.transfer.AdjustHbarChangesStep;
@@ -28,6 +29,7 @@ import com.hedera.node.app.service.token.impl.handlers.transfer.ReplaceAliasesWi
 import com.hedera.node.app.service.token.impl.handlers.transfer.TransferContextImpl;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -203,6 +205,41 @@ class AdjustHbarChangesStepTest extends StepsBase {
         assertThatThrownBy(() -> adjustHbarChangesStep.doIn(transferContext))
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(ResponseCodeEnum.AMOUNT_EXCEEDS_ALLOWANCE));
+    }
+
+    @Test
+    void approvalDebitsForSameOwnerByIdAndAliasCannotExceedAllowanceTogether() {
+        // Owner's allowance for the spender is 1000; each debit fits on its own, but together they don't
+        final var ownerAliasId = givenOwnerEvmAlias();
+        body = CryptoTransferTransactionBody.newBuilder()
+                .transfers(TransferList.newBuilder()
+                        .accountAmounts(
+                                aaWithAllowance(ownerId, -1_000),
+                                aaWithAllowance(ownerAliasId, -1_000),
+                                aaWith(unknownAliasedId, +2_000))
+                        .build())
+                .build();
+        givenTxn(body, spenderId);
+        ensureAliasesStep = new EnsureAliasesStep(body);
+        replaceAliasesWithIDsInOp = new ReplaceAliasesWithIDsInOp();
+        associateTokenRecepientsStep = new AssociateTokenRecipientsStep(body);
+        given(handleContext.dispatchMetadata()).willReturn(HandleContext.DispatchMetadata.EMPTY_METADATA);
+        given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
+
+        final var replacedOp = getReplacedOp();
+        adjustHbarChangesStep = new AdjustHbarChangesStep(replacedOp, spenderId, idFactory);
+
+        assertThatThrownBy(() -> adjustHbarChangesStep.doIn(transferContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(ResponseCodeEnum.AMOUNT_EXCEEDS_ALLOWANCE));
+    }
+
+    private AccountID givenOwnerEvmAlias() {
+        final var evmAlias = Bytes.fromHex("abcdefabcdefabcdefabcdefabcdefabcdefabcd");
+        writableAccountStore.put(
+                writableAccountStore.get(ownerId).copyBuilder().alias(evmAlias).build());
+        writableAliases.put(new ProtoBytes(evmAlias), ownerId);
+        return AccountID.newBuilder().alias(evmAlias).build();
     }
 
     @Test

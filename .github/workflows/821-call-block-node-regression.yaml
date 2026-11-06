@@ -24,6 +24,21 @@ on:
         description: "Java JDK Version:"
         type: string
         required: false
+      cn-label:
+        description: "Optional label of the consensus node ref under test (letters, digits, '.', '_', '-'); keeps artifact names and the Slack label unique when several CN refs run side by side:"
+        required: false
+        type: string
+        default: ""
+      build-artifact:
+        description: "Name of an artifact holding the prebuilt hedera-node/data of the consensus node ref; when set, the ref is not built again:"
+        required: false
+        type: string
+        default: ""
+      enable-slack-report:
+        description: "Post this run's own Slack report; turn off when a caller reports the result itself:"
+        required: false
+        type: boolean
+        default: true
       bn-release-version:
         description: "The version of the block node to use in the tests:"
         required: false
@@ -66,6 +81,7 @@ permissions:
   id-token: write
 
 env:
+  ARTIFACT_SUFFIX: ${{ inputs.bn-release-version || 'latest' }}${{ inputs.cn-label && format('-CN-{0}', inputs.cn-label) }}
   SOLO_CLUSTER_NAME: "solo-block-node-e2e"
   SOLO_NAMESPACE: "solo-block-node-e2e"
   SOLO_DEPLOYMENT: "solo-block-node-deployment"
@@ -107,23 +123,16 @@ jobs:
           echo "CN version from version.txt: ${RAW_VERSION}. Setting value to CN_LATEST_TAG env var"
           echo "CN_LATEST_TAG=${RAW_VERSION}" >> "$GITHUB_ENV"
 
-      #  Checkout the block-node repository
-      - name: Checkout Block-Node Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          path: block-node
-          repository: hiero-ledger/hiero-block-node
-          fetch-depth: 0
-          fetch-tags: true
-
       - name: Retrieve BN Release Tag
+        env:
+          INPUT_BN_RELEASE_VERSION: ${{ inputs.bn-release-version }}
         run: |
           # An explicit version is used directly as the block-node chart/image version: solo pulls the
           # OCI chart oci://ghcr.io/hiero-ledger/hiero-block-node/block-node-server at that version and
           # needs no GitHub release, so tag-only alpha/rc builds (e.g. v0.41.0-alpha1) work. Only
           # "latest"/blank is resolved through the releases API.
-          if [[ -n "${{ inputs.bn-release-version }}" && "${{ inputs.bn-release-version }}" != "latest" ]]; then
-            BN_RELEASE_TAG="${{ inputs.bn-release-version }}"
+          if [[ -n "${INPUT_BN_RELEASE_VERSION}" && "${INPUT_BN_RELEASE_VERSION}" != "latest" ]]; then
+            BN_RELEASE_TAG="${INPUT_BN_RELEASE_VERSION}"
           else
             curl_response=$(curl -s -H "Accept: application/vnd.github+json" "https://api.github.com/repos/hiero-ledger/hiero-block-node/releases/latest") || exit 1
             BN_RELEASE_TAG=$(echo "${curl_response}" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/"tag_name": *"\([^"]*\)"/\1/')
@@ -137,11 +146,24 @@ jobs:
           echo "Block Node Release tag: ${BN_RELEASE_TAG}"
           echo "BLOCK_NODE_TAG=${BN_RELEASE_TAG}" >> "${GITHUB_ENV}"
 
+      #  Checkout the block-node repository
+      - name: Checkout Block-Node Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          path: block-node
+          repository: hiero-ledger/hiero-block-node
+          fetch-depth: 0
+          fetch-tags: true
+          # protos for the grpcurl ServerStatus check must match the BN version under test
+          ref: ${{ env.BLOCK_NODE_TAG }}
+
       - name: Retrieve MN Release Tag
+        env:
+          INPUT_BN_MIRROR_NODE_VERSION: ${{ inputs.bn-mirror-node-version }}
         run: |
           mn_url="https://api.github.com/repos/hiero-ledger/hiero-mirror-node/releases/latest"
-          if [[ "${{ inputs.bn-mirror-node-version }}" != "latest" ]]; then
-            mn_url="https://api.github.com/repos/hiero-ledger/hiero-mirror-node/releases/tags/${{ inputs.bn-mirror-node-version }}"
+          if [[ "${INPUT_BN_MIRROR_NODE_VERSION}" != "latest" ]]; then
+            mn_url="https://api.github.com/repos/hiero-ledger/hiero-mirror-node/releases/tags/${INPUT_BN_MIRROR_NODE_VERSION}"
           fi
           curl_response=$(curl -s -H "Accept: application/vnd.github+json" "${mn_url}") || exit 1
           MN_RELEASE_TAG=$(echo "${curl_response}" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/"tag_name": *"\([^"]*\)"/\1/')
@@ -213,9 +235,17 @@ jobs:
         run: |
           npm install -g pnpm@10.11.0
 
-      # Build the hiero-consensus-node artifacts
+      # Build the hiero-consensus-node artifacts (or take the ones a caller built once for all its legs)
       - name: Build hiero-consensus-node
+        if: ${{ inputs.build-artifact == '' }}
         run: ${GRADLE_EXEC} assemble
+
+      - name: Download Prebuilt hiero-consensus-node
+        if: ${{ inputs.build-artifact != '' }}
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ${{ inputs.build-artifact }}
+          path: hedera-node/data
 
       # Set up the npm dependencies and cache on the tck-client
       - name: Set up the tck-client
@@ -484,7 +514,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ !cancelled() }}
         with:
-          name: SDK TCK Regression Test Report for BN
+          name: SDK TCK Regression Test Report for BN-${{ env.ARTIFACT_SUFFIX }}
           path: "**/sdk-tck/regression/mochawesome-report/mochawesome.*"
           retention-days: 7
 
@@ -521,7 +551,7 @@ jobs:
         id: update_bn_mn_logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: bn-mn-log
+          name: bn-mn-log-${{ env.ARTIFACT_SUFFIX }}
           path: |
             bn0-logs.log
             mn0-logs.log
@@ -531,7 +561,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: cn-logs
+          name: cn-logs-${{ env.ARTIFACT_SUFFIX }}
           path: ${{ env.CN_LOG_FOLDER }}/*.zip
 
       - name: Add Logs to Summary
@@ -572,7 +602,7 @@ jobs:
     runs-on: hl-cn-bn-regression-lin-sm
     needs:
       - block-node-regression
-    if: ${{ !cancelled() && always() }}
+    if: ${{ !cancelled() && always() && inputs.enable-slack-report }}
     outputs:
       slack_payload: ${{ steps.build-payload.outputs.slack_payload }}
     steps:
@@ -590,7 +620,7 @@ jobs:
         env:
           HEADER_TEXT: ":vertical_traffic_light: Hiero Consensus Node - Block Node Regression Test Report"
           STATUS_TEXT: "*Block Node Regression Panel was executed. See status below.*"
-          PANEL_LABEL: "Block Node Regression Panel Result"
+          PANEL_LABEL: "Block Node Regression Panel Result (BN ${{ inputs.bn-release-version || 'latest' }}${{ inputs.cn-label && format(', CN {0}', inputs.cn-label) }})"
           RESULT: ${{ needs.block-node-regression.result }}
           COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ inputs.ref }}
           WORKFLOW_RUN_ID: ${{ github.run_id }}
@@ -604,7 +634,7 @@ jobs:
     runs-on: hl-cn-bn-regression-lin-sm
     needs:
       - build-slack-payload
-    if: ${{ !cancelled() && always() }}
+    if: ${{ !cancelled() && always() && inputs.enable-slack-report }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
