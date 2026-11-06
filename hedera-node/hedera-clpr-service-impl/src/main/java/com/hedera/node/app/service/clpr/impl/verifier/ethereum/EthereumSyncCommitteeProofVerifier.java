@@ -41,9 +41,9 @@ import org.apache.logging.log4j.Logger;
  *       trust down to the CLPR contract's execution-layer state via the execution block header and Merkle-Patricia
  *       Trie proofs — see its javadoc for the verification steps.</li>
  *   <li>{@link #verifyConfigPayload} bootstraps the initial trust anchor from a light-client bootstrap and a signed
- *       update: it opens both committees against their beacon state roots and checks that the current committee
- *       signed the update. The bootstrap header itself is not authenticated; the approving party is the trust gate —
- *       see its javadoc for the trust model.</li>
+ *       update: it opens both committees against their beacon state roots, requires their aggregate keys to be valid
+ *       BLS public keys, and checks that the current committee signed the update. The bootstrap header itself is not
+ *       authenticated; the approving party is the trust gate — see its javadoc for the trust model.</li>
  * </ul>
  *
  * <p>This class is the orchestration layer. The wire formats are decoded by {@link PayloadDecoder} into typed object
@@ -144,10 +144,10 @@ public final class EthereumSyncCommitteeProofVerifier {
      * initial trust anchor.
      *
      * <p>The payload carries a light-client bootstrap and a signed update. The verifier opens the current committee
-     * under the anchor header's state root, opens the next committee under the update header's state root, and checks
-     * that the current committee signed the update header, which lies in the anchor header's period. The anchor then
-     * trusts both committees from the anchor header's period on, pins the service contract's code hash, and takes the
-     * preset from the committee size.
+     * under the anchor header's state root, opens the next committee under the update header's state root, requires
+     * both aggregate keys to be valid BLS public keys, and checks that the current committee signed the update header,
+     * which lies in the anchor header's period. The anchor then trusts both committees from the anchor header's period
+     * on, pins the service contract's code hash, and takes the preset from the committee size.
      *
      * <p>Trust model: the anchor header is not authenticated against Ethereum, so the committees vouch only for each
      * other. The party approving the configuration update must check that the anchor header, the preset,
@@ -185,6 +185,8 @@ public final class EthereumSyncCommitteeProofVerifier {
                 Gloas.NEXT_SYNC_COMMITTEE,
                 payload.updateHeader(),
                 "next sync committee");
+        requireValidAggregatePubkey(currentCommittee.decompressAggregatePubkey(), "current sync committee");
+        requireValidAggregatePubkey(nextCommittee.decompressAggregatePubkey(), "next sync committee");
         final TrustAnchor initialAnchor = new TrustAnchor(
                 preset,
                 payload.genesisValidatorsRoot32(),
@@ -329,7 +331,7 @@ public final class EthereumSyncCommitteeProofVerifier {
      *
      * <p>The rotation is an update of period {@code P + 1}: its attested header lies in that period and is signed by
      * the anchor's next committee (see {@link CommitteeRotation}), and its beacon state proves the committee of
-     * {@code P + 2}. Like the light-client protocol, a next committee is adopted only from an update whose finalized
+     * {@code P + 2}, whose aggregate key must be a valid BLS public key. Like the light-client protocol, a next committee is adopted only from an update whose finalized
      * header lies in the attested header's period, so the committee is taken from finalized state.
      *
      * @throws ProofException if any step is violated
@@ -355,6 +357,7 @@ public final class EthereumSyncCommitteeProofVerifier {
                 Gloas.NEXT_SYNC_COMMITTEE,
                 attestedHeader,
                 "next sync committee");
+        requireValidAggregatePubkey(rotation.nextCommittee().aggregatePubkey128(), "next sync committee");
         log.info(
                 "EthSyncCommitteeProofVerifier: rotation verified: periods {}-{} -> {}-{}, attestedSlot={},"
                         + " finalizedSlot={}, committee of period {} pubkeysRoot=0x{}",
@@ -367,6 +370,23 @@ public final class EthereumSyncCommitteeProofVerifier {
                 rotationPeriod + 1,
                 HexFormat.of().formatHex(committeeAfterNext.pubkeysRoot32()));
         return anchor.rotatedTo(committeeAfterNext);
+    }
+
+    /**
+     * Requires a committee's aggregate key to be a valid BLS public key: in the prime-order subgroup and not the
+     * identity. The BLS check also validates the aggregate on every signature, but a trust anchor holding an invalid
+     * one would reject every later bundle, so the key is refused before it enters the anchor.
+     *
+     * @param aggregatePubkey128 the aggregate key, a 128-byte EIP-2537 G1 point of the curve
+     * @param name               the committee's name in the failure message
+     * @throws ProofException if the key is not valid, naming it in the compressed form a beacon node reports
+     */
+    private void requireValidAggregatePubkey(@NonNull final byte[] aggregatePubkey128, @NonNull final String name) {
+        if (!blsVerifier.validatePubkeys(List.of(aggregatePubkey128))) {
+            final byte[] aggregatePubkey48 = G1Compression.compress(aggregatePubkey128, name + " aggregate pubkey");
+            throw EthProofs.fail(name + " aggregate pubkey 0x" + HexFormat.of().formatHex(aggregatePubkey48)
+                    + " is not a valid BLS public key");
+        }
     }
 
     /**
@@ -697,7 +717,8 @@ public final class EthereumSyncCommitteeProofVerifier {
      *
      * @param nonSignerPubkeys the keys of the members that did not sign, 128-byte EIP-2537 points
      * @return {@code header}'s {@code hash_tree_root}
-     * @throws ProofException if the signature does not verify
+     * @throws ProofException if the signature does not verify; the message carries the header, the participation and
+     *     the fork version, to tell a single bad signature from a signing domain that no longer matches the chain
      */
     @NonNull
     private byte[] verifyAggregateSignature(
@@ -710,8 +731,14 @@ public final class EthereumSyncCommitteeProofVerifier {
         final byte[] domain32 = Ssz.computeSyncCommitteeDomain(anchor.forkVersion4(), anchor.genesisValidatorsRoot32());
         final byte[] signingRoot32 = Ssz.computeSigningRoot(headerRoot32, domain32);
         if (!blsVerifier.verifySyncAggregate(
-                committee.aggregatePubkey48(), nonSignerPubkeys, signingRoot32, syncAggregate.signature())) {
-            throw EthProofs.fail("sync aggregate BLS signature verification failed");
+                committee.decompressAggregatePubkey(), nonSignerPubkeys, signingRoot32, syncAggregate.signature())) {
+            throw EthProofs.fail("sync aggregate BLS signature verification failed: headerSlot="
+                    + Long.toUnsignedString(header.slot()) + ", headerRoot=0x"
+                    + HexFormat.of().formatHex(headerRoot32)
+                    + ", participants=" + syncAggregate.participantCount() + "/"
+                    + anchor.preset().committeeSize()
+                    + ", nonSigners=" + nonSignerPubkeys.size() + ", forkVersion=0x"
+                    + HexFormat.of().formatHex(anchor.forkVersion4()));
         }
         log.debug(
                 "EthSyncCommitteeProofVerifier: BLS aggregate verified: participants={}/{}",
