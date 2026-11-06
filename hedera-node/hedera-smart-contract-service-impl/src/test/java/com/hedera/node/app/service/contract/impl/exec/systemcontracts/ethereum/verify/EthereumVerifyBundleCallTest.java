@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mockConstruction;
+import static org.mockito.Mockito.verify;
 
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.state.clpr.ClprBundleContent;
@@ -15,8 +16,8 @@ import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprQueueMetadata;
 import com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierAbi;
 import com.hedera.node.app.service.clpr.impl.verifier.ProofException;
+import com.hedera.node.app.service.clpr.impl.verifier.ProvenQueueMetadata;
 import com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumSyncCommitteeProofVerifier;
-import com.hedera.node.app.service.clpr.impl.verifier.ethereum.QueueMetadata;
 import com.hedera.node.app.service.clpr.impl.verifier.ethereum.VerifiedBundle;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
@@ -24,6 +25,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.math.BigInteger;
 import java.util.Arrays;
 import org.hyperledger.besu.evm.frame.MessageFrame;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedConstruction;
 
@@ -258,7 +260,19 @@ class EthereumVerifyBundleCallTest extends CallTestBase {
     }
 
     private EthereumVerifyBundleCall subject() {
-        return new EthereumVerifyBundleCall(mockEnhancement(), gasCalculator, BUNDLE_PAYLOAD, TRUST_ANCHOR);
+        return new EthereumVerifyBundleCall(
+                mockEnhancement(), gasCalculator, BUNDLE_PAYLOAD, TRUST_ANCHOR, CHANNEL_CONTEXT);
+    }
+
+    @Test
+    @DisplayName("given a call, then execute passes the payload, the trust anchor and the channel context to the"
+            + " verifier")
+    void givenCall_thenExecutePassesPayloadAnchorAndChannelContextToVerifier() {
+        try (var verifiers = mockVerifier(verified(content(metadata(), Bytes.EMPTY, Bytes.EMPTY), null, null))) {
+            subject().execute(frame);
+
+            verify(verifiers.constructed().getFirst()).verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR, CHANNEL_CONTEXT);
+        }
     }
 
     @Test
@@ -300,7 +314,8 @@ class EthereumVerifyBundleCallTest extends CallTestBase {
         return VerifiedBundle.builder()
                 .beaconBlockRoot32(BEACON_ROOT)
                 .bundleContentBytes(new byte[0])
-                .queueMetadata(new QueueMetadata(0, filled(32, 0x00), 0, filled(32, 0x00), 0, filled(32, 0x00), 0L))
+                .queueMetadata(
+                        new ProvenQueueMetadata(0, filled(32, 0x00), 0, filled(32, 0x00), 0, filled(32, 0x00), 0L))
                 .newEndpointManifest(manifest)
                 .build();
     }
@@ -308,14 +323,14 @@ class EthereumVerifyBundleCallTest extends CallTestBase {
     private static MockedConstruction<EthereumSyncCommitteeProofVerifier> mockVerifier(final VerifiedBundle verified) {
         return mockConstruction(
                 EthereumSyncCommitteeProofVerifier.class,
-                (mock, ctx) -> given(mock.verifyBundle(any(), any())).willReturn(verified));
+                (mock, ctx) -> given(mock.verifyBundle(any(), any(), any())).willReturn(verified));
     }
 
     private static MockedConstruction<EthereumSyncCommitteeProofVerifier> mockVerifierThrowing(
             final RuntimeException toThrow) {
         return mockConstruction(
                 EthereumSyncCommitteeProofVerifier.class,
-                (mock, ctx) -> given(mock.verifyBundle(any(), any())).willThrow(toThrow));
+                (mock, ctx) -> given(mock.verifyBundle(any(), any(), any())).willThrow(toThrow));
     }
 
     private static VerifiedBundle verified(
@@ -329,12 +344,12 @@ class EthereumVerifyBundleCallTest extends CallTestBase {
                 .build();
     }
 
-    private static QueueMetadata proven() {
+    private static ProvenQueueMetadata proven() {
         return proven(PROVEN_MANIFEST_VERSION);
     }
 
-    private static QueueMetadata proven(final long endpointManifestVersion) {
-        return new QueueMetadata(
+    private static ProvenQueueMetadata proven(final long endpointManifestVersion) {
+        return new ProvenQueueMetadata(
                 42,
                 SENT_HASH,
                 17,
