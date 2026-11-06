@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hints;
 
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.cryptography.hints.AggregationAndVerificationKeys;
 import com.hedera.cryptography.hints.HintsLibraryBridge;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -40,6 +42,29 @@ public interface HintsLibrary {
     /** The final domain slot is reserved by hinTS and cannot hold a signer's key. */
     static boolean isValidPartyId(final int partyId, final int n) {
         return isSupportedPartySize(n) && partyId >= 0 && partyId < n - 1;
+    }
+
+    /**
+     * The canonical byte length of a CRS contribution proof produced by the native library.
+     * Framing validation at the execution-layer boundary uses this constant to detect short,
+     * extended, or otherwise malformed proofs before invoking JNI.
+     */
+    int PROOF_LENGTH = 128;
+
+    /**
+     * Returns whether the byte framing of a CRS update is canonical.
+     *
+     * @param oldCrs the previous CRS
+     * @param newCrs the updated CRS
+     * @param proof the proof of the update
+     * @return {@code true} if the updated CRS and proof have their expected lengths
+     */
+    static boolean isValidCrsUpdateFraming(
+            @NonNull final Bytes oldCrs, @NonNull final Bytes newCrs, @NonNull final Bytes proof) {
+        requireNonNull(oldCrs);
+        requireNonNull(newCrs);
+        requireNonNull(proof);
+        return newCrs.length() == oldCrs.length() && proof.length() == PROOF_LENGTH;
     }
 
     /**
