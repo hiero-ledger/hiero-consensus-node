@@ -41,6 +41,7 @@ sibling tasks can run in parallel without clashing.
 | `hapiTestNodeStaking`            | `(NODE_STAKING)&!(SERIAL)`                    | `testSubprocess`           | 3                     |
 | `hapiTestNodeStakingSerial`      | `(NODE_STAKING&SERIAL)`                       | `testSubprocess`           | default               |
 | `hapiTestIss`                    | `ISS`                                         | `testSubprocess`           | default               |
+| `hapiTestIssGrpc`                | `ISS_GRPC`                                    | `testSubprocess`           | default               |
 | `hapiTestBlockNodeCommunication` | `BLOCK_NODE`                                  | `testSubprocess`           | default               |
 | `hapiTestMisc`                   | everything outside the area tags (see source) | `testSubprocessConcurrent` | default               |
 | `hapiTestGenesisSubProcess`      | `GENESIS_SUBPROCESS`                          | `testSubprocess`           | default               |
@@ -59,7 +60,7 @@ For `testSubprocess` / `testSubprocessConcurrent`, the resulting JUnit `includeT
 (<task's expression>|STREAM_VALIDATION|LOG_VALIDATION)&!(EMBEDDED|REPEATABLE)
 ```
 
-except for the ISS and BLOCK_NODE tasks, which skip validation:
+except for the ISS, ISS_GRPC, and BLOCK_NODE tasks, which skip validation:
 
 ```
 (<task's expression>)&!(EMBEDDED|REPEATABLE)
@@ -67,8 +68,8 @@ except for the ISS and BLOCK_NODE tasks, which skip validation:
 
 ## `remoteTest*` PR check tasks
 
-For every entry in `prCheckTags` other than `hapiTestIss`, `hapiTestRestart`, `hapiTestToken`,
-`hapiTestTokenSerial`, a sibling `remoteTest…` task is generated that
+For every entry in `prCheckTags` other than `hapiTestIss`, `hapiTestIssGrpc`, `hapiTestRestart`,
+`hapiTestToken`, `hapiTestTokenSerial`, a sibling `remoteTest…` task is generated that
 delegates to `testRemote` with the same tag expression.
 
 ## `hapiTest*Embedded` and `hapiTest*Repeatable` PR check tasks
@@ -110,7 +111,7 @@ production defaults:
 - embedded and repeatable tasks keep the `FILE` writer and mock signatures;
 - `hapiTestGenesisSubProcess`, `hapiTestClpr` and `hapiTestClprMultinetwork` keep the `FILE` writer (genesis and
   multi-network nets get no block node);
-- `hapiTestMiscRecords*`, `hapiTestCutover` and `hapiTestBlockNodeCommunication` ignore it.
+- `hapiTestMiscRecords*`, `hapiTestCutover`, `hapiTestBlockNodeCommunication` and `hapiTestIssGrpc` ignore it.
 
 Stream assertions follow the effective stream mode: with no record stream (`BLOCKS`), record-stream checks read
 the block stream instead.
